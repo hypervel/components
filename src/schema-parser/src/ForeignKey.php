@@ -11,6 +11,7 @@ final readonly class ForeignKey
      *
      * @param list<string> $columns
      * @param list<string> $foreignColumns
+     * @param bool $valid whether the declaration validates existing rows; false for NOT VALID or NOT ENFORCED
      */
     public function __construct(
         public ?string $name,

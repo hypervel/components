@@ -1,0 +1,489 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\SchemaParser;
+
+use Hypervel\SchemaParser\Deferral;
+use Hypervel\SchemaParser\ForeignKeyMatch;
+use Hypervel\SchemaParser\GenerationType;
+use Hypervel\SchemaParser\ParseException;
+use Hypervel\SchemaParser\PostgresParser;
+use Hypervel\SchemaParser\ReferentialAction;
+use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
+
+class PostgresParserTest extends TestCase
+{
+    public function testDomainDefaultsApplyOnlyToScalarReferences(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE DOMAIN public.label AS text DEFAULT 'label' NOT NULL CHECK (length(VALUE) > 0);
+            CREATE DOMAIN public.labels AS public.label[];
+            CREATE DOMAIN public.label_chain AS public.label;
+            CREATE DOMAIN public.required_labels AS public.labels DEFAULT ARRAY[]::public.label[] NOT NULL;
+            ALTER DOMAIN public.labels ADD CONSTRAINT labels_check CHECK (cardinality(VALUE) < 5) NOT VALID;
+            CREATE TABLE public.items (
+                inherited public.label,
+                overridden public.label DEFAULT NULL,
+                elements public.label[],
+                array_domain public.labels,
+                required public.required_labels,
+                chained public.label_chain,
+                explicitly_required public.label NOT NULL
+            );
+            SQL);
+
+        $table = $schema->table('items');
+        $this->assertSame("'label'", $table->column('inherited')->default);
+        $this->assertTrue($table->column('inherited')->nullable);
+        $this->assertSame('NULL', $table->column('overridden')->default);
+        $this->assertTrue($table->column('overridden')->nullable);
+        $this->assertTrue($table->column('elements')->nullable);
+        $this->assertNull($table->column('elements')->default);
+        $this->assertSame(1, $table->column('elements')->type->dimensions);
+        $this->assertSame('text', $table->column('elements')->type->base->name);
+        $this->assertTrue($table->column('array_domain')->nullable);
+        $this->assertNull($table->column('array_domain')->default);
+        $this->assertTrue($table->column('required')->nullable);
+        $this->assertTrue($table->column('chained')->nullable);
+        $this->assertFalse($table->column('explicitly_required')->nullable);
+        $this->assertFalse($schema->domain('label')->nullable);
+        $this->assertFalse($schema->domain('label_chain')->nullable);
+        $this->assertFalse($schema->domain('required_labels')->nullable);
+        $this->assertSame('ARRAY[]::public.label[]', $table->column('required')->default);
+        $this->assertCount(1, $schema->domain('labels')->checks);
+        $this->assertFalse($schema->domain('labels')->checks[0]->valid);
+        $this->assertTrue($schema->isComplete());
+    }
+
+    public function testInheritancePreservesLocalExpressionsOrderAndConstraintBoundaries(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE public.first (
+                id integer GENERATED ALWAYS AS IDENTITY,
+                x integer DEFAULT 1,
+                calculated integer GENERATED ALWAYS AS (x + 1) STORED,
+                restricted integer,
+                CONSTRAINT restricted_nn NOT NULL restricted NO INHERIT,
+                CONSTRAINT positive CHECK (x > 0),
+                CONSTRAINT local_check CHECK (x < 100) NO INHERIT
+            );
+            COMMENT ON COLUMN public.first.x IS 'parent only';
+            CREATE TABLE public.second (
+                x integer DEFAULT 2,
+                calculated integer GENERATED ALWAYS AS (x + 2) STORED
+            );
+            CREATE TABLE public.child (
+                x integer DEFAULT NULL,
+                calculated integer GENERATED ALWAYS AS (x + 3) STORED,
+                last text,
+                CONSTRAINT positive CHECK (x > 0)
+            ) INHERITS (public.first, public.second);
+            ALTER TABLE ONLY public.first ALTER COLUMN x SET DEFAULT 5;
+            SQL);
+
+        $child = $schema->table('child');
+        $this->assertSame(['id', 'x', 'calculated', 'restricted', 'last'], array_column($child->columns, 'name'));
+        $this->assertSame('NULL', $child->column('x')->default);
+        $this->assertSame('(x + 3)', $child->column('calculated')->generation->expression);
+        $this->assertSame(GenerationType::Stored, $child->column('calculated')->generation->type);
+        $this->assertNull($child->column('id')->identity);
+        $this->assertFalse($child->column('id')->autoIncrement);
+        $this->assertFalse($child->column('id')->nullable);
+        $this->assertNull($child->column('x')->comment);
+        $this->assertTrue($child->column('restricted')->nullable);
+        $this->assertSame(['positive'], array_column($child->checks, 'name'));
+        $this->assertSame('5', $schema->table('first')->column('x')->default);
+        $this->assertTrue($schema->isComplete());
+    }
+
+    public function testRecursiveAlterVisitsDiamondDescendantsOnceAndDoesNotCopyPrimaryKeys(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE parent (id integer);
+            CREATE TABLE left_child () INHERITS (parent);
+            CREATE TABLE right_child () INHERITS (parent);
+            CREATE TABLE bottom_child (
+                CONSTRAINT positive CHECK (id > 0),
+                CONSTRAINT bounded CHECK (id < 100)
+            ) INHERITS (left_child, right_child);
+            ALTER TABLE parent ALTER COLUMN id SET DEFAULT 9, ADD CONSTRAINT positive CHECK (id > 0) NOT VALID;
+            ALTER TABLE parent ADD CONSTRAINT bounded CHECK (id < 100) NOT ENFORCED;
+            CREATE UNIQUE INDEX parent_id ON parent (id);
+            ALTER TABLE parent ADD CONSTRAINT parent_pk PRIMARY KEY USING INDEX parent_id;
+            SQL);
+
+        $bottom = $schema->table('bottom_child');
+        $this->assertSame('9', $bottom->column('id')->default);
+        $this->assertSame(['positive', 'bounded'], array_column($bottom->checks, 'name'));
+        $this->assertTrue($bottom->checks[0]->valid);
+        $this->assertTrue($bottom->checks[1]->valid);
+        $this->assertTrue($bottom->checks[1]->enforced);
+        $this->assertFalse($schema->table('left_child')->checks[0]->valid);
+        $this->assertFalse($schema->table('left_child')->checks[1]->valid);
+        $this->assertFalse($schema->table('left_child')->checks[1]->enforced);
+        $this->assertFalse($bottom->column('id')->nullable);
+        $this->assertNull($bottom->primaryKey());
+        $this->assertCount(1, $schema->table('parent')->indexes);
+        $this->assertSame('parent_pk', $schema->table('parent')->primaryKey()->name);
+        $this->assertTrue($schema->isComplete());
+    }
+
+    public function testUnvalidatedNotNullIsUncertainOnlyForExistingNullableRows(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE parent (id integer);
+            CREATE TABLE existing () INHERITS (parent);
+            ALTER TABLE parent ADD CONSTRAINT parent_nn NOT NULL id NOT VALID;
+            ALTER TABLE parent ADD CONSTRAINT positive CHECK (id > 0) NOT VALID;
+            ALTER TABLE parent ADD CONSTRAINT bounded CHECK (id < 100) NOT ENFORCED;
+            CREATE TABLE later () INHERITS (parent);
+            CREATE TABLE independently_nonnull (id integer NOT NULL);
+            ALTER TABLE independently_nonnull ADD CONSTRAINT same_nn NOT NULL id NOT VALID;
+            SQL);
+
+        $this->assertTrue($schema->table('parent')->column('id')->nullable);
+        $this->assertCount(1, $schema->table('parent')->issues);
+        $this->assertTrue($schema->table('existing')->column('id')->nullable);
+        $this->assertCount(1, $schema->table('existing')->issues);
+        $this->assertFalse($schema->table('later')->column('id')->nullable);
+        $this->assertTrue($schema->table('later')->isComplete());
+        $this->assertFalse($schema->table('existing')->checks[0]->valid);
+        $this->assertTrue($schema->table('later')->checks[0]->valid);
+        $this->assertFalse($schema->table('later')->checks[1]->valid);
+        $this->assertFalse($schema->table('later')->checks[1]->enforced);
+        $this->assertFalse($schema->table('independently_nonnull')->column('id')->nullable);
+        $this->assertTrue($schema->table('independently_nonnull')->isComplete());
+    }
+
+    public function testDomainRestrictionDoesNotHideUnvalidatedColumnNullability(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE DOMAIN required_value AS integer NOT NULL;
+            CREATE TABLE values_table (value required_value);
+            ALTER TABLE values_table ADD CONSTRAINT value_nn NOT NULL value NOT VALID;
+            SQL);
+
+        $this->assertFalse($schema->domain('required_value')->nullable);
+        $this->assertTrue($schema->table('values_table')->column('value')->nullable);
+        $this->assertCount(1, $schema->table('values_table')->issues);
+        $this->assertStringContainsString('has not been validated', $schema->table('values_table')->issues[0]->message);
+    }
+
+    public function testIndexKeysPayloadsAndForeignKeyOptionsRemainDistinct(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE public.parent ("id key" integer PRIMARY KEY);
+            CREATE TABLE public.child (id integer, email text COLLATE "C", payload text);
+            CREATE UNIQUE INDEX child_email ON ONLY public.child USING btree
+                (email COLLATE "C" pg_catalog.text_pattern_ops DESC NULLS LAST)
+                INCLUDE (payload) NULLS NOT DISTINCT WITH (fillfactor=80);
+            ALTER TABLE ONLY public.child ADD CONSTRAINT email_unique UNIQUE USING INDEX child_email DEFERRABLE INITIALLY DEFERRED;
+            CREATE INDEX expression_idx ON public.child (id, lower(email)) WHERE (id > 0);
+            ALTER TABLE ONLY public.child ADD CONSTRAINT child_fk FOREIGN KEY (id)
+                REFERENCES public.parent MATCH FULL ON UPDATE CASCADE ON DELETE SET NULL
+                DEFERRABLE INITIALLY IMMEDIATE NOT VALID;
+            ALTER TABLE ONLY public.child ADD CONSTRAINT unchecked_fk FOREIGN KEY (id)
+                REFERENCES public.parent NOT ENFORCED;
+            SQL);
+
+        $table = $schema->table('child');
+        $unique = $table->indexes[0];
+        $this->assertCount(2, $table->indexes);
+        $this->assertSame('email_unique', $unique->name);
+        $this->assertTrue($unique->constraint);
+        $this->assertTrue($unique->nullsNotDistinct);
+        $this->assertSame(['payload'], $unique->include);
+        $this->assertSame(Deferral::Deferred, $unique->deferral);
+        $this->assertSame('"C"', $unique->columns[0]->collation);
+        $this->assertSame('pg_catalog.text_pattern_ops', $unique->columns[0]->operatorClass);
+        $this->assertTrue($unique->columns[0]->descending);
+        $this->assertFalse($unique->columns[0]->nullsFirst);
+        $this->assertNull($table->indexes[1]->columns[1]->name);
+        $this->assertSame('lower(email)', $table->indexes[1]->columns[1]->expression);
+        $this->assertSame('(id > 0)', $table->indexes[1]->where);
+        $foreign = $table->foreignKeys[0];
+        $this->assertSame(['id key'], $foreign->foreignColumns);
+        $this->assertSame(ForeignKeyMatch::Full, $foreign->match);
+        $this->assertSame(ReferentialAction::Cascade, $foreign->onUpdate);
+        $this->assertSame(ReferentialAction::SetNull, $foreign->onDelete);
+        $this->assertSame(Deferral::Immediate, $foreign->deferral);
+        $this->assertFalse($foreign->valid);
+        $this->assertFalse($table->foreignKeys[1]->valid);
+        $this->assertFalse($table->foreignKeys[1]->enforced);
+        $this->assertTrue($schema->isComplete());
+    }
+
+    public function testTemporalForeignKeysRetainColumnsWithoutRejectingPeriodNames(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE parent (
+                id integer, valid_at daterange, period integer, "PERIOD" integer,
+                PRIMARY KEY (id, valid_at WITHOUT OVERLAPS),
+                UNIQUE (period, "PERIOD")
+            );
+            CREATE TABLE child (id integer, valid_at daterange, period integer, "PERIOD" integer);
+            ALTER TABLE ONLY child ADD CONSTRAINT temporal_fk FOREIGN KEY (id, PERIOD valid_at)
+                REFERENCES parent (id, PERIOD valid_at);
+            ALTER TABLE ONLY child ADD CONSTRAINT ordinary_fk FOREIGN KEY (period, "PERIOD")
+                REFERENCES parent (period, "PERIOD");
+            SQL);
+
+        $child = $schema->table('child');
+        $this->assertSame(['id', 'valid_at'], $child->foreignKeys[0]->columns);
+        $this->assertSame(['id', 'valid_at'], $child->foreignKeys[0]->foreignColumns);
+        $this->assertSame(['period', 'PERIOD'], $child->foreignKeys[1]->columns);
+        $this->assertSame(['period', 'PERIOD'], $child->foreignKeys[1]->foreignColumns);
+        $this->assertCount(1, $child->issues);
+        $this->assertStringContainsString('Temporal foreign key', $child->issues[0]->message);
+        $this->assertCount(1, $schema->table('parent')->issues);
+        $this->assertSame([], $schema->issues);
+    }
+
+    public function testRecursiveNullabilityRemovalMarksUnresolvedChildConstraints(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE parent (id integer NOT NULL);
+            CREATE TABLE plain () INHERITS (parent);
+            CREATE TABLE locally_required (id integer NOT NULL) INHERITS (parent);
+            ALTER TABLE parent ALTER COLUMN id DROP NOT NULL;
+            SQL);
+
+        $this->assertTrue($schema->table('parent')->column('id')->nullable);
+        $this->assertTrue($schema->table('parent')->isComplete());
+        $this->assertTrue($schema->table('plain')->column('id')->nullable);
+        $this->assertCount(1, $schema->table('plain')->issues);
+        $this->assertTrue($schema->table('locally_required')->column('id')->nullable);
+        $this->assertCount(1, $schema->table('locally_required')->issues);
+    }
+
+    public function testQuotedIdentityLiteralDecodingAndPartitionAttachment(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TYPE "schema.dot"."mood.name" AS ENUM (E'line\nbreak', $$a'b$$, 'one'
+            'two');
+            CREATE TABLE "schema.dot"."parent.table" ("key.name" integer, value text);
+            CREATE TABLE "schema.dot"."child.table" ("key.name" integer, value text);
+            ALTER TABLE ONLY "schema.dot"."parent.table" ATTACH PARTITION "schema.dot"."child.table" FOR VALUES FROM (1) TO (10);
+            COMMENT ON COLUMN "schema.dot"."child.table"."key.name" IS E'a\tb';
+            COMMENT ON TABLE "schema.dot"."child.table" IS 'removed';
+            COMMENT ON TABLE "schema.dot"."child.table" IS NULL;
+            CREATE VIEW "schema.dot"."v.name" AS SELECT value FROM "schema.dot"."child.table" WITH LOCAL CHECK OPTION;
+            CREATE MATERIALIZED VIEW mv AS SELECT 1 AS result WITH NO DATA;
+            SQL);
+
+        $this->assertSame(["line\nbreak", "a'b", 'onetwo'], $schema->enum('mood.name', 'schema.dot')->values);
+        $child = $schema->table('child.table', 'schema.dot');
+        $this->assertSame('parent.table', $child->partitionOf->name);
+        $this->assertSame('schema.dot', $child->partitionOf->schema);
+        $this->assertSame('FOR VALUES FROM (1) TO (10)', $child->partitionBounds);
+        $this->assertSame([], $child->parents);
+        $this->assertSame("a\tb", $child->column('key.name')->comment);
+        $this->assertNull($child->comment);
+        $this->assertSame('SELECT value FROM "schema.dot"."child.table"', $schema->view('v.name')->definition);
+        $this->assertTrue($schema->view('mv')->materialized);
+        $this->assertSame('SELECT 1 AS result', $schema->view('mv')->definition);
+        $this->assertTrue($schema->isComplete());
+    }
+
+    public function testTemporaryDeclarationsDoNotReplacePersistentTables(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE t (id integer);
+            CREATE TEMP TABLE t (temporary integer);
+            CREATE TABLE pg_temp.hidden (id integer);
+            CREATE TABLE "PG_TEMP".visible (id integer);
+            CREATE UNLOGGED TABLE durable (id integer);
+            SQL);
+
+        $this->assertSame(['t', 'visible', 'durable'], array_column($schema->tables, 'name'));
+        $this->assertSame(['id'], array_column($schema->table('t')->columns, 'name'));
+    }
+
+    public function testForeignTableOptionsAndPartitionBoundsStaySeparate(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TYPE public.options AS ENUM ('one');
+            CREATE FOREIGN TABLE foreign_records (
+                id integer OPTIONS (column_name 'remote_id') NOT NULL,
+                label public.options DEFAULT 'one'::public.options
+            ) SERVER remote_server OPTIONS (table_name 'records');
+            CREATE TABLE parent (id integer);
+            CREATE FOREIGN TABLE remote PARTITION OF parent FOR VALUES FROM (1) TO (10) SERVER remote_server;
+            SQL);
+
+        $this->assertTrue($schema->table('foreign_records')->isComplete());
+        $this->assertFalse($schema->table('foreign_records')->column('id')->nullable);
+        $this->assertSame('options', $schema->table('foreign_records')->column('label')->type->name);
+        $this->assertSame("'one'::public.options", $schema->table('foreign_records')->column('label')->default);
+        $this->assertSame('FOR VALUES FROM (1) TO (10)', $schema->table('remote')->partitionBounds);
+        $this->assertFalse($schema->table('remote')->isComplete());
+    }
+
+    #[DataProvider('unresolvedSchemaChanges')]
+    public function testUnresolvedDependenciesInvalidateTheSchemaInventory(string $statement): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TYPE public.composite AS (part integer);
+            CREATE TYPE public.mood AS ENUM ('one');
+            CREATE SEQUENCE public.counter;
+            CREATE TABLE public.records (id integer DEFAULT nextval('public.counter'), value public.composite);
+            CREATE VIEW public.report AS SELECT id FROM public.records;
+            SQL
+            . "\n" . $statement);
+
+        $this->assertCount(1, $schema->issues);
+        $this->assertFalse($schema->isComplete());
+        foreach ($schema->tables as $table) {
+            $this->assertSame([], $table->issues);
+        }
+    }
+
+    /**
+     * Provide changes whose effects extend beyond an immediately represented object.
+     */
+    public static function unresolvedSchemaChanges(): array
+    {
+        return [
+            ['ALTER TABLE public.records RENAME TO renamed;'],
+            ['ALTER TABLE public.report SET SCHEMA archive;'],
+            ['ALTER TYPE public.composite RENAME TO renamed;'],
+            ["ALTER TYPE public.mood ADD VALUE 'two';"],
+            ["ALTER TYPE public.mood RENAME VALUE 'one' TO 'first';"],
+            ['DROP TYPE public.composite CASCADE;'],
+            ['DROP SCHEMA public CASCADE;'],
+            ['DROP SEQUENCE public.counter CASCADE;'],
+            ['ALTER TABLE public.records DROP COLUMN id CASCADE;'],
+        ];
+    }
+
+    public function testQuotedDefaultsAndLocalRenamesDoNotInvalidateTableNames(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE t (value text);
+            ALTER TABLE t ALTER COLUMN value SET DEFAULT $$RENAME TO renamed$$;
+            ALTER TABLE t RENAME COLUMN value TO renamed;
+            SQL);
+
+        $this->assertSame([], $schema->issues);
+        $this->assertCount(1, $schema->table('t')->issues);
+        $this->assertSame('$$RENAME TO renamed$$', $schema->table('t')->column('value')->default);
+    }
+
+    public function testDropListsKeepNamesThatResembleOptionsAndUpdateViewLookup(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE first_table (id integer);
+            CREATE TABLE cascade (id integer);
+            CREATE TABLE restrict (id integer);
+            CREATE VIEW report AS SELECT id FROM first_table;
+            DROP VIEW report;
+            CREATE VIEW public.report AS SELECT id FROM first_table;
+            ALTER TABLE report ALTER COLUMN id SET DEFAULT 1;
+            DROP VIEW public.report;
+            DROP TABLE first_table, cascade, restrict;
+            CREATE TYPE public.mood AS ENUM ('a');
+            DROP TYPE mood;
+            SQL);
+
+        $this->assertSame([], $schema->tables);
+        $this->assertSame([], $schema->views);
+        $this->assertSame([], $schema->enums);
+        $this->assertTrue($schema->isComplete());
+    }
+
+    public function testDropsDoNotChooseBetweenAmbiguousSchemas(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE a.t (id integer);
+            CREATE TABLE b.t (id integer);
+            CREATE INDEX same_name ON a.t (id);
+            CREATE INDEX same_name ON b.t (id);
+            CREATE TYPE a.mood AS ENUM ('a');
+            CREATE TYPE b.mood AS ENUM ('b');
+            CREATE DOMAIN a.code AS text;
+            CREATE DOMAIN b.code AS text;
+            CREATE VIEW a.report AS SELECT 1;
+            CREATE VIEW b.report AS SELECT 2;
+            DROP TABLE t;
+            DROP TYPE mood;
+            DROP DOMAIN code;
+            DROP VIEW report;
+            DROP INDEX same_name;
+            DROP INDEX a.same_name;
+            SQL);
+
+        $this->assertCount(5, $schema->issues);
+        $this->assertCount(2, $schema->tables);
+        $this->assertCount(2, $schema->enums);
+        $this->assertCount(2, $schema->domains);
+        $this->assertCount(2, $schema->views);
+        $this->assertSame([], $schema->table('t', 'a')->indexes);
+        $this->assertCount(1, $schema->table('t', 'b')->indexes);
+    }
+
+    public function testIssueLinesAdvanceAcrossMultipleDiagnosticsAndResetForEachParse(): void
+    {
+        $parser = new PostgresParser;
+        $schema = $parser->parse(<<<'SQL'
+            CREATE TABLE first () INHERITS (missing, also_missing);
+
+            -- spacing and comments must remain in source offsets
+            CREATE TABLE second () INHERITS (missing);
+            SQL);
+
+        $this->assertSame([1, 1], array_column($schema->table('first')->issues, 'line'));
+        $this->assertSame([4], array_column($schema->table('second')->issues, 'line'));
+        $next = $parser->parse("\nCREATE TABLE next () INHERITS (missing);");
+        $this->assertSame([2], array_column($next->table('next')->issues, 'line'));
+    }
+
+    public function testUnsupportedOwnedFactsRemainScoped(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE typed OF public.external_type;
+            CREATE TABLE inherited () INHERITS (missing_parent);
+            CREATE TABLE normal (id integer, CONSTRAINT spatial EXCLUDE USING gist (id WITH =));
+            CREATE TABLE complete (id integer);
+            SQL);
+
+        $this->assertSame([], $schema->issues);
+        $this->assertFalse($schema->table('typed')->isComplete());
+        $this->assertFalse($schema->table('inherited')->isComplete());
+        $this->assertFalse($schema->table('normal')->isComplete());
+        $this->assertNotNull($schema->table('normal')->column('id'));
+        $this->assertTrue($schema->table('complete')->isComplete());
+    }
+
+    #[DataProvider('malformedSql')]
+    public function testMalformedInputDoesNotContaminateTheNextParse(string $sql): void
+    {
+        $parser = new PostgresParser;
+        try {
+            $parser->parse($sql);
+            $this->fail('Expected malformed SQL to fail.');
+        } catch (ParseException) {
+            $schema = $parser->parse('CREATE TABLE valid (id integer);');
+            $this->assertSame(['valid'], array_column($schema->tables, 'name'));
+            $this->assertTrue($schema->isComplete());
+        }
+    }
+
+    /**
+     * Provide malformed supported declarations and a non-text archive.
+     *
+     * @return list<array{string}>
+     */
+    public static function malformedSql(): array
+    {
+        return [
+            ["PGDMP\0archive"],
+            ['CREATE TABLE missing'],
+            ['CREATE TABLE t (id integer'],
+            ["CREATE TYPE mood AS ENUM ('unfinished);"],
+            ['CREATE TABLE t (id integer); CREATE INDEX idx ON t'],
+            ['CREATE DOMAIN first AS second; CREATE DOMAIN second AS first;'],
+        ];
+    }
+}

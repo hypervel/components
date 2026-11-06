@@ -10,6 +10,7 @@ final readonly class Domain
      * Create a domain definition.
      *
      * @param list<CheckConstraint> $checks
+     * @param bool $nullable whether conversion allows NULL, including scalar base-domain restrictions
      */
     public function __construct(
         public string $name,

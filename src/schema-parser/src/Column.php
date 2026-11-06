@@ -11,6 +11,8 @@ final readonly class Column
      *
      * The default is SQL text, including explicit NULL expressions. A null
      * property means no default expression was supplied or inherited.
+     *
+     * @param bool $nullable whether the column lacks a validated not-null guarantee; a domain restriction alone is insufficient
      */
     public function __construct(
         public string $name,
