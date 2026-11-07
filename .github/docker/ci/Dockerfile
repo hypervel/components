@@ -23,6 +23,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN set -eux; \
     apt-get update; \
     apt-get install --yes --no-install-recommends \
+        ca-certificates \
         curl \
         fswatch \
         git \
@@ -39,9 +40,22 @@ RUN set -eux; \
         libpq-dev \
         libsqlite3-dev \
         libwebp-dev \
+        mariadb-client-compat \
         procps \
         sqlite3 \
         unzip; \
+    rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    install -d /usr/share/postgresql-common/pgdg; \
+    curl --fail --location --retry 5 --retry-all-errors --retry-max-time 180 \
+        https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+        --output /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc; \
+    . /etc/os-release; \
+    printf 'Types: deb\nURIs: https://apt.postgresql.org/pub/repos/apt\nSuites: %s-pgdg\nComponents: main\nSigned-By: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc\n' "$VERSION_CODENAME" \
+        > /etc/apt/sources.list.d/pgdg.sources; \
+    apt-get update; \
+    apt-get install --yes --no-install-recommends postgresql-client-18; \
     rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \
@@ -107,4 +121,10 @@ RUN set -eux; \
     composer --version --no-ansi; \
     fswatch --version; \
     git --version; \
-    ps --version
+    ps --version; \
+    mysql --version; \
+    mysqldump --version; \
+    mariadb --version; \
+    mariadb-dump --version; \
+    pg_dump --version; \
+    sqlite3 --version
