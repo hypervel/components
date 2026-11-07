@@ -31,9 +31,7 @@
     },
     "require": {
         "php": "^8.4",
-        "ext-ctype": "*",
-        "bleksak/sqlite-toolkit": "^1.0.4",
-        "sad_spirit/pg_builder": "^3.3.1"
+        "ext-ctype": "*"
     },
     "config": {
         "sort-packages": true

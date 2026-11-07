@@ -121,7 +121,6 @@
     "require-dev": {
         "ably/ably-php": "^1.1.10",
         "algolia/algoliasearch-client-php": "^4.49.0",
-        "bleksak/sqlite-toolkit": "^1.0.4",
         "brianium/paratest": "^7.27.2",
         "composer/composer": "^2.10.3",
         "fakerphp/faker": "^1.24",
@@ -138,7 +137,6 @@
         "phpunit/phpunit": "~13.4.3",
         "pusher/pusher-php-server": "^7.2",
         "resend/resend-php": "^1.0",
-        "sad_spirit/pg_builder": "^3.3.1",
         "spomky-labs/cbor-php": "^3.4.1",
         "swoole/ide-helper": "^6.0.2",
         "symfony/filesystem": "^8.1",
