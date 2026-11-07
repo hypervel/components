@@ -17,6 +17,29 @@ class SQLiteLexer extends Lexer
 
     private const string IDENTIFIER_BYTES = self::LETTERS . self::DIGITS . '$' . self::HIGH_BYTES;
 
+    /**
+     * Whitespace, line comments and byte order marks before a token in a run.
+     *
+     * Repetitions in the native patterns are bounded so one match stays within
+     * PCRE's limits; longer input stops the run and is read by the scanner.
+     */
+    private const string SPACE = '(?:[ \t\n\f\r]++|--[^\n]*+|\xEF\xBB\xBF){0,128}+';
+
+    /**
+     * The tokens a run reads, as the scanner splits them: words that do not run into a string, numbers, quoted
+     * names whose closing quote does not begin a doubled one, strings, and any other byte as a symbol.
+     *
+     * Block comments, signs and blob literals are left to the scanner.
+     */
+    private const string TOKEN = '[A-Z_\x80-\xff][A-Z0-9_$\x80-\xff]*+(?!\')'
+        . '|0X[0-9A-F_]++|(?:\d[\d_]*+(?:\.[\d_]*+)?|\.\d[\d_]*+)(?:E[+-]?\d++)?'
+        . '|"(?:[^"]++|""){0,256}+"(?!")|`(?:[^`]++|``){0,256}+`(?!`)|\[[^\]]*+\]'
+        . '|\'(?:[^\']++|\'\'){0,256}+\'(?!\')'
+        . '|[^ \t\n\f\r\'"`\[A-Z0-9_\x80-\xff\/-]';
+
+    /** A run of tokens read in one native call, through a semicolon or up to a token that needs the scanner. */
+    private const string RUN = '/\G(?<!;)' . self::SPACE . '\K(?:' . self::TOKEN . ')/';
+
     /** A statement that cannot be a trigger. */
     private const int NORMAL = 0;
 
@@ -35,6 +58,43 @@ class SQLiteLexer extends Lexer
     private int $state = self::NORMAL;
 
     private bool $started = false;
+
+    /**
+     * Append a run of regular tokens, or one token that needs the scanner.
+     */
+    public function read(array &$types, array &$starts, array &$ends, array &$texts): void
+    {
+        // Until a statement is known not to be a trigger, its words and semicolons need the scanner's completion state.
+        $run = $this->started && $this->state === self::NORMAL ? $this->matchRun(self::RUN) : null;
+
+        if ($run === null) {
+            parent::read($types, $starts, $ends, $texts);
+
+            return;
+        }
+
+        $base = $this->windowStart;
+
+        foreach ($run as [$text, $start]) {
+            $texts[] = $text;
+            $starts[] = $start += $base;
+
+            if ($text[0] === "'") {
+                $types[count($texts) - 1] = TokenType::String;
+            }
+        }
+
+        $this->position = $start + strlen($text);
+
+        if ($text === ';') {
+            $index = count($texts) - 1;
+            $texts[$index] = '';
+            $types[$index] = TokenType::End;
+            $this->tokenStart = $start;
+            $this->finishStatement();
+            $ends[$index] = $this->position;
+        }
+    }
 
     /**
      * Get the type of a token appended without one, which follows from its upper-case text.

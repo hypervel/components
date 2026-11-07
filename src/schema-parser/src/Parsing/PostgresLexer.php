@@ -86,12 +86,6 @@ class PostgresLexer extends Lexer
     /** The leading words that can still become a routine start. */
     private const array ROUTINE_PREFIXES = ['c' => true, 'co' => true, 'cor' => true];
 
-    /** The most source that runs are matched against at once. */
-    private const int WINDOW_LENGTH = 8192;
-
-    /** The bytes a window can be cut before, as no unquoted token contains them. */
-    private const string WINDOW_CUTS = " \t\n\r,()";
-
     /** Whether ordinary string literals treat backslashes literally. */
     public bool $standardConformingStrings = true;
 
@@ -106,14 +100,6 @@ class PostgresLexer extends Lexer
 
     /** Whether words outside parentheses can still change the boundary state. */
     private bool $tracking = true;
-
-    /** The upper-case source from $windowStart, cut where no unquoted token can be split, that runs are matched against. */
-    private string $window = '';
-
-    private int $windowStart = 0;
-
-    /** Where the next window begins, past any chunk without a cut that the scanner reads instead. */
-    private int $windowEnd = 0;
 
     /**
      * Create a lexer, skipping a UTF-8 byte order mark as psql does.
@@ -134,41 +120,9 @@ class PostgresLexer extends Lexer
             ? [self::STANDARD_RUN, TokenType::String]
             : [self::ESCAPED_RUN, TokenType::EscapedString];
 
-        // Matching an upper-case copy gives texts that need no conversion; copying a bounded window at a time bounds its memory.
-        if ($this->position >= $this->windowEnd) {
-            $chunk = substr($this->sql, $this->position, self::WINDOW_LENGTH);
-            $this->windowStart = $this->position;
-            $this->windowEnd = $this->position + strlen($chunk);
+        $run = $this->matchRun($pattern);
 
-            // Cutting before whitespace, a comma or a parenthesis splits no unquoted token; a quoted one that is cut stops the run and is scanned.
-            $cut = $this->windowEnd < $this->length ? max(0, strlen($chunk) - 1 - strcspn(strrev($chunk), self::WINDOW_CUTS)) : strlen($chunk);
-            $this->window = strtoupper(substr($chunk, 0, $cut));
-
-            if ($cut > 0) {
-                $this->windowEnd = $this->position + $cut;
-            }
-        }
-
-        $offset = $this->position - $this->windowStart;
-
-        // A chunk without a cut is scanned token by token through to its end.
-        if ($offset >= strlen($this->window)) {
-            parent::read($types, $starts, $ends, $texts);
-
-            return;
-        }
-
-        // A statement's first token is read alone, as parsers skip most statements after it.
-        $first = $this->position === $this->statementStart;
-        $found = $first
-            ? preg_match($pattern, $this->window, $matches, PREG_OFFSET_CAPTURE, $offset)
-            : preg_match_all($pattern, $this->window, $matches, PREG_OFFSET_CAPTURE, $offset);
-
-        if ($found === false) {
-            throw $this->error(preg_last_error_msg(), $this->position);
-        }
-
-        if ($found === 0) {
+        if ($run === null) {
             parent::read($types, $starts, $ends, $texts);
 
             return;
@@ -176,7 +130,7 @@ class PostgresLexer extends Lexer
 
         $base = $this->windowStart;
 
-        foreach ($first ? [$matches[0]] : $matches[0] as [$text, $start]) {
+        foreach ($run as [$text, $start]) {
             $texts[] = $text;
             $starts[] = $start += $base;
 

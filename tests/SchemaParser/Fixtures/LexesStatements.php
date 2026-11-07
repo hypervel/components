@@ -5,9 +5,38 @@ declare(strict_types=1);
 namespace Hypervel\Tests\SchemaParser\Fixtures;
 
 use Hypervel\SchemaParser\Parsing\Lexer;
+use Hypervel\SchemaParser\Parsing\TokenType;
 
 trait LexesStatements
 {
+    /**
+     * Describe every token of every statement by its offset, type, upper-case text and decoded value, through its terminator.
+     *
+     * @return list<list<array{int, TokenType, string, string}>>
+     */
+    private static function lexed(Lexer $lexer): array
+    {
+        $statements = [];
+
+        while (($tokens = $lexer->nextStatement()) !== null) {
+            $described = [];
+
+            while (true) {
+                $described[] = [$tokens->offset(), $tokens->type(), $tokens->text(), $tokens->value()];
+
+                if ($tokens->atEnd()) {
+                    break;
+                }
+
+                $tokens->next();
+            }
+
+            $statements[] = $described;
+        }
+
+        return $statements;
+    }
+
     /**
      * Read every statement, returning its offset and its source text through its last token.
      *

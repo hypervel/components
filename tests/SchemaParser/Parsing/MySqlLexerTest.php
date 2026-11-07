@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\SchemaParser\Parsing;
 
 use Hypervel\SchemaParser\ParseException;
+use Hypervel\SchemaParser\Parsing\Lexer;
 use Hypervel\SchemaParser\Parsing\MySqlLexer;
 use Hypervel\SchemaParser\Parsing\TokenType;
 use Hypervel\Tests\SchemaParser\Fixtures\LexesStatements;
@@ -181,6 +182,7 @@ class MySqlLexerTest extends TestCase
         yield 'dash comment before a tab' => ["a --\tcomment\nb", ['a', 'b']];
         yield 'dash comment after a word' => ["a\nb-- comment\nc", ['a', 'b', 'c']];
         yield 'dash comment at the end' => ['a --', ['a']];
+        yield 'empty dash comment' => ["(--\n id int,\n name text)", ['(', 'id', 'int', ',', 'name', 'text', ')']];
         yield 'dashes without whitespace' => ['a --b 1--2', ['a', '-', '-', 'b', '1', '-', '-', '2']];
         yield 'block comments' => ["a/* one */ b/*two\n*/c", ['a', 'b', 'c']];
         yield 'digit-leading names' => ['2fa_codes 0x01 12e_codes $identifier', ['2fa_codes', '0x01', '12e_codes', '$identifier']];
@@ -239,5 +241,64 @@ class MySqlLexerTest extends TestCase
         yield 'charset introducer' => ["_utf8mb4'a\\tb'", "a\tb"];
         yield 'doubled backtick' => ['`a``b`', 'a`b'];
         yield 'unquoted name keeps case' => ['Users', 'Users'];
+    }
+
+    #[DataProvider('runProvider')]
+    public function testRunsReadTokensAsTheScannerDoes(string $sql, bool $mariaDb = false, bool $noBackslashEscapes = false, bool $ansiQuotes = false): void
+    {
+        $lexer = new MySqlLexer($sql, $mariaDb);
+        $scanner = new ScanningMySqlLexer($sql, $mariaDb);
+        $lexer->noBackslashEscapes = $scanner->noBackslashEscapes = $noBackslashEscapes;
+        $lexer->ansiQuotes = $scanner->ansiQuotes = $ansiQuotes;
+
+        $this->assertSame(self::lexed($scanner), self::lexed($lexer));
+    }
+
+    /**
+     * Provide the lexical cases with their tokens in runs, after a statement's first token, and runs across window cuts.
+     *
+     * @return iterable<string, array{0: string, 1?: bool, 2?: bool, 3?: bool}>
+     */
+    public static function runProvider(): iterable
+    {
+        foreach (self::tokenProvider() as $name => [$sql]) {
+            yield "token: {$name}" => ["x {$sql}"];
+        }
+
+        foreach (self::valueProvider() as $name => [$sql]) {
+            yield "value: {$name}" => ["x {$sql}"];
+        }
+
+        foreach (self::executableCommentProvider() as $name => [$sql, $mariaDb]) {
+            yield "executable comment: {$name}" => [$sql, $mariaDb];
+        }
+
+        $quotes = "x 'a\\b' \"c\"\"d\" 'e''f' `g`.h t.1e5 (1, 2);\nx 'i';";
+
+        yield 'escaped quotes' => [$quotes];
+        yield 'no backslash escapes' => [$quotes, false, true];
+        yield 'ANSI quotes' => [$quotes, false, false, true];
+        yield 'both modes' => [$quotes, false, true, true];
+        yield 'routines' => [self::ROUTINES];
+        yield 'real dump' => [file_get_contents(__DIR__ . '/../Fixtures/MySql/glitch_main.sql')];
+
+        $columns = '';
+
+        for ($column = 0; $column < 1500; ++$column) {
+            $columns .= "  `col {$column}` varchar(9) DEFAULT 'a ''b'' {$column}' COMMENT \"c \\\" d\", # note {$column}\n  /*!80023 INVISIBLE */ -- e f\n";
+        }
+
+        yield 'window cuts' => ["CREATE TABLE `t` (\n{$columns}  id int);\nSELECT 1;"];
+    }
+}
+
+class ScanningMySqlLexer extends MySqlLexer
+{
+    /**
+     * Read one scanned token at a time, as the reference for runs.
+     */
+    public function read(array &$types, array &$starts, array &$ends, array &$texts): void
+    {
+        Lexer::read($types, $starts, $ends, $texts);
     }
 }

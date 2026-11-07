@@ -36,6 +36,12 @@ abstract class Lexer
     /** Bytes that can begin a comment, so skipComment() is only called where one may start. */
     protected const array COMMENT_STARTS = ['-' => true, '/' => true];
 
+    /** The most source that runs are matched against at once. */
+    private const int WINDOW_LENGTH = 8192;
+
+    /** The bytes a window can be cut before, as no unquoted token contains them. */
+    private const string WINDOW_CUTS = " \t\n\r,()";
+
     protected readonly int $length;
 
     protected int $position = 0;
@@ -46,6 +52,14 @@ abstract class Lexer
     protected int $tokenStart = 0;
 
     protected bool $ended = true;
+
+    /** The upper-case source from $windowStart, cut where no unquoted token can be split, that runs are matched against. */
+    private string $window = '';
+
+    protected int $windowStart = 0;
+
+    /** Where the next window begins, past any chunk without a cut that the scanner reads instead. */
+    private int $windowEnd = 0;
 
     /**
      * Create a lexer over the complete SQL input.
@@ -122,6 +136,55 @@ abstract class Lexer
      * Tokens whose type depends on the lexer's state, such as string literals, always have it recorded.
      */
     abstract public function type(string $text): TokenType;
+
+    /**
+     * Match a run of tokens at the position, or return null where the scanner must read the next token.
+     *
+     * Dialects read runs of ordinary tokens with one native match each, so only
+     * tokens that need boundary handling go through the scanner. A statement's
+     * first token is matched alone, as parsers skip most statements after it.
+     *
+     * @return null|non-empty-list<array{string, int}> the upper-case texts and their offsets from $windowStart
+     */
+    protected function matchRun(string $pattern): ?array
+    {
+        // Matching an upper-case copy gives texts that need no conversion; copying a bounded window at a time bounds its memory.
+        if ($this->position >= $this->windowEnd) {
+            $chunk = substr($this->sql, $this->position, self::WINDOW_LENGTH);
+            $this->windowStart = $this->position;
+            $this->windowEnd = $this->position + strlen($chunk);
+
+            // Cutting before whitespace, a comma or a parenthesis splits no unquoted token; a quoted one that is cut stops the run and is scanned.
+            $cut = $this->windowEnd < $this->length ? max(0, strlen($chunk) - 1 - strcspn(strrev($chunk), self::WINDOW_CUTS)) : strlen($chunk);
+            $this->window = strtoupper(substr($chunk, 0, $cut));
+
+            if ($cut > 0) {
+                $this->windowEnd = $this->position + $cut;
+            }
+        }
+
+        $offset = $this->position - $this->windowStart;
+
+        // A chunk without a cut is scanned token by token through to its end.
+        if ($offset >= strlen($this->window)) {
+            return null;
+        }
+
+        $first = $this->position === $this->statementStart;
+        $found = $first
+            ? preg_match($pattern, $this->window, $matches, PREG_OFFSET_CAPTURE, $offset)
+            : preg_match_all($pattern, $this->window, $matches, PREG_OFFSET_CAPTURE, $offset);
+
+        if ($found === false) {
+            throw $this->error(preg_last_error_msg(), $this->position);
+        }
+
+        if ($found === 0) {
+            return null;
+        }
+
+        return $first ? [$matches[0]] : $matches[0];
+    }
 
     /**
      * Skip the rest of the current statement and return the offsets of its terminator.

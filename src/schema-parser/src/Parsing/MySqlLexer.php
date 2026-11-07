@@ -20,6 +20,40 @@ class MySqlLexer extends Lexer
     /** Comment starts, and the `*` that closes an executable comment. */
     protected const array COMMENT_STARTS = ['#' => true, '-' => true, '/' => true, '*' => true];
 
+    /**
+     * Whitespace and line comments before a token in a run.
+     *
+     * Repetitions in the native patterns are bounded so one match stays within
+     * PCRE's limits; longer input stops the run and is read by the scanner.
+     */
+    private const string SPACE = '(?:[ \t\n\r\f\x0B]++|(?:#|--(?![^\x00-\x20]))[^\n]*+){0,128}+';
+
+    /**
+     * The tokens every run reads: words that are not string prefixes, integers that are not the start of a name or
+     * decimal, backquoted names whose closing quote does not begin a doubled one, and punctuation.
+     *
+     * Comment and executable comment markers, dots and other literals are left to the scanner.
+     */
+    private const string TOKEN = '[A-Z_$\x80-\xff][A-Z0-9_$\x80-\xff]*+(?![\'"])|\d++(?![A-Z0-9_$.\x80-\xff])|`(?:[^`]++|``){0,128}+`(?!`)|[(),;=]';
+
+    private const string ESCAPED_STRING = '\'(?:[^\'\\\]++|\'\'|\\\[\s\S]){0,128}+\'(?!\')';
+
+    private const string STANDARD_STRING = '\'(?:[^\']++|\'\'){0,128}+\'(?!\')';
+
+    private const string ESCAPED_DOUBLE_STRING = '"(?:[^"\\\]++|""|\\\[\s\S]){0,128}+"(?!")';
+
+    /** A double-quoted string where backslashes are ordinary characters, or an ANSI_QUOTES name; both escape quotes by doubling. */
+    private const string STANDARD_DOUBLE_QUOTED = '"(?:[^"]++|""){0,128}+"(?!")';
+
+    /** A run of tokens read in one native call, through the default delimiter or up to a token that needs the scanner. */
+    private const string ESCAPED_RUN = '/\G(?<!;)' . self::SPACE . '\K(?:' . self::TOKEN . '|' . self::ESCAPED_STRING . '|' . self::ESCAPED_DOUBLE_STRING . ')/';
+
+    /** A run where backslashes are ordinary characters in strings. */
+    private const string STANDARD_RUN = '/\G(?<!;)' . self::SPACE . '\K(?:' . self::TOKEN . '|' . self::STANDARD_STRING . '|' . self::STANDARD_DOUBLE_QUOTED . ')/';
+
+    /** A run where double quotes delimit names and backslashes are escapes in strings. */
+    private const string ANSI_RUN = '/\G(?<!;)' . self::SPACE . '\K(?:' . self::TOKEN . '|' . self::ESCAPED_STRING . '|' . self::STANDARD_DOUBLE_QUOTED . ')/';
+
     /** Whether backslashes in string literals are ordinary characters. */
     public bool $noBackslashEscapes = false;
 
@@ -45,6 +79,52 @@ class MySqlLexer extends Lexer
     public function __construct(string $sql, private readonly bool $mariaDb = false)
     {
         parent::__construct($sql);
+    }
+
+    /**
+     * Append a run of regular tokens, or one token that needs the scanner.
+     */
+    public function read(array &$types, array &$starts, array &$ends, array &$texts): void
+    {
+        // Runs end only at the default delimiter, and a name directly after a qualifying dot needs the scanner's state.
+        $run = $this->delimiter === ';' && $this->position !== $this->qualified
+            ? $this->matchRun($this->noBackslashEscapes ? self::STANDARD_RUN : ($this->ansiQuotes ? self::ANSI_RUN : self::ESCAPED_RUN))
+            : null;
+
+        if ($run === null) {
+            parent::read($types, $starts, $ends, $texts);
+
+            return;
+        }
+
+        $stringType = $this->noBackslashEscapes ? TokenType::String : TokenType::EscapedString;
+        $base = $this->windowStart;
+
+        foreach ($run as [$text, $start]) {
+            $texts[] = $text;
+            $starts[] = $start += $base;
+
+            if ($text[0] === "'") {
+                $types[count($texts) - 1] = $stringType;
+            } elseif ($text[0] === '"') {
+                $types[count($texts) - 1] = $this->ansiQuotes ? TokenType::QuotedIdentifier : $stringType;
+            }
+        }
+
+        $this->position = $start + strlen($text);
+        $type = $types[count($texts) - 1] ?? $this->type($text);
+
+        // A dot qualifies the name that ends directly before it.
+        $this->identifierEnd = $type === TokenType::Word || $type === TokenType::QuotedIdentifier ? $this->position : -1;
+
+        if ($text === ';') {
+            $index = count($texts) - 1;
+            $texts[$index] = '';
+            $types[$index] = TokenType::End;
+            $this->tokenStart = $start;
+            $this->finishStatement();
+            $ends[$index] = $this->position;
+        }
     }
 
     /**

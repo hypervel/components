@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\SchemaParser\Parsing;
 
 use Hypervel\SchemaParser\ParseException;
+use Hypervel\SchemaParser\Parsing\Lexer;
 use Hypervel\SchemaParser\Parsing\SQLiteLexer;
 use Hypervel\Tests\SchemaParser\Fixtures\LexesStatements;
 use Hypervel\Tests\TestCase;
@@ -116,5 +117,49 @@ class SQLiteLexerTest extends TestCase
         yield 'quoted name' => ["\"a\n", 'Unterminated quoted identifier'];
         yield 'bracketed name' => ["[a\n", 'Unterminated quoted identifier'];
         yield 'comment' => ["/* a\n", 'Unterminated comment'];
+    }
+
+    #[DataProvider('runProvider')]
+    public function testRunsReadTokensAsTheScannerDoes(string $sql): void
+    {
+        $this->assertSame(self::lexed(new ScanningSQLiteLexer($sql)), self::lexed(new SQLiteLexer($sql)));
+    }
+
+    /**
+     * Provide the lexical cases with their tokens in runs, after a statement's first token, and runs across window cuts.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function runProvider(): iterable
+    {
+        foreach (self::tokenProvider() as $name => [$sql]) {
+            yield "token: {$name}" => ["x {$sql}"];
+        }
+
+        foreach (self::valueProvider() as $name => [$sql]) {
+            yield "value: {$name}" => ["x {$sql}"];
+        }
+
+        yield 'symbols' => ["x a||b <> c!=d \x0B \$e :f @g ?1 -1 /2 *;"];
+        yield 'triggers' => [self::SCHEMA];
+
+        $columns = '';
+
+        for ($column = 0; $column < 1500; ++$column) {
+            $columns .= "  \"col {$column}\" varchar(9) default 'a ''b'' {$column}' check ([col {$column}] > -1.5e3), -- note {$column}\n  /* c d */ `e f` int,\n";
+        }
+
+        yield 'window cuts' => ["CREATE TABLE t (\n{$columns}  id integer);\nSELECT 1;"];
+    }
+}
+
+class ScanningSQLiteLexer extends SQLiteLexer
+{
+    /**
+     * Read one scanned token at a time, as the reference for runs.
+     */
+    public function read(array &$types, array &$starts, array &$ends, array &$texts): void
+    {
+        Lexer::read($types, $starts, $ends, $texts);
     }
 }
