@@ -46,8 +46,8 @@ final class ParseState
     /** @var array<string, array<string, true>> inheriting and partition tables by parent key */
     public array $children = [];
 
-    /** @var array<string, array<string, array<string, true>>> keys of the stored tables with each index name, by the name's identity and then its schema-qualified key */
-    private array $indexTables = [];
+    /** @var null|array<string, array<string, array<string, true>>> keys of the stored tables with each index name, by the name's identity and then its schema-qualified key, once a lookup needs them */
+    private ?array $indexTables = null;
 
     /** @var array<string, array<string, string>> the identities of the index names recorded for each stored table, by their schema-qualified keys */
     private array $indexNames = [];
@@ -106,7 +106,12 @@ final class ParseState
      */
     public function key(?string $schema, string $name): string
     {
-        return ($schema === null ? 'n:' : 's:' . strlen($schema) . ':' . $this->normalize($schema)) . $this->normalize($name);
+        if ($this->caseInsensitive) {
+            $schema = $schema === null ? null : strtolower($schema);
+            $name = strtolower($name);
+        }
+
+        return ($schema === null ? 'n:' : 's:' . strlen($schema) . ':' . $schema) . $name;
     }
 
     /**
@@ -149,9 +154,9 @@ final class ParseState
         $table = $this->tables[$key];
         $table->indexes[] = $index;
 
-        if ($index->name !== null) {
+        if ($index->name !== null && $this->indexTables !== null) {
             $identity = $this->normalize($index->name);
-            $qualified = $this->key($table->schema, $index->name);
+            $qualified = $this->key($table->schema, '') . $identity;
             $this->indexTables[$identity][$qualified][$key] = true;
             $this->indexNames[$key][$qualified] = $identity;
         }
@@ -180,13 +185,20 @@ final class ParseState
      */
     public function refreshIndexNames(string $key): void
     {
+        if ($this->indexTables === null) {
+            return;
+        }
+
         $table = $this->tables[$key] ?? null;
         $names = [];
 
         if ($table !== null) {
+            $prefix = $this->key($table->schema, '');
+
             foreach ($table->indexes as $index) {
                 if ($index->name !== null) {
-                    $names[$this->key($table->schema, $index->name)] = $this->normalize($index->name);
+                    $identity = $this->normalize($index->name);
+                    $names[$prefix . $identity] = $identity;
                 }
             }
         }
@@ -221,7 +233,7 @@ final class ParseState
      */
     public function hasIndex(?string $schema, string $name): bool
     {
-        return isset($this->indexTables[$this->normalize($name)][$this->key($schema, $name)]);
+        return isset($this->indexTables()[$this->normalize($name)][$this->key($schema, $name)]);
     }
 
     /**
@@ -229,7 +241,7 @@ final class ParseState
      */
     public function indexTableKey(?string $schema, string $name): ?string
     {
-        $keys = $this->indexTables[$this->normalize($name)][$this->key($schema, $name)] ?? [];
+        $keys = $this->indexTables()[$this->normalize($name)][$this->key($schema, $name)] ?? [];
 
         return count($keys) === 1 ? array_key_first($keys) : null;
     }
@@ -243,11 +255,31 @@ final class ParseState
     {
         $keys = [];
 
-        foreach ($this->indexTables[$this->normalize($name)] ?? [] as $tables) {
+        foreach ($this->indexTables()[$this->normalize($name)] ?? [] as $tables) {
             $keys += $tables;
         }
 
         return array_keys($keys);
+    }
+
+    /**
+     * Get the index name lookup, recording the stored tables' indexes when it is first needed.
+     *
+     * Most dumps never look an index up by name, so the lookup is not maintained until one does.
+     *
+     * @return array<string, array<string, array<string, true>>>
+     */
+    private function indexTables(): array
+    {
+        if ($this->indexTables === null) {
+            $this->indexTables = [];
+
+            foreach (array_keys($this->tables) as $key) {
+                $this->refreshIndexNames($key);
+            }
+        }
+
+        return $this->indexTables;
     }
 
     /**
