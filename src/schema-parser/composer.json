@@ -30,8 +30,7 @@
         }
     },
     "require": {
-        "php": "^8.4",
-        "ext-ctype": "*"
+        "php": "^8.4"
     },
     "config": {
         "sort-packages": true
