@@ -6,7 +6,7 @@ Create `hypervel/schema-parser` in `src/schema-parser` on `feature/schema-parser
 
 Write it as Taylor would write a first-party Laravel package, then port and enhance it for Hypervel: Laravel-style names, APIs and structure; complete features without unnecessary machinery; high performance.
 
-Complete: the result model, the adjacent database fixes and their consumers (see Database integration), CI dump clients, the serial TLS job, and checkpoint 1's shared parsing base and first-party PostgreSQL parser. `sad_spirit/pg_builder` and `bleksak/sqlite-toolkit` are removed. The owner approved implementation and the recorded PostgreSQL performance tradeoff. Next: checkpoint 2, replacing the remaining vendored MySQL reader with first-party MySQL and MariaDB parsers on the shared base.
+Complete: the result model, the adjacent database fixes and their consumers (see Database integration), CI dump clients, the serial TLS job, the shared parsing base, and the first-party PostgreSQL, MySQL and MariaDB parsers. The vendored readers, `sad_spirit/pg_builder` and `bleksak/sqlite-toolkit` are removed. The owner approved implementation and the recorded PostgreSQL performance tradeoff. Next: checkpoint 3, SQLite.
 
 Interpret the SQL actually present. Never invent catalog facts a dump lacks, modify native clients, work around the dump clients' event-delimiter defect or the PostgreSQL dump fidelity gaps (#19773 and #5555), or target unreleased fixes.
 
@@ -98,7 +98,7 @@ This follows Laravel's grammar/processor pattern: an abstract base and one class
   - Decode quoted names and strings only when a consumer needs the value: names, comments, enum/set labels.
   - Mode-dependent classification (MySQL quotes and escapes, PostgreSQL `standard_conforming_strings`) is fixed when the token is produced.
 - **Expressions.** Defaults, generation, checks, index keys, predicates, partition bounds and view queries stay exact source spans between token offsets. Shared primitives read balanced brackets and spans; each clause parser decides where its expression stops. No expression tree.
-- **State.** One `ParseState` per parse holds definitions, identity lookups, issues and the incremental diagnostic line position, including the PostgreSQL-only maps; split it only for a concrete benefit. `TableDefinition` and `ColumnDefinition` are small typed mutable definitions, frozen once into results after dependent facts resolve.
+- **State.** One `ParseState` per parse holds definitions, identity lookups, issues and the incremental diagnostic line position, including dialect-only fields (PostgreSQL's maps, MySQL's `USE` schema and saved SQL modes); split it only for a concrete benefit. `TableDefinition` and `ColumnDefinition` are small typed mutable definitions, frozen once into results after dependent facts resolve.
 
 ### Package metadata and documentation
 
@@ -182,8 +182,10 @@ The parser is not a database server validator: recognizing an opaque type or ign
    - Read ordinary, unique, primary, fulltext/spatial and expression indexes, with prefix length, order, names and predicates where the dialect supplies them. Keep check expressions, names and enforcement status. Normalize keyword case without changing identifiers or literals.
    - `MariaDbParser` also reads `VECTOR KEY/INDEX`. It accepts only the unambiguous compound forms that dumps and the framework emit, so columns named `vector` stay valid; document those forms for handwritten SQL.
    - Consume index visibility/ignored flags and physical tuning options without adding fields.
-   - Support standalone CREATE INDEX with OR REPLACE or IF NOT EXISTS, matching declared index names case-insensitively within their table. An unresolved server-generated name produces a table issue, not a guessed replacement. An unrecognized index declaration never leaves the schema silently complete.
+   - Support standalone CREATE INDEX with OR REPLACE or IF NOT EXISTS, and DROP INDEX, matching declared index names case-insensitively within their table. An unresolved server-generated name produces a table issue, not a guessed replacement. An unrecognized index declaration never leaves the schema silently complete.
 8. **Foreign keys.** Keep constraint names and qualified targets. Read ON DELETE and ON UPDATE independently. Preserve MATCH without claiming MySQL enforces it.
+   - Without a constraint name, `MySqlParser` reports a null name: MySQL 8.0.16+ generates one, while earlier versions used the FK's index name, so only an explicit constraint name holds on every version. `MariaDbParser` names it by the index name, as MariaDB does.
+   - Column-level REFERENCES declares a foreign key on that column through the same reader, with a null generated name. Like CHECK, this reports the declaration, not whether an older MySQL server enforces it.
 9. **Tables and views.**
    - Qualified table identities must not collide through dotted-string keys.
    - Dump DROP/CREATE replacement and view stand-ins leave no phantom ordinary tables. An existing view survives IF NOT EXISTS. View text excludes a trailing WITH [LOCAL|CASCADED] CHECK OPTION.
