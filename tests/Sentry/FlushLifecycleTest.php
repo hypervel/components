@@ -265,9 +265,7 @@ class FlushLifecycleTest extends TestCase
     {
         $flushed = false;
         $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('getOptions')
-            ->twice()
-            ->andReturn(new Options);
+        $client->shouldReceive('getOptions')->andReturn(new Options);
         $client->shouldReceive('captureEvent')->never();
         $client->shouldReceive('flush')
             ->once()
