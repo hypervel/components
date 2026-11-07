@@ -6,7 +6,7 @@ Create `hypervel/schema-parser` in `src/schema-parser` on `feature/schema-parser
 
 Write it as Taylor would write a first-party Laravel package, then port and enhance it for Hypervel: Laravel-style names, APIs and structure; complete features without unnecessary machinery; high performance.
 
-Complete: the result model, the adjacent database fixes and their consumers (see Database integration), CI dump clients, the serial TLS job, the shared parsing base, and the first-party PostgreSQL, MySQL, MariaDB and SQLite parsers. The vendored readers, `sad_spirit/pg_builder` and `bleksak/sqlite-toolkit` are removed. The owner approved implementation and the recorded PostgreSQL performance tradeoff. Next: checkpoint 4, completion.
+Implementation complete: the result model, adjacent database fixes and their consumers, CI dump clients, serial TLS job, shared parsing base, and first-party PostgreSQL, MySQL, MariaDB and SQLite parsers. Package documentation, licensing, standalone installation, test consolidation, performance review and disposable-resource cleanup are complete. The vendored readers and their dependencies are removed. The owner approved the recorded PostgreSQL performance tradeoff. Next: PR review and merge into `0.4`, before resuming the PHPStan package work.
 
 Interpret the SQL actually present. Never invent catalog facts a dump lacks, modify native clients, work around the dump clients' event-delimiter defect or the PostgreSQL dump fidelity gaps (#19773 and #5555), or target unreleased fixes.
 
@@ -90,7 +90,8 @@ This follows Laravel's grammar/processor pattern: an abstract base and one class
 
   Dialects override hooks only where syntax or meaning differs. There is no universal grammar with flags for every quirk.
 - **Lexers.** One lexer per dialect over the original source. The lexer owns statement boundaries, including MySQL `DELIMITER`, PostgreSQL COPY data and meta-commands, and SQLite trigger bodies. The base handles shared whitespace, comments, quoting, numbers, words and symbols; dialect lexers override what differs. Reading and skipping use the same scanning primitives. Offsets always refer to the original source, never a reconstructed statement buffer.
-  - `PostgresLexer` reads a run of ordinary tokens with one native match over an upper-case copy of at most 8 KB of source, cut before whitespace, a comma or a parenthesis so no unquoted token is split. Pattern repetitions are bounded to stay within PCRE limits, and a PCRE failure throws. Tokens that need boundary handling (strings continued across lines, dollar quotes, comments, quoted tokens cut by the window or past a bound) go through the scanner.
+  - Each lexer reads a run of ordinary tokens with one native match through `Lexer::matchRun()`: an upper-case copy of at most 8 KB of source, cut before whitespace, a comma or a parenthesis so no unquoted token is split. The first token is matched alone, so a token that needs the scanner costs no full-window match. Pattern repetitions are bounded to stay within PCRE's match and compiled-size limits (PCRE copies a bounded group once per repetition), and a PCRE failure throws. Tokens that need boundary handling (comments other than plain line comments, executable comments, PostgreSQL continued strings and dollar quotes, quoted tokens cut by the window or past a bound) go through the scanner. Each dialect keeps its own `read()` loop for the types its runs record.
+  - MySQL runs only under the default `;` delimiter and not directly after a qualifying dot, where a digit-leading name follows; one pattern per string mode (backslash escapes, `NO_BACKSLASH_ESCAPES`, `ANSI_QUOTES`). A `--` comment needs whitespace or a control byte after it, checked by lookahead so an empty `--` comment never consumes the next line. SQLite runs only once a statement can no longer be a trigger, so trigger tracking sees every token. Runs stop after `;` in both.
   - Skipping jumps natively to the bytes that can change the boundary state, tracking parenthesis depth as psql does.
 - **TokenStream.** Reads the current statement's tokens in runs, never past its terminator, so a mode change in one statement applies before the next statement is lexed. Dispatch reads only a statement's leading token. It keeps the tokens it has read, so a parser can look behind and rewind within the statement. `skipRest()` and `skipGroup()` skip unread source without creating tokens: a statement's remainder, such as a routine body or appended data, and the rest of a group whose source text is all the parser needs. Skipped source cannot be replayed, so a rewind spans only tokens that were read: `parseType()` measures a type's span with `skipExpression()`, which reads every token, to reuse an earlier interpretation.
 - **Tokens.** A token is its start offset and upper-case source text. Quoted tokens keep their delimiters, so only a word can equal a keyword. Types that depend on lexer state, such as strings and the terminator, are recorded when read; other types follow from the text when first needed.
@@ -103,7 +104,7 @@ This follows Laravel's grammar/processor pattern: an abstract base and one class
 ### Package metadata and documentation
 
 - **Composer.** The split manifest requires `php: ^8.4` and `ext-mbstring` (MySQL name folding). Remove `pg_builder` and the SQLite toolkit from the root `require-dev` (`composer remove --dev`) and from the split manifest, and drop `ext-ctype` unless code still needs it. Keep the root PSR-4 mapping and `replace: hypervel/schema-parser: self.version`; the root `composer.lock` stays untracked. Don't add the package to the framework metapackage. `bin/split.sh` discovers it automatically; the split repository must exist before publishing. Verify a standalone install using only the split manifest, with no root autoloader masking missing requirements.
-- **README and license.** The README has the header and documentation link only. `LICENSE.md` is Hypervel MIT. Add each third-party project whose code or tests still derive from it at completion, with its full notice: MIT for iamcal and calebdw, and BSD-2-Clause with its conditions and disclaimer for `pg_builder`. Check per file; the cleanup grep must not remove legitimate attribution.
+- **README and license.** The README has the header and documentation link only. `LICENSE.md` is Hypervel MIT plus the full MIT notices of iamcal/SQLParser and calebdw/pg-schema-parser, whose code shaped the parsers and whose fixtures the tests still use. `pg_builder` was only a Composer dependency, so it needs no notice. The cleanup grep must not remove legitimate attribution.
 - **Docs.** Write `src/docs/schema-parser.md` in the style of `src/docs/processes.md` and link it from `src/docs/documentation.md`. Cover:
   - an introduction and installation;
   - choosing a parser by driver;
@@ -235,7 +236,7 @@ The parser is not a database server validator: recognizing an opaque type or ign
 - **Names and databases.**
   - A single-quoted string is a name wherever SQLite reads one.
   - Unqualified persistent tables and views belong to `main`, which results report as their schema, like the framework's metadata. An explicit `main` qualifier is the same database; attached database names keep their spelling. `temp` declarations are skipped.
-  - Qualified DROP and index targets resolve exactly. FK targets resolve exactly in the referencing table's database, never across databases. Unqualified DROP and index targets prefer `main`, then a single attached match; several attached matches are an issue, with no attachment-order emulation. Index names resolve through `ParseState`'s index map, keyed by name identity and then qualified name, without scanning tables; PostgreSQL's DROP INDEX uses the same map.
+  - Qualified DROP and index targets resolve exactly. FK targets resolve exactly in the referencing table's database, never across databases. Unqualified DROP and index targets prefer `main`, then a single attached match; several attached matches are an issue, with no attachment-order emulation. Index names resolve through `ParseState`'s index map, keyed by name identity and then qualified name, without scanning tables; PostgreSQL's DROP INDEX uses the same map. Most dumps never look an index up by name, so the map is built from the stored tables on the first lookup and maintained from then on. Qualified lookups stay direct, so schema-per-tenant dumps don't scan every schema's indexes.
 - **Statements.**
   - Read CREATE TABLE, CREATE [UNIQUE] INDEX and CREATE VIEW. DROP TABLE, VIEW and INDEX remove their target.
   - ALTER TABLE is not applied: RENAME TO adds a schema issue, since it changes relation names; other actions add a table issue, or a schema issue when the table is unknown.
@@ -274,24 +275,25 @@ All mutable state belongs to one parse (see Architecture). Parsing is synchronou
 - **Memoize and index.** Memoize repeated PostgreSQL type text within the parse. Resolve dependencies through indexed identities, with traversal bounded by the actual definitions. Freeze each definition once, and retain no raw dump text on results when source fragments suffice.
 - **Line numbers.** Count diagnostic lines incrementally as issue offsets advance; one-shot syntax failures may count from the start.
 - **Nothing persistent.** No persistent result caching, locks, background processes or public streaming API. Callers can cache by input SQL and parser.
-- **Benchmark.** Compare at each checkpoint. The owner's permission to benchmark stands until withdrawn; check that the machine is quiet before timing, and rerun the affected comparisons if competing work ran. A regression needs an explanation and owner approval. Tests use large fixtures for correctness only, without timing assertions. The harness (`generate.php 2000`, `run.php <worktree> <dialect> <fixture> 7`) is in the session scratchpad `bench/`. Baseline of the old readers (PHP 8.4 NTS, opcache off, 2,000-table dumps with 2,001 tables, 30,003 columns, 1,999 FKs and 200 views; PostgreSQL 10,000 indexes, MySQL 10,001):
+- **Benchmark.** Compare at each checkpoint. The owner's permission to benchmark stands until withdrawn; check that the machine is quiet before timing, and rerun the affected comparisons if competing work ran. A regression needs an explanation and owner approval. Tests use large fixtures for correctness only, without timing assertions. Medians of interleaved runs on PHP 8.4 NTS (opcache off / on / tracing JIT), for 2,000-table dumps with 2,001 tables, 30,003 columns, 1,999 FKs and 200 views (PostgreSQL 10,000 indexes, MySQL and SQLite 10,001):
 
-  | Reader | Input | Median | Min | Peak memory |
+  | Parser | Input | Old reader | Completion | Peak memory (old → completion) |
   | --- | --- | --- | --- | --- |
-  | PostgreSQL | 5.6 MB | 645 ms | 620 ms | +49 MB |
-  | MySQL | 3.7 MB | 1289 ms | 1087 ms | +221 MB |
+  | PostgreSQL | 5.6 MB | 642 / 568 / 400 ms | 683 / 610 / 398 ms | +49 → +35 MB |
+  | MySQL | 3.7 MB | 1272 / 1193 / 967 ms | 756 / 675 / 482 ms | +221 → +44 MB |
+  | SQLite | 2.0 MB | none | 462 / 416 / 305 ms | +40 MB |
 
-  SQLite had no old reader, so its time is absolute: the framework's dump of the same 2,000-table shape (database built from `bench/sqlite.php`, dumped by `SqliteSchemaState` through `bench/dump-sqlite.php`; 2.0 MB, 10,001 indexes, 2,000 migration INSERTs) parses in about 650–670 ms with +48 MB peak memory, linearly with size.
+  The SQLite input is `SqliteSchemaState`'s dump of a database with the same shape, plus 2,000 migration INSERTs; its time grows linearly with size.
 
-  The owner approved checkpoint 1's PostgreSQL tradeoff: the 2,000-table dump parses 4–10% slower (17–59 ms across opcache and JIT modes), because parsed CREATE INDEX and ALTER statements are read token by token, while peak memory is 16% lower and wide tables, large CHECK groups and skipped bodies are much faster. Extra time on numeric INSERTs and BEGIN ATOMIC bodies is correct psql boundary work that the old reader skipped.
+  The owner approved checkpoint 1's PostgreSQL tradeoff: the 2,000-table dump parses 4–10% slower (17–59 ms across opcache and JIT modes), because parsed CREATE INDEX and ALTER statements are read token by token, while peak memory is lower and wide tables, large CHECK groups and skipped bodies are much faster. At completion the gap is 6–7% (41–42 ms) with opcache off or on and none under JIT, with 29% less peak memory. Extra time on numeric INSERTs and BEGIN ATOMIC bodies is correct psql boundary work that the old reader skipped.
 
 ## Database integration
 
-Complete and committed on this branch, with private consumers on monorepo `main`:
+Complete on this branch:
 - dump/load fixes in the MySQL, MariaDB, PostgreSQL and SQLite schema states: quoting, TLS mapping, counter cleanup, flag retries, migration-table escaping and psql diagnostics;
 - lossless index and FK metadata with positional `key_columns`;
 - SQLite rebuild fixes;
-- their consumers: `db:table`, `ModelInspector`, `PendingCommand`, Tenancy and ClickHouse.
+- their framework consumers: `db:table`, `ModelInspector` and `PendingCommand`.
 
 Also complete:
 - `SQLiteProcessor::processColumns` derives `type_name` with `strtok($type, '(') ?: ''`, so `varchar (255)` gives `varchar ` with a trailing space, and a quoted type `"0"` gives an empty name. That breaks `Schema::getColumnType()` and Wayfinder's type mapping. Laravel has the same code. Remove only the whitespace before a `(`, without a truthiness fallback, so quoted names such as `"INTEGER "` survive; keep `type` unchanged; add a processor regression test.
