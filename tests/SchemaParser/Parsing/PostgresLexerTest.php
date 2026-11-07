@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\SchemaParser\Parsing;
 
 use Hypervel\SchemaParser\ParseException;
+use Hypervel\SchemaParser\Parsing\Lexer;
 use Hypervel\SchemaParser\Parsing\PostgresLexer;
 use Hypervel\Tests\SchemaParser\Fixtures\LexesStatements;
 use Hypervel\Tests\TestCase;
@@ -332,6 +333,51 @@ class PostgresLexerTest extends TestCase
         yield 'beyond Unicode' => ["E'\\U00110000'", 'Invalid Unicode escape value'];
     }
 
+    #[DataProvider('runProvider')]
+    public function testRunsReadTokensAsTheScannerDoes(string $sql, bool $standardConformingStrings = true): void
+    {
+        $lexer = new PostgresLexer($sql);
+        $scanner = new ScanningPostgresLexer($sql);
+        $lexer->standardConformingStrings = $scanner->standardConformingStrings = $standardConformingStrings;
+
+        $this->assertSame(self::lexed($scanner), self::lexed($lexer));
+    }
+
+    /**
+     * Provide the lexical cases with their tokens in runs, after a statement's first token, and runs across window cuts.
+     *
+     * @return iterable<string, array{0: string, 1?: bool}>
+     */
+    public static function runProvider(): iterable
+    {
+        foreach (self::tokenProvider() as $name => [$sql]) {
+            yield "token: {$name}" => ["x {$sql}"];
+        }
+
+        foreach (self::valueProvider() as $name => $case) {
+            yield "value: {$name}" => ["x {$case[0]}", $case[2] ?? true];
+        }
+
+        $strings = "x 'a\\b' E'c\\'d' N'e\\f' U&'\\0041' \$\$g\$\$ \$t\$h\$t\$ \"i\"\"j\" 'k''l' 1.5e3 a::text b->>'c' d||e @> (1, 2);\nx 'm';";
+
+        yield 'standard strings' => [$strings];
+        yield 'nonstandard strings' => [$strings, false];
+        yield 'routines' => [self::ROUTINES];
+        yield 'COPY data' => [file_get_contents(__DIR__ . '/../Fixtures/Postgres/copy-data.sql')];
+        yield 'real dump' => [file_get_contents(__DIR__ . '/../Fixtures/Postgres/schema-dump.sql')];
+
+        $columns = '';
+
+        for ($column = 0; $column < 1500; ++$column) {
+            $columns .= "  \"col {$column}\" varchar(9) DEFAULT 'a ''b'' \\ {$column}'::text CHECK (\"col {$column}\" <> \$\$-1.5e3\$\$), -- note {$column}\n  /* c /* d */ e */ f int,\n";
+        }
+
+        $table = "CREATE TABLE t (\n{$columns}  id integer);\nSELECT 1;";
+
+        yield 'window cuts' => [$table];
+        yield 'window cuts in nonstandard strings' => [$table, false];
+    }
+
     /**
      * Get the committed dump whose migration data is COPY records.
      */
@@ -341,5 +387,16 @@ class PostgresLexerTest extends TestCase
         $this->assertNotFalse($sql);
 
         return $sql;
+    }
+}
+
+class ScanningPostgresLexer extends PostgresLexer
+{
+    /**
+     * Read one scanned token at a time, as the reference for runs.
+     */
+    public function read(array &$types, array &$starts, array &$ends, array &$texts): void
+    {
+        Lexer::read($types, $starts, $ends, $texts);
     }
 }
