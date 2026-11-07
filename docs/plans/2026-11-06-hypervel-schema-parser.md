@@ -6,7 +6,7 @@ Create `hypervel/schema-parser` in `src/schema-parser` on `feature/schema-parser
 
 Write it as Taylor would write a first-party Laravel package, then port and enhance it for Hypervel: Laravel-style names, APIs and structure; complete features without unnecessary machinery; high performance.
 
-Complete: the result model, the adjacent database fixes and their consumers (see Database integration), CI dump clients, the serial TLS job, the shared parsing base, and the first-party PostgreSQL, MySQL and MariaDB parsers. The vendored readers, `sad_spirit/pg_builder` and `bleksak/sqlite-toolkit` are removed. The owner approved implementation and the recorded PostgreSQL performance tradeoff. Next: checkpoint 3, SQLite.
+Complete: the result model, the adjacent database fixes and their consumers (see Database integration), CI dump clients, the serial TLS job, the shared parsing base, and the first-party PostgreSQL, MySQL, MariaDB and SQLite parsers. The vendored readers, `sad_spirit/pg_builder` and `bleksak/sqlite-toolkit` are removed. The owner approved implementation and the recorded PostgreSQL performance tradeoff. Next: checkpoint 4, completion.
 
 Interpret the SQL actually present. Never invent catalog facts a dump lacks, modify native clients, work around the dump clients' event-delimiter defect or the PostgreSQL dump fidelity gaps (#19773 and #5555), or target unreleased fixes.
 
@@ -98,11 +98,11 @@ This follows Laravel's grammar/processor pattern: an abstract base and one class
   - Decode quoted names and strings only when a consumer needs the value: names, comments, enum/set labels.
   - Mode-dependent classification (MySQL quotes and escapes, PostgreSQL `standard_conforming_strings`) is fixed when the token is produced.
 - **Expressions.** Defaults, generation, checks, index keys, predicates, partition bounds and view queries stay exact source spans between token offsets. Shared primitives read balanced brackets and spans; each clause parser decides where its expression stops. No expression tree.
-- **State.** One `ParseState` per parse holds definitions, identity lookups, issues and the incremental diagnostic line position, including dialect-only fields (PostgreSQL's maps, MySQL's `USE` schema and saved SQL modes); split it only for a concrete benefit. `TableDefinition` and `ColumnDefinition` are small typed mutable definitions, frozen once into results after dependent facts resolve.
+- **State.** One `ParseState` per parse holds definitions, identity lookups, issues and the incremental diagnostic line position, including dialect-only fields (PostgreSQL's maps, the default schema from SQLite's `main` or MySQL's `USE`, saved SQL modes) and SQLite's case-insensitive identity keys; split it only for a concrete benefit. `TableDefinition` and `ColumnDefinition` are small typed mutable definitions, frozen once into results after dependent facts resolve.
 
 ### Package metadata and documentation
 
-- **Composer.** The split manifest requires only `php: ^8.4`. Remove `pg_builder` and the SQLite toolkit from the root `require-dev` (`composer remove --dev`) and from the split manifest, and drop `ext-ctype` unless code still needs it. Keep the root PSR-4 mapping and `replace: hypervel/schema-parser: self.version`; the root `composer.lock` stays untracked. Don't add the package to the framework metapackage. `bin/split.sh` discovers it automatically; the split repository must exist before publishing. Verify a standalone install using only the split manifest, with no root autoloader masking missing requirements.
+- **Composer.** The split manifest requires `php: ^8.4` and `ext-mbstring` (MySQL name folding). Remove `pg_builder` and the SQLite toolkit from the root `require-dev` (`composer remove --dev`) and from the split manifest, and drop `ext-ctype` unless code still needs it. Keep the root PSR-4 mapping and `replace: hypervel/schema-parser: self.version`; the root `composer.lock` stays untracked. Don't add the package to the framework metapackage. `bin/split.sh` discovers it automatically; the split repository must exist before publishing. Verify a standalone install using only the split manifest, with no root autoloader masking missing requirements.
 - **README and license.** The README has the header and documentation link only. `LICENSE.md` is Hypervel MIT. Add each third-party project whose code or tests still derive from it at completion, with its full notice: MIT for iamcal and calebdw, and BSD-2-Clause with its conditions and disclaimer for `pg_builder`. Check per file; the cleanup grep must not remove legitimate attribution.
 - **Docs.** Write `src/docs/schema-parser.md` in the style of `src/docs/processes.md` and link it from `src/docs/documentation.md`. Cover:
   - an introduction and installation;
@@ -142,6 +142,7 @@ Index method/type names are lowercase. `constraint` is true for PostgreSQL/SQLit
 
 - Index names/schema identities without concatenating them using dots: quoted names can contain dots. Distinguish an unspecified schema from an actual schema name. Keep quoted case; normalize only dialect-defined unquoted identifiers and builtin type keywords.
 - A lookup with explicit schema is exact. An unqualified lookup succeeds only for a unique name; ambiguous matches throw `InvalidArgumentException` naming the ambiguity. Missing names return null. Do not invent a `public` schema or consult application search-path configuration.
+- Statement name resolution follows the engine, while results keep declared spellings and public lookups stay exact. SQLite folds ASCII case for schema, relation, index and column names within a parse. MySQL folds column and index names with simple Unicode lowercase (`MB_CASE_LOWER_SIMPLE`), which matches MySQL and all valid MariaDB input. PostgreSQL compares exactly. Exact matches are tried first.
 - Build table/column/type lookup indexes once. Keep declaration ordering in exposed lists. No linear rescan per property lookup.
 - Default expressions, generation expressions, checks, index expressions and predicates remain SQL text; collation and operator-class names remain SQL identifier text. Enum labels and comments are decoded values. Never rebuild text by joining tokens, which changes strings, spaces and operators.
 - PHP null for a default means no expression was supplied/resolved; an explicit SQL `NULL` or `NULL::text` remains a string. A column's explicit default, including NULL, overrides a domain or inherited default. Do not add `isRequired()` based only on default presence.
@@ -225,16 +226,22 @@ The parser is not a database server validator: recognizing an opaque type or ign
 
 ### SQLite
 
-`SQLiteLexer` and `SQLiteParser` read `.schema` and `.schema --indent` output and equivalent DDL. The facts below were verified against native SQLite.
+`SQLiteLexer` and `SQLiteParser` read the framework's SQLite dumps, `.schema` and `.schema --indent` output, and equivalent DDL. The facts below were verified against native SQLite.
 
 - **Lexing.**
   - Names can be double-quoted, bracketed, backticked or, where SQLite accepts it, single-quoted (`CREATE TABLE 'x'`).
   - Comments are ordinary. Semicolons inside literals don't end statements. A trigger ends only at `; END ;`, outside quotes and comments, as in SQLite's `complete.c`.
   - In CREATE TABLE and CREATE INDEX text, `.schema --indent` collapses whitespace runs and drops spaces next to brackets everywhere, including inside literals and quoted names. Views and triggers keep their text. The parser reads the text it is given and never tries to restore it.
+- **Names and databases.**
+  - A single-quoted string is a name wherever SQLite reads one.
+  - Unqualified persistent tables and views belong to `main`, which results report as their schema, like the framework's metadata. An explicit `main` qualifier is the same database; attached database names keep their spelling. `temp` declarations are skipped.
+  - Qualified DROP and index targets resolve exactly. FK targets resolve exactly in the referencing table's database, never across databases. Unqualified DROP and index targets prefer `main`, then a single attached match; several attached matches are an issue, with no attachment-order emulation. Index names resolve through `ParseState`'s index map, keyed by name identity and then qualified name, without scanning tables; PostgreSQL's DROP INDEX uses the same map.
 - **Statements.**
-  - Read CREATE TABLE, CREATE [UNIQUE] INDEX and CREATE VIEW.
+  - Read CREATE TABLE, CREATE [UNIQUE] INDEX and CREATE VIEW. DROP TABLE, VIEW and INDEX remove their target.
+  - ALTER TABLE is not applied: RENAME TO adds a schema issue, since it changes relation names; other actions add a table issue, or a schema issue when the table is unknown.
   - CREATE VIRTUAL TABLE stays a known incomplete table with an issue. `AS SELECT` tables are incomplete.
   - Skip triggers and the appended migration INSERTs.
+- **Constraint names.** The latest CONSTRAINT name applies to every following constraint until the column ends, or until a table constraint's comma; a later CONSTRAINT clause replaces it, and adjacent table constraints need no comma. PRIMARY KEY and UNIQUE constraint indexes have null names: SQLite names them `sqlite_autoindex_*`, so a constraint name is not an index name.
 - **Primary keys and nullability.**
   - NOT NULL makes a column non-null. So does a primary key in a STRICT or WITHOUT ROWID table, and a rowid alias.
   - A plain table's other primary keys can hold NULL.
@@ -243,9 +250,11 @@ The parser is not a database server validator: recognizing an opaque type or ign
 - **Defaults and expressions.**
   - Generated columns may omit `GENERATED ALWAYS`, and default to VIRTUAL.
   - Raw defaults keep quoted literals, signs and `DEFAULT NULL`. In `DEFAULT (expr)` the outer brackets are syntax, so the text matches `pragma_table_info`: `(1 + 2) * 3` for `DEFAULT ((1 + 2) * 3)`, and `(1)` for `DEFAULT ((1))`.
-  - Expression spans include their own brackets. A bracketed index key `(a)` is the plain column `a`, as `pragma_index_xinfo` reports.
+  - Expression spans include their own brackets, with no expression tree.
+  - Index and key columns follow `pragma_index_xinfo`. A name stays a column through any brackets and COLLATE wrappers, and the outermost collation applies: `((a COLLATE nocase) COLLATE rtrim)` is column `a` with RTRIM. A name the table lacks is a column only where SQLite reads it as one: unquoted NULL is a constant, an unknown TRUE or FALSE is a boolean, and an unknown double-quoted name is a string. Index keys and FK local columns report the declared column spelling.
+  - COLLATE binds tighter than any binary operator, so an expression key's trailing COLLATE is its collation only after a single operand: a literal, name, function call or bracketed group, after any unary signs (`lower(name) COLLATE nocase`, `(a + 1) COLLATE nocase`). CASE ... END is read whole by the expression reader, which pairs CASE with END, so a collation after it stays in the text. Otherwise, as in `a + 1 COLLATE nocase` or `a COLLATE nocase || 'x'`, the collation stays in the expression text and the key reports none. Outer brackets around a collated expression also keep it in the text; that collation is not derived. Read expression keys forward only: a group consumed by `skipGroup()` cannot be rewound.
 - **Foreign keys.**
-  - Keep the actions and the MATCH mode as written, and document that SQLite doesn't enforce MATCH.
+  - Keep the actions and the MATCH mode as written, and document that SQLite doesn't enforce MATCH. Dumps keep whatever was declared: a MATCH name the model can't represent adds an issue, and ON INSERT, which SQLite ignores, is consumed.
   - `NOT DEFERRABLE [INITIALLY ...]` means not deferrable (null Deferral).
   - A column-level deferral clause is its own constraint. It applies to the table's most recently declared foreign key (`build.c`), even after another constraint or from a later column.
   - `INITIALLY` without `DEFERRABLE` is a syntax error.
@@ -272,6 +281,8 @@ All mutable state belongs to one parse (see Architecture). Parsing is synchronou
   | PostgreSQL | 5.6 MB | 645 ms | 620 ms | +49 MB |
   | MySQL | 3.7 MB | 1289 ms | 1087 ms | +221 MB |
 
+  SQLite had no old reader, so its time is absolute: the framework's dump of the same 2,000-table shape (database built from `bench/sqlite.php`, dumped by `SqliteSchemaState` through `bench/dump-sqlite.php`; 2.0 MB, 10,001 indexes, 2,000 migration INSERTs) parses in about 650–670 ms with +48 MB peak memory, linearly with size.
+
   The owner approved checkpoint 1's PostgreSQL tradeoff: the 2,000-table dump parses 4–10% slower (17–59 ms across opcache and JIT modes), because parsed CREATE INDEX and ALTER statements are read token by token, while peak memory is 16% lower and wide tables, large CHECK groups and skipped bodies are much faster. Extra time on numeric INSERTs and BEGIN ATOMIC bodies is correct psql boundary work that the old reader skipped.
 
 ## Database integration
@@ -282,15 +293,16 @@ Complete and committed on this branch, with private consumers on monorepo `main`
 - SQLite rebuild fixes;
 - their consumers: `db:table`, `ModelInspector`, `PendingCommand`, Tenancy and ClickHouse.
 
-Remaining:
-- `SQLiteProcessor::processColumns` derives `type_name` with `strtok($type, '(')`, so `varchar (255)` gives `varchar ` with a trailing space. That breaks `Schema::getColumnType()` and Wayfinder's type mapping. Laravel has the same code. Trim it, keep `type` unchanged, and add a processor regression test.
-- `SqliteSchemaState::dump()` runs `.schema --indent`, which changes CREATE TABLE and CREATE INDEX text, including literals: `default 'Untitled (draft)'` loads back as `'Untitled(draft)'`. Laravel has the same command, and SQLite's current CLI source has the same formatter. Dump with plain `.schema` (owner-approved), which prints the stored SQL unchanged. Add a live dump/load regression in `tests/Integration/Database/Sqlite/SchemaStateTest.php`, and keep the shadow-table and `sqlite_*` removal working.
+Also complete:
+- `SQLiteProcessor::processColumns` derives `type_name` with `strtok($type, '(') ?: ''`, so `varchar (255)` gives `varchar ` with a trailing space, and a quoted type `"0"` gives an empty name. That breaks `Schema::getColumnType()` and Wayfinder's type mapping. Laravel has the same code. Remove only the whitespace before a `(`, without a truthiness fallback, so quoted names such as `"INTEGER "` survive; keep `type` unchanged; add a processor regression test.
+- Laravel's `SqliteSchemaState::dump()` edits declarations. `.schema --indent` reformats CREATE TABLE and CREATE INDEX text, including literals (`default 'Untitled (draft)'` loads back as `'Untitled(draft)'`). Its regexes for `sqlite_*` and shadow tables search the whole dump, so they delete matching text inside multiline literals, and they miss shadow names with doubled quotes (fts5 `'docs''o_data'`, rtree `"r""t_node"`). Owner-approved fix: read each stored statement of `main.sqlite_master` through the write connection, in rowid order (`.schema`'s own query), skip `sqlite\_%` names and the `shadow` rows of `pragma main.table_list`, and write `sql;` per row. Keep `.schema`'s one rewrite, `CREATE TABLE ['"]` → `CREATE TABLE IF NOT EXISTS`, at the start of a statement only: below SQLite 3.37, `table_list` lists nothing, so shadow tables stay in the dump and must not fail after their virtual table creates them. `removeShadowTables()` is removed, and the schema read no longer goes through `baseCommand()` or the process factory; the migration-data append and `load()` keep using the CLI. Dumps lose `.schema`'s `/* view(cols) */` comments. Covered by a catalog unit test on an in-memory connection and live dump/load regressions for literals, quoted fts5/rtree names and shadow tables.
+- Three `SchemaStateTest` dump tests skip when `sqlite3` is missing, contradicting the configured-engine rule. Remove those skips; keep the in-memory exclusion.
 
 The owner approved the metadata grammar/processor compatibility changes and accepted their impact on custom overrides, which also covers SQLite's automatic-key field. The owner also approved the TLS client restrictions. The facts the parser work relies on:
 
 - **MySQL/MariaDB dumps.** The schema dump runs `--no-data --routines --skip-comments`, with counters removed outside DELIMITER regions. Migrations are appended as `--compact --complete-insert --skip-extended-insert` INSERTs.
 - **PostgreSQL dumps.** Plain-text `pg_dump --no-owner --no-acl`, with migration data appended by `--data-only` as COPY.
-- **SQLite dumps.** `.schema` (see Remaining), with `sqlite_*` and virtual-table shadow tables removed and migration INSERT lines appended.
+- **SQLite dumps.** The stored `main.sqlite_master` statements in rowid order, without `sqlite_*` objects or shadow tables, and with quoted table names given IF NOT EXISTS as `.schema` does. Migration INSERT lines are appended from the CLI's `.dump`.
 - **Live comparisons.** They use `getColumns()`/`getIndexes()`/`getForeignKeys()`: index `columns` is complete or empty, `key_columns` is positional with null for expressions, and SQLite FK metadata resolves implicit targets.
 - **CI.** The image provides sqlite3, `mariadb-client-compat` and `postgresql-client-18`. The serial MySQL TLS test runs after the normal database suites. The image must be rebuilt, by a push to `0.4` or a manual dispatch, before parser integration checks pass in CI.
 
