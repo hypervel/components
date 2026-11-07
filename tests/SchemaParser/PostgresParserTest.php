@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\SchemaParser;
 
 use Hypervel\SchemaParser\Deferral;
+use Hypervel\SchemaParser\ForeignKey;
 use Hypervel\SchemaParser\ForeignKeyMatch;
 use Hypervel\SchemaParser\GenerationType;
 use Hypervel\SchemaParser\ParseException;
 use Hypervel\SchemaParser\PostgresParser;
 use Hypervel\SchemaParser\ReferentialAction;
+use Hypervel\SchemaParser\TableReference;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -544,6 +546,13 @@ class PostgresParserTest extends TestCase
                 REFERENCES parent (period, "PERIOD");
             CREATE TABLE implicit_child (id integer, valid_at daterange);
             ALTER TABLE ONLY implicit_child ADD CONSTRAINT implicit_fk FOREIGN KEY (id, PERIOD valid_at) REFERENCES parent;
+            CREATE TABLE part_child (id integer, valid_at daterange) PARTITION BY LIST (id);
+            CREATE TABLE part_child_a (id integer, valid_at daterange);
+            ALTER TABLE part_child ATTACH PARTITION part_child_a FOR VALUES IN (1);
+            ALTER TABLE part_child ADD CONSTRAINT part_temporal_fk FOREIGN KEY (id, PERIOD valid_at) REFERENCES parent (id, PERIOD valid_at);
+            CREATE TABLE early_child (id integer, valid_at daterange, CONSTRAINT early_fk FOREIGN KEY (id, PERIOD valid_at) REFERENCES parent (id, PERIOD valid_at)) PARTITION BY LIST (id);
+            CREATE TABLE early_child_a (id integer, valid_at daterange);
+            ALTER TABLE early_child ATTACH PARTITION early_child_a FOR VALUES IN (1);
             SQL);
 
         $child = $schema->table('child');
@@ -563,6 +572,13 @@ class PostgresParserTest extends TestCase
             'Temporal foreign key semantics are not represented.',
             'The referenced columns of foreign table [parent] could not be resolved.',
         ], array_column($implicit->issues, 'message'));
+
+        // A partition's copy is as partly represented as its parent's, whichever was declared first.
+        foreach (['part_child_a' => 'part_temporal_fk', 'early_child_a' => 'early_fk'] as $name => $foreignKey) {
+            $partition = $schema->table($name);
+            $this->assertSame([$foreignKey], array_column($partition->foreignKeys, 'name'), $name);
+            $this->assertSame(['Temporal foreign key semantics are not represented.'], array_column($partition->issues, 'message'), $name);
+        }
     }
 
     public function testRecursiveNullabilityRemovalMarksUnresolvedChildConstraints(): void
@@ -609,6 +625,123 @@ class PostgresParserTest extends TestCase
         $this->assertTrue($schema->view('mv')->materialized);
         $this->assertSame('SELECT 1 AS result', $schema->view('mv')->definition);
         $this->assertTrue($schema->isComplete());
+    }
+
+    public function testPartitionsGetTheForeignKeysADumpAddsToTheirParent(): void
+    {
+        // pg_dump attaches partitions first and writes a partitioned table's foreign keys once, without ONLY.
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE public.r (id integer NOT NULL);
+            CREATE TABLE public.p (k integer, ref_id integer) PARTITION BY RANGE (k);
+            CREATE TABLE public.c1 (k integer, ref_id integer, CONSTRAINT root_fk CHECK ((k >= 0)));
+            CREATE TABLE public.c2 (k integer, ref_id integer) PARTITION BY RANGE (k);
+            CREATE TABLE public.c2_a (k integer, ref_id integer);
+            CREATE TABLE public.inh_parent (ref_id integer);
+            CREATE TABLE public.inh_child () INHERITS (public.inh_parent);
+            ALTER TABLE ONLY public.p ATTACH PARTITION public.c1 FOR VALUES FROM (0) TO (10);
+            ALTER TABLE ONLY public.p ATTACH PARTITION public.c2 FOR VALUES FROM (10) TO (20);
+            ALTER TABLE ONLY public.c2 ATTACH PARTITION public.c2_a FOR VALUES FROM (10) TO (20);
+            ALTER TABLE ONLY public.r ADD CONSTRAINT r_pkey PRIMARY KEY (id);
+            CREATE INDEX p_ref_idx ON ONLY public.p USING btree (ref_id);
+            ALTER TABLE public.p ADD CONSTRAINT fk_one FOREIGN KEY (ref_id) REFERENCES public.r(id);
+            ALTER TABLE public.p ADD CONSTRAINT root_fk FOREIGN KEY (ref_id) REFERENCES public.r(id);
+            ALTER TABLE ONLY public.inh_parent ADD CONSTRAINT inh_fk FOREIGN KEY (ref_id) REFERENCES public.r(id);
+            SQL);
+
+        // Identical parent foreign keys each get their own copy, and a name the partition already uses is left to the server.
+        $this->assertSame(['fk_one', null], array_column($schema->table('c1')->foreignKeys, 'name'));
+        $this->assertEquals(new ForeignKey(null, ['ref_id'], new TableReference('r', 'public'), ['id']), $schema->table('c1')->foreignKeys[1]);
+        $this->assertSame(['fk_one', 'root_fk'], array_column($schema->table('c2')->foreignKeys, 'name'));
+        $this->assertSame(['fk_one', 'root_fk'], array_column($schema->table('c2_a')->foreignKeys, 'name'));
+        $this->assertSame([], $schema->table('inh_child')->foreignKeys);
+        $this->assertTrue($schema->isComplete());
+    }
+
+    public function testAttachedPartitionsAdoptMatchingForeignKeysAndReportIndexesFromTheirParent(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE public.r (id integer PRIMARY KEY);
+            CREATE TABLE p (k integer, ref_id integer, PRIMARY KEY (k), CONSTRAINT parent_fk FOREIGN KEY (ref_id) REFERENCES public.r (id)) PARTITION BY RANGE (k);
+            CREATE TABLE own (k integer NOT NULL, ref_id integer, CONSTRAINT own_fk FOREIGN KEY (ref_id) REFERENCES r);
+            CREATE TABLE weak (k integer NOT NULL, ref_id integer);
+            ALTER TABLE weak ADD CONSTRAINT weak_fk FOREIGN KEY (ref_id) REFERENCES r (id) NOT VALID;
+            ALTER TABLE p ATTACH PARTITION own FOR VALUES FROM (0) TO (10);
+            ALTER TABLE p ATTACH PARTITION weak FOR VALUES FROM (10) TO (20);
+            CREATE TABLE q (k integer) PARTITION BY RANGE (k);
+            CREATE TABLE q_a (k integer);
+            ALTER TABLE q ATTACH PARTITION q_a FOR VALUES FROM (0) TO (10);
+            CREATE INDEX q_only ON ONLY q (k);
+            CREATE TABLE s (k integer) PARTITION BY RANGE (k);
+            CREATE TABLE s_a (k integer);
+            ALTER TABLE s ATTACH PARTITION s_a FOR VALUES FROM (0) TO (10);
+            CREATE INDEX s_k ON s (k);
+            CREATE TABLE u (k integer) PARTITION BY RANGE (k);
+            CREATE TABLE u_a (k integer);
+            ALTER TABLE u ATTACH PARTITION u_a FOR VALUES FROM (0) TO (10);
+            ALTER TABLE u ADD PRIMARY KEY (k);
+            CREATE TABLE v (k integer) PARTITION BY RANGE (k);
+            CREATE TABLE v_a (k integer);
+            ALTER TABLE v ATTACH PARTITION v_a FOR VALUES FROM (0) TO (10);
+            ALTER TABLE v ADD CONSTRAINT v_ex EXCLUDE USING btree (k WITH =);
+            CREATE TABLE inh (k integer);
+            CREATE TABLE inh_child () INHERITS (inh);
+            CREATE INDEX inh_k ON inh (k);
+            CREATE TABLE w (k integer, EXCLUDE USING btree (k WITH =)) PARTITION BY RANGE (k);
+            CREATE TABLE w_a (k integer) PARTITION BY RANGE (k);
+            CREATE TABLE w_a_1 (k integer);
+            ALTER TABLE w ATTACH PARTITION w_a FOR VALUES FROM (0) TO (10);
+            ALTER TABLE w_a ATTACH PARTITION w_a_1 FOR VALUES FROM (0) TO (5);
+            SQL);
+        $indexes = ['Indexes the partition gets from its parent table are not represented.'];
+
+        // An equivalent foreign key is adopted however its reference is spelled; a NOT VALID one is not.
+        $this->assertSame(['own_fk'], array_column($schema->table('own')->foreignKeys, 'name'));
+        $this->assertSame(['weak_fk', 'parent_fk'], array_column($schema->table('weak')->foreignKeys, 'name'));
+
+        // An exclusion index is not represented on the parent either, and reaches partitions attached below w_a later.
+        foreach (['own', 'weak', 's_a', 'u_a', 'v_a', 'w_a', 'w_a_1'] as $name) {
+            $this->assertSame($indexes, array_column($schema->table($name)->issues, 'message'), $name);
+        }
+
+        foreach (['q_a', 'inh_child'] as $name) {
+            $this->assertSame([], $schema->table($name)->issues, $name);
+        }
+
+        $this->assertFalse($schema->table('u_a')->column('k')->nullable);
+    }
+
+    public function testPartitionForeignKeysWithUnresolvableReferencesAreReportedInsteadOfCopied(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE SCHEMA main;
+            CREATE SCHEMA other;
+            SET search_path = main, pg_catalog;
+            CREATE TABLE main.r (id integer PRIMARY KEY);
+            CREATE TABLE other.r (id integer PRIMARY KEY);
+            CREATE TABLE main.p (k integer, ref_id integer) PARTITION BY RANGE (k);
+            CREATE TABLE main.c (k integer, ref_id integer, CONSTRAINT own_fk FOREIGN KEY (ref_id) REFERENCES r (id)) PARTITION BY RANGE (k);
+            ALTER TABLE main.p ATTACH PARTITION main.c FOR VALUES FROM (0) TO (10);
+            ALTER TABLE main.p ADD CONSTRAINT parent_fk FOREIGN KEY (ref_id) REFERENCES main.r (id);
+            CREATE TABLE main.q (k integer, ref_id integer) PARTITION BY RANGE (k);
+            CREATE TABLE main.d (k integer, ref_id integer, CONSTRAINT own_fk FOREIGN KEY (ref_id) REFERENCES outside_a (id));
+            ALTER TABLE main.q ATTACH PARTITION main.d FOR VALUES FROM (0) TO (10);
+            ALTER TABLE main.q ADD CONSTRAINT parent_fk FOREIGN KEY (ref_id) REFERENCES outside_b (id);
+            CREATE TABLE main.leaf (k integer, ref_id integer);
+            ALTER TABLE main.c ATTACH PARTITION main.leaf FOR VALUES FROM (0) TO (5);
+            SQL);
+        $unresolved = ['The foreign keys the partition gets from its parent table could not be determined.'];
+
+        // The parser does not follow search_path, so it cannot tell whether PostgreSQL adopted own_fk,
+        // and a partition attached below later inherits that uncertainty.
+        foreach (['c', 'leaf'] as $name) {
+            $partition = $schema->table($name, 'main');
+            $this->assertSame(['own_fk'], array_column($partition->foreignKeys, 'name'), $name);
+            $this->assertSame($unresolved, array_column($partition->issues, 'message'), $name);
+        }
+
+        // Tables with different names are different even when neither is in the dump.
+        $this->assertSame(['own_fk', 'parent_fk'], array_column($schema->table('d', 'main')->foreignKeys, 'name'));
+        $this->assertSame([], $schema->table('d', 'main')->issues);
     }
 
     public function testStandardConformingStringsDecideHowLaterLiteralsAreDecoded(): void

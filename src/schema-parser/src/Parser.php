@@ -583,15 +583,9 @@ abstract class Parser implements ParserContract
                 continue;
             }
 
-            $target = $state->tableKey($foreignKey->foreignTable);
-            $primary = $target === null ? null : array_find(
-                $state->tables[$target]->indexes,
-                static fn (Index $index): bool => $index->primary,
-            );
-            $foreignColumns = array_column($primary->columns ?? [], 'name');
+            $foreignColumns = $this->referencedColumns($foreignKey, $state);
 
-            // A key part without a column name, such as a temporal one, cannot name a referenced column.
-            if ($foreignColumns === [] || in_array(null, $foreignColumns, true)) {
+            if ($foreignColumns === null) {
                 $table->issues[] = new Issue("The referenced columns of foreign table [{$foreignKey->foreignTable->name}] could not be resolved.");
                 continue;
             }
@@ -625,6 +619,28 @@ abstract class Parser implements ParserContract
             $table->partitionBounds,
             $table->issues,
         );
+    }
+
+    /**
+     * Get the columns a foreign key references, which default to the referenced table's primary key, or null when they cannot be resolved.
+     *
+     * @return null|list<string>
+     */
+    protected function referencedColumns(ForeignKey $foreignKey, ParseState $state): ?array
+    {
+        if ($foreignKey->foreignColumns !== []) {
+            return $foreignKey->foreignColumns;
+        }
+
+        $target = $state->tableKey($foreignKey->foreignTable);
+        $primary = $target === null ? null : array_find(
+            $state->tables[$target]->indexes,
+            static fn (Index $index): bool => $index->primary,
+        );
+        $foreignColumns = array_column($primary->columns ?? [], 'name');
+
+        // A key part without a column name, such as a temporal one, cannot name a referenced column.
+        return $foreignColumns === [] || in_array(null, $foreignColumns, true) ? null : $foreignColumns;
     }
 
     /**

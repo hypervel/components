@@ -26,6 +26,18 @@ final class TableDefinition
     /** @var list<ForeignKey> */
     public array $foreignKeys = [];
 
+    /** @var array<int, true> positions of PostgreSQL foreign keys that belong to a foreign key of the parent partitioned table */
+    public array $attachedForeignKeys = [];
+
+    /** @var array<int, list<string>> issue messages of the foreign keys, by position, that are only partly represented */
+    public array $foreignKeyIssues = [];
+
+    /** Whether the table has PostgreSQL indexes that are not represented, which its partitions also get */
+    public bool $unrepresentedIndexes = false;
+
+    /** Whether a parent foreign key may be missing from the table's PostgreSQL foreign keys, as from its partitions' */
+    public bool $unresolvedForeignKeys = false;
+
     /** @var list<CheckConstraint> */
     public array $checks = [];
 

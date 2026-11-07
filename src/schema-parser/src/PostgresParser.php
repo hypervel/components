@@ -756,6 +756,9 @@ class PostgresParser extends Parser
     protected function parseConstraint(TokenStream $tokens, ParseState $state, TableDefinition $table, ?string $column, ?string $name): bool
     {
         if (! isset(self::CONSTRAINT_STARTS[$tokens->text()])) {
+            // An exclusion constraint is not represented, and neither is the index it creates.
+            $table->unrepresentedIndexes = $table->unrepresentedIndexes || $tokens->is('EXCLUDE');
+
             return false;
         }
 
@@ -888,6 +891,7 @@ class PostgresParser extends Parser
      */
     private function parseReferences(TokenStream $tokens, ParseState $state, TableDefinition $table, ?string $name, array $columns, bool $temporal): void
     {
+        $issues = count($table->issues);
         $reference = $this->parseQualifiedName($tokens, 'a referenced table name');
         $foreignColumns = [];
 
@@ -914,6 +918,11 @@ class PostgresParser extends Parser
             $flags['valid'],
             $flags['enforced'],
         );
+
+        // A partition's copy of the foreign key is only partly represented too.
+        if (count($table->issues) > $issues) {
+            $table->foreignKeyIssues[array_key_last($table->foreignKeys)] = array_column(array_slice($table->issues, $issues), 'message');
+        }
     }
 
     /**
@@ -1034,7 +1043,7 @@ class PostgresParser extends Parser
             throw $tokens->error('Expected an index table');
         }
 
-        $tokens->accept('ONLY');
+        $only = $tokens->accept('ONLY');
         $reference = $this->parseQualifiedName($tokens, 'an index table');
         $key = $state->tableKey($reference);
 
@@ -1069,6 +1078,12 @@ class PostgresParser extends Parser
         }
 
         $state->addIndex($key, new Index($name, $columns, $include, $method, $unique, nullsNotDistinct: $nullsNotDistinct, where: $where));
+
+        if (! $only) {
+            foreach ($this->partitionKeys($key, $state) as $partitionKey) {
+                $this->reportPartitionIndexes($partitionKey, $state);
+            }
+        }
     }
 
     /**
@@ -1377,6 +1392,19 @@ class PostgresParser extends Parser
                 $state->tables[$partitionKey]->partitionOf = new TableReference($table->name, $table->schema);
                 $state->tables[$partitionKey]->partitionBounds = $this->parsePartitionBounds($tokens);
                 $state->linkChild($key, $partitionKey);
+
+                // The partition gets the parent's foreign keys and indexes. A dump attaches partitions before creating either.
+                foreach ($table->foreignKeys as $position => $foreignKey) {
+                    $this->addPartitionForeignKey($foreignKey, $table->foreignKeyIssues[$position] ?? [], $partitionKey, $state);
+                }
+
+                if ($table->indexes !== [] || $table->unrepresentedIndexes) {
+                    $this->reportPartitionIndexes($partitionKey, $state);
+                }
+
+                if ($table->unresolvedForeignKeys) {
+                    $this->reportUnresolvedForeignKeys($partitionKey, $state);
+                }
             }
 
             $this->skipEntry($tokens);
@@ -1545,12 +1573,15 @@ class PostgresParser extends Parser
     {
         $table = $state->tables[$key];
         $checks = count($table->checks);
+        $foreignKeys = count($table->foreignKeys);
         $indexes = $table->indexes;
+        $unrepresentedIndexes = $table->unrepresentedIndexes;
 
         $this->parseTableConstraint($tokens, $state, $table);
+        $addedIndex = $table->indexes !== $indexes;
         $addedPrimary = null;
 
-        if ($table->indexes !== $indexes) {
+        if ($addedIndex) {
             $state->refreshIndexNames($key);
             $primary = array_find($table->indexes, static fn (Index $index): bool => $index->primary);
             $addedPrimary = $primary === array_find($indexes, static fn (Index $index): bool => $index->primary) ? null : $primary;
@@ -1588,6 +1619,22 @@ class PostgresParser extends Parser
                 $childColumn->unvalidatedNotNull = $column->unvalidatedNotNull;
             }
         }
+
+        // Inheritance children get neither foreign keys nor indexes; partitions get both.
+        $partitions = $this->partitionKeys($key, $state);
+
+        foreach (array_slice($table->foreignKeys, $foreignKeys, preserve_keys: true) as $position => $foreignKey) {
+            foreach ($partitions as $partitionKey) {
+                $this->addPartitionForeignKey($foreignKey, $table->foreignKeyIssues[$position] ?? [], $partitionKey, $state);
+            }
+        }
+
+        // When the table already had an unrepresented index, its partitions already report it.
+        if ($addedIndex || $table->unrepresentedIndexes !== $unrepresentedIndexes) {
+            foreach ($partitions as $partitionKey) {
+                $this->reportPartitionIndexes($partitionKey, $state);
+            }
+        }
     }
 
     /**
@@ -1610,6 +1657,173 @@ class PostgresParser extends Parser
         }
 
         return $keys;
+    }
+
+    /**
+     * Get the keys of a table's direct partitions.
+     *
+     * A partitioned table cannot have inheritance children and other tables cannot
+     * have partitions, so the first child shows what all of them are.
+     *
+     * @return list<string>
+     */
+    private function partitionKeys(string $key, ParseState $state): array
+    {
+        $children = $state->children[$key] ?? [];
+        $first = array_key_first($children);
+
+        return $first !== null && $state->tables[$first]->partitionOf !== null ? array_keys($children) : [];
+    }
+
+    /**
+     * Give a partition, and the partitions below it, a foreign key of its parent table.
+     *
+     * PostgreSQL attaches an equivalent foreign key the partition declares itself, which
+     * already covers the partitions below it, and otherwise clones the parent's.
+     *
+     * @param list<string> $issues messages that say how the foreign key is only partly represented
+     */
+    private function addPartitionForeignKey(ForeignKey $foreignKey, array $issues, string $key, ParseState $state): void
+    {
+        $partition = $state->tables[$key];
+        $unknown = false;
+
+        foreach ($partition->foreignKeys as $position => $existing) {
+            if (isset($partition->attachedForeignKeys[$position])) {
+                continue;
+            }
+
+            $same = $this->sameForeignKey($existing, $foreignKey, $state);
+
+            // A partly represented foreign key cannot prove an exact match.
+            if ($same === true && ($issues !== [] || isset($partition->foreignKeyIssues[$position]))) {
+                $same = null;
+            }
+
+            if ($same === true) {
+                $partition->attachedForeignKeys[$position] = true;
+
+                return;
+            }
+
+            $unknown = $unknown || $same === null;
+        }
+
+        if ($unknown) {
+            $this->reportUnresolvedForeignKeys($key, $state);
+
+            return;
+        }
+
+        $position = count($partition->foreignKeys);
+        $partition->attachedForeignKeys[$position] = true;
+        // When the name is taken, the server generates one, differently across versions.
+        $partition->foreignKeys[] = $this->constraintNameIsFree($partition, $foreignKey->name) ? $foreignKey : new ForeignKey(
+            null,
+            $foreignKey->columns,
+            $foreignKey->foreignTable,
+            $foreignKey->foreignColumns,
+            $foreignKey->onUpdate,
+            $foreignKey->onDelete,
+            $foreignKey->match,
+            $foreignKey->deferral,
+            $foreignKey->valid,
+            $foreignKey->enforced,
+        );
+
+        if ($issues !== []) {
+            $partition->foreignKeyIssues[$position] = $issues;
+
+            foreach ($issues as $message) {
+                $partition->issues[] = $state->issue($message);
+            }
+        }
+
+        foreach ($this->partitionKeys($key, $state) as $partitionKey) {
+            $this->addPartitionForeignKey($foreignKey, $issues, $partitionKey, $state);
+        }
+    }
+
+    /**
+     * Determine whether two foreign keys are equivalent apart from their names, or null when their targets cannot be compared.
+     */
+    private function sameForeignKey(ForeignKey $first, ForeignKey $second, ParseState $state): ?bool
+    {
+        if ($first->columns !== $second->columns || $first->onUpdate !== $second->onUpdate
+            || $first->onDelete !== $second->onDelete || $first->match !== $second->match
+            || $first->deferral !== $second->deferral || $first->valid !== $second->valid
+            || $first->enforced !== $second->enforced) {
+            return false;
+        }
+
+        if ($first->foreignTable == $second->foreignTable && $first->foreignColumns === $second->foreignColumns) {
+            return true;
+        }
+
+        // Different names, or different schemas, are different tables even when neither is in the dump.
+        if ($first->foreignTable->name !== $second->foreignTable->name
+            || ($first->foreignTable->schema !== null && $second->foreignTable->schema !== null
+                && $first->foreignTable->schema !== $second->foreignTable->schema)) {
+            return false;
+        }
+
+        $firstTable = $state->tableKey($first->foreignTable);
+        $secondTable = $state->tableKey($second->foreignTable);
+        $firstColumns = $this->referencedColumns($first, $state);
+        $secondColumns = $this->referencedColumns($second, $state);
+
+        if (($firstTable !== null && $secondTable !== null && $firstTable !== $secondTable)
+            || ($firstColumns !== null && $secondColumns !== null && $firstColumns !== $secondColumns)) {
+            return false;
+        }
+
+        return $firstTable === null || $secondTable === null || $firstColumns === null || $secondColumns === null ? null : true;
+    }
+
+    /**
+     * Determine whether a table's constraints leave a name free, treating an unnamed one as possibly holding it.
+     */
+    private function constraintNameIsFree(TableDefinition $table, ?string $name): bool
+    {
+        $names = [
+            ...array_column($table->checks, 'name'),
+            ...array_column($table->foreignKeys, 'name'),
+            ...array_column(array_filter($table->indexes, static fn (Index $index): bool => $index->constraint), 'name'),
+        ];
+
+        return $name !== null && ! in_array($name, $names, true) && ! in_array(null, $names, true);
+    }
+
+    /**
+     * Record that a partition and the partitions below it have indexes created from their parent's, whose names the server chooses.
+     */
+    private function reportPartitionIndexes(string $key, ParseState $state): void
+    {
+        foreach ($this->descendants($key, $state) as $descendantKey) {
+            $partition = $state->tables[$descendantKey];
+
+            // Partitions attached below this one later get these indexes too.
+            if (! $partition->unrepresentedIndexes) {
+                $partition->unrepresentedIndexes = true;
+                $partition->issues[] = $state->issue('Indexes the partition gets from its parent table are not represented.');
+            }
+        }
+    }
+
+    /**
+     * Record that a partition and the partitions below it may be missing a parent foreign key that could not be compared with their own.
+     */
+    private function reportUnresolvedForeignKeys(string $key, ParseState $state): void
+    {
+        foreach ($this->descendants($key, $state) as $descendantKey) {
+            $partition = $state->tables[$descendantKey];
+
+            // Partitions attached below this one later may be missing it too.
+            if (! $partition->unresolvedForeignKeys) {
+                $partition->unresolvedForeignKeys = true;
+                $partition->issues[] = $state->issue('The foreign keys the partition gets from its parent table could not be determined.');
+            }
+        }
     }
 
     /**
