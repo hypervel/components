@@ -6,7 +6,7 @@ Create `hypervel/schema-parser` in `src/schema-parser` on `feature/schema-parser
 
 Write it as Taylor would write a first-party Laravel package, then port and enhance it for Hypervel: Laravel-style names, APIs and structure; complete features without unnecessary machinery; high performance.
 
-Done and committed: the result model, the adjacent database fixes and their consumers (see Database integration), CI dump clients and the serial TLS job. The committed MySQL and PostgreSQL readers are vendored ports. This design replaces them with first-party parsers on a shared base, because their upstreams give no sync value and their internals are inconsistent. `sad_spirit/pg_builder` and `bleksak/sqlite-toolkit` are dropped. Next: wait for the owner's approval to start implementation, then checkpoint 1.
+Complete: the result model, the adjacent database fixes and their consumers (see Database integration), CI dump clients, the serial TLS job, and checkpoint 1's shared parsing base and first-party PostgreSQL parser. `sad_spirit/pg_builder` and `bleksak/sqlite-toolkit` are removed. The owner approved implementation and the recorded PostgreSQL performance tradeoff. Next: checkpoint 2, replacing the remaining vendored MySQL reader with first-party MySQL and MariaDB parsers on the shared base.
 
 Interpret the SQL actually present. Never invent catalog facts a dump lacks, modify native clients, work around the dump clients' event-delimiter defect or the PostgreSQL dump fidelity gaps (#19773 and #5555), or target unreleased fixes.
 
@@ -62,8 +62,8 @@ src/schema-parser/src/
         MySqlLexer.php
         PostgresLexer.php
         SQLiteLexer.php
-        Token.php
         TokenStream.php
+        TokenType.php
         ParseState.php
         TableDefinition.php
         ColumnDefinition.php
@@ -90,9 +90,11 @@ This follows Laravel's grammar/processor pattern: an abstract base and one class
 
   Dialects override hooks only where syntax or meaning differs. There is no universal grammar with flags for every quirk.
 - **Lexers.** One lexer per dialect over the original source. The lexer owns statement boundaries, including MySQL `DELIMITER`, PostgreSQL COPY data and meta-commands, and SQLite trigger bodies. The base handles shared whitespace, comments, quoting, numbers, words and symbols; dialect lexers override what differs. Reading and skipping use the same scanning primitives. Offsets always refer to the original source, never a reconstructed statement buffer.
-- **TokenStream.** Pulls tokens lazily within the current statement, with a small lookahead buffer that never passes the terminator. A mode change in one statement therefore applies before the next statement is lexed. Dispatch reads only a statement's leading tokens. `skipRest()` reaches the terminator without creating tokens, so the skipped remainder of a statement, such as a routine body or appended data, allocates none. There is no rewind or history.
-- **Tokens.** Each token holds its type and source offsets.
-  - Compare keywords case-insensitively against the source without copying it. Keep the original spelling of names and literals.
+  - `PostgresLexer` reads a run of ordinary tokens with one native match over an upper-case copy of at most 8 KB of source, cut before whitespace, a comma or a parenthesis so no unquoted token is split. Pattern repetitions are bounded to stay within PCRE limits, and a PCRE failure throws. Tokens that need boundary handling (strings continued across lines, dollar quotes, comments, quoted tokens cut by the window or past a bound) go through the scanner.
+  - Skipping jumps natively to the bytes that can change the boundary state, tracking parenthesis depth as psql does.
+- **TokenStream.** Reads the current statement's tokens in runs, never past its terminator, so a mode change in one statement applies before the next statement is lexed. Dispatch reads only a statement's leading token. It keeps the tokens it has read, so a parser can look behind and rewind within the statement. `skipRest()` and `skipGroup()` skip unread source without creating tokens: a statement's remainder, such as a routine body or appended data, and the rest of a group whose source text is all the parser needs. Skipped source cannot be replayed, so a rewind spans only tokens that were read: `parseType()` measures a type's span with `skipExpression()`, which reads every token, to reuse an earlier interpretation.
+- **Tokens.** A token is its start offset and upper-case source text. Quoted tokens keep their delimiters, so only a word can equal a keyword. Types that depend on lexer state, such as strings and the terminator, are recorded when read; other types follow from the text when first needed.
+  - Keep the original spelling of names and literals, decoded from the source.
   - Decode quoted names and strings only when a consumer needs the value: names, comments, enum/set labels.
   - Mode-dependent classification (MySQL quotes and escapes, PostgreSQL `standard_conforming_strings`) is fixed when the token is produced.
 - **Expressions.** Defaults, generation, checks, index keys, predicates, partition bounds and view queries stay exact source spans between token offsets. Shared primitives read balanced brackets and spans; each clause parser decides where its expression stops. No expression tree.
@@ -202,7 +204,7 @@ The parser is not a database server validator: recognizing an opaque type or ign
 
 1. **Lexing.**
    - Preserve quotes, dollar-quoted routine bodies, nested comments and statement boundaries.
-   - Recognize E-string, `U&` and dollar-tag prefixes only at identifier boundaries, including dollar and high-bit continuation bytes. Parentheses and brackets share one nesting depth, so array defaults stay intact.
+   - Recognize E-string, `U&` and dollar-tag prefixes only at identifier boundaries, including dollar and high-bit continuation bytes. Statement boundaries follow psql's parenthesis depth; expression spans also nest square brackets, so array defaults stay intact.
    - Skip psql meta-commands, and native COPY FROM stdin data through the exact `\.` line; a missing terminator is a parse error. Unterminated constructs fail during the scan.
 2. **Identity.** Never substitute `public` for unqualified table, type or ALTER identities, and never guess search paths. Only keyword spellings are `pg_catalog` types (see Identity, lookup and raw values).
 3. **Types.** `parseType()` reads quoted and qualified names and the SQL-standard multi-word spellings (mapped to canonical `pg_catalog` names). It also reads modifiers, `with`/`without time zone`, interval fields with precision, and `[]`/`[n]`/`ARRAY` dimensions. Unrecognized syntax keeps its raw text as an opaque type; quoted user types keep their case. Verify the spellings against `format_type()` output from PG10 to PG18.
@@ -256,12 +258,19 @@ The parser is not a database server validator: recognizing an opaque type or ign
 
 All mutable state belongs to one parse (see Architecture). Parsing is synchronous CPU work with no coroutine yields.
 
-- **One forward pass.** Skipped statement remainders create no tokens. Expressions are offset spans and values are decoded on demand. Use native span searches between significant bytes, not PHP calls or buffer appends per ordinary byte.
+- **One forward pass.** The unread remainders of skipped statements and groups create no tokens; tokens that were read are kept only until the next statement. Expressions are offset spans and values are decoded on demand. Use native span searches between significant bytes, not PHP calls or buffer appends per ordinary byte.
 - **No repeated work.** No rescanning or copying of growing statements, and no rescanning all tables for lookups. Use whichever primitive is clearest and efficient: `strcspn`/`strpos`, or an anchored or small bounded regex.
 - **Memoize and index.** Memoize repeated PostgreSQL type text within the parse. Resolve dependencies through indexed identities, with traversal bounded by the actual definitions. Freeze each definition once, and retain no raw dump text on results when source fragments suffice.
 - **Line numbers.** Count diagnostic lines incrementally as issue offsets advance; one-shot syntax failures may count from the start.
 - **Nothing persistent.** No persistent result caching, locks, background processes or public streaming API. Callers can cache by input SQL and parser.
-- **Benchmark.** With fresh owner confirmation that the machine is idle, record the current MySQL and PostgreSQL readers' parse time and peak memory on large deterministic fixtures before deleting them, then compare at each checkpoint. A regression needs an explanation and owner approval. Tests use large fixtures for correctness only, without timing assertions.
+- **Benchmark.** Compare at each checkpoint. The owner's permission to benchmark stands until withdrawn; check that the machine is quiet before timing, and rerun the affected comparisons if competing work ran. A regression needs an explanation and owner approval. Tests use large fixtures for correctness only, without timing assertions. The harness (`generate.php 2000`, `run.php <worktree> <dialect> <fixture> 7`) is in the session scratchpad `bench/`. Baseline of the old readers (PHP 8.4 NTS, opcache off, 2,000-table dumps with 2,001 tables, 30,003 columns, 1,999 FKs and 200 views; PostgreSQL 10,000 indexes, MySQL 10,001):
+
+  | Reader | Input | Median | Min | Peak memory |
+  | --- | --- | --- | --- | --- |
+  | PostgreSQL | 5.6 MB | 645 ms | 620 ms | +49 MB |
+  | MySQL | 3.7 MB | 1289 ms | 1087 ms | +221 MB |
+
+  The owner approved checkpoint 1's PostgreSQL tradeoff: the 2,000-table dump parses 4–10% slower (17–59 ms across opcache and JIT modes), because parsed CREATE INDEX and ALTER statements are read token by token, while peak memory is 16% lower and wide tables, large CHECK groups and skipped bodies are much faster. Extra time on numeric INSERTs and BEGIN ATOMIC bodies is correct psql boundary work that the old reader skipped.
 
 ## Database integration
 
@@ -331,19 +340,19 @@ Root formatting and analysis scripts also run the base skeleton's tooling; insta
 
 ## Implementation order
 
-1. **Base and PostgreSQL.** Record the benchmark baseline first, after owner idle confirmation. Then build:
-   - `Parsing/`: all three lexers, `Token`, `TokenStream`, `ParseState` and the definitions;
+1. **Base and PostgreSQL.** Build:
+   - `Parsing/`: all three lexers, `TokenStream`, `TokenType`, `ParseState` and the definitions;
    - `Parser`, and `PostgresParser` with its existing semantics moved across;
    - `ColumnType::$intervalFields`;
    - the lexical-boundary tests;
    - the migrated PostgreSQL tests.
 
-   Delete `Postgres/` and `pg_builder`. Checkpoint review.
-2. **MySQL, MariaDB, SQLite and completion.**
-   - `MySqlParser`, `MariaDbParser` and `SQLiteParser`, with their tests and live suites, including a new SQLite live suite that checks the appended INSERTs;
-   - the remaining SQLite database fixes (see Database integration);
-   - delete `MySql/`, the SQLite toolkit and the old upstream-named tests;
+   Delete `Postgres/`, `pg_builder` and the unused SQLite toolkit. Checkpoint review.
+2. **MySQL and MariaDB.** `MySqlParser` and `MariaDbParser` with their tests and live suites, moving the cores they share with `PostgresParser` into the base. Delete `MySql/` and the old upstream-named MySQL tests. Checkpoint review.
+3. **SQLite.** `SQLiteParser` with its tests and a new live suite that checks the appended INSERTs, plus the remaining SQLite database fixes (see Database integration). Checkpoint review.
+4. **Completion.**
    - README, LICENSE, docs and Composer, plus the standalone install;
+   - Profile representative workloads across all parsers. Optimize measured bottlenecks, repeated work and unnecessary allocations where the gains justify the complexity. Recheck correctness, execution time and peak memory.
    - the benchmark comparison;
    - a final grep for upstream names, stale comments and dead code.
 
