@@ -62,7 +62,7 @@
         "symfony/console": "^8.1.10",
         "symfony/finder": "^8.1",
         "symfony/http-foundation": "^8.1",
-        "symfony/yaml": "^8.1"
+        "symfony/yaml": "^8.1.11"
     },
     "conflict": {
         "aws/aws-sdk-php": "<3.369.1"

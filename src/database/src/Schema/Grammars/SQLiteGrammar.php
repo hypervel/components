@@ -49,8 +49,9 @@ class SQLiteGrammar extends Grammar
      */
     public function compileSqlCreateStatement(?string $schema, string $name, string $type = 'table'): string
     {
+        // SQLite identifiers ignore ASCII case even though sqlite_master.name uses binary comparison.
         return sprintf(
-            'select "sql" from %s.sqlite_master where type = %s and name = %s',
+            'select "sql" from %s.sqlite_master where type = %s and name = %s collate nocase',
             $this->wrapValue($schema ?? 'main'),
             $this->quoteString($type),
             $this->quoteString($name)
@@ -78,8 +79,9 @@ class SQLiteGrammar extends Grammar
      */
     public function compileTableExists(?string $schema, string $table): string
     {
+        // Match SQLite's case-insensitive identifier lookup, as in compileSqlCreateStatement().
         return sprintf(
-            'select exists (select 1 from %s.sqlite_master where name = %s and type = \'table\') as "exists"',
+            'select exists (select 1 from %s.sqlite_master where name = %s collate nocase and type = \'table\') as "exists"',
             $this->wrapValue($schema ?? 'main'),
             $this->quoteString($table)
         );
@@ -149,9 +151,13 @@ class SQLiteGrammar extends Grammar
      */
     public function compileColumns(?string $schema, string $table): string
     {
+        // Rowid aliases have no separate primary-key index, unlike inline DESC and WITHOUT ROWID keys.
         return sprintf(
-            'select name, type, not "notnull" as "nullable", dflt_value as "default", pk as "primary", hidden as "extra" '
+            'select name, type, not "notnull" as "nullable", dflt_value as "default", pk as "primary", hidden as "extra", '
+            . 'pk > 0 and not exists (select 1 from pragma_index_list(%s, %s) where origin = \'pk\') as auto_increment '
             . 'from pragma_table_xinfo(%s, %s) order by cid asc',
+            $this->quoteString($table),
+            $this->quoteString($schema ?? 'main'),
             $this->quoteString($table),
             $this->quoteString($schema ?? 'main')
         );
@@ -169,9 +175,9 @@ class SQLiteGrammar extends Grammar
         // Partial indexes must remain non-reconstructible so rebuilds and renames
         // replay their stored predicate SQL instead of silently creating a full index.
         return sprintf(
-            'select \'primary\' as name, group_concat(hex(col)) as columns, 1 as "unique", 1 as "primary", null as sql, \'pk\' as origin, 1 as reconstructible, 0 as partial, null as collations, null as "descending" '
+            'select \'primary\' as name, group_concat(hex(col)) as columns, group_concat(hex(col)) as key_columns, 1 as "unique", 1 as "primary", null as sql, \'pk\' as origin, 1 as reconstructible, 0 as partial, null as collations, null as "descending" '
             . 'from (select name as col from pragma_table_xinfo(%s, %s) where pk > 0 order by pk, cid) group by name '
-            . 'union all select name, case when count(*) = count(col) then group_concat(col) end as columns, "unique", origin = \'pk\' as "primary", sql, origin, not partial and min(simple) as reconstructible, partial, '
+            . 'union all select name, case when count(*) = count(col) then group_concat(col) end as columns, group_concat(coalesce(col, \'-\')) as key_columns, "unique", origin = \'pk\' as "primary", sql, origin, not partial and min(simple) as reconstructible, partial, '
             . 'case when count(*) = count(col) then group_concat(collation) end as collations, '
             . 'case when count(*) = count(col) then group_concat("descending") end as "descending" '
             . 'from (select il.*, case when ii.name is not null then hex(ii.name) end as col, hex(ii.coll) as collation, ii."desc" as "descending", '
@@ -194,11 +200,14 @@ class SQLiteGrammar extends Grammar
     public function compileForeignKeys(?string $schema, string $table): string
     {
         return sprintf(
-            'select group_concat("from") as columns, %s as foreign_schema, "table" as foreign_table, '
-            . 'group_concat("to") as foreign_columns, on_update, on_delete '
-            . 'from (select * from pragma_foreign_key_list(%s, %s) order by id desc, seq) '
+            'select group_concat(hex("from")) as columns, %s as foreign_schema, "table" as foreign_table, '
+            . 'case when count(*) = count(target_column) then group_concat(hex(target_column)) end as foreign_columns, '
+            . 'max("to" is null) as implicit, on_update, on_delete '
+            . 'from (select fk.*, coalesce(fk."to", (select name from pragma_table_info(fk."table", %s) where pk = fk.seq + 1)) as target_column '
+            . 'from pragma_foreign_key_list(%s, %s) fk order by id desc, seq) '
             . 'group by id, "table", on_update, on_delete',
             $schema = $this->quoteString($schema ?? 'main'),
+            $schema,
             $this->quoteString($table),
             $schema
         );
@@ -247,10 +256,10 @@ class SQLiteGrammar extends Grammar
         // so that it is a properly formatted list. Once we have done this, we can
         // return the foreign key SQL declaration to the calling method for use.
         $sql = sprintf(
-            ', foreign key(%s) references %s(%s)',
+            ', foreign key(%s) references %s%s',
             $this->columnize($foreign->columns),
             $this->wrapTable($foreign->on),
-            $this->columnize((array) $foreign->references)
+            (array) $foreign->references === [] ? '' : '(' . $this->columnize((array) $foreign->references) . ')'
         );
 
         if (! is_null($foreign->onDelete)) {
@@ -325,15 +334,24 @@ class SQLiteGrammar extends Grammar
         $this->ensureTableCanBeRebuilt($blueprint, $scannableTableSql);
         $tableOptions = $this->compileTableOptions($scannableTableSql);
         $stateColumns = $blueprint->getState()->getColumns();
-        $definedColumnNames = array_map(fn (Fluent $column) => $column->name, $stateColumns);
+        $primaryKey = $blueprint->getState()->getPrimaryKey();
+        $definedColumnNames = array_map(fn (Fluent $column) => strtolower($column->name), $stateColumns);
         $columnNames = [];
         $autoIncrementColumn = null;
+        $inlinePrimaryColumn = null;
 
         $columns = (new Collection($stateColumns))
-            ->map(function ($column) use ($blueprint, &$columnNames, &$autoIncrementColumn) {
+            ->map(function ($column) use ($blueprint, $primaryKey, &$columnNames, &$autoIncrementColumn, &$inlinePrimaryColumn) {
                 $name = $this->wrap($column);
+                $type = $column->full_type_definition ?? $this->getType($column);
 
                 $autoIncrementColumn = $column->autoIncrement ? $column->name : $autoIncrementColumn;
+                // Inline INTEGER PRIMARY KEY DESC is not a rowid alias; the table-level form is.
+                $inlineDescending = ! $column->autoIncrement && strtolower($type) === 'integer'
+                    && $primaryKey?->descending === [true] && $primaryKey->columns === [$column->name];
+                if ($column->autoIncrement || $inlineDescending) {
+                    $inlinePrimaryColumn = $column->name;
+                }
 
                 if (is_null($column->virtualAs) && is_null($column->virtualAsJson)
                     && is_null($column->storedAs) && is_null($column->storedAsJson)) {
@@ -341,7 +359,7 @@ class SQLiteGrammar extends Grammar
                 }
 
                 return $this->addModifiers(
-                    $this->wrap($column) . ' ' . ($column->full_type_definition ?? $this->getType($column)),
+                    $name . ' ' . $type . ($inlineDescending ? ' primary key desc' : ''),
                     $blueprint,
                     $column
                 );
@@ -360,7 +378,7 @@ class SQLiteGrammar extends Grammar
                     $referencedColumns[] = $index->whereNotNull;
                 }
 
-                if (! empty(array_diff($referencedColumns, $definedColumnNames))) {
+                if (! empty(array_diff(array_map('strtolower', $referencedColumns), $definedColumnNames))) {
                     throw new RuntimeException(
                         "Cannot rebuild table [{$blueprint->getTable()}] because index [{$index->index}] references a dropped column."
                     );
@@ -378,28 +396,54 @@ class SQLiteGrammar extends Grammar
             ->values()
             ->all();
 
-        [, $tableName] = $this->connection->getSchemaBuilder()->parseSchemaAndTable($blueprint->getTable());
+        [$schema, $tableName] = $this->connection->getSchemaBuilder()->parseSchemaAndTable($blueprint->getTable());
         $tempTable = $this->wrapTable($blueprint, '__temp__' . $this->connection->getTablePrefix());
         $table = $this->wrapTable($blueprint);
         $columnNames = implode(', ', $columnNames);
+        $sequenceUpdate = null;
+
+        if ($autoIncrementColumn !== null) {
+            $sequenceTable = $this->wrapValue($schema ?? 'main') . '.sqlite_sequence';
+            $physicalName = $this->connection->getTablePrefix() . $tableName;
+            // Copying surviving rows must not discard the IDs already allocated and deleted. SQLite creates the
+            // temporary table's sequence row even when the copy inserts no rows, so this update always has a row.
+            $sequenceUpdate = sprintf(
+                'update %s set seq = max(seq, coalesce((select seq from %s where name = %s collate nocase), 0)) where name = %s',
+                $sequenceTable,
+                $sequenceTable,
+                $this->quoteString($physicalName),
+                $this->quoteString('__temp__' . $physicalName),
+            );
+        }
 
         // Rebuild guards must inspect foreign-key state on the write PDO they govern.
         $foreignKeyConstraintsEnabled = $this->connection->scalar($this->pragma('foreign_keys'), [], false);
 
-        return array_filter(array_merge([
+        return array_values(array_filter(array_merge([
             $foreignKeyConstraintsEnabled ? $this->compileDisableForeignKeyConstraints() : null,
             sprintf(
                 'create table %s (%s%s%s)%s',
                 $tempTable,
                 implode(', ', array_merge($columns, $inlineUniqueConstraints)),
                 $this->addForeignKeys($blueprint->getState()->getForeignKeys()),
-                $autoIncrementColumn ? '' : $this->addPrimaryKeys($blueprint->getState()->getPrimaryKey()),
+                $inlinePrimaryColumn !== null ? '' : $this->addPrimaryKeys($primaryKey),
                 $tableOptions,
             ),
             sprintf('insert into %s (%s) select %s from %s', $tempTable, $columnNames, $columnNames, $table),
+            $sequenceUpdate,
             sprintf('drop table %s', $table),
             sprintf('alter table %s rename to %s', $tempTable, $this->wrapTable($tableName)),
-        ], $indexes, [$foreignKeyConstraintsEnabled ? $this->compileEnableForeignKeyConstraints() : null]));
+        ], $indexes, [$foreignKeyConstraintsEnabled ? $this->compileEnableForeignKeyConstraints() : null])));
+    }
+
+    /**
+     * Determine whether stored table SQL declares AUTOINCREMENT.
+     *
+     * @internal
+     */
+    public function declaresAutoIncrement(string $sql): bool
+    {
+        return preg_match('/\bautoincrement\b/i', $this->tableSqlForScanning($sql)) === 1;
     }
 
     /**

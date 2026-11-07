@@ -90,6 +90,15 @@ When prohibited, `schema:dump` exits without dumping the schema or pruning migra
 > [!WARNING]
 > Migration squashing is only available for the MariaDB, MySQL, PostgreSQL, and SQLite databases and utilizes the database's command-line client.
 
+<a name="schema-dump-tls"></a>
+#### TLS Connections
+
+Schema dumping and loading use the TLS options from your database connection. For verified TLS, configure a trusted certificate authority using `Pdo\Mysql::ATTR_SSL_CA` or `Pdo\Mysql::ATTR_SSL_CAPATH`. Each omitted trust setting falls back to its corresponding PHP `openssl.cafile` or `openssl.capath` setting. When neither is configured, Hypervel uses PHP's system trust paths.
+
+The MySQL command-line client requires version 5.7.11 or later for TLS connections. If certificate verification is disabled, Hypervel still requires an encrypted connection.
+
+When using MariaDB command-line tools, TLS connections require certificate verification. Leave `Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT` unset or set it to `true`, and configure a trusted CA. Hypervel rejects TLS with verification disabled because the MariaDB client can otherwise fall back to an unencrypted connection.
+
 <a name="migration-structure"></a>
 ## Migration Structure
 

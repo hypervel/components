@@ -7,9 +7,9 @@ namespace Hypervel\Database\Schema;
 use Exception;
 use Hypervel\Database\Connection;
 use Hypervel\Database\MySqlConnection;
-use Hypervel\Support\Str;
 use Override;
 use Pdo\Mysql;
+use RuntimeException;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
 use Throwable;
@@ -43,11 +43,136 @@ class MySqlSchemaState extends SchemaState
      */
     protected function removeAutoIncrementingState(string $path): void
     {
-        $this->files->put($path, preg_replace(
-            '/\s+AUTO_INCREMENT=[0-9]+/iu',
-            '',
-            $this->files->get($path)
-        ));
+        $sql = $this->files->get($path);
+        $length = strlen($sql);
+        $offset = 0;
+        $result = '';
+        $sqlMode = '';
+
+        while ($offset < $length) {
+            $end = strpos($sql, "\n", $offset);
+            $end = $end === false ? $length : $end + 1;
+            $line = substr($sql, $offset, $end - $offset);
+
+            if (preg_match('/^DELIMITER (\S+)/', $line, $matches) && $matches[1] !== ';') {
+                $end = $this->skipDumpDelimitedStatements($sql, $end, $matches[1], $sqlMode);
+                $result .= substr($sql, $offset, $end - $offset);
+            } else {
+                if (preg_match('/^(?:\/\*(?:!|M!)\d+\s*)?SET\b[^\r\n]*?\bSQL_MODE\s*=\s*[\'"]([A-Z0-9_,]*)[\'"]/i', $line, $matches)) {
+                    $sqlMode = $matches[1];
+                }
+
+                // Native dumps put the counter here; a global replacement also changes SQL literals.
+                $result .= preg_replace('/^\)[^\r\n]*? ENGINE=\w+\K AUTO_INCREMENT=\d+/', '', $line);
+            }
+
+            $offset = $end;
+        }
+
+        $this->files->put($path, $result);
+    }
+
+    /**
+     * Find the end of an authored routine, trigger or event section in a native dump.
+     */
+    protected function skipDumpDelimitedStatements(string $sql, int $offset, string $delimiter, string $sqlMode): int
+    {
+        $length = strlen($sql);
+        $quote = null;
+        $executableComment = false;
+        $statementStart = true;
+        $modes = explode(',', strtoupper($sqlMode));
+        $noBackslashEscapes = in_array('NO_BACKSLASH_ESCAPES', $modes, true);
+        $ansiQuotes = in_array('ANSI_QUOTES', $modes, true) || in_array('ANSI', $modes, true);
+
+        while ($offset < $length) {
+            $character = $sql[$offset];
+            $next = $sql[$offset + 1] ?? '';
+
+            if ($quote !== null) {
+                if ($character === '\\' && ! $noBackslashEscapes && ($quote === "'" || ($quote === '"' && ! $ansiQuotes))) {
+                    $offset += 2;
+                    continue;
+                }
+
+                if ($character === $quote) {
+                    if ($next === $quote) {
+                        $offset += 2;
+                        continue;
+                    }
+
+                    $quote = null;
+                }
+
+                ++$offset;
+                continue;
+            }
+
+            if (ctype_space($character)) {
+                ++$offset;
+                continue;
+            }
+
+            if ($character === '#' || ($character === '-' && $next === '-' && (! isset($sql[$offset + 2]) || ord($sql[$offset + 2]) <= 32))) {
+                $end = strpos($sql, "\n", $offset);
+                $offset = $end === false ? $length : $end + 1;
+                continue;
+            }
+
+            if ($character === '/' && $next === '*') {
+                if (preg_match('/\G\/\*(?:!|M!)\d*/', $sql, $matches, 0, $offset)) {
+                    $executableComment = true;
+                    $offset += strlen($matches[0]);
+                } else {
+                    $end = strpos($sql, '*/', $offset + 2);
+                    $offset = $end === false ? $length : $end + 2;
+                }
+
+                continue;
+            }
+
+            if ($executableComment && $character === '*' && $next === '/') {
+                $executableComment = false;
+                $offset += 2;
+                continue;
+            }
+
+            if (! $executableComment && substr_compare($sql, $delimiter, $offset, strlen($delimiter)) === 0) {
+                $offset += strlen($delimiter);
+                $statementStart = true;
+                continue;
+            }
+
+            if ($statementStart) {
+                if (! $executableComment && preg_match('/\GDELIMITER (\S+)[^\r\n]*(?:\r?\n|$)/', $sql, $matches, 0, $offset)) {
+                    $delimiter = $matches[1];
+                    $offset += strlen($matches[0]);
+
+                    if ($delimiter === ';') {
+                        return $offset;
+                    }
+
+                    continue;
+                }
+
+                // Each authored body has a literal mode assignment; generated restores need no saved-mode map.
+                if (preg_match('/\GSET\s+(?:SESSION\s+)?SQL_MODE\s*=\s*[\'"]([A-Z0-9_,]*)[\'"]/i', $sql, $matches, 0, $offset)) {
+                    $modes = explode(',', strtoupper($matches[1]));
+                    $noBackslashEscapes = in_array('NO_BACKSLASH_ESCAPES', $modes, true);
+                    $ansiQuotes = in_array('ANSI_QUOTES', $modes, true) || in_array('ANSI', $modes, true);
+                }
+
+                $statementStart = false;
+            }
+
+            if ($character === "'" || $character === '"' || $character === '`') {
+                $quote = $character;
+            }
+
+            ++$offset;
+        }
+
+        throw new RuntimeException('The schema dump has an unterminated DELIMITER section.');
     }
 
     /**
@@ -56,8 +181,10 @@ class MySqlSchemaState extends SchemaState
     protected function appendMigrationData(string $path): void
     {
         $process = $this->executeDumpProcess($this->makeProcess(
-            $this->baseDumpCommand() . ' ' . $this->getMigrationTable() . ' --no-create-info --skip-extended-insert --skip-routines --compact --complete-insert'
-        ), null, array_merge($this->baseVariables($this->connection->getConfig()), []));
+            $this->baseDumpCommand() . ' "${:HYPERVEL_LOAD_MIGRATION_TABLE}" --no-create-info --skip-extended-insert --skip-routines --compact --complete-insert'
+        ), null, array_merge($this->baseVariables($this->connection->getConfig()), [
+            'HYPERVEL_LOAD_MIGRATION_TABLE' => $this->getMigrationTable(),
+        ]));
 
         $this->files->append($path, $process->getOutput());
     }
@@ -110,27 +237,75 @@ class MySqlSchemaState extends SchemaState
             ? ' --socket="${:HYPERVEL_LOAD_SOCKET}"'
             : ' --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}"';
 
-        if (isset($config['options'][Mysql::ATTR_SSL_CA])) {
-            $value .= ' --ssl-ca="${:HYPERVEL_LOAD_SSL_CA}"';
-        }
+        $ssl = $this->sslOptions($config);
 
-        if (isset($config['options'][Mysql::ATTR_SSL_CERT])) {
-            $value .= ' --ssl-cert="${:HYPERVEL_LOAD_SSL_CERT}"';
-        }
-
-        if (isset($config['options'][Mysql::ATTR_SSL_KEY])) {
-            $value .= ' --ssl-key="${:HYPERVEL_LOAD_SSL_KEY}"';
-        }
-
-        if (($config['options'][Mysql::ATTR_SSL_VERIFY_SERVER_CERT] ?? null) === false) {
-            if (version_compare($versionInfo['version'], '5.7.11', '>=') && ! $versionInfo['isMariaDb']) {
-                $value .= ' --ssl-mode=DISABLED';
-            } else {
-                $value .= ' --ssl=off';
+        if ($ssl['requested']) {
+            if ($versionInfo['isMariaDb'] && ! $ssl['verify']) {
+                throw new RuntimeException('The MariaDB command-line client cannot require TLS without certificate verification. Enable certificate verification and configure a trusted SSL CA or CA directory.');
             }
+
+            if (! $versionInfo['isMariaDb'] && version_compare($versionInfo['version'], '5.7.11', '<')) {
+                throw new RuntimeException('Schema dump and load with TLS require the MySQL command-line client version 5.7.11 or later.');
+            }
+
+            foreach (['ca', 'cert', 'key', 'capath', 'cipher'] as $option) {
+                if ($ssl[$option] !== null) {
+                    $value .= sprintf(' --ssl-%s="${:HYPERVEL_LOAD_SSL_%s}"', $option, strtoupper($option));
+                }
+            }
+
+            $value .= $versionInfo['isMariaDb']
+                ? ' --ssl --ssl-verify-server-cert'
+                : ($ssl['verify'] ? ' --ssl-mode=VERIFY_IDENTITY' : ' --ssl-mode=REQUIRED');
+        } elseif ($versionInfo['isMariaDb'] || ! $ssl['verify']) {
+            $value .= ! $versionInfo['isMariaDb'] && version_compare($versionInfo['version'], '5.7.11', '>=')
+                ? ' --ssl-mode=DISABLED'
+                : ' --ssl=off';
         }
 
         return $value;
+    }
+
+    /**
+     * Resolve PDO's TLS intent and PHP's certificate trust paths for the native client.
+     *
+     * @param array<string, mixed> $config
+     * @return array{requested: bool, verify: bool, ca: ?string, cert: ?string, key: ?string, capath: ?string, cipher: ?string}
+     */
+    protected function sslOptions(array $config): array
+    {
+        $options = $config['options'] ?? [];
+        $ssl = [
+            'ca' => isset($options[Mysql::ATTR_SSL_CA]) ? (string) $options[Mysql::ATTR_SSL_CA] : null,
+            'cert' => isset($options[Mysql::ATTR_SSL_CERT]) ? (string) $options[Mysql::ATTR_SSL_CERT] : null,
+            'key' => isset($options[Mysql::ATTR_SSL_KEY]) ? (string) $options[Mysql::ATTR_SSL_KEY] : null,
+            'capath' => isset($options[Mysql::ATTR_SSL_CAPATH]) ? (string) $options[Mysql::ATTR_SSL_CAPATH] : null,
+            'cipher' => isset($options[Mysql::ATTR_SSL_CIPHER]) ? (string) $options[Mysql::ATTR_SSL_CIPHER] : null,
+        ];
+        $ssl['requested'] = array_filter($ssl, static fn (?string $value): bool => $value !== null) !== [];
+        $ssl['verify'] = (bool) ($options[Mysql::ATTR_SSL_VERIFY_SERVER_CERT] ?? true);
+
+        if (! $ssl['requested'] || ! $ssl['verify']) {
+            $ssl['ca'] = $ssl['capath'] = null;
+
+            return $ssl;
+        }
+
+        $ssl['ca'] ??= ini_get('openssl.cafile') ?: null;
+        $ssl['capath'] ??= ini_get('openssl.capath') ?: null;
+
+        // PHP uses system trust only when neither connection options nor INI selected a trust store.
+        if ($ssl['ca'] === null && $ssl['capath'] === null) {
+            $locations = openssl_get_cert_locations();
+            $file = getenv($locations['default_cert_file_env']);
+            $directory = getenv($locations['default_cert_dir_env']);
+            $file = $file === false ? $locations['default_cert_file'] : $file;
+            $directory = $directory === false ? $locations['default_cert_dir'] : $directory;
+            $ssl['ca'] = is_file($file) ? $file : null;
+            $ssl['capath'] = is_dir($directory) ? $directory : null;
+        }
+
+        return $ssl;
     }
 
     /**
@@ -140,6 +315,7 @@ class MySqlSchemaState extends SchemaState
     protected function baseVariables(array $config): array
     {
         $config['host'] ??= '';
+        $ssl = $this->sslOptions($config);
 
         return array_map(strval(...), [
             'HYPERVEL_LOAD_SOCKET' => $config['unix_socket'] ?? '',
@@ -148,9 +324,11 @@ class MySqlSchemaState extends SchemaState
             'HYPERVEL_LOAD_USER' => $config['username'],
             'HYPERVEL_LOAD_PASSWORD' => $config['password'] ?? '',
             'HYPERVEL_LOAD_DATABASE' => $config['database'],
-            'HYPERVEL_LOAD_SSL_CA' => $config['options'][Mysql::ATTR_SSL_CA] ?? '',
-            'HYPERVEL_LOAD_SSL_CERT' => $config['options'][Mysql::ATTR_SSL_CERT] ?? '',
-            'HYPERVEL_LOAD_SSL_KEY' => $config['options'][Mysql::ATTR_SSL_KEY] ?? '',
+            'HYPERVEL_LOAD_SSL_CA' => $ssl['ca'] ?? '',
+            'HYPERVEL_LOAD_SSL_CERT' => $ssl['cert'] ?? '',
+            'HYPERVEL_LOAD_SSL_KEY' => $ssl['key'] ?? '',
+            'HYPERVEL_LOAD_SSL_CAPATH' => $ssl['capath'] ?? '',
+            'HYPERVEL_LOAD_SSL_CIPHER' => $ssl['cipher'] ?? '',
         ]);
     }
 
@@ -167,25 +345,26 @@ class MySqlSchemaState extends SchemaState
             throw new Exception('Dump execution exceeded maximum depth of 30.');
         }
 
-        try {
-            $process->setTimeout(null)->mustRun($this->guardProcessOutput($process, $output), $variables);
-        } catch (Exception $e) {
-            if (Str::contains($e->getMessage(), ['column-statistics', 'column_statistics'])) {
-                return $this->executeDumpProcess(Process::fromShellCommandLine(
-                    str_replace(' --column-statistics=0', '', $process->getCommandLine())
-                ), $output, $variables, $depth + 1);
-            }
-
-            if (str_contains($e->getMessage(), 'set-gtid-purged')) {
-                return $this->executeDumpProcess(Process::fromShellCommandLine(
-                    str_replace(' --set-gtid-purged=OFF', '', $process->getCommandLine())
-                ), $output, $variables, $depth + 1);
-            }
-
-            throw $e;
+        if ($process->setTimeout(null)->run($this->guardProcessOutput($process, $output), $variables) === 0) {
+            return $process;
         }
 
-        return $process;
+        $command = $process->getCommandLine();
+        $retryCommand = $command;
+        $errorOutput = $process->getErrorOutput();
+
+        // Exception messages include the command; only the client's diagnostic proves a flag is unsupported.
+        foreach (['--column-statistics=0', '--set-gtid-purged=OFF'] as $flag) {
+            if (str_contains($errorOutput, "unknown variable '" . substr($flag, 2) . "'")) {
+                $retryCommand = str_replace(' ' . $flag, '', $retryCommand);
+            }
+        }
+
+        if ($retryCommand === $command) {
+            throw new ProcessFailedException($process);
+        }
+
+        return $this->executeDumpProcess($this->makeProcess($retryCommand), $output, $variables, $depth + 1);
     }
 
     /**

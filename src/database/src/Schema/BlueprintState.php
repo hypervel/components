@@ -7,6 +7,7 @@ namespace Hypervel\Database\Schema;
 use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Query\Expression;
+use Hypervel\Database\Schema\Grammars\SQLiteGrammar;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\Str;
@@ -67,6 +68,11 @@ class BlueprintState
         $table = $blueprint->getTable();
         $columnState = $schema->getColumnsForSchemaState($table);
         $this->tableSql = $columnState['sql'];
+        /** @var SQLiteGrammar $grammar */
+        $grammar = $blueprint->getGrammar();
+        $declaresAutoIncrement = $grammar->declaresAutoIncrement($this->tableSql);
+        [, $tableName] = $schema->parseSchemaAndTable($table);
+        $physicalName = $connection->getTablePrefix() . $tableName;
 
         $this->columns = (new Collection($columnState['columns']))->map(fn ($column) => new ColumnDefinition([
             'name' => $column['name'],
@@ -74,7 +80,7 @@ class BlueprintState
             'full_type_definition' => $column['type'],
             'nullable' => $column['nullable'],
             'default' => is_null($column['default']) ? null : new Expression(Str::wrap($column['default'], '(', ')')),
-            'autoIncrement' => $column['auto_increment'],
+            'autoIncrement' => $column['auto_increment'] && $declaresAutoIncrement,
             'collation' => $column['collation'],
             'comment' => $column['comment'],
             'virtualAs' => ! is_null($column['generation']) && $column['generation']['type'] === 'virtual'
@@ -122,12 +128,13 @@ class BlueprintState
         // Introspection returns already-prefixed physical table names. Quote them here and
         // keep them as expressions so the grammar neither reapplies the prefix nor emits
         // the identifier unquoted.
-        $this->foreignKeys = (new Collection($schema->getForeignKeys($table)))->map(fn ($foreignKey) => new ForeignKeyDefinition([
+        $this->foreignKeys = (new Collection($schema->getForeignKeysForSchemaState($table)))->map(fn ($foreignKey) => new ForeignKeyDefinition([
             'columns' => $foreignKey['columns'],
             'on' => new Expression(
-                $blueprint->getGrammar()->wrapIdentifier($foreignKey['foreign_table']),
+                $grammar->wrapIdentifier($foreignKey['foreign_table']),
             ),
-            'references' => $foreignKey['foreign_columns'],
+            'references' => $foreignKey['implicit'] ? [] : $foreignKey['foreign_columns'],
+            'selfReferencing' => strcasecmp($foreignKey['foreign_table'], $physicalName) === 0,
             'onUpdate' => $foreignKey['on_update'],
             'onDelete' => $foreignKey['on_delete'],
         ]))->all();
@@ -193,7 +200,9 @@ class BlueprintState
                 break;
             case 'change':
                 foreach ($this->columns as &$column) {
-                    if ($column->name === $command->column->name) {
+                    if (strcasecmp($column->name, $command->column->name) === 0) {
+                        // A type-only change must not respell a column matched case-insensitively.
+                        $command->column->name = $column->name;
                         $column = $command->column;
                         break;
                     }
@@ -202,7 +211,7 @@ class BlueprintState
                 break;
             case 'renameColumn':
                 foreach ($this->columns as $column) {
-                    if ($column->name === $command->from) {
+                    if (strcasecmp($column->name, $command->from) === 0) {
                         $column->name = $command->to;
                         break;
                     }
@@ -220,7 +229,7 @@ class BlueprintState
                     $index->columnRenamed = true;
                     $index->columns = $this->replaceColumn($index->columns, $command->from, $command->to);
 
-                    if ($index->whereNotNull === $command->from) {
+                    if (is_string($index->whereNotNull) && strcasecmp($index->whereNotNull, $command->from) === 0) {
                         $index->whereNotNull = $command->to;
                     }
                 }
@@ -231,6 +240,13 @@ class BlueprintState
                         $command->from,
                         $command->to,
                     );
+                    if ($foreignKey->selfReferencing) {
+                        $foreignKey->references = $this->replaceColumn(
+                            (array) $foreignKey->references,
+                            $command->from,
+                            $command->to,
+                        );
+                    }
                 }
 
                 break;
@@ -239,9 +255,11 @@ class BlueprintState
                     $index->columnDropped = true;
                 }
 
-                $this->columns = array_values(
-                    array_filter($this->columns, fn ($column) => ! in_array($column->name, $command->columns, true))
-                );
+                $dropped = array_fill_keys(array_map('strtolower', $command->columns), true);
+                $this->columns = array_values(array_filter(
+                    $this->columns,
+                    fn ($column) => ! isset($dropped[strtolower($column->name)]),
+                ));
 
                 break;
             case 'primary':
@@ -278,7 +296,9 @@ class BlueprintState
 
                 break;
             case 'foreign':
+                [, $tableName] = $this->connection->getSchemaBuilder()->parseSchemaAndTable($this->blueprint->getTable());
                 /** @var ForeignKeyDefinition $command */
+                $command->selfReferencing = is_string($command->on) && strcasecmp($command->on, $tableName) === 0;
                 $this->foreignKeys[] = $command;
                 break;
             case 'dropPrimary':
@@ -292,8 +312,9 @@ class BlueprintState
 
                 break;
             case 'dropForeign':
+                $columns = array_map('strtolower', $command->columns);
                 $this->foreignKeys = array_values(
-                    array_filter($this->foreignKeys, fn ($fk) => $fk->columns !== $command->columns)
+                    array_filter($this->foreignKeys, fn ($fk) => array_map('strtolower', $fk->columns) !== $columns)
                 );
 
                 break;
@@ -301,7 +322,7 @@ class BlueprintState
     }
 
     /**
-     * Replace an exact column name in a projection.
+     * Replace an exact column name using SQLite's ASCII case-insensitive matching.
      *
      * @param list<ExpressionContract|string> $columns
      * @return list<ExpressionContract|string>
@@ -309,7 +330,7 @@ class BlueprintState
     protected function replaceColumn(array $columns, string $from, string $to): array
     {
         return array_map(
-            static fn (ExpressionContract|string $column): ExpressionContract|string => $column === $from ? $to : $column,
+            static fn (ExpressionContract|string $column): ExpressionContract|string => is_string($column) && strcasecmp($column, $from) === 0 ? $to : $column,
             $columns,
         );
     }

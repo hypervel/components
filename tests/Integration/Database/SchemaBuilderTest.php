@@ -570,7 +570,7 @@ class SchemaBuilderTest extends DatabaseTestCase
 
         foreach ($indexes as $index) {
             $this->assertSame(
-                ['name', 'columns', 'type', 'unique', 'primary', 'partial'],
+                ['name', 'columns', 'key_columns', 'type', 'unique', 'primary', 'partial'],
                 array_keys($index),
             );
         }
@@ -578,6 +578,7 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertSame([
             'name' => 'partial_index_records_active_index',
             'columns' => ['account_id', 'archived_at'],
+            'key_columns' => ['account_id', 'archived_at'],
             'type' => $driver === 'sqlite' ? null : 'btree',
             'unique' => false,
             'primary' => false,
@@ -587,6 +588,7 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertSame([
             'name' => 'partial_index_records_email_unique',
             'columns' => ['email'],
+            'key_columns' => ['email'],
             'type' => $driver === 'sqlite' ? null : 'btree',
             'unique' => true,
             'primary' => false,
@@ -629,6 +631,43 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertTrue(Schema::hasIndex('foo', ['baz', 'bar']));
         $this->assertTrue(Schema::hasIndex('foo', ['baz', 'bar'], 'unique'));
         $this->assertFalse(Schema::hasIndex('foo', ['baz', 'bar'], 'primary'));
+    }
+
+    #[RequiresDatabase(['mysql', 'pgsql', 'sqlite'])]
+    public function testExpressionIndexesDoNotExposePartialColumnLists(): void
+    {
+        $connection = DB::connection();
+        if ($connection->getDriverName() === 'mysql' && version_compare($connection->getServerVersion(), '8.0.13', '<')) {
+            $this->markTestSkipped('Functional indexes require MySQL 8.0.13 or later.');
+        }
+        Schema::create('index_facts', function (Blueprint $table): void {
+            $table->integer('account_id');
+            $table->string('name');
+            $table->rawIndex('(lower(name))', 'expression_key');
+            $table->index('name', 'plain_key');
+        });
+        DB::statement('CREATE UNIQUE INDEX mixed_key ON index_facts (account_id, (lower(name)))');
+        DB::table('index_facts')->insert([
+            ['account_id' => 1, 'name' => 'first'],
+            ['account_id' => 1, 'name' => 'second'],
+        ]);
+        $indexes = array_column(Schema::getIndexes('index_facts'), null, 'name');
+
+        $this->assertSame([], $indexes['mixed_key']['columns']);
+        $this->assertSame(['account_id', null], $indexes['mixed_key']['key_columns']);
+        $this->assertSame([], $indexes['expression_key']['columns']);
+        $this->assertSame([null], $indexes['expression_key']['key_columns']);
+        $this->assertSame(['name'], $indexes['plain_key']['columns']);
+        $this->assertTrue(Schema::hasIndex('index_facts', 'mixed_key', 'unique'));
+        $this->assertFalse(Schema::hasIndex('index_facts', ['account_id'], 'unique'));
+
+        $this->artisan('db:table', ['table' => 'index_facts'])
+            ->expectsOutputToContain('account_id, (expression)')
+            ->expectsOutputToContain('compound')
+            ->assertExitCode(0);
+        $this->artisan('db:table', ['table' => 'index_facts', '--json' => true])
+            ->expectsOutputToContain('"columns":[],"key_columns":["account_id",null]')
+            ->assertExitCode(0);
     }
 
     public function testGetIndexesWithCompositeKeys(): void
@@ -715,26 +754,44 @@ class SchemaBuilderTest extends DatabaseTestCase
         Schema::create('parent', function (Blueprint $table) {
             $table->id();
             $table->integer('a');
-            $table->integer('b');
+            $table->integer('b,key');
 
-            $table->unique(['b', 'a']);
+            $table->unique(['b,key', 'a'], 'parent_pair');
         });
+
+        $index = collect(Schema::getIndexes('parent'))->firstWhere('name', 'parent_pair');
+        $this->assertSame(['b,key', 'a'], $index['columns']);
+        $this->assertSame(['b,key', 'a'], $index['key_columns']);
 
         Schema::create('child', function (Blueprint $table) {
             $table->integer('c');
-            $table->integer('d');
+            $table->integer('d,key');
 
-            $table->foreign(['d', 'c'], 'test_fk')->references(['b', 'a'])->on('parent');
+            $table->foreign(['d,key', 'c'], 'test_fk')->references(['b,key', 'a'])->on('parent');
         });
 
         $foreignKeys = Schema::getForeignKeys('child');
 
         $this->assertCount(1, $foreignKeys);
         $this->assertTrue(collect($foreignKeys)->contains(
-            fn ($foreign) => $foreign['columns'] === ['d', 'c']
+            fn ($foreign) => $foreign['columns'] === ['d,key', 'c']
                 && $foreign['foreign_table'] === 'parent'
-                && $foreign['foreign_columns'] === ['b', 'a']
+                && $foreign['foreign_columns'] === ['b,key', 'a']
         ));
+    }
+
+    #[RequiresDatabase('sqlite')]
+    public function testImplicitForeignKeysResolveCompositeParentColumnsWhenAvailable(): void
+    {
+        DB::statement('CREATE TABLE child ("from,a" INTEGER, "from,b" INTEGER, FOREIGN KEY ("from,a", "from,b") REFERENCES parent)');
+
+        $foreign = Schema::getForeignKeys('child')[0];
+        $this->assertSame(['from,a', 'from,b'], $foreign['columns']);
+        $this->assertSame([], $foreign['foreign_columns']);
+
+        DB::statement('CREATE TABLE parent ("id,one" INTEGER, "id,two" INTEGER, PRIMARY KEY ("id,two", "id,one"))');
+
+        $this->assertSame(['id,two', 'id,one'], Schema::getForeignKeys('child')[0]['foreign_columns']);
     }
 
     public function testCreateOrdersSelfReferencingKeyTargetsBeforeForeignKeys(): void

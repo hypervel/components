@@ -501,66 +501,64 @@ class PendingCommand
             return $mock;
         }
 
-        if ($this->test->expectsOutput === true
-            && count($this->test->expectedOutput) === 0
-            && count($this->test->expectedOutputSubstrings) === 0
-        ) {
-            /** @var Expectation $expectation */
-            $expectation = $mock->shouldReceive('doWrite');
-            $expectation->atLeast()->once();
-        }
+        $expectedOutput = $this->test->expectedOutput;
 
-        foreach ($this->test->expectedOutput as $i => $output) {
+        foreach ($expectedOutput as $i => $output) {
             /** @var Expectation $expectation */
             $expectation = $mock->shouldReceive('doWrite');
             $expectation->once()
                 ->ordered()
                 ->with($output, Mockery::any())
-                ->andReturnUsing(function () use ($i) {
+                ->andReturnUsing(function (string $output) use ($i): void {
                     unset($this->test->expectedOutput[$i]);
+
+                    $this->recordOutputMatches($output);
                 });
         }
 
-        foreach ($this->test->expectedOutputSubstrings as $i => $text) {
+        $expectsAnyOutput = $this->test->expectsOutput === true
+            && $expectedOutput === []
+            && $this->test->expectedOutputSubstrings === [];
+
+        if ($expectsAnyOutput
+            || $this->test->expectedOutputSubstrings !== []
+            || $this->test->unexpectedOutput !== []
+            || $this->test->unexpectedOutputSubstrings !== []
+        ) {
             /** @var Expectation $expectation */
             $expectation = $mock->shouldReceive('doWrite');
-            $expectation->atLeast()
-                ->times(0)
-                ->withArgs(fn ($output) => str_contains($output, $text))
-                ->andReturnUsing(function () use ($i) {
-                    unset($this->test->expectedOutputSubstrings[$i]);
-                });
-        }
-
-        // PHP converts canonical numeric-string array keys to integers, so restore the public string contract before matching.
-        foreach ($this->test->unexpectedOutput as $output => $displayed) {
-            $output = (string) $output;
-
-            /** @var Expectation $expectation */
-            $expectation = $mock->shouldReceive('doWrite');
-            $expectation->atLeast()
-                ->times(0)
-                ->ordered()
-                ->with($output, Mockery::any())
-                ->andReturnUsing(function () use ($output) {
-                    $this->test->unexpectedOutput[$output] = true;
-                });
-        }
-
-        foreach ($this->test->unexpectedOutputSubstrings as $text => $displayed) {
-            $text = (string) $text;
-
-            /** @var Expectation $expectation */
-            $expectation = $mock->shouldReceive('doWrite');
-            $expectation->atLeast()
-                ->times(0)
-                ->withArgs(fn ($output) => str_contains($output, $text))
-                ->andReturnUsing(function () use ($text) {
-                    $this->test->unexpectedOutputSubstrings[$text] = true;
+            $expectation->atLeast()->times($expectsAnyOutput ? 1 : 0)
+                ->withArgs(fn (string $output): bool => ! in_array($output, $expectedOutput, true))
+                ->andReturnUsing(function (string $output): void {
+                    $this->recordOutputMatches($output);
                 });
         }
 
         return $mock;
+    }
+
+    /**
+     * Record the expectations matched by one output write.
+     */
+    private function recordOutputMatches(string $output): void
+    {
+        // One write can satisfy several checks; competing Mockery expectations only observe the first match.
+        foreach ($this->test->expectedOutputSubstrings as $i => $text) {
+            if (str_contains($output, $text)) {
+                unset($this->test->expectedOutputSubstrings[$i]);
+            }
+        }
+
+        if (isset($this->test->unexpectedOutput[$output])) {
+            $this->test->unexpectedOutput[$output] = true;
+        }
+
+        // PHP converts canonical numeric-string array keys to integers, so restore the public string contract before matching.
+        foreach ($this->test->unexpectedOutputSubstrings as $text => $displayed) {
+            if (str_contains($output, (string) $text)) {
+                $this->test->unexpectedOutputSubstrings[$text] = true;
+            }
+        }
     }
 
     /**

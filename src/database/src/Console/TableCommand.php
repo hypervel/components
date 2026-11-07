@@ -135,6 +135,7 @@ class TableCommand extends DatabaseInspectionCommand
         return (new Collection($schema->getIndexes($table)))->map(fn ($index) => [
             'name' => $index['name'],
             'columns' => new Collection($index['columns']),
+            'key_columns' => new Collection($index['key_columns']),
             'attributes' => $this->getAttributesForIndex($index),
         ]);
     }
@@ -146,7 +147,7 @@ class TableCommand extends DatabaseInspectionCommand
     {
         return (new Collection([
             $index['type'],
-            count($index['columns']) > 1 ? 'compound' : null,
+            count($index['key_columns']) > 1 ? 'compound' : null,
             $index['unique'] && ! $index['primary'] ? 'unique' : null,
             $index['primary'] ? 'primary' : null,
             $index['partial'] ? 'partial' : null,
@@ -232,7 +233,7 @@ class TableCommand extends DatabaseInspectionCommand
 
             $indexes->each(function ($index) {
                 $this->components->twoColumnDetail(
-                    $index['name'] . ' <fg=gray>' . $index['columns']->implode(', ') . '</>',
+                    $index['name'] . ' <fg=gray>' . $index['key_columns']->map(fn (?string $column): string => $column ?? '(expression)')->implode(', ') . '</>',
                     $index['attributes']->implode(', ')
                 );
             });
