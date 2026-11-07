@@ -400,6 +400,20 @@ class MySqlParser extends Parser
     }
 
     /**
+     * Find a table's column by name, which MySQL compares case-insensitively.
+     */
+    protected function findColumn(TableDefinition $table, string $name): ?ColumnDefinition
+    {
+        if (isset($table->columns[$name])) {
+            return $table->columns[$name];
+        }
+
+        $folded = $this->foldName($name);
+
+        return array_find($table->columns, fn (ColumnDefinition $column): bool => $this->foldName($column->name) === $folded);
+    }
+
+    /**
      * Read a column type with its modifiers, enum or set labels and attributes.
      */
     protected function parseType(TokenStream $tokens, ParseState $state): ColumnType
@@ -800,7 +814,7 @@ class MySqlParser extends Parser
         }
 
         $reference = $this->parseRelationName($tokens, $state, 'an index table');
-        $key = ParseState::key($reference->schema, $reference->name);
+        $key = $state->key($reference->schema, $reference->name);
         $table = $state->tables[$key] ?? null;
 
         if ($table === null) {
@@ -842,13 +856,23 @@ class MySqlParser extends Parser
      */
     private function indexPosition(TableDefinition $table, string $name): ?int
     {
-        foreach ($table->indexes as $position => $index) {
-            if ($index->name !== null && strcasecmp($index->name, $name) === 0) {
-                return $position;
-            }
+        $position = array_find_key($table->indexes, static fn (Index $index): bool => $index->name === $name);
+
+        if ($position !== null) {
+            return $position;
         }
 
-        return null;
+        $folded = $this->foldName($name);
+
+        return array_find_key($table->indexes, fn (Index $index): bool => $index->name !== null && $this->foldName($index->name) === $folded);
+    }
+
+    /**
+     * Fold the case of a column or index name as MySQL compares it, with simple Unicode lowercase.
+     */
+    private function foldName(string $name): string
+    {
+        return mb_convert_case($name, MB_CASE_LOWER_SIMPLE, 'UTF-8');
     }
 
     /**
@@ -900,7 +924,7 @@ class MySqlParser extends Parser
             }
         }
 
-        $table = $state->tables[ParseState::key($reference->schema, $reference->name)] ?? null;
+        $table = $state->tables[$state->key($reference->schema, $reference->name)] ?? null;
 
         if ($table === null) {
             $state->issues[] = $state->issue("The altered table [{$reference->name}] could not be resolved.");
@@ -942,7 +966,7 @@ class MySqlParser extends Parser
         // MySQL accepts but ignores a trailing RESTRICT or CASCADE.
         do {
             $reference = $this->parseRelationName($tokens, $state, 'a dropped object name');
-            $key = ParseState::key($reference->schema, $reference->name);
+            $key = $state->key($reference->schema, $reference->name);
 
             if ($view && isset($state->views[$key])) {
                 $state->removeView($key);
@@ -965,7 +989,7 @@ class MySqlParser extends Parser
         }
 
         $reference = $this->parseRelationName($tokens, $state, 'an index table');
-        $key = ParseState::key($reference->schema, $reference->name);
+        $key = $state->key($reference->schema, $reference->name);
         $table = $state->tables[$key] ?? null;
 
         if ($table === null) {

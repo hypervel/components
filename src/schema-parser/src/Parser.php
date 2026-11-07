@@ -45,7 +45,7 @@ abstract class Parser implements ParserContract
     public function parse(string $sql): Schema
     {
         $lexer = $this->createLexer($sql);
-        $state = new ParseState($sql);
+        $state = $this->createState($sql);
 
         while (($tokens = $lexer->nextStatement()) !== null) {
             $state->offset = $tokens->start;
@@ -62,6 +62,14 @@ abstract class Parser implements ParserContract
      * @return TLexer
      */
     abstract protected function createLexer(string $sql): Lexer;
+
+    /**
+     * Create the state of one parse.
+     */
+    protected function createState(string $sql): ParseState
+    {
+        return new ParseState($sql);
+    }
 
     /**
      * Read the statement's represented facts, leaving any unread remainder to be skipped.
@@ -202,6 +210,8 @@ abstract class Parser implements ParserContract
 
     /**
      * Determine whether the current list entry, such as a column definition, has ended.
+     *
+     * @phpstan-impure
      */
     protected function atEntryEnd(TokenStream $tokens): bool
     {
@@ -371,12 +381,20 @@ abstract class Parser implements ParserContract
     protected function markPrimaryKeyColumnsNotNull(Index $index, TableDefinition $table): void
     {
         foreach ($index->columns as $key) {
-            $column = $key->name === null ? null : ($table->columns[$key->name] ?? null);
+            $column = $key->name === null ? null : $this->findColumn($table, $key->name);
 
             if ($column !== null) {
                 $column->nullable = false;
             }
         }
+    }
+
+    /**
+     * Find a table's column by the name a key or constraint gives it.
+     */
+    protected function findColumn(TableDefinition $table, string $name): ?ColumnDefinition
+    {
+        return $table->columns[$name] ?? null;
     }
 
     /**
@@ -494,7 +512,7 @@ abstract class Parser implements ParserContract
      */
     protected function relationExists(ParseState $state, ?string $schema, string $name): bool
     {
-        $key = ParseState::key($schema, $name);
+        $key = $state->key($schema, $name);
 
         return isset($state->tables[$key]) || isset($state->views[$key]);
     }

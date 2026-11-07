@@ -46,10 +46,10 @@ final class ParseState
     /** @var array<string, array<string, true>> inheriting and partition tables by parent key */
     public array $children = [];
 
-    /** @var array<string, array<string, true>> keys of the stored tables with each schema-qualified index name */
+    /** @var array<string, array<string, array<string, true>>> keys of the stored tables with each index name, by the name's identity and then its schema-qualified key */
     private array $indexTables = [];
 
-    /** @var array<string, list<string>> the schema-qualified index names recorded for each stored table */
+    /** @var array<string, array<string, string>> the identities of the index names recorded for each stored table, by their schema-qualified keys */
     private array $indexNames = [];
 
     /** @var array<string, ColumnType> types by their declared SQL text */
@@ -58,7 +58,7 @@ final class ParseState
     /** @var list<Issue> */
     public array $issues = [];
 
-    /** The schema of unqualified relation names, selected by a MySQL USE statement. */
+    /** The schema of unqualified relation names: SQLite's main database, or the one a MySQL USE statement selects. */
     public ?string $defaultSchema = null;
 
     /** @var array<string, array{bool, bool}> MySQL SQL modes saved in user variables, as backslash-escape and ANSI-quote flags */
@@ -73,9 +73,13 @@ final class ParseState
 
     /**
      * Create the state for parsing the given SQL.
+     *
+     * @param bool $caseInsensitive whether schema, relation and index names compare without ASCII case, as SQLite's do
      */
-    public function __construct(public readonly string $sql)
-    {
+    public function __construct(
+        public readonly string $sql,
+        private readonly bool $caseInsensitive = false,
+    ) {
     }
 
     /**
@@ -90,11 +94,19 @@ final class ParseState
     }
 
     /**
+     * Get the identity of a name, without its ASCII case where names compare case-insensitively.
+     */
+    public function normalize(string $name): string
+    {
+        return $this->caseInsensitive ? strtolower($name) : $name;
+    }
+
+    /**
      * Get the identity key of a schema-qualified name.
      */
-    public static function key(?string $schema, string $name): string
+    public function key(?string $schema, string $name): string
     {
-        return ($schema === null ? 'n:' : 's:' . strlen($schema) . ':' . $schema) . $name;
+        return ($schema === null ? 'n:' : 's:' . strlen($schema) . ':' . $this->normalize($schema)) . $this->normalize($name);
     }
 
     /**
@@ -102,9 +114,9 @@ final class ParseState
      */
     public function addTable(TableDefinition $table): string
     {
-        $key = self::key($table->schema, $table->name);
+        $key = $this->key($table->schema, $table->name);
         $this->tables[$key] = $table;
-        $this->tableNames[$table->name][$key] = true;
+        $this->tableNames[$this->normalize($table->name)][$key] = true;
         $this->refreshIndexNames($key);
 
         return $key;
@@ -125,7 +137,7 @@ final class ParseState
             }
         }
 
-        unset($this->tableNames[$table->name][$key], $this->tables[$key], $this->children[$key]);
+        unset($this->tableNames[$this->normalize($table->name)][$key], $this->tables[$key], $this->children[$key]);
         $this->refreshIndexNames($key);
     }
 
@@ -138,9 +150,28 @@ final class ParseState
         $table->indexes[] = $index;
 
         if ($index->name !== null) {
-            $name = self::key($table->schema, $index->name);
-            $this->indexTables[$name][$key] = true;
-            $this->indexNames[$key][] = $name;
+            $identity = $this->normalize($index->name);
+            $qualified = $this->key($table->schema, $index->name);
+            $this->indexTables[$identity][$qualified][$key] = true;
+            $this->indexNames[$key][$qualified] = $identity;
+        }
+    }
+
+    /**
+     * Remove a stored table's index with the given name.
+     */
+    public function removeIndex(string $key, string $name): void
+    {
+        $table = $this->tables[$key];
+        $name = $this->normalize($name);
+
+        foreach ($table->indexes as $position => $index) {
+            if ($index->name !== null && $this->normalize($index->name) === $name) {
+                array_splice($table->indexes, $position, 1);
+                $this->refreshIndexNames($key);
+
+                return;
+            }
         }
     }
 
@@ -153,11 +184,9 @@ final class ParseState
         $names = [];
 
         if ($table !== null) {
-            $prefix = self::key($table->schema, '');
-
             foreach ($table->indexes as $index) {
                 if ($index->name !== null) {
-                    $names[] = $prefix . $index->name;
+                    $names[$this->key($table->schema, $index->name)] = $this->normalize($index->name);
                 }
             }
         }
@@ -168,16 +197,20 @@ final class ParseState
             return;
         }
 
-        foreach ($previous as $name) {
-            unset($this->indexTables[$name][$key]);
+        foreach ($previous as $qualified => $identity) {
+            unset($this->indexTables[$identity][$qualified][$key]);
 
-            if ($this->indexTables[$name] === []) {
-                unset($this->indexTables[$name]);
+            if ($this->indexTables[$identity][$qualified] === []) {
+                unset($this->indexTables[$identity][$qualified]);
+            }
+
+            if ($this->indexTables[$identity] === []) {
+                unset($this->indexTables[$identity]);
             }
         }
 
-        foreach ($names as $name) {
-            $this->indexTables[$name][$key] = true;
+        foreach ($names as $qualified => $identity) {
+            $this->indexTables[$identity][$qualified][$key] = true;
         }
 
         $this->indexNames[$key] = $names;
@@ -188,7 +221,33 @@ final class ParseState
      */
     public function hasIndex(?string $schema, string $name): bool
     {
-        return isset($this->indexTables[self::key($schema, $name)]);
+        return isset($this->indexTables[$this->normalize($name)][$this->key($schema, $name)]);
+    }
+
+    /**
+     * Find the stored table with the given schema-qualified index name, when only one has it.
+     */
+    public function indexTableKey(?string $schema, string $name): ?string
+    {
+        $keys = $this->indexTables[$this->normalize($name)][$this->key($schema, $name)] ?? [];
+
+        return count($keys) === 1 ? array_key_first($keys) : null;
+    }
+
+    /**
+     * Get the keys of the stored tables with an index of the given name, in any schema.
+     *
+     * @return list<string>
+     */
+    public function indexTableKeys(string $name): array
+    {
+        $keys = [];
+
+        foreach ($this->indexTables[$this->normalize($name)] ?? [] as $tables) {
+            $keys += $tables;
+        }
+
+        return array_keys($keys);
     }
 
     /**
@@ -204,9 +263,9 @@ final class ParseState
      */
     public function addView(View $view): void
     {
-        $key = self::key($view->schema, $view->name);
+        $key = $this->key($view->schema, $view->name);
         $this->views[$key] = $view;
-        $this->viewNames[$view->name][$key] = true;
+        $this->viewNames[$this->normalize($view->name)][$key] = true;
     }
 
     /**
@@ -214,7 +273,7 @@ final class ParseState
      */
     public function removeView(string $key): void
     {
-        unset($this->viewNames[$this->views[$key]->name][$key], $this->views[$key]);
+        unset($this->viewNames[$this->normalize($this->views[$key]->name)][$key], $this->views[$key]);
     }
 
     /**
@@ -250,12 +309,12 @@ final class ParseState
     private function find(array $definitions, array $names, ?string $schema, string $name): ?string
     {
         if ($schema !== null) {
-            $key = self::key($schema, $name);
+            $key = $this->key($schema, $name);
 
             return isset($definitions[$key]) ? $key : null;
         }
 
-        $matches = $names[$name] ?? [];
+        $matches = $names[$this->normalize($name)] ?? [];
 
         return count($matches) === 1 ? array_key_first($matches) : null;
     }

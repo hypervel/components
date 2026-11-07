@@ -1166,7 +1166,7 @@ class PostgresParser extends Parser
             $tokens->expectSymbol(')', 'Unterminated enum label list');
         }
 
-        $state->enums[ParseState::key($reference->schema, $reference->name)] = new EnumType($reference->name, $values, $reference->schema);
+        $state->enums[$state->key($reference->schema, $reference->name)] = new EnumType($reference->name, $values, $reference->schema);
     }
 
     /**
@@ -1200,7 +1200,7 @@ class PostgresParser extends Parser
             }
         }
 
-        $key = ParseState::key($reference->schema, $reference->name);
+        $key = $state->key($reference->schema, $reference->name);
         $state->domains[$key] = new Domain($reference->name, $type, $reference->schema, $nullable, $default, $checks);
         $state->domainNames[$reference->name][$key] = true;
     }
@@ -1785,7 +1785,7 @@ class PostgresParser extends Parser
             return;
         }
 
-        $key = ParseState::key($reference->schema, $reference->name);
+        $key = $state->key($reference->schema, $reference->name);
 
         if ($reference->schema === null) {
             $candidates = match ($kind) {
@@ -1824,31 +1824,22 @@ class PostgresParser extends Parser
      */
     private function dropIndex(TableReference $reference, ParseState $state): void
     {
-        $found = null;
+        if ($reference->schema !== null) {
+            $key = $state->indexTableKey($reference->schema, $reference->name);
+        } else {
+            $keys = $state->indexTableKeys($reference->name);
 
-        foreach ($state->tables as $key => $table) {
-            if ($reference->schema !== null && $reference->schema !== $table->schema) {
-                continue;
+            if (count($keys) > 1) {
+                $state->issues[] = $state->issue("Dropped index [{$reference->name}] is ambiguous without a schema.");
+
+                return;
             }
 
-            foreach ($table->indexes as $position => $index) {
-                if ($index->name !== $reference->name) {
-                    continue;
-                }
-
-                if ($found !== null) {
-                    $state->issues[] = $state->issue("Dropped index [{$reference->name}] is ambiguous without a schema.");
-
-                    return;
-                }
-
-                $found = [$key, $position];
-            }
+            $key = $keys[0] ?? null;
         }
 
-        if ($found !== null) {
-            array_splice($state->tables[$found[0]]->indexes, $found[1], 1);
-            $state->refreshIndexNames($found[0]);
+        if ($key !== null) {
+            $state->removeIndex($key, $reference->name);
         }
     }
 

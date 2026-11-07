@@ -293,6 +293,17 @@ class MySqlParserTest extends TestCase
         $this->assertFalse($table->checks[0]->valid);
     }
 
+    public function testPrimaryKeysFindTheirColumnsWithoutCase(): void
+    {
+        $schema = (new MySqlParser)->parse(<<<'SQL'
+            CREATE TABLE example (Id int, `Σx` int, other int, PRIMARY KEY (id, `σx`));
+            CREATE TABLE dotted (`İd` int, PRIMARY KEY (id));
+            SQL);
+
+        $this->assertSame([false, false, true], array_column($schema->table('example')->columns, 'nullable'));
+        $this->assertFalse($schema->table('dotted')->column('İd')->nullable);
+    }
+
     #[DataProvider('tableIndexProvider')]
     public function testTableIndexesKeepTheirNameKindAndMethod(string $declaration, ?string $name, ?string $type, bool $unique = false, bool $primary = false): void
     {
@@ -460,9 +471,12 @@ class MySqlParserTest extends TestCase
     public function testDroppedIndexesAreMatchedByNameWithinTheirTable(): void
     {
         $schema = (new MySqlParser)->parse(<<<'SQL'
-            CREATE TABLE example (id int PRIMARY KEY, first int, second int, KEY by_first (first), KEY by_second (second));
+            CREATE TABLE example (id int PRIMARY KEY, first int, second int, KEY by_first (first), KEY by_second (second), KEY `Éx` (second));
             CREATE TABLE other (first int, KEY by_first (first));
+            CREATE TABLE repeated (a int, KEY twice (a), KEY twice (a));
+            DROP INDEX twice ON repeated;
             DROP INDEX BY_FIRST ON example;
+            DROP INDEX `éx` ON example;
             DROP INDEX `PRIMARY` ON example;
             DROP INDEX IF EXISTS missing ON example;
             DROP INDEX by_first ON missing_table;
@@ -471,6 +485,8 @@ class MySqlParserTest extends TestCase
         $this->assertTrue($schema->isComplete());
         $this->assertSame(['by_second'], array_column($schema->table('example')->indexes, 'name'));
         $this->assertSame(['by_first'], array_column($schema->table('other')->indexes, 'name'));
+        // MySQL rejects repeated index names, but reading them must not fail.
+        $this->assertSame(['twice'], array_column($schema->table('repeated')->indexes, 'name'));
     }
 
     public function testConditionalIndexesDoNotGuessServerGeneratedNames(): void

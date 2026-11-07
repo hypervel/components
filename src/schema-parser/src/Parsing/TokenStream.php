@@ -273,6 +273,8 @@ final class TokenStream
 
     /**
      * Return to a marked position within the statement.
+     *
+     * A group consumed by skipGroup() keeps only its brackets as tokens, so a mark cannot be reused across one.
      */
     public function rewind(int $mark): void
     {
