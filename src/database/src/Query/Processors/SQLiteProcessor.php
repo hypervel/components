@@ -18,6 +18,9 @@ class SQLiteProcessor extends Processor
 
             $type = strtolower($result->type);
 
+            // SQLite keeps the declared spacing before modifiers, as in "varchar (255)".
+            $modifiers = strpos($type, '(');
+
             $safeName = preg_quote($result->name, '/');
 
             $collation = preg_match(
@@ -36,7 +39,7 @@ class SQLiteProcessor extends Processor
 
             return [
                 'name' => $result->name,
-                'type_name' => strtok($type, '(') ?: '',
+                'type_name' => $modifiers === false ? $type : rtrim(substr($type, 0, $modifiers)),
                 'type' => $type,
                 'collation' => $collation,
                 'nullable' => (bool) $result->nullable,

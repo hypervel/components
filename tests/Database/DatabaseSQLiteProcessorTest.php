@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Query\Processors\SQLiteProcessor;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use UnexpectedValueException;
 
 class DatabaseSQLiteProcessorTest extends TestCase
@@ -35,6 +36,31 @@ class DatabaseSQLiteProcessorTest extends TestCase
         }
 
         $this->assertEquals($expected, $processor->processColumns($listing));
+    }
+
+    #[DataProvider('typeNameProvider')]
+    public function testTypeNamesExcludeModifiersButKeepDeclaredNames(string $type, string $typeName): void
+    {
+        $column = (new SQLiteProcessor)->processColumns([
+            ['name' => 'value', 'type' => $type, 'nullable' => '1', 'default' => null, 'primary' => '0', 'extra' => 0, 'auto_increment' => 0],
+        ])[0];
+
+        $this->assertSame($typeName, $column['type_name']);
+        $this->assertSame(strtolower($type), $column['type']);
+    }
+
+    /**
+     * Provide declared SQLite types with their names.
+     *
+     * @return iterable<string, array{string, string}>
+     */
+    public static function typeNameProvider(): iterable
+    {
+        yield 'spaced modifiers' => ['varchar (255)', 'varchar'];
+        yield 'modifiers' => ['NUMERIC(10, 2)', 'numeric'];
+        yield 'falsey quoted name' => ['0', '0'];
+        yield 'quoted name with a trailing space' => ['INTEGER ', 'integer '];
+        yield 'none' => ['', ''];
     }
 
     public function testProcessIndexesIncludesPartialFlagAndPreservesSchemaStateMetadata(): void
