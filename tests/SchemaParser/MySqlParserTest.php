@@ -402,7 +402,11 @@ class MySqlParserTest extends TestCase
             SQL);
         $table = $schema->table('children', 'app');
 
-        $this->assertTrue($schema->isComplete());
+        // MySQL 8.4 parses and ignores these clauses.
+        $this->assertSame(
+            array_fill(0, 2, 'Inline REFERENCES creates a foreign key only on MySQL 9.0 and later.'),
+            array_column($table->issues, 'message'),
+        );
         $this->assertEquals([
             new ForeignKey(null, ['parent_id'], new TableReference('parents', 'app'), ['id'], ReferentialAction::NoAction, ReferentialAction::Cascade),
             new ForeignKey(null, ['other_id'], new TableReference('parents', 'other'), ['id'], ReferentialAction::SetNull, ReferentialAction::NoAction, ForeignKeyMatch::Full),

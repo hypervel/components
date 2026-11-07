@@ -647,6 +647,7 @@ class MySqlParser extends Parser
                 return false;
             }
 
+            $table->issues[] = $state->issue('Inline REFERENCES creates a foreign key only on MySQL 9.0 and later.');
             $this->parseReferences($tokens, $state, $table, $name, [$column]);
 
             return true;
@@ -772,7 +773,7 @@ class MySqlParser extends Parser
      *
      * @param list<string> $columns
      */
-    private function parseReferences(TokenStream $tokens, ParseState $state, TableDefinition $table, ?string $name, array $columns): void
+    protected function parseReferences(TokenStream $tokens, ParseState $state, TableDefinition $table, ?string $name, array $columns): void
     {
         $reference = $this->parseQualifiedName($tokens, 'a referenced table name');
         $foreignColumns = $tokens->isSymbol('(') ? $this->parseNameList($tokens, 'referenced column') : [];

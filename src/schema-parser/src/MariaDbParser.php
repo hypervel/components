@@ -109,6 +109,13 @@ class MariaDbParser extends MySqlParser
             return true;
         }
 
+        // Every supported MariaDB version creates a foreign key from a column's REFERENCES clause.
+        if ($column !== null && $tokens->accept('REFERENCES')) {
+            $this->parseReferences($tokens, $state, $table, $name, [$column]);
+
+            return true;
+        }
+
         return parent::parseConstraint($tokens, $state, $table, $column, $name);
     }
 
