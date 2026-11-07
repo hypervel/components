@@ -315,6 +315,41 @@ class PostgresParserTest extends TestCase
         $this->assertTrue($schema->isComplete());
     }
 
+    public function testSerialSequenceDefaultsAreInheritedOverriddenAndReplaced(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE p (id serial);
+            CREATE TABLE plain (id integer);
+            CREATE TABLE redeclared (id integer) INHERITS (p);
+            CREATE TABLE later_parent () INHERITS (plain, p);
+            CREATE TABLE overridden (id integer DEFAULT 5) INHERITS (p);
+            CREATE TABLE five (id integer DEFAULT 5);
+            CREATE TABLE six (id integer DEFAULT 6);
+            CREATE TABLE local_serial (id serial) INHERITS (five, six);
+            CREATE TABLE dropped (id serial);
+            CREATE TABLE dropped_child () INHERITS (dropped);
+            ALTER TABLE dropped ALTER COLUMN id DROP DEFAULT;
+            CREATE TABLE replaced (id serial);
+            ALTER TABLE replaced ALTER COLUMN id SET DEFAULT 5;
+            CREATE TABLE renumbered (id serial);
+            ALTER TABLE renumbered ALTER COLUMN id SET DEFAULT nextval('other_seq');
+            SQL);
+
+        foreach (['p', 'redeclared', 'later_parent', 'local_serial'] as $name) {
+            $this->assertTrue($schema->table($name)->column('id')->autoIncrement, $name);
+            $this->assertNull($schema->table($name)->column('id')->default, $name);
+        }
+
+        foreach (['overridden' => '5', 'dropped' => null, 'dropped_child' => null, 'replaced' => '5'] as $name => $default) {
+            $this->assertFalse($schema->table($name)->column('id')->autoIncrement, $name);
+            $this->assertSame($default, $schema->table($name)->column('id')->default, $name);
+        }
+
+        $this->assertTrue($schema->table('renumbered')->column('id')->autoIncrement);
+        // The local serial resolves the conflict between the inherited defaults.
+        $this->assertTrue($schema->isComplete());
+    }
+
     public function testRecursiveAlterSkipsATableRecreatedAfterItsChildWasDropped(): void
     {
         $schema = (new PostgresParser)->parse(<<<'SQL'

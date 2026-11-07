@@ -334,7 +334,6 @@ class PostgresParser extends Parser
                     $column->noInheritNotNull = false;
                     $column->unvalidatedNotNull = false;
                     // Identity and comments belong to the parent; serial defaults and generated expressions are inherited.
-                    $column->autoIncrement = $column->autoIncrement && $column->identity === null;
                     $column->identity = null;
                     $column->comment = null;
                     $table->columns[$name] = $column;
@@ -354,7 +353,11 @@ class PostgresParser extends Parser
                     $conflicts[$name]['generation'] = true;
                 }
 
-                $column->default ??= $parentColumn->default;
+                if (! $this->hasDefault($column)) {
+                    $column->default = $parentColumn->default;
+                    $column->autoIncrement = $parentColumn->autoIncrement;
+                }
+
                 $column->generation ??= $parentColumn->generation;
             }
 
@@ -369,11 +372,13 @@ class PostgresParser extends Parser
         $tokens->expectSymbol(')', 'Unterminated inheritance list');
 
         foreach ($conflicts as $name => $conflict) {
-            if (isset($conflict['default']) && ($local->columns[$name]->default ?? null) === null) {
+            $localColumn = $local->columns[$name] ?? null;
+
+            if (isset($conflict['default']) && ($localColumn === null || ! $this->hasDefault($localColumn))) {
                 $table->issues[] = $state->issue("Inherited defaults for [{$name}] conflict without a local default.");
             }
 
-            if (isset($conflict['generation']) && ($local->columns[$name]->generation ?? null) === null) {
+            if (isset($conflict['generation']) && $localColumn?->generation === null) {
                 $table->issues[] = $state->issue("Inherited generated expressions for [{$name}] conflict without a local expression.");
             }
         }
@@ -383,7 +388,12 @@ class PostgresParser extends Parser
 
             if ($inherited !== null) {
                 $column->nullable = $column->nullable && $inherited->nullable;
-                $column->default ??= $inherited->default;
+
+                if (! $this->hasDefault($column)) {
+                    $column->default = $inherited->default;
+                    $column->autoIncrement = $inherited->autoIncrement;
+                }
+
                 $column->generation ??= $inherited->generation;
                 $column->collation ??= $inherited->collation;
             }
@@ -400,6 +410,14 @@ class PostgresParser extends Parser
         $table->notNullConstraints = $local->notNullConstraints;
 
         return $table;
+    }
+
+    /**
+     * Determine whether a column declares a default, counting the sequence default of a serial column, which has no default text.
+     */
+    private function hasDefault(ColumnDefinition $column): bool
+    {
+        return $column->default !== null || $column->autoIncrement;
     }
 
     /**
@@ -1446,13 +1464,16 @@ class PostgresParser extends Parser
         if ($tokens->accept('SET', 'DEFAULT')) {
             $recursive = true;
             $default = $this->parseExpression($tokens, [], 'a default expression');
+            // Replacing or dropping the default also removes a serial column's sequence default.
             $change = static function (ColumnDefinition $column) use ($default): void {
                 $column->default = $default;
+                $column->autoIncrement = false;
             };
         } elseif ($tokens->accept('DROP', 'DEFAULT')) {
             $recursive = true;
             $change = static function (ColumnDefinition $column): void {
                 $column->default = null;
+                $column->autoIncrement = false;
             };
         } elseif ($tokens->accept('SET', 'NOT', 'NULL') || $tokens->accept('DROP', 'NOT', 'NULL')) {
             $recursive = true;
