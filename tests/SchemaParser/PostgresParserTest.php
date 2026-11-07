@@ -215,6 +215,36 @@ class PostgresParserTest extends TestCase
         $this->assertTrue($schema->isComplete());
     }
 
+    public function testUsingIndexTablespacePlacesANewConstraintIndex(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE t (id integer PRIMARY KEY USING INDEX TABLESPACE fast, code text);
+            ALTER TABLE ONLY t ADD CONSTRAINT t_code_key UNIQUE (code) INCLUDE (id) USING INDEX TABLESPACE fast;
+            SQL);
+
+        $table = $schema->table('t');
+        $this->assertSame([null, 't_code_key'], array_column($table->indexes, 'name'));
+        $this->assertTrue($table->indexes[0]->primary);
+        $this->assertSame(['id'], array_column($table->indexes[0]->columns, 'name'));
+        $this->assertSame(['code'], array_column($table->indexes[1]->columns, 'name'));
+        $this->assertSame(['id'], $table->indexes[1]->include);
+        $this->assertTrue($schema->isComplete());
+    }
+
+    public function testUnnamedIndexesKeepTheirKeys(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE t (id integer, code text);
+            CREATE INDEX ON t USING HASH (code);
+            SQL);
+
+        $index = $schema->table('t')->indexes[0];
+        $this->assertNull($index->name);
+        $this->assertSame('hash', $index->type);
+        $this->assertSame(['code'], array_column($index->columns, 'name'));
+        $this->assertTrue($schema->isComplete());
+    }
+
     public function testTemporalForeignKeysRetainColumnsWithoutRejectingPeriodNames(): void
     {
         $schema = (new PostgresParser)->parse(<<<'SQL'
@@ -228,6 +258,8 @@ class PostgresParserTest extends TestCase
                 REFERENCES parent (id, PERIOD valid_at);
             ALTER TABLE ONLY child ADD CONSTRAINT ordinary_fk FOREIGN KEY (period, "PERIOD")
                 REFERENCES parent (period, "PERIOD");
+            CREATE TABLE implicit_child (id integer, valid_at daterange);
+            ALTER TABLE ONLY implicit_child ADD CONSTRAINT implicit_fk FOREIGN KEY (id, PERIOD valid_at) REFERENCES parent;
             SQL);
 
         $child = $schema->table('child');
@@ -239,6 +271,14 @@ class PostgresParserTest extends TestCase
         $this->assertStringContainsString('Temporal foreign key', $child->issues[0]->message);
         $this->assertCount(1, $schema->table('parent')->issues);
         $this->assertSame([], $schema->issues);
+
+        // The temporal key part has no column name to stand for the omitted referenced columns.
+        $implicit = $schema->table('implicit_child');
+        $this->assertSame([], $implicit->foreignKeys[0]->foreignColumns);
+        $this->assertSame([
+            'Temporal foreign key semantics are not represented.',
+            'The referenced columns of foreign table [parent] could not be resolved.',
+        ], array_column($implicit->issues, 'message'));
     }
 
     public function testRecursiveNullabilityRemovalMarksUnresolvedChildConstraints(): void
@@ -287,6 +327,44 @@ class PostgresParserTest extends TestCase
         $this->assertTrue($schema->isComplete());
     }
 
+    public function testStandardConformingStringsDecideHowLaterLiteralsAreDecoded(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            SET standard_conforming_strings = off;
+            CREATE TYPE escaped AS ENUM ('a\\b', 'it\'s');
+            CREATE TABLE t (id integer, label public.tagged('a\\b'));
+            COMMENT ON TABLE t IS 'tab\there';
+            SET standard_conforming_strings TO on;
+            CREATE TYPE plain AS ENUM ('a\\b');
+            CREATE TABLE u (label public.tagged('a\\b'));
+            SQL);
+
+        $this->assertSame(['a\b', "it's"], $schema->enum('escaped')->values);
+        $this->assertSame("tab\there", $schema->table('t')->comment);
+        $this->assertSame(['a\\\b'], $schema->enum('plain')->values);
+        $this->assertSame(['a\b'], $schema->table('t')->column('label')->type->modifiers);
+        $this->assertSame(['a\\\b'], $schema->table('u')->column('label')->type->modifiers);
+    }
+
+    public function testLongRunsOfDoubledQuotesStayOneToken(): void
+    {
+        $quotes = str_repeat("''", 300);
+        $name = str_repeat('""', 300);
+        $schema = (new PostgresParser)->parse(<<<SQL
+            CREATE TABLE plain (id integer);
+            COMMENT ON TABLE plain IS '{$quotes}';
+            CREATE TABLE "{$name}" (id integer);
+            SET standard_conforming_strings = off;
+            CREATE TABLE escaped (id integer);
+            COMMENT ON TABLE escaped IS '{$quotes}';
+            SQL);
+
+        $this->assertSame(str_repeat("'", 300), $schema->table('plain')->comment);
+        $this->assertSame(str_repeat("'", 300), $schema->table('escaped')->comment);
+        $this->assertNotNull($schema->table(str_repeat('"', 300)));
+        $this->assertTrue($schema->isComplete());
+    }
+
     public function testTemporaryDeclarationsDoNotReplacePersistentTables(): void
     {
         $schema = (new PostgresParser)->parse(<<<'SQL'
@@ -299,6 +377,75 @@ class PostgresParserTest extends TestCase
 
         $this->assertSame(['t', 'visible', 'durable'], array_column($schema->tables, 'name'));
         $this->assertSame(['id'], array_column($schema->table('t')->columns, 'name'));
+    }
+
+    public function testConditionalDeclarationsKeepExistingDefinitions(): void
+    {
+        // Tables, views and indexes share one relation namespace per schema.
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE t (id integer, code text);
+            CREATE TABLE IF NOT EXISTS t (replacement integer);
+            CREATE TABLE IF NOT EXISTS added (id integer);
+            CREATE INDEX t_index ON t (id);
+            CREATE INDEX IF NOT EXISTS t_index ON t (code);
+            CREATE INDEX IF NOT EXISTS t ON t (code);
+            CREATE TABLE IF NOT EXISTS t_index (id integer);
+            CREATE MATERIALIZED VIEW mv AS SELECT 1 AS original;
+            CREATE MATERIALIZED VIEW IF NOT EXISTS mv AS SELECT 2 AS replacement;
+            CREATE MATERIALIZED VIEW IF NOT EXISTS t AS SELECT 3 AS replacement;
+            CREATE VIEW v AS SELECT 4 AS original;
+            CREATE TABLE IF NOT EXISTS v (id integer);
+            CREATE TABLE other.t_index (id integer);
+            SQL);
+
+        $this->assertSame(['t', 'added', 't_index'], array_column($schema->tables, 'name'));
+        $this->assertSame('other', $schema->table('t_index')->schema);
+        $this->assertSame(['id', 'code'], array_column($schema->table('t')->columns, 'name'));
+        $this->assertCount(1, $schema->table('t')->indexes);
+        $this->assertSame(['id'], array_column($schema->table('t')->indexes[0]->columns, 'name'));
+        $this->assertSame(['mv', 'v'], array_column($schema->views, 'name'));
+        $this->assertSame('SELECT 1 AS original', $schema->view('mv')->definition);
+        $this->assertTrue($schema->isComplete());
+    }
+
+    public function testConditionalDeclarationsFollowIndexChanges(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE t (id integer, code text);
+            ALTER TABLE ONLY t ADD CONSTRAINT t_code_key UNIQUE (code);
+            CREATE INDEX IF NOT EXISTS t_code_key ON t (id);
+            CREATE UNIQUE INDEX t_id_key ON t (id);
+            ALTER TABLE ONLY t ADD CONSTRAINT t_pkey PRIMARY KEY USING INDEX t_id_key;
+            CREATE INDEX IF NOT EXISTS t_pkey ON t (code);
+            CREATE INDEX IF NOT EXISTS t_id_key ON t (code);
+            CREATE INDEX t_drop_index ON t (id);
+            DROP INDEX t_drop_index;
+            CREATE INDEX IF NOT EXISTS t_drop_index ON t (code);
+            CREATE TABLE dropped (id integer);
+            CREATE INDEX dropped_index ON dropped (id);
+            DROP TABLE dropped;
+            CREATE TABLE IF NOT EXISTS dropped_index (id integer);
+            SQL);
+
+        // Adopting an index renames it to the constraint, freeing its old name.
+        $indexes = $schema->table('t')->indexes;
+        $this->assertSame(['t_code_key', 't_pkey', 't_id_key', 't_drop_index'], array_column($indexes, 'name'));
+        $this->assertSame(['code'], array_column($indexes[2]->columns, 'name'));
+        $this->assertSame(['code'], array_column($indexes[3]->columns, 'name'));
+        $this->assertSame(['t', 'dropped_index'], array_column($schema->tables, 'name'));
+    }
+
+    public function testPrimaryKeysDeclaredBeforeTheirColumnsMakeThemNotNull(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE parent (PRIMARY KEY (id), id integer);
+            CREATE TABLE child () INHERITS (parent);
+            SQL);
+
+        $this->assertFalse($schema->table('parent')->column('id')->nullable);
+        $this->assertFalse($schema->table('child')->column('id')->nullable);
+        $this->assertSame([], $schema->table('child')->indexes);
+        $this->assertTrue($schema->isComplete());
     }
 
     public function testForeignTableOptionsAndPartitionBoundsStaySeparate(): void

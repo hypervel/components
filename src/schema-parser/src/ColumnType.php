@@ -17,6 +17,7 @@ final readonly class ColumnType
      * @param list<string> $modifiers Type modifiers, e.g. ['10', '2'] for numeric(10,2).
      * @param int $dimensions array dimensions; 0 for a scalar column
      * @param list<string> $values decoded enum or set labels in declaration order
+     * @param null|string $intervalFields lower-case PostgreSQL interval fields, e.g. 'day to second'
      */
     public function __construct(
         public string $name,
@@ -26,6 +27,7 @@ final readonly class ColumnType
         public bool $unsigned = false,
         public array $values = [],
         public ?self $base = null,
+        public ?string $intervalFields = null,
     ) {
     }
 

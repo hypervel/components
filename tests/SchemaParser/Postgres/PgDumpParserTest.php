@@ -123,6 +123,36 @@ class PgDumpParserTest extends TestCase
     }
 
     #[Test]
+    public function itKeepsIntervalFieldsWithTheirPrecision(): void
+    {
+        $database = $this->parser->parse(<<<'SQL'
+            CREATE DOMAIN public.span AS INTERVAL DAY TO SECOND(3);
+            CREATE TABLE t (a interval year to month, b interval(2), c interval minute[], d public.span, e public.span[]);
+            SQL);
+
+        $a = self::assertColumnType($database, 't', 'a');
+        $this->assertSame('year to month', $a->intervalFields);
+        $this->assertSame([], $a->modifiers);
+
+        $b = self::assertColumnType($database, 't', 'b');
+        $this->assertNull($b->intervalFields);
+        $this->assertSame(['2'], $b->modifiers);
+
+        $c = self::assertColumnType($database, 't', 'c');
+        $this->assertSame('minute', $c->intervalFields);
+        $this->assertSame(1, $c->dimensions);
+
+        foreach (['d' => 0, 'e' => 1] as $column => $dimensions) {
+            $type = self::assertColumnType($database, 't', $column);
+            $this->assertSame('span', $type->name);
+            $this->assertSame($dimensions, $type->dimensions);
+            $this->assertSame('interval', $type->base?->name);
+            $this->assertSame('day to second', $type->base?->intervalFields);
+            $this->assertSame(['3'], $type->base?->modifiers);
+        }
+    }
+
+    #[Test]
     public function itReadsEnumTypesAndLinksThemToColumns(): void
     {
         $database = $this->parser->parse(<<<'SQL'
@@ -216,6 +246,29 @@ class PgDumpParserTest extends TestCase
 
         $this->assertTrue($column->autoIncrement);
         $this->assertSame("nextval('public.users_id_seq'::regclass)", $column->default);
+    }
+
+    #[Test]
+    public function itTreatsOnlyAnUnqualifiedSerialNameAsSerial(): void
+    {
+        // PostgreSQL compares the folded type name to the serial names exactly.
+        $database = $this->parser->parse('CREATE TABLE t (a SERIAL8, b "serial", c "SERIAL", d public.serial);');
+
+        foreach (['a' => 'int8', 'b' => 'int4'] as $name => $type) {
+            $column = self::assertColumn($database, 't', $name);
+            $this->assertSame($type, $column->type->name);
+            $this->assertSame('pg_catalog', $column->type->schema);
+            $this->assertTrue($column->autoIncrement);
+            $this->assertFalse($column->nullable);
+        }
+
+        foreach (['c' => [null, 'SERIAL'], 'd' => ['public', 'serial']] as $name => [$schema, $type]) {
+            $column = self::assertColumn($database, 't', $name);
+            $this->assertSame($type, $column->type->name);
+            $this->assertSame($schema, $column->type->schema);
+            $this->assertFalse($column->autoIncrement);
+            $this->assertTrue($column->nullable);
+        }
     }
 
     #[Test]

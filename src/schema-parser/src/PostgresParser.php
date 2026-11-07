@@ -4,72 +4,100 @@ declare(strict_types=1);
 
 namespace Hypervel\SchemaParser;
 
-use Hypervel\SchemaParser\Contracts\Parser;
-use Hypervel\SchemaParser\Postgres\ParseState;
-use Hypervel\SchemaParser\Postgres\SqlScanner;
-use Hypervel\SchemaParser\Postgres\StatementSplitter;
-use sad_spirit\pg_builder\exceptions\SyntaxException;
-use sad_spirit\pg_builder\Lexer;
-use sad_spirit\pg_builder\TokenType;
-
-use function array_slice;
-use function array_values;
-use function count;
-use function in_array;
-use function preg_match;
-use function rtrim;
-use function strlen;
-use function strtoupper;
-use function substr;
-use function trim;
+use Hypervel\SchemaParser\Parsing\ColumnDefinition;
+use Hypervel\SchemaParser\Parsing\ParseState;
+use Hypervel\SchemaParser\Parsing\PostgresLexer;
+use Hypervel\SchemaParser\Parsing\TableDefinition;
+use Hypervel\SchemaParser\Parsing\TokenStream;
+use Hypervel\SchemaParser\Parsing\TokenType;
 
 /**
- * Read the schema of a PostgreSQL database out of plain-text pg_dump output.
- *
- * The grammar accepted here is deliberately the subset pg_dump emits, not all of
- * PostgreSQL DDL. pg_dump is a code generator, so that subset is small, regular
- * and stable across versions.
- *
- * Statements unrelated to represented schema facts are skipped. Mutable
- * definitions and type caches belong to one parse, never to this service.
- *
- * @phpstan-import-type ColumnDefinition from ParseState
- * @phpstan-import-type TableDefinition from ParseState
- * @phpstan-import-type DomainDefinition from ParseState
+ * @extends Parser<PostgresLexer>
  */
-class PostgresParser implements Parser
+class PostgresParser extends Parser
 {
-    /** A quoted or bare identifier. */
-    private const string IDENT = '(?:"(?:[^"]|"")++"|[A-Za-z_\x80-\xff][A-Za-z0-9_$\x80-\xff]*)';
-
-    /** Keywords that end the type of a column and begin its constraints. */
-    private const array COLUMN_CONSTRAINTS = [
-        'COLLATE',
-        'DEFAULT',
-        'GENERATED',
-        'NOT',
-        'NULL',
-        'CONSTRAINT',
-        'CHECK',
-        'PRIMARY',
-        'UNIQUE',
-        'REFERENCES',
-        'DEFERRABLE',
-        'STORAGE',
-        'COMPRESSION',
-        'OPTIONS',
+    /** Keywords that end a column type or default by beginning the next column clause. */
+    protected const array COLUMN_CLAUSES = [
+        'COLLATE' => true,
+        'DEFAULT' => true,
+        'GENERATED' => true,
+        'NOT' => true,
+        'NULL' => true,
+        'CONSTRAINT' => true,
+        'CHECK' => true,
+        'PRIMARY' => true,
+        'UNIQUE' => true,
+        'REFERENCES' => true,
+        'DEFERRABLE' => true,
+        'STORAGE' => true,
+        'COMPRESSION' => true,
+        'OPTIONS' => true,
     ];
 
-    /** Entries in a CREATE TABLE body that describe the table rather than a column. */
-    private const array TABLE_CONSTRAINTS = [
-        'CONSTRAINT',
-        'PRIMARY',
-        'UNIQUE',
-        'FOREIGN',
-        'CHECK',
-        'NOT',
-        'EXCLUDE',
-        'LIKE',
+    /** The first keywords of the column clauses that PostgreSQL reads differently from the shared grammar. */
+    private const array COLUMN_CLAUSE_STARTS = [
+        'NOT' => true,
+        'GENERATED' => true,
+        'STORAGE' => true,
+        'COMPRESSION' => true,
+        'OPTIONS' => true,
+    ];
+
+    /** The keywords that can modify a CREATE statement before the kind of object it creates. */
+    private const array CREATE_MODIFIERS = [
+        'OR' => true,
+        'GLOBAL' => true,
+        'LOCAL' => true,
+        'TEMPORARY' => true,
+        'TEMP' => true,
+        'UNLOGGED' => true,
+        'RECURSIVE' => true,
+    ];
+
+    /** The first keywords of table and column constraints. */
+    private const array CONSTRAINT_STARTS = [
+        'CHECK' => true,
+        'NOT' => true,
+        'PRIMARY' => true,
+        'UNIQUE' => true,
+        'FOREIGN' => true,
+        'REFERENCES' => true,
+    ];
+
+    /** The first keywords of index parameters. */
+    private const array INDEX_PARAMETER_STARTS = [
+        'INCLUDE' => true,
+        'WITH' => true,
+        'USING' => true,
+        'TABLESPACE' => true,
+    ];
+
+    /** The first keywords of constraint deferral, validation, enforcement and inheritance flags. */
+    private const array CONSTRAINT_FLAG_STARTS = [
+        'NOT' => true,
+        'DEFERRABLE' => true,
+        'INITIALLY' => true,
+        'ENFORCED' => true,
+        'NO' => true,
+    ];
+
+    private const array INTERVAL_FIELDS = [
+        'YEAR' => true,
+        'MONTH' => true,
+        'DAY' => true,
+        'HOUR' => true,
+        'MINUTE' => true,
+        'SECOND' => true,
+    ];
+
+    /** Serial pseudo-types and the integer types their columns are created with. */
+    private const array SERIAL_TYPES = [
+        'smallserial' => 'int2',
+        'serial2' => 'int2',
+        'serial' => 'int4',
+        'serial4' => 'int4',
+        'bigserial' => 'int8',
+        'serial8' => 'int8',
     ];
 
     /**
@@ -80,1083 +108,1547 @@ class PostgresParser implements Parser
         if (str_starts_with($sql, 'PGDMP') || str_contains($sql, "\0")) {
             throw new ParseException('PostgreSQL archives must be exported as plain SQL before parsing.');
         }
-        $state = new ParseState($sql);
 
-        foreach ((new StatementSplitter)->split($sql) as $part) {
-            $statement = $part['sql'];
-            $state->offset = $part['offset'];
-            if ($this->hasUnresolvedIdentityChange($statement, $state)) {
-                continue;
-            }
-            if (preg_match('/^SET\s+standard_conforming_strings\s*=\s*(on|off)$/iD', $statement, $matches)) {
-                $standard = strcasecmp($matches[1], 'on') === 0;
-                if ($standard !== $state->standardConformingStrings) {
-                    $state->standardConformingStrings = $standard;
-                    $state->literalLexer = new Lexer(['standard_conforming_strings' => $standard]);
-                }
-                continue;
-            }
-
-            $table = $this->readCreateTable($statement, $state);
-
-            if ($table !== null) {
-                // A dump that drops and recreates a table leaves the last
-                // definition standing, which is what replaying it would give.
-                $key = $this->identityKey($table['schema'], $table['name']);
-                $state->tables[$key] = $table;
-                $state->tableNames[$table['name']][$key] = true;
-                foreach ($table['parents'] as $parent) {
-                    $parentKey = $this->tableKey($parent, $state);
-                    if ($parentKey !== null) {
-                        $state->children[$parentKey][$key] = true;
-                    }
-                }
-                if ($table['partitionOf'] !== null) {
-                    $parentKey = $this->tableKey($table['partitionOf'], $state);
-                    if ($parentKey !== null) {
-                        $state->children[$parentKey][$key] = true;
-                    }
-                }
-                continue;
-            }
-
-            $enum = $this->readCreateEnum($statement, $state);
-
-            if ($enum !== null) {
-                $state->enums[$this->identityKey($enum->schema, $enum->name)] = $enum;
-                continue;
-            }
-
-            $domain = $this->readCreateDomain($statement, $state);
-
-            if ($domain !== null) {
-                $key = $this->identityKey($domain['schema'], $domain['name']);
-                $state->domains[$key] = $domain;
-                $state->domainNames[$domain['name']][$key] = true;
-                continue;
-            }
-
-            if ($this->applyAlterTable($statement, $state)
-                || $this->applyAlterDomain($statement, $state)
-                || $this->readCreateIndex($statement, $state)
-                || $this->applyComment($statement, $state)
-                || $this->applyDrop($statement, $state)) {
-                continue;
-            }
-
-            $view = $this->readCreateView($statement, $state);
-            if ($view !== null) {
-                $key = $this->identityKey($view->schema, $view->name);
-                $state->views[$key] = $view;
-                $state->viewNames[$view->name][$key] = true;
-                continue;
-            }
-        }
-
-        return $this->freeze($state);
+        return parent::parse($sql);
     }
 
     /**
-     * Freeze definitions after defaults, constraints and type dependencies are resolved.
+     * Create the lexer for one input.
      */
-    private function freeze(ParseState $state): Schema
+    protected function createLexer(string $sql): PostgresLexer
     {
-        $resolving = [];
-        foreach ($state->domains as $key => $domain) {
-            $this->resolveDomain($key, $state, $resolving);
-        }
-
-        $tables = [];
-        foreach ($state->tables as $definition) {
-            $columns = [];
-            foreach ($definition['columns'] as $column) {
-                $type = $column['type'];
-                $domainKey = $this->domainKey($type, $state);
-                $domain = $domainKey === null ? null : $state->resolvedDomains[$domainKey];
-                if ($type->schema === null && count($state->domainNames[$type->name] ?? []) > 1) {
-                    $definition['issues'][] = new Issue("The domain of column [{$column['name']}] is ambiguous without a schema.");
-                }
-                if ($domain !== null) {
-                    $type = new ColumnType($type->name, $type->schema, $type->modifiers, $type->dimensions, base: $domain->type);
-                }
-                $scalarDomain = $type->dimensions === 0 ? $domain : null;
-                $default = $column['default'] ?? $scalarDomain?->default;
-                // Domain NOT NULL checks conversion, not already-typed NULLs stored in columns.
-                // https://www.postgresql.org/docs/current/sql-createdomain.html#SQL-CREATEDOMAIN-NOTES
-                $nullable = $column['nullable'];
-                if ($nullable && $column['unvalidatedNotNull']) {
-                    $definition['issues'][] = new Issue("The NOT NULL constraint on column [{$column['name']}] has not been validated.");
-                }
-                $columns[] = new Column(
-                    $column['name'],
-                    $type,
-                    nullable: $nullable,
-                    default: $default,
-                    autoIncrement: $column['autoIncrement'] || $column['identity'] !== null
-                        || ($default !== null && preg_match('/^(?:pg_catalog\.)?nextval\s*\(/i', $default) === 1),
-                    identity: $column['identity'],
-                    generation: $column['generation'],
-                    collation: $column['collation'],
-                    comment: $column['comment'],
-                );
-            }
-
-            foreach ($definition['foreignKeys'] as $position => $foreignKey) {
-                if ($foreignKey->foreignColumns !== []) {
-                    continue;
-                }
-                $targetKey = $this->tableKey($foreignKey->foreignTable, $state);
-                $primary = $targetKey === null ? null : array_find(
-                    $state->tables[$targetKey]['indexes'],
-                    static fn (Index $index): bool => $index->primary,
-                );
-                if ($primary === null) {
-                    $definition['issues'][] = new Issue("The referenced columns of foreign table [{$foreignKey->foreignTable->name}] could not be resolved.");
-                    continue;
-                }
-                $definition['foreignKeys'][$position] = new ForeignKey(
-                    $foreignKey->name,
-                    $foreignKey->columns,
-                    $foreignKey->foreignTable,
-                    array_column($primary->columns, 'name'),
-                    $foreignKey->onUpdate,
-                    $foreignKey->onDelete,
-                    $foreignKey->match,
-                    $foreignKey->deferral,
-                    $foreignKey->valid,
-                    $foreignKey->enforced,
-                );
-            }
-
-            $tables[] = new Table(
-                $definition['name'],
-                $columns,
-                $definition['schema'],
-                $definition['indexes'],
-                $definition['foreignKeys'],
-                $definition['checks'],
-                comment: $definition['comment'],
-                parents: $definition['parents'],
-                partitionOf: $definition['partitionOf'],
-                partitionBounds: $definition['partitionBounds'],
-                issues: $definition['issues'],
-            );
-        }
-
-        return new Schema($tables, array_values($state->views), array_values($state->enums), array_values($state->resolvedDomains), $state->issues);
+        return new PostgresLexer($sql);
     }
 
     /**
-     * Resolve a domain chain once, detecting actual dependency cycles.
+     * Read the statement's represented facts, leaving any unread remainder to be skipped.
+     */
+    protected function parseStatement(TokenStream $tokens, ParseState $state): void
+    {
+        if ($tokens->accept('CREATE')) {
+            $this->parseCreate($tokens, $state);
+        } elseif ($tokens->accept('ALTER')) {
+            $this->parseAlter($tokens, $state);
+        } elseif ($tokens->accept('COMMENT', 'ON')) {
+            $this->parseComment($tokens, $state);
+        } elseif ($tokens->accept('DROP')) {
+            $this->parseDrop($tokens, $state);
+        } elseif ($tokens->accept('SET', 'STANDARD_CONFORMING_STRINGS')) {
+            $this->parseStandardConformingStrings($tokens);
+        }
+    }
+
+    /**
+     * Apply a change to whether later string literals treat backslashes literally.
      *
-     * @param array<string, true> $resolving
+     * @param TokenStream<PostgresLexer> $tokens
      */
-    private function resolveDomain(string $key, ParseState $state, array &$resolving): Domain
+    private function parseStandardConformingStrings(TokenStream $tokens): void
     {
-        if (isset($state->resolvedDomains[$key])) {
-            return $state->resolvedDomains[$key];
+        if (! $tokens->acceptSymbol('=') && ! $tokens->accept('TO')) {
+            return;
         }
-        $definition = $state->domains[$key];
-        if (isset($resolving[$key])) {
-            throw new ParseException("The domain [{$definition['name']}] has a cyclic base type.");
-        }
-        $resolving[$key] = true;
-        $type = $definition['type'];
-        $parentKey = $this->domainKey($type, $state);
-        $parent = $parentKey === null ? null : $this->resolveDomain($parentKey, $state, $resolving);
-        if ($type->schema === null && count($state->domainNames[$type->name] ?? []) > 1) {
-            $state->issues[] = new Issue("The base type of domain [{$definition['name']}] is ambiguous without a schema.");
-        }
-        if ($parent !== null) {
-            $type = new ColumnType($type->name, $type->schema, $type->modifiers, $type->dimensions, base: $parent->type);
-        }
-        $scalarParent = $type->dimensions === 0 ? $parent : null;
-        unset($resolving[$key]);
 
-        return $state->resolvedDomains[$key] = new Domain(
-            $definition['name'],
-            $type,
-            $definition['schema'],
-            $definition['nullable'] && ($scalarParent->nullable ?? true),
-            $definition['default'] ?? $scalarParent?->default,
-            array_merge($scalarParent->checks ?? [], $definition['checks']),
-        );
+        $value = $tokens->keyword();
+
+        if (($value === 'ON' || $value === 'OFF') && $tokens->type(1) === TokenType::End) {
+            $tokens->lexer->standardConformingStrings = $value === 'ON';
+        }
     }
 
     /**
-     * Find an exact domain or an unambiguous unqualified definition.
+     * Read a CREATE statement for a represented object.
      */
-    private function domainKey(ColumnType $type, ParseState $state): ?string
+    private function parseCreate(TokenStream $tokens, ParseState $state): void
     {
-        if ($type->schema !== null) {
-            $key = $this->identityKey($type->schema, $type->name);
-            return isset($state->domains[$key]) ? $key : null;
-        }
-        $matches = $state->domainNames[$type->name] ?? [];
+        if (isset(self::CREATE_MODIFIERS[$tokens->text()])) {
+            $tokens->accept('OR', 'REPLACE');
+            $temporary = $tokens->accept('GLOBAL') || $tokens->accept('LOCAL');
+            $temporary = $tokens->accept('TEMPORARY') || $tokens->accept('TEMP') || $temporary;
 
-        return count($matches) === 1 ? array_key_first($matches) : null;
-    }
-
-    /**
-     * Find an exact table or an unambiguous unqualified definition.
-     */
-    private function tableKey(TableReference $table, ParseState $state): ?string
-    {
-        if ($table->schema !== null) {
-            $key = $this->identityKey($table->schema, $table->name);
-            return isset($state->tables[$key]) ? $key : null;
-        }
-        $matches = $state->tableNames[$table->name] ?? [];
-
-        return count($matches) === 1 ? array_key_first($matches) : null;
-    }
-
-    /**
-     * Find an exact view or an unambiguous unqualified definition.
-     */
-    private function viewKey(TableReference $view, ParseState $state): ?string
-    {
-        if ($view->schema !== null) {
-            $key = $this->identityKey($view->schema, $view->name);
-            return isset($state->views[$key]) ? $key : null;
-        }
-        $matches = $state->viewNames[$view->name] ?? [];
-
-        return count($matches) === 1 ? array_key_first($matches) : null;
-    }
-
-    /**
-     * Index an identity without conflating unspecified schemas or quoted dots.
-     */
-    private function identityKey(?string $schema, string $name): string
-    {
-        return ($schema === null ? 'n:' : 's:' . strlen($schema) . ':' . $schema) . $name;
-    }
-
-    /**
-     * Flag identity and enum-label changes without replaying their dependent declarations.
-     */
-    private function hasUnresolvedIdentityChange(string $statement, ParseState $state): bool
-    {
-        if (! preg_match('/^ALTER\b/i', $statement)
-            || ! preg_match('/\b(?:RENAME|SCHEMA|VALUE)\b/i', $statement)) {
-            return false;
-        }
-        $words = $this->topLevelWords($statement);
-        $enumChange = preg_match('/^ALTER\s+TYPE\b/i', $statement) === 1;
-        foreach ($words as $index => [$word, $offset]) {
-            $next = $words[$index + 1] ?? null;
-            if ($next === null) {
-                break;
+            if ($temporary) {
+                return;
             }
-            $identity = ($word === 'RENAME' && $next[0] === 'TO') || ($word === 'SET' && $next[0] === 'SCHEMA');
-            $labels = $enumChange && in_array($word, ['ADD', 'RENAME'], true) && $next[0] === 'VALUE';
-            if (! $identity && ! $labels) {
-                continue;
-            }
-            $tail = substr($statement, $next[1] + strlen($next[0]));
-            if ($identity && ! preg_match('/^\s+' . self::IDENT . '\s*$/D', $tail)) {
-                continue;
-            }
-            if ($state->tables !== [] || $state->views !== [] || $state->enums !== [] || $state->domains !== []) {
-                $state->issues[] = $this->issue('An ALTER statement changes identities or enum labels that cannot be resolved across dependent definitions.', $state);
-            }
-            return true;
+
+            $tokens->accept('UNLOGGED');
+            $tokens->accept('RECURSIVE');
         }
 
-        return false;
-    }
-
-    /**
-     * Record unresolved effects on other definitions when a drop cascades.
-     */
-    private function reportCascade(ParseState $state): void
-    {
-        if ($state->tables !== [] || $state->views !== [] || $state->enums !== [] || $state->domains !== []) {
-            $state->issues[] = $this->issue('Cascading drops can change dependent definitions that are not replayed.', $state);
+        if ($tokens->accept('TABLE')) {
+            $this->parseCreateTable($tokens, $state, false);
+        } elseif ($tokens->accept('INDEX')) {
+            $this->parseCreateIndex($tokens, $state, false);
+        } elseif ($tokens->accept('UNIQUE', 'INDEX')) {
+            $this->parseCreateIndex($tokens, $state, true);
+        } elseif ($tokens->accept('FOREIGN', 'TABLE')) {
+            $this->parseCreateTable($tokens, $state, true);
+        } elseif ($tokens->accept('VIEW')) {
+            $this->parseCreateView($tokens, $state, false);
+        } elseif ($tokens->accept('MATERIALIZED', 'VIEW')) {
+            $this->parseCreateView($tokens, $state, true);
+        } elseif ($tokens->accept('TYPE')) {
+            $this->parseCreateEnum($tokens, $state);
+        } elseif ($tokens->accept('DOMAIN')) {
+            $this->parseCreateDomain($tokens, $state);
         }
     }
 
     /**
-     * Read local columns before merging any inherited table definitions.
-     *
-     * @return null|TableDefinition
+     * Read a table, merging the facts it inherits from parents read earlier.
      */
-    private function readCreateTable(string $statement, ParseState $state): ?array
+    private function parseCreateTable(TokenStream $tokens, ParseState $state, bool $foreign): void
     {
-        $prefix = 'CREATE\s+(?:GLOBAL\s+|LOCAL\s+)?(?:(?<persistence>TEMPORARY|TEMP|UNLOGGED)\s+)?(?<foreign>FOREIGN\s+)?TABLE\b';
-        if (preg_match('/^' . $prefix . '/i', $statement) !== 1) {
-            return null;
-        }
-        $pattern = '/^' . $prefix . '\s+(?<conditional>IF\s+NOT\s+EXISTS\s+)?'
-            . '(?:(?<schema>' . self::IDENT . ')\s*\.\s*)?(?<table>' . self::IDENT . ')(?<tail>.*)$/isD';
+        $conditional = $tokens->accept('IF', 'NOT', 'EXISTS');
+        $reference = $this->parseQualifiedName($tokens, 'a table name');
 
-        if (preg_match($pattern, $statement, $matches) !== 1) {
-            throw $this->error('Expected a table name', $state);
+        if ($reference->schema === 'pg_temp' || ($conditional && $this->relationExists($state, $reference->schema, $reference->name))) {
+            return;
         }
-        $schema = $matches['schema'] === '' ? null : SqlScanner::identifier($matches['schema']);
-        $name = SqlScanner::identifier($matches['table']);
-        if (in_array(strtoupper($matches['persistence']), ['TEMP', 'TEMPORARY'], true) || $schema === 'pg_temp') {
-            return null;
-        }
-        $key = $this->identityKey($schema, $name);
-        if ($matches['conditional'] !== '' && isset($state->tables[$key])) {
-            return $state->tables[$key];
-        }
-        $table = $this->emptyTable($name, $schema);
-        $tail = trim($matches['tail']);
-        if ($tail === '') {
-            throw $this->error('Expected a table definition', $state);
-        }
-        $localColumns = [];
-        $constraints = [];
 
-        if (str_starts_with($tail, '(')) {
-            $body = SqlScanner::balanced($tail, 0);
-            if ($body === null) {
-                throw $this->error('Unterminated table definition', $state);
+        $table = new TableDefinition($reference->name, $reference->schema);
+
+        if ($tokens->accept('PARTITION', 'OF')) {
+            $table->partitionOf = $this->parseQualifiedName($tokens, 'a partitioned table name');
+
+            if ($tokens->isSymbol('(')) {
+                $this->parseGroup($tokens);
             }
-            foreach (SqlScanner::splitTopLevel($body) as $entry) {
-                $words = $this->topLevelWords($entry);
-                $first = $words[0][0] ?? '';
-                if (($words[0][1] ?? null) === 0 && in_array($first, self::TABLE_CONSTRAINTS, true)
-                    && ($first !== 'EXCLUDE' || preg_match('/^EXCLUDE\s*(?:USING\b|\()/i', $entry))) {
-                    $constraints[] = $entry;
-                    continue;
+
+            $table->partitionBounds = $this->parsePartitionBounds($tokens);
+            $parentKey = $state->tableKey($table->partitionOf);
+
+            foreach ($parentKey === null ? [] : $state->tables[$parentKey]->columns as $name => $column) {
+                $table->columns[$name] = clone $column;
+            }
+
+            $table->issues[] = $state->issue('The partition declaration does not include its complete column and constraint definitions.');
+        } elseif ($tokens->isSymbol('(')) {
+            $this->parseTableBody($tokens, $state, $table);
+
+            if ($tokens->accept('INHERITS')) {
+                $table = $this->parseInheritance($tokens, $state, $table);
+            }
+
+            $this->applyNotNullConstraints($table, $state);
+
+            // A primary key can be declared before its columns.
+            $primary = array_find($table->indexes, static fn (Index $index): bool => $index->primary);
+
+            if ($primary !== null) {
+                $this->markPrimaryKeyColumnsNotNull($primary, $table);
+            }
+
+            if ($foreign && $tokens->accept('SERVER')) {
+                $this->parseName($tokens, 'a foreign server name');
+
+                if ($tokens->accept('OPTIONS')) {
+                    $this->parseGroup($tokens);
                 }
-                $column = $this->readColumn($entry, $words, $state, $table);
-                $localColumns[$column['name']] = $column;
             }
-            $tail = trim(substr($tail, strlen($body) + 2));
-        } elseif (preg_match('/^PARTITION\s+OF\s+/i', $tail, $partition)) {
-            $position = strlen($partition[0]);
-            $parent = $this->readReference($tail, $position, $state);
-            $table['partitionOf'] = $parent;
-            $position += strspn($tail, " \t\r\n", $position);
-            if (($tail[$position] ?? '') === '(') {
-                $this->readGroup($tail, $position, $state);
+
+            if (! $tokens->atEnd() && ! $this->isStorageClause($tokens)) {
+                $table->issues[] = $state->issue('The table has unsupported trailing declaration syntax.');
             }
-            $table['partitionBounds'] = $this->readPartitionBounds($tail, $position, $state);
-            $parentKey = $this->tableKey($parent, $state);
-            if ($parentKey !== null) {
-                $table['columns'] = $state->tables[$parentKey]['columns'];
-            }
-            $table['issues'][] = $this->issue('The partition declaration does not include its complete column and constraint definitions.', $state);
-            return $table;
+        } elseif ($tokens->atEnd()) {
+            throw $tokens->error('Expected a table definition');
         } else {
-            $table['issues'][] = $this->issue('The table declaration does not contain a complete column definition.', $state);
-            return $table;
+            $table->issues[] = $state->issue('The table declaration does not contain a complete column definition.');
         }
 
-        if (preg_match('/^INHERITS\s*\(/i', $tail, $inheritance)) {
-            $open = strlen($inheritance[0]) - 1;
-            $parents = SqlScanner::balanced($tail, $open);
-            if ($parents === null) {
-                throw $this->error('Unterminated inheritance list', $state);
+        $key = $state->addTable($table);
+
+        foreach ($table->partitionOf === null ? $table->parents : [$table->partitionOf] as $parent) {
+            $parentKey = $state->tableKey($parent);
+
+            if ($parentKey !== null) {
+                $state->children[$parentKey][$key] = true;
             }
-            $conflicts = [];
-            foreach (SqlScanner::splitTopLevel($parents) as $parentSql) {
-                $position = 0;
-                $parent = $this->readReference($parentSql, $position, $state);
-                $table['parents'][] = $parent;
-                $parentKey = $this->tableKey($parent, $state);
-                if ($parentKey === null) {
-                    $table['issues'][] = $this->issue("Inherited table [{$parent->name}] could not be resolved.", $state);
+        }
+    }
+
+    /**
+     * Determine whether a known table, view or index already has the given relation name.
+     */
+    private function relationExists(ParseState $state, ?string $schema, string $name): bool
+    {
+        $key = ParseState::key($schema, $name);
+
+        return isset($state->tables[$key]) || isset($state->views[$key]) || $state->hasIndex($schema, $name);
+    }
+
+    /**
+     * Merge the inherited facts of the listed parents with the table's own declarations.
+     *
+     * Parents are read as they stood when the table was created. Copied columns are
+     * cloned, so later changes to the child never reach a parent or a sibling.
+     */
+    private function parseInheritance(TokenStream $tokens, ParseState $state, TableDefinition $local): TableDefinition
+    {
+        $table = new TableDefinition($local->name, $local->schema);
+        $table->issues = $local->issues;
+        $conflicts = [];
+
+        $tokens->expectSymbol('(', 'Expected a list of inherited tables');
+
+        do {
+            $parent = $this->parseQualifiedName($tokens, 'an inherited table name');
+            $table->parents[] = $parent;
+            $parentKey = $state->tableKey($parent);
+
+            if ($parentKey === null) {
+                $table->issues[] = $state->issue("Inherited table [{$parent->name}] could not be resolved.");
+                continue;
+            }
+
+            $parentTable = $state->tables[$parentKey];
+
+            if ($parentTable->issues !== []) {
+                $table->issues[] = $state->issue("Inherited table [{$parent->name}] has incomplete definitions.");
+            }
+
+            foreach ($parentTable->columns as $name => $parentColumn) {
+                // A NO INHERIT guarantee stays with the parent, while creating the child validates a NOT VALID one.
+                $nullable = $parentColumn->noInheritNotNull || ($parentColumn->nullable && ! $parentColumn->unvalidatedNotNull);
+                $column = $table->columns[$name] ?? null;
+
+                if ($column === null) {
+                    $column = clone $parentColumn;
+                    $column->nullable = $nullable;
+                    $column->noInheritNotNull = false;
+                    $column->unvalidatedNotNull = false;
+                    // Identity and comments belong to the parent; serial defaults and generated expressions are inherited.
+                    $column->autoIncrement = $column->autoIncrement && $column->identity === null;
+                    $column->identity = null;
+                    $column->comment = null;
+                    $table->columns[$name] = $column;
+
                     continue;
                 }
-                $parentTable = $state->tables[$parentKey];
-                if ($parentTable['issues'] !== []) {
-                    $table['issues'][] = $this->issue("Inherited table [{$parent->name}] has incomplete definitions.", $state);
+
+                $column->nullable = $column->nullable && $nullable;
+
+                if ($column->default !== null && $parentColumn->default !== null && $column->default !== $parentColumn->default) {
+                    $conflicts[$name]['default'] = true;
                 }
-                foreach ($parentTable['columns'] as $columnName => $column) {
-                    // Identity and comments belong to the parent; serial defaults and generated expressions inherit.
-                    if ($column['identity'] !== null) {
-                        $column['autoIncrement'] = false;
-                    }
-                    $column['identity'] = null;
-                    $column['comment'] = null;
-                    if ($column['noInheritNotNull']) {
-                        $column['nullable'] = true;
-                    } elseif ($column['unvalidatedNotNull']) {
-                        $column['nullable'] = false;
-                    }
-                    $column['noInheritNotNull'] = false;
-                    $column['unvalidatedNotNull'] = false;
-                    if (isset($table['columns'][$columnName])) {
-                        $inherited = &$table['columns'][$columnName];
-                        $inherited['nullable'] = $inherited['nullable'] && $column['nullable'];
-                        if ($inherited['default'] !== null && $column['default'] !== null && $inherited['default'] !== $column['default']) {
-                            $conflicts[$columnName]['default'] = true;
-                        }
-                        $inherited['default'] ??= $column['default'];
-                        if ($inherited['generation'] !== null && $column['generation'] !== null
-                            && ($inherited['generation']->type !== $column['generation']->type || $inherited['generation']->expression !== $column['generation']->expression)) {
-                            $conflicts[$columnName]['generation'] = true;
-                        }
-                        $inherited['generation'] ??= $column['generation'];
-                        unset($inherited);
-                    } else {
-                        $table['columns'][$columnName] = $column;
-                    }
+
+                if ($column->generation !== null && $parentColumn->generation !== null
+                    && ($column->generation->type !== $parentColumn->generation->type
+                        || $column->generation->expression !== $parentColumn->generation->expression)) {
+                    $conflicts[$name]['generation'] = true;
                 }
-                foreach ($parentTable['checks'] as $check) {
-                    if ($check->noInherit) {
-                        continue;
-                    }
+
+                $column->default ??= $parentColumn->default;
+                $column->generation ??= $parentColumn->generation;
+            }
+
+            foreach ($parentTable->checks as $check) {
+                if (! $check->noInherit) {
                     // Creating a child validates its enforced checks; later ALTER propagation does not.
                     $this->mergeCheck(new CheckConstraint($check->name, $check->expression, $check->enforced, $check->enforced), $table, $state);
                 }
             }
-            foreach ($conflicts as $columnName => $conflict) {
-                if (isset($conflict['default']) && ($localColumns[$columnName]['default'] ?? null) === null) {
-                    $table['issues'][] = $this->issue("Inherited defaults for [{$columnName}] conflict without a local default.", $state);
-                }
-                if (isset($conflict['generation']) && ($localColumns[$columnName]['generation'] ?? null) === null) {
-                    $table['issues'][] = $this->issue("Inherited generated expressions for [{$columnName}] conflict without a local expression.", $state);
-                }
+        } while ($tokens->acceptSymbol(','));
+
+        $tokens->expectSymbol(')', 'Unterminated inheritance list');
+
+        foreach ($conflicts as $name => $conflict) {
+            if (isset($conflict['default']) && ($local->columns[$name]->default ?? null) === null) {
+                $table->issues[] = $state->issue("Inherited defaults for [{$name}] conflict without a local default.");
             }
-            $tail = trim(substr($tail, $open + strlen($parents) + 2));
+
+            if (isset($conflict['generation']) && ($local->columns[$name]->generation ?? null) === null) {
+                $table->issues[] = $state->issue("Inherited generated expressions for [{$name}] conflict without a local expression.");
+            }
         }
 
-        foreach ($localColumns as $columnName => $column) {
-            if (isset($table['columns'][$columnName])) {
-                $inherited = $table['columns'][$columnName];
-                $column['nullable'] = $column['nullable'] && $inherited['nullable'];
-                $column['default'] ??= $inherited['default'];
-                $column['generation'] ??= $inherited['generation'];
-                $column['collation'] ??= $inherited['collation'];
+        foreach ($local->columns as $name => $column) {
+            $inherited = $table->columns[$name] ?? null;
+
+            if ($inherited !== null) {
+                $column->nullable = $column->nullable && $inherited->nullable;
+                $column->default ??= $inherited->default;
+                $column->generation ??= $inherited->generation;
+                $column->collation ??= $inherited->collation;
             }
-            $table['columns'][$columnName] = $column;
+
+            $table->columns[$name] = $column;
         }
-        foreach ($constraints as $entry) {
-            $position = $this->readConstraint($entry, $table, $state);
-            if (trim(substr($entry, $position)) !== '') {
-                $table['issues'][] = $this->issue('The table constraint has unsupported trailing syntax.', $state);
-            }
+
+        foreach ($local->checks as $check) {
+            $this->mergeCheck($check, $table, $state);
         }
-        foreach ($table['indexes'] as $index) {
-            if ($index->primary) {
-                foreach ($index->columns as $column) {
-                    if ($column->name !== null && isset($table['columns'][$column->name])) {
-                        $table['columns'][$column->name]['nullable'] = false;
-                    }
-                }
-            }
-        }
-        if ($matches['foreign'] !== '' && preg_match('/^SERVER\s+/i', $tail, $server)) {
-            $position = strlen($server[0]);
-            $this->readIdentifier($tail, $position, $state);
-            if (preg_match('/\G\s+OPTIONS\s*/i', $tail, $options, 0, $position)) {
-                $position += strlen($options[0]);
-                $this->readGroup($tail, $position, $state);
-            }
-            $tail = trim(substr($tail, $position));
-        }
-        if ($tail !== '' && ! preg_match('/^(?:PARTITION\s+BY\b|USING\b|WITH\s*\(|WITHOUT\s+OIDS\b|TABLESPACE\b|ON\s+COMMIT\b)/i', $tail)) {
-            $table['issues'][] = $this->issue('The table has unsupported trailing declaration syntax.', $state);
-        }
+
+        $table->indexes = $local->indexes;
+        $table->foreignKeys = $local->foreignKeys;
+        $table->notNullConstraints = $local->notNullConstraints;
 
         return $table;
     }
 
     /**
-     * Create a mutable table definition for this parsing operation.
-     *
-     * @return TableDefinition
+     * Determine whether a table's trailing clause only describes its physical storage.
      */
-    private function emptyTable(string $name, ?string $schema): array
+    private function isStorageClause(TokenStream $tokens): bool
     {
-        return [
-            'name' => $name, 'schema' => $schema, 'columns' => [], 'indexes' => [],
-            'foreignKeys' => [], 'checks' => [], 'comment' => null, 'parents' => [],
-            'partitionOf' => null, 'partitionBounds' => null, 'issues' => [],
-        ];
+        return $tokens->is('PARTITION', 'BY')
+            || $tokens->is('USING')
+            || ($tokens->is('WITH') && $tokens->isSymbol('(', 1))
+            || $tokens->is('WITHOUT', 'OIDS')
+            || $tokens->is('TABLESPACE')
+            || $tokens->is('ON', 'COMMIT');
     }
 
     /**
-     * Read a column using the declaration's existing top-level word scan.
-     *
-     * @param list<array{string, int}> $words
-     * @param TableDefinition $table
-     * @return ColumnDefinition
+     * Read a partition bound, leaving later storage and server clauses outside it.
      */
-    private function readColumn(string $entry, array $words, ParseState $state, array &$table): array
+    private function parsePartitionBounds(TokenStream $tokens): string
     {
-        $pattern = '/^(?<name>' . self::IDENT . ')\s+(?<rest>.+)$/isA';
+        $start = $tokens->offset();
 
-        if (preg_match($pattern, $entry, $matches) !== 1) {
-            throw $this->error('Expected a column name and type', $state);
+        if ($tokens->accept('DEFAULT')) {
+            return $tokens->spanFrom($start);
         }
 
-        $rest = trim($matches['rest']);
-        $restOffset = strlen($entry) - strlen($rest);
-        $words = array_values(array_filter($words, static fn (array $word): bool => $word[1] >= $restOffset));
-        foreach ($words as &$word) {
-            $word[1] -= $restOffset;
+        if (! $tokens->accept('FOR', 'VALUES')) {
+            throw $tokens->error('Expected a partition bound');
         }
-        unset($word);
 
-        $typeEnd = strlen($rest);
+        if ($tokens->accept('FROM')) {
+            $this->parseGroup($tokens);
 
-        foreach ($words as [$word, $offset]) {
-            if (! in_array($word, self::COLUMN_CONSTRAINTS, true)) {
-                continue;
+            if (! $tokens->accept('TO')) {
+                throw $tokens->error('Expected an upper partition bound');
             }
-
-            $typeEnd = $offset;
-            break;
+        } elseif (! $tokens->accept('IN') && ! $tokens->accept('WITH')) {
+            throw $tokens->error('Expected a partition bound');
         }
 
-        $type = trim(rtrim(trim(substr($rest, 0, $typeEnd)), ','));
+        $this->parseGroup($tokens);
 
-        if ($type === '') {
-            throw $this->error('Expected a column type', $state);
-        }
+        return $tokens->spanFrom($start);
+    }
 
-        $column = [
-            'name' => SqlScanner::identifier($matches['name']),
-            'type' => $state->types->resolve($type),
-            'nullable' => true, 'noInheritNotNull' => false, 'unvalidatedNotNull' => false,
-            'default' => null, 'autoIncrement' => false,
-            'identity' => null, 'generation' => null, 'collation' => null, 'comment' => null,
-        ];
-        $serial = match (strtolower($type)) {
-            'smallserial', 'serial2' => 'int2',
-            'serial', 'serial4' => 'int4',
-            'bigserial', 'serial8' => 'int8',
-            default => null,
+    /**
+     * Determine whether a table body entry is a constraint rather than a column.
+     */
+    protected function isTableConstraint(TokenStream $tokens): bool
+    {
+        return match ($tokens->keyword()) {
+            'CONSTRAINT', 'PRIMARY', 'UNIQUE', 'FOREIGN', 'CHECK', 'NOT', 'LIKE' => true,
+            // EXCLUDE is unreserved, so it can also name a column.
+            'EXCLUDE' => $tokens->keyword(1) === 'USING' || $tokens->isSymbol('(', 1),
+            default => false,
         };
+    }
+
+    /**
+     * Read a column definition into the table.
+     */
+    protected function parseColumn(TokenStream $tokens, ParseState $state, TableDefinition $table): ColumnDefinition
+    {
+        $column = parent::parseColumn($tokens, $state, $table);
+        $serial = $column->type->schema === null ? self::SERIAL_TYPES[$column->type->name] ?? null : null;
+
         if ($serial !== null) {
-            $column['type'] = new ColumnType($serial, 'pg_catalog');
-            $column['nullable'] = false;
-            $column['autoIncrement'] = true;
+            $column->type = new ColumnType($serial, 'pg_catalog');
+            $column->nullable = false;
+            $column->autoIncrement = true;
         }
-        $this->readColumnOptions($rest, $words, $typeEnd, $column, $table, $state);
 
         return $column;
     }
 
     /**
-     * Apply column clauses without rescanning the declaration's top-level words.
+     * Read a column type, mapping SQL-standard keyword spellings to their pg_catalog names.
      *
-     * @param list<array{string, int}> $words
-     * @param ColumnDefinition $column
-     * @param TableDefinition $table
+     * Identifiers keep a null schema, because the search path may resolve them to
+     * user types. Syntax that cannot be structured stays an opaque type named by
+     * its source text.
      */
-    private function readColumnOptions(string $sql, array $words, int $position, array &$column, array &$table, ParseState $state): void
+    protected function parseType(TokenStream $tokens, ParseState $state): ColumnType
     {
-        $name = null;
-        $length = strlen($sql);
-        while ($position < $length) {
-            $position += strspn($sql, " \t\r\n", $position);
-            if ($position === $length) {
-                break;
+        $start = $tokens->offset();
+        $first = $tokens->type();
+
+        if (($first !== TokenType::Word && $first !== TokenType::QuotedIdentifier)
+            || $this->atClause($tokens, static::COLUMN_CLAUSES)) {
+            throw $tokens->error('Expected a column type');
+        }
+
+        // A dump repeats a few type spellings, so each distinct span is interpreted once.
+        $mark = $tokens->mark();
+        $tokens->skipExpression(static::COLUMN_CLAUSES);
+        $span = $tokens->spanFrom($start);
+
+        // String modifiers decode according to standard_conforming_strings, so their spans are not shared.
+        $cacheable = ! str_contains($span, "'");
+
+        if ($cacheable && isset($state->types[$span])) {
+            return $state->types[$span];
+        }
+
+        $tokens->rewind($mark);
+        $keyword = $first === TokenType::Word && ! $tokens->isSymbol('.', 1) ? $tokens->keyword() : null;
+        $tokens->next();
+        $name = $keyword === null ? null : $this->parseStandardTypeName($tokens, $keyword);
+        $standard = $name !== null;
+        $schema = 'pg_catalog';
+        $intervalFields = null;
+
+        if ($name === null) {
+            $schema = null;
+            $name = $tokens->value(-1);
+
+            if ($tokens->acceptSymbol('.')) {
+                $schema = $name;
+                $name = $this->parseName($tokens, 'a type name');
             }
-            if (preg_match('/\GCONSTRAINT\s+/i', $sql, $matches, 0, $position)) {
-                $position += strlen($matches[0]);
-                $name = $this->readIdentifier($sql, $position, $state);
-            } elseif (preg_match('/\GDEFAULT\s+/i', $sql, $matches, 0, $position)) {
-                $position += strlen($matches[0]);
-                $column['default'] = $this->readDefault($sql, $words, $position, $state);
-                $name = null;
-            } elseif (preg_match('/\GNOT\s+NULL\b/i', $sql, $matches, 0, $position)) {
-                $position += strlen($matches[0]);
-                $flags = $this->readConstraintFlags($sql, $position);
-                if ($flags['valid']) {
-                    $column['nullable'] = false;
-                } else {
-                    $column['unvalidatedNotNull'] = true;
-                }
-                $column['noInheritNotNull'] = $flags['noInherit'];
-                $name = null;
-            } elseif (preg_match('/\GNULL\b/i', $sql, $matches, 0, $position)) {
-                $position += strlen($matches[0]);
-                $name = null;
-            } elseif (preg_match('/\GGENERATED\s+(ALWAYS|BY\s+DEFAULT)\s+AS\s*/i', $sql, $matches, 0, $position)) {
-                $position += strlen($matches[0]);
-                if (preg_match('/\GIDENTITY\b/i', $sql, $identity, 0, $position)) {
-                    $position += strlen($identity[0]);
-                    $column['identity'] = strcasecmp($matches[1], 'ALWAYS') === 0 ? Identity::Always : Identity::ByDefault;
-                    $column['nullable'] = false;
-                    $position += strspn($sql, " \t\r\n", $position);
-                    if (($sql[$position] ?? '') === '(') {
-                        $this->readGroup($sql, $position, $state);
-                    }
-                } else {
-                    $expression = $this->readGroup($sql, $position, $state);
-                    $kind = GenerationType::Virtual;
-                    if (preg_match('/\G\s*(STORED|VIRTUAL)\b/i', $sql, $generation, 0, $position)) {
-                        $position += strlen($generation[0]);
-                        $kind = GenerationType::from(strtolower($generation[1]));
-                    }
-                    $column['generation'] = new Generation($kind, $expression);
-                }
-                $name = null;
-            } elseif (preg_match('/\GCOLLATE\s+/i', $sql, $matches, 0, $position)) {
-                $position += strlen($matches[0]);
-                $start = $position;
-                $this->readReference($sql, $position, $state);
-                $column['collation'] = substr($sql, $start, $position - $start);
-            } elseif (preg_match('/\G(?:CHECK|PRIMARY|UNIQUE|REFERENCES)\b/i', $sql, $matches, 0, $position)) {
-                if (strcasecmp($matches[0], 'PRIMARY') === 0) {
-                    $column['nullable'] = false;
-                }
-                $position += $this->readConstraint(substr($sql, $position), $table, $state, $column['name'], $name);
-                $name = null;
-            } elseif (preg_match('/\G(?:STORAGE|COMPRESSION)\s+/i', $sql, $matches, 0, $position)) {
-                $position += strlen($matches[0]);
-                $this->readIdentifier($sql, $position, $state);
-            } elseif (preg_match('/\GOPTIONS\s*/i', $sql, $matches, 0, $position)) {
-                $position += strlen($matches[0]);
-                $this->readGroup($sql, $position, $state);
+        } elseif ($name === 'interval' && ! $tokens->isSymbol('(')) {
+            $intervalFields = $this->parseIntervalFields($tokens);
+        }
+
+        $modifiers = match (true) {
+            $tokens->isSymbol('(') => $this->parseTypeModifiers($tokens),
+            $standard && ($name === 'bpchar' || $name === 'bit') => ['1'],
+            default => [],
+        };
+
+        if ($keyword === 'FLOAT' && $modifiers !== null) {
+            $name = $modifiers !== [] && (int) $modifiers[0] <= 24 ? 'float4' : 'float8';
+            $modifiers = [];
+        } elseif ($standard && ($name === 'time' || $name === 'timestamp')) {
+            if ($tokens->accept('WITH', 'TIME', 'ZONE')) {
+                $name .= 'tz';
             } else {
-                $table['issues'][] = $this->issue("Column [{$column['name']}] has unsupported declaration syntax.", $state);
-                break;
+                $tokens->accept('WITHOUT', 'TIME', 'ZONE');
             }
         }
-    }
 
-    /**
-     * Read a raw default through the next column or domain clause.
-     *
-     * @param list<array{0: string, 1: int}> $words
-     */
-    private function readDefault(string $sql, array $words, int &$position, ParseState $state): string
-    {
-        $position += strspn($sql, " \t\r\n", $position);
-        $start = $position;
-        $end = strlen($sql);
-        $caseDepth = 0;
-        foreach ($words as [$word, $offset]) {
-            if ($offset < $start) {
-                continue;
-            }
-            if ($word === 'CASE') {
-                ++$caseDepth;
-            } elseif ($word === 'END' && $caseDepth > 0) {
-                --$caseDepth;
-            }
-            if ($caseDepth > 0 || $offset === $start || ! in_array($word, self::COLUMN_CONSTRAINTS, true)) {
-                continue;
-            }
-            $end = $offset;
-            break;
-        }
-        $expression = trim(substr($sql, $start, $end - $start));
-        if ($expression === '') {
-            throw $this->error('Expected a default expression', $state);
-        }
-        $position = $end;
+        $dimensions = 0;
 
-        return $expression;
-    }
+        if ($tokens->accept('ARRAY')) {
+            $dimensions = 1;
 
-    /**
-     * Read flags that follow a constraint's definition.
-     *
-     * @return array{deferral: ?Deferral, valid: bool, enforced: bool, noInherit: bool}
-     */
-    private function readConstraintFlags(string $sql, int &$position): array
-    {
-        $deferrable = false;
-        $initially = Deferral::Immediate;
-        $flags = ['deferral' => null, 'valid' => true, 'enforced' => true, 'noInherit' => false];
-        while (preg_match('/\G\s*(NOT\s+DEFERRABLE|DEFERRABLE|INITIALLY\s+DEFERRED|INITIALLY\s+IMMEDIATE|NOT\s+VALID|NOT\s+ENFORCED|ENFORCED|NO\s+INHERIT)\b/i', $sql, $matches, 0, $position)) {
-            $position += strlen($matches[0]);
-            $flag = strtoupper(preg_replace('/\s+/', ' ', $matches[1]));
-            switch ($flag) {
-                case 'DEFERRABLE':
-                    $deferrable = true;
-                    break;
-                case 'NOT DEFERRABLE':
-                    $deferrable = false;
-                    break;
-                case 'INITIALLY DEFERRED':
-                    $initially = Deferral::Deferred;
-                    break;
-                case 'INITIALLY IMMEDIATE':
-                    $initially = Deferral::Immediate;
-                    break;
-                case 'NOT VALID':
-                    $flags['valid'] = false;
-                    break;
-                case 'NOT ENFORCED':
-                    $flags['enforced'] = false;
-                    break;
-                case 'ENFORCED':
-                    $flags['enforced'] = true;
-                    break;
-                case 'NO INHERIT':
-                    $flags['noInherit'] = true;
-                    break;
+            if ($tokens->acceptSymbol('[')) {
+                if ($tokens->type() === TokenType::Number) {
+                    $tokens->next();
+                }
+
+                $tokens->expectSymbol(']', 'Expected the end of an array bound');
             }
         }
-        $flags['deferral'] = $deferrable || $initially === Deferral::Deferred ? $initially : null;
-        $flags['valid'] = $flags['valid'] && $flags['enforced'];
 
-        return $flags;
-    }
+        while ($tokens->acceptSymbol('[')) {
+            if ($tokens->type() === TokenType::Number) {
+                $tokens->next();
+            }
 
-    /**
-     * Read an identifier without splitting quoted spaces or punctuation.
-     */
-    private function readIdentifier(string $sql, int &$position, ParseState $state): string
-    {
-        $position += strspn($sql, " \t\r\n", $position);
-        if (preg_match('/\G' . self::IDENT . '/', $sql, $matches, 0, $position) !== 1) {
-            throw $this->error('Expected a SQL identifier', $state);
+            $tokens->expectSymbol(']', 'Expected the end of an array bound');
+            ++$dimensions;
         }
-        $position += strlen($matches[0]);
 
-        return SqlScanner::identifier($matches[0]);
-    }
+        $complete = $this->atEntryEnd($tokens) || $this->atClause($tokens, static::COLUMN_CLAUSES);
 
-    /**
-     * Read an optionally schema-qualified object reference.
-     */
-    private function readReference(string $sql, int &$position, ParseState $state): TableReference
-    {
-        $name = $this->readIdentifier($sql, $position, $state);
-        $next = $position + strspn($sql, " \t\r\n", $position);
-        if (($sql[$next] ?? '') !== '.') {
-            return new TableReference($name);
+        if (! $complete) {
+            $this->parseExpression($tokens, static::COLUMN_CLAUSES, 'a column type');
         }
-        $position = $next + 1;
 
-        return new TableReference($this->readIdentifier($sql, $position, $state), $name);
-    }
+        $type = $complete && $modifiers !== null
+            ? new ColumnType($name, $schema, $modifiers, $dimensions, intervalFields: $intervalFields)
+            : new ColumnType($span);
 
-    /**
-     * Read a complete parenthesized group with its original SQL text.
-     */
-    private function readGroup(string $sql, int &$position, ParseState $state): string
-    {
-        $position += strspn($sql, " \t\r\n", $position);
-        if (($sql[$position] ?? '') !== '(') {
-            throw $this->error('Expected a parenthesized expression', $state);
+        if ($cacheable) {
+            $state->types[$span] = $type;
         }
-        $body = SqlScanner::balanced($sql, $position);
-        if ($body === null) {
-            throw $this->error('Unterminated parenthesized expression', $state);
-        }
-        $group = substr($sql, $position, strlen($body) + 2);
-        $position += strlen($group);
 
-        return $group;
+        return $type;
     }
 
     /**
-     * Create an issue located at its owning statement.
+     * Read the rest of an SQL-standard type spelling, returning its pg_catalog name.
      */
-    private function issue(string $message, ParseState $state): Issue
+    private function parseStandardTypeName(TokenStream $tokens, string $keyword): ?string
     {
-        $state->diagnosticLine += substr_count($state->sql, "\n", $state->diagnosticOffset, $state->offset - $state->diagnosticOffset);
-        $state->diagnosticOffset = $state->offset;
-
-        return new Issue($message, $state->diagnosticLine);
+        return match ($keyword) {
+            'INT', 'INTEGER' => 'int4',
+            'SMALLINT' => 'int2',
+            'BIGINT' => 'int8',
+            'REAL' => 'float4',
+            'FLOAT' => 'float8',
+            'DOUBLE' => $tokens->accept('PRECISION') ? 'float8' : null,
+            'DEC', 'DECIMAL', 'NUMERIC' => 'numeric',
+            'BOOLEAN' => 'bool',
+            'CHAR', 'CHARACTER', 'NCHAR' => $tokens->accept('VARYING') ? 'varchar' : 'bpchar',
+            'NATIONAL' => $tokens->accept('CHARACTER') || $tokens->accept('CHAR')
+                ? ($tokens->accept('VARYING') ? 'varchar' : 'bpchar')
+                : null,
+            'VARCHAR' => 'varchar',
+            'BIT' => $tokens->accept('VARYING') ? 'varbit' : 'bit',
+            'TIME', 'TIMESTAMP', 'INTERVAL', 'JSON' => strtolower($keyword),
+            default => null,
+        };
     }
 
     /**
-     * Create a parse error located at its owning statement.
+     * Read the fields that restrict an interval, such as `day to second`.
      */
-    private function error(string $message, ParseState $state, ?SyntaxException $previous = null): ParseException
+    private function parseIntervalFields(TokenStream $tokens): ?string
     {
-        return new ParseException($message, substr_count($state->sql, "\n", 0, $state->offset) + 1, $previous);
-    }
-
-    /**
-     * Read enum labels with the literal rules active at their declaration.
-     */
-    private function readCreateEnum(string $statement, ParseState $state): ?EnumType
-    {
-        $pattern = '/^CREATE\s+TYPE\s+'
-            . '(?:(?<schema>' . self::IDENT . ')\s*\.\s*)?(?<name>' . self::IDENT . ')\s+'
-            . 'AS\s+ENUM\s*\(/isA';
-
-        if (preg_match($pattern, $statement, $matches) !== 1) {
+        if (! isset(self::INTERVAL_FIELDS[$tokens->keyword() ?? ''])) {
             return null;
         }
 
-        $body = SqlScanner::balanced($statement, strlen($matches[0]) - 1);
+        $fields = $tokens->value();
+        $tokens->next();
 
-        if ($body === null) {
-            throw $this->error('Unterminated enum label list', $state);
+        if ($tokens->is('TO') && isset(self::INTERVAL_FIELDS[$tokens->keyword(1) ?? ''])) {
+            $tokens->next();
+            $fields .= ' to ' . $tokens->value();
+            $tokens->next();
         }
 
-        $values = [];
+        return $fields;
+    }
 
-        foreach (SqlScanner::splitTopLevel($body) as $value) {
-            $value = trim($value);
+    /**
+     * Read type modifiers, returning null when one is not a constant or a name.
+     *
+     * @return null|list<string>
+     */
+    private function parseTypeModifiers(TokenStream $tokens): ?array
+    {
+        $tokens->expectSymbol('(', 'Expected type modifiers');
+        $modifiers = [];
+        $supported = true;
 
-            if ($value === '') {
-                continue;
-            }
+        do {
+            $start = $tokens->offset();
+            $type = $tokens->type();
 
-            $decoded = $this->readLiteral($value, $state);
-            if ($decoded === null) {
-                $state->issues[] = $this->issue('An enum label could not be decoded as a string literal.', $state);
+            if (($tokens->isSymbol('-') || $tokens->isSymbol('+')) && $tokens->type(1) === TokenType::Number) {
+                $tokens->next();
+                $tokens->next();
+                $modifier = $tokens->spanFrom($start);
+            } elseif ($type === TokenType::Symbol || $type === TokenType::End) {
+                $modifier = null;
             } else {
-                $values[] = $decoded;
+                $modifier = $tokens->value();
+                $tokens->next();
+            }
+
+            if ($modifier !== null && ($tokens->isSymbol(',') || $tokens->isSymbol(')'))) {
+                $modifiers[] = $modifier;
+            } else {
+                $supported = false;
+                $this->parseExpression($tokens, [], 'a type modifier');
+            }
+        } while ($tokens->acceptSymbol(','));
+
+        $tokens->expectSymbol(')', 'Unterminated type modifiers');
+
+        return $supported ? $modifiers : null;
+    }
+
+    /**
+     * Read one column clause, returning false when it is not supported.
+     */
+    protected function parseColumnConstraint(TokenStream $tokens, ParseState $state, TableDefinition $table, ColumnDefinition $column, ?string $name): bool
+    {
+        if (! isset(self::COLUMN_CLAUSE_STARTS[$tokens->text()])) {
+            return parent::parseColumnConstraint($tokens, $state, $table, $column, $name);
+        }
+
+        if ($tokens->accept('NOT', 'NULL')) {
+            $flags = $this->parseConstraintFlags($tokens);
+            $this->applyNotNull($column, $flags['valid'], $flags['noInherit']);
+
+            return true;
+        }
+
+        if ($tokens->accept('GENERATED')) {
+            $identity = $this->parseIdentityKind($tokens);
+
+            if ($identity === null || ! $tokens->accept('AS')) {
+                return false;
+            }
+
+            if ($tokens->accept('IDENTITY')) {
+                $column->identity = $identity;
+                $column->nullable = false;
+
+                if ($tokens->isSymbol('(')) {
+                    $this->parseGroup($tokens);
+                }
+
+                return true;
+            }
+
+            $expression = $this->parseGroup($tokens);
+            $stored = $tokens->accept('STORED');
+
+            if (! $stored) {
+                $tokens->accept('VIRTUAL');
+            }
+
+            $column->generation = new Generation($stored ? GenerationType::Stored : GenerationType::Virtual, $expression);
+
+            return true;
+        }
+
+        if ($tokens->accept('STORAGE') || $tokens->accept('COMPRESSION')) {
+            $this->parseName($tokens, 'a column storage setting');
+
+            return true;
+        }
+
+        if ($tokens->accept('OPTIONS')) {
+            $this->parseGroup($tokens);
+
+            return true;
+        }
+
+        return parent::parseColumnConstraint($tokens, $state, $table, $column, $name);
+    }
+
+    /**
+     * Read whether an identity is generated always or by default.
+     */
+    private function parseIdentityKind(TokenStream $tokens): ?Identity
+    {
+        return match (true) {
+            $tokens->accept('ALWAYS') => Identity::Always,
+            $tokens->accept('BY', 'DEFAULT') => Identity::ByDefault,
+            default => null,
+        };
+    }
+
+    /**
+     * Read a table constraint, or a column constraint on the given column, returning false when it is not supported.
+     */
+    protected function parseConstraint(TokenStream $tokens, ParseState $state, TableDefinition $table, ?string $column, ?string $name): bool
+    {
+        if (! isset(self::CONSTRAINT_STARTS[$tokens->text()])) {
+            return false;
+        }
+
+        if ($tokens->accept('CHECK')) {
+            $expression = $this->parseGroup($tokens);
+            $flags = $this->parseConstraintFlags($tokens);
+            $this->mergeCheck(new CheckConstraint($name, $expression, $flags['valid'], $flags['enforced'], $flags['noInherit']), $table, $state);
+
+            return true;
+        }
+
+        if ($tokens->accept('NOT', 'NULL')) {
+            $notNull = $this->parseName($tokens, 'a column name');
+            $flags = $this->parseConstraintFlags($tokens);
+            $table->notNullConstraints[$notNull] = ['valid' => $flags['valid'], 'noInherit' => $flags['noInherit']];
+
+            return true;
+        }
+
+        $primary = $tokens->accept('PRIMARY', 'KEY');
+
+        if ($primary || $tokens->accept('UNIQUE')) {
+            $this->parseKeyConstraint($tokens, $state, $table, $column, $name, $primary);
+
+            return true;
+        }
+
+        $temporal = false;
+
+        if ($tokens->accept('FOREIGN', 'KEY')) {
+            [$columns, $temporal] = $this->parseForeignKeyColumns($tokens);
+
+            if (! $tokens->accept('REFERENCES')) {
+                throw $tokens->error('Expected a referenced foreign table');
+            }
+        } elseif ($column !== null && $tokens->accept('REFERENCES')) {
+            $columns = [$column];
+        } else {
+            return false;
+        }
+
+        $this->parseReferences($tokens, $state, $table, $name, $columns, $temporal);
+
+        return true;
+    }
+
+    /**
+     * Read a primary key or unique constraint, merging an existing index it adopts.
+     */
+    private function parseKeyConstraint(TokenStream $tokens, ParseState $state, TableDefinition $table, ?string $column, ?string $name, bool $primary): void
+    {
+        $nullsNotDistinct = $tokens->accept('NULLS', 'NOT', 'DISTINCT');
+
+        if (! $nullsNotDistinct) {
+            $tokens->accept('NULLS', 'DISTINCT');
+        }
+
+        $existing = null;
+        $position = null;
+
+        // USING INDEX TABLESPACE only places a new index, so it is read with the index parameters.
+        if ($tokens->is('USING', 'INDEX') && $tokens->keyword(2) !== 'TABLESPACE') {
+            $tokens->accept('USING', 'INDEX');
+            $indexName = $this->parseName($tokens, 'an index name');
+            $position = array_find_key($table->indexes, static fn (Index $index): bool => $index->name === $indexName);
+
+            if ($position === null) {
+                $table->issues[] = $state->issue("Constraint index [{$indexName}] could not be resolved.");
+            } else {
+                $existing = $table->indexes[$position];
+            }
+
+            $columns = $existing->columns ?? [];
+            $include = $existing->include ?? [];
+        } else {
+            $columns = $column === null ? $this->parseIndexColumns($tokens, $state, $table) : [new IndexColumn($column)];
+            $include = $this->parseIndexParameters($tokens);
+        }
+
+        $flags = $this->parseConstraintFlags($tokens);
+        $index = new Index(
+            $name ?? $existing?->name,
+            $columns,
+            $include,
+            $existing->type ?? 'btree',
+            unique: true,
+            primary: $primary,
+            constraint: true,
+            nullsNotDistinct: $existing === null ? $nullsNotDistinct : $existing->nullsNotDistinct,
+            deferral: $flags['deferral'],
+            where: $existing?->where,
+        );
+
+        if ($position === null) {
+            $table->indexes[] = $index;
+        } else {
+            $table->indexes[$position] = $index;
+        }
+    }
+
+    /**
+     * Read foreign key columns, telling a PERIOD modifier from a column named period.
+     *
+     * @return array{list<string>, bool}
+     */
+    private function parseForeignKeyColumns(TokenStream $tokens): array
+    {
+        $tokens->expectSymbol('(', 'Expected a foreign key column list');
+        $columns = [];
+        $temporal = false;
+
+        do {
+            if ($tokens->is('PERIOD') && in_array($tokens->type(1), [TokenType::Word, TokenType::QuotedIdentifier], true)) {
+                $tokens->next();
+                $temporal = true;
+            }
+
+            $columns[] = $this->parseName($tokens, 'a foreign key column name');
+        } while ($tokens->acceptSymbol(','));
+
+        $tokens->expectSymbol(')', 'Expected the end of the foreign key column list');
+
+        return [$columns, $temporal];
+    }
+
+    /**
+     * Read the referenced table, columns, match mode and actions of a foreign key.
+     *
+     * @param list<string> $columns
+     */
+    private function parseReferences(TokenStream $tokens, ParseState $state, TableDefinition $table, ?string $name, array $columns, bool $temporal): void
+    {
+        $reference = $this->parseQualifiedName($tokens, 'a referenced table name');
+        $foreignColumns = [];
+
+        if ($tokens->isSymbol('(')) {
+            [$foreignColumns, $foreignTemporal] = $this->parseForeignKeyColumns($tokens);
+            $temporal = $temporal || $foreignTemporal;
+        }
+
+        if ($temporal) {
+            $table->issues[] = $state->issue('Temporal foreign key semantics are not represented.');
+        }
+
+        $match = ForeignKeyMatch::Simple;
+        $onUpdate = $onDelete = ReferentialAction::NoAction;
+
+        while (true) {
+            if ($tokens->accept('MATCH')) {
+                $match = match ($tokens->keyword()) {
+                    'FULL' => ForeignKeyMatch::Full,
+                    'PARTIAL' => ForeignKeyMatch::Partial,
+                    'SIMPLE' => ForeignKeyMatch::Simple,
+                    default => throw $tokens->error('Expected a foreign key match type'),
+                };
+                $tokens->next();
+            } elseif ($tokens->accept('ON', 'UPDATE')) {
+                $onUpdate = $this->parseReferentialAction($tokens);
+            } elseif ($tokens->accept('ON', 'DELETE')) {
+                $onDelete = $this->parseReferentialAction($tokens);
+            } else {
+                break;
+            }
+
+            if ($tokens->isSymbol('(')) {
+                $this->parseGroup($tokens);
+                $table->issues[] = $state->issue('A foreign key action applies to only some of its columns.');
             }
         }
 
-        return new EnumType(
-            SqlScanner::identifier($matches['name']),
-            $values,
-            $matches['schema'] === '' ? null : SqlScanner::identifier($matches['schema']),
+        $flags = $this->parseConstraintFlags($tokens);
+        $table->foreignKeys[] = new ForeignKey(
+            $name,
+            $columns,
+            $reference,
+            $foreignColumns,
+            $onUpdate,
+            $onDelete,
+            $match,
+            $flags['deferral'],
+            $flags['valid'],
+            $flags['enforced'],
         );
     }
 
     /**
-     * Read a domain without discarding its identity or local constraints.
+     * Read the deferral, validation, enforcement and inheritance flags that follow a constraint.
      *
-     * @return null|DomainDefinition
+     * @return array{deferral: ?Deferral, valid: bool, enforced: bool, noInherit: bool}
      */
-    private function readCreateDomain(string $statement, ParseState $state): ?array
+    private function parseConstraintFlags(TokenStream $tokens): array
     {
-        $pattern = '/^CREATE\s+DOMAIN\s+'
-            . '(?:(?<schema>' . self::IDENT . ')\s*\.\s*)?(?<name>' . self::IDENT . ')\s+'
-            . '(?:AS\s+)?(?<rest>.+)$/isA';
+        $deferrable = false;
+        $initially = Deferral::Immediate;
+        $valid = true;
+        $enforced = true;
+        $noInherit = false;
 
-        if (preg_match($pattern, $statement, $matches) !== 1) {
-            return null;
-        }
-
-        $rest = trim($matches['rest']);
-        $typeEnd = strlen($rest);
-
-        $words = $this->topLevelWords($rest);
-        foreach ($words as [$word, $offset]) {
-            if (! in_array($word, self::COLUMN_CONSTRAINTS, true)) {
-                continue;
+        while (isset(self::CONSTRAINT_FLAG_STARTS[$tokens->text()])) {
+            if ($tokens->accept('NOT', 'DEFERRABLE')) {
+                $deferrable = false;
+            } elseif ($tokens->accept('DEFERRABLE')) {
+                $deferrable = true;
+            } elseif ($tokens->accept('INITIALLY', 'DEFERRED')) {
+                $initially = Deferral::Deferred;
+            } elseif ($tokens->accept('INITIALLY', 'IMMEDIATE')) {
+                $initially = Deferral::Immediate;
+            } elseif ($tokens->accept('NOT', 'VALID')) {
+                $valid = false;
+            } elseif ($tokens->accept('NOT', 'ENFORCED')) {
+                $enforced = false;
+            } elseif ($tokens->accept('ENFORCED')) {
+                $enforced = true;
+            } elseif ($tokens->accept('NO', 'INHERIT')) {
+                $noInherit = true;
+            } else {
+                break;
             }
-
-            $typeEnd = $offset;
-            break;
         }
 
-        $type = trim(substr($rest, 0, $typeEnd));
-
-        if ($type === '') {
-            throw $this->error('Expected a domain base type', $state);
-        }
-
-        $schema = $matches['schema'] === '' ? null : SqlScanner::identifier($matches['schema']);
-        $name = SqlScanner::identifier($matches['name']);
-        $domain = [
-            'name' => $name, 'schema' => $schema, 'type' => $state->types->resolve($type),
-            'nullable' => true, 'default' => null, 'checks' => [],
+        return [
+            'deferral' => $deferrable || $initially === Deferral::Deferred ? $initially : null,
+            'valid' => $valid && $enforced,
+            'enforced' => $enforced,
+            'noInherit' => $noInherit,
         ];
-        $position = $typeEnd;
-        $constraint = null;
-        $length = strlen($rest);
-        while ($position < $length) {
-            $position += strspn($rest, " \t\r\n", $position);
-            if ($position === $length) {
-                break;
-            }
-            if (preg_match('/\GCONSTRAINT\s+/i', $rest, $option, 0, $position)) {
-                $position += strlen($option[0]);
-                $constraint = $this->readIdentifier($rest, $position, $state);
-            } elseif (preg_match('/\GDEFAULT\s+/i', $rest, $option, 0, $position)) {
-                $position += strlen($option[0]);
-                $domain['default'] = $this->readDefault($rest, $words, $position, $state);
-            } elseif (preg_match('/\GNOT\s+NULL\b/i', $rest, $option, 0, $position)) {
-                $position += strlen($option[0]);
-                $domain['nullable'] = false;
-                $constraint = null;
-            } elseif (preg_match('/\GNULL\b/i', $rest, $option, 0, $position)) {
-                $position += strlen($option[0]);
-                $constraint = null;
-            } elseif (preg_match('/\GCHECK\s*/i', $rest, $option, 0, $position)) {
-                $position += strlen($option[0]);
-                $expression = $this->readGroup($rest, $position, $state);
-                $flags = $this->readConstraintFlags($rest, $position);
-                $domain['checks'][] = new CheckConstraint($constraint, $expression, $flags['valid'], $flags['enforced']);
-                $constraint = null;
-            } elseif (preg_match('/\GCOLLATE\s+/i', $rest, $option, 0, $position)) {
-                $position += strlen($option[0]);
-                $this->readReference($rest, $position, $state);
-            } else {
-                $state->issues[] = $this->issue("Domain [{$name}] has unsupported declaration syntax.", $state);
-                break;
-            }
-        }
-
-        return $domain;
     }
 
     /**
-     * Decode one string token using PostgreSQL's existing literal lexer.
+     * Apply a NOT NULL constraint to a column.
      */
-    private function readLiteral(string $sql, ParseState $state): ?string
+    private function applyNotNull(ColumnDefinition $column, bool $valid, bool $noInherit): void
     {
-        try {
-            $tokens = $state->literalLexer->tokenize($sql);
-        } catch (SyntaxException $exception) {
-            throw $this->error($exception->getMessage(), $state, $exception);
-        }
-        if (! $tokens->matches(TokenType::STRING)) {
-            return null;
-        }
-        $value = $tokens->next()->getValue();
-
-        return $tokens->isEOF() ? $value : null;
-    }
-
-    /**
-     * Apply domain changes emitted separately from CREATE DOMAIN.
-     */
-    private function applyAlterDomain(string $statement, ParseState $state): bool
-    {
-        if (! preg_match('/^ALTER\s+DOMAIN\s+/i', $statement, $matches)) {
-            return false;
-        }
-        $position = strlen($matches[0]);
-        $reference = $this->readReference($statement, $position, $state);
-        $key = $this->domainKey(new ColumnType($reference->name, $reference->schema), $state);
-        $action = trim(substr($statement, $position));
-        if (preg_match('/^OWNER\s+TO\b/i', $action)) {
-            return true;
-        }
-        if ($key === null) {
-            $state->issues[] = $this->issue("The altered domain [{$reference->name}] could not be resolved.", $state);
-            return true;
-        }
-        $domain = &$state->domains[$key];
-        if (preg_match('/^ADD\s+(?:CONSTRAINT\s+(?<name>' . self::IDENT . ')\s+)?CHECK\s*/i', $action, $matches)) {
-            $position = strlen($matches[0]);
-            $expression = $this->readGroup($action, $position, $state);
-            $flags = $this->readConstraintFlags($action, $position);
-            $domain['checks'][] = new CheckConstraint(
-                ($matches['name'] ?? '') === '' ? null : SqlScanner::identifier($matches['name']),
-                $expression,
-                $flags['valid'],
-                $flags['enforced'],
-            );
-            if (trim(substr($action, $position)) !== '') {
-                $state->issues[] = $this->issue('The domain constraint has unsupported trailing syntax.', $state);
-            }
-        } elseif (preg_match('/^SET\s+DEFAULT\s+(.+)$/isD', $action, $matches)) {
-            $domain['default'] = trim($matches[1]);
-        } elseif (preg_match('/^DROP\s+DEFAULT$/iD', $action)) {
-            $domain['default'] = null;
-        } elseif (preg_match('/^(SET|DROP)\s+NOT\s+NULL$/iD', $action, $matches)) {
-            $domain['nullable'] = strcasecmp($matches[1], 'DROP') === 0;
+        if ($valid) {
+            $column->nullable = false;
         } else {
-            $state->issues[] = $this->issue("The ALTER DOMAIN statement for [{$reference->name}] could not be applied.", $state);
+            $column->unvalidatedNotNull = true;
         }
 
-        return true;
+        $column->noInheritNotNull = $noInherit;
     }
 
     /**
-     * Apply separate dump constraints and column attributes to their existing table.
+     * Apply the table's pending NOT NULL constraints to its columns.
      */
-    private function applyAlterTable(string $statement, ParseState $state): bool
+    private function applyNotNullConstraints(TableDefinition $table, ParseState $state): void
     {
-        if (! preg_match('/^ALTER\s+(?:FOREIGN\s+)?TABLE\s+(?:IF\s+EXISTS\s+)?(?<only>ONLY\s+)?/i', $statement, $matches)) {
+        foreach ($table->notNullConstraints as $name => $constraint) {
+            $column = $table->columns[$name] ?? null;
+
+            if ($column === null) {
+                $table->issues[] = $state->issue("The NOT NULL column [{$name}] could not be resolved.");
+            } else {
+                $this->applyNotNull($column, $constraint['valid'], $constraint['noInherit']);
+            }
+        }
+
+        $table->notNullConstraints = [];
+    }
+
+    /**
+     * Make the columns of a primary key non-null on a table.
+     */
+    private function markPrimaryKeyColumnsNotNull(Index $index, TableDefinition $table): void
+    {
+        foreach ($index->columns as $key) {
+            $column = $key->name === null ? null : ($table->columns[$key->name] ?? null);
+
+            if ($column !== null) {
+                $column->nullable = false;
+            }
+        }
+    }
+
+    /**
+     * Merge a check with an equal named one, keeping the stronger validation and enforcement.
+     */
+    private function mergeCheck(CheckConstraint $check, TableDefinition $table, ParseState $state): void
+    {
+        if ($check->name !== null) {
+            foreach ($table->checks as $position => $existing) {
+                if ($existing->name !== $check->name) {
+                    continue;
+                }
+
+                if ($existing->expression !== $check->expression) {
+                    $table->issues[] = $state->issue("Check [{$check->name}] has conflicting expressions.");
+                } else {
+                    $table->checks[$position] = new CheckConstraint(
+                        $check->name,
+                        $check->expression,
+                        $existing->valid || $check->valid,
+                        $existing->enforced || $check->enforced,
+                        $existing->noInherit && $check->noInherit,
+                    );
+                }
+
+                return;
+            }
+        }
+
+        $table->checks[] = $check;
+    }
+
+    /**
+     * Read a standalone index, keeping its key and payload columns apart.
+     */
+    private function parseCreateIndex(TokenStream $tokens, ParseState $state, bool $unique): void
+    {
+        $tokens->accept('CONCURRENTLY');
+        $conditional = $tokens->accept('IF', 'NOT', 'EXISTS');
+        $name = $tokens->is('ON') ? null : $this->parseName($tokens, 'an index name');
+
+        if (! $tokens->accept('ON')) {
+            throw $tokens->error('Expected an index table');
+        }
+
+        $tokens->accept('ONLY');
+        $reference = $this->parseQualifiedName($tokens, 'an index table');
+        $key = $state->tableKey($reference);
+
+        if ($key === null) {
+            if ($state->viewKey($reference) === null) {
+                $state->issues[] = $state->issue("Indexed table [{$reference->name}] could not be resolved.");
+            }
+
+            return;
+        }
+
+        $table = $state->tables[$key];
+
+        // An index is created in its table's schema.
+        if ($conditional && $name !== null && $this->relationExists($state, $table->schema, $name)) {
+            return;
+        }
+
+        $method = $tokens->accept('USING') ? strtolower($this->parseName($tokens, 'an index method')) : 'btree';
+        $columns = $this->parseIndexColumns($tokens, $state, $table);
+        $include = $this->parseIndexParameters($tokens);
+        $nullsNotDistinct = $tokens->accept('NULLS', 'NOT', 'DISTINCT');
+
+        if ($nullsNotDistinct || $tokens->accept('NULLS', 'DISTINCT')) {
+            $this->parseIndexParameters($tokens);
+        }
+
+        $where = $tokens->accept('WHERE') ? $this->parseExpression($tokens, [], 'an index predicate') : null;
+
+        if (! $tokens->atEnd()) {
+            $table->issues[] = $state->issue("Index [{$name}] has unsupported trailing syntax.");
+        }
+
+        $state->addIndex($key, new Index($name, $columns, $include, $method, $unique, nullsNotDistinct: $nullsNotDistinct, where: $where));
+    }
+
+    /**
+     * Read a parenthesized list of index keys.
+     *
+     * @return list<IndexColumn>
+     */
+    private function parseIndexColumns(TokenStream $tokens, ParseState $state, TableDefinition $table): array
+    {
+        $tokens->expectSymbol('(', 'Expected an index key list');
+        $columns = [];
+
+        do {
+            $columns[] = $this->parseIndexColumn($tokens, $state, $table);
+        } while ($tokens->acceptSymbol(','));
+
+        $tokens->expectSymbol(')', 'Expected the end of the index key list');
+
+        return $columns;
+    }
+
+    /**
+     * Read an index key without confusing an expression with a column name.
+     */
+    private function parseIndexColumn(TokenStream $tokens, ParseState $state, TableDefinition $table): IndexColumn
+    {
+        $start = $tokens->offset();
+        $name = $expression = $collation = $operatorClass = null;
+        $descending = false;
+        $nullsFirst = null;
+
+        if ($tokens->isSymbol('(')) {
+            $expression = $this->parseGroup($tokens);
+        } else {
+            $reference = $this->parseQualifiedName($tokens, 'an index key');
+
+            if ($tokens->isSymbol('(')) {
+                $this->parseGroup($tokens);
+                $expression = $tokens->spanFrom($start);
+            } elseif ($reference->schema !== null) {
+                $expression = $tokens->spanFrom($start);
+                $table->issues[] = $state->issue('An index key has an unsupported qualified column expression.');
+            } else {
+                $name = $reference->name;
+            }
+        }
+
+        while (! $this->atEntryEnd($tokens)) {
+            if ($tokens->accept('COLLATE')) {
+                $collation = $this->parseCollation($tokens);
+            } elseif ($tokens->accept('ASC')) {
+                $descending = false;
+            } elseif ($tokens->accept('DESC')) {
+                $descending = true;
+            } elseif ($tokens->accept('NULLS', 'FIRST')) {
+                $nullsFirst = true;
+            } elseif ($tokens->accept('NULLS', 'LAST')) {
+                $nullsFirst = false;
+            } elseif ($tokens->accept('WITHOUT', 'OVERLAPS')) {
+                $table->issues[] = $state->issue('Temporal index semantics are not represented.');
+                $this->skipEntry($tokens);
+                $name = null;
+                $expression = $tokens->spanFrom($start);
+            } elseif ($operatorClass === null && in_array($tokens->type(), [TokenType::Word, TokenType::QuotedIdentifier], true)) {
+                $operatorStart = $tokens->offset();
+                $this->parseQualifiedName($tokens, 'an operator class');
+
+                if ($tokens->isSymbol('(')) {
+                    $this->parseGroup($tokens);
+                }
+
+                $operatorClass = $tokens->spanFrom($operatorStart);
+            } else {
+                $table->issues[] = $state->issue('An index key has unsupported trailing syntax.');
+                $this->skipEntry($tokens);
+            }
+        }
+
+        return new IndexColumn($name, $expression, $descending, $nullsFirst, collation: $collation, operatorClass: $operatorClass);
+    }
+
+    /**
+     * Read included payload columns, skipping physical index settings.
+     *
+     * @return list<string>
+     */
+    private function parseIndexParameters(TokenStream $tokens): array
+    {
+        $include = [];
+
+        while (isset(self::INDEX_PARAMETER_STARTS[$tokens->text()])) {
+            if ($tokens->accept('INCLUDE')) {
+                $include = $this->parseNameList($tokens, 'column');
+            } elseif ($tokens->accept('WITH')) {
+                $this->parseGroup($tokens);
+            } elseif ($tokens->accept('USING', 'INDEX', 'TABLESPACE') || $tokens->accept('TABLESPACE')) {
+                $this->parseName($tokens, 'a tablespace name');
+            } else {
+                break;
+            }
+        }
+
+        return $include;
+    }
+
+    /**
+     * Read a view without inferring the types its query produces.
+     */
+    private function parseCreateView(TokenStream $tokens, ParseState $state, bool $materialized): void
+    {
+        $conditional = $tokens->accept('IF', 'NOT', 'EXISTS');
+        $reference = $this->parseQualifiedName($tokens, 'a view name');
+
+        if ($reference->schema === 'pg_temp' || ($conditional && $this->relationExists($state, $reference->schema, $reference->name))) {
+            return;
+        }
+
+        while (! $tokens->atEnd() && ! $tokens->is('AS')) {
+            if ($tokens->isSymbol('(')) {
+                $this->parseGroup($tokens);
+            } else {
+                $tokens->next();
+            }
+        }
+
+        if ($tokens->accept('AS')) {
+            $definition = $this->parseViewQuery($tokens);
+        } else {
+            $state->issues[] = $state->issue("View [{$reference->name}] has no readable query definition.");
+            $definition = '';
+        }
+
+        $state->addView(new View($reference->name, $definition, $reference->schema, $materialized));
+    }
+
+    /**
+     * Determine whether a WITH clause is the view's trailing check option or data option.
+     */
+    protected function isViewOption(TokenStream $tokens): bool
+    {
+        $offset = $tokens->keyword(1) === 'NO' ? 2 : 1;
+
+        return ($tokens->keyword($offset) === 'DATA' && $tokens->type($offset + 1) === TokenType::End)
+            || parent::isViewOption($tokens);
+    }
+
+    /**
+     * Read an enum type's labels with the literal rules active at its declaration.
+     */
+    private function parseCreateEnum(TokenStream $tokens, ParseState $state): void
+    {
+        $reference = $this->parseQualifiedName($tokens, 'a type name');
+
+        if (! $tokens->accept('AS', 'ENUM')) {
+            return;
+        }
+
+        $tokens->expectSymbol('(', 'Expected an enum label list');
+        $values = [];
+
+        if (! $tokens->acceptSymbol(')')) {
+            do {
+                $value = $this->parseLiteral($tokens);
+
+                if ($value === null) {
+                    $state->issues[] = $state->issue('An enum label could not be decoded as a string literal.');
+                    $this->skipEntry($tokens);
+                } else {
+                    $values[] = $value;
+                }
+            } while ($tokens->acceptSymbol(','));
+
+            $tokens->expectSymbol(')', 'Unterminated enum label list');
+        }
+
+        $state->enums[ParseState::key($reference->schema, $reference->name)] = new EnumType($reference->name, $values, $reference->schema);
+    }
+
+    /**
+     * Read a domain with its own facts, leaving its base type to be resolved when the schema is frozen.
+     */
+    private function parseCreateDomain(TokenStream $tokens, ParseState $state): void
+    {
+        $reference = $this->parseQualifiedName($tokens, 'a domain name');
+        $tokens->accept('AS');
+        $type = $this->parseType($tokens, $state);
+        $nullable = true;
+        $default = null;
+        $checks = [];
+
+        while (! $tokens->atEnd()) {
+            $name = $tokens->accept('CONSTRAINT') ? $this->parseName($tokens, 'a constraint name') : null;
+
+            if ($tokens->accept('NOT', 'NULL')) {
+                $nullable = false;
+            } elseif ($tokens->accept('DEFAULT')) {
+                $default = $this->parseExpression($tokens, static::COLUMN_CLAUSES, 'a default expression');
+            } elseif ($tokens->accept('CHECK')) {
+                $expression = $this->parseGroup($tokens);
+                $flags = $this->parseConstraintFlags($tokens);
+                $checks[] = new CheckConstraint($name, $expression, $flags['valid'], $flags['enforced']);
+            } elseif ($tokens->accept('COLLATE')) {
+                $this->parseCollation($tokens);
+            } elseif (! $tokens->accept('NULL')) {
+                $state->issues[] = $state->issue("Domain [{$reference->name}] has unsupported declaration syntax.");
+                break;
+            }
+        }
+
+        $key = ParseState::key($reference->schema, $reference->name);
+        $state->domains[$key] = new Domain($reference->name, $type, $reference->schema, $nullable, $default, $checks);
+        $state->domainNames[$reference->name][$key] = true;
+    }
+
+    /**
+     * Read an ALTER statement that can change represented facts.
+     */
+    private function parseAlter(TokenStream $tokens, ParseState $state): void
+    {
+        if ($tokens->accept('TABLE') || $tokens->accept('FOREIGN', 'TABLE')) {
+            $this->parseAlterTable($tokens, $state);
+        } elseif ($tokens->accept('DOMAIN')) {
+            $this->parseAlterDomain($tokens, $state);
+        } elseif ($tokens->accept('TYPE')) {
+            $this->parseQualifiedName($tokens, 'a type name');
+
+            if ($this->isIdentityChange($tokens) || $tokens->is('ADD', 'VALUE') || $tokens->is('RENAME', 'VALUE')) {
+                $this->reportIdentityChange($state);
+            }
+        } else {
+            while (! $tokens->atEnd()) {
+                if ($this->isIdentityChange($tokens)) {
+                    $this->reportIdentityChange($state);
+
+                    return;
+                }
+
+                if ($tokens->isSymbol('(')) {
+                    $this->parseGroup($tokens);
+                } else {
+                    $tokens->next();
+                }
+            }
+        }
+    }
+
+    /**
+     * Determine whether the rest of the statement renames an object or moves it to another schema.
+     */
+    private function isIdentityChange(TokenStream $tokens): bool
+    {
+        if (! $tokens->is('RENAME', 'TO') && ! $tokens->is('SET', 'SCHEMA')) {
             return false;
         }
-        $only = ($matches['only'] ?? '') !== '';
-        $position = strlen($matches[0]);
-        $reference = $this->readReference($statement, $position, $state);
-        $key = $this->tableKey($reference, $state);
-        foreach (SqlScanner::splitTopLevel(trim(substr($statement, $position))) as $action) {
-            if (preg_match('/^DROP\b/i', $action)) {
-                $words = $this->topLevelWords($action);
-                $last = $words[array_key_last($words)];
-                if ($last[0] === 'CASCADE' && trim(substr($action, $last[1] + 7)) === '') {
-                    $this->reportCascade($state);
-                    continue;
-                }
-            }
-            if (preg_match('/^(?:OWNER\s+TO|SET\s+(?:TABLESPACE|ACCESS\s+METHOD)|CLUSTER\s+ON|REPLICA\s+IDENTITY|(?:ENABLE|DISABLE)(?:\s+(?:ALWAYS|REPLICA))?\s+(?:TRIGGER|RULE)|(?:ENABLE|DISABLE|FORCE|NO\s+FORCE)\s+ROW\s+LEVEL\s+SECURITY)\b/i', $action)) {
-                continue;
-            }
-            if ($this->viewKey($reference, $state) !== null) {
-                continue;
-            }
-            if ($key === null) {
-                if (preg_match('/^(?:DROP\s+CONSTRAINT\b|ALTER\s+(?:COLUMN\s+)?' . self::IDENT . '\s+DROP\s+DEFAULT\b)/i', $action)) {
-                    continue;
-                }
-                $state->issues[] = $this->issue("The altered table [{$reference->name}] could not be resolved.", $state);
-                continue;
-            }
-            $table = &$state->tables[$key];
-            if (preg_match('/^ALTER\s+(?:COLUMN\s+)?/i', $action, $matches)) {
-                $position = strlen($matches[0]);
-                $column = $this->readIdentifier($action, $position, $state);
-                $clause = trim(substr($action, $position));
-                $recursive = ! $only && preg_match('/^(?:SET|DROP)\s+(?:DEFAULT|NOT\s+NULL)\b/i', $clause) === 1;
-                foreach ($recursive ? $this->descendants($key, $state) : [$key] as $target) {
-                    if ($target !== $key && preg_match('/^DROP\s+NOT\s+NULL$/iD', $clause)
-                        && isset($state->tables[$target]['columns'][$column])
-                        && ! $state->tables[$target]['columns'][$column]['nullable']) {
-                        $state->tables[$target]['issues'][] = $this->issue("The remaining NOT NULL constraints on [{$column}] cannot be resolved after a recursive drop.", $state);
-                    }
-                    $this->applyColumnChange($column, $clause, $state->tables[$target], $state);
-                }
-            } elseif (preg_match('/^ADD\s+/i', $action, $matches)) {
-                $constraint = substr($action, strlen($matches[0]));
-                $checkCount = count($table['checks']);
-                $previousPrimary = array_find($table['indexes'], static fn (Index $index): bool => $index->primary);
-                $position = $this->readConstraint($constraint, $table, $state);
-                if (trim(substr($constraint, $position)) !== '') {
-                    $table['issues'][] = $this->issue('The added constraint has unsupported trailing syntax.', $state);
-                }
-                if (! $only) {
-                    $check = $table['checks'][$checkCount] ?? null;
-                    $index = array_find($table['indexes'], static fn (Index $index): bool => $index->primary);
-                    $notNull = preg_match('/^(?:CONSTRAINT\s+' . self::IDENT . '\s+)?NOT\s+NULL\s+/i', $constraint, $matches) === 1;
-                    $notNullColumn = null;
-                    if ($notNull) {
-                        $position = strlen($matches[0]);
-                        $notNullColumn = $this->readIdentifier($constraint, $position, $state);
-                    }
-                    foreach (array_slice($this->descendants($key, $state), 1) as $childKey) {
-                        if ($check !== null && ! $check->noInherit) {
-                            $this->mergeCheck($check, $state->tables[$childKey], $state);
-                        }
-                        if ($index !== null && $index !== $previousPrimary) {
-                            foreach ($index->columns as $column) {
-                                if ($column->name !== null && isset($state->tables[$childKey]['columns'][$column->name])) {
-                                    $state->tables[$childKey]['columns'][$column->name]['nullable'] = false;
-                                }
-                            }
-                        }
-                        if ($notNullColumn !== null && isset($table['columns'][$notNullColumn], $state->tables[$childKey]['columns'][$notNullColumn])
-                            && ! $table['columns'][$notNullColumn]['noInheritNotNull']) {
-                            $child = &$state->tables[$childKey]['columns'][$notNullColumn];
-                            $child['nullable'] = $child['nullable'] && $table['columns'][$notNullColumn]['nullable'];
-                            $child['unvalidatedNotNull'] = $table['columns'][$notNullColumn]['unvalidatedNotNull'];
-                            unset($child);
-                        }
-                    }
-                }
-            } elseif (preg_match('/^ATTACH\s+PARTITION\s+/i', $action, $matches)) {
-                $position = strlen($matches[0]);
-                $child = $this->readReference($action, $position, $state);
-                $childKey = $this->tableKey($child, $state);
-                if ($childKey === null) {
-                    $table['issues'][] = $this->issue("Partition [{$child->name}] could not be resolved.", $state);
-                } else {
-                    $state->tables[$childKey]['partitionOf'] = new TableReference($table['name'], $table['schema']);
-                    $state->tables[$childKey]['partitionBounds'] = $this->readPartitionBounds($action, $position, $state);
-                    $state->children[$key][$childKey] = true;
-                }
-            } else {
-                $table['issues'][] = $this->issue('An ALTER TABLE action could not be represented.', $state);
-            }
-            unset($table);
-        }
 
-        return true;
+        $name = $tokens->type(2);
+
+        return ($name === TokenType::Word || $name === TokenType::QuotedIdentifier)
+            && $tokens->type(3) === TokenType::End;
     }
 
     /**
-     * Visit each existing descendant once, including a child reached through multiple parents.
+     * Record that an identity or enum label change is not replayed across dependent definitions.
+     */
+    private function reportIdentityChange(ParseState $state): void
+    {
+        if ($state->hasDefinitions()) {
+            $state->issues[] = $state->issue('An ALTER statement changes identities or enum labels that cannot be resolved across dependent definitions.');
+        }
+    }
+
+    /**
+     * Record that a cascading drop may change definitions that are not replayed.
+     */
+    private function reportCascade(ParseState $state): void
+    {
+        if ($state->hasDefinitions()) {
+            $state->issues[] = $state->issue('Cascading drops can change dependent definitions that are not replayed.');
+        }
+    }
+
+    /**
+     * Apply ALTER TABLE actions to a table read earlier.
+     */
+    private function parseAlterTable(TokenStream $tokens, ParseState $state): void
+    {
+        $tokens->accept('IF', 'EXISTS');
+        $only = $tokens->accept('ONLY');
+        $reference = $this->parseQualifiedName($tokens, 'a table name');
+        $tokens->acceptSymbol('*');
+
+        if ($this->isIdentityChange($tokens)) {
+            $this->reportIdentityChange($state);
+
+            return;
+        }
+
+        $view = $state->viewKey($reference) !== null;
+        $key = $view ? null : $state->tableKey($reference);
+
+        do {
+            $this->parseAlterTableAction($tokens, $state, $reference, $key, $view, $only);
+        } while ($tokens->acceptSymbol(','));
+    }
+
+    /**
+     * Apply one ALTER TABLE action, or record what it leaves unknown.
+     */
+    private function parseAlterTableAction(TokenStream $tokens, ParseState $state, TableReference $reference, ?string $key, bool $view, bool $only): void
+    {
+        if ($tokens->is('DROP')) {
+            // A clean dump drops constraints before it creates their tables.
+            $constraint = $tokens->keyword(1) === 'CONSTRAINT';
+
+            if ($this->endsWithCascade($tokens)) {
+                $this->reportCascade($state);
+            } elseif ($key !== null) {
+                $state->tables[$key]->issues[] = $state->issue('An ALTER TABLE action could not be represented.');
+            } elseif (! $view && ! $constraint) {
+                $state->issues[] = $state->issue("The altered table [{$reference->name}] could not be resolved.");
+            }
+
+            return;
+        }
+
+        // View column defaults and options are not represented.
+        if ($view || $this->isIgnoredAlterTableAction($tokens)) {
+            $this->skipEntry($tokens);
+
+            return;
+        }
+
+        if ($key === null) {
+            if (! $this->isDropDefault($tokens)) {
+                $state->issues[] = $state->issue("The altered table [{$reference->name}] could not be resolved.");
+            }
+
+            $this->skipEntry($tokens);
+
+            return;
+        }
+
+        if ($tokens->accept('ALTER')) {
+            $this->parseAlterColumn($tokens, $state, $key, $only);
+        } elseif ($tokens->accept('ADD')) {
+            $this->parseAddConstraint($tokens, $state, $key, $only);
+        } elseif ($tokens->accept('ATTACH', 'PARTITION')) {
+            $partition = $this->parseQualifiedName($tokens, 'a partition name');
+            $partitionKey = $state->tableKey($partition);
+            $table = $state->tables[$key];
+
+            if ($partitionKey === null) {
+                $table->issues[] = $state->issue("Partition [{$partition->name}] could not be resolved.");
+            } else {
+                $state->tables[$partitionKey]->partitionOf = new TableReference($table->name, $table->schema);
+                $state->tables[$partitionKey]->partitionBounds = $this->parsePartitionBounds($tokens);
+                $state->children[$key][$partitionKey] = true;
+            }
+
+            $this->skipEntry($tokens);
+        } else {
+            $state->tables[$key]->issues[] = $state->issue('An ALTER TABLE action could not be represented.');
+            $this->skipEntry($tokens);
+        }
+    }
+
+    /**
+     * Skip to the end of the current list entry, determining whether it ends with CASCADE.
+     */
+    private function endsWithCascade(TokenStream $tokens): bool
+    {
+        $cascade = false;
+        $qualified = false;
+
+        while (! $this->atEntryEnd($tokens)) {
+            if ($tokens->isSymbol('(')) {
+                $this->parseGroup($tokens);
+                $cascade = $qualified = false;
+
+                continue;
+            }
+
+            $cascade = ! $qualified && $tokens->is('CASCADE');
+            $qualified = $tokens->isSymbol('.');
+            $tokens->next();
+        }
+
+        return $cascade;
+    }
+
+    /**
+     * Determine whether an ALTER TABLE action changes only facts the schema does not represent.
+     */
+    private function isIgnoredAlterTableAction(TokenStream $tokens): bool
+    {
+        // Every ENABLE, DISABLE, FORCE and NO FORCE action sets a trigger, rule or row security mode.
+        return match ($tokens->text()) {
+            'OWNER' => $tokens->is('OWNER', 'TO'),
+            'SET' => $tokens->is('SET', 'TABLESPACE') || $tokens->is('SET', 'ACCESS', 'METHOD'),
+            'CLUSTER' => $tokens->is('CLUSTER', 'ON'),
+            'REPLICA' => $tokens->is('REPLICA', 'IDENTITY'),
+            'ENABLE', 'DISABLE', 'FORCE' => true,
+            'NO' => $tokens->is('NO', 'FORCE'),
+            default => false,
+        };
+    }
+
+    /**
+     * Determine whether an action drops a column default, as a clean dump does before creating the table.
+     */
+    private function isDropDefault(TokenStream $tokens): bool
+    {
+        $offset = $tokens->keyword(1) === 'COLUMN' ? 2 : 1;
+        $column = $tokens->type($offset);
+
+        return $tokens->is('ALTER')
+            && ($column === TokenType::Word || $column === TokenType::QuotedIdentifier)
+            && $tokens->keyword($offset + 1) === 'DROP'
+            && $tokens->keyword($offset + 2) === 'DEFAULT';
+    }
+
+    /**
+     * Apply an ALTER COLUMN action, carrying defaults and nullability to descendants unless ONLY is given.
+     */
+    private function parseAlterColumn(TokenStream $tokens, ParseState $state, string $key, bool $only): void
+    {
+        $tokens->accept('COLUMN');
+        $name = $this->parseName($tokens, 'a column name');
+
+        if ($tokens->is('SET', 'STATISTICS') || $tokens->is('SET', 'STORAGE') || $tokens->is('SET', 'COMPRESSION')
+            || (($tokens->is('SET') || $tokens->is('RESET') || $tokens->is('OPTIONS')) && $tokens->isSymbol('(', 1))) {
+            $this->skipEntry($tokens);
+
+            return;
+        }
+
+        // The clause is read once and then applied to each target column.
+        $change = null;
+        $recursive = false;
+        $dropNotNull = $tokens->is('DROP', 'NOT', 'NULL');
+
+        if ($tokens->accept('SET', 'DEFAULT')) {
+            $recursive = true;
+            $default = $this->parseExpression($tokens, [], 'a default expression');
+            $change = static function (ColumnDefinition $column) use ($default): void {
+                $column->default = $default;
+            };
+        } elseif ($tokens->accept('DROP', 'DEFAULT')) {
+            $recursive = true;
+            $change = static function (ColumnDefinition $column): void {
+                $column->default = null;
+            };
+        } elseif ($tokens->accept('SET', 'NOT', 'NULL') || $tokens->accept('DROP', 'NOT', 'NULL')) {
+            $recursive = true;
+            $change = static function (ColumnDefinition $column) use ($dropNotNull): void {
+                $column->nullable = $dropNotNull;
+                $column->unvalidatedNotNull = false;
+            };
+        } elseif ($tokens->accept('ADD', 'GENERATED')) {
+            $identity = $this->parseIdentityKind($tokens);
+
+            if ($identity !== null && $tokens->accept('AS', 'IDENTITY')) {
+                if ($tokens->isSymbol('(')) {
+                    $this->parseGroup($tokens);
+                }
+
+                $change = static function (ColumnDefinition $column) use ($identity): void {
+                    $column->identity = $identity;
+                    $column->nullable = false;
+                };
+            }
+        } elseif ($tokens->accept('SET', 'GENERATED')) {
+            $identity = $this->parseIdentityKind($tokens);
+
+            if ($identity !== null) {
+                $change = static function (ColumnDefinition $column) use ($identity): void {
+                    $column->identity = $identity;
+                };
+            }
+        } elseif ($tokens->accept('DROP', 'IDENTITY')) {
+            $tokens->accept('IF', 'EXISTS');
+            $change = static function (ColumnDefinition $column): void {
+                $column->identity = null;
+            };
+        }
+
+        $table = $state->tables[$key];
+
+        if ($change === null || ! $this->atEntryEnd($tokens)) {
+            $table->issues[] = $state->issue(isset($table->columns[$name])
+                ? "The ALTER COLUMN action for [{$name}] could not be represented."
+                : "The altered column [{$name}] could not be resolved.");
+            $this->skipEntry($tokens);
+
+            return;
+        }
+
+        foreach ($recursive && ! $only ? $this->descendants($key, $state) : [$key] as $target) {
+            $targetTable = $state->tables[$target];
+            $column = $targetTable->columns[$name] ?? null;
+
+            if ($column === null) {
+                $targetTable->issues[] = $state->issue("The altered column [{$name}] could not be resolved.");
+
+                continue;
+            }
+
+            if ($dropNotNull && $target !== $key && ! $column->nullable) {
+                $targetTable->issues[] = $state->issue("The remaining NOT NULL constraints on [{$name}] cannot be resolved after a recursive drop.");
+            }
+
+            $change($column);
+        }
+    }
+
+    /**
+     * Add a constraint from ALTER TABLE, carrying its inheritable effects to existing descendants.
+     */
+    private function parseAddConstraint(TokenStream $tokens, ParseState $state, string $key, bool $only): void
+    {
+        $table = $state->tables[$key];
+        $checks = count($table->checks);
+        $indexes = $table->indexes;
+
+        $this->parseTableConstraint($tokens, $state, $table);
+        $addedPrimary = null;
+
+        if ($table->indexes !== $indexes) {
+            $state->refreshIndexNames($key);
+            $primary = array_find($table->indexes, static fn (Index $index): bool => $index->primary);
+            $addedPrimary = $primary === array_find($indexes, static fn (Index $index): bool => $index->primary) ? null : $primary;
+        }
+
+        if ($addedPrimary !== null) {
+            $this->markPrimaryKeyColumnsNotNull($addedPrimary, $table);
+        }
+
+        $notNull = array_key_first($table->notNullConstraints);
+        $this->applyNotNullConstraints($table, $state);
+
+        if ($only) {
+            return;
+        }
+
+        $check = $table->checks[$checks] ?? null;
+        $column = $notNull === null ? null : ($table->columns[$notNull] ?? null);
+
+        foreach (array_slice($this->descendants($key, $state), 1) as $childKey) {
+            $child = $state->tables[$childKey];
+
+            if ($check !== null && ! $check->noInherit) {
+                $this->mergeCheck($check, $child, $state);
+            }
+
+            if ($addedPrimary !== null) {
+                $this->markPrimaryKeyColumnsNotNull($addedPrimary, $child);
+            }
+
+            $childColumn = $column !== null && ! $column->noInheritNotNull ? ($child->columns[$column->name] ?? null) : null;
+
+            if ($childColumn !== null) {
+                $childColumn->nullable = $childColumn->nullable && $column->nullable;
+                $childColumn->unvalidatedNotNull = $column->unvalidatedNotNull;
+            }
+        }
+    }
+
+    /**
+     * Get a table key and the keys of its existing descendants, visiting each once.
      *
      * @return list<string>
      */
@@ -1164,6 +1656,7 @@ class PostgresParser implements Parser
     {
         $keys = [$key];
         $seen = [$key => true];
+
         for ($position = 0; $position < count($keys); ++$position) {
             foreach ($state->children[$keys[$position]] ?? [] as $child => $present) {
                 if (! isset($seen[$child])) {
@@ -1177,670 +1670,404 @@ class PostgresParser implements Parser
     }
 
     /**
-     * Read only the partition bound, leaving storage and foreign-server clauses outside it.
+     * Apply an ALTER DOMAIN statement to a domain read earlier.
      */
-    private function readPartitionBounds(string $sql, int &$position, ParseState $state): string
+    private function parseAlterDomain(TokenStream $tokens, ParseState $state): void
     {
-        $position += strspn($sql, " \t\r\n", $position);
-        $start = $position;
-        if (preg_match('/\GDEFAULT\b/i', $sql, $matches, 0, $position)) {
-            $position += strlen($matches[0]);
-        } elseif (preg_match('/\GFOR\s+VALUES\s+(IN|FROM|WITH)\s*/i', $sql, $matches, 0, $position)) {
-            $position += strlen($matches[0]);
-            $this->readGroup($sql, $position, $state);
-            if (strcasecmp($matches[1], 'FROM') === 0) {
-                if (! preg_match('/\G\s+TO\s*/i', $sql, $upper, 0, $position)) {
-                    throw $this->error('Expected an upper partition bound', $state);
-                }
-                $position += strlen($upper[0]);
-                $this->readGroup($sql, $position, $state);
-            }
-        } else {
-            throw $this->error('Expected a partition bound', $state);
-        }
+        $reference = $this->parseQualifiedName($tokens, 'a domain name');
 
-        return substr($sql, $start, $position - $start);
-    }
+        if ($this->isIdentityChange($tokens)) {
+            $this->reportIdentityChange($state);
 
-    /**
-     * Apply dump-time defaults, nullability and identity without copying a complete table.
-     *
-     * @param TableDefinition $table
-     */
-    private function applyColumnChange(string $name, string $clause, array &$table, ParseState $state): void
-    {
-        if (preg_match('/^(?:SET\s+(?:STATISTICS|STORAGE|COMPRESSION)|SET\s*\(|RESET\s*\(|OPTIONS\s*\()/i', $clause)) {
             return;
         }
-        if (! isset($table['columns'][$name])) {
-            $table['issues'][] = $this->issue("The altered column [{$name}] could not be resolved.", $state);
+
+        if ($tokens->is('OWNER', 'TO')) {
             return;
         }
-        $column = &$table['columns'][$name];
-        if (preg_match('/^SET\s+DEFAULT\s+(.+)$/isD', $clause, $matches)) {
-            $column['default'] = trim($matches[1]);
-        } elseif (preg_match('/^DROP\s+DEFAULT$/iD', $clause)) {
-            $column['default'] = null;
-        } elseif (preg_match('/^(SET|DROP)\s+NOT\s+NULL$/iD', $clause, $matches)) {
-            $column['nullable'] = strcasecmp($matches[1], 'DROP') === 0;
-            $column['unvalidatedNotNull'] = false;
-        } elseif (preg_match('/^ADD\s+(GENERATED\s+.+)$/isD', $clause, $matches)) {
-            $this->readColumnOptions($matches[1], [], 0, $column, $table, $state);
-        } elseif (preg_match('/^SET\s+GENERATED\s+(ALWAYS|BY\s+DEFAULT)$/iD', $clause, $matches)) {
-            $column['identity'] = strcasecmp($matches[1], 'ALWAYS') === 0 ? Identity::Always : Identity::ByDefault;
-        } elseif (preg_match('/^DROP\s+IDENTITY(?:\s+IF\s+EXISTS)?$/iD', $clause)) {
-            $column['identity'] = null;
-        } else {
-            $table['issues'][] = $this->issue("The ALTER COLUMN action for [{$name}] could not be represented.", $state);
-        }
-    }
 
-    /**
-     * Read a standalone index and retain its key and payload distinction.
-     */
-    private function readCreateIndex(string $statement, ParseState $state): bool
-    {
-        if (! preg_match('/^CREATE\s+(?<unique>UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+NOT\s+EXISTS\s+)?/i', $statement, $matches)) {
-            return false;
-        }
-        $unique = ($matches['unique'] ?? '') !== '';
-        $position = strlen($matches[0]);
-        $name = $this->readIdentifier($statement, $position, $state);
-        if (! preg_match('/\G\s+ON\s+(?:ONLY\s+)?/i', $statement, $matches, 0, $position)) {
-            throw $this->error('Expected an index table', $state);
-        }
-        $position += strlen($matches[0]);
-        $reference = $this->readReference($statement, $position, $state);
-        $key = $this->tableKey($reference, $state);
+        $key = $state->domainKey($reference->schema, $reference->name);
+
         if ($key === null) {
-            if ($this->viewKey($reference, $state) !== null) {
-                return true;
-            }
-            $state->issues[] = $this->issue("Indexed table [{$reference->name}] could not be resolved.", $state);
-            return true;
-        }
-        $table = &$state->tables[$key];
-        $method = 'btree';
-        if (preg_match('/\G\s+USING\s+/i', $statement, $matches, 0, $position)) {
-            $position += strlen($matches[0]);
-            $method = strtolower($this->readIdentifier($statement, $position, $state));
-        }
-        $columns = $this->readIndexColumns($this->readGroup($statement, $position, $state), $table, $state);
-        $include = $this->readIndexOptions($statement, $position, $state);
-        $nullsNotDistinct = false;
-        if (preg_match('/\G\s+NULLS\s+(NOT\s+)?DISTINCT\b/i', $statement, $matches, 0, $position)) {
-            $position += strlen($matches[0]);
-            $nullsNotDistinct = ($matches[1] ?? '') !== '';
-            $this->readIndexOptions($statement, $position, $state);
-        }
-        $where = null;
-        if (preg_match('/\G\s+WHERE\s+/i', $statement, $matches, 0, $position)) {
-            $position += strlen($matches[0]);
-            $where = trim(substr($statement, $position));
-            $position = strlen($statement);
-        }
-        if (trim(substr($statement, $position)) !== '') {
-            $table['issues'][] = $this->issue("Index [{$name}] has unsupported trailing syntax.", $state);
-        }
-        $table['indexes'][] = new Index($name, $columns, $include, $method, $unique, nullsNotDistinct: $nullsNotDistinct, where: $where);
+            $state->issues[] = $state->issue("The altered domain [{$reference->name}] could not be resolved.");
 
-        return true;
+            return;
+        }
+
+        $domain = $state->domains[$key];
+        $nullable = $domain->nullable;
+        $default = $domain->default;
+        $checks = $domain->checks;
+        $applied = true;
+
+        if ($tokens->accept('ADD')) {
+            $name = $tokens->accept('CONSTRAINT') ? $this->parseName($tokens, 'a constraint name') : null;
+            $applied = $tokens->accept('CHECK');
+
+            if ($applied) {
+                $expression = $this->parseGroup($tokens);
+                $flags = $this->parseConstraintFlags($tokens);
+                $checks[] = new CheckConstraint($name, $expression, $flags['valid'], $flags['enforced']);
+
+                if (! $tokens->atEnd()) {
+                    $state->issues[] = $state->issue('The domain constraint has unsupported trailing syntax.');
+                }
+            }
+        } else {
+            if ($tokens->accept('SET', 'DEFAULT')) {
+                $default = $this->parseExpression($tokens, [], 'a default expression');
+            } elseif ($tokens->accept('DROP', 'DEFAULT')) {
+                $default = null;
+            } elseif ($tokens->accept('SET', 'NOT', 'NULL')) {
+                $nullable = false;
+            } elseif ($tokens->accept('DROP', 'NOT', 'NULL')) {
+                $nullable = true;
+            } else {
+                $applied = false;
+            }
+
+            $applied = $applied && $tokens->atEnd();
+        }
+
+        if (! $applied) {
+            $state->issues[] = $state->issue("The ALTER DOMAIN statement for [{$reference->name}] could not be applied.");
+
+            return;
+        }
+
+        $state->domains[$key] = new Domain($domain->name, $domain->type, $domain->schema, $nullable, $default, $checks);
     }
 
     /**
-     * Apply decoded table and column comments while retaining qualified identity.
+     * Apply a decoded table or column comment.
      */
-    private function applyComment(string $statement, ParseState $state): bool
+    private function parseComment(TokenStream $tokens, ParseState $state): void
     {
-        if (! preg_match('/^COMMENT\s+ON\s+(FOREIGN\s+TABLE|TABLE|COLUMN)\s+/i', $statement, $matches)) {
-            return false;
+        if ($tokens->accept('COLUMN')) {
+            $isColumn = true;
+        } elseif ($tokens->accept('TABLE') || $tokens->accept('FOREIGN', 'TABLE')) {
+            $isColumn = false;
+        } else {
+            return;
         }
-        $isColumn = strcasecmp($matches[1], 'COLUMN') === 0;
-        $position = strlen($matches[0]);
-        $parts = [$this->readIdentifier($statement, $position, $state)];
-        while (preg_match('/\G\s*\.\s*/', $statement, $matches, 0, $position)) {
-            $position += strlen($matches[0]);
-            $parts[] = $this->readIdentifier($statement, $position, $state);
+
+        $parts = [$this->parseName($tokens, 'a comment target')];
+
+        while ($tokens->acceptSymbol('.')) {
+            $parts[] = $this->parseName($tokens, 'a comment target');
         }
+
         $column = $isColumn ? array_pop($parts) : null;
-        if (count($parts) < 1 || count($parts) > 2) {
-            throw $this->error('Expected a table or column comment target', $state);
+
+        if ($parts === [] || count($parts) > 2) {
+            throw $tokens->error('Expected a table or column comment target');
         }
+
         $reference = new TableReference($parts[count($parts) - 1], count($parts) === 2 ? $parts[0] : null);
-        if (! preg_match('/\G\s+IS\s+/i', $statement, $matches, 0, $position)) {
-            throw $this->error('Expected a comment value', $state);
+
+        if (! $tokens->accept('IS')) {
+            throw $tokens->error('Expected a comment value');
         }
-        $position += strlen($matches[0]);
-        $value = trim(substr($statement, $position));
-        $comment = strcasecmp($value, 'NULL') === 0 ? null : $this->readLiteral($value, $state);
-        $key = $this->tableKey($reference, $state);
+
+        $removed = $tokens->is('NULL') && $tokens->type(1) === TokenType::End;
+        $comment = $removed ? null : $this->parseLiteral($tokens);
+        $key = $state->tableKey($reference);
+
         if ($key === null) {
             // View comments are not represented, but COMMENT ON COLUMN also accepts views.
-            if ($this->viewKey($reference, $state) === null) {
-                $state->issues[] = $this->issue("Commented table [{$reference->name}] could not be resolved.", $state);
+            if ($state->viewKey($reference) === null) {
+                $state->issues[] = $state->issue("Commented table [{$reference->name}] could not be resolved.");
             }
-        } elseif ($comment === null && strcasecmp($value, 'NULL') !== 0) {
-            $state->tables[$key]['issues'][] = $this->issue('A comment could not be decoded as a string literal.', $state);
+
+            return;
+        }
+
+        $table = $state->tables[$key];
+
+        if ($comment === null && ! $removed) {
+            $table->issues[] = $state->issue('A comment could not be decoded as a string literal.');
         } elseif ($column === null) {
-            $state->tables[$key]['comment'] = $comment;
-        } elseif (isset($state->tables[$key]['columns'][$column])) {
-            $state->tables[$key]['columns'][$column]['comment'] = $comment;
+            $table->comment = $comment;
+        } elseif (isset($table->columns[$column])) {
+            $table->columns[$column]->comment = $comment;
         } else {
-            $state->tables[$key]['issues'][] = $this->issue("Commented column [{$column}] could not be resolved.", $state);
+            $table->issues[] = $state->issue("Commented column [{$column}] could not be resolved.");
         }
-
-        return true;
     }
 
     /**
-     * Read named views without inferring the types produced by their queries.
+     * Remove dropped objects, such as the drops a clean dump emits before its declarations.
      */
-    private function readCreateView(string $statement, ParseState $state): ?View
+    private function parseDrop(TokenStream $tokens, ParseState $state): void
     {
-        if (! preg_match('/^CREATE\s+(?:OR\s+REPLACE\s+)?(?:(?<temporary>TEMPORARY|TEMP)\s+)?(?<materialized>MATERIALIZED\s+)?VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?/i', $statement, $matches)) {
-            return null;
-        }
-        $position = strlen($matches[0]);
-        $reference = $this->readReference($statement, $position, $state);
-        if (($matches['temporary'] ?? '') !== '' || $reference->schema === 'pg_temp') {
-            return null;
-        }
-        $materialized = ($matches['materialized'] ?? '') !== '';
-        $tail = substr($statement, $position);
-        foreach ($this->topLevelWords($tail) as [$word, $offset]) {
-            if ($word !== 'AS') {
-                continue;
-            }
-            $query = trim(substr($tail, $offset + 2));
-            $query = preg_replace('/\s+WITH\s+(?:(?:LOCAL|CASCADED)\s+)?CHECK\s+OPTION\s*$/iD', '', $query);
-            if ($materialized) {
-                $query = preg_replace('/\s+WITH\s+(?:NO\s+)?DATA\s*$/iD', '', $query);
-            }
-            if ($query === '') {
-                throw $this->error('Expected a view query', $state);
-            }
-            return new View($reference->name, $query, $reference->schema, $materialized);
-        }
-        $state->issues[] = $this->issue("View [{$reference->name}] has no readable query definition.", $state);
+        $kind = match (true) {
+            $tokens->accept('TABLE'), $tokens->accept('FOREIGN', 'TABLE') => 'table',
+            $tokens->accept('VIEW'), $tokens->accept('MATERIALIZED', 'VIEW') => 'view',
+            $tokens->accept('DOMAIN') => 'domain',
+            $tokens->accept('TYPE') => 'type',
+            $tokens->accept('INDEX') => 'index',
+            $tokens->accept('SCHEMA') => 'schema',
+            default => null,
+        };
 
-        return new View($reference->name, '', $reference->schema, $materialized);
-    }
+        if ($kind === null) {
+            do {
+                $cascade = $this->endsWithCascade($tokens);
+            } while ($tokens->acceptSymbol(','));
 
-    /**
-     * Remove dump-cleaned objects before their replacement declarations.
-     */
-    private function applyDrop(string $statement, ParseState $state): bool
-    {
-        if (! preg_match('/^DROP\b/i', $statement)) {
-            return false;
-        }
-        if (! preg_match('/^DROP\s+(FOREIGN\s+TABLE|TABLE|MATERIALIZED\s+VIEW|VIEW|DOMAIN|TYPE|INDEX|SCHEMA)\s+(?:CONCURRENTLY\s+)?(?:IF\s+EXISTS\s+)?/i', $statement, $matches)) {
-            $words = $this->topLevelWords($statement);
-            $last = $words[array_key_last($words)];
-            if ($last[0] === 'CASCADE' && trim(substr($statement, $last[1] + 7)) === '') {
+            if ($cascade) {
                 $this->reportCascade($state);
             }
-            return true;
-        }
-        $kind = strtoupper(preg_replace('/\s+/', ' ', $matches[1]));
-        $position = strlen($matches[0]);
-        $references = [];
-        while (true) {
-            $references[] = $this->readReference($statement, $position, $state);
-            $position += strspn($statement, " \t\r\n", $position);
-            if (($statement[$position] ?? '') !== ',') {
-                break;
-            }
-            ++$position;
-        }
-        $option = trim(substr($statement, $position));
-        if (strcasecmp($option, 'CASCADE') === 0) {
-            $this->reportCascade($state);
-        } elseif ($option !== '' && strcasecmp($option, 'RESTRICT') !== 0) {
-            throw $this->error('Expected a DROP option or another object name', $state);
-        }
-        foreach ($references as $reference) {
-            $key = $this->identityKey($reference->schema, $reference->name);
-            if ($reference->schema === null && $kind !== 'INDEX' && $kind !== 'SCHEMA') {
-                $candidates = match ($kind) {
-                    'TABLE', 'FOREIGN TABLE' => $state->tableNames[$reference->name] ?? [],
-                    'DOMAIN' => $state->domainNames[$reference->name] ?? [],
-                    'TYPE' => array_filter($state->enums, static fn (EnumType $enum): bool => $enum->name === $reference->name),
-                    default => $state->viewNames[$reference->name] ?? [],
-                };
-                if (count($candidates) > 1) {
-                    $state->issues[] = $this->issue("Dropped object [{$reference->name}] is ambiguous without a schema.", $state);
-                    continue;
-                }
-                $key = array_key_first($candidates) ?? $key;
-            }
-            if ($kind === 'TABLE' || $kind === 'FOREIGN TABLE') {
-                if (isset($state->tables[$key])) {
-                    $table = $state->tables[$key];
-                    foreach ([...$table['parents'], ...($table['partitionOf'] === null ? [] : [$table['partitionOf']])] as $parent) {
-                        $parentKey = $this->tableKey($parent, $state);
-                        if ($parentKey !== null) {
-                            unset($state->children[$parentKey][$key]);
-                        }
-                    }
-                    unset($state->tableNames[$table['name']][$key], $state->tables[$key], $state->children[$key]);
-                }
-            } elseif ($kind === 'DOMAIN') {
-                unset($state->domains[$key], $state->domainNames[$reference->name][$key]);
-            } elseif ($kind === 'TYPE') {
-                unset($state->enums[$key]);
-            } elseif ($kind === 'INDEX') {
-                $this->dropIndex($reference, $state);
-            } elseif ($kind === 'SCHEMA') {
-                if (strcasecmp($option, 'CASCADE') !== 0
-                    && (array_any($state->tables, static fn (array $table): bool => $table['schema'] === $reference->name)
-                        || array_any($state->views, static fn (View $view): bool => $view->schema === $reference->name)
-                        || array_any($state->domains, static fn (array $domain): bool => $domain['schema'] === $reference->name)
-                        || array_any($state->enums, static fn (EnumType $enum): bool => $enum->schema === $reference->name))) {
-                    $state->issues[] = $this->issue('A dropped schema still has represented definitions.', $state);
-                }
-            } else {
-                unset($state->views[$key], $state->viewNames[$reference->name][$key]);
-            }
+
+            return;
         }
 
-        return true;
+        $tokens->accept('CONCURRENTLY');
+        $tokens->accept('IF', 'EXISTS');
+        $references = [];
+
+        // Targets are read first, so objects named cascade or restrict stay targets.
+        do {
+            $references[] = $this->parseQualifiedName($tokens, 'an object name');
+        } while ($tokens->acceptSymbol(','));
+
+        $cascade = $tokens->accept('CASCADE');
+
+        if (! $cascade) {
+            $tokens->accept('RESTRICT');
+        }
+
+        if (! $tokens->atEnd()) {
+            throw $tokens->error('Expected a DROP option or another object name');
+        }
+
+        if ($cascade) {
+            $this->reportCascade($state);
+        }
+
+        foreach ($references as $reference) {
+            $this->drop($kind, $reference, $cascade, $state);
+        }
     }
 
     /**
-     * Remove an explicitly named index without choosing between ambiguous schemas.
+     * Remove one exact or uniquely named dropped object.
+     */
+    private function drop(string $kind, TableReference $reference, bool $cascade, ParseState $state): void
+    {
+        if ($kind === 'index') {
+            $this->dropIndex($reference, $state);
+
+            return;
+        }
+
+        if ($kind === 'schema') {
+            $name = $reference->name;
+
+            if (! $cascade && (array_any($state->tables, static fn (TableDefinition $table): bool => $table->schema === $name)
+                || array_any($state->views, static fn (View $view): bool => $view->schema === $name)
+                || array_any($state->domains, static fn (Domain $domain): bool => $domain->schema === $name)
+                || array_any($state->enums, static fn (EnumType $enum): bool => $enum->schema === $name))) {
+                $state->issues[] = $state->issue('A dropped schema still has represented definitions.');
+            }
+
+            return;
+        }
+
+        $key = ParseState::key($reference->schema, $reference->name);
+
+        if ($reference->schema === null) {
+            $candidates = match ($kind) {
+                'table' => $state->tableNames[$reference->name] ?? [],
+                'view' => $state->viewNames[$reference->name] ?? [],
+                'domain' => $state->domainNames[$reference->name] ?? [],
+                default => array_filter($state->enums, static fn (EnumType $enum): bool => $enum->name === $reference->name),
+            };
+
+            if (count($candidates) > 1) {
+                $state->issues[] = $state->issue("Dropped object [{$reference->name}] is ambiguous without a schema.");
+
+                return;
+            }
+
+            $key = array_key_first($candidates) ?? $key;
+        }
+
+        if ($kind === 'table') {
+            $table = $state->tables[$key] ?? null;
+
+            if ($table === null) {
+                return;
+            }
+
+            foreach ($table->partitionOf === null ? $table->parents : [...$table->parents, $table->partitionOf] as $parent) {
+                $parentKey = $state->tableKey($parent);
+
+                if ($parentKey !== null) {
+                    unset($state->children[$parentKey][$key]);
+                }
+            }
+
+            $state->removeTable($key);
+        } elseif ($kind === 'view') {
+            if (isset($state->views[$key])) {
+                $state->removeView($key);
+            }
+        } elseif ($kind === 'domain') {
+            unset($state->domains[$key], $state->domainNames[$reference->name][$key]);
+        } else {
+            unset($state->enums[$key]);
+        }
+    }
+
+    /**
+     * Remove a named index without choosing between ambiguous schemas.
      */
     private function dropIndex(TableReference $reference, ParseState $state): void
     {
         $found = null;
+
         foreach ($state->tables as $key => $table) {
-            if ($reference->schema !== null && $reference->schema !== $table['schema']) {
+            if ($reference->schema !== null && $reference->schema !== $table->schema) {
                 continue;
             }
-            foreach ($table['indexes'] as $position => $index) {
+
+            foreach ($table->indexes as $position => $index) {
                 if ($index->name !== $reference->name) {
                     continue;
                 }
+
                 if ($found !== null) {
-                    $state->issues[] = $this->issue("Dropped index [{$reference->name}] is ambiguous without a schema.", $state);
+                    $state->issues[] = $state->issue("Dropped index [{$reference->name}] is ambiguous without a schema.");
+
                     return;
                 }
+
                 $found = [$key, $position];
             }
         }
+
         if ($found !== null) {
-            array_splice($state->tables[$found[0]]['indexes'], $found[1], 1);
+            array_splice($state->tables[$found[0]]->indexes, $found[1], 1);
+            $state->refreshIndexNames($found[0]);
         }
     }
 
     /**
-     * Read an inline or table constraint and return the consumed length.
-     *
-     * @param TableDefinition $table
+     * Freeze the parsed definitions after resolving domain chains.
      */
-    private function readConstraint(string $sql, array &$table, ParseState $state, ?string $column = null, ?string $name = null): int
+    protected function freeze(ParseState $state): Schema
     {
-        $position = 0;
-        if (preg_match('/^CONSTRAINT\s+/i', $sql, $matches)) {
-            $position = strlen($matches[0]);
-            $name = $this->readIdentifier($sql, $position, $state);
-            $position += strspn($sql, " \t\r\n", $position);
-        }
-        if (preg_match('/\GCHECK\s*/i', $sql, $matches, 0, $position)) {
-            $position += strlen($matches[0]);
-            $expression = $this->readGroup($sql, $position, $state);
-            $flags = $this->readConstraintFlags($sql, $position);
-            $this->mergeCheck(new CheckConstraint($name, $expression, $flags['valid'], $flags['enforced'], $flags['noInherit']), $table, $state);
-        } elseif (preg_match('/\GNOT\s+NULL\s+/i', $sql, $matches, 0, $position)) {
-            $position += strlen($matches[0]);
-            $column = $this->readIdentifier($sql, $position, $state);
-            $flags = $this->readConstraintFlags($sql, $position);
-            if (isset($table['columns'][$column])) {
-                if ($flags['valid']) {
-                    $table['columns'][$column]['nullable'] = false;
-                } else {
-                    $table['columns'][$column]['unvalidatedNotNull'] = true;
-                }
-                $table['columns'][$column]['noInheritNotNull'] = $flags['noInherit'];
-            } else {
-                $table['issues'][] = $this->issue("The NOT NULL column [{$column}] could not be resolved.", $state);
-            }
-        } elseif (preg_match('/\G(PRIMARY\s+KEY|UNIQUE)\b/i', $sql, $matches, 0, $position)) {
-            $primary = str_starts_with(strtoupper($matches[1]), 'PRIMARY');
-            $position += strlen($matches[0]);
-            $nullsNotDistinct = false;
-            if (preg_match('/\G\s+NULLS\s+(NOT\s+)?DISTINCT\b/i', $sql, $matches, 0, $position)) {
-                $position += strlen($matches[0]);
-                $nullsNotDistinct = ($matches[1] ?? '') !== '';
-            }
-            $existing = null;
-            if (preg_match('/\G\s+USING\s+INDEX\s+/i', $sql, $matches, 0, $position)) {
-                $position += strlen($matches[0]);
-                $indexName = $this->readIdentifier($sql, $position, $state);
-                foreach ($table['indexes'] as &$candidate) {
-                    if ($candidate->name === $indexName) {
-                        $existing = &$candidate;
-                        break;
-                    }
-                }
-                unset($candidate);
-                if ($existing === null) {
-                    $table['issues'][] = $this->issue("Constraint index [{$indexName}] could not be resolved.", $state);
-                }
-                $columns = $existing->columns ?? [];
-                $include = $existing->include ?? [];
-            } else {
-                $columns = $column === null
-                    ? $this->readIndexColumns($this->readGroup($sql, $position, $state), $table, $state)
-                    : [new IndexColumn($column)];
-                $include = $this->readIndexOptions($sql, $position, $state);
-            }
-            $flags = $this->readConstraintFlags($sql, $position);
-            $index = new Index(
-                $name ?? $existing?->name,
-                $columns,
-                $include,
-                $existing->type ?? 'btree',
-                unique: true,
-                primary: $primary,
-                constraint: true,
-                nullsNotDistinct: $existing->nullsNotDistinct ?? $nullsNotDistinct,
-                deferral: $flags['deferral'],
-                where: $existing?->where,
-            );
-            if ($existing === null) {
-                $table['indexes'][] = $index;
-            } else {
-                $existing = $index;
-            }
-            if ($primary) {
-                foreach ($columns as $key) {
-                    if ($key->name !== null && isset($table['columns'][$key->name])) {
-                        $table['columns'][$key->name]['nullable'] = false;
-                    }
-                }
-            }
-        } elseif (preg_match('/\G(?:FOREIGN\s+KEY|REFERENCES)\b/i', $sql, $matches, 0, $position)) {
-            $position += strlen($matches[0]);
-            $temporal = false;
-            if ($column === null) {
-                [$columns, $temporal] = $this->readForeignColumns($this->readGroup($sql, $position, $state), $state);
-                if (! preg_match('/\G\s*REFERENCES\s+/i', $sql, $matches, 0, $position)) {
-                    throw $this->error('Expected a referenced foreign table', $state);
-                }
-                $position += strlen($matches[0]);
-            } else {
-                $columns = [$column];
-            }
-            $reference = $this->readReference($sql, $position, $state);
-            $position += strspn($sql, " \t\r\n", $position);
-            $foreignColumns = [];
-            if (($sql[$position] ?? '') === '(') {
-                [$foreignColumns, $foreignTemporal] = $this->readForeignColumns($this->readGroup($sql, $position, $state), $state);
-                $temporal = $temporal || $foreignTemporal;
-            }
-            if ($temporal) {
-                $table['issues'][] = $this->issue('Temporal foreign key semantics are not represented.', $state);
-            }
-            $match = ForeignKeyMatch::Simple;
-            $onUpdate = $onDelete = ReferentialAction::NoAction;
-            while (true) {
-                if (preg_match('/\G\s*MATCH\s+(FULL|PARTIAL|SIMPLE)\b/i', $sql, $matches, 0, $position)) {
-                    $position += strlen($matches[0]);
-                    $match = ForeignKeyMatch::from(strtolower($matches[1]));
-                } elseif (preg_match('/\G\s*ON\s+(UPDATE|DELETE)\s+(NO\s+ACTION|RESTRICT|CASCADE|SET\s+NULL|SET\s+DEFAULT)\b/i', $sql, $matches, 0, $position)) {
-                    $position += strlen($matches[0]);
-                    $action = ReferentialAction::from(strtolower(preg_replace('/\s+/', ' ', $matches[2])));
-                    if (strcasecmp($matches[1], 'UPDATE') === 0) {
-                        $onUpdate = $action;
-                    } else {
-                        $onDelete = $action;
-                    }
-                    $position += strspn($sql, " \t\r\n", $position);
-                    if (($sql[$position] ?? '') === '(') {
-                        $this->readGroup($sql, $position, $state);
-                        $table['issues'][] = $this->issue('A foreign key action applies to only some of its columns.', $state);
-                    }
-                } else {
-                    break;
-                }
-            }
-            $flags = $this->readConstraintFlags($sql, $position);
-            $table['foreignKeys'][] = new ForeignKey($name, $columns, $reference, $foreignColumns, $onUpdate, $onDelete, $match, $flags['deferral'], $flags['valid'], $flags['enforced']);
-        } else {
-            $table['issues'][] = $this->issue('A table constraint could not be represented.', $state);
-            return strlen($sql);
+        $resolved = [];
+        $resolving = [];
+
+        foreach ($state->domains as $key => $domain) {
+            $this->resolveDomain($key, $state, $resolved, $resolving);
         }
 
-        return $position;
+        $state->domains = array_replace($state->domains, $resolved);
+
+        return parent::freeze($state);
     }
 
     /**
-     * Merge equal named checks while preserving stronger inherited or local guarantees.
+     * Resolve a domain's base chain once, detecting dependency cycles.
      *
-     * @param TableDefinition $table
+     * @param array<string, Domain> $resolved
+     * @param array<string, true> $resolving
      */
-    private function mergeCheck(CheckConstraint $check, array &$table, ParseState $state): void
+    private function resolveDomain(string $key, ParseState $state, array &$resolved, array &$resolving): Domain
     {
-        if ($check->name !== null) {
-            foreach ($table['checks'] as &$existing) {
-                if ($existing->name !== $check->name) {
-                    continue;
-                }
-                if ($existing->expression !== $check->expression) {
-                    $table['issues'][] = $this->issue("Check [{$check->name}] has conflicting expressions.", $state);
-                    return;
-                }
-                $existing = new CheckConstraint(
-                    $check->name,
-                    $check->expression,
-                    $existing->valid || $check->valid,
-                    $existing->enforced || $check->enforced,
-                    $existing->noInherit && $check->noInherit,
-                );
-                return;
-            }
-            unset($existing);
+        if (isset($resolved[$key])) {
+            return $resolved[$key];
         }
-        $table['checks'][] = $check;
+
+        $domain = $state->domains[$key];
+
+        if (isset($resolving[$key])) {
+            throw new ParseException("The domain [{$domain->name}] has a cyclic base type.");
+        }
+
+        $resolving[$key] = true;
+        $type = $domain->type;
+        $baseKey = $state->domainKey($type->schema, $type->name);
+        $base = $baseKey === null ? null : $this->resolveDomain($baseKey, $state, $resolved, $resolving);
+
+        if ($type->schema === null && count($state->domainNames[$type->name] ?? []) > 1) {
+            $state->issues[] = new Issue("The base type of domain [{$domain->name}] is ambiguous without a schema.");
+        }
+
+        if ($base !== null) {
+            $type = $this->withBase($type, $base->type);
+        }
+
+        // Arrays of a domain keep their element type without its default, NOT NULL or checks.
+        $scalar = $type->dimensions === 0 ? $base : null;
+        unset($resolving[$key]);
+
+        return $resolved[$key] = new Domain(
+            $domain->name,
+            $type,
+            $domain->schema,
+            $domain->nullable && ($scalar->nullable ?? true),
+            $domain->default ?? $scalar?->default,
+            [...($scalar->checks ?? []), ...$domain->checks],
+        );
     }
 
     /**
-     * Read foreign key columns, distinguishing a temporal modifier from a column named period.
-     *
-     * @return array{list<string>, bool}
+     * Freeze a column with its domain's resolved base type and default.
      */
-    private function readForeignColumns(string $group, ParseState $state): array
+    protected function freezeColumn(ColumnDefinition $column, TableDefinition $table, ParseState $state): Column
     {
-        $columns = [];
-        $temporal = false;
-        foreach (SqlScanner::splitTopLevel(substr($group, 1, -1)) as $entry) {
-            $position = 0;
-            if (preg_match('/^PERIOD\s+(?=' . self::IDENT . ')/i', $entry, $matches)) {
-                $position = strlen($matches[0]);
-                $temporal = true;
-            }
-            $columns[] = $this->readIdentifier($entry, $position, $state);
-            if (trim(substr($entry, $position)) !== '') {
-                throw $this->error('Expected a foreign key column identifier', $state);
-            }
+        $type = $column->type;
+        $domainKey = $state->domainKey($type->schema, $type->name);
+        $domain = $domainKey === null ? null : $state->domains[$domainKey];
+
+        if ($type->schema === null && count($state->domainNames[$type->name] ?? []) > 1) {
+            $table->issues[] = new Issue("The domain of column [{$column->name}] is ambiguous without a schema.");
         }
 
-        return [$columns, $temporal];
+        if ($domain !== null) {
+            $type = $this->withBase($type, $domain->type);
+        }
+
+        $default = $column->default ?? ($type->dimensions === 0 ? $domain?->default : null);
+
+        if ($column->nullable && $column->unvalidatedNotNull) {
+            $table->issues[] = new Issue("The NOT NULL constraint on column [{$column->name}] has not been validated.");
+        }
+
+        // Domain NOT NULL checks conversion, not already-typed NULLs stored in columns.
+        // https://www.postgresql.org/docs/current/sql-createdomain.html#SQL-CREATEDOMAIN-NOTES
+        return new Column(
+            $column->name,
+            $type,
+            $column->nullable,
+            $default,
+            $column->autoIncrement || $column->identity !== null
+                || ($default !== null && preg_match('/^(?:pg_catalog\.)?nextval\s*\(/i', $default) === 1),
+            $column->identity,
+            $column->generation,
+            collation: $column->collation,
+            comment: $column->comment,
+        );
     }
 
     /**
-     * Read index keys without confusing expressions or payloads with column names.
-     *
-     * @param TableDefinition $table
-     * @return list<IndexColumn>
+     * Copy a declared type with its resolved domain base.
      */
-    private function readIndexColumns(string $group, array &$table, ParseState $state): array
+    private function withBase(ColumnType $type, ColumnType $base): ColumnType
     {
-        $columns = [];
-        foreach (SqlScanner::splitTopLevel(substr($group, 1, -1)) as $entry) {
-            $position = 0;
-            $name = $expression = $collation = $operatorClass = null;
-            $descending = false;
-            $nullsFirst = null;
-            if (str_starts_with($entry, '(')) {
-                $expression = $this->readGroup($entry, $position, $state);
-            } else {
-                $reference = $this->readReference($entry, $position, $state);
-                $next = $position + strspn($entry, " \t\r\n", $position);
-                if (($entry[$next] ?? '') === '(') {
-                    $position = $next;
-                    $this->readGroup($entry, $position, $state);
-                    $expression = substr($entry, 0, $position);
-                } elseif ($reference->schema !== null) {
-                    $expression = substr($entry, 0, $position);
-                    $table['issues'][] = $this->issue('An index key has an unsupported qualified column expression.', $state);
-                } else {
-                    $name = $reference->name;
-                }
-            }
-            while ($position < strlen($entry)) {
-                $position += strspn($entry, " \t\r\n", $position);
-                if ($position === strlen($entry)) {
-                    break;
-                }
-                if (preg_match('/\GCOLLATE\s+/i', $entry, $matches, 0, $position)) {
-                    $position += strlen($matches[0]);
-                    $start = $position;
-                    $this->readReference($entry, $position, $state);
-                    $collation = substr($entry, $start, $position - $start);
-                } elseif (preg_match('/\G(ASC|DESC)\b/i', $entry, $matches, 0, $position)) {
-                    $position += strlen($matches[0]);
-                    $descending = strcasecmp($matches[1], 'DESC') === 0;
-                } elseif (preg_match('/\GNULLS\s+(FIRST|LAST)\b/i', $entry, $matches, 0, $position)) {
-                    $position += strlen($matches[0]);
-                    $nullsFirst = strcasecmp($matches[1], 'FIRST') === 0;
-                } elseif (preg_match('/\GWITHOUT\s+OVERLAPS\b/i', $entry, $matches, 0, $position)) {
-                    $table['issues'][] = $this->issue('Temporal index semantics are not represented.', $state);
-                    $name = null;
-                    $expression = $entry;
-                    $position = strlen($entry);
-                } elseif ($operatorClass === null && preg_match('/\G' . self::IDENT . '/', $entry, $matches, 0, $position)) {
-                    $start = $position;
-                    $this->readReference($entry, $position, $state);
-                    $next = $position + strspn($entry, " \t\r\n", $position);
-                    if (($entry[$next] ?? '') === '(') {
-                        $position = $next;
-                        $this->readGroup($entry, $position, $state);
-                    }
-                    $operatorClass = substr($entry, $start, $position - $start);
-                } else {
-                    $table['issues'][] = $this->issue('An index key has unsupported trailing syntax.', $state);
-                    break;
-                }
-            }
-            $columns[] = new IndexColumn($name, $expression, $descending, $nullsFirst, collation: $collation, operatorClass: $operatorClass);
-        }
-
-        return $columns;
-    }
-
-    /**
-     * Read payload columns while consuming unrepresented physical index settings.
-     *
-     * @return list<string>
-     */
-    private function readIndexOptions(string $sql, int &$position, ParseState $state): array
-    {
-        $include = [];
-        while (true) {
-            if (preg_match('/\G\s*INCLUDE\s*/i', $sql, $matches, 0, $position)) {
-                $position += strlen($matches[0]);
-                $include = $this->identifierList($this->readGroup($sql, $position, $state), $state);
-            } elseif (preg_match('/\G\s*WITH\s*/i', $sql, $matches, 0, $position)) {
-                $position += strlen($matches[0]);
-                $this->readGroup($sql, $position, $state);
-            } elseif (preg_match('/\G\s*(?:USING\s+INDEX\s+)?TABLESPACE\s+/i', $sql, $matches, 0, $position)) {
-                $position += strlen($matches[0]);
-                $this->readIdentifier($sql, $position, $state);
-            } else {
-                break;
-            }
-        }
-
-        return $include;
-    }
-
-    /**
-     * Read a parenthesized list of complete column identifiers.
-     *
-     * @return list<string>
-     */
-    private function identifierList(string $group, ParseState $state): array
-    {
-        $result = [];
-
-        foreach (SqlScanner::splitTopLevel(substr($group, 1, -1)) as $part) {
-            $position = 0;
-            $result[] = $this->readIdentifier($part, $position, $state);
-            if (trim(substr($part, $position)) !== '') {
-                throw $this->error('Expected a column identifier', $state);
-            }
-        }
-
-        return $result;
-    }
-
-    /**
-     * Return the upper-cased words of $sql outside quotes, parentheses and arrays,
-     * paired with their offsets.
-     *
-     * @return list<array{0: string, 1: int}>
-     */
-    private function topLevelWords(string $sql): array
-    {
-        $words = [];
-        $depth = 0;
-        $length = strlen($sql);
-        $previous = '';
-
-        for ($i = 0; $i < $length; ++$i) {
-            $i += strspn($sql, " \t\r\n", $i);
-            if ($i === $length) {
-                break;
-            }
-            if ($depth > 0) {
-                $i += strcspn($sql, "'\"$-/()[]", $i);
-                if ($i === $length) {
-                    break;
-                }
-            }
-            $skipped = SqlScanner::skip($sql, $i);
-
-            if ($skipped !== $i) {
-                $previous = $sql[$skipped];
-                $i = $skipped;
-                continue;
-            }
-
-            $char = $sql[$i];
-            if (SqlScanner::isIdentifierPart($char)) {
-                $start = $i;
-                preg_match('/\G[A-Za-z0-9_$\x80-\xff]+/', $sql, $match, 0, $i);
-                $i += strlen($match[0]);
-                $next = $i + strspn($sql, " \t\r\n", $i);
-                if ($depth === 0 && $previous !== '.' && ($sql[$next] ?? '') !== '.') {
-                    $words[] = [strtoupper(substr($sql, $start, $i - $start)), $start];
-                }
-                $previous = $sql[$i - 1];
-                --$i;
-                continue;
-            }
-            if ($char === '(' || $char === '[') {
-                ++$depth;
-            } elseif ($char === ')' || $char === ']') {
-                --$depth;
-            }
-            if (! str_contains(" \t\r\n", $char)) {
-                $previous = $char;
-            }
-        }
-
-        return $words;
+        return new ColumnType(
+            $type->name,
+            $type->schema,
+            $type->modifiers,
+            $type->dimensions,
+            $type->unsigned,
+            $type->values,
+            $base,
+            $type->intervalFields,
+        );
     }
 }
