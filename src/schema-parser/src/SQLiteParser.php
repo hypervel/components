@@ -537,7 +537,7 @@ class SQLiteParser extends Parser
         $type = $tokens->type();
         $text = $tokens->text();
 
-        if (($type === TokenType::Word && $text !== 'NULL') || $type === TokenType::QuotedIdentifier || $this->isStringName($tokens)) {
+        if (($type === TokenType::Word && $text !== 'NULL' && $text !== 'NOT') || $type === TokenType::QuotedIdentifier || $this->isStringName($tokens)) {
             $name = $this->parseName($tokens, 'an index key');
             $collation = null;
 
@@ -578,8 +578,9 @@ class SQLiteParser extends Parser
     private function parseKeyExpression(TokenStream $tokens): array
     {
         $start = $tokens->offset();
+        $skippedOperand = $this->skipOperand($tokens);
 
-        if ($this->skipOperand($tokens) && $tokens->is('COLLATE')) {
+        if ($skippedOperand && $tokens->is('COLLATE')) {
             $operand = $tokens->spanFrom($start);
             $collation = null;
 
@@ -594,7 +595,7 @@ class SQLiteParser extends Parser
 
         // The operand may have skipped a group, which cannot be read again, so the rest of the key is read from here.
         if (! $this->atKeyEnd($tokens)) {
-            $tokens->skipExpression(self::KEY_CLAUSES);
+            $tokens->skipExpression(self::KEY_CLAUSES, $skippedOperand);
         }
 
         if ($tokens->offset() === $start) {

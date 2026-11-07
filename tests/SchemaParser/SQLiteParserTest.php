@@ -167,7 +167,7 @@ class SQLiteParserTest extends TestCase
     #[DataProvider('indexKeyProvider')]
     public function testIndexKeysNameColumnsAsSQLiteResolvesThem(string $keys, array $columns): void
     {
-        $table = (new SQLiteParser)->parse("CREATE TABLE example (Id INTEGER, \"true\" int, name text, desc int); CREATE INDEX keys ON example {$keys};")
+        $table = (new SQLiteParser)->parse("CREATE TABLE example (Id INTEGER, \"true\" int, name text, desc int, asc int, like int); CREATE INDEX keys ON example {$keys};")
             ->table('example');
 
         $this->assertEquals($columns, $table->indexes[0]->columns);
@@ -195,6 +195,14 @@ class SQLiteParserTest extends TestCase
         yield 'collated signed operand' => ['(-id COLLATE NOCASE)', [new IndexColumn(null, '-id', collation: 'NOCASE')]];
         yield 'collation inside an expression wrapper' => ['(((id + 1) COLLATE NOCASE))', [new IndexColumn(null, '((id + 1) COLLATE NOCASE)')]];
         yield 'sort keyword inside CASE' => ['(CASE WHEN id THEN desc ELSE 0 END DESC)', [new IndexColumn(null, 'CASE WHEN id THEN desc ELSE 0 END', true)]];
+        yield 'sort keyword after an operator' => ['(id + desc)', [new IndexColumn(null, 'id + desc')]];
+        yield 'sort keyword operand before a direction' => ['(id || desc DESC)', [new IndexColumn(null, 'id || desc', true)]];
+        yield 'sort keywords after keyword operators' => ['(id BETWEEN asc AND desc)', [new IndexColumn(null, 'id BETWEEN asc AND desc')]];
+        yield 'sort keyword after LIKE' => ['(id LIKE desc)', [new IndexColumn(null, 'id LIKE desc')]];
+        yield 'LIKE as a name before a direction' => ['(id + like DESC)', [new IndexColumn(null, 'id + like', true)]];
+        yield 'sort keyword after NOT LIKE' => ['(id NOT LIKE desc)', [new IndexColumn(null, 'id NOT LIKE desc')]];
+        yield 'prefix NOT before a direction' => ['(NOT like DESC)', [new IndexColumn(null, 'NOT like', true)]];
+        yield 'function named operator before a direction' => ['(id + operator(id) DESC)', [new IndexColumn(null, 'id + operator(id)', true)]];
     }
 
     public function testDeferralClausesApplyToTheMostRecentForeignKey(): void

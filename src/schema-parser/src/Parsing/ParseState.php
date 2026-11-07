@@ -46,6 +46,9 @@ final class ParseState
     /** @var array<string, array<string, true>> inheriting and partition tables by parent key */
     public array $children = [];
 
+    /** @var array<string, array<string, true>> the parent keys of each child, kept because the parents' names may stop resolving */
+    private array $parentKeys = [];
+
     /** @var null|array<string, array<string, array<string, true>>> keys of the stored tables with each index name, by the name's identity and then its schema-qualified key, once a lookup needs them */
     private ?array $indexTables = null;
 
@@ -128,22 +131,34 @@ final class ParseState
     }
 
     /**
-     * Remove a table definition, unlinking it from its inheritance and partition parents.
+     * Remove a table definition and its inheritance and partition links.
      */
     public function removeTable(string $key): void
     {
-        $table = $this->tables[$key];
-
-        foreach ($table->partitionOf === null ? $table->parents : [...$table->parents, $table->partitionOf] as $parent) {
-            $parentKey = $this->tableKey($parent);
-
-            if ($parentKey !== null) {
-                unset($this->children[$parentKey][$key]);
-            }
+        foreach ($this->parentKeys[$key] ?? [] as $parentKey => $present) {
+            unset($this->children[$parentKey][$key]);
         }
 
-        unset($this->tableNames[$this->normalize($table->name)][$key], $this->tables[$key], $this->children[$key]);
+        foreach ($this->children[$key] ?? [] as $childKey => $present) {
+            unset($this->parentKeys[$childKey][$key]);
+        }
+
+        unset(
+            $this->tableNames[$this->normalize($this->tables[$key]->name)][$key],
+            $this->tables[$key],
+            $this->children[$key],
+            $this->parentKeys[$key],
+        );
         $this->refreshIndexNames($key);
+    }
+
+    /**
+     * Record that a stored table inherits from, or is a partition of, another stored table.
+     */
+    public function linkChild(string $parentKey, string $childKey): void
+    {
+        $this->children[$parentKey][$childKey] = true;
+        $this->parentKeys[$childKey][$parentKey] = true;
     }
 
     /**

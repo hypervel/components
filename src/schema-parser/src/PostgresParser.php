@@ -133,7 +133,7 @@ class PostgresParser extends Parser
             $this->parseComment($tokens, $state);
         } elseif ($tokens->accept('DROP')) {
             $this->parseDrop($tokens, $state);
-        } elseif ($tokens->accept('SET', 'STANDARD_CONFORMING_STRINGS')) {
+        } elseif ($tokens->accept('SET', 'STANDARD_CONFORMING_STRINGS') || $tokens->accept('SET', 'SESSION', 'STANDARD_CONFORMING_STRINGS')) {
             $this->parseStandardConformingStrings($tokens);
         }
     }
@@ -149,10 +149,21 @@ class PostgresParser extends Parser
             return;
         }
 
-        $value = $tokens->keyword();
+        $value = match ($tokens->type()) {
+            TokenType::Word, TokenType::Number => $tokens->text(),
+            TokenType::String, TokenType::EscapedString, TokenType::QuotedIdentifier => strtoupper($tokens->value()),
+            default => null,
+        };
 
-        if (($value === 'ON' || $value === 'OFF') && $tokens->type(1) === TokenType::End) {
-            $tokens->lexer->standardConformingStrings = $value === 'ON';
+        // PostgreSQL's boolean settings accept these words, their unique prefixes, 1 and 0.
+        $enabled = match ($value) {
+            'ON', 'TRUE', 'TRU', 'TR', 'T', 'YES', 'YE', 'Y', '1' => true,
+            'OFF', 'OF', 'FALSE', 'FALS', 'FAL', 'FA', 'F', 'NO', 'N', '0' => false,
+            default => null,
+        };
+
+        if ($enabled !== null && $tokens->type(1) === TokenType::End) {
+            $tokens->lexer->standardConformingStrings = $enabled;
         }
     }
 
@@ -261,7 +272,7 @@ class PostgresParser extends Parser
             $parentKey = $state->tableKey($parent);
 
             if ($parentKey !== null) {
-                $state->children[$parentKey][$key] = true;
+                $state->linkChild($parentKey, $key);
             }
         }
     }
@@ -1347,7 +1358,7 @@ class PostgresParser extends Parser
             } else {
                 $state->tables[$partitionKey]->partitionOf = new TableReference($table->name, $table->schema);
                 $state->tables[$partitionKey]->partitionBounds = $this->parsePartitionBounds($tokens);
-                $state->children[$key][$partitionKey] = true;
+                $state->linkChild($key, $partitionKey);
             }
 
             $this->skipEntry($tokens);

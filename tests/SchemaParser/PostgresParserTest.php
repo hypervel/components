@@ -200,6 +200,38 @@ class PostgresParserTest extends TestCase
         $this->assertSame(['real_table'], array_column($schema->tables, 'name'));
     }
 
+    public function testClauseKeywordsWhereAnOperandIsExpectedStayInDefaults(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE t (
+                sum integer DEFAULT 1 + NULL NOT NULL,
+                distinct_flag boolean DEFAULT 1 IS DISTINCT FROM NULL,
+                explicit integer DEFAULT 1 OPERATOR(pg_catalog.+) NULL NOT NULL,
+                call integer DEFAULT app.operator(1) NOT NULL,
+                first app.not NOT NULL,
+                second app.not NOT NULL
+            );
+            SQL);
+        $table = $schema->table('t');
+
+        $this->assertSame('1 + NULL', $table->column('sum')->default);
+        $this->assertFalse($table->column('sum')->nullable);
+        $this->assertSame('1 IS DISTINCT FROM NULL', $table->column('distinct_flag')->default);
+        $this->assertTrue($table->column('distinct_flag')->nullable);
+        $this->assertSame('1 OPERATOR(pg_catalog.+) NULL', $table->column('explicit')->default);
+        $this->assertFalse($table->column('explicit')->nullable);
+        $this->assertSame('app.operator(1)', $table->column('call')->default);
+        $this->assertFalse($table->column('call')->nullable);
+
+        // The second column reuses the first one's cached type, so both must end before NOT NULL.
+        foreach (['first', 'second'] as $name) {
+            $this->assertSame(['app', 'not'], [$table->column($name)->type->schema, $table->column($name)->type->name]);
+            $this->assertFalse($table->column($name)->nullable);
+        }
+
+        $this->assertTrue($schema->isComplete());
+    }
+
     public function testDomainDefaultsApplyOnlyToScalarReferences(): void
     {
         $schema = (new PostgresParser)->parse(<<<'SQL'
@@ -299,6 +331,20 @@ class PostgresParserTest extends TestCase
 
         $this->assertNull($schema->table('child')->column('id')->default);
         $this->assertNull($schema->table('part_one')->column('id')->default);
+    }
+
+    public function testDroppingAChildUnlinksItWhenItsParentNameBecomesAmbiguous(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE public.p (x integer);
+            CREATE TABLE public.c () INHERITS (p);
+            CREATE TABLE other.p (x integer);
+            DROP TABLE public.c;
+            ALTER TABLE public.p ALTER COLUMN x SET DEFAULT 1;
+            SQL);
+
+        $this->assertNull($schema->table('c'));
+        $this->assertSame('1', $schema->table('p', 'public')->column('x')->default);
     }
 
     public function testRecursiveAlterVisitsDiamondDescendantsOnceAndDoesNotCopyPrimaryKeys(): void
@@ -547,6 +593,34 @@ class PostgresParserTest extends TestCase
         $this->assertSame(['a\\\b'], $schema->enum('plain')->values);
         $this->assertSame(['a\b'], $schema->table('t')->column('label')->type->modifiers);
         $this->assertSame(['a\\\b'], $schema->table('u')->column('label')->type->modifiers);
+    }
+
+    #[DataProvider('booleanSettingProvider')]
+    public function testStandardConformingStringsReadPostgresBooleanSpellings(string $off, string $on): void
+    {
+        $schema = (new PostgresParser)->parse(<<<SQL
+            {$off};
+            COMMENT ON SCHEMA public IS 'it\\'s';
+            CREATE TYPE escaped AS ENUM ('a\\\\b');
+            {$on};
+            CREATE TYPE plain AS ENUM ('a\\\\b');
+            SQL);
+
+        $this->assertSame(['a\b'], $schema->enum('escaped')->values);
+        $this->assertSame(['a\\\b'], $schema->enum('plain')->values);
+    }
+
+    /**
+     * Provide statements that turn standard_conforming_strings off and then on again.
+     *
+     * @return iterable<string, array{string, string}>
+     */
+    public static function booleanSettingProvider(): iterable
+    {
+        yield 'quoted values' => ["SET standard_conforming_strings = 'off'", 'SET standard_conforming_strings = "ON"'];
+        yield 'booleans' => ['SET SESSION standard_conforming_strings TO false', 'SET SESSION standard_conforming_strings = true'];
+        yield 'numbers' => ['SET standard_conforming_strings = 0', 'SET standard_conforming_strings = 1'];
+        yield 'prefixes' => ["SET standard_conforming_strings = 'of'", 'SET standard_conforming_strings = y'];
     }
 
     public function testLongRunsOfDoubledQuotesStayOneToken(): void

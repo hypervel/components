@@ -20,6 +20,22 @@ use Hypervel\SchemaParser\ParseException;
  */
 final class TokenStream
 {
+    /** Keyword operators that take an operand after them, in the expressions that clause keywords can end. */
+    private const array OPERATORS = [
+        'AND' => true,
+        'BETWEEN' => true,
+        'COLLATE' => true,
+        'ESCAPE' => true,
+        'FROM' => true,
+        'GLOB' => true,
+        'IN' => true,
+        'IS' => true,
+        'LIKE' => true,
+        'MATCH' => true,
+        'OR' => true,
+        'REGEXP' => true,
+    ];
+
     /** @var array<int, TokenType> types recorded by the lexer or derived so far */
     private array $types = [];
 
@@ -220,15 +236,17 @@ final class TokenStream
     /**
      * Consume an expression that ends before a top-level comma, an unmatched closing bracket or one of the given keywords.
      *
-     * Brackets and CASE ... END nest. The first token never ends it, so DEFAULT
-     * NULL keeps its NULL, and words beside a qualification dot are names.
+     * Brackets and CASE ... END nest. A keyword ends the expression only after a
+     * complete operand, so DEFAULT NULL keeps its NULL and 1 + NULL keeps both
+     * operands, and a word before a qualification dot is a name.
      * Returns whether anything was consumed.
      *
      * @param array<string, true> $keywords
+     * @param bool $afterOperand whether the caller has already consumed an operand of this expression
      *
      * @phpstan-impure
      */
-    public function skipExpression(array $keywords): bool
+    public function skipExpression(array $keywords, bool $afterOperand = false): bool
     {
         $start = $this->index;
         $depth = 0;
@@ -251,8 +269,8 @@ final class TokenStream
                     ++$cases;
                 } elseif ($text === 'END' && $cases > 0) {
                     --$cases;
-                } elseif ($cases === 0 && $this->index > $start && isset($keywords[$text])
-                    && $this->texts[$this->index - 1] !== '.' && $this->texts[$this->at(1)] !== '.') {
+                } elseif ($cases === 0 && isset($keywords[$text]) && $this->texts[$this->at(1)] !== '.'
+                    && $this->completesOperand($start, $afterOperand)) {
                     break;
                 }
             }
@@ -261,6 +279,67 @@ final class TokenStream
         }
 
         return $this->index > $start;
+    }
+
+    /**
+     * Determine whether the expression read since the given start ends with a complete operand.
+     *
+     * Only NOT and keyword operators depend on what comes before them, so the
+     * tokens are walked back over to one that settles the state, then replayed.
+     * A keyword operator where an operand is expected is a name, as SQLite reads
+     * LIKE. NOT after an operand is infix, so the word after it is an operator.
+     * A word after a qualification dot is always a name.
+     */
+    private function completesOperand(int $start, bool $afterOperand): bool
+    {
+        $index = $this->index - 1;
+
+        while ($index >= $start && ($this->texts[$index] === 'NOT' || isset(self::OPERATORS[$this->texts[$index]]))
+            && $this->texts[$index - 1] !== '.') {
+            --$index;
+        }
+
+        if ($index < $start) {
+            $complete = $afterOperand;
+        } elseif ($this->texts[$index] === ')') {
+            // Elsewhere a function can be named operator.
+            $complete = ! ($this->lexer instanceof PostgresLexer && $this->closesOperatorName($index, $start));
+        } else {
+            $complete = $this->texts[$index] === ']'
+                || ($this->types[$index] ??= $this->lexer->type($this->texts[$index])) !== TokenType::Symbol;
+        }
+
+        $infixNot = false;
+
+        while (++$index < $this->index) {
+            if ($this->texts[$index] === 'NOT') {
+                $infixNot = $complete;
+                $complete = false;
+            } else {
+                $complete = ! $complete && ! $infixNot;
+                $infixNot = false;
+            }
+        }
+
+        return $complete;
+    }
+
+    /**
+     * Determine whether a closing parenthesis ends PostgreSQL's OPERATOR(name) syntax, which names an operator instead of completing an operand.
+     *
+     * A qualified function that happens to be named operator is an ordinary call.
+     */
+    private function closesOperatorName(int $index, int $start): bool
+    {
+        for ($depth = 0; $index > $start; --$index) {
+            if ($this->texts[$index] === ')') {
+                ++$depth;
+            } elseif ($this->texts[$index] === '(' && --$depth === 0) {
+                return $this->texts[$index - 1] === 'OPERATOR' && $this->texts[$index - 2] !== '.';
+            }
+        }
+
+        return false;
     }
 
     /**
