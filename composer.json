@@ -111,7 +111,7 @@
         "symfony/serializer": "^8.1",
         "symfony/uid": "^8.1",
         "symfony/var-dumper": "^8.1",
-        "symfony/yaml": "^8.1",
+        "symfony/yaml": "^8.1.11",
         "tijsverkoyen/css-to-inline-styles": "^2.2.5",
         "vlucas/phpdotenv": "^5.6.1",
         "voku/portable-ascii": "^2.0.2",
