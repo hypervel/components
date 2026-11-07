@@ -58,12 +58,69 @@ class MySqlLexerTest extends TestCase
         $this->assertSame(['SET check_constraint_checks=0', 'CREATE TABLE t (id int)'], array_column(self::statements(new MySqlLexer($sql, mariaDb: true)), 1));
     }
 
-    public function testUnterminatedExecutableCommentReportsItsStart(): void
+    /**
+     * @param list<string> $expected
+     */
+    #[DataProvider('executableCommentProvider')]
+    public function testExecutableCommentsKeepQuotedTerminatorsAndInnerComments(string $sql, bool $mariaDb, array $expected): void
+    {
+        $this->assertSame($expected, self::tokens(new MySqlLexer($sql, $mariaDb)));
+    }
+
+    /**
+     * Provide executable comments whose quoted text or inner comments contain a closing marker.
+     *
+     * @return iterable<string, array{string, bool, list<string>}>
+     */
+    public static function executableCommentProvider(): iterable
+    {
+        yield 'quoted terminator' => ["SELECT /*!50001 'a;*/b' */;", false, ['SELECT', "'a;*/b'"]];
+        yield 'quoted MariaDB terminator' => ['SELECT /*M!100000 `a*/b` */;', true, ['SELECT', '`a*/b`']];
+        yield 'inner block comment' => ["SELECT /*!50001 1 /* it's */ + 1 */;", false, ['SELECT', '1', '+', '1']];
+        yield 'inner dash comment' => ["SELECT /*!50001 1 -- it's */\n+ 1 */;", false, ['SELECT', '1', '+', '1']];
+        yield 'inner hash comment' => ["SELECT /*!50001 1 # it's */\n+ 1 */;", false, ['SELECT', '1', '+', '1']];
+    }
+
+    #[DataProvider('unclosedExecutableCommentProvider')]
+    public function testUnclosedExecutableCommentsReportTheirStart(string $sql, bool $mariaDb, int $line): void
     {
         $this->expectException(ParseException::class);
-        $this->expectExceptionMessage('Unterminated executable comment at SQL line 2');
+        $this->expectExceptionMessage("Unterminated executable comment at SQL line {$line}");
 
-        self::statements(new MySqlLexer("SELECT 1;\n/*!50001 CREATE VIEW v AS select 1"));
+        self::statements(new MySqlLexer($sql, $mariaDb));
+    }
+
+    /**
+     * Provide executable comments whose closing marker is missing or inside a line comment.
+     *
+     * @return iterable<string, array{string, bool, int}>
+     */
+    public static function unclosedExecutableCommentProvider(): iterable
+    {
+        yield 'missing marker' => ["SELECT 1;\n/*!50001 CREATE VIEW v AS select 1", false, 2];
+        yield 'marker in a line comment' => ["\n\nSELECT /*M!100000 1 -- */\n", true, 3];
+    }
+
+    #[DataProvider('unterminatedTokenProvider')]
+    public function testUnterminatedTokensFail(string $sql): void
+    {
+        $this->expectException(ParseException::class);
+
+        self::statements(new MySqlLexer($sql));
+    }
+
+    /**
+     * Provide comments, names and strings that end with the input.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function unterminatedTokenProvider(): iterable
+    {
+        yield 'comment' => ['foo/* hello'];
+        yield 'comment ending with a star' => ['foo/* hello *'];
+        yield 'comment across lines' => ["foo/* hello \n world"];
+        yield 'quoted name' => ['CREATE TABLE `users ( id int(10) )'];
+        yield 'string' => ["CREATE TABLE `users` ' ( `id` int(10) )"];
     }
 
     public function testDelimitersMakeRoutinesSingleStatements(): void
@@ -121,14 +178,20 @@ class MySqlLexerTest extends TestCase
     {
         yield 'hash comment' => ["a # comment\nb", ['a', 'b']];
         yield 'dash comment before whitespace' => ["a -- comment\nb", ['a', 'b']];
+        yield 'dash comment before a tab' => ["a --\tcomment\nb", ['a', 'b']];
+        yield 'dash comment after a word' => ["a\nb-- comment\nc", ['a', 'b', 'c']];
         yield 'dash comment at the end' => ['a --', ['a']];
-        yield 'dashes without whitespace' => ['a --b', ['a', '-', '-', 'b']];
-        yield 'digit-leading names' => ['1abc 12_x $x', ['1abc', '12_x', '$x']];
-        yield 'numbers stay numbers' => ['1e5 1.5 .5 1.5e3abc', ['1e5', '1.5', '.5', '1.5e3', 'abc']];
-        yield 'qualified digit-leading names' => ['db.1table t.1e5', ['db', '.', '1table', 't', '.', '1e5']];
+        yield 'dashes without whitespace' => ['a --b 1--2', ['a', '-', '-', 'b', '1', '-', '-', '2']];
+        yield 'block comments' => ["a/* one */ b/*two\n*/c", ['a', 'b', 'c']];
+        yield 'digit-leading names' => ['2fa_codes 0x01 12e_codes $identifier', ['2fa_codes', '0x01', '12e_codes', '$identifier']];
+        yield 'numbers stay numbers' => ['1e5 1.5 .5 12. 1.2foo 1e5foo 1.5e3abc', ['1e5', '1.5', '.5', '12.', '1.2', 'foo', '1e5', 'foo', '1.5e3', 'abc']];
+        yield 'qualified digit-leading names' => ['+2fa.id t.2fa `t`.1e5foo 9-2fa', ['+', '2fa', '.', 'id', 't', '.', '2fa', '`t`', '.', '1e5foo', '9', '-', '2fa']];
         yield 'signs are operators' => ['-1 +2', ['-', '1', '+', '2']];
         yield 'prefixed literals' => ["x'1F' b'01' N'n' _utf8mb4'u' _binary 'b'", ["x'1F'", "b'01'", "N'n'", "_utf8mb4'u'", '_binary', "'b'"]];
-        yield 'quoted names' => ['`a``b` "c"', ['`a``b`', '"c"']];
+        yield 'escaped and doubled quotes' => [<<<'SQL'
+            'a \' b' "a \" b" 'a''b' "a""b" "a''b" 'a""b'
+            SQL, ["'a \\' b'", '"a \" b"', "'a''b'", '"a""b"', "\"a''b\"", '\'a""b\'']];
+        yield 'quoted names' => ["`a``b` `multi \n line` \"c\"", ['`a``b`', "`multi \n line`", '"c"']];
     }
 
     public function testSqlModesDecideQuotesAndEscapes(): void

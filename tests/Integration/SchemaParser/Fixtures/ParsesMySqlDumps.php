@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\SchemaParser\Fixtures;
 
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\SchemaParser\GenerationType;
+use Hypervel\SchemaParser\MariaDbParser;
 use Hypervel\SchemaParser\MySqlParser;
 use Hypervel\SchemaParser\ReferentialAction;
 use Hypervel\Support\Facades\DB;
@@ -59,7 +60,7 @@ trait ParsesMySqlDumps
                 ->dump($connection, $path);
 
             $sql = $files->get($path);
-            $schema = (new MySqlParser)->parse($sql);
+            $schema = ($connection->isMaria() ? new MariaDbParser : new MySqlParser)->parse($sql);
             $table = $schema->table('parser_children');
             $columns = array_column($connection->getSchemaBuilder()->getColumns('parser_children'), null, 'name');
 
