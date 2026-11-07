@@ -248,6 +248,7 @@ class PostgresLexerTest extends TestCase
     {
         yield 'comma inside a string literal' => ["label text DEFAULT 'a,b', other", ['label', 'text', 'DEFAULT', "'a,b'", ',', 'other']];
         yield 'comma inside a quoted identifier' => ['"a,b" text', ['"a,b"', 'text']];
+        yield 'comment marker inside a string literal' => ["a text DEFAULT '-- not a comment', b", ['a', 'text', 'DEFAULT', "'-- not a comment'", ',', 'b']];
         yield 'doubled quote' => ["'it''s, fine'", ["'it''s, fine'"]];
         yield 'word ending in e before a string' => ["name'path\\'", ['name', "'path\\'"]];
         yield 'escape string' => ["E'a\\',b'", ["E'a\\',b'"]];

@@ -15,6 +15,191 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class PostgresParserTest extends TestCase
 {
+    public function testTablesKeepTheirDeclaredSchemaAndQuotedNames(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE reporting.summaries (id bigint NOT NULL);
+            CREATE TABLE users (id bigint);
+            CREATE TABLE public."Users" ("firstName" text);
+            SQL);
+
+        $this->assertSame('reporting', $schema->table('summaries')->schema);
+        $this->assertNull($schema->table('users')->schema);
+        $this->assertSame('firstName', $schema->table('Users', 'public')->column('firstName')->name);
+    }
+
+    #[DataProvider('keywordTypeProvider')]
+    public function testKeywordTypesNameCatalogTypes(string $declared, ?string $typeSchema, string $type): void
+    {
+        $column = (new PostgresParser)->parse("CREATE TABLE t (c {$declared});")->table('t')->column('c');
+
+        $this->assertSame([$typeSchema, $type], [$column->type->schema, $column->type->name]);
+    }
+
+    /**
+     * Provide SQL-standard type spellings, which name catalog types, and identifiers, which keep their unqualified name.
+     *
+     * @return iterable<string, array{string, ?string, string}>
+     */
+    public static function keywordTypeProvider(): iterable
+    {
+        yield 'integer' => ['integer', 'pg_catalog', 'int4'];
+        yield 'bigint' => ['bigint', 'pg_catalog', 'int8'];
+        yield 'smallint' => ['smallint', 'pg_catalog', 'int2'];
+        yield 'boolean' => ['boolean', 'pg_catalog', 'bool'];
+        yield 'double precision' => ['double precision', 'pg_catalog', 'float8'];
+        yield 'real' => ['real', 'pg_catalog', 'float4'];
+        yield 'character varying' => ['character varying(255)', 'pg_catalog', 'varchar'];
+        yield 'character' => ['character(2)', 'pg_catalog', 'bpchar'];
+        yield 'timestamp without time zone' => ['timestamp(0) without time zone', 'pg_catalog', 'timestamp'];
+        yield 'timestamp with time zone' => ['timestamp with time zone', 'pg_catalog', 'timestamptz'];
+        yield 'time with time zone' => ['time with time zone', 'pg_catalog', 'timetz'];
+        yield 'bit varying' => ['bit varying(5)', 'pg_catalog', 'varbit'];
+        yield 'interval' => ['interval day to second(3)', 'pg_catalog', 'interval'];
+        yield 'uuid' => ['uuid', null, 'uuid'];
+        yield 'jsonb' => ['jsonb', null, 'jsonb'];
+    }
+
+    public function testArrayDimensionsStaySeparateFromModifiers(): void
+    {
+        $table = (new PostgresParser)->parse('CREATE TABLE t (c character varying(50)[], d integer[][], e numeric(10,2));')->table('t');
+        $varchars = $table->column('c')->type;
+
+        $this->assertSame(['pg_catalog', 'varchar', ['50'], 1], [$varchars->schema, $varchars->name, $varchars->modifiers, $varchars->dimensions]);
+        $this->assertTrue($varchars->isArray());
+        $this->assertSame(2, $table->column('d')->type->dimensions);
+        $this->assertSame(['10', '2'], $table->column('e')->type->modifiers);
+        $this->assertFalse($table->column('e')->type->isArray());
+    }
+
+    public function testIntervalFieldsStaySeparateFromPrecision(): void
+    {
+        $table = (new PostgresParser)->parse(<<<'SQL'
+            CREATE DOMAIN public.span AS INTERVAL DAY TO SECOND(3);
+            CREATE TABLE t (a interval year to month, b interval(2), c interval minute[], d public.span, e public.span[]);
+            SQL)->table('t');
+
+        $this->assertSame('year to month', $table->column('a')->type->intervalFields);
+        $this->assertSame([], $table->column('a')->type->modifiers);
+        $this->assertNull($table->column('b')->type->intervalFields);
+        $this->assertSame(['2'], $table->column('b')->type->modifiers);
+        $this->assertSame('minute', $table->column('c')->type->intervalFields);
+        $this->assertSame(1, $table->column('c')->type->dimensions);
+
+        foreach (['d' => 0, 'e' => 1] as $column => $dimensions) {
+            $type = $table->column($column)->type;
+            $this->assertSame('span', $type->name);
+            $this->assertSame($dimensions, $type->dimensions);
+            $this->assertSame('interval', $type->base->name);
+            $this->assertSame('day to second', $type->base->intervalFields);
+            $this->assertSame(['3'], $type->base->modifiers);
+        }
+    }
+
+    public function testUndeclaredQualifiedTypesStayOpaque(): void
+    {
+        // Extension types are declared by the extension, not the dump, so there is nothing to resolve them to.
+        $schema = (new PostgresParser)->parse('CREATE TABLE t (c public.hstore);');
+        $type = $schema->table('t')->column('c')->type;
+
+        $this->assertSame(['public', 'hstore', null], [$type->schema, $type->name, $type->base]);
+        $this->assertTrue($schema->isComplete());
+    }
+
+    public function testLaterStatementsAddCompositePrimaryKeys(): void
+    {
+        // pg_dump writes primary keys as separate statements.
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE public.pivot (a bigint NOT NULL, b bigint NOT NULL);
+            ALTER TABLE ONLY public.pivot ADD CONSTRAINT pivot_pkey PRIMARY KEY (a, b);
+            SQL);
+
+        $this->assertSame(['a', 'b'], array_column($schema->table('pivot')->primaryKey()->columns, 'name'));
+    }
+
+    public function testSequenceDefaultsMarkSerialColumns(): void
+    {
+        // pg_dump rewrites bigserial into a bigint column and a sequence, so the default is the only remaining evidence.
+        $column = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE public.users (id bigint NOT NULL);
+            CREATE SEQUENCE public.users_id_seq AS integer START WITH 1;
+            ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
+            SQL)->table('users')->column('id');
+
+        $this->assertTrue($column->autoIncrement);
+        $this->assertSame("nextval('public.users_id_seq'::regclass)", $column->default);
+    }
+
+    public function testOnlyUnqualifiedSerialNamesAreSerial(): void
+    {
+        // PostgreSQL compares the folded type name to the serial names exactly.
+        $table = (new PostgresParser)->parse('CREATE TABLE t (a SERIAL8, b "serial", c "SERIAL", d public.serial);')->table('t');
+
+        foreach (['a' => 'int8', 'b' => 'int4'] as $name => $type) {
+            $column = $table->column($name);
+            $this->assertSame(['pg_catalog', $type], [$column->type->schema, $column->type->name]);
+            $this->assertTrue($column->autoIncrement);
+            $this->assertFalse($column->nullable);
+        }
+
+        foreach (['c' => [null, 'SERIAL'], 'd' => ['public', 'serial']] as $name => $type) {
+            $column = $table->column($name);
+            $this->assertSame($type, [$column->type->schema, $column->type->name]);
+            $this->assertFalse($column->autoIncrement);
+            $this->assertTrue($column->nullable);
+        }
+    }
+
+    public function testTableBodyConstraintsStaySeparateFromColumns(): void
+    {
+        $table = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE public.t (
+                id bigint NOT NULL,
+                other_id bigint,
+                CONSTRAINT t_check CHECK ((id > 0)),
+                CONSTRAINT t_other_fk FOREIGN KEY (other_id) REFERENCES public.other(id)
+            );
+            SQL)->table('t');
+
+        $this->assertSame(['id', 'other_id'], array_column($table->columns, 'name'));
+        $this->assertSame('t_check', $table->checks[0]->name);
+        $this->assertSame('t_other_fk', $table->foreignKeys[0]->name);
+    }
+
+    public function testOtherObjectsStaySeparateFromTables(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE SCHEMA reporting;
+            CREATE EXTENSION IF NOT EXISTS hstore WITH SCHEMA public;
+            CREATE TABLE public.users (id bigint);
+            CREATE VIEW public.active AS SELECT id FROM public.users;
+            CREATE INDEX users_id_idx ON public.users USING btree (id);
+            COMMENT ON TABLE public.users IS 'people';
+            SQL);
+
+        $this->assertSame(['users'], array_column($schema->tables, 'name'));
+        $this->assertSame('SELECT id FROM public.users', $schema->view('active')->definition);
+        $this->assertSame('users_id_idx', $schema->table('users')->indexes[0]->name);
+        $this->assertSame('people', $schema->table('users')->comment);
+        $this->assertTrue($schema->isComplete());
+    }
+
+    public function testRoutineBodiesDoNotDeclareTables(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE FUNCTION public.f() RETURNS trigger AS $$
+            BEGIN
+                -- CREATE TABLE public.decoy (id integer);
+                NEW.updated_at = now();
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+            CREATE TABLE public.real_table (id bigint);
+            SQL);
+
+        $this->assertSame(['real_table'], array_column($schema->tables, 'name'));
+    }
+
     public function testDomainDefaultsApplyOnlyToScalarReferences(): void
     {
         $schema = (new PostgresParser)->parse(<<<'SQL'

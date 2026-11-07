@@ -19,7 +19,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class MySqlParserTest extends TestCase
 {
-    public function testUpstreamDatabaseDump(): void
+    public function testGlitchDatabaseDump(): void
     {
         $schema = (new MySqlParser)->parse(file_get_contents(__DIR__ . '/Fixtures/MySql/glitch_main.sql'));
 
