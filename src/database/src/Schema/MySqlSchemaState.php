@@ -58,7 +58,7 @@ class MySqlSchemaState extends SchemaState
                 $end = $this->skipDumpDelimitedStatements($sql, $end, $matches[1], $sqlMode);
                 $result .= substr($sql, $offset, $end - $offset);
             } else {
-                if (preg_match('/^(?:\/\*(?:!|M!)\d+\s*)?SET\b[^\r\n]*?\bSQL_MODE\s*=\s*[\'"]([A-Z_,]*)[\'"]/i', $line, $matches)) {
+                if (preg_match('/^(?:\/\*(?:!|M!)\d+\s*)?SET\b[^\r\n]*?\bSQL_MODE\s*=\s*[\'"]([A-Z0-9_,]*)[\'"]/i', $line, $matches)) {
                     $sqlMode = $matches[1];
                 }
 
@@ -156,7 +156,7 @@ class MySqlSchemaState extends SchemaState
                 }
 
                 // Each authored body has a literal mode assignment; generated restores need no saved-mode map.
-                if (preg_match('/\GSET\s+(?:SESSION\s+)?SQL_MODE\s*=\s*[\'"]([A-Z_,]*)[\'"]/i', $sql, $matches, 0, $offset)) {
+                if (preg_match('/\GSET\s+(?:SESSION\s+)?SQL_MODE\s*=\s*[\'"]([A-Z0-9_,]*)[\'"]/i', $sql, $matches, 0, $offset)) {
                     $modes = explode(',', strtoupper($matches[1]));
                     $noBackslashEscapes = in_array('NO_BACKSLASH_ESCAPES', $modes, true);
                     $ansiQuotes = in_array('ANSI_QUOTES', $modes, true) || in_array('ANSI', $modes, true);

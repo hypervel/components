@@ -12,6 +12,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\TestCase;
 use Pdo\Mysql;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionMethod;
 use RuntimeException;
 use Symfony\Component\Process\Exception\ProcessFailedException;
@@ -20,10 +21,17 @@ use Throwable;
 
 class DatabaseMySqlSchemaStateTest extends TestCase
 {
-    public function testCounterCleanupPreservesLiteralsAndAuthoredStatements(): void
+    #[TestWith([''])]
+    #[TestWith(['MYSQL40,'])]
+    public function testCounterCleanupPreservesLiteralsAndAuthoredStatements(string $modePrefix): void
     {
         // Adapted native output: keep the unwrapped NBE assignment when regenerating (MariaDB MDEV-30295).
-        $sql = file_get_contents(__DIR__ . '/Fixtures/mysql-schema-counters.sql');
+        // The prefix checks mode names with digits, such as MariaDB's MYSQL40, both outside and inside a DELIMITER section.
+        $sql = str_replace(
+            "= 'NO_BACKSLASH_ESCAPES'",
+            "= '{$modePrefix}NO_BACKSLASH_ESCAPES'",
+            file_get_contents(__DIR__ . '/Fixtures/mysql-schema-counters.sql'),
+        );
         $expected = str_replace([
             ') ENGINE=InnoDB AUTO_INCREMENT=20',
             ') /*!50100 TABLESPACE `example` */ ENGINE=InnoDB AUTO_INCREMENT=60',

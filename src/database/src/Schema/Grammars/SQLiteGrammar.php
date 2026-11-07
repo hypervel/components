@@ -405,7 +405,8 @@ class SQLiteGrammar extends Grammar
         if ($autoIncrementColumn !== null) {
             $sequenceTable = $this->wrapValue($schema ?? 'main') . '.sqlite_sequence';
             $physicalName = $this->connection->getTablePrefix() . $tableName;
-            // Copying surviving rows must not discard the IDs already allocated and deleted.
+            // Copying surviving rows must not discard the IDs already allocated and deleted. SQLite creates the
+            // temporary table's sequence row even when the copy inserts no rows, so this update always has a row.
             $sequenceUpdate = sprintf(
                 'update %s set seq = max(seq, coalesce((select seq from %s where name = %s collate nocase), 0)) where name = %s',
                 $sequenceTable,
