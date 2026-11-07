@@ -98,6 +98,24 @@ class PostgresParserTest extends TestCase
         $this->assertTrue($schema->isComplete());
     }
 
+    public function testRecursiveAlterSkipsATableRecreatedAfterItsChildWasDropped(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE parent (id integer);
+            CREATE TABLE child () INHERITS (parent);
+            CREATE TABLE part (id integer) PARTITION BY RANGE (id);
+            CREATE TABLE part_one PARTITION OF part FOR VALUES FROM (1) TO (10);
+            DROP TABLE child, part_one;
+            CREATE TABLE child (id integer);
+            CREATE TABLE part_one (id integer);
+            ALTER TABLE parent ALTER COLUMN id SET DEFAULT 9;
+            ALTER TABLE part ALTER COLUMN id SET DEFAULT 9;
+            SQL);
+
+        $this->assertNull($schema->table('child')->column('id')->default);
+        $this->assertNull($schema->table('part_one')->column('id')->default);
+    }
+
     public function testRecursiveAlterVisitsDiamondDescendantsOnceAndDoesNotCopyPrimaryKeys(): void
     {
         $schema = (new PostgresParser)->parse(<<<'SQL'

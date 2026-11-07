@@ -122,6 +122,8 @@ final class TokenStream
 
     /**
      * Consume a sequence of keywords when all of them are next.
+     *
+     * @phpstan-impure
      */
     public function accept(string $keyword, string ...$following): bool
     {
@@ -137,6 +139,8 @@ final class TokenStream
 
     /**
      * Consume the current token and get its decoded value when it is a word or quoted identifier.
+     *
+     * @phpstan-impure
      */
     public function acceptName(): ?string
     {
@@ -155,6 +159,8 @@ final class TokenStream
 
     /**
      * Consume the given punctuation when it is next.
+     *
+     * @phpstan-impure
      */
     public function acceptSymbol(string $symbol): bool
     {
@@ -219,6 +225,8 @@ final class TokenStream
      * Returns whether anything was consumed.
      *
      * @param array<string, true> $keywords
+     *
+     * @phpstan-impure
      */
     public function skipExpression(array $keywords): bool
     {
@@ -281,6 +289,8 @@ final class TokenStream
 
     /**
      * Get the decoded value of the current token or one after it.
+     *
+     * @phpstan-impure
      */
     public function value(int $ahead = 0): string
     {
@@ -291,6 +301,8 @@ final class TokenStream
 
     /**
      * Get the source text from an offset through the most recently consumed token.
+     *
+     * @phpstan-impure
      */
     public function spanFrom(int $start): string
     {

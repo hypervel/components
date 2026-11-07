@@ -96,6 +96,18 @@ abstract class Parser implements ParserContract
     }
 
     /**
+     * Read the name of a table or view, which belongs to the default schema when unqualified.
+     */
+    protected function parseRelationName(TokenStream $tokens, ParseState $state, string $description): TableReference
+    {
+        $reference = $this->parseQualifiedName($tokens, $description);
+
+        return $reference->schema === null && $state->defaultSchema !== null
+            ? new TableReference($reference->name, $state->defaultSchema)
+            : $reference;
+    }
+
+    /**
      * Read a parenthesized list of identifiers.
      *
      * @return list<string>
@@ -245,11 +257,19 @@ abstract class Parser implements ParserContract
     }
 
     /**
+     * Read the name given by a CONSTRAINT keyword, if any.
+     */
+    protected function parseConstraintName(TokenStream $tokens): ?string
+    {
+        return $tokens->accept('CONSTRAINT') ? $this->parseName($tokens, 'a constraint name') : null;
+    }
+
+    /**
      * Read a table constraint, keeping an unsupported one as a table issue.
      */
     protected function parseTableConstraint(TokenStream $tokens, ParseState $state, TableDefinition $table): void
     {
-        $name = $tokens->accept('CONSTRAINT') ? $this->parseName($tokens, 'a constraint name') : null;
+        $name = $this->parseConstraintName($tokens);
 
         if (! $this->parseConstraint($tokens, $state, $table, null, $name)) {
             $table->issues[] = $state->issue('A table constraint could not be represented.');
@@ -277,7 +297,7 @@ abstract class Parser implements ParserContract
         $table->columns[$name] = $column;
 
         while (! $this->atEntryEnd($tokens)) {
-            $constraint = $tokens->accept('CONSTRAINT') ? $this->parseName($tokens, 'a constraint name') : null;
+            $constraint = $this->parseConstraintName($tokens);
 
             if (! $this->parseColumnConstraint($tokens, $state, $table, $column, $constraint)) {
                 $table->issues[] = $state->issue("Column [{$name}] has unsupported declaration syntax.");
@@ -316,9 +336,106 @@ abstract class Parser implements ParserContract
                 $column->collation = $this->parseCollation($tokens);
 
                 return true;
+            case 'GENERATED':
+                if ($tokens->accept('GENERATED', 'ALWAYS', 'AS')) {
+                    $column->generation = $this->parseGeneration($tokens);
+
+                    return true;
+                }
+
+                break;
         }
 
         return $this->parseConstraint($tokens, $state, $table, $column->name, $name);
+    }
+
+    /**
+     * Read a generated column's parenthesized expression and kind, which is virtual unless stored.
+     */
+    protected function parseGeneration(TokenStream $tokens): Generation
+    {
+        $expression = $this->parseGroup($tokens);
+
+        if ($tokens->accept('STORED')) {
+            return new Generation(GenerationType::Stored, $expression);
+        }
+
+        $tokens->accept('VIRTUAL');
+
+        return new Generation(GenerationType::Virtual, $expression);
+    }
+
+    /**
+     * Make the columns of a primary key non-null on a table.
+     */
+    protected function markPrimaryKeyColumnsNotNull(Index $index, TableDefinition $table): void
+    {
+        foreach ($index->columns as $key) {
+            $column = $key->name === null ? null : ($table->columns[$key->name] ?? null);
+
+            if ($column !== null) {
+                $column->nullable = false;
+            }
+        }
+    }
+
+    /**
+     * Read a parenthesized list of index keys.
+     *
+     * @return list<IndexColumn>
+     */
+    protected function parseIndexColumns(TokenStream $tokens, ParseState $state, TableDefinition $table): array
+    {
+        $tokens->expectSymbol('(', 'Expected an index key list');
+        $columns = [];
+
+        do {
+            $columns[] = $this->parseIndexColumn($tokens, $state, $table);
+        } while ($tokens->acceptSymbol(','));
+
+        $tokens->expectSymbol(')', 'Expected the end of the index key list');
+
+        return $columns;
+    }
+
+    /**
+     * Read an index key without confusing an expression with a column name.
+     */
+    abstract protected function parseIndexColumn(TokenStream $tokens, ParseState $state, TableDefinition $table): IndexColumn;
+
+    /**
+     * Read a foreign key's match mode and referential actions, which can come in any order.
+     *
+     * @return array{ForeignKeyMatch, ReferentialAction, ReferentialAction} the match mode, then the update and delete actions
+     */
+    protected function parseForeignKeyRules(TokenStream $tokens, ParseState $state, TableDefinition $table): array
+    {
+        $match = ForeignKeyMatch::Simple;
+        $onUpdate = $onDelete = ReferentialAction::NoAction;
+
+        while (true) {
+            if ($tokens->accept('MATCH')) {
+                $match = match ($tokens->keyword()) {
+                    'FULL' => ForeignKeyMatch::Full,
+                    'PARTIAL' => ForeignKeyMatch::Partial,
+                    'SIMPLE' => ForeignKeyMatch::Simple,
+                    default => throw $tokens->error('Expected a foreign key match type'),
+                };
+                $tokens->next();
+            } elseif ($tokens->accept('ON', 'UPDATE')) {
+                $onUpdate = $this->parseReferentialAction($tokens);
+            } elseif ($tokens->accept('ON', 'DELETE')) {
+                $onDelete = $this->parseReferentialAction($tokens);
+            } else {
+                return [$match, $onUpdate, $onDelete];
+            }
+
+            // PostgreSQL can limit a SET NULL or SET DEFAULT action to some of the key's columns.
+            if ($tokens->isSymbol('(')) {
+                $this->parseGroup($tokens);
+                $table->issues[] = $state->issue('A foreign key action applies to only some of its columns.');
+            }
+        }
     }
 
     /**
@@ -334,6 +451,52 @@ abstract class Parser implements ParserContract
             $tokens->accept('SET', 'DEFAULT') => ReferentialAction::SetDefault,
             default => throw $tokens->error('Expected a referential action'),
         };
+    }
+
+    /**
+     * Read a view from its name, without inferring the types its query produces.
+     */
+    protected function parseCreateView(TokenStream $tokens, ParseState $state, bool $materialized = false): void
+    {
+        $conditional = $tokens->accept('IF', 'NOT', 'EXISTS');
+        $reference = $this->parseRelationName($tokens, $state, 'a view name');
+
+        if ($this->isTemporary($reference) || ($conditional && $this->relationExists($state, $reference->schema, $reference->name))) {
+            return;
+        }
+
+        // A column list and view options can precede the query.
+        while (! $tokens->atEnd() && ! $tokens->is('AS')) {
+            if ($tokens->isSymbol('(')) {
+                $this->parseGroup($tokens);
+            } else {
+                $tokens->next();
+            }
+        }
+
+        if (! $tokens->accept('AS')) {
+            throw $tokens->error('Expected a view query');
+        }
+
+        $state->addView(new View($reference->name, $this->parseViewQuery($tokens), $reference->schema, $materialized));
+    }
+
+    /**
+     * Determine whether a name belongs to the session's temporary schema.
+     */
+    protected function isTemporary(TableReference $reference): bool
+    {
+        return false;
+    }
+
+    /**
+     * Determine whether a known relation already has the given name.
+     */
+    protected function relationExists(ParseState $state, ?string $schema, string $name): bool
+    {
+        $key = ParseState::key($schema, $name);
+
+        return isset($state->tables[$key]) || isset($state->views[$key]);
     }
 
     /**

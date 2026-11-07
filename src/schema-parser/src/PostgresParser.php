@@ -183,9 +183,9 @@ class PostgresParser extends Parser
         } elseif ($tokens->accept('FOREIGN', 'TABLE')) {
             $this->parseCreateTable($tokens, $state, true);
         } elseif ($tokens->accept('VIEW')) {
-            $this->parseCreateView($tokens, $state, false);
+            $this->parseCreateView($tokens, $state);
         } elseif ($tokens->accept('MATERIALIZED', 'VIEW')) {
-            $this->parseCreateView($tokens, $state, true);
+            $this->parseCreateView($tokens, $state, materialized: true);
         } elseif ($tokens->accept('TYPE')) {
             $this->parseCreateEnum($tokens, $state);
         } elseif ($tokens->accept('DOMAIN')) {
@@ -201,7 +201,7 @@ class PostgresParser extends Parser
         $conditional = $tokens->accept('IF', 'NOT', 'EXISTS');
         $reference = $this->parseQualifiedName($tokens, 'a table name');
 
-        if ($reference->schema === 'pg_temp' || ($conditional && $this->relationExists($state, $reference->schema, $reference->name))) {
+        if ($this->isTemporary($reference) || ($conditional && $this->relationExists($state, $reference->schema, $reference->name))) {
             return;
         }
 
@@ -267,13 +267,19 @@ class PostgresParser extends Parser
     }
 
     /**
+     * Determine whether a name belongs to the session's temporary schema.
+     */
+    protected function isTemporary(TableReference $reference): bool
+    {
+        return $reference->schema === 'pg_temp';
+    }
+
+    /**
      * Determine whether a known table, view or index already has the given relation name.
      */
-    private function relationExists(ParseState $state, ?string $schema, string $name): bool
+    protected function relationExists(ParseState $state, ?string $schema, string $name): bool
     {
-        $key = ParseState::key($schema, $name);
-
-        return isset($state->tables[$key]) || isset($state->views[$key]) || $state->hasIndex($schema, $name);
+        return parent::relationExists($state, $schema, $name) || $state->hasIndex($schema, $name);
     }
 
     /**
@@ -683,14 +689,7 @@ class PostgresParser extends Parser
                 return true;
             }
 
-            $expression = $this->parseGroup($tokens);
-            $stored = $tokens->accept('STORED');
-
-            if (! $stored) {
-                $tokens->accept('VIRTUAL');
-            }
-
-            $column->generation = new Generation($stored ? GenerationType::Stored : GenerationType::Virtual, $expression);
+            $column->generation = $this->parseGeneration($tokens);
 
             return true;
         }
@@ -872,32 +871,7 @@ class PostgresParser extends Parser
             $table->issues[] = $state->issue('Temporal foreign key semantics are not represented.');
         }
 
-        $match = ForeignKeyMatch::Simple;
-        $onUpdate = $onDelete = ReferentialAction::NoAction;
-
-        while (true) {
-            if ($tokens->accept('MATCH')) {
-                $match = match ($tokens->keyword()) {
-                    'FULL' => ForeignKeyMatch::Full,
-                    'PARTIAL' => ForeignKeyMatch::Partial,
-                    'SIMPLE' => ForeignKeyMatch::Simple,
-                    default => throw $tokens->error('Expected a foreign key match type'),
-                };
-                $tokens->next();
-            } elseif ($tokens->accept('ON', 'UPDATE')) {
-                $onUpdate = $this->parseReferentialAction($tokens);
-            } elseif ($tokens->accept('ON', 'DELETE')) {
-                $onDelete = $this->parseReferentialAction($tokens);
-            } else {
-                break;
-            }
-
-            if ($tokens->isSymbol('(')) {
-                $this->parseGroup($tokens);
-                $table->issues[] = $state->issue('A foreign key action applies to only some of its columns.');
-            }
-        }
-
+        [$match, $onUpdate, $onDelete] = $this->parseForeignKeyRules($tokens, $state, $table);
         $flags = $this->parseConstraintFlags($tokens);
         $table->foreignKeys[] = new ForeignKey(
             $name,
@@ -989,20 +963,6 @@ class PostgresParser extends Parser
     }
 
     /**
-     * Make the columns of a primary key non-null on a table.
-     */
-    private function markPrimaryKeyColumnsNotNull(Index $index, TableDefinition $table): void
-    {
-        foreach ($index->columns as $key) {
-            $column = $key->name === null ? null : ($table->columns[$key->name] ?? null);
-
-            if ($column !== null) {
-                $column->nullable = false;
-            }
-        }
-    }
-
-    /**
      * Merge a check with an equal named one, keeping the stronger validation and enforcement.
      */
     private function mergeCheck(CheckConstraint $check, TableDefinition $table, ParseState $state): void
@@ -1083,28 +1043,9 @@ class PostgresParser extends Parser
     }
 
     /**
-     * Read a parenthesized list of index keys.
-     *
-     * @return list<IndexColumn>
-     */
-    private function parseIndexColumns(TokenStream $tokens, ParseState $state, TableDefinition $table): array
-    {
-        $tokens->expectSymbol('(', 'Expected an index key list');
-        $columns = [];
-
-        do {
-            $columns[] = $this->parseIndexColumn($tokens, $state, $table);
-        } while ($tokens->acceptSymbol(','));
-
-        $tokens->expectSymbol(')', 'Expected the end of the index key list');
-
-        return $columns;
-    }
-
-    /**
      * Read an index key without confusing an expression with a column name.
      */
-    private function parseIndexColumn(TokenStream $tokens, ParseState $state, TableDefinition $table): IndexColumn
+    protected function parseIndexColumn(TokenStream $tokens, ParseState $state, TableDefinition $table): IndexColumn
     {
         $start = $tokens->offset();
         $name = $expression = $collation = $operatorClass = null;
@@ -1186,36 +1127,6 @@ class PostgresParser extends Parser
     }
 
     /**
-     * Read a view without inferring the types its query produces.
-     */
-    private function parseCreateView(TokenStream $tokens, ParseState $state, bool $materialized): void
-    {
-        $conditional = $tokens->accept('IF', 'NOT', 'EXISTS');
-        $reference = $this->parseQualifiedName($tokens, 'a view name');
-
-        if ($reference->schema === 'pg_temp' || ($conditional && $this->relationExists($state, $reference->schema, $reference->name))) {
-            return;
-        }
-
-        while (! $tokens->atEnd() && ! $tokens->is('AS')) {
-            if ($tokens->isSymbol('(')) {
-                $this->parseGroup($tokens);
-            } else {
-                $tokens->next();
-            }
-        }
-
-        if ($tokens->accept('AS')) {
-            $definition = $this->parseViewQuery($tokens);
-        } else {
-            $state->issues[] = $state->issue("View [{$reference->name}] has no readable query definition.");
-            $definition = '';
-        }
-
-        $state->addView(new View($reference->name, $definition, $reference->schema, $materialized));
-    }
-
-    /**
      * Determine whether a WITH clause is the view's trailing check option or data option.
      */
     protected function isViewOption(TokenStream $tokens): bool
@@ -1271,7 +1182,7 @@ class PostgresParser extends Parser
         $checks = [];
 
         while (! $tokens->atEnd()) {
-            $name = $tokens->accept('CONSTRAINT') ? $this->parseName($tokens, 'a constraint name') : null;
+            $name = $this->parseConstraintName($tokens);
 
             if ($tokens->accept('NOT', 'NULL')) {
                 $nullable = false;
@@ -1701,7 +1612,7 @@ class PostgresParser extends Parser
         $applied = true;
 
         if ($tokens->accept('ADD')) {
-            $name = $tokens->accept('CONSTRAINT') ? $this->parseName($tokens, 'a constraint name') : null;
+            $name = $this->parseConstraintName($tokens);
             $applied = $tokens->accept('CHECK');
 
             if ($applied) {
@@ -1894,21 +1805,9 @@ class PostgresParser extends Parser
         }
 
         if ($kind === 'table') {
-            $table = $state->tables[$key] ?? null;
-
-            if ($table === null) {
-                return;
+            if (isset($state->tables[$key])) {
+                $state->removeTable($key);
             }
-
-            foreach ($table->partitionOf === null ? $table->parents : [...$table->parents, $table->partitionOf] as $parent) {
-                $parentKey = $state->tableKey($parent);
-
-                if ($parentKey !== null) {
-                    unset($state->children[$parentKey][$key]);
-                }
-            }
-
-            $state->removeTable($key);
         } elseif ($kind === 'view') {
             if (isset($state->views[$key])) {
                 $state->removeView($key);

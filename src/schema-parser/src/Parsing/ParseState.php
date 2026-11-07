@@ -58,6 +58,12 @@ final class ParseState
     /** @var list<Issue> */
     public array $issues = [];
 
+    /** The schema of unqualified relation names, selected by a MySQL USE statement. */
+    public ?string $defaultSchema = null;
+
+    /** @var array<string, array{bool, bool}> MySQL SQL modes saved in user variables, as backslash-escape and ANSI-quote flags */
+    public array $savedSqlModes = [];
+
     /** The start of the statement being parsed. */
     public int $offset = 0;
 
@@ -105,11 +111,21 @@ final class ParseState
     }
 
     /**
-     * Remove a table definition.
+     * Remove a table definition, unlinking it from its inheritance and partition parents.
      */
     public function removeTable(string $key): void
     {
-        unset($this->tableNames[$this->tables[$key]->name][$key], $this->tables[$key], $this->children[$key]);
+        $table = $this->tables[$key];
+
+        foreach ($table->partitionOf === null ? $table->parents : [...$table->parents, $table->partitionOf] as $parent) {
+            $parentKey = $this->tableKey($parent);
+
+            if ($parentKey !== null) {
+                unset($this->children[$parentKey][$key]);
+            }
+        }
+
+        unset($this->tableNames[$table->name][$key], $this->tables[$key], $this->children[$key]);
         $this->refreshIndexNames($key);
     }
 
