@@ -13,7 +13,7 @@ namespace Hypervel\SchemaParser;
  * longer exist or keep their columns, and which user types may no longer exist
  * or keep their definitions. It does not list index or comment changes.
  */
-final readonly class Impact
+readonly class Impact
 {
     /**
      * Create the impact of one input.

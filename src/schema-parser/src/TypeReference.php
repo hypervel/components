@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\SchemaParser;
 
-final readonly class TypeReference
+readonly class TypeReference
 {
     /**
      * Create a PostgreSQL user type or domain reference without assuming an unspecified schema.
