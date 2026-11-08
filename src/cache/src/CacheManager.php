@@ -515,6 +515,8 @@ class CacheManager implements FactoryContract
      * Boot or tests only. Mutates the singleton's store cache; concurrent
      * coroutines may already hold a reference to the store and next resolution
      * will rebuild with fresh connections.
+     *
+     * @return $this
      */
     public function forgetDriver(array|UnitEnum|string|null $name = null): static
     {
@@ -584,6 +586,8 @@ class CacheManager implements FactoryContract
      * Tests only. Swaps the singleton's container reference; per-request use
      * races across coroutines and breaks every concurrent request resolving
      * stores through this manager.
+     *
+     * @return $this
      */
     public function setApplication(Container $app): static
     {
@@ -602,6 +606,7 @@ class CacheManager implements FactoryContract
      * contributions without memoizing them.
      *
      * @param Closure(): array<array-key, class-string> $resolver
+     * @return $this
      *
      * @throws LogicException
      */

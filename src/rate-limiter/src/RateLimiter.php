@@ -65,6 +65,8 @@ class RateLimiter extends MultipleInstanceManager
      *
      * Boot-only. The callback and store selection persist on the singleton
      * manager for the worker lifetime and affect every subsequent request.
+     *
+     * @return $this
      */
     public function for(
         UnitEnum|string $name,

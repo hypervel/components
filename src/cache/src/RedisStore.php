@@ -331,6 +331,8 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
      *
      * Boot-only. Mutates state on a per-worker singleton; runtime mutation
      * races across coroutines.
+     *
+     * @return $this
      */
     public function setTagMode(TagMode|string $mode): static
     {
@@ -404,6 +406,8 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
      *
      * Boot-only. Persists on the cached store for the worker lifetime;
      * per-request use races across coroutines.
+     *
+     * @return $this
      */
     public function setLockConnection(string $connection): static
     {

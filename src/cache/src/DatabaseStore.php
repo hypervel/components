@@ -447,6 +447,8 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
      *
      * Boot-only. Persists on the cached store for the worker lifetime;
      * per-request use races across coroutines.
+     *
+     * @return $this
      */
     public function setConnection(string $connectionName): static
     {
@@ -468,6 +470,8 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
      *
      * Boot-only. Persists on the cached store for the worker lifetime;
      * per-request use races across coroutines.
+     *
+     * @return $this
      */
     public function setLockConnection(string $connectionName): static
     {

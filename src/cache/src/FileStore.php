@@ -426,6 +426,8 @@ class FileStore implements CanFlushLocks, LockProvider, Store
      *
      * Boot-only. Persists on the cached store for the worker lifetime;
      * per-request use races across coroutines.
+     *
+     * @return $this
      */
     public function setDirectory(string $directory): static
     {
@@ -439,6 +441,8 @@ class FileStore implements CanFlushLocks, LockProvider, Store
      *
      * Boot-only. Persists on the cached store for the worker lifetime;
      * per-request use races across coroutines.
+     *
+     * @return $this
      */
     public function setLockDirectory(?string $lockDirectory): static
     {

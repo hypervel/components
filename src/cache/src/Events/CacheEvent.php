@@ -37,6 +37,8 @@ abstract class CacheEvent
 
     /**
      * Set the tags for the cache event.
+     *
+     * @return $this
      */
     public function setTags(array $tags): static
     {
