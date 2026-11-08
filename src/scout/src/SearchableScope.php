@@ -49,7 +49,6 @@ class SearchableScope implements Scope
                 /* @phpstan-ignore method.notFound (searchable() macro is registered by the Searchable trait) */
                 $searchableModels->searchable();
 
-                // @phpstan-ignore staticMethod.notFound (local macros retain their lexical class scope at runtime)
                 static::dispatchEvent(ModelsImported::class, $models);
                 Scout::reportImportProgress($models);
             }, $builder->qualifyColumn($scoutKeyName), $scoutKeyName);
@@ -66,7 +65,6 @@ class SearchableScope implements Scope
                 /* @phpstan-ignore method.notFound (unsearchable() macro is registered by the Searchable trait) */
                 $models->unsearchable();
 
-                // @phpstan-ignore staticMethod.notFound (local macros retain their lexical class scope at runtime)
                 static::dispatchEvent(ModelsFlushed::class, $models);
             }, $builder->qualifyColumn($scoutKeyName), $scoutKeyName);
         });
