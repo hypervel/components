@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\SchemaParser;
 
-final readonly class Domain
+readonly class Domain
 {
     /**
      * Create a domain definition.

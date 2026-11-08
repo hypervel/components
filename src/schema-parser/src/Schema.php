@@ -6,7 +6,7 @@ namespace Hypervel\SchemaParser;
 
 use InvalidArgumentException;
 
-final readonly class Schema
+readonly class Schema
 {
     /** @var array<array-key, array<string, Table>> */
     private array $tablesByName;

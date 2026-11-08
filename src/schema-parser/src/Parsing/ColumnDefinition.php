@@ -13,7 +13,7 @@ use Hypervel\SchemaParser\Identity;
  *
  * @internal
  */
-final class ColumnDefinition
+class ColumnDefinition
 {
     public bool $nullable = true;
 

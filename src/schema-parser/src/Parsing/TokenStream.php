@@ -18,7 +18,7 @@ use Hypervel\SchemaParser\ParseException;
  *
  * @internal
  */
-final class TokenStream
+class TokenStream
 {
     /** Keyword operators that take an operand after them, in the expressions that clause keywords can end. */
     private const array OPERATORS = [

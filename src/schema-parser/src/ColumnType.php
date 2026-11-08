@@ -9,7 +9,7 @@ namespace Hypervel\SchemaParser;
  * PostgreSQL standard aliases use canonical names, while quoted user types
  * retain their case and qualification.
  */
-final readonly class ColumnType
+readonly class ColumnType
 {
     /**
      * Create a column type definition.

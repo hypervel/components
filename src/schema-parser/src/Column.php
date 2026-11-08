@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\SchemaParser;
 
-final readonly class Column
+readonly class Column
 {
     /**
      * Create a column definition.

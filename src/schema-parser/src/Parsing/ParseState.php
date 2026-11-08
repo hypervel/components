@@ -21,7 +21,7 @@ use Hypervel\SchemaParser\View;
  *
  * @internal
  */
-final class ParseState
+class ParseState
 {
     /** @var array<string, TableDefinition> */
     public array $tables = [];

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\SchemaParser;
 
-final readonly class Generation
+readonly class Generation
 {
     /**
      * Create a generated column definition.
