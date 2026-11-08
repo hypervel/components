@@ -17,7 +17,7 @@ use PHPStan\Type\Type;
 
 /** @internal */
 #[AutowiredService]
-final class DoubleUnderscoreHelperReturnTypeExtension implements DynamicFunctionReturnTypeExtension
+class DoubleUnderscoreHelperReturnTypeExtension implements DynamicFunctionReturnTypeExtension
 {
     /**
      * Determine whether the function is the __() helper.

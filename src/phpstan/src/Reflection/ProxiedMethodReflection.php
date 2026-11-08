@@ -21,7 +21,7 @@ use function array_map;
 /**
  * Describe a method that a proxy passes to its target, returning what the proxy returns.
  */
-final class ProxiedMethodReflection implements MethodReflection
+class ProxiedMethodReflection implements MethodReflection
 {
     /**
      * Create a proxied method reflection.

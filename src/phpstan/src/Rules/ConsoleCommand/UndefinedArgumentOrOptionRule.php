@@ -23,7 +23,7 @@ use function sprintf;
 
 /** @implements Rule<MethodCall> */
 #[AutowiredService]
-final class UndefinedArgumentOrOptionRule implements Rule
+class UndefinedArgumentOrOptionRule implements Rule
 {
     /**
      * Create a new rule instance.

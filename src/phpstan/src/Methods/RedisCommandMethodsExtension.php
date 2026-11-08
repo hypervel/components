@@ -27,7 +27,7 @@ use function strtolower;
  * as macros, keep their exact case. The proxy and manager reach this through their mixins.
  */
 #[AutowiredService]
-final class RedisCommandMethodsExtension implements MethodsClassReflectionExtension
+class RedisCommandMethodsExtension implements MethodsClassReflectionExtension
 {
     /**
      * RedisConnection's command tag names, keyed by their lowercase form.

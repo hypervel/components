@@ -31,7 +31,7 @@ use function substr;
 use const DIRECTORY_SEPARATOR;
 
 #[AutowiredService]
-final class ViewFileHelper
+class ViewFileHelper
 {
     use HasContainer;
 

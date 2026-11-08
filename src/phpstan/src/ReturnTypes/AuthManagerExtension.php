@@ -20,7 +20,7 @@ use function array_map;
 use function count;
 
 #[AutowiredService]
-final class AuthManagerExtension implements DynamicMethodReturnTypeExtension
+class AuthManagerExtension implements DynamicMethodReturnTypeExtension
 {
     use Concerns\HasContainer;
     use Concerns\LoadsAuthModel;

@@ -51,7 +51,7 @@ use function str_contains;
  * Types the arrays a model serializes to from its database attributes, appends and visibility.
  */
 #[AutowiredService]
-final class ModelSerializationDynamicMethodReturnTypeExtension implements DynamicMethodReturnTypeExtension
+class ModelSerializationDynamicMethodReturnTypeExtension implements DynamicMethodReturnTypeExtension
 {
     /**
      * Create a new model serialization return type extension instance.

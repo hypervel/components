@@ -21,7 +21,7 @@ use function count;
 
 /** @internal */
 #[AutowiredService]
-final class AuthExtension implements DynamicStaticMethodReturnTypeExtension
+class AuthExtension implements DynamicStaticMethodReturnTypeExtension
 {
     use Concerns\HasContainer;
     use Concerns\LoadsAuthModel;

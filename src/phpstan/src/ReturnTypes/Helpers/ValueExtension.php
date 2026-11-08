@@ -21,7 +21,7 @@ use function count;
 
 /** @internal */
 #[AutowiredService]
-final class ValueExtension implements DynamicFunctionReturnTypeExtension
+class ValueExtension implements DynamicFunctionReturnTypeExtension
 {
     /**
      * Determine whether the function is value().

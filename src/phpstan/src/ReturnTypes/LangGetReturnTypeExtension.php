@@ -20,7 +20,7 @@ use PHPStan\Type\UnionType;
 
 /** @internal */
 #[AutowiredService]
-final class LangGetReturnTypeExtension implements DynamicStaticMethodReturnTypeExtension
+class LangGetReturnTypeExtension implements DynamicStaticMethodReturnTypeExtension
 {
     /**
      * Get the class whose static calls are typed.

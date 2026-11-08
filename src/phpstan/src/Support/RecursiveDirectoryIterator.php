@@ -27,7 +27,7 @@ use RecursiveDirectoryIterator as SplRecursiveDirectoryIterator;
  * This is the approach symfony/finder takes for non-rewindable streams —
  * see Symfony\Component\Finder\Iterator\RecursiveDirectoryIterator.
  */
-final class RecursiveDirectoryIterator extends SplRecursiveDirectoryIterator
+class RecursiveDirectoryIterator extends SplRecursiveDirectoryIterator
 {
     private bool $ignoreFirstRewind = true;
 

@@ -25,7 +25,7 @@ use function sprintf;
  * @implements Rule<CallLike>
  */
 #[Conditional(attribute: new AutowiredService, if: '%checkConfigTypes%')]
-final class ConfigTypeRule implements Rule
+class ConfigTypeRule implements Rule
 {
     /**
      * The value types the typed getters require, as the error message names them.

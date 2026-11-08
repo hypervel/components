@@ -23,7 +23,7 @@ use function ltrim;
 use function strcasecmp;
 
 #[AutowiredService]
-final class AppMakeHelper
+class AppMakeHelper
 {
     use HasContainer;
 

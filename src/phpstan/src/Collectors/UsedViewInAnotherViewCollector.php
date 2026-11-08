@@ -17,7 +17,7 @@ use function preg_match_all;
 use const PREG_SET_ORDER;
 
 #[AutowiredService]
-final class UsedViewInAnotherViewCollector
+class UsedViewInAnotherViewCollector
 {
     /** @see https://regex101.com/r/OyHHCY/1 */
     private const string VIEW_NAME_REGEX = '/@(extends|include(If|Unless|When|First)?)(\(.*?([\'"])(.*?)([\'"])([),]))/m';

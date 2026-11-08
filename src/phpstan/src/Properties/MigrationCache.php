@@ -40,7 +40,7 @@ use const LOCK_UN;
 use const PHP_VERSION;
 
 #[AutowiredService]
-final class MigrationCache
+class MigrationCache
 {
     private const string CACHE_PREFIX = 'hypervel_migrations_';
 

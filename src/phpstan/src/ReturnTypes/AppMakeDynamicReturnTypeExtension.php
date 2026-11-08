@@ -15,7 +15,7 @@ use PHPStan\Type\Type;
 use function in_array;
 
 #[AutowiredService]
-final class AppMakeDynamicReturnTypeExtension implements DynamicStaticMethodReturnTypeExtension
+class AppMakeDynamicReturnTypeExtension implements DynamicStaticMethodReturnTypeExtension
 {
     /**
      * Create a new extension instance.

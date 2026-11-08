@@ -20,7 +20,7 @@ use function is_object;
 
 /** @internal */
 #[AutowiredService]
-final class FacadesMethodsExtension implements MethodsClassReflectionExtension
+class FacadesMethodsExtension implements MethodsClassReflectionExtension
 {
     /** @var array<string, false|MethodReflection> */
     private array $cache = [];

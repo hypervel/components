@@ -32,7 +32,7 @@ use function is_string;
  * types describe the disk, because building a disk can need credentials or I/O.
  */
 #[AutowiredService]
-final class FilesystemDiskHelper
+class FilesystemDiskHelper
 {
     use HasContainer;
 

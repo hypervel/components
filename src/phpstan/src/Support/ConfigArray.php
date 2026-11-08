@@ -14,7 +14,7 @@ use PHPStan\Type\Type;
  *
  * @internal
  */
-final readonly class ConfigArray
+readonly class ConfigArray
 {
     /**
      * Create a new config array instance.

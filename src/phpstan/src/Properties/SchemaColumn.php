@@ -7,7 +7,7 @@ namespace Hypervel\PHPStan\Properties;
 use Hypervel\SchemaParser\ColumnType;
 
 /** @see https://github.com/psalm/laravel-psalm-plugin/blob/master/src/SchemaColumn.php */
-final class SchemaColumn
+class SchemaColumn
 {
     /**
      * Create a new schema column instance.

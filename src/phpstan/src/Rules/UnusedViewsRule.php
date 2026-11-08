@@ -33,7 +33,7 @@ use function view;
 
 /** @implements Rule<CollectedDataNode> */
 #[Conditional(attribute: new AutowiredService, if: '%checkUnusedViews%')]
-final class UnusedViewsRule implements Rule
+class UnusedViewsRule implements Rule
 {
     /** @var null|list<string> */
     private ?array $viewsUsedInOtherViews = null;

@@ -19,7 +19,7 @@ use function getcwd;
  *
  * @internal
  */
-final class ApplicationResolver
+class ApplicationResolver
 {
     /**
      * Create a package application from its Testbench configuration.

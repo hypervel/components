@@ -14,7 +14,7 @@ use PHPStan\Reflection\MethodsClassReflectionExtension;
 use PHPStan\Type\Type;
 
 #[AutowiredService]
-final class HigherOrderTapProxyExtension implements MethodsClassReflectionExtension
+class HigherOrderTapProxyExtension implements MethodsClassReflectionExtension
 {
     /**
      * Determine whether the tapped object has the public method.

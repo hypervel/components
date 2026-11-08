@@ -11,7 +11,7 @@ use PHPStan\Reflection\PropertyReflection;
 
 /** @internal */
 #[AutowiredService]
-final class ModelAccessorExtension implements PropertiesClassReflectionExtension
+class ModelAccessorExtension implements PropertiesClassReflectionExtension
 {
     /**
      * Create a new model accessor extension instance.

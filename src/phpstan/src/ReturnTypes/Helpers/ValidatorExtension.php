@@ -18,7 +18,7 @@ use PHPStan\Type\Type;
 
 /** @internal */
 #[AutowiredService]
-final class ValidatorExtension implements DynamicFunctionReturnTypeExtension
+class ValidatorExtension implements DynamicFunctionReturnTypeExtension
 {
     use InfersFactoryHelperCalls;
 

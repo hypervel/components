@@ -22,7 +22,7 @@ use function in_array;
 
 /** @implements Collector<MethodCall, string> */
 #[AutowiredService]
-final class UsedEmailViewCollector implements Collector
+class UsedEmailViewCollector implements Collector
 {
     private const array VIEW_METHOD_NAMES = ['view', 'html', 'text', 'markdown'];
 

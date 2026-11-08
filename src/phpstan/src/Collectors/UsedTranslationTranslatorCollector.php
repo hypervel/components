@@ -22,7 +22,7 @@ use function in_array;
  * @implements Collector<MethodCall, TranslationLookup>
  */
 #[AutowiredService]
-final class UsedTranslationTranslatorCollector implements Collector
+class UsedTranslationTranslatorCollector implements Collector
 {
     use CollectsTranslationLookups;
 

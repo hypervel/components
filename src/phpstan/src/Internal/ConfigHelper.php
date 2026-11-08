@@ -45,7 +45,7 @@ use function strtolower;
 
 /** @internal */
 #[AutowiredService]
-final class ConfigHelper
+class ConfigHelper
 {
     /**
      * The repository and Config facade methods whose return types come from config values.

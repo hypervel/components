@@ -22,7 +22,7 @@ use PHPStan\Type\Type;
 use function count;
 
 #[AutowiredService]
-final class CollectExtension implements DynamicFunctionReturnTypeExtension
+class CollectExtension implements DynamicFunctionReturnTypeExtension
 {
     private ?Type $emptyCollectionType = null;
 

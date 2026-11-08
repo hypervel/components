@@ -31,7 +31,7 @@ use function count;
 use function strtolower;
 
 #[AutowiredService]
-final class GuardExtension implements DynamicMethodReturnTypeExtension
+class GuardExtension implements DynamicMethodReturnTypeExtension
 {
     use Concerns\HasContainer;
     use Concerns\LoadsAuthModel;

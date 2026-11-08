@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\PHPStan\Unit\Support;
 
-final class BrokenRewindDirectoryStream
+class BrokenRewindDirectoryStream
 {
     public const string SCHEME = 'hypervel-broken-directory';
 

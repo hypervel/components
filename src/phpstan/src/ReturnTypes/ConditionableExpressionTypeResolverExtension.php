@@ -38,7 +38,7 @@ use function max;
  * @internal
  */
 #[AutowiredService]
-final class ConditionableExpressionTypeResolverExtension implements ExpressionTypeResolverExtension
+class ConditionableExpressionTypeResolverExtension implements ExpressionTypeResolverExtension
 {
     /**
      * The parameters of when() and unless(), in order.

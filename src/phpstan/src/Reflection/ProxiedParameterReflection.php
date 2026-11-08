@@ -14,7 +14,7 @@ use function array_map;
  * Describe a target method's by-reference parameter as a proxy receives it. A proxy's __call()
  * gets the argument values, so the caller's variable is never passed by reference.
  */
-final class ProxiedParameterReflection implements ParameterReflection
+class ProxiedParameterReflection implements ParameterReflection
 {
     /**
      * Create a proxied parameter reflection.

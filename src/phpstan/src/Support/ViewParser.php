@@ -13,7 +13,7 @@ use PHPStan\Parser\ParserErrorsException;
 use function array_key_exists;
 
 #[AutowiredService]
-final class ViewParser
+class ViewParser
 {
     /** @var array<string, Stmt[]> */
     private array $nodes = [];

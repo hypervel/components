@@ -18,7 +18,7 @@ use PHPStan\Type\Type;
 
 /** @internal */
 #[AutowiredService]
-final class ResponseExtension implements DynamicFunctionReturnTypeExtension
+class ResponseExtension implements DynamicFunctionReturnTypeExtension
 {
     use InfersFactoryHelperCalls;
 

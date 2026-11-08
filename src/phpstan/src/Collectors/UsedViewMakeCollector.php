@@ -17,7 +17,7 @@ use PHPStan\Type\ObjectType;
 
 /** @implements Collector<MethodCall, string> */
 #[AutowiredService]
-final class UsedViewMakeCollector implements Collector
+class UsedViewMakeCollector implements Collector
 {
     /**
      * Get the node type the collector inspects.

@@ -28,7 +28,7 @@ use function substr;
 
 /** @internal */
 #[AutowiredService]
-final class ModelRelationsExtension implements PropertiesClassReflectionExtension
+class ModelRelationsExtension implements PropertiesClassReflectionExtension
 {
     /**
      * Create a new model relations extension instance.

@@ -20,7 +20,7 @@ use Psr\Log\LoggerInterface;
  * @internal
  */
 #[AutowiredService]
-final class LoggerExtension implements DynamicFunctionReturnTypeExtension
+class LoggerExtension implements DynamicFunctionReturnTypeExtension
 {
     use InfersBoundHelperCalls;
 

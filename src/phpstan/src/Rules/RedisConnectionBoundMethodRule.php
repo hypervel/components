@@ -33,7 +33,7 @@ use function strtolower;
  * @implements Rule<MethodCall>
  */
 #[Conditional(attribute: new AutowiredService, if: '%checkRedisConnectionBoundMethods%')]
-final class RedisConnectionBoundMethodRule implements Rule
+class RedisConnectionBoundMethodRule implements Rule
 {
     /**
      * The lowercase method names the proxy rejects, as keys.

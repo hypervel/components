@@ -15,7 +15,7 @@ use PHPStan\Type\Type;
 
 /** @internal */
 #[AutowiredService]
-final class HigherOrderTapProxyExtension implements DynamicMethodReturnTypeExtension
+class HigherOrderTapProxyExtension implements DynamicMethodReturnTypeExtension
 {
     /**
      * Get the class the extension applies to.

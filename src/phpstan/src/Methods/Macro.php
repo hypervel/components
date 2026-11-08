@@ -19,7 +19,7 @@ use PHPStan\Type\Type;
 
 use function array_key_exists;
 
-final class Macro implements MethodReflection
+class Macro implements MethodReflection
 {
     /**
      * Whether the macro is called statically.

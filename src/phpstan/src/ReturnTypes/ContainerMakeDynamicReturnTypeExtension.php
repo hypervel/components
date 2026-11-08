@@ -20,7 +20,7 @@ use function in_array;
  * is omitted because the container does not support ArrayAccess.
  */
 #[AutowiredService]
-final class ContainerMakeDynamicReturnTypeExtension implements DynamicMethodReturnTypeExtension
+class ContainerMakeDynamicReturnTypeExtension implements DynamicMethodReturnTypeExtension
 {
     /**
      * Create a new extension instance.

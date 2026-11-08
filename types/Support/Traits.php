@@ -27,7 +27,7 @@ $conditionable = function (ConditionableTarget $target, bool $condition): void {
     assertType('1|ConditionableTarget', $target->unless($condition, fn () => 1));
 };
 
-final class ConditionableTarget
+class ConditionableTarget
 {
     use Conditionable;
 }

@@ -25,7 +25,7 @@ use function sprintf;
  * @implements Rule<CallLike>
  */
 #[Conditional(attribute: new AutowiredService, if: '%checkConfigTypes%')]
-final class ConfigCollectionRule implements Rule
+class ConfigCollectionRule implements Rule
 {
     /**
      * Create a new rule instance.

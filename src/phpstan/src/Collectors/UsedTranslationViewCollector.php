@@ -45,7 +45,7 @@ use const PREG_UNMATCHED_AS_NULL;
  * @phpstan-import-type TranslationLookup from CollectsTranslationLookups
  */
 #[AutowiredService]
-final class UsedTranslationViewCollector
+class UsedTranslationViewCollector
 {
     use CollectsTranslationLookups;
     use HasContainer;

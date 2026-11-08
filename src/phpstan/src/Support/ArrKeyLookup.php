@@ -25,7 +25,7 @@ use function str_contains;
  *
  * @internal
  */
-final class ArrKeyLookup
+class ArrKeyLookup
 {
     /**
      * The methods Arr::get() runs, which pull() also reads keys through.

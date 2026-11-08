@@ -20,7 +20,7 @@ use function is_object;
 
 /** @internal */
 #[AutowiredService]
-final class AuthExtension implements DynamicFunctionReturnTypeExtension
+class AuthExtension implements DynamicFunctionReturnTypeExtension
 {
     use Concerns\HasContainer;
 

@@ -9,7 +9,7 @@ use PHPStan\PhpDoc\StubFilesExtension;
 use Symfony\Component\Finder\Finder;
 
 #[AutowiredService]
-final class HypervelStubFilesExtension implements StubFilesExtension
+class HypervelStubFilesExtension implements StubFilesExtension
 {
     /**
      * Get the stub files to load.

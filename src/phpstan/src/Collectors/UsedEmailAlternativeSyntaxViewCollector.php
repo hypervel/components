@@ -19,7 +19,7 @@ use function in_array;
 
 /** @implements Collector<New_, list<string>> */
 #[AutowiredService]
-final class UsedEmailAlternativeSyntaxViewCollector implements Collector
+class UsedEmailAlternativeSyntaxViewCollector implements Collector
 {
     private const array VIEW_PARAM_NAMES = ['view', 'html', 'text', 'markdown'];
 

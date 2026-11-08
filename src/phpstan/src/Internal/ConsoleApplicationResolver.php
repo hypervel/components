@@ -23,7 +23,7 @@ use function spl_object_id;
 
 /** @internal */
 #[AutowiredService]
-final class ConsoleApplicationResolver
+class ConsoleApplicationResolver
 {
     use HasContainer;
 

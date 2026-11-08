@@ -23,7 +23,7 @@ use PHPStan\Type\Type;
  * @internal
  */
 #[AutowiredService]
-final class ViewExtension implements DynamicFunctionReturnTypeExtension
+class ViewExtension implements DynamicFunctionReturnTypeExtension
 {
     use InfersFactoryHelperCalls;
 

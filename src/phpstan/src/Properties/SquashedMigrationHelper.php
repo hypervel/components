@@ -20,7 +20,7 @@ use function is_file;
  * Reads the schema dumps that schema:dump writes for the booted connections.
  */
 #[AutowiredService]
-final class SquashedMigrationHelper
+class SquashedMigrationHelper
 {
     /**
      * Create a new squashed migration helper instance.

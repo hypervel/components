@@ -22,7 +22,7 @@ use function strtolower;
  * @implements Collector<FuncCall, TranslationLookup>
  */
 #[AutowiredService]
-final class UsedTranslationFunctionCollector implements Collector
+class UsedTranslationFunctionCollector implements Collector
 {
     use CollectsTranslationLookups;
 

@@ -34,7 +34,7 @@ use function trim;
 use const ENT_QUOTES;
 use const PHP_EOL;
 
-final class BootstrapErrorHandler
+class BootstrapErrorHandler
 {
     private const string TITLE = 'Application bootstrap failed';
 

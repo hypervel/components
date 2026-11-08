@@ -19,7 +19,7 @@ use function in_array;
  * can resolve disks in its own way.
  */
 #[AutowiredService]
-final class FilesystemManagerDynamicMethodReturnTypeExtension implements DynamicMethodReturnTypeExtension
+class FilesystemManagerDynamicMethodReturnTypeExtension implements DynamicMethodReturnTypeExtension
 {
     /**
      * Create a new extension instance.

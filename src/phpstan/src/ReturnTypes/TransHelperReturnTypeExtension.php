@@ -17,7 +17,7 @@ use PHPStan\Type\Type;
 
 /** @internal */
 #[AutowiredService]
-final class TransHelperReturnTypeExtension implements DynamicFunctionReturnTypeExtension
+class TransHelperReturnTypeExtension implements DynamicFunctionReturnTypeExtension
 {
     /**
      * Determine whether the function is the trans() helper.

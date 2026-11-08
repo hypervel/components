@@ -32,7 +32,7 @@ use PHPStan\Type\ObjectType;
  * @implements Rule<MethodCall>
  */
 #[Conditional(attribute: new AutowiredService, if: '%noUnnecessaryEnumerableToArrayCalls%')]
-final class NoUnnecessaryEnumerableToArrayCallsRule implements Rule
+class NoUnnecessaryEnumerableToArrayCallsRule implements Rule
 {
     /**
      * Get the node type the rule checks.

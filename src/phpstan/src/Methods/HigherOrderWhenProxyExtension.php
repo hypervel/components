@@ -11,7 +11,7 @@ use PHPStan\Reflection\MethodReflection;
 use PHPStan\Reflection\MethodsClassReflectionExtension;
 
 #[AutowiredService]
-final class HigherOrderWhenProxyExtension implements MethodsClassReflectionExtension
+class HigherOrderWhenProxyExtension implements MethodsClassReflectionExtension
 {
     /**
      * Create a new extension instance.

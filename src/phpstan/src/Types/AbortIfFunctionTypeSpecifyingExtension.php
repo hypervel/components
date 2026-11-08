@@ -16,7 +16,7 @@ use PHPStan\Type\FunctionTypeSpecifyingExtension;
 use function count;
 use function str_starts_with;
 
-final class AbortIfFunctionTypeSpecifyingExtension implements FunctionTypeSpecifyingExtension, TypeSpecifierAwareExtension
+class AbortIfFunctionTypeSpecifyingExtension implements FunctionTypeSpecifyingExtension, TypeSpecifierAwareExtension
 {
     private TypeSpecifier $typeSpecifier;
 

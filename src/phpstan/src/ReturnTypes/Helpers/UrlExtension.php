@@ -21,7 +21,7 @@ use PHPStan\Type\Type;
  * @internal
  */
 #[AutowiredService]
-final class UrlExtension implements DynamicFunctionReturnTypeExtension
+class UrlExtension implements DynamicFunctionReturnTypeExtension
 {
     use InfersBoundHelperCalls;
 

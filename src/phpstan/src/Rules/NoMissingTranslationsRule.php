@@ -42,7 +42,7 @@ use function sprintf;
  * @implements Rule<CollectedDataNode>
  */
 #[Conditional(attribute: new AutowiredService, if: '%checkMissingTranslations%')]
-final class NoMissingTranslationsRule implements Rule
+class NoMissingTranslationsRule implements Rule
 {
     use HasContainer;
 

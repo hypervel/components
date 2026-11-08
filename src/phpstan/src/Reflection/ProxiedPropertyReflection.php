@@ -13,7 +13,7 @@ use PHPStan\Type\Type;
  * Describe a read-only property that a proxy reads from its target, typed as what the proxy
  * returns, with the target property's deprecation.
  */
-final class ProxiedPropertyReflection implements PropertyReflection
+class ProxiedPropertyReflection implements PropertyReflection
 {
     /**
      * The type the proxy returns.

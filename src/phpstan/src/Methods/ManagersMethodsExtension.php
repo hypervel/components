@@ -33,7 +33,7 @@ use function array_key_exists;
  * @internal
  */
 #[AutowiredService]
-final class ManagersMethodsExtension implements MethodsClassReflectionExtension
+class ManagersMethodsExtension implements MethodsClassReflectionExtension
 {
     use HasContainer;
 

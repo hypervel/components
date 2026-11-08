@@ -23,7 +23,7 @@ use function in_array;
 
 /** @internal */
 #[AutowiredService]
-final class ArrGetDynamicStaticMethodReturnTypeExtension implements DynamicStaticMethodReturnTypeExtension
+class ArrGetDynamicStaticMethodReturnTypeExtension implements DynamicStaticMethodReturnTypeExtension
 {
     /**
      * Get the class the extension applies to.

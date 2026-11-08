@@ -24,7 +24,7 @@ use function count;
  * @internal
  */
 #[AutowiredService]
-final class ArrPullParameterOutTypeExtension implements StaticMethodParameterOutTypeExtension
+class ArrPullParameterOutTypeExtension implements StaticMethodParameterOutTypeExtension
 {
     /**
      * Determine whether the parameter is the array of Arr::pull().

@@ -81,7 +81,7 @@ use const SORT_NATURAL;
  * holding its default.
  */
 #[AutowiredService]
-final class ConfigParser
+class ConfigParser
 {
     /**
      * Config file paths keyed like Hypervel's config keys: `nested/stripe.php`

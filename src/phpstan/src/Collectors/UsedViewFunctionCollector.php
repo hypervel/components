@@ -20,7 +20,7 @@ use function strtolower;
 
 /** @implements Collector<FuncCall, string> */
 #[AutowiredService]
-final class UsedViewFunctionCollector implements Collector
+class UsedViewFunctionCollector implements Collector
 {
     /**
      * Create a new collector instance.

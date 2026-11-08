@@ -19,7 +19,7 @@ use const GLOB_ONLYDIR;
  *
  * @internal
  */
-final class DirectoryResolver
+class DirectoryResolver
 {
     /**
      * Resolve configured paths to directories.

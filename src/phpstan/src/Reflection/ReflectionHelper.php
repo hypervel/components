@@ -10,7 +10,7 @@ use PHPStan\Reflection\Mixin\MixinPropertiesClassReflectionExtension;
 
 use function array_key_exists;
 
-final class ReflectionHelper
+class ReflectionHelper
 {
     /** @var array<string, bool> */
     private static array $propertyTagCache = [];

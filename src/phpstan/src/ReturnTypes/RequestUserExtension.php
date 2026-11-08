@@ -21,7 +21,7 @@ use function count;
 
 /** @internal */
 #[AutowiredService]
-final class RequestUserExtension implements DynamicMethodReturnTypeExtension
+class RequestUserExtension implements DynamicMethodReturnTypeExtension
 {
     use HasContainer;
     use LoadsAuthModel;

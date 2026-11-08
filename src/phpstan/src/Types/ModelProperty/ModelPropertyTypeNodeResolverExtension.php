@@ -26,7 +26,7 @@ use function count;
  * Ensures a 'model-property' type in PHPDoc is recognised to be of type ModelPropertyType.
  */
 #[AutowiredService]
-final class ModelPropertyTypeNodeResolverExtension implements TypeNodeResolverExtension
+class ModelPropertyTypeNodeResolverExtension implements TypeNodeResolverExtension
 {
     /**
      * Create a new model property type node resolver extension instance.

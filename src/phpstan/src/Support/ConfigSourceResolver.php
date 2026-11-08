@@ -100,7 +100,7 @@ use const DIRECTORY_SEPARATOR;
  * @internal
  */
 #[AutowiredService]
-final class ConfigSourceResolver
+class ConfigSourceResolver
 {
     use HasContainer;
 

@@ -12,7 +12,7 @@ namespace Hypervel\PHPStan\Internal;
  *
  * @see https://github.com/phpstan/phpstan-src/blob/2.2.x/src/Type/RecursionGuard.php
  */
-final class RecursionGuard
+class RecursionGuard
 {
     /** @var array<string, true> */
     private static array $context = [];

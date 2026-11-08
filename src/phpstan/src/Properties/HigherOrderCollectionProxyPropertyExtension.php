@@ -11,7 +11,7 @@ use PHPStan\Reflection\PropertiesClassReflectionExtension;
 use PHPStan\Reflection\PropertyReflection;
 
 #[AutowiredService]
-final class HigherOrderCollectionProxyPropertyExtension implements PropertiesClassReflectionExtension
+class HigherOrderCollectionProxyPropertyExtension implements PropertiesClassReflectionExtension
 {
     /**
      * Create a new property extension instance.

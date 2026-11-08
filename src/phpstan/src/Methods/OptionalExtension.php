@@ -22,7 +22,7 @@ use PHPStan\Type\TypeCombinator;
  * Optional may hold something else, and only null when it never holds an object.
  */
 #[AutowiredService]
-final class OptionalExtension implements MethodsClassReflectionExtension
+class OptionalExtension implements MethodsClassReflectionExtension
 {
     /**
      * Determine whether the object the Optional holds has the public method.

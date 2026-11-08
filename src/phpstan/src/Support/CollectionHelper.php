@@ -37,7 +37,7 @@ use function in_array;
 use function ltrim;
 
 #[AutowiredService]
-final class CollectionHelper
+class CollectionHelper
 {
     /**
      * The framework collections, whose own method implementations the extensions and rules rely on.

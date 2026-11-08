@@ -60,7 +60,7 @@ use function strtolower;
  *
  * @see https://github.com/psalm/laravel-psalm-plugin/blob/master/src/SchemaAggregator.php
  */
-final class SchemaAggregator
+class SchemaAggregator
 {
     /** Schema builder methods that change no relations or column types. withoutForeignKeyConstraints() runs a callback that is applied on its own. */
     private const array IGNORED_SCHEMA_METHODS = [

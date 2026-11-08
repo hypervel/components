@@ -18,7 +18,7 @@ use PHPStan\Type\ObjectType;
 
 /** @implements Collector<StaticCall, string> */
 #[AutowiredService]
-final class UsedRouteFacadeViewCollector implements Collector
+class UsedRouteFacadeViewCollector implements Collector
 {
     /**
      * Get the node type the collector inspects.

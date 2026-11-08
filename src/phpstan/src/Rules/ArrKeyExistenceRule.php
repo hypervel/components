@@ -26,7 +26,7 @@ use function strtolower;
  * @implements Rule<StaticCall>
  */
 #[AutowiredService]
-final class ArrKeyExistenceRule implements Rule
+class ArrKeyExistenceRule implements Rule
 {
     /**
      * Get the node type the rule checks.

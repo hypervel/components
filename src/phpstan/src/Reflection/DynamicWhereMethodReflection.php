@@ -16,7 +16,7 @@ use PHPStan\Type\MixedType;
 use PHPStan\Type\ObjectType;
 use PHPStan\Type\Type;
 
-final class DynamicWhereMethodReflection implements MethodReflection
+class DynamicWhereMethodReflection implements MethodReflection
 {
     /**
      * Create a new method reflection instance.

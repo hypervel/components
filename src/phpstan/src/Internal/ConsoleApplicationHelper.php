@@ -22,7 +22,7 @@ use Symfony\Component\Console\Input\InputOption;
 use function count;
 
 #[AutowiredService]
-final class ConsoleApplicationHelper
+class ConsoleApplicationHelper
 {
     /**
      * Get the arguments array type of the given commands.

@@ -23,7 +23,7 @@ use function count;
 
 /** @implements Collector<CallLike, string> */
 #[AutowiredService]
-final class UsedEmailSendViewCollector implements Collector
+class UsedEmailSendViewCollector implements Collector
 {
     /**
      * Get the node type the collector inspects.

@@ -24,7 +24,7 @@ use PHPStan\Type\TypeCombinator;
  * returns the member's value when the condition holds, and the target otherwise.
  */
 #[AutowiredService]
-final class HigherOrderWhenProxyHelper
+class HigherOrderWhenProxyHelper
 {
     /**
      * Determine whether the proxy's target has the method or property.
