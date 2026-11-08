@@ -45,6 +45,8 @@ class PendingMail
 
     /**
      * Set the locale of the message.
+     *
+     * @return $this
      */
     public function locale(?string $locale): static
     {
@@ -55,6 +57,8 @@ class PendingMail
 
     /**
      * Set the recipients of the message.
+     *
+     * @return $this
      */
     public function to(mixed $users): static
     {
@@ -69,6 +73,8 @@ class PendingMail
 
     /**
      * Set the recipients of the message.
+     *
+     * @return $this
      */
     public function cc(mixed $users): static
     {
@@ -79,6 +85,8 @@ class PendingMail
 
     /**
      * Set the recipients of the message.
+     *
+     * @return $this
      */
     public function bcc(mixed $users): static
     {

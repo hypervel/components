@@ -96,6 +96,8 @@ class Envelope
 
     /**
      * Specify who the message will be "from".
+     *
+     * @return $this
      */
     public function from(Address|string $address, ?string $name = null): static
     {
@@ -106,6 +108,8 @@ class Envelope
 
     /**
      * Add a "to" recipient to the message envelope.
+     *
+     * @return $this
      */
     public function to(Address|array|string $address, ?string $name = null): static
     {
@@ -118,6 +122,8 @@ class Envelope
 
     /**
      * Add a "cc" recipient to the message envelope.
+     *
+     * @return $this
      */
     public function cc(Address|array|string $address, ?string $name = null): static
     {
@@ -130,6 +136,8 @@ class Envelope
 
     /**
      * Add a "bcc" recipient to the message envelope.
+     *
+     * @return $this
      */
     public function bcc(Address|array|string $address, ?string $name = null): static
     {
@@ -142,6 +150,8 @@ class Envelope
 
     /**
      * Add a "reply to" recipient to the message envelope.
+     *
+     * @return $this
      */
     public function replyTo(Address|array|string $address, ?string $name = null): static
     {
@@ -154,6 +164,8 @@ class Envelope
 
     /**
      * Set the subject of the message.
+     *
+     * @return $this
      */
     public function subject(string $subject): static
     {
@@ -164,6 +176,8 @@ class Envelope
 
     /**
      * Add "tags" to the message.
+     *
+     * @return $this
      */
     public function tags(array $tags): static
     {
@@ -174,6 +188,8 @@ class Envelope
 
     /**
      * Add a "tag" to the message.
+     *
+     * @return $this
      */
     public function tag(string $tag): static
     {
@@ -184,6 +200,8 @@ class Envelope
 
     /**
      * Add metadata to the message.
+     *
+     * @return $this
      */
     public function metadata(string $key, int|string $value): static
     {
@@ -194,6 +212,8 @@ class Envelope
 
     /**
      * Add a Symfony Message customization callback to the message.
+     *
+     * @return $this
      */
     public function using(Closure $callback): static
     {

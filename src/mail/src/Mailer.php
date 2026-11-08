@@ -540,6 +540,8 @@ class Mailer implements MailerContract, MailQueueContract
      *
      * Boot-only. Replaces the queue factory on the shared Mailer; per-request
      * use races across coroutines.
+     *
+     * @return $this
      */
     public function setQueue(QueueFactory $queue): static
     {

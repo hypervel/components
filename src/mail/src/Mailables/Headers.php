@@ -28,6 +28,8 @@ class Headers
 
     /**
      * Set the message ID.
+     *
+     * @return $this
      */
     public function messageId(string $messageId): static
     {
@@ -38,6 +40,8 @@ class Headers
 
     /**
      * Set the message IDs referenced by this message.
+     *
+     * @return $this
      */
     public function references(array $references): static
     {
@@ -48,6 +52,8 @@ class Headers
 
     /**
      * Set the headers for this message.
+     *
+     * @return $this
      */
     public function text(array $text): static
     {

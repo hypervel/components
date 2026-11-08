@@ -131,6 +131,8 @@ class Attachment
 
     /**
      * Set the attached file's filename.
+     *
+     * @return $this
      */
     public function as(?string $name): static
     {
@@ -141,6 +143,8 @@ class Attachment
 
     /**
      * Set the attached file's MIME type.
+     *
+     * @return $this
      */
     public function withMime(string $mime): static
     {

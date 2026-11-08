@@ -91,6 +91,8 @@ class MailMessage extends SimpleMessage implements Renderable
 
     /**
      * Set the view for the mail message.
+     *
+     * @return $this
      */
     public function view(array|string $view, array $data = []): static
     {
@@ -104,6 +106,8 @@ class MailMessage extends SimpleMessage implements Renderable
 
     /**
      * Set the plain text view for the mail message.
+     *
+     * @return $this
      */
     public function text(string $textView, array $data = []): static
     {
@@ -115,6 +119,8 @@ class MailMessage extends SimpleMessage implements Renderable
 
     /**
      * Set the Markdown template for the notification.
+     *
+     * @return $this
      */
     public function markdown(string $view, array $data = []): static
     {
@@ -128,6 +134,8 @@ class MailMessage extends SimpleMessage implements Renderable
 
     /**
      * Set the default markdown template.
+     *
+     * @return $this
      */
     public function template(string $template): static
     {
@@ -138,6 +146,8 @@ class MailMessage extends SimpleMessage implements Renderable
 
     /**
      * Set the theme to use with the Markdown template.
+     *
+     * @return $this
      */
     public function theme(string $theme): static
     {
@@ -148,6 +158,8 @@ class MailMessage extends SimpleMessage implements Renderable
 
     /**
      * Set the from address for the mail message.
+     *
+     * @return $this
      */
     public function from(string $address, ?string $name = null): static
     {
@@ -158,6 +170,8 @@ class MailMessage extends SimpleMessage implements Renderable
 
     /**
      * Set the "reply to" address of the message.
+     *
+     * @return $this
      */
     public function replyTo(mixed $address, ?string $name = null): static
     {
@@ -172,6 +186,8 @@ class MailMessage extends SimpleMessage implements Renderable
 
     /**
      * Set the cc address for the mail message.
+     *
+     * @return $this
      */
     public function cc(mixed $address, ?string $name = null): static
     {
@@ -186,6 +202,8 @@ class MailMessage extends SimpleMessage implements Renderable
 
     /**
      * Set the bcc address for the mail message.
+     *
+     * @return $this
      */
     public function bcc(mixed $address, ?string $name = null): static
     {
@@ -200,6 +218,8 @@ class MailMessage extends SimpleMessage implements Renderable
 
     /**
      * Attach a file to the message.
+     *
+     * @return $this
      */
     public function attach(Attachable|Attachment|string $file, array $options = []): static
     {
@@ -220,6 +240,7 @@ class MailMessage extends SimpleMessage implements Renderable
      * Attach multiple files to the message.
      *
      * @param array<array|Attachable|Attachment|string> $files
+     * @return $this
      */
     public function attachMany(array $files): static
     {
@@ -236,6 +257,8 @@ class MailMessage extends SimpleMessage implements Renderable
 
     /**
      * Attach in-memory data as an attachment.
+     *
+     * @return $this
      */
     public function attachData(string $data, string $name, array $options = []): static
     {
@@ -246,6 +269,8 @@ class MailMessage extends SimpleMessage implements Renderable
 
     /**
      * Attach a file to the message from storage.
+     *
+     * @return $this
      */
     public function attachFromStorage(
         string $path,
@@ -257,6 +282,8 @@ class MailMessage extends SimpleMessage implements Renderable
 
     /**
      * Attach a file to the message from storage.
+     *
+     * @return $this
      */
     public function attachFromStorageDisk(
         ?string $disk,
@@ -279,6 +306,8 @@ class MailMessage extends SimpleMessage implements Renderable
 
     /**
      * Add a tag header to the message when supported by the underlying transport.
+     *
+     * @return $this
      */
     public function tag(string $value): static
     {
@@ -289,6 +318,8 @@ class MailMessage extends SimpleMessage implements Renderable
 
     /**
      * Add a metadata header to the message when supported by the underlying transport.
+     *
+     * @return $this
      */
     public function metadata(string $key, int|string $value): static
     {
@@ -301,6 +332,8 @@ class MailMessage extends SimpleMessage implements Renderable
      * Set the priority of this message.
      *
      * The value is an integer where 1 is the highest priority and 5 is the lowest.
+     *
+     * @return $this
      */
     public function priority(int $level): static
     {
@@ -362,6 +395,8 @@ class MailMessage extends SimpleMessage implements Renderable
 
     /**
      * Register a callback to be called with the Symfony message instance.
+     *
+     * @return $this
      */
     public function withSymfonyMessage(callable $callback): static
     {

@@ -56,6 +56,8 @@ class SimpleMessage
 
     /**
      * Indicate that the notification gives information about a successful operation.
+     *
+     * @return $this
      */
     public function success(): static
     {
@@ -66,6 +68,8 @@ class SimpleMessage
 
     /**
      * Indicate that the notification gives information about an error.
+     *
+     * @return $this
      */
     public function error(): static
     {
@@ -76,6 +80,8 @@ class SimpleMessage
 
     /**
      * Set the "level" of the notification (success, error, etc.).
+     *
+     * @return $this
      */
     public function level(string $level): static
     {
@@ -86,6 +92,8 @@ class SimpleMessage
 
     /**
      * Set the subject of the notification.
+     *
+     * @return $this
      */
     public function subject(string $subject): static
     {
@@ -96,6 +104,8 @@ class SimpleMessage
 
     /**
      * Set the greeting of the notification.
+     *
+     * @return $this
      */
     public function greeting(string $greeting): static
     {
@@ -106,6 +116,8 @@ class SimpleMessage
 
     /**
      * Set the salutation of the notification.
+     *
+     * @return $this
      */
     public function salutation(string $salutation): static
     {
@@ -116,6 +128,8 @@ class SimpleMessage
 
     /**
      * Add a line of text to the notification.
+     *
+     * @return $this
      */
     public function line(mixed $line): static
     {
@@ -124,6 +138,8 @@ class SimpleMessage
 
     /**
      * Add a line of text to the notification if the given condition is true.
+     *
+     * @return $this
      */
     public function lineIf(bool $boolean, mixed $line): static
     {
@@ -136,6 +152,8 @@ class SimpleMessage
 
     /**
      * Add lines of text to the notification.
+     *
+     * @return $this
      */
     public function lines(iterable $lines): static
     {
@@ -148,6 +166,8 @@ class SimpleMessage
 
     /**
      * Add lines of text to the notification if the given condition is true.
+     *
+     * @return $this
      */
     public function linesIf(bool $boolean, iterable $lines): static
     {
@@ -160,6 +180,8 @@ class SimpleMessage
 
     /**
      * Add a line of text to the notification.
+     *
+     * @return $this
      */
     public function with(mixed $line): static
     {
@@ -192,6 +214,8 @@ class SimpleMessage
 
     /**
      * Configure the "call to action" button.
+     *
+     * @return $this
      */
     public function action(string $text, string $url): static
     {
@@ -203,6 +227,8 @@ class SimpleMessage
 
     /**
      * Set the name of the mailer that should send the notification.
+     *
+     * @return $this
      */
     public function mailer(string $mailer): static
     {

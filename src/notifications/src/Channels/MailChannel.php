@@ -244,6 +244,8 @@ class MailChannel
 
     /**
      * Run the callbacks for the message.
+     *
+     * @return $this
      */
     protected function runCallbacks(Message $mailMessage, MailMessage $message): static
     {

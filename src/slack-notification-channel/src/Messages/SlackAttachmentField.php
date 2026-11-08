@@ -23,6 +23,8 @@ class SlackAttachmentField
 
     /**
      * Set the title of the field.
+     *
+     * @return $this
      */
     public function title(string $title): static
     {
@@ -33,6 +35,8 @@ class SlackAttachmentField
 
     /**
      * Set the content of the field.
+     *
+     * @return $this
      */
     public function content(string $content): static
     {
@@ -43,6 +47,8 @@ class SlackAttachmentField
 
     /**
      * Indicates that the content should not be displayed side-by-side with other fields.
+     *
+     * @return $this
      */
     public function long(): static
     {

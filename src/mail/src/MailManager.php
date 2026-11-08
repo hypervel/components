@@ -795,6 +795,8 @@ class MailManager implements FactoryContract
      * Tests only. Swaps the singleton's container and configuration references
      * without rebuilding resolved mailers; per-request use races across
      * coroutines and breaks every concurrent mail send.
+     *
+     * @return $this
      */
     public function setApplication(Container $app): static
     {
@@ -809,6 +811,8 @@ class MailManager implements FactoryContract
      *
      * Boot or tests only. This is cache-only: pooled transports remain shared
      * resources until purged or reclaimed by their idle TTL.
+     *
+     * @return $this
      */
     public function forgetMailers(): static
     {

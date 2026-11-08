@@ -251,6 +251,8 @@ class Markdown
      *
      * Boot-only. Mutates the shared Markdown renderer's default theme; pass a
      * per-render theme to render() for message-specific themes.
+     *
+     * @return $this
      */
     public function theme(string $theme): static
     {
