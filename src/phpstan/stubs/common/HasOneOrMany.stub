@@ -119,7 +119,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Insert new records or update the existing ones.
      *
-     * @param  array<model-property<TRelatedModel>, mixed>|array<int, array<model-property<TRelatedModel>, mixed>>  $values
+     * @param  array<model-property<TRelatedModel>, scalar|object|resource|null>|array<int, array<model-property<TRelatedModel>, mixed>>  $values
      * @param  model-property<TRelatedModel>|array<int, model-property<TRelatedModel>>  $uniqueBy
      * @param  null|array<int|model-property<TRelatedModel>, mixed>  $update
      */

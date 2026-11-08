@@ -5,6 +5,7 @@ namespace Hypervel\Database\Eloquent;
 use Closure;
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\Query\Builder as QueryBuilder;
@@ -19,8 +20,9 @@ use UnitEnum;
  * relation-of. Keep them in sync with the source. Native signatures repeat the source too, except
  * return types naming a collection, which stub validation cannot declare; their docblocks type them.
  *
- * The polymorphic relationship queries need no stub: RelationshipQueryCallbackExtension types their
- * callbacks from the given morph types. Upstream's SoftDeletes stub is replaced by SoftDeletingMacros.
+ * Unlike the source, the polymorphic relationship queries type their callbacks from the class strings
+ * in $types, so a callback that expects another model's query is reported. Upstream's SoftDeletes stub
+ * is replaced by SoftDeletingMacros.
  */
 
 /**
@@ -50,6 +52,7 @@ class Builder
      *
      * @param  TRelation|Relation<TRelatedModel, *, *>  $relation
      * @param  null|(Closure(($relation is string ? builder-of<TModel, TRelation> : builder-of<TRelatedModel>)): mixed)  $callback
+     * @return $this
      *
      * @throws RuntimeException
      */
@@ -63,6 +66,7 @@ class Builder
      *
      * @param  TRelation|Relation<TRelatedModel, *, *>  $relation
      * @param  null|(Closure(($relation is string ? builder-of<TModel, TRelation> : builder-of<TRelatedModel>)): mixed)  $callback
+     * @return $this
      */
     public function doesntHave(Relation|string $relation, string $boolean = 'and', ?Closure $callback = null): static;
 
@@ -74,6 +78,7 @@ class Builder
      *
      * @param  TRelation|Relation<TRelatedModel, *, *>  $relation
      * @param  null|(Closure(($relation is string ? builder-of<TModel, TRelation> : builder-of<TRelatedModel>)): mixed)  $callback
+     * @return $this
      */
     public function whereHas(Relation|string $relation, ?Closure $callback = null, string $operator = '>=', Expression|int $count = 1): static;
 
@@ -85,6 +90,7 @@ class Builder
      *
      * @param  TRelation|Relation<TRelatedModel, *, *>  $relation
      * @param  null|(Closure(($relation is string ? builder-of<TModel, TRelation> : builder-of<TRelatedModel>)): mixed)  $callback
+     * @return $this
      */
     public function orWhereHas(Relation|string $relation, ?Closure $callback = null, string $operator = '>=', Expression|int $count = 1): static;
 
@@ -96,6 +102,7 @@ class Builder
      *
      * @param  TRelation|Relation<TRelatedModel, *, *>  $relation
      * @param  null|(Closure(($relation is string ? builder-of<TModel, TRelation> : builder-of<TRelatedModel>)): mixed)  $callback
+     * @return $this
      */
     public function whereDoesntHave(Relation|string $relation, ?Closure $callback = null): static;
 
@@ -107,8 +114,87 @@ class Builder
      *
      * @param  TRelation|Relation<TRelatedModel, *, *>  $relation
      * @param  null|(Closure(($relation is string ? builder-of<TModel, TRelation> : builder-of<TRelatedModel>)): mixed)  $callback
+     * @return $this
      */
     public function orWhereDoesntHave(Relation|string $relation, ?Closure $callback = null): static;
+
+    /**
+     * Add a polymorphic relationship count / exists condition to the query.
+     *
+     * @template TMorphModel of Model
+     * @template TType of string
+     *
+     * @param  MorphTo<*, *>|string  $relation
+     * @param  array<int, class-string<TMorphModel>|TType>|class-string<TMorphModel>|TType  $types
+     * @param  null|(Closure(builder-of<TMorphModel>, string): mixed)  $callback
+     * @return $this
+     */
+    public function hasMorph(MorphTo|string $relation, string|array $types, string $operator = '>=', Expression|int $count = 1, string $boolean = 'and', ?Closure $callback = null): static;
+
+    /**
+     * Add a polymorphic relationship count / exists condition to the query.
+     *
+     * @template TMorphModel of Model
+     * @template TType of string
+     *
+     * @param  MorphTo<*, *>|string  $relation
+     * @param  array<int, class-string<TMorphModel>|TType>|class-string<TMorphModel>|TType  $types
+     * @param  null|(Closure(builder-of<TMorphModel>, string): mixed)  $callback
+     * @return $this
+     */
+    public function doesntHaveMorph(MorphTo|string $relation, string|array $types, string $boolean = 'and', ?Closure $callback = null): static;
+
+    /**
+     * Add a polymorphic relationship count / exists condition to the query with where clauses.
+     *
+     * @template TMorphModel of Model
+     * @template TType of string
+     *
+     * @param  MorphTo<*, *>|string  $relation
+     * @param  array<int, class-string<TMorphModel>|TType>|class-string<TMorphModel>|TType  $types
+     * @param  null|(Closure(builder-of<TMorphModel>, string): mixed)  $callback
+     * @return $this
+     */
+    public function whereHasMorph(MorphTo|string $relation, string|array $types, ?Closure $callback = null, string $operator = '>=', Expression|int $count = 1): static;
+
+    /**
+     * Add a polymorphic relationship count / exists condition to the query with where clauses and an "or".
+     *
+     * @template TMorphModel of Model
+     * @template TType of string
+     *
+     * @param  MorphTo<*, *>|string  $relation
+     * @param  array<int, class-string<TMorphModel>|TType>|class-string<TMorphModel>|TType  $types
+     * @param  null|(Closure(builder-of<TMorphModel>, string): mixed)  $callback
+     * @return $this
+     */
+    public function orWhereHasMorph(MorphTo|string $relation, string|array $types, ?Closure $callback = null, string $operator = '>=', Expression|int $count = 1): static;
+
+    /**
+     * Add a polymorphic relationship count / exists condition to the query with where clauses.
+     *
+     * @template TMorphModel of Model
+     * @template TType of string
+     *
+     * @param  MorphTo<*, *>|string  $relation
+     * @param  array<int, class-string<TMorphModel>|TType>|class-string<TMorphModel>|TType  $types
+     * @param  null|(Closure(builder-of<TMorphModel>, string): mixed)  $callback
+     * @return $this
+     */
+    public function whereDoesntHaveMorph(MorphTo|string $relation, string|array $types, ?Closure $callback = null): static;
+
+    /**
+     * Add a polymorphic relationship count / exists condition to the query with where clauses and an "or".
+     *
+     * @template TMorphModel of Model
+     * @template TType of string
+     *
+     * @param  MorphTo<*, *>|string  $relation
+     * @param  array<int, class-string<TMorphModel>|TType>|class-string<TMorphModel>|TType  $types
+     * @param  null|(Closure(builder-of<TMorphModel>, string): mixed)  $callback
+     * @return $this
+     */
+    public function orWhereDoesntHaveMorph(MorphTo|string $relation, string|array $types, ?Closure $callback = null): static;
 
     /**
      * Add a basic where clause to a relationship query.
@@ -118,6 +204,7 @@ class Builder
      *
      * @param  TRelation|Relation<TRelatedModel, *, *>  $relation
      * @param  array<mixed>|(Closure(($relation is string ? builder-of<TModel, TRelation> : builder-of<TRelatedModel>)): mixed)|Expression|string  $column
+     * @return $this
      */
     public function whereRelation(Relation|string $relation, Closure|string|array|Expression $column, mixed $operator = null, mixed $value = null): static;
 
@@ -129,6 +216,7 @@ class Builder
      *
      * @param  TRelation|Relation<TRelatedModel, *, *>  $relation
      * @param  array<mixed>|(Closure(($relation is string ? builder-of<TModel, TRelation> : builder-of<TRelatedModel>)): mixed)|Expression|string  $column
+     * @return $this
      */
     public function orWhereRelation(Relation|string $relation, Closure|string|array|Expression $column, mixed $operator = null, mixed $value = null): static;
 
@@ -140,6 +228,7 @@ class Builder
      *
      * @param  TRelation|Relation<TRelatedModel, *, *>  $relation
      * @param  array<mixed>|(Closure(($relation is string ? builder-of<TModel, TRelation> : builder-of<TRelatedModel>)): mixed)|Expression|string  $column
+     * @return $this
      */
     public function whereDoesntHaveRelation(Relation|string $relation, Closure|string|array|Expression $column, mixed $operator = null, mixed $value = null): static;
 
@@ -151,8 +240,61 @@ class Builder
      *
      * @param  TRelation|Relation<TRelatedModel, *, *>  $relation
      * @param  array<mixed>|(Closure(($relation is string ? builder-of<TModel, TRelation> : builder-of<TRelatedModel>)): mixed)|Expression|string  $column
+     * @return $this
      */
     public function orWhereDoesntHaveRelation(Relation|string $relation, Closure|string|array|Expression $column, mixed $operator = null, mixed $value = null): static;
+
+    /**
+     * Add a polymorphic relationship condition to the query with a where clause.
+     *
+     * @template TMorphModel of Model
+     * @template TType of string
+     *
+     * @param  MorphTo<*, *>|string  $relation
+     * @param  array<int, class-string<TMorphModel>|TType>|class-string<TMorphModel>|TType  $types
+     * @param  array<mixed>|(Closure(builder-of<TMorphModel>): mixed)|Expression|string  $column
+     * @return $this
+     */
+    public function whereMorphRelation(MorphTo|string $relation, string|array $types, Closure|string|array|Expression $column, mixed $operator = null, mixed $value = null): static;
+
+    /**
+     * Add a polymorphic relationship condition to the query with an "or where" clause.
+     *
+     * @template TMorphModel of Model
+     * @template TType of string
+     *
+     * @param  MorphTo<*, *>|string  $relation
+     * @param  array<int, class-string<TMorphModel>|TType>|class-string<TMorphModel>|TType  $types
+     * @param  array<mixed>|(Closure(builder-of<TMorphModel>): mixed)|Expression|string  $column
+     * @return $this
+     */
+    public function orWhereMorphRelation(MorphTo|string $relation, string|array $types, Closure|string|array|Expression $column, mixed $operator = null, mixed $value = null): static;
+
+    /**
+     * Add a polymorphic relationship condition to the query with a doesn't have clause.
+     *
+     * @template TMorphModel of Model
+     * @template TType of string
+     *
+     * @param  MorphTo<*, *>|string  $relation
+     * @param  array<int, class-string<TMorphModel>|TType>|class-string<TMorphModel>|TType  $types
+     * @param  array<mixed>|(Closure(builder-of<TMorphModel>): mixed)|Expression|string  $column
+     * @return $this
+     */
+    public function whereMorphDoesntHaveRelation(MorphTo|string $relation, string|array $types, Closure|string|array|Expression $column, mixed $operator = null, mixed $value = null): static;
+
+    /**
+     * Add a polymorphic relationship condition to the query with an "or doesn't have" clause.
+     *
+     * @template TMorphModel of Model
+     * @template TType of string
+     *
+     * @param  MorphTo<*, *>|string  $relation
+     * @param  array<int, class-string<TMorphModel>|TType>|class-string<TMorphModel>|TType  $types
+     * @param  array<mixed>|(Closure(builder-of<TMorphModel>): mixed)|Expression|string  $column
+     * @return $this
+     */
+    public function orWhereMorphDoesntHaveRelation(MorphTo|string $relation, string|array $types, Closure|string|array|Expression $column, mixed $operator = null, mixed $value = null): static;
 
     /**
      * Add a relationship count / exists condition to the query with where clauses.
@@ -163,6 +305,7 @@ class Builder
      *
      * @param  TRelation  $relation
      * @param  null|(Closure(($relation is literal-string ? builder-of<TModel, TRelation> : Builder<*>)|relation-of<TModel, TRelation>): mixed)  $callback
+     * @return $this
      */
     public function withWhereHas(string $relation, ?Closure $callback = null, string $operator = '>=', Expression|int $count = 1): static;
 
@@ -173,6 +316,7 @@ class Builder
      *
      * @param  TRelation  $relation
      * @param  array<mixed>|(Closure(($relation is literal-string ? builder-of<TModel, TRelation> : Builder<*>)|relation-of<TModel, TRelation>): mixed)|Expression|string  $column
+     * @return $this
      */
     public function withWhereRelation(string $relation, Closure|string|array|Expression $column, mixed $operator = null, mixed $value = null): static;
 
@@ -183,6 +327,7 @@ class Builder
      *
      * @param  TRelation|array<int|TRelation, array<mixed>|(callable(relation-of<TModel, TRelation>): mixed)|string>  $relations
      * @param  null|(Closure(relation-of<TModel, TRelation>): mixed)|string  $callback
+     * @return $this
      */
     public function with(array|string $relations, Closure|string|null $callback = null): static;
 
@@ -192,6 +337,7 @@ class Builder
      * @template TRelation of string
      *
      * @param  string|array<int|TRelation, array<mixed>|(callable(relation-of<TModel, TRelation>): mixed)|string>  $relations
+     * @return $this
      */
     public function withOnly(array|string $relations): static;
 
@@ -401,7 +547,7 @@ class Builder
     /**
      * Insert new records or update the existing ones.
      *
-     * @param  array<model-property<TModel>, mixed>|array<int, array<model-property<TModel>, mixed>>  $values
+     * @param  array<model-property<TModel>, scalar|object|resource|null>|array<int, array<model-property<TModel>, mixed>>  $values
      * @param  model-property<TModel>|array<int, model-property<TModel>>  $uniqueBy
      * @param  null|array<int|model-property<TModel>, mixed>  $update
      */
@@ -462,6 +608,7 @@ class Builder
      * makes a callback a subquery, so the callback type cannot follow the operator here.
      *
      * @param  array<int|model-property<TModel>, mixed>|(Closure(__benevolent<static|QueryBuilder>): mixed)|Builder<*>|QueryBuilder|Relation<*, *, *>|Expression|model-property<TModel>  $column
+     * @return $this
      */
     public function orWhere(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null): static;
 
@@ -477,6 +624,7 @@ class Builder
      * Add a basic "where not" clause to the query.
      *
      * @param  array<int|model-property<TModel>, mixed>|(Closure(($operator is null ? static : QueryBuilder)): mixed)|Builder<*>|QueryBuilder|Relation<*, *, *>|Expression|model-property<TModel>  $column
+     * @return $this
      */
     public function whereNot(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static;
 
@@ -484,6 +632,7 @@ class Builder
      * Add an "or where not" clause to the query.
      *
      * @param  array<int|model-property<TModel>, mixed>|(Closure(($operator is null ? static : QueryBuilder)): mixed)|Builder<*>|QueryBuilder|Relation<*, *, *>|Expression|model-property<TModel>  $column
+     * @return $this
      */
     public function orWhereNot(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null): static;
 
@@ -493,6 +642,7 @@ class Builder
      * The given key / value pairs will also be added as where conditions to the query.
      *
      * @param  array<model-property<TModel>, mixed>|Expression|model-property<TModel>  $attributes
+     * @return $this
      */
     public function withAttributes(Expression|array|string $attributes, mixed $value = null, bool $asConditions = true): static;
 
@@ -500,6 +650,7 @@ class Builder
      * Add an "order by" clause for a timestamp to the query.
      *
      * @param  null|Closure|Builder<*>|QueryBuilder|Relation<*, *, *>|Expression|model-property<TModel>  $column
+     * @return $this
      */
     public function latest(Closure|self|QueryBuilder|Relation|Expression|string|null $column = null): static;
 
@@ -507,6 +658,7 @@ class Builder
      * Add an "order by" clause for a timestamp to the query.
      *
      * @param  null|Closure|Builder<*>|QueryBuilder|Relation<*, *, *>|Expression|model-property<TModel>  $column
+     * @return $this
      */
     public function oldest(Closure|self|QueryBuilder|Relation|Expression|string|null $column = null): static;
 

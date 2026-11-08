@@ -9,8 +9,10 @@ use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\HasOneOrMany;
 use Hypervel\Database\Eloquent\Relations\HasOneOrManyThrough;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -47,6 +49,8 @@ class StubMirrorsTest extends TestCase
     {
         yield 'query builder' => ['Database/Query.stub', QueryBuilder::class];
         yield 'model not found exception' => ['Database/Eloquent.stub', ModelNotFoundException::class];
+        yield 'belongs to' => ['Database/Eloquent/Relations.stub', BelongsTo::class];
+        yield 'morph to' => ['Database/Eloquent/Relations.stub', MorphTo::class];
         yield 'arrayable' => ['Contracts/Support.stub', Arrayable::class];
         yield 'eloquent builder' => ['EloquentBuilder.stub', EloquentBuilder::class];
         yield 'has one or many' => ['HasOneOrMany.stub', HasOneOrMany::class];
