@@ -22,6 +22,7 @@ use PHPStan\Type\ObjectType;
 use PHPStan\Type\Type;
 use PHPStan\Type\TypeCombinator;
 use PHPStan\Type\VerbosityLevel;
+use ReflectionNamedType;
 
 use function count;
 use function in_array;
@@ -169,6 +170,19 @@ class BuilderHelper
         if ($modelReflection->getNativeReflection()->getMethod('newQuery')->getFileName()
             === $this->reflectionProvider->getClass(HasBuilder::class)->getFileName()) {
             return $modelReflection->getNativeMethod('newQuery')->getVariants()[0]->getReturnType();
+        }
+
+        // Every query entry point runs newModelQuery(), so an override naming a builder decides. Only its native
+        // return is read: an undocumented override inherits builder-of<static>, which calls back here, so a
+        // PHPDoc-only narrowing is not seen.
+        $newModelQuery = $modelReflection->getNativeReflection()->getMethod('newModelQuery');
+        $returnType = $newModelQuery->getReturnType();
+
+        if ($newModelQuery->getDeclaringClass()->getName() !== Model::class
+            && $returnType instanceof ReflectionNamedType
+            && $this->reflectionProvider->hasClass($returnType->getName())
+            && $this->reflectionProvider->getClass($returnType->getName())->isSubclassOfClass($this->reflectionProvider->getClass(EloquentBuilder::class))) {
+            return $returnType->getName();
         }
 
         $method = $modelReflection->getNativeMethod('newEloquentBuilder');

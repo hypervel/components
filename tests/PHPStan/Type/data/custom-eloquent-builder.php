@@ -97,6 +97,18 @@ function testNonGenericBuilderDocBlock($builder): void
 }
 
 /**
+ * Hypervel: every query entry point runs newModelQuery(), so an override's native builder return applies.
+ */
+function testNewModelQueryOverride(ModelWithOwnModelQuery $model): void
+{
+    assertType('CustomEloquentBuilder\OwnModelQueryBuilder<CustomEloquentBuilder\ModelWithOwnModelQuery>', ModelWithOwnModelQuery::query());
+    assertType('CustomEloquentBuilder\OwnModelQueryBuilder<CustomEloquentBuilder\ModelWithOwnModelQuery>', $model->newQuery());
+    assertType('CustomEloquentBuilder\OwnModelQueryBuilder<CustomEloquentBuilder\ModelWithOwnModelQuery>', $model->newQueryWithoutScopes());
+    assertType('CustomEloquentBuilder\OwnModelQueryBuilder<CustomEloquentBuilder\ModelWithOwnModelQuery>', $model->newQueryWithoutRelationships());
+    assertType('CustomEloquentBuilder\OwnModelQueryBuilder<CustomEloquentBuilder\ModelWithOwnModelQuery>', ModelWithOwnModelQuery::active());
+}
+
+/**
  * @property string $email
  * @property string $category
  * @property string $type
@@ -314,5 +326,34 @@ class ModelWithCustomQueryBuilder extends Model
     public function newEloquentBuilder($query): EloquentBuilderWithCustomQueryBuilder
     {
         return new EloquentBuilderWithCustomQueryBuilder($query);
+    }
+}
+
+class ModelWithOwnModelQuery extends Model
+{
+    /**
+     * Get a new query builder that doesn't have any global scopes or eager loading.
+     */
+    public function newModelQuery(): OwnModelQueryBuilder
+    {
+        return (new OwnModelQueryBuilder($this->newBaseQueryBuilder()))->setModel($this);
+    }
+}
+
+/**
+ * @template TModel of Model
+ *
+ * @extends Builder<TModel>
+ */
+class OwnModelQueryBuilder extends Builder
+{
+    /**
+     * Limit the query to active models.
+     *
+     * @return $this
+     */
+    public function active(): static
+    {
+        return $this;
     }
 }
