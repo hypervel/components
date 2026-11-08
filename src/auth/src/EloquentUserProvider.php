@@ -296,6 +296,7 @@ class EloquentUserProvider implements UserProvider
      * the provider used by every subsequent authentication lookup.
      *
      * @param null|array<string> $tags optional tag names enabling tag-based bulk flush; requires any-mode tag support
+     * @return $this
      *
      * @throws InvalidArgumentException when the TTL, tags, or resolved store are not supported
      */
@@ -637,6 +638,8 @@ class EloquentUserProvider implements UserProvider
      *
      * Boot or tests only. User providers are held by cached guards; runtime use
      * mutates password verification for every subsequent authentication lookup.
+     *
+     * @return $this
      */
     public function setHasher(HasherContract $hasher): static
     {
@@ -662,6 +665,7 @@ class EloquentUserProvider implements UserProvider
      * changes the model used by every subsequent authentication lookup.
      *
      * @param class-string<Model&UserContract> $model
+     * @return $this
      */
     public function setModel(string $model): static
     {
@@ -691,6 +695,7 @@ class EloquentUserProvider implements UserProvider
      * mutates the query applied to every subsequent authentication lookup.
      *
      * @param null|(Closure(Builder<*>):mixed) $queryCallback
+     * @return $this
      */
     public function withQuery(?Closure $queryCallback = null): static
     {

@@ -116,6 +116,8 @@ class RequestGuard implements Guard
 
     /**
      * Set the current user.
+     *
+     * @return $this
      */
     public function setUser(AuthenticatableContract $user): static
     {
@@ -126,6 +128,8 @@ class RequestGuard implements Guard
 
     /**
      * Forget the current user.
+     *
+     * @return $this
      */
     public function forgetUser(): static
     {

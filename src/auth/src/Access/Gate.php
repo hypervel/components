@@ -179,6 +179,8 @@ class Gate implements GateContract
      * Boot-only. The definition persists on the singleton Gate for the worker
      * lifetime and affects authorization in every subsequent request.
      *
+     * @return $this
+     *
      * @throws InvalidArgumentException
      */
     public function define(UnitEnum|string $ability, array|callable|string $callback): static
@@ -207,6 +209,8 @@ class Gate implements GateContract
      *
      * Boot-only. The definitions persist on the singleton Gate for the worker
      * lifetime and affect authorization in every subsequent request.
+     *
+     * @return $this
      */
     public function resource(string $name, string $class, ?array $abilities = null): static
     {
@@ -265,6 +269,8 @@ class Gate implements GateContract
      *
      * Boot-only. The policy persists on the singleton Gate for the worker
      * lifetime and affects authorization in every subsequent request.
+     *
+     * @return $this
      */
     public function policy(string $class, string $policy): static
     {
@@ -282,6 +288,8 @@ class Gate implements GateContract
      *
      * Boot-only. The callback persists on the singleton Gate for the worker
      * lifetime and runs during authorization in every subsequent request.
+     *
+     * @return $this
      */
     public function before(callable $callback): static
     {
@@ -295,6 +303,8 @@ class Gate implements GateContract
      *
      * Boot-only. The callback persists on the singleton Gate for the worker
      * lifetime and runs during authorization in every subsequent request.
+     *
+     * @return $this
      */
     public function after(callable $callback): static
     {
@@ -706,6 +716,8 @@ class Gate implements GateContract
      *
      * Boot-only. The callback persists on the singleton Gate for the worker
      * lifetime and affects policy discovery in every subsequent request.
+     *
+     * @return $this
      */
     public function guessPolicyNamesUsing(callable $callback): static
     {
@@ -860,6 +872,8 @@ class Gate implements GateContract
      *
      * Boot-only. The response persists on the singleton Gate for the worker
      * lifetime and affects authorization failures in every subsequent request.
+     *
+     * @return $this
      */
     public function defaultDenialResponse(Response $response): static
     {
@@ -874,6 +888,8 @@ class Gate implements GateContract
      * Tests only. Swaps the container on the singleton Gate used by every
      * coroutine; per-request use races across coroutines and breaks every
      * concurrent authorization check.
+     *
+     * @return $this
      */
     public function setContainer(Container $container): static
     {

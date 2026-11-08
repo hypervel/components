@@ -50,6 +50,8 @@ abstract class AbstractProvider
      *
      * Boot-only. The configuration persists for the worker lifetime and affects
      * every subsequent request. Use setConfig() for per-request overrides.
+     *
+     * @return $this
      */
     public function withConfig(#[SensitiveParameter] array $config): static
     {
@@ -63,6 +65,8 @@ abstract class AbstractProvider
      *
      * The override is isolated to the current coroutine and must be applied
      * independently on the redirect and callback requests.
+     *
+     * @return $this
      */
     public function setConfig(#[SensitiveParameter] array $config): static
     {
@@ -104,6 +108,8 @@ abstract class AbstractProvider
 
     /**
      * Set the Guzzle HTTP client instance.
+     *
+     * @return $this
      */
     public function setHttpClient(Client $client): static
     {
@@ -117,6 +123,8 @@ abstract class AbstractProvider
      *
      * Stores the request in coroutine context so cached providers read the
      * current request without leaking it to concurrent coroutines.
+     *
+     * @return $this
      */
     public function setRequest(Request $request): static
     {
@@ -159,6 +167,8 @@ abstract class AbstractProvider
 
     /**
      * Indicate that the provider should operate as stateless.
+     *
+     * @return $this
      */
     public function stateless(): static
     {
@@ -177,6 +187,8 @@ abstract class AbstractProvider
 
     /**
      * Set the custom parameters of the request.
+     *
+     * @return $this
      */
     public function with(array $parameters): static
     {

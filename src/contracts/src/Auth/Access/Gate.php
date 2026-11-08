@@ -25,27 +25,37 @@ interface Gate
     /**
      * Define a new ability.
      *
+     * @return $this
+     *
      * @throws InvalidArgumentException
      */
     public function define(UnitEnum|string $ability, array|callable|string $callback): static;
 
     /**
      * Define abilities for a resource.
+     *
+     * @return $this
      */
     public function resource(string $name, string $class, ?array $abilities = null): static;
 
     /**
      * Define a policy class for a given class type.
+     *
+     * @return $this
      */
     public function policy(string $class, string $policy): static;
 
     /**
      * Register a callback to run before all Gate checks.
+     *
+     * @return $this
      */
     public function before(callable $callback): static;
 
     /**
      * Register a callback to run after all Gate checks.
+     *
+     * @return $this
      */
     public function after(callable $callback): static;
 

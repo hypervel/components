@@ -816,6 +816,8 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      *
      * Boot-only. The duration is stored on the worker-lifetime guard and affects
      * every subsequent request.
+     *
+     * @return $this
      */
     public function setRememberDuration(int $minutes): static
     {
@@ -894,6 +896,8 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
 
     /**
      * Set the current user.
+     *
+     * @return $this
      */
     public function setUser(AuthenticatableContract $user): static
     {
@@ -908,6 +912,8 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
 
     /**
      * Forget the current user.
+     *
+     * @return $this
      */
     public function forgetUser(): static
     {
