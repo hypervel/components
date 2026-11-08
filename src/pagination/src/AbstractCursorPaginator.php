@@ -28,6 +28,7 @@ use Traversable;
  * @template TKey of array-key
  *
  * @template-covariant TValue
+ * @template-covariant TCollection of Collection = Collection<array-key, mixed> the stored collection, kept as given
  *
  * @mixin Collection<TKey, TValue>
  */
@@ -405,7 +406,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      * @param callable(TValue, TKey): TThroughValue $callback
      * @return $this
      *
-     * @phpstan-this-out static<TKey, TThroughValue>
+     * @phpstan-this-out static<TKey, TThroughValue, Collection<TKey, TThroughValue>>
      */
     public function through(callable $callback): static
     {
@@ -556,7 +557,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Get the paginator's underlying collection.
      *
-     * @return Collection<TKey, TValue>
+     * @return Collection<TKey, TValue>&TCollection
      */
     public function getCollection(): Collection
     {
@@ -568,11 +569,12 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      *
      * @template TSetKey of array-key
      * @template TSetValue
+     * @template TSetCollection of Collection
      *
-     * @param Collection<TSetKey, TSetValue> $collection
+     * @param Collection<TSetKey, TSetValue>&TSetCollection $collection
      * @return $this
      *
-     * @phpstan-this-out static<TSetKey, TSetValue>
+     * @phpstan-this-out static<TSetKey, TSetValue, TSetCollection>
      */
     public function setCollection(Collection $collection): static
     {

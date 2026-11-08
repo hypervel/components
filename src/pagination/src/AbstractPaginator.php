@@ -23,6 +23,7 @@ use Traversable;
  * @template TKey of array-key
  *
  * @template-covariant TValue
+ * @template-covariant TCollection of Collection = Collection<array-key, mixed> the stored collection, kept as given
  *
  * @mixin Collection<TKey, TValue>
  */
@@ -345,7 +346,7 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
      * @param callable(TValue, TKey): TMapValue $callback
      * @return $this
      *
-     * @phpstan-this-out static<TKey, TMapValue>
+     * @phpstan-this-out static<TKey, TMapValue, Collection<TKey, TMapValue>>
      */
     public function through(callable $callback): static
     {
@@ -630,7 +631,7 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Get the paginator's underlying collection.
      *
-     * @return Collection<TKey, TValue>
+     * @return Collection<TKey, TValue>&TCollection
      */
     public function getCollection(): Collection
     {
@@ -642,11 +643,12 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
      *
      * @template TSetKey of array-key
      * @template TSetValue
+     * @template TSetCollection of Collection
      *
-     * @param Collection<TSetKey, TSetValue> $collection
+     * @param Collection<TSetKey, TSetValue>&TSetCollection $collection
      * @return $this
      *
-     * @phpstan-this-out static<TSetKey, TSetValue>
+     * @phpstan-this-out static<TSetKey, TSetValue, TSetCollection>
      */
     public function setCollection(Collection $collection): static
     {
