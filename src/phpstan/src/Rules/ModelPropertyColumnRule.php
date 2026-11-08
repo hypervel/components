@@ -9,7 +9,6 @@ use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\HasOneOrManyThrough;
-use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\PHPStan\Methods\BuilderHelper;
 use Hypervel\PHPStan\Properties\ModelPropertyHelper;
 use Hypervel\PHPStan\Reflection\EloquentBuilderMethodReflection;
@@ -21,7 +20,6 @@ use PhpParser\Node\Expr\CallLike;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
-use PhpParser\Node\Name;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\DependencyInjection\Conditional;
@@ -78,6 +76,7 @@ class ModelPropertyColumnRule implements Rule
     public function __construct(
         private BuilderHelper $builderHelper,
         private ModelPropertyHelper $modelPropertyHelper,
+        private ModelRuleHelper $modelRuleHelper,
         private RuleLevelHelper $ruleLevelHelper,
     ) {
     }
@@ -120,7 +119,7 @@ class ModelPropertyColumnRule implements Rule
             return [];
         }
 
-        $callerType = $this->callerType($node, $scope);
+        $callerType = $this->modelRuleHelper->callerType($node, $scope);
         $callerClasses = $callerType->getObjectClassReflections();
 
         if (count($callerClasses) !== 1) {
@@ -175,7 +174,7 @@ class ModelPropertyColumnRule implements Rule
      */
     private function checkDynamicWhere(MethodCall|StaticCall $node, Scope $scope, string $methodName): array
     {
-        $callerType = $this->callerType($node, $scope);
+        $callerType = $this->modelRuleHelper->callerType($node, $scope);
         $callerClasses = $callerType->getObjectClassReflections();
 
         // A native method, such as the builder's where(), is not a dynamic where.
@@ -183,7 +182,7 @@ class ModelPropertyColumnRule implements Rule
             return [];
         }
 
-        $modelType = $this->queriedModel($callerClasses[0], $callerType);
+        $modelType = $this->modelRuleHelper->queriedModel($callerClasses[0], $callerType);
 
         // An unknown model may have any column.
         if ($modelType === null || $modelType->getObjectClassReflections() === []) {
@@ -228,31 +227,6 @@ class ModelPropertyColumnRule implements Rule
     }
 
     /**
-     * Return the type the method is called on.
-     */
-    private function callerType(MethodCall|StaticCall $node, Scope $scope): Type
-    {
-        return match (true) {
-            $node instanceof MethodCall => $scope->getType($node->var),
-            $node->class instanceof Name => $scope->resolveTypeByName($node->class),
-            default => $scope->getType($node->class)->getObjectTypeOrClassStringObjectType(),
-        };
-    }
-
-    /**
-     * Return the model a builder, relation or model queries.
-     */
-    private function queriedModel(ClassReflection $callerClass, Type $callerType): ?Type
-    {
-        return match (true) {
-            $callerClass->is(Relation::class) => $callerType->getTemplateType(Relation::class, 'TRelatedModel'),
-            $callerClass->is(EloquentBuilder::class) => $callerType->getTemplateType(EloquentBuilder::class, 'TModel'),
-            $callerClass->is(Model::class) => $callerType,
-            default => null,
-        };
-    }
-
-    /**
      * Resolve the queried model and the class whose method runs, following Relation::__call() and
      * Model::__call() to the model's builder.
      *
@@ -260,7 +234,7 @@ class ModelPropertyColumnRule implements Rule
      */
     private function resolveCall(ClassReflection $callerClass, Type $callerType, string $methodName): array
     {
-        $modelType = $this->queriedModel($callerClass, $callerType);
+        $modelType = $this->modelRuleHelper->queriedModel($callerClass, $callerType);
 
         // A model's own method of that name is not forwarded.
         if ($modelType === null || ($callerClass->is(Model::class) && $callerClass->hasNativeMethod($methodName))) {

@@ -2,9 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Account;
+use App\User;
 use Composer\Autoload\ClassLoader;
 use Hypervel\Console\Application;
 use Hypervel\Container\Container;
+use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\ClosureCommand;
 use Hypervel\Testbench\Bootstrapper;
@@ -51,6 +54,9 @@ $_SERVER['AUTH_MODEL'] = $_ENV['AUTH_MODEL'] = 'App\User';
 // Boot the analyzed application before any test, so its error and exception handlers
 // stay out of PHPUnit's per-test handler checks.
 require_once __DIR__ . '/../../src/phpstan/bootstrap.php';
+
+// A dynamic relation, registered at boot as a provider would.
+User::resolveRelationUsing('dynamicAccounts', static fn (User $user): HasMany => $user->hasMany(Account::class));
 
 // Package configuration sources, which the config analysis reads from the loaded providers.
 Container::getInstance()->register(ConfigFixtureServiceProvider::class);

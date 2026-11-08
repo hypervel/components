@@ -150,8 +150,9 @@ class GenericModelPropertyType extends StringType
         $constantStrings = $type->getConstantStrings();
 
         if (count($constantStrings) === 1) {
-            // Unlike upstream, an unknown property stays maybe, as accepts() keeps it.
-            return new IsSuperTypeOfResult($this->modelPropertyHelper->acceptsPropertyName($this->getGenericType(), $constantStrings[0]->getValue()), []);
+            // Unlike upstream, an unknown property stays maybe. Unlike accepts(), an abstract model is
+            // not yes either: union simplification would drop alternatives such as '*' from stub types.
+            return new IsSuperTypeOfResult($this->getGenericType()->hasInstanceProperty($constantStrings[0]->getValue()), []);
         }
 
         if ($type instanceof self) {
