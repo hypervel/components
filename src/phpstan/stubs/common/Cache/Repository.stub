@@ -2,5 +2,40 @@
 
 namespace Hypervel\Cache;
 
+use UnitEnum;
+
+/*
+ * A class declared in a stub takes the nearest ancestor stub's docblock for a method its own stub
+ * omits, here PHPStan's ArrayAccess stub, so the offset methods repeat the source.
+ */
 class Repository
-{}
+{
+    /**
+     * Determine if a cached value exists.
+     *
+     * @param string|UnitEnum $offset
+     */
+    public function offsetExists($offset): bool;
+
+    /**
+     * Retrieve an item from the cache by key.
+     *
+     * @param string|UnitEnum $offset
+     */
+    public function offsetGet($offset): mixed;
+
+    /**
+     * Store an item in the cache for the default time.
+     *
+     * @param string|UnitEnum $offset
+     * @param mixed $value
+     */
+    public function offsetSet($offset, $value): void;
+
+    /**
+     * Remove an item from the cache.
+     *
+     * @param string|UnitEnum $offset
+     */
+    public function offsetUnset($offset): void;
+}

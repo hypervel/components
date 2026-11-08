@@ -2,5 +2,46 @@
 
 namespace Hypervel\Config;
 
+/*
+ * A class declared in a stub takes the nearest ancestor stub's docblock for a method its own stub
+ * omits, here PHPStan's ArrayAccess stub, so the offset methods repeat the source.
+ */
 class Repository
-{}
+{
+    /**
+     * Determine if the given configuration option exists.
+     *
+     * @param int|string $offset
+     */
+    public function offsetExists($offset): bool;
+
+    /**
+     * Get a configuration option.
+     *
+     * @param int|string $offset
+     */
+    public function offsetGet($offset): mixed;
+
+    /**
+     * Set a configuration option.
+     *
+     * Boot or tests only. The config repository is a process-global singleton;
+     * per-request mutation races across coroutines and affects every concurrent
+     * request.
+     *
+     * @param int|string $offset
+     * @param mixed $value
+     */
+    public function offsetSet($offset, $value): void;
+
+    /**
+     * Unset a configuration option.
+     *
+     * Boot or tests only. The config repository is a process-global singleton;
+     * per-request mutation races across coroutines and affects every concurrent
+     * request.
+     *
+     * @param int|string $offset
+     */
+    public function offsetUnset($offset): void;
+}

@@ -102,6 +102,38 @@ class IntegrationTest extends PHPStanTestCase
             ],
         ];
 
+        // Hypervel: a stubbed repository keeps its source offset types instead of ArrayAccess's.
+        yield [
+            __DIR__ . '/data/repository-offsets.php',
+            [
+                14 => ['Parameter #1 $offset of method Hypervel\Config\Repository::offsetGet() expects int|string, stdClass given.'],
+                15 => ['Parameter #1 $offset of method Hypervel\Config\Repository::offsetSet() expects int|string, stdClass given.'],
+                18 => ['Parameter #1 $offset of method Hypervel\Cache\Repository::offsetGet() expects string|UnitEnum, stdClass given.'],
+                19 => ['Parameter #1 $offset of method Hypervel\Cache\Repository::offsetExists() expects string|UnitEnum, int given.'],
+            ],
+        ];
+
+        // Hypervel: a key that is not a literal may name a property, including in a non-empty array.
+        yield [
+            __DIR__ . '/data/model-property-dynamic-keys.php',
+            [
+                11 => ['Parameter #1 $attributes of method Hypervel\Database\Eloquent\Model::forceFill() expects array<model property of App\User, mixed>, array<string, string> given.'],
+            ],
+        ];
+
+        // Hypervel: a builder-of parameter of an unknown relation model accepts any builder.
+        yield [__DIR__ . '/data/unknown-relation-model.php'];
+
+        // Hypervel: Builder::__callStatic() registers macros and mixins and runs only the builder's global macros,
+        // while a model forwards static calls through an instance.
+        yield [
+            __DIR__ . '/data/builder-static-calls.php',
+            [
+                14 => ['Static call to instance method App\PostBuilder<App\Post>::globalCustomDatabaseQueryMacro().'],
+                15 => ['Static call to instance method Hypervel\Database\Eloquent\Builder<Hypervel\Database\Eloquent\Model>::flushMacros().'],
+            ],
+        ];
+
         // Hypervel: optional() passes its callback only values that are not null.
         yield [__DIR__ . '/data/optional-callbacks.php'];
 

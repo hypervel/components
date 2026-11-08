@@ -8,3 +8,11 @@ abstract class Connection implements ConnectionInterface
 interface ConnectionInterface {}
 
 class DatabaseManager {}
+
+class QueryException extends \PDOException {}
+
+class UniqueConstraintViolationException extends QueryException {}
+
+class RecordsNotFoundException extends \RuntimeException {}
+
+class MultipleRecordsFoundException extends \RuntimeException {}

@@ -460,6 +460,12 @@ class ConfigSourceResolver
      */
     private function discoverProvider(ServiceProvider $provider, array &$merges, array &$writtenKeys, array &$mergedFiles): bool
     {
+        // An anonymous provider cannot be reflected by name. Neither can any provider when PHPStan
+        // validates stub files that are not in the vendor directory, against the stubs alone.
+        if (! $this->reflectionProvider->hasClass($provider::class)) {
+            return true;
+        }
+
         $providerClass = $this->reflectionProvider->getClass($provider::class);
         $classLikes = $this->getClassLikes($providerClass);
 

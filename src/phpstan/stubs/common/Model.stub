@@ -1,0 +1,88 @@
+<?php
+
+namespace Hypervel\Database\Eloquent;
+
+/*
+ * Analyzer-only types: builder-of, model-property and relation-of need this package. The source
+ * declares the rest, including the property, save() option and increment types upstream stubs.
+ */
+abstract class Model
+{
+    /**
+     * Update the model in the database.
+     *
+     * @param  array<model-property<static>, mixed>  $attributes
+     * @param  array<string, mixed>  $options
+     * @return bool
+     */
+    public function update(array $attributes = [], array $options = []): bool;
+
+    /**
+     * Fill the model with an array of attributes.
+     *
+     * @param  array<model-property<static>, mixed>  $attributes
+     * @return $this
+     *
+     * @throws MassAssignmentException
+     */
+    public function fill(array $attributes): static;
+
+    /**
+     * Fill the model with an array of attributes. Force mass assignment.
+     *
+     * @param  array<model-property<static>, mixed>  $attributes
+     * @return $this
+     */
+    public function forceFill(array $attributes): static;
+
+    /** @return builder-of<static> */
+    public static function query(): Builder;
+
+    /** @return builder-of<static> */
+    public function newQuery(): Builder;
+
+    /** @return builder-of<static> */
+    public function newModelQuery(): Builder;
+
+    /** @return builder-of<static> */
+    public function newQueryWithoutRelationships(): Builder;
+
+    /** @return builder-of<static> */
+    public function newQueryWithoutScopes(): Builder;
+
+    /** @return builder-of<static> */
+    public function newQueryWithoutScope(Scope|int|string $scope): Builder;
+
+    /**
+     * @param  array<mixed>|int|string  $ids
+     * @return builder-of<static>
+     */
+    public function newQueryForRestoration(array|int|string $ids): Builder;
+
+    /**
+     * Begin querying a model with eager loading.
+     *
+     * @template TRelation of string
+     * @param  string|array<int|TRelation, (callable(relation-of<static, TRelation>): mixed)|string|array<mixed>>  $relations
+     * @return builder-of<static>
+     */
+    public static function with(array|string $relations): Builder;
+
+    /**
+     * Eager load relations on the model.
+     *
+     * @template TRelation of string
+     * @param  string|array<int|TRelation, (callable(relation-of<static, TRelation>): mixed)|string|array<mixed>>  $relations
+     * @return $this
+     */
+    public function load(array|string $relations): static;
+
+    /**
+     * Eager load relations on the model if they are not already eager loaded.
+     *
+     * @template TRelation of string
+     * @param  string|array<int|TRelation, (callable(relation-of<static, TRelation>): mixed)|string|array<mixed>>  $relations
+     * @return $this
+     */
+    public function loadMissing(array|string $relations): static;
+}

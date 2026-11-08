@@ -5,7 +5,9 @@ namespace Hypervel\Contracts\Support;
 interface Htmlable
 {}
 
-// Arrayable's template comes from its source PHPDoc.
+/**
+ * @template-covariant TReturn of array = array<array-key, mixed>
+ */
 interface Arrayable
 {}
 

@@ -62,6 +62,16 @@ class ConfigSourceResolverTest extends TestCase
     }
 
     /**
+     * An anonymous provider cannot be reflected by name, so what it writes is unknown.
+     */
+    public function testAnonymousProviderWritesAreUnknown(): void
+    {
+        $provider = new class(m::mock(Application::class)) extends ServiceProvider {};
+
+        $this->assertTrue($this->createResolver($provider::class)->hasUnknownWrites());
+    }
+
+    /**
      * Named arguments bind by name, creating a callable outside a callback writes nothing,
      * and a callable created from a read method only reads.
      *

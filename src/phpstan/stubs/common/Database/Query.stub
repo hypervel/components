@@ -1,0 +1,14 @@
+<?php
+
+namespace Hypervel\Database\Query;
+
+use Hypervel\Contracts\Database\Query\Builder as BuilderContract;
+use stdClass;
+
+/**
+ * @template TKey of array-key = int
+ * @template TValue = stdClass
+ * @template TBindingType of string = 'select'|'from'|'join'|'where'|'groupBy'|'having'|'order'|'union'|'unionOrder'
+ */
+class Builder implements BuilderContract
+{}

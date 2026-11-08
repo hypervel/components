@@ -1,0 +1,8 @@
+<?php
+
+namespace Hypervel\Database\Eloquent\Relations;
+
+use Hypervel\Database\Eloquent\Model;
+
+class Pivot extends Model
+{}
