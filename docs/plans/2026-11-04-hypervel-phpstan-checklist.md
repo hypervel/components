@@ -25,11 +25,10 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 - copy: `Methods/ModelFactoryMethodsClassReflectionExtension.php`
 - omit: `Properties/ReflectionTypeContainer.php` (unused since upstream removed container ArrayAccess support)
 - copy: `ReturnTypes/{FactoryDynamicMethodReturnTypeExtension,ModelFactoryDynamicStaticMethodReturnTypeExtension}.php`
-- copy with the Eloquent collection port: `ReturnTypes/EloquentCollectionMapDynamicReturnTypeExtension.php`, moving `common/EloquentCollection.stub`'s `map()`/`mapWithKeys()` conditionals into the Eloquent `Collection` source; also `toQuery()`/`load()`/`loadMissing()` typing, merging `Integration/data/eager-loading-callbacks.php` and its `Integration/IntegrationTest.php` entry (investigate the supported PHPStan hooks before choosing a mechanism)
 - copy: `Rules/*` except below and the ported `ArrKeyExistenceRule`, auth request-scope, config, console, `NoEnvCallsOutsideOfConfigRule`, `NoMissingTranslationsRule`, `NoUnnecessaryEnumerableToArrayCallsRule`, `RelationExistenceRule` (with `RelationExistenceHelper` and `ModelRuleHelper`), `UnusedViewsRule` and `UselessConstructs/` rules (including `Queue/`)
 - omit: `Rules/DeferrableServiceProviderMissingProvidesRule.php`, `Rules/OctaneCompatibilityRule.php`
 - omit: `SQL/*` (`hypervel/schema-parser` replaces the parser boundary and its iamcal/phpMyAdmin adapters)
-- copy: `Types/Factory/` with the factory flow; `Types/GenericEloquentCollectionTypeNodeResolverExtension.php` with the Eloquent collection port
+- copy: `Types/Factory/` with the factory flow
 
 ## New Hypervel source
 
@@ -39,7 +38,7 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 
 ## stubs
 
-- copy with their topic flows: `common/{Attribute,Console/{Command,HasParameters},Contracts/{Cache,Container,Kernel,Mail,Queue,UrlGenerator},Cookie/SymfonyCookie,Database/Eloquent/Concerns/{HasAttributes,HasEvents,HasRelationships},Database/{ManagesTransactions,Migrations/Migrator},EloquentCollection,Events/Dispatcher,Factory,Http/RedirectResponse,Macroable,Notifications/Notification,Routing/{Redirector,UrlGenerator},Session/SessionManager,Support/{HtmlString,Manager,Optional},ThirdParty,Validation/Validator}.stub`, except below; `MorphTo`, `MorphToMany`, `Pagination` and `Contracts/Pagination` need none, because the source declares their types
+- copy with their topic flows: `common/{Attribute,Console/{Command,HasParameters},Contracts/{Cache,Container,Kernel,Mail,Queue,UrlGenerator},Cookie/SymfonyCookie,Database/Eloquent/Concerns/{HasAttributes,HasEvents,HasRelationships},Database/{ManagesTransactions,Migrations/Migrator},Events/Dispatcher,Factory,Http/RedirectResponse,Macroable,Notifications/Notification,Routing/{Redirector,UrlGenerator},Session/SessionManager,Support/{HtmlString,Manager,Optional},ThirdParty,Validation/Validator}.stub`, except below; `EloquentCollection`, `MorphTo`, `MorphToMany`, `Pagination` and `Contracts/Pagination` need no separate stub: the source declares their types, with `toQuery()`'s return-type extension and `MorphTo`'s map refinements in the combined `Database/Eloquent/Relations.stub`
 - stubs repeat the source's native signatures except returns that name a collection or paginator, whose stubs fail stub validation (variance); `ModelPropertyColumnRule` checks the pagination and `pluck()` columns that upstream's stubs type
 - merge into `common/Helpers.stub` with their topics: the `cookie()`, `logger()`, `logs()`, `redirect()`, `request()`, `session()` and `url()` helper entries, whose conditional returns the source already declares (only `view()` is ported; `optional()` is typed in source and `OptionalExtension`; the stub records the omitted helpers)
 - merge with their topic flows: the upstream typing for the declaration-only stubs that `common/Facades.stub`'s mixins need for stub validation: Events `dispatch()`/`until()` conditionals, `Connection::getQueryLog()` shape, Schema `getColumnListing()`, and the Cache `Repository` `ArrayAccess` implements (check Hypervel's enum keys)
@@ -52,15 +51,11 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 ## tests
 
 - omit: `laravel-test.sh`
-- copy with the Eloquent collection port: `application/app/UserCollection.php`; with the factory flow: `application/app/{Domain/,Shapes/}` and `application/database/factories/`
+- copy with the factory flow: `application/app/{Domain/,Shapes/}` and `application/database/factories/`
 - omit: `application/app/{ModelWithConflictingInitializer.php,UserResource.php,Providers/}` (no upstream test or source references them)
 - copy: `Rules/*Test.php` except below and the ported `ArrKeyExistence`, auth, config, console, environment, enumerable `toArray()`, relation existence, view, translation and useless-construct rule tests, the remaining `Rules/data/*`, `Rules/Queue/data/*`
 - omit: `Rules/{DeferrableServiceProviderMissingProvidesRuleTest,OctaneCompatibilityRuleTest}.php`, `Rules/data/{CorrectDeferrableProvider,CorrectDeferrableProviderIndirect,IncorrectDeferrableProvider}.php`, `Rules/data/octane.neon`, `Rules/data/ContainerInjection.php`
 - copy: `Type/*Test.php` except below, the ported collection, config and model-property tests, `GeneralTypeTest.php` and `MethodsClassReflectionExtensionTest.php`, with the remaining `Type/data/*`
-- merge into `Type/BleedingEdgeTypeTest.php` with the Eloquent ports: `bleeding-edge/closure-usage-inference.php` (relation callbacks) and `bleeding-edge/eloquent-collection-map.php`
-- merge into `Type/CollectionDynamicReturnTypeExtensionsTest.php` with the Eloquent collection port (they need model properties and the custom collections; its `phpstan-tests.neon` already matches upstream's `config-with-migrations.neon`): `collection-generic-static-methods{,-l12}.php`, `eloquent-collection-map.php`
-- merge into `Type/CollectionDynamicReturnTypeExtensionTest.php` with the model fixtures: `collection-filter.php`, `collection-reject.php`, `collection-where.php` (they need `accounts()->active()->get()` to return `AccountCollection`)
-- omit: `Type/data/collection-generic-static-methods-l11.php` (Laravel 11's Eloquent `partition()` returned `static`; Hypervel follows the Laravel 12 base collection)
 - merge: the remaining `Type/GeneralTypeTest.php` data entries (its `phpstan-tests.neon` already matches upstream's `config-with-migrations.neon`)
 - copy with the factory flow: `Unit/ModelFactoryDynamicStaticMethodReturnTypeExtensionTest.php`; merge `Integration/data/{model-factories,model-property-model-factory}.php` and their `Integration/IntegrationTest.php` entries
 - omit: `Unit/SQL/*` (parser factory and phpMyAdmin adapter tests; `hypervel/schema-parser` has its own)

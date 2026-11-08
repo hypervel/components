@@ -117,6 +117,15 @@ Declare the type the collection is meant to hold when you create it:
 $ids = collect([1, 2, 3]);
 ```
 
+A custom collection class that fixes its item type, such as a `UserCollection` that extends `Collection<int, User>`, keeps that type when methods such as `map()`, `mapWithKeys()`, `groupBy()` and `chunk()` return the same class holding other items. This is a PHPStan limitation. For example, `$users->groupBy('team_id')` is typed as a `UserCollection` of users, although it holds user collections. Declare the result's type where your code relies on it:
+
+```php
+use Hypervel\Support\Collection;
+
+/** @var Collection<array-key, UserCollection> $teams */
+$teams = $users->groupBy('team_id');
+```
+
 <a name="model-properties"></a>
 ### Model Properties
 
