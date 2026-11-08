@@ -258,6 +258,8 @@ class Request implements ArrayAccess
      * Set the logical data on the request.
      *
      * This does not mark the body as decoded, so a final JSON or form body may replace it.
+     *
+     * @return $this
      */
     public function withData(array $data): static
     {
@@ -278,6 +280,8 @@ class Request implements ArrayAccess
 
     /**
      * Add query parameters to the request.
+     *
+     * @return $this
      */
     public function withQuery(array $query = []): static
     {
@@ -290,6 +294,8 @@ class Request implements ArrayAccess
 
     /**
      * Remove query parameters from the request.
+     *
+     * @return $this
      */
     public function withoutQuery(array|string $keys = []): static
     {
@@ -312,6 +318,8 @@ class Request implements ArrayAccess
 
     /**
      * Set the request's attribute data.
+     *
+     * @return $this
      */
     public function setRequestAttributes(array $attributes): static
     {

@@ -181,6 +181,8 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
 
     /**
      * Add additional metadata to the resource response.
+     *
+     * @return $this
      */
     public function additional(array $data): static
     {

@@ -108,6 +108,8 @@ class RouteRegistrar
     /**
      * Set the value for a given attribute.
      *
+     * @return $this
+     *
      * @throws InvalidArgumentException
      */
     public function attribute(string $key, mixed $value): static
@@ -191,6 +193,8 @@ class RouteRegistrar
 
     /**
      * Create a route group with shared attributes.
+     *
+     * @return $this
      */
     public function group(Closure|array|string $callback): static
     {
@@ -209,6 +213,8 @@ class RouteRegistrar
 
     /**
      * Add metadata to routes registered by the registrar.
+     *
+     * @return $this
      */
     public function metadata(array $metadata): static
     {

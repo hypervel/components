@@ -283,6 +283,8 @@ trait InteractsWithInput
 
     /**
      * Dump the items.
+     *
+     * @return $this
      */
     public function dump(mixed $keys = []): static
     {
