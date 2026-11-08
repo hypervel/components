@@ -146,6 +146,8 @@ class ThrottlesExceptions
 
     /**
      * Specify a callback that should determine if rate limiting behavior should apply.
+     *
+     * @return $this
      */
     public function when(callable $callback): static
     {
@@ -156,6 +158,8 @@ class ThrottlesExceptions
 
     /**
      * Add a callback that should determine if the job should be deleted.
+     *
+     * @return $this
      */
     public function deleteWhen(callable|string $callback): static
     {
@@ -168,6 +172,8 @@ class ThrottlesExceptions
 
     /**
      * Add a callback that should determine if the job should be failed.
+     *
+     * @return $this
      */
     public function failWhen(callable|string $callback): static
     {
@@ -210,6 +216,8 @@ class ThrottlesExceptions
 
     /**
      * Set the prefix of the rate limiter key.
+     *
+     * @return $this
      */
     public function withPrefix(string $prefix): static
     {
@@ -222,6 +230,8 @@ class ThrottlesExceptions
     // instead of exposing Laravel's Redis-only queue middleware and connection().
     /**
      * Specify the rate limiter store that should be used.
+     *
+     * @return $this
      */
     public function store(UnitEnum|string $store): static
     {
@@ -234,6 +244,7 @@ class ThrottlesExceptions
      * Specify the number of minutes a job should be delayed when it is released (before it has reached its max exceptions).
      *
      * @param (Closure(Throwable): int)|int $backoff
+     * @return $this
      */
     public function backoff(Closure|int $backoff): static
     {
@@ -276,6 +287,8 @@ class ThrottlesExceptions
 
     /**
      * Set the value that the rate limiter should be keyed by.
+     *
+     * @return $this
      */
     public function by(string $key): static
     {
@@ -286,6 +299,8 @@ class ThrottlesExceptions
 
     /**
      * Indicate that the throttle key should use the job's UUID.
+     *
+     * @return $this
      */
     public function byJob(): static
     {
@@ -296,6 +311,8 @@ class ThrottlesExceptions
 
     /**
      * Report exceptions and optionally specify a callback that determines if the exception should be reported.
+     *
+     * @return $this
      */
     public function report(?callable $callback = null): static
     {

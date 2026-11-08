@@ -1987,6 +1987,8 @@ class Worker
      *
      * Boot-only. The repository persists on the singleton worker for the
      * worker lifetime and is read by every subsequent pause or restart check.
+     *
+     * @return $this
      */
     public function setCache(CacheContract $cache): static
     {
@@ -2000,6 +2002,8 @@ class Worker
      *
      * Boot-only. The name persists on the singleton worker for the worker
      * lifetime and selects the static pop callback used by every job pop.
+     *
+     * @return $this
      */
     public function setName(string $name): static
     {

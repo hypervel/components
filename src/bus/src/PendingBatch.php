@@ -56,6 +56,8 @@ class PendingBatch
 
     /**
      * Add jobs to the batch.
+     *
+     * @return $this
      */
     public function add(iterable|object $jobs): static
     {
@@ -94,6 +96,8 @@ class PendingBatch
 
     /**
      * Add a callback to be executed when the batch is stored.
+     *
+     * @return $this
      */
     public function before(callable $callback): static
     {
@@ -112,6 +116,8 @@ class PendingBatch
 
     /**
      * Add a callback to be executed after a job in the batch have executed successfully.
+     *
+     * @return $this
      */
     public function progress(callable $callback): static
     {
@@ -130,6 +136,8 @@ class PendingBatch
 
     /**
      * Add a callback to be executed after all jobs in the batch have executed successfully.
+     *
+     * @return $this
      */
     public function then(callable $callback): static
     {
@@ -148,6 +156,8 @@ class PendingBatch
 
     /**
      * Add a callback to be executed after the first failing job in the batch.
+     *
+     * @return $this
      */
     public function catch(callable $callback): static
     {
@@ -166,6 +176,8 @@ class PendingBatch
 
     /**
      * Add a callback to be executed after the batch has finished executing.
+     *
+     * @return $this
      */
     public function finally(callable $callback): static
     {
@@ -188,6 +200,7 @@ class PendingBatch
      * Optionally, add callbacks to be executed upon each job failure.
      *
      * @param array<array-key, callable(Batch, ?Throwable): mixed>|bool|(callable(Batch, ?Throwable): mixed) $param
+     * @return $this
      */
     public function allowFailures(mixed $param = true): static
     {
@@ -236,6 +249,8 @@ class PendingBatch
 
     /**
      * Set the name for the batch.
+     *
+     * @return $this
      */
     public function name(string $name): static
     {
@@ -246,6 +261,8 @@ class PendingBatch
 
     /**
      * Specify the queue connection that the batched jobs should run on.
+     *
+     * @return $this
      */
     public function onConnection(UnitEnum|string $connection): static
     {
@@ -266,6 +283,8 @@ class PendingBatch
 
     /**
      * Specify the queue that the batched jobs should run on.
+     *
+     * @return $this
      */
     public function onQueue(UnitEnum|string|null $queue): static
     {
@@ -286,6 +305,8 @@ class PendingBatch
 
     /**
      * Dispatch batched jobs through the transactional outbox by default.
+     *
+     * @return $this
      */
     public function viaOutbox(): static
     {
@@ -296,6 +317,8 @@ class PendingBatch
 
     /**
      * Dispatch batched jobs without the transactional outbox by default.
+     *
+     * @return $this
      */
     public function withoutOutbox(): static
     {
@@ -308,6 +331,8 @@ class PendingBatch
 
     /**
      * Stage batched jobs on the given database connection by default.
+     *
+     * @return $this
      */
     public function onOutboxDatabase(UnitEnum|string $connection): static
     {
@@ -325,6 +350,8 @@ class PendingBatch
 
     /**
      * Add additional data into the batch's options array.
+     *
+     * @return $this
      */
     public function withOption(string $key, mixed $value): static
     {

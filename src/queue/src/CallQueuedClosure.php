@@ -63,6 +63,8 @@ class CallQueuedClosure implements ShouldQueue
 
     /**
      * Add a callback to be executed if the job fails.
+     *
+     * @return $this
      */
     public function onFailure(callable $callback): static
     {
@@ -97,6 +99,8 @@ class CallQueuedClosure implements ShouldQueue
 
     /**
      * Assign a name to the job.
+     *
+     * @return $this
      */
     public function name(string $name): static
     {

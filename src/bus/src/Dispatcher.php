@@ -299,6 +299,8 @@ class Dispatcher implements QueueingDispatcher
      * Boot-only. The pipes persist on the singleton dispatcher for the worker
      * lifetime and apply to every subsequent dispatch; per-request use races
      * across coroutines.
+     *
+     * @return $this
      */
     public function pipeThrough(array $pipes): static
     {
@@ -312,6 +314,8 @@ class Dispatcher implements QueueingDispatcher
      *
      * Boot-only. The handler map persists on the singleton dispatcher for the
      * worker lifetime; per-request use races across coroutines.
+     *
+     * @return $this
      */
     public function map(array $map): static
     {
@@ -325,6 +329,8 @@ class Dispatcher implements QueueingDispatcher
      *
      * Boot-only. Toggles a flag on the singleton dispatcher for the worker
      * lifetime; per-request use races across coroutines.
+     *
+     * @return $this
      */
     public function withDispatchingAfterResponses(): static
     {
@@ -338,6 +344,8 @@ class Dispatcher implements QueueingDispatcher
      *
      * Boot-only. Toggles a flag on the singleton dispatcher for the worker
      * lifetime; per-request use races across coroutines.
+     *
+     * @return $this
      */
     public function withoutDispatchingAfterResponses(): static
     {

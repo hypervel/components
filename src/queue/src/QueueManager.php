@@ -641,6 +641,8 @@ class QueueManager implements FactoryContract, MonitorContract
      * Tests only. Swaps the container reference on the singleton and on every
      * cached queue connection; per-request use races across coroutines and
      * breaks every concurrent dispatch.
+     *
+     * @return $this
      */
     public function setApplication(Container $app): static
     {

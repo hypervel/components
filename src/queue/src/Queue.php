@@ -425,6 +425,7 @@ abstract class Queue
      * Set the dispatcher for after-commit queue operations.
      *
      * @param null|Closure(Closure(Queue): mixed): mixed $dispatcher
+     * @return $this
      */
     public function setAfterCommitDispatcher(?Closure $dispatcher): static
     {
@@ -926,6 +927,8 @@ abstract class Queue
      * Boot or tests only. Queue connection instances are cached on
      * QueueManager; runtime use races across coroutines and changes every
      * concurrent dispatch through this connection.
+     *
+     * @return $this
      */
     public function setConnectionName(string $name): static
     {
@@ -948,6 +951,8 @@ abstract class Queue
      * Boot or tests only. Queue connection instances are cached on
      * QueueManager; runtime use races across coroutines and changes every
      * concurrent dispatch through this connection.
+     *
+     * @return $this
      */
     public function setConfig(array $config): static
     {

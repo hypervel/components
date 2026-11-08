@@ -51,6 +51,8 @@ trait Batchable
 
     /**
      * Set the batch ID on the job.
+     *
+     * @return $this
      */
     public function withBatchId(string $batchId): static
     {

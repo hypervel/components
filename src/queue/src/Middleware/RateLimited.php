@@ -105,6 +105,8 @@ class RateLimited
 
     /**
      * Set the delay (in seconds) to release the job back to the queue.
+     *
+     * @return $this
      */
     public function releaseAfter(DateTimeInterface|int $releaseAfter): static
     {
@@ -115,6 +117,8 @@ class RateLimited
 
     /**
      * Set the extra seconds added to the rate limiter's retry delay.
+     *
+     * @return $this
      */
     public function releasePadding(int $seconds): static
     {
@@ -129,6 +133,8 @@ class RateLimited
 
     /**
      * Do not release the job back to the queue if the limit is exceeded.
+     *
+     * @return $this
      */
     public function dontRelease(): static
     {
@@ -141,6 +147,8 @@ class RateLimited
     // instead of exposing Laravel's Redis-only queue middleware and connection().
     /**
      * Specify the rate limiter store that should be used.
+     *
+     * @return $this
      */
     public function store(UnitEnum|string $store): static
     {

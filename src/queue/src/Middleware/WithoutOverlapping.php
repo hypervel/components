@@ -85,6 +85,8 @@ class WithoutOverlapping
 
     /**
      * Set the delay (in seconds) to release the job back to the queue.
+     *
+     * @return $this
      */
     public function releaseAfter(DateTimeInterface|int $releaseAfter): static
     {
@@ -95,6 +97,8 @@ class WithoutOverlapping
 
     /**
      * Do not release the job back to the queue if no lock can be acquired.
+     *
+     * @return $this
      */
     public function dontRelease(): static
     {
@@ -105,6 +109,8 @@ class WithoutOverlapping
 
     /**
      * Set the maximum number of seconds that can elapse before the lock is released.
+     *
+     * @return $this
      */
     public function expireAfter(DateInterval|DateTimeInterface|int $expiresAfter): static
     {
@@ -115,6 +121,8 @@ class WithoutOverlapping
 
     /**
      * Set the prefix of the lock key.
+     *
+     * @return $this
      */
     public function withPrefix(string $prefix): static
     {
@@ -125,6 +133,8 @@ class WithoutOverlapping
 
     /**
      * Indicate that the lock key may be shared across jobs belonging to different classes.
+     *
+     * @return $this
      */
     public function shared(): static
     {
@@ -135,6 +145,8 @@ class WithoutOverlapping
 
     /**
      * Specify the cache store that should hold the lock.
+     *
+     * @return $this
      */
     public function store(UnitEnum|string $store): static
     {

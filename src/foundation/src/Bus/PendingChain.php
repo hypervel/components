@@ -57,6 +57,8 @@ class PendingChain
 
     /**
      * Set the desired connection for the job.
+     *
+     * @return $this
      */
     public function onConnection(UnitEnum|string|null $connection): static
     {
@@ -69,6 +71,8 @@ class PendingChain
 
     /**
      * Set the desired queue for the job.
+     *
+     * @return $this
      */
     public function onQueue(UnitEnum|string|null $queue): static
     {
@@ -81,6 +85,8 @@ class PendingChain
 
     /**
      * Prepend a job to the chain.
+     *
+     * @return $this
      */
     public function prepend(mixed $job): static
     {
@@ -101,6 +107,8 @@ class PendingChain
 
     /**
      * Append a job to the chain.
+     *
+     * @return $this
      */
     public function append(mixed $job): static
     {
@@ -119,6 +127,8 @@ class PendingChain
 
     /**
      * Set the desired delay in seconds for the chain.
+     *
+     * @return $this
      */
     public function delay(DateInterval|DateTimeInterface|int|null $delay): static
     {
@@ -129,6 +139,8 @@ class PendingChain
 
     /**
      * Add a callback to be executed on job failure.
+     *
+     * @return $this
      */
     public function catch(callable $callback): static
     {

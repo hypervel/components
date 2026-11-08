@@ -68,6 +68,8 @@ trait InteractsWithQueue
 
     /**
      * Indicate that queue interactions like fail, delete, and release should be faked.
+     *
+     * @return $this
      */
     public function withFakeQueueInteractions(): static
     {
@@ -78,6 +80,8 @@ trait InteractsWithQueue
 
     /**
      * Assert that the job was deleted from the queue.
+     *
+     * @return $this
      */
     public function assertDeleted(): static
     {
@@ -93,6 +97,8 @@ trait InteractsWithQueue
 
     /**
      * Assert that the job was not deleted from the queue.
+     *
+     * @return $this
      */
     public function assertNotDeleted(): static
     {
@@ -108,6 +114,8 @@ trait InteractsWithQueue
 
     /**
      * Assert that the job was manually failed.
+     *
+     * @return $this
      */
     public function assertFailed(): static
     {
@@ -123,6 +131,8 @@ trait InteractsWithQueue
 
     /**
      * Assert that the job was manually failed with a specific exception.
+     *
+     * @return $this
      */
     public function assertFailedWith(string|Throwable $exception): static
     {
@@ -165,6 +175,8 @@ trait InteractsWithQueue
 
     /**
      * Assert that the job was not manually failed.
+     *
+     * @return $this
      */
     public function assertNotFailed(): static
     {
@@ -180,6 +192,8 @@ trait InteractsWithQueue
 
     /**
      * Assert that the job was released back onto the queue.
+     *
+     * @return $this
      */
     public function assertReleased(DateInterval|DateTimeInterface|int|null $delay = null): static
     {
@@ -208,6 +222,8 @@ trait InteractsWithQueue
 
     /**
      * Assert that the job was not released back onto the queue.
+     *
+     * @return $this
      */
     public function assertNotReleased(): static
     {
@@ -235,6 +251,8 @@ trait InteractsWithQueue
 
     /**
      * Set the base queue job instance.
+     *
+     * @return $this
      */
     public function setJob(JobContract $job): static
     {

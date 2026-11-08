@@ -95,6 +95,8 @@ trait Queueable
 
     /**
      * Set the desired connection for the job.
+     *
+     * @return $this
      */
     public function onConnection(UnitEnum|string|null $connection): static
     {
@@ -107,6 +109,8 @@ trait Queueable
 
     /**
      * Set the desired queue for the job.
+     *
+     * @return $this
      */
     public function onQueue(UnitEnum|string|null $queue): static
     {
@@ -121,6 +125,8 @@ trait Queueable
      * Set the desired job message group.
      *
      * This feature is only supported by some queues, such as Amazon SQS.
+     *
+     * @return $this
      */
     public function onGroup(array|UnitEnum|string|int|null $group): static
     {
@@ -133,6 +139,8 @@ trait Queueable
      * Set the desired job deduplicator callback.
      *
      * This feature is only supported by some queues, such as Amazon SQS FIFO.
+     *
+     * @return $this
      */
     public function withDeduplicator(array|callable|null $deduplicator): static
     {
@@ -151,6 +159,8 @@ trait Queueable
 
     /**
      * Set the desired connection for the chain.
+     *
+     * @return $this
      */
     public function allOnConnection(UnitEnum|string|null $connection): static
     {
@@ -166,6 +176,8 @@ trait Queueable
 
     /**
      * Set the desired queue for the chain.
+     *
+     * @return $this
      */
     public function allOnQueue(UnitEnum|string|null $queue): static
     {
@@ -181,6 +193,8 @@ trait Queueable
 
     /**
      * Set the desired delay in seconds for the job.
+     *
+     * @return $this
      */
     public function delay(array|DateInterval|DateTimeInterface|int|null $delay): static
     {
@@ -191,6 +205,8 @@ trait Queueable
 
     /**
      * Set the delay for the job to zero seconds.
+     *
+     * @return $this
      */
     public function withoutDelay(): static
     {
@@ -201,6 +217,8 @@ trait Queueable
 
     /**
      * Indicate that the job should be dispatched after the open parent database transactions have committed.
+     *
+     * @return $this
      */
     public function afterCommit(): static
     {
@@ -211,6 +229,8 @@ trait Queueable
 
     /**
      * Indicate that the job should not wait until database transactions have been committed before dispatching.
+     *
+     * @return $this
      */
     public function beforeCommit(): static
     {
@@ -221,6 +241,8 @@ trait Queueable
 
     /**
      * Specify the middleware the job should be dispatched through.
+     *
+     * @return $this
      */
     public function through(array|object $middleware): static
     {
@@ -231,6 +253,8 @@ trait Queueable
 
     /**
      * Set the jobs that should run if this job is successful.
+     *
+     * @return $this
      */
     public function chain(array $chain): static
     {
@@ -243,6 +267,8 @@ trait Queueable
 
     /**
      * Prepend a job to the current chain so that it is run after the currently running job.
+     *
+     * @return $this
      */
     public function prependToChain(mixed $job): static
     {
@@ -257,6 +283,8 @@ trait Queueable
 
     /**
      * Append a job to the end of the current chain.
+     *
+     * @return $this
      */
     public function appendToChain(mixed $job): static
     {
