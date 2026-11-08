@@ -67,6 +67,8 @@ class PendingCommand
 
     /**
      * Specify an expected question that will be asked when the command runs.
+     *
+     * @return $this
      */
     public function expectsQuestion(string $question, mixed $answer): static
     {
@@ -77,6 +79,8 @@ class PendingCommand
 
     /**
      * Specify an expected confirmation question that will be asked when the command runs.
+     *
+     * @return $this
      */
     public function expectsConfirmation(string $question, string $answer = 'no'): static
     {
@@ -85,6 +89,8 @@ class PendingCommand
 
     /**
      * Specify an expected choice question with expected answers that will be asked/shown when the command runs.
+     *
+     * @return $this
      */
     public function expectsChoice(string $question, array|string $answer, array $answers, bool $strict = false): static
     {
@@ -98,6 +104,8 @@ class PendingCommand
 
     /**
      * Specify an expected search question with an expected search string, followed by an expected choice question with expected answers.
+     *
+     * @return $this
      */
     public function expectsSearch(string $question, array|string $answer, string $search, array $answers): static
     {
@@ -108,6 +116,8 @@ class PendingCommand
 
     /**
      * Specify output that should be printed when the command runs.
+     *
+     * @return $this
      */
     public function expectsOutput(?string $output = null): static
     {
@@ -124,6 +134,8 @@ class PendingCommand
 
     /**
      * Specify output that should never be printed when the command runs.
+     *
+     * @return $this
      */
     public function doesntExpectOutput(?string $output = null): static
     {
@@ -140,6 +152,8 @@ class PendingCommand
 
     /**
      * Specify that the given string should be contained in the command output.
+     *
+     * @return $this
      */
     public function expectsOutputToContain(string $string): static
     {
@@ -150,6 +164,8 @@ class PendingCommand
 
     /**
      * Specify that the given string shouldn't be contained in the command output.
+     *
+     * @return $this
      */
     public function doesntExpectOutputToContain(string $string): static
     {
@@ -160,6 +176,8 @@ class PendingCommand
 
     /**
      * Specify a table that should be printed when the command runs.
+     *
+     * @return $this
      */
     public function expectsTable(array $headers, array|Arrayable $rows, string $tableStyle = 'default', array $columnStyles = []): static
     {
@@ -187,6 +205,8 @@ class PendingCommand
 
     /**
      * Specify that the given Prompts info message should be contained in the command output.
+     *
+     * @return $this
      */
     public function expectsPromptsInfo(string $message): static
     {
@@ -199,6 +219,8 @@ class PendingCommand
 
     /**
      * Specify that the given Prompts warning message should be contained in the command output.
+     *
+     * @return $this
      */
     public function expectsPromptsWarning(string $message): static
     {
@@ -211,6 +233,8 @@ class PendingCommand
 
     /**
      * Specify that the given Prompts error message should be contained in the command output.
+     *
+     * @return $this
      */
     public function expectsPromptsError(string $message): static
     {
@@ -223,6 +247,8 @@ class PendingCommand
 
     /**
      * Specify that the given Prompts alert message should be contained in the command output.
+     *
+     * @return $this
      */
     public function expectsPromptsAlert(string $message): static
     {
@@ -235,6 +261,8 @@ class PendingCommand
 
     /**
      * Specify that the given Prompts intro message should be contained in the command output.
+     *
+     * @return $this
      */
     public function expectsPromptsIntro(string $message): static
     {
@@ -247,6 +275,8 @@ class PendingCommand
 
     /**
      * Specify that the given Prompts outro message should be contained in the command output.
+     *
+     * @return $this
      */
     public function expectsPromptsOutro(string $message): static
     {
@@ -264,6 +294,7 @@ class PendingCommand
      * @param null|array<int, array<int, string>>|Collection<int, array<int, string>> $rows
      *
      * @phpstan-param ($rows is null ? list<list<string>>|Collection<int, list<string>> : list<string|list<string>>|Collection<int, string|list<string>>) $headers
+     * @return $this
      */
     public function expectsPromptsTable(array|Collection $headers, array|Collection|null $rows): static
     {
@@ -289,6 +320,8 @@ class PendingCommand
 
     /**
      * Assert that the command has the given exit code.
+     *
+     * @return $this
      */
     public function assertExitCode(int $exitCode): static
     {
@@ -299,6 +332,8 @@ class PendingCommand
 
     /**
      * Assert that the command does not have the given exit code.
+     *
+     * @return $this
      */
     public function assertNotExitCode(int $exitCode): static
     {
@@ -309,6 +344,8 @@ class PendingCommand
 
     /**
      * Assert that the command has the success exit code.
+     *
+     * @return $this
      */
     public function assertSuccessful(): static
     {
@@ -317,6 +354,8 @@ class PendingCommand
 
     /**
      * Assert that the command has the success exit code.
+     *
+     * @return $this
      */
     public function assertOk(): static
     {
@@ -325,6 +364,8 @@ class PendingCommand
 
     /**
      * Assert that the command does not have the success exit code.
+     *
+     * @return $this
      */
     public function assertFailed(): static
     {

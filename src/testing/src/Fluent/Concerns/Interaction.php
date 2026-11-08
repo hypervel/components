@@ -42,6 +42,8 @@ trait Interaction
 
     /**
      * Disable the interaction check.
+     *
+     * @return $this
      */
     public function etc(): static
     {

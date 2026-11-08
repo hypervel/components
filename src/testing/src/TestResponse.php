@@ -105,6 +105,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response has a successful status code.
+     *
+     * @return $this
      */
     public function assertSuccessful(): static
     {
@@ -118,6 +120,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the Precognition request was successful.
+     *
+     * @return $this
      */
     public function assertSuccessfulPrecognition(): static
     {
@@ -139,6 +143,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response is a client error.
+     *
+     * @return $this
      */
     public function assertClientError(): static
     {
@@ -152,6 +158,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response is a server error.
+     *
+     * @return $this
      */
     public function assertServerError(): static
     {
@@ -165,6 +173,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response has the given status code.
+     *
+     * @return $this
      */
     public function assertStatus(int $status): static
     {
@@ -185,6 +195,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert whether the response is redirecting to a given URI.
+     *
+     * @return $this
      */
     public function assertRedirect(?string $uri = null): static
     {
@@ -202,6 +214,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert whether the response is redirecting to a URI that contains the given URI.
+     *
+     * @return $this
      */
     public function assertRedirectContains(string $uri): static
     {
@@ -220,6 +234,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert whether the response is redirecting back to the previous location.
+     *
+     * @return $this
      */
     public function assertRedirectBack(): static
     {
@@ -235,6 +251,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert whether the response is redirecting back to the previous location with the given errors in the session.
+     *
+     * @return $this
      */
     public function assertRedirectBackWithErrors(array|string $keys = [], mixed $format = null, string $errorBag = 'default'): static
     {
@@ -247,6 +265,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert whether the response is redirecting back to the previous location with no errors in the session.
+     *
+     * @return $this
      */
     public function assertRedirectBackWithoutErrors(): static
     {
@@ -259,6 +279,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert whether the response is redirecting to a given route.
+     *
+     * @return $this
      */
     public function assertRedirectToRoute(BackedEnum|string $name, mixed $parameters = []): static
     {
@@ -276,6 +298,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert whether the response is redirecting to a given signed route.
+     *
+     * @return $this
      */
     public function assertRedirectToSignedRoute(BackedEnum|string|null $name = null, mixed $parameters = [], bool $absolute = true): static
     {
@@ -312,6 +336,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert whether the response is redirecting to a given controller action.
+     *
+     * @return $this
      */
     public function assertRedirectToAction(array|string $name, array $parameters = []): static
     {
@@ -329,6 +355,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Asserts that the response contains the given header and equals the optional value.
+     *
+     * @return $this
      */
     public function assertHeader(string $headerName, mixed $value = null): static
     {
@@ -352,6 +380,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Asserts that the response contains the given header and that its value contains the given string.
+     *
+     * @return $this
      */
     public function assertHeaderContains(string $headerName, string $value): static
     {
@@ -372,6 +402,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Asserts that the response does not contain the given header.
+     *
+     * @return $this
      */
     public function assertHeaderMissing(string $headerName): static
     {
@@ -385,6 +417,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the current location header matches the given URI.
+     *
+     * @return $this
      */
     public function assertLocation(string $uri): static
     {
@@ -398,6 +432,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response offers a file download.
+     *
+     * @return $this
      */
     public function assertDownload(?string $filename = null): static
     {
@@ -443,6 +479,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Asserts that the response contains the given cookie and equals the optional value.
+     *
+     * @return $this
      */
     public function assertPlainCookie(string $cookieName, mixed $value = null): static
     {
@@ -453,6 +491,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Asserts that the response contains the given cookie and equals the optional value.
+     *
+     * @return $this
      */
     public function assertCookie(string $cookieName, mixed $value = null, bool $encrypted = true, bool $unserialize = false): static
     {
@@ -478,6 +518,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Asserts that the response contains the given cookie and is expired.
+     *
+     * @return $this
      */
     public function assertCookieExpired(string $cookieName): static
     {
@@ -498,6 +540,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Asserts that the response contains the given cookie and is not expired.
+     *
+     * @return $this
      */
     public function assertCookieNotExpired(string $cookieName): static
     {
@@ -518,6 +562,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Asserts that the response does not contain the given cookie.
+     *
+     * @return $this
      */
     public function assertCookieMissing(string $cookieName): static
     {
@@ -564,6 +610,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the given string matches the response content.
+     *
+     * @return $this
      */
     public function assertContent(string $value): static
     {
@@ -574,6 +622,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response was streamed.
+     *
+     * @return $this
      */
     public function assertStreamed(): static
     {
@@ -587,6 +637,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response was not streamed.
+     *
+     * @return $this
      */
     public function assertNotStreamed(): static
     {
@@ -600,6 +652,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the given string matches the streamed response content.
+     *
+     * @return $this
      */
     public function assertStreamedContent(string $value): static
     {
@@ -610,6 +664,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the given array matches the streamed JSON response content.
+     *
+     * @return $this
      *
      * @throws JsonException
      */
@@ -622,6 +678,7 @@ class TestResponse implements ArrayAccess
      * Assert that the given string or array of strings are contained within the response.
      *
      * @param list<string>|string $value
+     * @return $this
      */
     public function assertSee(array|string $value, bool $escape = true): static
     {
@@ -640,6 +697,7 @@ class TestResponse implements ArrayAccess
      * Assert that the given HTML string or array of HTML strings are contained within the response.
      *
      * @param list<string>|string $value
+     * @return $this
      */
     public function assertSeeHtml(array|string $value): static
     {
@@ -650,6 +708,7 @@ class TestResponse implements ArrayAccess
      * Assert that the given strings are contained in order within the response.
      *
      * @param list<string> $values
+     * @return $this
      */
     public function assertSeeInOrder(array $values, bool $escape = true): static
     {
@@ -664,6 +723,7 @@ class TestResponse implements ArrayAccess
      * Assert that the given HTML strings are contained in order within the response.
      *
      * @param list<string> $values
+     * @return $this
      */
     public function assertSeeHtmlInOrder(array $values): static
     {
@@ -674,6 +734,7 @@ class TestResponse implements ArrayAccess
      * Assert that the given string or array of strings are contained within the response text.
      *
      * @param list<string>|string $value
+     * @return $this
      */
     public function assertSeeText(array|string $value, bool $escape = true): static
     {
@@ -690,6 +751,7 @@ class TestResponse implements ArrayAccess
      * Assert that the given strings are contained in order within the response text.
      *
      * @param list<string> $values
+     * @return $this
      */
     public function assertSeeTextInOrder(array $values, bool $escape = true): static
     {
@@ -704,6 +766,7 @@ class TestResponse implements ArrayAccess
      * Assert that the given string or array of strings are not contained within the response.
      *
      * @param list<string>|string $value
+     * @return $this
      */
     public function assertDontSee(array|string $value, bool $escape = true): static
     {
@@ -722,6 +785,7 @@ class TestResponse implements ArrayAccess
      * Assert that the given HTML string or array of HTML strings are not contained within the response.
      *
      * @param list<string>|string $value
+     * @return $this
      */
     public function assertDontSeeHtml(array|string $value): static
     {
@@ -732,6 +796,7 @@ class TestResponse implements ArrayAccess
      * Assert that the given string or array of strings are not contained within the response text.
      *
      * @param list<string>|string $value
+     * @return $this
      */
     public function assertDontSeeText(array|string $value, bool $escape = true): static
     {
@@ -746,6 +811,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response is a superset of the given JSON.
+     *
+     * @return $this
      */
     public function assertJson(array|callable $value, bool $strict = false): static
     {
@@ -768,6 +835,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the expected value and type exists at the given path in the response.
+     *
+     * @return $this
      */
     public function assertJsonPath(string $path, mixed $expect): static
     {
@@ -780,6 +849,7 @@ class TestResponse implements ArrayAccess
      * Assert that the expected values and types exist at the given paths in the response.
      *
      * @param array<string, mixed> $paths
+     * @return $this
      */
     public function assertJsonPaths(array $paths): static
     {
@@ -794,6 +864,7 @@ class TestResponse implements ArrayAccess
      * Assert that the given paths in the response contain all of the expected values without looking at the order.
      *
      * @param array<string, array<array-key, mixed>> $paths
+     * @return $this
      */
     public function assertJsonPathsCanonicalizing(array $paths): static
     {
@@ -806,6 +877,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the given path in the response contains all of the expected values without looking at the order.
+     *
+     * @return $this
      */
     public function assertJsonPathCanonicalizing(string $path, array $expect): static
     {
@@ -816,6 +889,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response has the exact given JSON.
+     *
+     * @return $this
      */
     public function assertExactJson(array $data): static
     {
@@ -826,6 +901,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response has the similar JSON as given.
+     *
+     * @return $this
      */
     public function assertSimilarJson(array $data): static
     {
@@ -836,6 +913,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response contains the given JSON fragments.
+     *
+     * @return $this
      */
     public function assertJsonFragments(array $data): static
     {
@@ -848,6 +927,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response contains the given JSON fragment.
+     *
+     * @return $this
      */
     public function assertJsonFragment(array $data): static
     {
@@ -858,6 +939,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response does not contain the given JSON fragment.
+     *
+     * @return $this
      */
     public function assertJsonMissing(array $data, bool $exact = false): static
     {
@@ -868,6 +951,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response does not contain the exact JSON fragment.
+     *
+     * @return $this
      */
     public function assertJsonMissingExact(array $data): static
     {
@@ -878,6 +963,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response does not contain the given path.
+     *
+     * @return $this
      */
     public function assertJsonMissingPath(string $path): static
     {
@@ -890,6 +977,7 @@ class TestResponse implements ArrayAccess
      * Assert that the response does not contain the given paths.
      *
      * @param list<string> $paths
+     * @return $this
      */
     public function assertJsonMissingPaths(array $paths): static
     {
@@ -902,6 +990,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response has a given JSON structure.
+     *
+     * @return $this
      */
     public function assertJsonStructure(?array $structure = null, ?array $responseData = null): static
     {
@@ -912,6 +1002,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response has the exact JSON structure.
+     *
+     * @return $this
      */
     public function assertExactJsonStructure(?array $structure = null, ?array $responseData = null): static
     {
@@ -922,6 +1014,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response JSON has the expected count of items at the given key.
+     *
+     * @return $this
      */
     public function assertJsonCount(int $count, ?string $key = null): static
     {
@@ -932,6 +1026,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response has the given JSON validation errors.
+     *
+     * @return $this
      */
     public function assertJsonValidationErrors(array|string|null $errors, string $responseKey = 'errors'): static
     {
@@ -979,6 +1075,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response has the given JSON validation errors but does not have any other JSON validation errors.
+     *
+     * @return $this
      */
     public function assertOnlyJsonValidationErrors(array|string|null $errors, string $responseKey = 'errors'): static
     {
@@ -1002,6 +1100,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert the response has any JSON validation errors for the given key.
+     *
+     * @return $this
      */
     public function assertJsonValidationErrorFor(string $key, string $responseKey = 'errors'): static
     {
@@ -1023,6 +1123,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response has no JSON validation errors for the given keys.
+     *
+     * @return $this
      */
     public function assertJsonMissingValidationErrors(array|string|null $keys = null, string $responseKey = 'errors'): static
     {
@@ -1061,6 +1163,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the given key is a JSON array.
+     *
+     * @return $this
      */
     public function assertJsonIsArray(?string $key = null): static
     {
@@ -1074,6 +1178,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the given key is a JSON object.
+     *
+     * @return $this
      */
     public function assertJsonIsObject(?string $key = null): static
     {
@@ -1130,6 +1236,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response view equals the given value.
+     *
+     * @return $this
      */
     public function assertViewIs(string $value): static
     {
@@ -1142,6 +1250,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response view has a given piece of bound data.
+     *
+     * @return $this
      */
     public function assertViewHas(array|string $key, mixed $value = null): static
     {
@@ -1183,6 +1293,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response view has a given list of bound data.
+     *
+     * @return $this
      */
     public function assertViewHasAll(array $bindings): static
     {
@@ -1215,6 +1327,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response view is missing a piece of bound data.
+     *
+     * @return $this
      */
     public function assertViewMissing(string $key): static
     {
@@ -1227,6 +1341,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Ensure that the response has a view as its original content.
+     *
+     * @return $this
      */
     protected function ensureResponseHasView(): static
     {
@@ -1247,6 +1363,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the given keys do not have validation errors.
+     *
+     * @return $this
      */
     public function assertValid(array|string|null $keys = null, string $errorBag = 'default', string $responseKey = 'errors'): static
     {
@@ -1285,6 +1403,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response has the given validation errors.
+     *
+     * @return $this
      */
     public function assertInvalid(array|string|null $errors = null, string $errorBag = 'default', string $responseKey = 'errors'): static
     {
@@ -1334,6 +1454,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the response has the given validation errors but does not have any other validation errors.
+     *
+     * @return $this
      */
     public function assertOnlyInvalid(array|string|null $errors = null, string $errorBag = 'default', string $responseKey = 'errors'): static
     {
@@ -1363,6 +1485,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the session has a given value.
+     *
+     * @return $this
      */
     public function assertSessionHas(array|string $key, mixed $value = null): static
     {
@@ -1386,6 +1510,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the session has a given list of values.
+     *
+     * @return $this
      */
     public function assertSessionHasAll(array $bindings): static
     {
@@ -1413,6 +1539,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the session has a given value in the flashed input array.
+     *
+     * @return $this
      */
     public function assertSessionHasInput(array|string $key, mixed $value = null): static
     {
@@ -1468,6 +1596,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the session has the given errors.
+     *
+     * @return $this
      */
     public function assertSessionHasErrors(array|string $keys = [], mixed $format = null, string $errorBag = 'default'): static
     {
@@ -1490,6 +1620,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the session is missing the given errors.
+     *
+     * @return $this
      */
     public function assertSessionDoesntHaveErrors(array|string $keys = [], ?string $format = null, string $errorBag = 'default'): static
     {
@@ -1520,6 +1652,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the session has no errors.
+     *
+     * @return $this
      *
      * @throws JsonException
      */
@@ -1552,6 +1686,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the session has the given errors.
+     *
+     * @return $this
      */
     public function assertSessionHasErrorsIn(string $errorBag, array|string $keys = [], mixed $format = null): static
     {
@@ -1560,6 +1696,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the session does not have a given key.
+     *
+     * @return $this
      */
     public function assertSessionMissing(array|string $key, mixed $value = null): static
     {
@@ -1637,6 +1775,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Dump the content from the response.
+     *
+     * @return $this
      */
     public function dump(?string $key = null): static
     {
@@ -1660,6 +1800,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Dump the headers from the response.
+     *
+     * @return $this
      */
     public function dumpHeaders(): static
     {
@@ -1670,6 +1812,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Dump the session from the response.
+     *
+     * @return $this
      */
     public function dumpSession(array|string $keys = []): static
     {
@@ -1743,6 +1887,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Set the previous exceptions on the response.
+     *
+     * @return $this
      */
     public function withExceptions(Collection $exceptions): static
     {

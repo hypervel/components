@@ -12,6 +12,8 @@ trait Has
 {
     /**
      * Assert that the prop is of the expected size.
+     *
+     * @return $this
      */
     public function count(string|int $key, ?int $length = null): static
     {
@@ -40,6 +42,8 @@ trait Has
 
     /**
      * Assert that the prop size is between a given minimum and maximum.
+     *
+     * @return $this
      */
     public function countBetween(int|string $min, int|string $max): static
     {
@@ -68,6 +72,8 @@ trait Has
 
     /**
      * Ensure that the given prop exists.
+     *
+     * @return $this
      */
     public function has(string|int $key, int|Closure|null $length = null, ?Closure $callback = null): static
     {
@@ -110,6 +116,8 @@ trait Has
 
     /**
      * Assert that all of the given props exist.
+     *
+     * @return $this
      */
     public function hasAll(array|string $key): static
     {
@@ -128,6 +136,8 @@ trait Has
 
     /**
      * Assert that at least one of the given props exists.
+     *
+     * @return $this
      */
     public function hasAny(array|string $key): static
     {
@@ -147,6 +157,8 @@ trait Has
 
     /**
      * Assert that none of the given props exist.
+     *
+     * @return $this
      */
     public function missingAll(array|string $key): static
     {
@@ -161,6 +173,8 @@ trait Has
 
     /**
      * Assert that the given prop does not exist.
+     *
+     * @return $this
      */
     public function missing(string $key): static
     {
@@ -189,16 +203,22 @@ trait Has
 
     /**
      * Instantiate a new "scope" at the path of the given key.
+     *
+     * @return $this
      */
     abstract protected function scope(string|int $key, Closure $callback): static;
 
     /**
      * Disable the interaction check.
+     *
+     * @return $this
      */
     abstract public function etc(): static;
 
     /**
      * Instantiate a new "scope" on the first element.
+     *
+     * @return $this
      */
     abstract public function first(Closure $callback): static;
 }
