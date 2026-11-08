@@ -5,16 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\PHPStan\Support;
 
 use Hypervel\Database\Eloquent\Attributes\CollectedBy;
+use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\HasCollection;
+use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\PHPStan\Reflection\AttributeClassNameResolver;
+use Hypervel\PHPStan\Reflection\ForwardedMethodReflection;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
 use Hypervel\Support\LazyCollection;
-use PhpParser\Node\Expr\ClassConstFetch;
-use PhpParser\Node\Name;
-use PhpParser\Node\Scalar\String_;
+use Hypervel\Support\Str;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\ClassReflection;
+use PHPStan\Reflection\MethodReflection;
 use PHPStan\Reflection\MissingMethodFromReflectionException;
 use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\ShouldNotHappenException;
@@ -34,7 +37,7 @@ use PHPStan\Type\UnionType;
 use function array_map;
 use function count;
 use function in_array;
-use function ltrim;
+use function str_starts_with;
 
 #[AutowiredService]
 class CollectionHelper
@@ -47,8 +50,10 @@ class CollectionHelper
     /**
      * Create a new collection helper instance.
      */
-    public function __construct(private ReflectionProvider $reflectionProvider)
-    {
+    public function __construct(
+        private ReflectionProvider $reflectionProvider,
+        private AttributeClassNameResolver $attributeClassNames,
+    ) {
     }
 
     /**
@@ -67,6 +72,26 @@ class CollectionHelper
         }
 
         return true;
+    }
+
+    /**
+     * Determine whether a framework builder or relation implements the method, so the model's newCollection()
+     * creates the collections it returns. A custom builder's or relation's override keeps its declaration.
+     */
+    public static function isFrameworkQueryMethod(MethodReflection $methodReflection): bool
+    {
+        $prototype = $methodReflection->getPrototype();
+
+        // A relation runs the builder method it forwards.
+        if ($prototype instanceof ForwardedMethodReflection) {
+            $methodReflection = $prototype->getForwardedMethod();
+        }
+
+        $declaringClass = $methodReflection->getDeclaringClass();
+
+        return $declaringClass->hasNativeMethod($methodReflection->getName())
+            && ($declaringClass->getName() === EloquentBuilder::class
+                || str_starts_with($declaringClass->getName(), Str::beforeLast(Relation::class, '\\') . '\\'));
     }
 
     /**
@@ -138,17 +163,8 @@ class CollectionHelper
 
             // The attribute is instantiated, so its argument may be named.
             $arguments = $attributes[0]->getArgumentsExpressions();
-            $expr = $arguments['collectionClass'] ?? $arguments[0] ?? null;
 
-            if ($expr instanceof ClassConstFetch && $expr->class instanceof Name) {
-                return $expr->class->toString();
-            }
-
-            if ($expr instanceof String_) {
-                return ltrim($expr->value, '\\');
-            }
-
-            return null;
+            return $this->attributeClassNames->resolve($arguments['collectionClass'] ?? $arguments[0] ?? null, $classReflection, $modelReflection);
         }
 
         return null;
@@ -217,13 +233,21 @@ class CollectionHelper
                 return $traverse($type);
             }
 
-            $models = $type->getTemplateType(EloquentCollection::class, 'TModel')->getObjectClassNames();
+            $modelType = $type->getTemplateType(EloquentCollection::class, 'TModel');
+            $models = $modelType->getObjectClassNames();
 
             if (count($models) === 0) {
                 return $type;
             }
 
-            return TypeCombinator::union(...array_map([$this, 'determineCollectionClass'], $models));
+            $keyType = $type->getTemplateType(EloquentCollection::class, 'TKey');
+
+            // Unlike upstream, each model keeps the rest of its value type, such as a pivot shape, and
+            // the collection keeps its key type.
+            return TypeCombinator::union(...array_map(
+                fn (string $model): Type => $this->determineCollectionClass($model, TypeCombinator::intersect($modelType, new ObjectType($model)), $keyType),
+                $models,
+            ));
         });
     }
 }
