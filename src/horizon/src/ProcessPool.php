@@ -128,6 +128,8 @@ class ProcessPool implements Countable
 
     /**
      * Add a new worker process to the pool.
+     *
+     * @return $this
      */
     protected function start(): static
     {

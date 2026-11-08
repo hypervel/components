@@ -68,6 +68,8 @@ class EntryQueryOptions
 
     /**
      * Set the batch ID for the query.
+     *
+     * @return $this
      */
     public function batchId(?string $batchId): static
     {
@@ -78,6 +80,8 @@ class EntryQueryOptions
 
     /**
      * Set the list of UUIDs of entries to retrieve.
+     *
+     * @return $this
      */
     public function uuids(?array $uuids): static
     {
@@ -88,6 +92,8 @@ class EntryQueryOptions
 
     /**
      * Set the ID that all retrieved entries should be less than.
+     *
+     * @return $this
      */
     public function beforeSequence(int|string|null $id): static
     {
@@ -98,6 +104,8 @@ class EntryQueryOptions
 
     /**
      * Set the tag that must belong to retrieved entries.
+     *
+     * @return $this
      */
     public function tag(?string $tag): static
     {
@@ -108,6 +116,8 @@ class EntryQueryOptions
 
     /**
      * Match the tag literally instead of as a search expression.
+     *
+     * @return $this
      */
     public function exactTag(bool $exactTag = true): static
     {
@@ -118,6 +128,8 @@ class EntryQueryOptions
 
     /**
      * Set the family hash that must belong to retrieved entries.
+     *
+     * @return $this
      */
     public function familyHash(?string $familyHash): static
     {
@@ -128,6 +140,8 @@ class EntryQueryOptions
 
     /**
      * Set the number of entries that should be retrieved.
+     *
+     * @return $this
      */
     public function limit(int $limit): static
     {

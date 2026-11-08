@@ -78,6 +78,8 @@ class EntryModel extends Model
 
     /**
      * Scope the query for the given type.
+     *
+     * @return $this
      */
     protected function whereType(Builder $query, ?string $type): static
     {
@@ -90,6 +92,8 @@ class EntryModel extends Model
 
     /**
      * Scope the query for the given batch ID.
+     *
+     * @return $this
      */
     protected function whereBatchId(Builder $query, EntryQueryOptions $options): static
     {
@@ -102,6 +106,8 @@ class EntryModel extends Model
 
     /**
      * Scope the query for the given entry UUIDs.
+     *
+     * @return $this
      */
     protected function whereUuids(Builder $query, EntryQueryOptions $options): static
     {
@@ -114,6 +120,8 @@ class EntryModel extends Model
 
     /**
      * Scope the query for the given tag.
+     *
+     * @return $this
      */
     protected function whereTag(Builder $query, EntryQueryOptions $options): static
     {
@@ -134,6 +142,8 @@ class EntryModel extends Model
 
     /**
      * Scope the query for the given family hash.
+     *
+     * @return $this
      */
     protected function whereFamilyHash(Builder $query, EntryQueryOptions $options): static
     {
@@ -146,6 +156,8 @@ class EntryModel extends Model
 
     /**
      * Scope the query for the given pagination options.
+     *
+     * @return $this
      */
     protected function whereBeforeSequence(Builder $query, EntryQueryOptions $options): static
     {
@@ -158,6 +170,8 @@ class EntryModel extends Model
 
     /**
      * Scope the query for the given display options.
+     *
+     * @return $this
      */
     protected function filter(Builder $query, EntryQueryOptions $options): static
     {

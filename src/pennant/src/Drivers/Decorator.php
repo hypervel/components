@@ -1049,6 +1049,8 @@ class Decorator implements CanListStoredFeatures, CanSetManyFeaturesForScopes, D
      * Set the container instance used by the decorator.
      *
      * Tests only. The container persists on the store for the worker lifetime.
+     *
+     * @return $this
      */
     public function setContainer(Container $container): static
     {

@@ -302,6 +302,8 @@ class FeatureManager
      *
      * Boot-only. The setting persists on the manager for the worker lifetime and
      * changes how every subsequent request serializes model scopes.
+     *
+     * @return $this
      */
     public function useMorphMap(bool $value = true): static
     {
@@ -469,6 +471,7 @@ class FeatureManager
      * the current coroutine's values for a forgotten store are flushed.
      *
      * @param null|array<string>|string $name
+     * @return $this
      */
     public function forgetDriver(array|string|null $name = null): static
     {
@@ -490,6 +493,8 @@ class FeatureManager
      *
      * Boot or tests only. Stores are shared by every request in the worker, and
      * the current coroutine's values for the forgotten stores are flushed.
+     *
+     * @return $this
      */
     public function forgetDrivers(): static
     {
@@ -506,6 +511,8 @@ class FeatureManager
      * Register a custom driver creator Closure.
      *
      * Boot-only. The creator persists on the manager for the worker lifetime.
+     *
+     * @return $this
      */
     public function extend(string $driver, Closure $callback): static
     {
@@ -519,6 +526,8 @@ class FeatureManager
      *
      * Tests only. The container persists on the manager and its stores for the
      * worker lifetime.
+     *
+     * @return $this
      */
     public function setContainer(Container $container): static
     {

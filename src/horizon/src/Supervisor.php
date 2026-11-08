@@ -398,6 +398,8 @@ class Supervisor implements Pausable, Restartable, Terminable
 
     /**
      * Set the output handler.
+     *
+     * @return $this
      */
     public function handleOutputUsing(Closure $callback): static
     {

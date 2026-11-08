@@ -35,6 +35,8 @@ class EntryUpdate
 
     /**
      * Set the properties that should be updated.
+     *
+     * @return $this
      */
     public function change(array $changes): static
     {
@@ -45,6 +47,8 @@ class EntryUpdate
 
     /**
      * Add tags to the entry.
+     *
+     * @return $this
      */
     public function addTags(array $tags): static
     {
@@ -57,6 +61,8 @@ class EntryUpdate
 
     /**
      * Remove tags from the entry.
+     *
+     * @return $this
      */
     public function removeTags(array $tags): static
     {

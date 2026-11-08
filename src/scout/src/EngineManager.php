@@ -241,6 +241,8 @@ class EngineManager
      *
      * Boot-only. The callback persists in the singleton's customCreators array
      * for the worker lifetime and applies to every subsequent engine resolution.
+     *
+     * @return $this
      */
     public function extend(string $driver, Closure $callback): static
     {
@@ -255,6 +257,8 @@ class EngineManager
      * Boot or tests only. Clears the manager's engine cache; concurrent
      * coroutines may already hold references that next resolution will not
      * share.
+     *
+     * @return $this
      */
     public function forgetEngines(): static
     {
@@ -269,6 +273,8 @@ class EngineManager
      * Boot or tests only. Mutates the manager's engine cache; concurrent
      * coroutines may already hold a reference to the engine and next resolution
      * will rebuild.
+     *
+     * @return $this
      */
     public function forgetEngine(string $name): static
     {

@@ -41,6 +41,8 @@ class EntryResult implements JsonSerializable
 
     /**
      * Set the URL to the entry user's avatar.
+     *
+     * @return $this
      */
     public function generateAvatar(): static
     {
