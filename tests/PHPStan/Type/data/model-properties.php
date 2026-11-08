@@ -123,7 +123,7 @@ function test(
 function testUnknownSchema(UnknownSchemaUser $user): void
 {
     // Unknown schema facts do not hide a declared relation, and only a trailing _count names a relation count.
-    assertType('Hypervel\Database\Eloquent\Collection<int, App\Post>', $user->posts);
+    assertType('Hypervel\Database\Eloquent\Collection<int, App\Post&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->posts);
     assertType('int<0, max>', $user->stock_count_items_count);
     assertType('mixed', $user->name);
 }

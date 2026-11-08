@@ -26,7 +26,9 @@ class ModelPropertyExtension implements PropertiesClassReflectionExtension
      * Determine whether the model has a database property, unless an accessor or mutator handles it.
      *
      * A property the schema facts cannot establish is left to a declared relation, which Eloquent
-     * reads when no attribute has that name.
+     * reads when no attribute has that name. An abstract model claims no such property: a model
+     * trait's `@mixin Model`, as on Scout's Searchable, would otherwise give every model every
+     * property. ModelPropertyHelper::acceptsPropertyName() accepts any name for an abstract model instead.
      */
     public function hasProperty(ClassReflection $classReflection, string $propertyName): bool
     {
@@ -37,7 +39,9 @@ class ModelPropertyExtension implements PropertiesClassReflectionExtension
         $hasProperty = $this->modelPropertyHelper->hasDatabaseProperty($classReflection, $propertyName);
 
         return $hasProperty->yes()
-            || ($hasProperty->maybe() && ! $this->modelRelationsExtension->hasProperty($classReflection, $propertyName));
+            || ($hasProperty->maybe()
+                && ! $classReflection->isAbstract()
+                && ! $this->modelRelationsExtension->hasProperty($classReflection, $propertyName));
     }
 
     /**

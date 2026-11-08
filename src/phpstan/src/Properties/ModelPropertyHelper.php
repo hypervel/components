@@ -22,9 +22,11 @@ use PHPStan\Type\NeverType;
 use PHPStan\Type\NullType;
 use PHPStan\Type\Type;
 use PHPStan\Type\TypeCombinator;
+use PHPStan\Type\TypeUtils;
 use ReflectionException;
 use ReflectionNamedType;
 
+use function array_all;
 use function array_combine;
 use function array_key_exists;
 use function array_keys;
@@ -82,6 +84,27 @@ class ModelPropertyHelper
     }
 
     /**
+     * Determine if a property name is accepted for a model type, as any name is for an abstract model.
+     *
+     * An abstract model, including Model itself and template bounds, stands for its subclasses, so any
+     * name may be one of their attributes. ModelPropertyExtension does not claim these names.
+     */
+    public function acceptsPropertyName(Type $modelType, string $propertyName): TrinaryLogic
+    {
+        return TrinaryLogic::lazyExtremeIdentity(
+            TypeUtils::flattenTypes($modelType),
+            static function (Type $type) use ($propertyName): TrinaryLogic {
+                $classReflections = $type->getObjectClassReflections();
+                $isAbstractModel = static fn (ClassReflection $classReflection): bool => $classReflection->isAbstract() && $classReflection->is(Model::class);
+
+                return $classReflections !== [] && array_all($classReflections, $isAbstractModel)
+                    ? TrinaryLogic::createYes()
+                    : $type->hasInstanceProperty($propertyName);
+            },
+        );
+    }
+
+    /**
      * Determine if the model has a database property, or maybe has one when its schema facts are unknown.
      */
     public function hasDatabaseProperty(ClassReflection $classReflection, string $propertyName): TrinaryLogic
@@ -90,18 +113,20 @@ class ModelPropertyHelper
             return TrinaryLogic::createNo();
         }
 
-        if ($classReflection->isAbstract()) {
+        if (ReflectionHelper::hasPropertyTag($classReflection, $propertyName)) {
             return TrinaryLogic::createNo();
         }
 
-        if (ReflectionHelper::hasPropertyTag($classReflection, $propertyName)) {
-            return TrinaryLogic::createNo();
+        // Unlike upstream, a model without readable schema facts is not claimed to lack the property:
+        // an abstract model stands for its subclasses, and an uninstantiable one has no known table.
+        if ($classReflection->isAbstract()) {
+            return TrinaryLogic::createMaybe();
         }
 
         try {
             $modelInstance = $this->modelHelper->getInstance($classReflection);
         } catch (ReflectionException) {
-            return TrinaryLogic::createNo();
+            return TrinaryLogic::createMaybe();
         }
 
         // HasAttributes::hasAttribute() accepts a cast key without a column, such as a class cast built from other columns.

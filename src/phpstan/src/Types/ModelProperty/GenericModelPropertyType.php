@@ -119,13 +119,14 @@ class GenericModelPropertyType extends StringType
                 return AcceptsResult::createNo([sprintf('Database table "%s" does not have column "%s"', $tableName, $propertyName)]);
             }
 
+            $accepted = $this->modelPropertyHelper->acceptsPropertyName($genericType, $givenString);
             $reasons = [];
 
-            if (! $genericType->hasInstanceProperty($givenString)->yes()) {
+            if (! $accepted->yes()) {
                 $reasons[] = sprintf('The given string should be a property of %s, %s given.', $this->type->describe(VerbosityLevel::value()), $givenString);
             }
 
-            return new AcceptsResult($genericType->hasInstanceProperty($givenString), $reasons);
+            return new AcceptsResult($accepted, $reasons);
         }
 
         if ($type instanceof self) {
@@ -149,11 +150,8 @@ class GenericModelPropertyType extends StringType
         $constantStrings = $type->getConstantStrings();
 
         if (count($constantStrings) === 1) {
-            if (! $this->getGenericType()->hasInstanceProperty($constantStrings[0]->getValue())->yes()) {
-                return IsSuperTypeOfResult::createNo();
-            }
-
-            return IsSuperTypeOfResult::createYes();
+            // Unlike upstream, an unknown property stays maybe, as accepts() keeps it.
+            return new IsSuperTypeOfResult($this->modelPropertyHelper->acceptsPropertyName($this->getGenericType(), $constantStrings[0]->getValue()), []);
         }
 
         if ($type instanceof self) {
@@ -164,7 +162,9 @@ class GenericModelPropertyType extends StringType
             return $type->isSubTypeOf($this);
         }
 
-        return IsSuperTypeOfResult::createNo();
+        // Unlike upstream, an arbitrary string may name a property, as accepts() allows. PHPStan rechecks an
+        // accepted intersection, such as a non-empty array with string keys, through isSuperTypeOf().
+        return $type->isString()->yes() ? IsSuperTypeOfResult::createMaybe() : IsSuperTypeOfResult::createNo();
     }
 
     /**
