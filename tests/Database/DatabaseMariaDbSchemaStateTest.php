@@ -19,6 +19,7 @@ class DatabaseMariaDbSchemaStateTest extends TestCase
     #[DataProvider('provider')]
     public function testConnectionString(string $expectedConnectionString, array $expectedVariables, array $dbConfig): void
     {
+        $expectedVariables += ['HYPERVEL_LOAD_SSL_CAPATH' => '', 'HYPERVEL_LOAD_SSL_CIPHER' => ''];
         $connection = $this->createStub(MariaDbConnection::class);
         $connection->method('getConfig')->willReturn($dbConfig);
 
@@ -42,7 +43,7 @@ class DatabaseMariaDbSchemaStateTest extends TestCase
     public static function provider(): Generator
     {
         yield 'default' => [
-            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}"', [
+            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}" --ssl=off', [
                 'HYPERVEL_LOAD_SOCKET' => '',
                 'HYPERVEL_LOAD_HOST' => '127.0.0.1',
                 'HYPERVEL_LOAD_PORT' => '',
@@ -60,7 +61,7 @@ class DatabaseMariaDbSchemaStateTest extends TestCase
         ];
 
         yield 'ssl_ca' => [
-            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}" --ssl-ca="${:HYPERVEL_LOAD_SSL_CA}"', [
+            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}" --ssl-ca="${:HYPERVEL_LOAD_SSL_CA}" --ssl --ssl-verify-server-cert', [
                 'HYPERVEL_LOAD_SOCKET' => '',
                 'HYPERVEL_LOAD_HOST' => '',
                 'HYPERVEL_LOAD_PORT' => '',
@@ -80,7 +81,7 @@ class DatabaseMariaDbSchemaStateTest extends TestCase
         ];
 
         yield 'ssl_cert_and_key' => [
-            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}" --ssl-ca="${:HYPERVEL_LOAD_SSL_CA}" --ssl-cert="${:HYPERVEL_LOAD_SSL_CERT}" --ssl-key="${:HYPERVEL_LOAD_SSL_KEY}"', [
+            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}" --ssl-ca="${:HYPERVEL_LOAD_SSL_CA}" --ssl-cert="${:HYPERVEL_LOAD_SSL_CERT}" --ssl-key="${:HYPERVEL_LOAD_SSL_KEY}" --ssl --ssl-verify-server-cert', [
                 'HYPERVEL_LOAD_SOCKET' => '',
                 'HYPERVEL_LOAD_HOST' => '',
                 'HYPERVEL_LOAD_PORT' => '',
@@ -122,7 +123,7 @@ class DatabaseMariaDbSchemaStateTest extends TestCase
         ];
 
         yield 'unix socket' => [
-            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --socket="${:HYPERVEL_LOAD_SOCKET}"', [
+            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --socket="${:HYPERVEL_LOAD_SOCKET}" --ssl=off', [
                 'HYPERVEL_LOAD_SOCKET' => '/tmp/mysql.sock',
                 'HYPERVEL_LOAD_HOST' => '',
                 'HYPERVEL_LOAD_PORT' => '',

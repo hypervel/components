@@ -816,6 +816,8 @@ Custom non-PDO drivers that relied on generic exception messages for recovery mu
 
 MySQL and MariaDB connection configs must specify `strict` or `modes`; they cannot inherit the server's SQL mode implicitly. See [SQL mode configuration](/docs/{{version}}/database#mysql-and-mariadb-sql-modes).
 
+For schema dumps and loads over TLS, use MySQL command-line tools version 5.7.11 or later. When using MariaDB tools, enable certificate verification and configure a trusted CA; TLS with verification disabled is rejected. See [schema dump TLS connections](/docs/{{version}}/migrations#schema-dump-tls).
+
 SQLite JSON-path updates replace assigned objects and retain JSON null. Review any reliance on Laravel's object merging or null-key deletion when [updating JSON columns](/docs/{{version}}/queries#updating-json-columns).
 
 Review pagination on update and delete queries. SQLite and PostgreSQL honor offsets, including without a limit. MySQL and MariaDB reject write offsets and limits on joined updates, and PostgreSQL rejects limits or offsets on `updateFrom`, instead of silently ignoring them. For these unsupported forms, select the intended primary keys first and write those rows explicitly.
@@ -843,6 +845,10 @@ Laravel's `ConnectionResolver` can be built from an array of connection instance
 Laravel's base `Connection` class exposes PDO methods. Hypervel's base `Connection` is driver-neutral, while its built-in SQL connections extend `PdoConnection`. Ported code that calls `getPdo`, `getReadPdo`, or another PDO-specific method should accept or narrow to `PdoConnection`. See [extending database connections](/docs/{{version}}/database#extending-database-connections) when porting a custom driver.
 
 Custom base query builders overriding `newQuery`, `forNestedWhere`, or `cloneForPaginationCount` must declare `static` returns and preserve the concrete builder class. Keep `forSubQuery` separate: join subqueries return the parent query builder. See the [database extension guide](/docs/{{version}}/database#extending-database-connections) for these return contracts.
+
+Custom metadata extensions must port `compileIndexes` with `processIndexes`, and `compileForeignKeys` with `processForeignKeys`, as matching pairs. MySQL/MariaDB and PostgreSQL use ordered rows instead of comma-joined names; SQLite foreign-key lists are hexadecimal. SQLite's column query also supplies native automatic-key metadata to its processor. Follow the [metadata row formats](/docs/{{version}}/database#extending-database-connections) rather than copying Laravel's aggregation or splitting logic.
+
+An index's `columns` list is empty when any key is an expression. Use `key_columns` for positional checks such as identifying a leading column; expression positions contain null. See [inspecting your databases](/docs/{{version}}/database#inspecting-your-databases).
 
 Use named connections instead of Laravel's nested `direct` endpoint, `::direct` suffix and direct-PDO methods such as `getDirectPdo()`. Select the migration connection with `migrations_connection`.
 

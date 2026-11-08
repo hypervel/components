@@ -15,6 +15,7 @@ use Mockery as m;
 use Mockery\Exception\InvalidCountException;
 use Mockery\Exception\InvalidOrderException;
 use PHPUnit\Framework\AssertionFailedError;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Process\Process;
@@ -79,15 +80,25 @@ class ArtisanCommandTest extends TestCase
             ->assertExitCode(0);
     }
 
-    public function testConsoleCommandFailsFromUnexpectedOutputSubstring(): void
+    #[TestWith([null, null])]
+    #[TestWith(['expectsOutputToContain', 'My name'])]
+    #[TestWith(['expectsOutput', 'My name is Albert Chen'])]
+    #[TestWith(['expectsOutput', null])]
+    public function testConsoleCommandFailsFromUnexpectedOutputSubstring(?string $method, ?string $output): void
     {
         $this->registerContainsCommand();
 
         $this->expectExceptionObject(new AssertionFailedError('Output "Albert Chen" was printed.'));
 
-        $this->artisan('contains')
+        $command = $this->artisan('contains')
             ->doesntExpectOutputToContain('Albert Chen')
             ->assertExitCode(0);
+
+        if ($method !== null) {
+            $command->{$method}($output);
+        }
+
+        $command->run();
     }
 
     public function testConsoleCommandFailsFromMissingOutput(): void
@@ -141,6 +152,7 @@ class ArtisanCommandTest extends TestCase
 
         $this->artisan('contains')
             ->expectsOutputToContain('Albert Chen')
+            ->expectsOutputToContain('My name')
             ->assertExitCode(0);
     }
 

@@ -78,7 +78,9 @@ class PostgresProcessor extends Processor
         return array_map(function ($result) {
             $result = (object) $result;
 
-            $autoincrement = $result->default !== null && str_starts_with($result->default, 'nextval(');
+            // Identity columns do not have a nextval default in pg_attrdef.
+            $autoincrement = ! empty($result->identity)
+                || ($result->default !== null && str_starts_with($result->default, 'nextval('));
 
             return [
                 'name' => $result->name,
@@ -104,32 +106,46 @@ class PostgresProcessor extends Processor
     #[Override]
     public function processIndexes(array $results): array
     {
-        return array_map(function ($result) {
+        $indexes = [];
+
+        foreach ($results as $result) {
             $result = (object) $result;
 
-            return [
+            $indexes[$result->name] ??= [
                 'name' => strtolower($result->name),
-                'columns' => $result->columns ? explode(',', $result->columns) : [],
+                'columns' => [],
+                'key_columns' => [],
                 'type' => strtolower($result->type),
                 'unique' => (bool) $result->unique,
                 'primary' => (bool) $result->primary,
                 'partial' => (bool) $result->partial,
             ];
-        }, $results);
+
+            $indexes[$result->name]['key_columns'][] = $result->column_name;
+        }
+
+        foreach ($indexes as &$index) {
+            // A partial column list would falsely identify a functional index as a plain one.
+            $index['columns'] = in_array(null, $index['key_columns'], true) ? [] : $index['key_columns'];
+        }
+
+        return array_values($indexes);
     }
 
     #[Override]
     public function processForeignKeys(array $results): array
     {
-        return array_map(function ($result) {
+        $foreignKeys = [];
+
+        foreach ($results as $result) {
             $result = (object) $result;
 
-            return [
+            $foreignKeys[$result->name] ??= [
                 'name' => $result->name,
-                'columns' => explode(',', $result->columns),
+                'columns' => [],
                 'foreign_schema' => $result->foreign_schema,
                 'foreign_table' => $result->foreign_table,
-                'foreign_columns' => explode(',', $result->foreign_columns),
+                'foreign_columns' => [],
                 'on_update' => match (strtolower($result->on_update)) {
                     'a' => 'no action',
                     'r' => 'restrict',
@@ -147,6 +163,10 @@ class PostgresProcessor extends Processor
                     default => null,
                 },
             ];
-        }, $results);
+            $foreignKeys[$result->name]['columns'][] = $result->column_name;
+            $foreignKeys[$result->name]['foreign_columns'][] = $result->foreign_column_name;
+        }
+
+        return array_values($foreignKeys);
     }
 }

@@ -63,6 +63,7 @@ class DatabaseConsoleOutputTest extends TestCase
         $this->assertSame(['btree', 'compound', 'partial'], $command->indexAttributes([
             'name' => 'records_active_index',
             'columns' => ['account_id', 'archived_at'],
+            'key_columns' => ['account_id', 'archived_at'],
             'type' => 'btree',
             'unique' => false,
             'primary' => false,

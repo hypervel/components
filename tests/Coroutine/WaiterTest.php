@@ -581,6 +581,44 @@ class WaiterTest extends TestCase
         }
     }
 
+    public function testTimeoutCancellationTerminatesPartiallySentStreamWrites(): void
+    {
+        // @TODO: Remove this skip once https://github.com/swoole/swoole-src/pull/6366 is released.
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '==')) {
+            $this->markTestSkipped('Swoole 6.3.0RC1 resumes a canceled stream write after partial progress.');
+        }
+
+        $childCoroutineId = null;
+        [$reader, $writer] = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        $waiter = new class extends Waiter {
+            protected float $pushTimeout = 0.001;
+        };
+
+        try {
+            $waiter->wait(function () use (&$childCoroutineId, $writer): void {
+                $childCoroutineId = Coroutine::id();
+                // Nothing reads the other end, so the write fills the socket buffer and waits.
+                @fwrite($writer, str_repeat('x', 8 * 1024 * 1024));
+            }, 0.05);
+            $this->fail('The waiter should time out.');
+        } catch (WaitTimeoutException) {
+        }
+
+        try {
+            $this->assertIsInt($childCoroutineId);
+            $this->assertFalse(Coroutine::exists($childCoroutineId));
+        } finally {
+            // Closing the reader fails a write that ignored the cancellation.
+            fclose($reader);
+
+            if (is_int($childCoroutineId)) {
+                Coroutine::join([$childCoroutineId]);
+            }
+
+            fclose($writer);
+        }
+    }
+
     public function testTimeoutWaitsForDeferredCleanupWithinTheCleanupBudget(): void
     {
         $childCoroutineId = null;

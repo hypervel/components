@@ -19,15 +19,25 @@ class SqliteSchemaState extends SchemaState
     #[Override]
     public function dump(Connection $connection, string $path): void
     {
-        $process = $this->makeProcess($this->baseCommand() . ' ".schema --indent"')
-            ->setTimeout(null)
-            ->mustRun(null, array_merge($this->baseVariables($this->connection->getConfig()), []));
+        // Virtual tables create their shadow tables again when they are loaded.
+        $shadowTables = (new Collection($this->connection->selectFromWriteConnection('pragma main.table_list')))
+            ->where('type', 'shadow')
+            ->pluck('name')
+            ->flip();
 
-        $migrations = preg_replace('/CREATE TABLE sqlite_.+?\);[\r\n]+/is', '', $process->getOutput());
+        // Each stored statement is read whole, in the order .schema prints, so no filtering can reach into its literals.
+        $schema = (new Collection($this->connection->selectFromWriteConnection(<<<'SQL'
+            select name, sql from main.sqlite_master
+            where sql is not null and name not like 'sqlite\_%' escape '\'
+            order by rowid
+            SQL)))
+            ->reject(static fn (object $statement): bool => $shadowTables->has($statement->name))
+            // Like .schema, quoted table names get IF NOT EXISTS: SQLite before 3.37 cannot list shadow tables,
+            // so they stay in the dump and must not fail after their virtual table has created them.
+            ->map(static fn (object $statement): string => preg_replace('/^CREATE TABLE (?=[\'"])/', 'CREATE TABLE IF NOT EXISTS ', $statement->sql) . ";\n")
+            ->implode('');
 
-        $migrations = $this->removeShadowTables($migrations);
-
-        $this->files->put($path, $migrations . PHP_EOL);
+        $this->files->put($path, $schema . PHP_EOL);
 
         if ($this->hasMigrationTable()) {
             $this->appendMigrationData($path);
@@ -35,29 +45,19 @@ class SqliteSchemaState extends SchemaState
     }
 
     /**
-     * Remove the shadow tables of virtual tables from the given schema dump.
-     */
-    protected function removeShadowTables(string $schema): string
-    {
-        $shadowTables = (new Collection(
-            $this->connection->selectFromWriteConnection('pragma main.table_list')
-        ))->where('type', 'shadow')->pluck('name');
-
-        foreach ($shadowTables as $name) {
-            $schema = preg_replace('/^CREATE TABLE IF NOT EXISTS ([\'"])' . preg_quote($name, '/') . '\1[^;]*+;\R/m', '', $schema);
-        }
-
-        return $schema;
-    }
-
-    /**
      * Append the migration data to the schema dump.
      */
     protected function appendMigrationData(string $path): void
     {
+        // Escape the LIKE pattern first, then SQLite's double-quoted dot-command argument.
+        $pattern = strtr($this->getMigrationTable(), ['\\' => '\\\\', '%' => '\%', '_' => '\_']);
+        $command = '.dump "' . strtr($pattern, ['\\' => '\\\\', '"' => '\"']) . '"';
+
         $process = $this->makeProcess(
-            $this->baseCommand() . ' ".dump \'' . $this->getMigrationTable() . '\'"'
-        )->mustRun(null, array_merge($this->baseVariables($this->connection->getConfig()), []));
+            $this->baseCommand() . ' "${:HYPERVEL_LOAD_MIGRATION_COMMAND}"'
+        )->mustRun(null, array_merge($this->baseVariables($this->connection->getConfig()), [
+            'HYPERVEL_LOAD_MIGRATION_COMMAND' => $command,
+        ]));
 
         $migrations = (new Collection(preg_split("/\r\n|\n|\r/", $process->getOutput())))
             ->filter(fn ($line) => preg_match('/^\s*(--|INSERT\s)/iu', $line) === 1)

@@ -13,12 +13,13 @@ class SQLiteProcessor extends Processor
     #[Override]
     public function processColumns(array $results, string $sql = ''): array
     {
-        $hasPrimaryKey = array_sum(array_column($results, 'primary')) === 1;
-
-        return array_map(function ($result) use ($hasPrimaryKey, $sql) {
+        return array_map(function ($result) use ($sql) {
             $result = (object) $result;
 
             $type = strtolower($result->type);
+
+            // SQLite keeps the declared spacing before modifiers, as in "varchar (255)".
+            $modifiers = strpos($type, '(');
 
             $safeName = preg_quote($result->name, '/');
 
@@ -38,12 +39,12 @@ class SQLiteProcessor extends Processor
 
             return [
                 'name' => $result->name,
-                'type_name' => strtok($type, '(') ?: '',
+                'type_name' => $modifiers === false ? $type : rtrim(substr($type, 0, $modifiers)),
                 'type' => $type,
                 'collation' => $collation,
                 'nullable' => (bool) $result->nullable,
                 'default' => $result->default,
-                'auto_increment' => $hasPrimaryKey && $result->primary && $type === 'integer',
+                'auto_increment' => (bool) $result->auto_increment,
                 'comment' => null,
                 'generation' => $isGenerated ? [
                     'type' => match ((int) $result->extra) {
@@ -63,7 +64,7 @@ class SQLiteProcessor extends Processor
         return array_map(
             static fn (array $index): array => Arr::only(
                 $index,
-                ['name', 'columns', 'type', 'unique', 'primary', 'partial'],
+                ['name', 'columns', 'key_columns', 'type', 'unique', 'primary', 'partial'],
             ),
             $this->processIndexesForSchemaState($results),
         );
@@ -73,7 +74,7 @@ class SQLiteProcessor extends Processor
      * Process indexes with the metadata required to reconstruct SQLite schema state.
      *
      * @internal
-     * @return list<array{name: string, physical_name: string, columns: list<string>, type: null|string, unique: bool, primary: bool, partial: bool, sql: null|string, origin: null|string, reconstructible: bool, collations: null|list<string>, descending: null|list<bool>}>
+     * @return list<array{name: string, physical_name: string, columns: list<string>, key_columns: list<null|string>, type: null|string, unique: bool, primary: bool, partial: bool, sql: null|string, origin: null|string, reconstructible: bool, collations: null|list<string>, descending: null|list<bool>}>
      */
     public function processIndexesForSchemaState(array $results): array
     {
@@ -90,6 +91,10 @@ class SQLiteProcessor extends Processor
                 'name' => strtolower($result->name),
                 'physical_name' => (string) $result->name,
                 'columns' => $this->decodeHexList($result->columns),
+                'key_columns' => array_map(
+                    fn (string $value): ?string => $value === '-' ? null : $this->decodeHexValue($value),
+                    explode(',', $result->key_columns),
+                ),
                 'type' => null,
                 'unique' => (bool) $result->unique,
                 'primary' => $isPrimary,
@@ -127,32 +132,56 @@ class SQLiteProcessor extends Processor
             return [];
         }
 
-        return array_map(static function (string $value): string {
-            if (strlen($value) % 2 !== 0 || ! ctype_xdigit($value)) {
-                throw new UnexpectedValueException('The SQLite schema metadata contains invalid hexadecimal text.');
-            }
+        return array_map($this->decodeHexValue(...), explode(',', $values));
+    }
 
-            /** @var string $decoded */
-            $decoded = hex2bin($value);
+    /**
+     * Decode a hexadecimal SQLite schema value.
+     */
+    protected function decodeHexValue(string $value): string
+    {
+        if (strlen($value) % 2 !== 0 || ! ctype_xdigit($value)) {
+            throw new UnexpectedValueException('The SQLite schema metadata contains invalid hexadecimal text.');
+        }
 
-            return $decoded;
-        }, explode(',', $values));
+        /** @var string $decoded */
+        $decoded = hex2bin($value);
+
+        return $decoded;
     }
 
     #[Override]
     public function processForeignKeys(array $results): array
+    {
+        return array_map(
+            static fn (array $foreignKey): array => Arr::only(
+                $foreignKey,
+                ['name', 'columns', 'foreign_schema', 'foreign_table', 'foreign_columns', 'on_update', 'on_delete'],
+            ),
+            $this->processForeignKeysForSchemaState($results),
+        );
+    }
+
+    /**
+     * Process foreign keys while retaining their declared target form for rebuilds.
+     *
+     * @internal
+     * @return list<array{name: null|string, columns: list<string>, foreign_schema: null|string, foreign_table: string, foreign_columns: list<string>, on_update: null|string, on_delete: null|string, implicit: bool}>
+     */
+    public function processForeignKeysForSchemaState(array $results): array
     {
         return array_map(function ($result) {
             $result = (object) $result;
 
             return [
                 'name' => null,
-                'columns' => explode(',', $result->columns),
+                'columns' => $this->decodeHexList($result->columns),
                 'foreign_schema' => $result->foreign_schema,
                 'foreign_table' => $result->foreign_table,
-                'foreign_columns' => explode(',', $result->foreign_columns),
+                'foreign_columns' => $this->decodeHexList($result->foreign_columns),
                 'on_update' => strtolower($result->on_update),
                 'on_delete' => strtolower($result->on_delete),
+                'implicit' => (bool) $result->implicit,
             ];
         }, $results);
     }
