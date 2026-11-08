@@ -20,20 +20,16 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 
 ## src
 
-- copy: `ClosureTypes/RelationshipQueryCallbackExtension.php`
 - copy with the queue rules: `Concerns/InspectsQueuedJobs.php`
 - omit: `Internal/ComposerHelper.php` (`Support\Composer::vendorPath()` resolves the actual install)
-- copy: `Methods/{BuilderHelper,ModelFactoryMethodsClassReflectionExtension}.php`
-- merge into moved forwarding extensions: `Methods/{EloquentBuilderForwardsCallsExtension,ModelForwardsCallsExtension,RelationForwardsCallsExtension}.php`
+- copy: `Methods/ModelFactoryMethodsClassReflectionExtension.php`
 - omit: `Properties/ReflectionTypeContainer.php` (unused since upstream removed container ArrayAccess support)
-- copy: `Reflection/{AnnotationScopeMethodParameterReflection,AnnotationScopeMethodReflection,DynamicWhereParameterReflection,EloquentBuilderMethodReflection}.php`
-- merge into moved scope reflections: `Reflection/ModelScopeMethodReflection.php`
-- copy: `ReturnTypes/{EloquentBuilderExtension,FactoryDynamicMethodReturnTypeExtension,ModelDynamicStaticMethodReturnTypeExtension,ModelFactoryDynamicStaticMethodReturnTypeExtension,ModelOnlyDynamicMethodReturnTypeExtension,RelationCollectionExtension}.php`
-- copy with the Eloquent collection port: `ReturnTypes/EloquentCollectionMapDynamicReturnTypeExtension.php`, moving `common/EloquentCollection.stub`'s `map()`/`mapWithKeys()` conditionals into the Eloquent `Collection` source
+- copy: `ReturnTypes/{FactoryDynamicMethodReturnTypeExtension,ModelFactoryDynamicStaticMethodReturnTypeExtension}.php`
+- copy with the Eloquent collection port: `ReturnTypes/EloquentCollectionMapDynamicReturnTypeExtension.php`, moving `common/EloquentCollection.stub`'s `map()`/`mapWithKeys()` conditionals into the Eloquent `Collection` source; also `toQuery()`/`load()`/`loadMissing()` typing with `Type/data/eager-loading-callbacks.php` intact (investigate the supported PHPStan hooks before choosing a mechanism)
 - copy: `Rules/*` except below and the ported `ArrKeyExistenceRule`, auth request-scope, config, console, `NoEnvCallsOutsideOfConfigRule`, `NoMissingTranslationsRule`, `NoUnnecessaryEnumerableToArrayCallsRule`, `UnusedViewsRule` and `UselessConstructs/` rules (including `Queue/`)
 - omit: `Rules/DeferrableServiceProviderMissingProvidesRule.php`, `Rules/OctaneCompatibilityRule.php`
 - omit: `SQL/*` (`hypervel/schema-parser` replaces the parser boundary and its iamcal/phpMyAdmin adapters)
-- copy: `Types/*` except the ported `AbortIfFunctionTypeSpecifyingExtension`, `ArrPullParameterOutTypeExtension`, `ModelProperty/` and `ViewString*` files
+- copy: `Types/Factory/` with the factory flow; `Types/GenericEloquentCollectionTypeNodeResolverExtension.php` with the Eloquent collection port
 
 ## New Hypervel source
 
@@ -43,7 +39,8 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 
 ## stubs
 
-- copy: `common/*` except below, the ported view stubs, `Foundation/Console/Kernel.stub` (its `command()` closure type moved to source; the stub keeps only the empty declaration the `Artisan` mixin needs for stub validation) and the stubs whose types are now in source: `Collection` (except below), `Conditionable`, `Enumerable`, `EnumeratesValues`, `HigherOrderProxies` and `Support/{Arr,Benchmark,Reflector,Str,Tappable}` (60 files)
+- copy with their topic flows: `common/{Attribute,Console/{Command,HasParameters},Contracts/{Cache,Container,Kernel,Mail,Queue,UrlGenerator},Cookie/SymfonyCookie,Database/Eloquent/Concerns/{HasAttributes,HasEvents,HasRelationships},Database/{ManagesTransactions,Migrations/Migrator},EloquentCollection,Events/Dispatcher,Factory,Http/RedirectResponse,Macroable,Notifications/Notification,Routing/{Redirector,UrlGenerator},Session/SessionManager,Support/{HtmlString,Manager,Optional},ThirdParty,Validation/Validator}.stub`, except below; `MorphTo`, `MorphToMany`, `Pagination` and `Contracts/Pagination` need none, because the source declares their types
+- stubs repeat the source's native signatures except returns that name a collection or paginator, whose stubs fail stub validation (variance); `ModelPropertyColumnRule` checks the pagination and `pluck()` columns that upstream's stubs type
 - merge into `common/Helpers.stub` with their topics: the `cookie()`, `logger()`, `logs()`, `redirect()`, `request()`, `session()` and `url()` helper entries, whose conditional returns the source already declares (only `view()` is ported; `optional()` is typed in source and `OptionalExtension`; the stub records the omitted helpers)
 - merge with their topic flows: the upstream typing for the declaration-only stubs that `common/Facades.stub`'s mixins need for stub validation: Events `dispatch()`/`until()` conditionals, `Connection::getQueryLog()` shape, Schema `getColumnListing()`, and the Cache `Repository` `ArrayAccess` implements (check Hypervel's enum keys)
 - add to source with the routing stubs: upstream `common/Route.stub`'s `methods()` and `middleware()` element types as `Route` PHPDoc in `src/routing`, with a `types/` fixture (the stub keeps only the empty declaration stub validation needs)
@@ -51,14 +48,13 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 - omit: `common/Redis/*.stub` and `common/Contracts/Redis.stub` (the source tags, `MultiExec` and mixins type the pooled surface; `@mixin \Redis` would drop the cluster unions and expose connection-bound methods), `common/Gate.stub` (Hypervel's `Gate::forUser()` and its contract already return `static`)
 - add to source: upstream `common/MailMessage.stub`'s property shapes (`$view`, `$from`, `$replyTo`, `$attachments`, `$rawAttachments`) as `MailMessage` PHPDoc in `src/notifications`, with a `types/` fixture
 - omit: `common/Contracts/Translation.stub` (only upstream's omitted `trans()` helper stub references it)
-- merge into `common/`: `13.3.0/{EloquentBuilder,Model}.stub`, `13.35.0/{BelongsToMany,HasOneOrMany}.stub`, `13.37.0/HasOneOrManyThrough.stub`
 
 ## tests
 
 - omit: `laravel-test.sh`
-- copy with the Eloquent builder/relation ports: `application/app/{BareRelations/,ChildUser.php,PostComment.php}`; with the Eloquent collection port: `application/app/UserCollection.php`; with the factory flow: `application/app/{Domain/,Shapes/}` and `application/database/factories/`
+- copy with the Eloquent collection port: `application/app/UserCollection.php`; with the factory flow: `application/app/{Domain/,Shapes/}` and `application/database/factories/`
 - omit: `application/app/{ModelWithConflictingInitializer.php,UserResource.php,Providers/}` (no upstream test or source references them)
-- merge into `Integration/IntegrationTest.php`: the remaining upstream entries with `Integration/data/*` (46 files), switching its config to `Type/data/config-check-model-properties.neon` with model properties
+- next checkpoint, with the source corrections it exposes: merge into `Integration/IntegrationTest.php` the remaining upstream entries with `Integration/data/*` (46 files), switching its config to `Type/data/config-check-model-properties.neon` with model properties
 - copy: `Rules/*Test.php` except below and the ported `ArrKeyExistence`, auth, config, console, environment, enumerable `toArray()`, view, translation and useless-construct rule tests, the remaining `Rules/data/*`, `Rules/Queue/data/*`
 - omit: `Rules/{DeferrableServiceProviderMissingProvidesRuleTest,OctaneCompatibilityRuleTest}.php`, `Rules/data/{CorrectDeferrableProvider,CorrectDeferrableProviderIndirect,IncorrectDeferrableProvider}.php`, `Rules/data/octane.neon`, `Rules/data/ContainerInjection.php`
 - copy: `Type/*Test.php` except below, the ported collection, config and model-property tests, `GeneralTypeTest.php` and `MethodsClassReflectionExtensionTest.php`, with the remaining `Type/data/*`
