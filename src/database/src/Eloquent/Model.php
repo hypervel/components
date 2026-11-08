@@ -1258,7 +1258,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Update the model in the database.
      *
      * @param array<string, mixed> $attributes
-     * @param array<string, mixed> $options
+     * @param array{touch?: null|bool, ...<string, mixed>} $options
      */
     public function update(array $attributes = [], array $options = []): bool
     {
@@ -1273,7 +1273,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Update the model in the database within a transaction.
      *
      * @param array<string, mixed> $attributes
-     * @param array<string, mixed> $options
+     * @param array{touch?: null|bool, ...<string, mixed>} $options
      *
      * @throws Throwable
      */
@@ -1290,7 +1290,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Update the model in the database without raising any events.
      *
      * @param array<string, mixed> $attributes
-     * @param array<string, mixed> $options
+     * @param array{touch?: null|bool, ...<string, mixed>} $options
      */
     public function updateQuietly(array $attributes = [], array $options = []): bool
     {
@@ -1517,7 +1517,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Save the model to the database without raising any events.
      *
-     * @param array<string, mixed> $options
+     * @param array{touch?: null|bool, ...<string, mixed>} $options
      */
     public function saveQuietly(array $options = []): bool
     {
@@ -1527,7 +1527,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Save the model to the database.
      *
-     * @param array<string, mixed> $options
+     * @param array{touch?: null|bool, ...<string, mixed>} $options
      */
     public function save(array $options = []): bool
     {
@@ -1574,7 +1574,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Save the model to the database, ignoring specific unique constraint conflicts.
      *
-     * @param array<string, mixed> $options
+     * @param array{touch?: null|bool, ...<string, mixed>} $options
      *
      * @throws LogicException
      */
@@ -1608,7 +1608,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Save the model to the database within a transaction.
      *
-     * @param array<string, mixed> $options
+     * @param array{touch?: null|bool, ...<string, mixed>} $options
      *
      * @throws Throwable
      */
@@ -1620,7 +1620,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Perform any actions that are necessary after the model is saved.
      *
-     * @param array<string, mixed> $options
+     * @param array{touch?: null|bool, ...<string, mixed>} $options
      */
     protected function finishSave(array $options): void
     {

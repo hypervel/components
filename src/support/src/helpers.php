@@ -517,9 +517,9 @@ if (! function_exists('transform')) {
      * @template TReturn
      * @template TDefault
      *
-     * @param TValue $value
+     * @param null|TValue $value
      * @param callable(TValue): TReturn $callback
-     * @param callable(TValue): TDefault|TDefault $default
+     * @param callable(null|TValue): TDefault|TDefault $default
      * @return ($value is empty ? TDefault : TReturn)
      */
     function transform($value, callable $callback, $default = null)

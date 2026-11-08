@@ -4,13 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth;
 
-use Carbon\CarbonInterface;
 use Hypervel\Auth\Notifications\VerifyEmail;
 
 /**
- * @property string $email
- * @property null|CarbonInterface $email_verified_at
- *
  * @method void notify(mixed $instance)
  */
 trait MustVerifyEmail
