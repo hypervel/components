@@ -118,6 +118,25 @@ class ModelPropertyDependencyTest extends TestCase
     }
 
     /**
+     * A builder attribute can name its builder by another class's constant, which the model's file does not declare.
+     */
+    public function testChangedConstantABuilderAttributeReadsReanalysesModelUsage(): void
+    {
+        $applicationPath = $this->copyApplication();
+        $constantsPath = $applicationPath . '/app/Models/BuilderNames.php';
+
+        $this->assertSame(['Usage.php:14 property.notFound'], $this->diagnostics($this->analyse($applicationPath), 1));
+
+        // The base builder is not a subclass of itself, so the attribute is ignored and the model creates it.
+        file_put_contents($constantsPath, str_replace('UserBuilder::class', '\Hypervel\Database\Eloquent\Builder::class', file_get_contents($constantsPath)));
+
+        $this->assertSame(
+            ['MemberUsage.php:17 method.notFound', 'Usage.php:14 property.notFound'],
+            $this->diagnostics($this->analyse($applicationPath), 1),
+        );
+    }
+
+    /**
      * A guard reads one table's facts to decide what happens to another, so the files those facts were
      * read from are checked for every table.
      */
@@ -164,7 +183,7 @@ class ModelPropertyDependencyTest extends TestCase
         file_put_contents($builderPath, str_replace('function published()', 'function unpublished()', $builder));
 
         $this->assertSame(
-            ['RelationUsage.php:25 method.notFound', 'Usage.php:14 property.notFound'],
+            ['MemberUsage.php:17 method.notFound', 'RelationUsage.php:25 method.notFound', 'Usage.php:14 property.notFound'],
             $this->diagnostics($this->analyse($applicationPath), 1),
         );
 
@@ -184,7 +203,8 @@ class ModelPropertyDependencyTest extends TestCase
 
         $this->assertSame(['Usage.php:14 property.notFound'], $this->diagnostics($this->analyse($applicationPath), 1));
 
-        file_put_contents($queryPath, str_replace('function whereActive()', 'function whereInactive()', $query));
+        // Not a where method, which the base query would handle as a dynamic where.
+        file_put_contents($queryPath, str_replace('function onlyActive()', 'function onlyInactive()', $query));
 
         $this->assertSame(
             ['BuilderUsage.php:25 method.notFound', 'Usage.php:14 property.notFound'],

@@ -22,6 +22,6 @@ class BuilderUsage
      */
     public function active(UserBuilder $builder): void
     {
-        $builder->whereActive();
+        $builder->onlyActive();
     }
 }

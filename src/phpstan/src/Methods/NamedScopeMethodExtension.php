@@ -9,12 +9,12 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\PHPStan\Reflection\NamedScopeMethodReflection;
 use LogicException;
-use PHPStan\Analyser\OutOfClassScope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\ClassReflection;
 use PHPStan\Reflection\MethodReflection;
 use PHPStan\Reflection\MethodsClassReflectionExtension;
 use PHPStan\Reflection\ReflectionProvider;
+use PHPStan\Type\StaticType;
 use PHPStan\Type\ThisType;
 use PHPStan\Type\Type;
 
@@ -27,8 +27,6 @@ class NamedScopeMethodExtension implements MethodsClassReflectionExtension
     /** @var array<string, false|MethodReflection> */
     private array $methods = [];
 
-    private readonly OutOfClassScope $scope;
-
     /**
      * Create a named scope method extension.
      */
@@ -36,8 +34,9 @@ class NamedScopeMethodExtension implements MethodsClassReflectionExtension
         private readonly ReflectionProvider $reflectionProvider,
         private readonly ModelScopeMethodResolver $scopeMethods,
         private readonly BuilderMacroResolver $builderMacros,
+        private readonly BuilderHelper $builderHelper,
+        private readonly MacroMethodsClassReflectionExtension $macroMethods,
     ) {
-        $this->scope = new OutOfClassScope;
     }
 
     /**
@@ -91,18 +90,18 @@ class NamedScopeMethodExtension implements MethodsClassReflectionExtension
             return null;
         }
 
-        [$modelClass, $receiverType, $queryType, $static] = $host;
-        $scopeMethod = $this->scopeMethods->resolve($modelClass, $methodName);
+        [$modelType, $receiverType, $queryType, $static] = $host;
+        $scope = $this->scopeMethods->resolveForType($modelType, $methodName);
         $method = null;
 
         // Local builder macros run before named scopes in Builder::__call().
-        if ($scopeMethod !== null
-            && ! $this->builderMacros->hasMacro($modelClass, $methodName)
-            && ! $this->nativeMethodTakesPrecedence($classReflection, $methodName, $queryType, $static)) {
+        if ($scope !== null
+            && ! $this->builderMacros->hasMacro($scope[0], $methodName)
+            && ! $this->methodTakesPrecedence($classReflection, $methodName, $queryType, $static)) {
             $method = new NamedScopeMethodReflection(
                 $classReflection,
-                $modelClass,
-                $scopeMethod,
+                $scope[0],
+                $scope[1],
                 $methodName,
                 $receiverType,
                 $queryType,
@@ -118,7 +117,7 @@ class NamedScopeMethodExtension implements MethodsClassReflectionExtension
     /**
      * Resolve the model, receiver and query types, and static mode for an Eloquent host.
      *
-     * @return null|array{ClassReflection, Type, Type, bool}
+     * @return null|array{Type, Type, Type, bool}
      */
     private function host(
         ClassReflection $classReflection,
@@ -129,40 +128,39 @@ class NamedScopeMethodExtension implements MethodsClassReflectionExtension
             $queryType = $this->activeBuilderType($classReflection);
 
             return [
-                $classReflection,
+                (new StaticType($classReflection))->getStaticObjectType(),
                 $queryType,
                 $queryType,
                 true,
             ];
         }
 
-        $templateName = $isBuilderHost ? 'TModel' : 'TRelatedModel';
-
         $modelType = $this->templateType(
             $classReflection,
             $isBuilderHost ? Builder::class : Relation::class,
-            $templateName,
+            $isBuilderHost ? 'TModel' : 'TRelatedModel',
         );
-        $modelClasses = $modelType->getObjectClassReflections();
-
-        if (count($modelClasses) !== 1) {
-            return null;
-        }
-
         $receiverType = new ThisType($classReflection);
 
-        return [
-            $modelClasses[0],
-            $receiverType,
-            $isBuilderHost ? $receiverType : $this->activeBuilderType($modelClasses[0]),
-            false,
-        ];
+        if ($isBuilderHost) {
+            return [$modelType, $receiverType, $receiverType, false];
+        }
+
+        // An intersection such as Model&HasTimeline still names one model, whose builder the relation forwards to.
+        $modelClasses = array_values(array_filter(
+            $modelType->getObjectClassReflections(),
+            static fn (ClassReflection $modelClass): bool => $modelClass->is(Model::class),
+        ));
+
+        return count($modelClasses) === 1
+            ? [$modelType, $receiverType, $this->activeBuilderType($modelClasses[0]), false]
+            : null;
     }
 
     /**
-     * Determine whether a native method wins over dynamic scope dispatch.
+     * Determine whether a native method or a global builder macro wins over dynamic scope dispatch.
      */
-    private function nativeMethodTakesPrecedence(
+    private function methodTakesPrecedence(
         ClassReflection $classReflection,
         string $methodName,
         Type $queryType,
@@ -173,9 +171,9 @@ class NamedScopeMethodExtension implements MethodsClassReflectionExtension
             return true;
         }
 
-        // Model and relation hosts also yield to methods owned by their active builder.
+        // Every host also yields to its active builder's methods, and Builder::__call() runs global macros first.
         foreach ($queryType->getObjectClassReflections() as $builderClass) {
-            if ($builderClass->hasNativeMethod($methodName)) {
+            if ($builderClass->hasNativeMethod($methodName) || $this->macroMethods->hasMethod($builderClass, $methodName)) {
                 return true;
             }
         }
@@ -184,15 +182,13 @@ class NamedScopeMethodExtension implements MethodsClassReflectionExtension
     }
 
     /**
-     * Return the active query builder type for a model.
+     * Return the model's builder type.
      *
-     * Bind static here because scope returns are compared before PHPStan can rebind the synthesized receiver.
+     * Bind the model here because scope returns are compared before PHPStan can rebind the synthesized receiver.
      */
     private function activeBuilderType(ClassReflection $modelClass): Type
     {
-        $variants = $modelClass->getMethod('query', $this->scope)->getVariants();
-
-        return ModelScopeTypeResolver::bindToModel($variants[0]->getReturnType(), $modelClass);
+        return $this->builderHelper->determineBuilderClass($modelClass->getName(), (new StaticType($modelClass))->getStaticObjectType());
     }
 
     /**

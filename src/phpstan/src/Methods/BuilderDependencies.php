@@ -31,6 +31,7 @@ class BuilderDependencies
      */
     public function __construct(
         private readonly DeclarationDependencyTracker $declarationDependencyTracker,
+        private readonly BuilderHelper $builderHelper,
     ) {
     }
 
@@ -66,11 +67,12 @@ class BuilderDependencies
             $classNames[] = $builder->getName();
         }
 
-        $queryType = $builder->getNativeMethod('getQuery')->getVariants()[0]->getReturnType();
-
-        foreach ($queryType->getObjectClassNames() as $queryClassName) {
-            if ($queryClassName !== QueryBuilder::class) {
-                $classNames[] = $queryClassName;
+        // Ordinary calls run on the stored query and passthru calls on toBase()'s.
+        foreach ($this->builderHelper->queryTypes($builder) as $queryType) {
+            foreach ($queryType->getObjectClassNames() as $queryClassName) {
+                if ($queryClassName !== QueryBuilder::class && ! in_array($queryClassName, $classNames, true)) {
+                    $classNames[] = $queryClassName;
+                }
             }
         }
 

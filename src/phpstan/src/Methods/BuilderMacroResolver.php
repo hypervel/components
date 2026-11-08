@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\PHPStan\Methods;
 
 use Hypervel\PHPStan\Reflection\ForwardedFluentMethodReflection;
+use Hypervel\PHPStan\Reflection\ForwardedMethodReflection;
 use PHPStan\Analyser\OutOfClassScope;
 use PHPStan\DependencyInjection\AutowiredParameter;
 use PHPStan\DependencyInjection\AutowiredService;
@@ -50,8 +51,11 @@ class BuilderMacroResolver
 
     /**
      * Resolve a trait macro called on a builder for the given model type.
+     *
+     * The signature names the model by the signature model type, the receiver's own template type for it, so
+     * PHPStan binds the model only after replacing the receiver's static types.
      */
-    public function resolve(ClassReflection $builderClass, Type $modelType, string $methodName): ?MethodReflection
+    public function resolve(ClassReflection $builderClass, Type $modelType, Type $signatureModelType, string $methodName): ?MethodReflection
     {
         $modelClasses = $modelType->getObjectClassReflections();
 
@@ -66,14 +70,15 @@ class BuilderMacroResolver
         }
 
         $interfaceType = $macroInterface->isGeneric()
-            ? new GenericObjectType($macroInterface->getName(), [$modelType])
+            ? new GenericObjectType($macroInterface->getName(), [$signatureModelType])
             : new ObjectType($macroInterface->getName());
-        $method = $interfaceType->getMethod($methodName, $this->scope);
+        // @phpstan-ignore phpstanApi.method (ObjectType::getMethod() resolves template types to their bounds.), phpstanApi.method (Same lookup.)
+        $method = $interfaceType->getUnresolvedMethodPrototype($methodName, $this->scope)->doNotResolveTemplateTypeMapToBounds()->getTransformedMethod();
 
         // Fluent macros return the builder they run on.
         return $macroInterface->getNativeMethod($methodName)->getVariants()[0]->getReturnType() instanceof StaticType
             ? new ForwardedFluentMethodReflection($builderClass, $method)
-            : $method;
+            : new ForwardedMethodReflection($builderClass, $method);
     }
 
     /**

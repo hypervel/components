@@ -11,7 +11,7 @@ class UserQuery extends Builder
     /**
      * Constrain the query to active rows.
      */
-    public function whereActive(): static
+    public function onlyActive(): static
     {
         return $this->where('active', true);
     }

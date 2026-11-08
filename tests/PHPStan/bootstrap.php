@@ -37,8 +37,16 @@ Builder::macro('getColumns', static function (): string {
     return 'macro';
 });
 
+Builder::macro('whereGlobalMacro', static function (): string {
+    return 'macro';
+});
+
 QueryBuilder::macro('globalCustomDatabaseQueryMacro', static function (string $arg = 'foobar', int $b = 5): string {
     return $arg;
+});
+
+QueryBuilder::macro('whereQueryMacro', static function (): string {
+    return 'macro';
 });
 
 Route::macro('facadeMacro', static function (): int {

@@ -6,6 +6,7 @@ namespace Hypervel\PHPStan\Methods;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\PHPStan\Reflection\ForwardedModelMethodReflection;
+use Hypervel\PHPStan\Reflection\MacroRegistrationMethodReflection;
 use LogicException;
 use PHPStan\Analyser\OutOfClassScope;
 use PHPStan\DependencyInjection\AutowiredService;
@@ -13,6 +14,7 @@ use PHPStan\Reflection\ClassReflection;
 use PHPStan\Reflection\MethodReflection;
 use PHPStan\Reflection\MethodsClassReflectionExtension;
 use PHPStan\Reflection\ReflectionProvider;
+use PHPStan\Type\StaticType;
 use PHPStan\Type\Type;
 
 /**
@@ -34,6 +36,8 @@ class ForwardedModelMethodExtension implements MethodsClassReflectionExtension
         private readonly ModelScopeMethodResolver $scopeMethods,
         private readonly BuilderMacroResolver $builderMacros,
         private readonly BuilderDependencies $builderDependencies,
+        private readonly BuilderHelper $builderHelper,
+        private readonly MacroMethodsClassReflectionExtension $macroMethods,
     ) {
         $this->scope = new OutOfClassScope;
     }
@@ -80,7 +84,8 @@ class ForwardedModelMethodExtension implements MethodsClassReflectionExtension
         $method = null;
 
         if (! $this->hasNativeOrDocumentedMethod($classReflection, $methodName)) {
-            $builderType = $this->activeBuilderType($classReflection);
+            // Keep static, so PHPStan binds it to the called model.
+            $builderType = $this->builderHelper->determineBuilderClass($classReflection->getName(), new StaticType($classReflection));
 
             foreach ($builderType->getObjectClassReflections() as $builderClass) {
                 $this->builderDependencies->track($classReflection, $builderClass);
@@ -88,14 +93,20 @@ class ForwardedModelMethodExtension implements MethodsClassReflectionExtension
 
             $scopeMethod = $this->scopeMethods->resolve($classReflection, $methodName);
 
-            // Native builder methods and local macros run before named scopes.
+            // Native builder methods and local and global macros run before named scopes.
             if (($scopeMethod === null
-                    || $this->hasNativeMethod($builderType, $methodName)
+                    || $this->builderMethodTakesPrecedence($builderType, $methodName)
                     || $this->builderMacros->hasMacro($classReflection, $methodName))
                 && $builderType->hasMethod($methodName)->yes()) {
+                $builderMethod = $builderType->getMethod($methodName, $this->scope);
+
+                // Model::__call() makes an instance call, so the builder's mixin() reaches the query's and returns it.
                 $method = new ForwardedModelMethodReflection(
                     $classReflection,
-                    $builderType->getMethod($methodName, $this->scope),
+                    $builderMethod,
+                    $methodName === 'mixin' && $builderMethod->getPrototype() instanceof MacroRegistrationMethodReflection
+                        ? $builderType
+                        : null,
                 );
             }
         }
@@ -106,24 +117,12 @@ class ForwardedModelMethodExtension implements MethodsClassReflectionExtension
     }
 
     /**
-     * Return the active query builder type for a model.
-     *
-     * Preserve the raw static type so PHPStan can rebind it to the called-on model.
+     * Determine whether an active builder owns a native method or global macro.
      */
-    private function activeBuilderType(ClassReflection $classReflection): Type
-    {
-        $variants = $classReflection->getMethod('query', $this->scope)->getVariants();
-
-        return $variants[0]->getReturnType();
-    }
-
-    /**
-     * Determine whether an active builder owns a native method.
-     */
-    private function hasNativeMethod(Type $builderType, string $methodName): bool
+    private function builderMethodTakesPrecedence(Type $builderType, string $methodName): bool
     {
         foreach ($builderType->getObjectClassReflections() as $builderClass) {
-            if ($builderClass->hasNativeMethod($methodName)) {
+            if ($builderClass->hasNativeMethod($methodName) || $this->macroMethods->hasMethod($builderClass, $methodName)) {
                 return true;
             }
         }

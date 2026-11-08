@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\PHPStan\Methods;
 
 use Hypervel\Database\Eloquent\Attributes\Scope;
+use Hypervel\Database\Eloquent\Model;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\ClassReflection;
 use PHPStan\Reflection\MethodReflection;
+use PHPStan\Type\Type;
+use PHPStan\Type\TypeUtils;
 
 /**
  * Resolve model methods exposed as named Eloquent scopes.
@@ -27,6 +30,37 @@ class ModelScopeMethodResolver
     }
 
     /**
+     * Resolve a scope for a model type, and the class declaring it.
+     *
+     * An intersection such as Model&HasTimeline can declare the scope through an interface. A union is declined,
+     * as its members can resolve the name differently.
+     *
+     * @return null|array{ClassReflection, MethodReflection}
+     */
+    public function resolveForType(Type $modelType, string $scope): ?array
+    {
+        $types = TypeUtils::flattenTypes($modelType);
+
+        if (count($types) !== 1) {
+            return null;
+        }
+
+        $classes = $types[0]->getObjectClassReflections();
+        $modelClasses = array_filter($classes, static fn (ClassReflection $class): bool => $class->is(Model::class));
+
+        // The model's own scopes win, as Eloquent checks the model's attributed scopes first.
+        foreach ([...$modelClasses, ...array_diff_key($classes, $modelClasses)] as $class) {
+            $method = $this->resolve($class, $scope);
+
+            if ($method !== null) {
+                return [$class, $method];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Return the named scopes exposed by a model.
      *
      * @return array<string, MethodReflection>
@@ -42,6 +76,7 @@ class ModelScopeMethodResolver
         $legacyScopes = [];
         $attributedScopes = [];
 
+        // Unlike upstream, an @method scopeX tag creates no scope: Model::hasNamedScope() needs a real method.
         foreach ($modelClass->getNativeReflection()->getMethods() as $method) {
             if ($method->isPrivate()) {
                 continue;
@@ -55,7 +90,8 @@ class ModelScopeMethodResolver
                 $legacyScopes[strtolower(substr($methodName, 5))] = $modelClass->getNativeMethod($methodName);
             }
 
-            if ($method->getAttributes(Scope::class) !== []) {
+            // An implementation does not inherit an interface method's attributes.
+            if (! $modelClass->isInterface() && $method->getAttributes(Scope::class) !== []) {
                 $attributedScopes[strtolower($methodName)] = $modelClass->getNativeMethod($methodName);
             }
         }

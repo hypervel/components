@@ -1,11 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Macros;
 
 use App\Post;
 use App\PostBuilder;
 use App\User;
 use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Http\Request;
 use Hypervel\Support\Collection;
@@ -19,6 +22,7 @@ use Hypervel\Tests\PHPStan\Fixtures\Macros\MacroHost;
 use Hypervel\Validation\ValidationException;
 use PHPStan\TrinaryLogic;
 use RuntimeException;
+use stdClass;
 
 use function PHPStan\Testing\assertType;
 use function PHPStan\Testing\assertVariableCertainty;
@@ -36,10 +40,17 @@ function test(): void
     assertType('string', PostBuilder::globalCustomMacro(b: 99));
     assertType('string', User::first()->accounts()->globalCustomMacro(b: 99));
 
+    // Builder::__call() runs a global macro before a scope of the same name.
+    assertType('string', ModelWithMacroNamedScope::globalCustomMacro(b: 99));
+    assertType('string', ModelWithMacroNamedScope::query()->globalCustomMacro(b: 99));
+
+    // Unlike upstream, Eloquent discards a forwarded query macro's result and returns the builder, which a relation
+    // returns as itself. Builder::__callStatic() runs only the builder's own global macros, so the query macro is
+    // called on a builder instance here; upstream's static PostBuilder::globalCustomDatabaseQueryMacro() is an error.
     assertType('string', QueryBuilder::globalCustomDatabaseQueryMacro(b: 99));
-    assertType('string', Post::globalCustomDatabaseQueryMacro(b: 99));
-    assertType('string', PostBuilder::globalCustomDatabaseQueryMacro(b: 99));
-    assertType('string', User::first()->accounts()->globalCustomDatabaseQueryMacro(b: 99));
+    assertType('App\PostBuilder<App\Post>', Post::globalCustomDatabaseQueryMacro(b: 99));
+    assertType('App\PostBuilder<App\Post>', Post::query()->globalCustomDatabaseQueryMacro(b: 99));
+    assertType('Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>', User::first()->accounts()->globalCustomDatabaseQueryMacro(b: 99));
 
     assertType('int', Route::facadeMacro());
     // Hypervel: this app's untyped passport guard leaves the current guard unknown, so no guard macro is
@@ -72,6 +83,39 @@ function test(): void
 class Foo
 {
     use Macroable;
+}
+
+// Hypervel: Builder::__callStatic() binds a global macro to the builder and registers a mixin's methods, returning
+// null. Builder::__call() calls a local macro unbound, and an instance mixin() reaches the query's, as a model's does.
+function builderRegistration(Post $post): void
+{
+    Builder::macro('globalRegistration', function () {
+        assertType('Hypervel\Database\Eloquent\Builder', $this);
+    });
+
+    PostBuilder::macro('postRegistration', function () {
+        assertType('App\PostBuilder', $this);
+    });
+
+    assertType('null', Builder::mixin(new stdClass));
+    assertType('App\PostBuilder<App\Post>', Post::query()->mixin(new stdClass));
+    assertType('App\PostBuilder<App\Post>', Post::mixin(new stdClass));
+    assertType('App\PostBuilder<App\Post>', $post->mixin(new stdClass));
+}
+
+class LocalMacroProvider
+{
+    /**
+     * Register a local macro, which keeps this provider as its $this.
+     *
+     * @param Builder<User> $query
+     */
+    public function register(Builder $query): void
+    {
+        $query->macro('localRegistration', function (Builder $builder) {
+            assertType('$this(Macros\LocalMacroProvider)', $this);
+        });
+    }
 }
 
 // Hypervel: @method tags type Request's macros, and MacroThrowTypeExtension adds the macros' exceptions.
@@ -162,4 +206,12 @@ class CustomCallHandler
 
 class CustomCallException extends RuntimeException
 {
+}
+
+class ModelWithMacroNamedScope extends Model
+{
+    /** @param Builder<self> $query */
+    public function scopeGlobalCustomMacro(Builder $query): void
+    {
+    }
 }

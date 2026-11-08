@@ -6,16 +6,22 @@ namespace Hypervel\PHPStan\Methods;
 
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Database\Query\Builder as QueryBuilder;
+use Hypervel\PHPStan\Reflection\DynamicWhereParameterReflection;
+use Hypervel\PHPStan\Reflection\EloquentBuilderMethodReflection;
 use Hypervel\PHPStan\Reflection\ForwardedFluentMethodReflection;
+use Hypervel\PHPStan\Reflection\ForwardedMethodReflection;
+use Hypervel\PHPStan\Reflection\MacroRegistrationMethodReflection;
 use LogicException;
 use PHPStan\Analyser\OutOfClassScope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\ClassReflection;
+use PHPStan\Reflection\ExtendedMethodReflection;
 use PHPStan\Reflection\MethodReflection;
 use PHPStan\Reflection\MethodsClassReflectionExtension;
 use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Type\Generic\GenericObjectType;
-use PHPStan\Type\IntegerType;
+use PHPStan\Type\NeverType;
 use PHPStan\Type\StaticType;
 use PHPStan\Type\Type;
 
@@ -29,6 +35,8 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
     private const array RELATION_NON_DECORATED_METHODS = [
         'applyscopes',
         'clone',
+        'clonewithout',
+        'clonewithoutbindings',
     ];
 
     /** @var list<string> */
@@ -36,9 +44,6 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
         'wherecan',
         'withcan',
     ];
-
-    /** @var array<class-string, list<string>> */
-    private array $passthru = [];
 
     /** @var array<string, false|MethodReflection> */
     private array $methods = [];
@@ -53,6 +58,8 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
         private readonly ModelScopeMethodResolver $scopeMethods,
         private readonly BuilderMacroResolver $builderMacros,
         private readonly BuilderDependencies $builderDependencies,
+        private readonly BuilderHelper $builderHelper,
+        private readonly MacroMethodsClassReflectionExtension $macroMethods,
     ) {
         $this->scope = new OutOfClassScope;
     }
@@ -105,7 +112,11 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
         if (! $this->hasNativeOrDocumentedMethod($classReflection, $methodName)) {
             if ($isEloquentHost) {
                 $this->builderDependencies->track($classReflection, $classReflection);
-                $method = $this->resolveEloquentBuilderMethod($classReflection, $methodName);
+                $method = $this->resolveEloquentBuilderMethod(
+                    $classReflection,
+                    $methodName,
+                    $this->signatureModelType($classReflection, EloquentBuilder::class, 'TModel'),
+                );
             } else {
                 $method = $this->resolveRelationMethod($classReflection, $methodName);
             }
@@ -117,40 +128,75 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
     }
 
     /**
-     * Resolve a query method forwarded by an Eloquent builder.
+     * Resolve a query method forwarded by an Eloquent builder, naming the model in its signature by the signature model type.
      */
     private function resolveEloquentBuilderMethod(
         ClassReflection $classReflection,
         string $methodName,
+        Type $signatureModelType,
     ): ?MethodReflection {
+        // Builder::__call() and __callStatic() register a local or global macro before any other dispatch.
+        if ($methodName === 'macro') {
+            return new MacroRegistrationMethodReflection(
+                $classReflection,
+                $this->reflectionProvider->getClass(QueryBuilder::class)->getNativeMethod($methodName),
+            );
+        }
+
         $modelType = $this->templateType($classReflection, EloquentBuilder::class, 'TModel');
 
         // Local macros run before named scopes in Builder::__call().
-        $macro = $this->builderMacros->resolve($classReflection, $modelType, $methodName);
+        $macro = $this->builderMacros->resolve($classReflection, $modelType, $signatureModelType, $methodName);
 
         if ($macro !== null) {
             return $macro;
         }
 
-        if ($this->hasNamedScope($modelType, $methodName)) {
+        // Global macros, then named scopes, run next. Their own extensions describe them, and relations reach
+        // global macros through their builder mixin.
+        if ($this->macroMethods->hasMethod($classReflection, $methodName)
+            || $this->hasNamedScope($modelType, $methodName)) {
             return null;
         }
 
-        $queryType = $this->queryBuilderType($classReflection, $modelType);
+        [$storedType, $baseType] = $this->builderHelper->queryTypes($classReflection);
+        $isPassthru = $this->builderHelper->isPassthru($classReflection, $methodName);
+        // Passthru runs on the raw query toBase() returns, whose rows stay as declared.
+        $queryType = $isPassthru ? $baseType : $this->builderHelper->bindQueryRows($storedType, $signatureModelType);
+
+        // A query that never exists runs no method.
+        if ($queryType instanceof NeverType) {
+            return null;
+        }
+
         $queryClasses = $queryType->getObjectClassReflections();
 
-        if (count($queryClasses) !== 1 || ! $queryClasses[0]->hasNativeMethod($methodName)) {
-            return null;
+        // Query\Builder::__call() runs a macro, else handles a where clause the query does not declare.
+        // ModelPropertyColumnRule checks a dynamic where's columns: a model-dependent answer here would make
+        // PHPStan report a generic subclass's call as private.
+        if (count($queryClasses) !== 1
+            || ! ($queryClasses[0]->hasNativeMethod($methodName) || $this->macroMethods->hasMethod($queryClasses[0], $methodName))) {
+            return str_starts_with($methodName, 'where')
+                ? new ForwardedFluentMethodReflection(
+                    $classReflection,
+                    new EloquentBuilderMethodReflection($methodName, $classReflection, [new DynamicWhereParameterReflection], isVariadic: true),
+                )
+                : null;
         }
 
-        $method = $queryType->getMethod($methodName, $this->scope);
+        $method = $this->unresolvedMethod($queryType, $methodName);
 
         if (! $method->isPublic()) {
             return null;
         }
 
-        if (in_array(strtolower($methodName), $this->passthruMethods($classReflection), strict: true)) {
-            return $method;
+        if ($isPassthru) {
+            return new ForwardedMethodReflection($classReflection, $method);
+        }
+
+        // __callStatic() registers a mixin's methods as global macros, so the query's mixin() is static here too.
+        if ($methodName === 'mixin') {
+            return new MacroRegistrationMethodReflection($classReflection, $method);
         }
 
         // Eloquent discards ordinary forwarded results, regardless of their declared type.
@@ -164,8 +210,7 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
     {
         $normalizedMethodName = strtolower($methodName);
         $relatedType = $this->templateType($classReflection, Relation::class, 'TRelatedModel');
-        $builderType = $this->eloquentBuilderType($relatedType);
-        $builderClasses = $builderType->getObjectClassReflections();
+        $builderClasses = $this->eloquentBuilderType($relatedType, $relatedType)->getObjectClassReflections();
 
         if (count($builderClasses) !== 1) {
             return null;
@@ -178,8 +223,11 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
             $this->builderDependencies->track($relatedClass, $eloquentBuilder);
         }
 
+        $signatureModelType = $this->signatureModelType($classReflection, Relation::class, 'TRelatedModel');
+        $builderType = $this->eloquentBuilderType($relatedType, $signatureModelType);
+
         if ($eloquentBuilder->hasNativeMethod($methodName)) {
-            $method = $builderType->getMethod($methodName, $this->scope);
+            $method = $this->unresolvedMethod($builderType, $methodName);
 
             if (! $method->isPublic()) {
                 return null;
@@ -187,18 +235,18 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
 
             if (in_array($normalizedMethodName, self::RELATION_NON_DECORATED_METHODS, strict: true)
                 || ! $this->returnsStatic($eloquentBuilder->getNativeMethod($methodName))) {
-                return $method;
+                return new ForwardedMethodReflection($classReflection, $method);
             }
 
             return new ForwardedFluentMethodReflection($classReflection, $method);
         }
 
-        $method = $this->resolveEloquentBuilderMethod($eloquentBuilder, $methodName);
+        $method = $this->resolveEloquentBuilderMethod($eloquentBuilder, $methodName, $signatureModelType);
 
         if ($method !== null) {
             return $method instanceof ForwardedFluentMethodReflection
                 ? new ForwardedFluentMethodReflection($classReflection, $method)
-                : $method;
+                : new ForwardedMethodReflection($classReflection, $method);
         }
 
         if ($this->hasNamedScope($relatedType, $methodName)
@@ -206,29 +254,7 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
             return null;
         }
 
-        $method = $builderType->getMethod($methodName, $this->scope);
-
-        return new ForwardedFluentMethodReflection($classReflection, $method);
-    }
-
-    /**
-     * Return the Eloquent builder passthru methods.
-     *
-     * @return list<string>
-     */
-    private function passthruMethods(ClassReflection $builderClass): array
-    {
-        $className = $builderClass->getName();
-
-        if (! isset($this->passthru[$className])) {
-            /** @var list<string> $passthru */
-            $passthru = $builderClass->getNativeReflection()
-                ->getDefaultProperties()['passthru'];
-
-            $this->passthru[$className] = $passthru;
-        }
-
-        return $this->passthru[$className];
+        return new ForwardedFluentMethodReflection($classReflection, $this->unresolvedMethod($builderType, $methodName));
     }
 
     /**
@@ -283,51 +309,36 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
     }
 
     /**
-     * Resolve the related model's declared builder, retaining late-static model types.
+     * Return a class's ancestor template type as the class's own template types declare it.
+     *
+     * Forwarded signatures name the receiver's model this way. PHPStan binds the receiver's template types
+     * after replacing its static types, so a late-static model is not mistaken for the receiver.
+     *
+     * @param class-string $ancestorClass
      */
-    private function eloquentBuilderType(Type $modelType): Type
+    private function signatureModelType(ClassReflection $classReflection, string $ancestorClass, string $templateName): Type
     {
-        $modelClasses = $modelType->getObjectClassReflections();
-
-        if (count($modelClasses) === 1) {
-            $modelClass = $modelClasses[0];
-            $variants = $modelClass->getMethod('query', $this->scope)->getVariants();
-
-            return ModelScopeTypeResolver::bindToModel($variants[0]->getReturnType(), $modelClass);
-        }
-
-        return new GenericObjectType(EloquentBuilder::class, [$modelType]);
+        return $this->templateType($this->reflectionProvider->getClass($classReflection->getName()), $ancestorClass, $templateName);
     }
 
     /**
-     * Bind forwarded query signatures to model rows without changing raw-query types.
+     * Return a type's method, keeping the template types it is instantiated with instead of their bounds.
      */
-    private function queryBuilderType(ClassReflection $builderClass, Type $modelType): Type
+    private function unresolvedMethod(Type $type, string $methodName): ExtendedMethodReflection
     {
-        $variants = $builderClass->getNativeMethod('getQuery')->getVariants();
-        $queryType = $variants[0]->getReturnType();
-        $queryClasses = $queryType->getObjectClassReflections();
+        // @phpstan-ignore phpstanApi.method (ObjectType::getMethod() resolves template types to their bounds.), phpstanApi.method (Same lookup.)
+        return $type->getUnresolvedMethodPrototype($methodName, $this->scope)->doNotResolveTemplateTypeMapToBounds()->getTransformedMethod();
+    }
 
-        if (count($queryClasses) !== 1) {
-            return $queryType;
-        }
+    /**
+     * Resolve the related model's builder holding the given model type, or the base builder for several or unknown models.
+     */
+    private function eloquentBuilderType(Type $relatedType, Type $modelType): Type
+    {
+        $modelClassNames = $relatedType->getObjectClassNames();
 
-        $queryClass = $queryClasses[0];
-        $templates = $queryClass->getTemplateTypeMap();
-
-        if ($templates->getType('TKey') === null || $templates->getType('TValue') === null) {
-            return $queryType;
-        }
-
-        $types = $queryClass->getActiveTemplateTypeMap()->map(
-            static fn (string $name, Type $type): Type => match ($name) {
-                'TKey' => new IntegerType,
-                'TValue' => $modelType,
-                default => $type,
-            },
-        );
-
-        return new GenericObjectType($queryClass->getName(), $queryClass->typeMapToList($types));
+        return (count($modelClassNames) === 1 ? $this->builderHelper->determineBuilderClass($modelClassNames[0], $modelType) : null)
+            ?? new GenericObjectType(EloquentBuilder::class, [$modelType]);
     }
 
     /**
@@ -335,10 +346,7 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
      */
     private function hasNamedScope(Type $modelType, string $methodName): bool
     {
-        $modelClasses = $modelType->getObjectClassReflections();
-
-        return count($modelClasses) === 1
-            && $this->scopeMethods->resolve($modelClasses[0], $methodName) !== null;
+        return $this->scopeMethods->resolveForType($modelType, $methodName) !== null;
     }
 
     /**

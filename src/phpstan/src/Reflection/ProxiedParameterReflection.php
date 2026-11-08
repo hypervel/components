@@ -11,8 +11,9 @@ use PHPStan\Type\Type;
 use function array_map;
 
 /**
- * Describe a target method's by-reference parameter as a proxy receives it. A proxy's __call()
- * gets the argument values, so the caller's variable is never passed by reference.
+ * Describe a target method's parameter as a proxy receives it. A proxy's __call() gets the argument
+ * values, so the caller's variable is never passed by reference. The parameter has none of PHPStan's
+ * extended metadata, such as a closure binding the target declares.
  */
 class ProxiedParameterReflection implements ParameterReflection
 {
