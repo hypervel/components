@@ -51,6 +51,8 @@ class Exceptions
      *
      * Boot-only. The callback persists on the shared handler and affects exception
      * rendering for every subsequent request in the worker.
+     *
+     * @return $this
      */
     public function render(callable $using): static
     {
@@ -64,6 +66,8 @@ class Exceptions
      *
      * Boot-only. The callback persists on the shared handler and affects exception
      * rendering for every subsequent request in the worker.
+     *
+     * @return $this
      */
     public function renderable(callable $renderUsing): static
     {
@@ -77,6 +81,8 @@ class Exceptions
      *
      * Boot-only. The callback replaces the shared handler's response callback for
      * every subsequent request in the worker.
+     *
+     * @return $this
      */
     public function respond(callable $using): static
     {
@@ -92,6 +98,7 @@ class Exceptions
      * Callback return values are ignored.
      *
      * @param callable(Response, Throwable, Request): mixed $callback
+     * @return $this
      */
     public function beforeResponding(callable $callback): static
     {
@@ -105,6 +112,8 @@ class Exceptions
      *
      * Boot-only. The callback persists on the shared handler and affects exception
      * reporting for every subsequent request and job in the worker.
+     *
+     * @return $this
      */
     public function throttle(callable $throttleUsing): static
     {
@@ -118,6 +127,8 @@ class Exceptions
      *
      * Boot-only. The mapping persists on the shared handler and affects exception
      * reporting and rendering for every subsequent request and job in the worker.
+     *
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -136,6 +147,7 @@ class Exceptions
      *
      * @param class-string<Throwable> $type
      * @param LogLevel::* $level
+     * @return $this
      */
     public function level(string $type, string $level): static
     {
@@ -149,6 +161,8 @@ class Exceptions
      *
      * Boot-only. The closure persists on the shared handler and runs for every
      * subsequently logged exception in the worker.
+     *
+     * @return $this
      */
     public function context(Closure $contextCallback): static
     {
@@ -162,6 +176,8 @@ class Exceptions
      *
      * Boot-only. The exception types persist on the shared handler and affect
      * exception reporting for every subsequent request and job in the worker.
+     *
+     * @return $this
      */
     public function dontReport(array|string $class): static
     {
@@ -177,6 +193,8 @@ class Exceptions
      *
      * Boot-only. The exception types persist on the shared handler and affect
      * every subsequently failed job in the worker.
+     *
+     * @return $this
      */
     public function dontRetry(array|string $class): static
     {
@@ -194,6 +212,7 @@ class Exceptions
      * reporting for every subsequent request and job in the worker.
      *
      * @param (Closure(Throwable): bool) $dontReportWhen
+     * @return $this
      */
     public function dontReportWhen(Closure $dontReportWhen): static
     {
@@ -211,6 +230,7 @@ class Exceptions
      * @template TException of Throwable
      *
      * @param Closure(TException): bool $dontRetryWhen
+     * @return $this
      */
     public function dontRetryWhen(Closure $dontRetryWhen): static
     {
@@ -224,6 +244,8 @@ class Exceptions
      *
      * Boot-only. The setting persists on the shared handler and applies to every
      * subsequent request and job in the worker.
+     *
+     * @return $this
      */
     public function dontReportDuplicates(): static
     {
@@ -237,6 +259,8 @@ class Exceptions
      *
      * Boot-only. The attributes persist on the shared handler and are omitted
      * from every subsequent validation redirect in the worker.
+     *
+     * @return $this
      */
     public function dontFlash(array|string $attributes): static
     {
@@ -250,6 +274,8 @@ class Exceptions
      *
      * Boot-only. The callable replaces the shared handler's JSON check for every
      * subsequent request in the worker.
+     *
+     * @return $this
      */
     public function shouldRenderJsonWhen(callable $callback): static
     {
@@ -265,6 +291,7 @@ class Exceptions
      * exception reporting for every subsequent request and job in the worker.
      *
      * @param array<int, class-string<Throwable>>|class-string<Throwable> $class
+     * @return $this
      */
     public function stopIgnoring(array|string $class): static
     {
@@ -278,6 +305,8 @@ class Exceptions
      *
      * Boot-only. The global default persists for the worker lifetime across all
      * coroutines; per-request truncation settings take precedence.
+     *
+     * @return $this
      */
     public function truncateRequestExceptionsAt(int $length): static
     {
@@ -291,6 +320,8 @@ class Exceptions
      *
      * Boot-only. The global default persists for the worker lifetime across all
      * coroutines; per-request truncation settings take precedence.
+     *
+     * @return $this
      */
     public function dontTruncateRequestExceptions(): static
     {

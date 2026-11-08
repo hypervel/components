@@ -74,6 +74,8 @@ trait MakesHttpRequests
 
     /**
      * Define additional headers to be sent with the request.
+     *
+     * @return $this
      */
     public function withHeaders(array $headers): static
     {
@@ -84,6 +86,8 @@ trait MakesHttpRequests
 
     /**
      * Add a header to be sent with the request.
+     *
+     * @return $this
      */
     public function withHeader(string $name, string $value): static
     {
@@ -94,6 +98,8 @@ trait MakesHttpRequests
 
     /**
      * Remove a header from the request.
+     *
+     * @return $this
      */
     public function withoutHeader(string $name): static
     {
@@ -104,6 +110,8 @@ trait MakesHttpRequests
 
     /**
      * Remove headers from the request.
+     *
+     * @return $this
      */
     public function withoutHeaders(array $headers): static
     {
@@ -116,6 +124,8 @@ trait MakesHttpRequests
 
     /**
      * Add an authorization token for the request.
+     *
+     * @return $this
      */
     public function withToken(#[SensitiveParameter] string $token, string $type = 'Bearer'): static
     {
@@ -124,6 +134,8 @@ trait MakesHttpRequests
 
     /**
      * Add a basic authentication header to the request with the given credentials.
+     *
+     * @return $this
      */
     public function withBasicAuth(string $username, #[SensitiveParameter] string $password): static
     {
@@ -132,6 +144,8 @@ trait MakesHttpRequests
 
     /**
      * Remove the authorization token from the request.
+     *
+     * @return $this
      */
     public function withoutToken(): static
     {
@@ -140,6 +154,8 @@ trait MakesHttpRequests
 
     /**
      * Flush all the configured headers.
+     *
+     * @return $this
      */
     public function flushHeaders(): static
     {
@@ -150,6 +166,8 @@ trait MakesHttpRequests
 
     /**
      * Define a set of server variables to be sent with the requests.
+     *
+     * @return $this
      */
     public function withServerVariables(array $server): static
     {
@@ -162,6 +180,7 @@ trait MakesHttpRequests
      * Disable middleware for the test.
      *
      * @param null|array|string $middleware
+     * @return $this
      */
     public function withoutMiddleware($middleware = null): static
     {
@@ -182,6 +201,7 @@ trait MakesHttpRequests
      * Enable the given middleware for the test.
      *
      * @param null|array|string $middleware
+     * @return $this
      */
     public function withMiddleware($middleware = null): static
     {
@@ -200,6 +220,8 @@ trait MakesHttpRequests
 
     /**
      * Define additional cookies to be sent with the request.
+     *
+     * @return $this
      */
     public function withCookies(array $cookies): static
     {
@@ -210,6 +232,8 @@ trait MakesHttpRequests
 
     /**
      * Add a cookie to be sent with the request.
+     *
+     * @return $this
      */
     public function withCookie(string $name, string $value): static
     {
@@ -220,6 +244,8 @@ trait MakesHttpRequests
 
     /**
      * Define additional cookies that will not be encrypted before sending with the request.
+     *
+     * @return $this
      */
     public function withUnencryptedCookies(array $cookies): static
     {
@@ -230,6 +256,8 @@ trait MakesHttpRequests
 
     /**
      * Add a cookie that will not be encrypted before sending with the request.
+     *
+     * @return $this
      */
     public function withUnencryptedCookie(string $name, string $value): static
     {
@@ -240,6 +268,8 @@ trait MakesHttpRequests
 
     /**
      * Automatically follow any redirects returned from the response.
+     *
+     * @return $this
      */
     public function followingRedirects(): static
     {
@@ -250,6 +280,8 @@ trait MakesHttpRequests
 
     /**
      * Include cookies and authorization headers for JSON requests.
+     *
+     * @return $this
      */
     public function withCredentials(): static
     {
@@ -260,6 +292,8 @@ trait MakesHttpRequests
 
     /**
      * Disable automatic encryption of cookie values.
+     *
+     * @return $this
      */
     public function disableCookieEncryption(): static
     {
@@ -270,6 +304,8 @@ trait MakesHttpRequests
 
     /**
      * Set the referer header and previous URL session value in order to simulate a previous request.
+     *
+     * @return $this
      */
     public function from(string $url): static
     {
@@ -280,6 +316,8 @@ trait MakesHttpRequests
 
     /**
      * Set the referer header and previous URL session value from a given route in order to simulate a previous request.
+     *
+     * @return $this
      */
     public function fromRoute(BackedEnum|string $name, mixed $parameters = []): static
     {
@@ -288,6 +326,8 @@ trait MakesHttpRequests
 
     /**
      * Set the Precognition header to "true".
+     *
+     * @return $this
      */
     public function withPrecognition(): static
     {

@@ -130,6 +130,7 @@ class Kernel implements KernelContract
      * Re-route the Symfony command events to their Hypervel counterparts.
      *
      * @internal
+     * @return $this
      */
     public function rerouteSymfonyCommandEvents(): static
     {
@@ -592,6 +593,8 @@ class Kernel implements KernelContract
 
     /**
      * Set the Artisan commands provided by the application.
+     *
+     * @return $this
      */
     public function addCommands(array $commands): static
     {
@@ -606,6 +609,8 @@ class Kernel implements KernelContract
 
     /**
      * Set the paths that should have their Artisan commands automatically discovered.
+     *
+     * @return $this
      */
     public function addCommandPaths(array $paths): static
     {
@@ -616,6 +621,8 @@ class Kernel implements KernelContract
 
     /**
      * Set the paths that should have their Artisan "routes" automatically discovered.
+     *
+     * @return $this
      */
     public function addCommandRoutePaths(array $paths): static
     {

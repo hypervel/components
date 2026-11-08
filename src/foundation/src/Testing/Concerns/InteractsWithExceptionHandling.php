@@ -29,6 +29,8 @@ trait InteractsWithExceptionHandling
 
     /**
      * Restore exception handling.
+     *
+     * @return $this
      */
     protected function withExceptionHandling(): static
     {
@@ -47,6 +49,7 @@ trait InteractsWithExceptionHandling
      * Only handle the given exceptions via the exception handler.
      *
      * @param list<class-string<Throwable>> $exceptions
+     * @return $this
      */
     protected function handleExceptions(array $exceptions): static
     {
@@ -55,6 +58,8 @@ trait InteractsWithExceptionHandling
 
     /**
      * Only handle validation exceptions via the exception handler.
+     *
+     * @return $this
      */
     protected function handleValidationExceptions(): static
     {
@@ -65,6 +70,7 @@ trait InteractsWithExceptionHandling
      * Disable exception handling for the test.
      *
      * @param list<class-string<Throwable>> $except
+     * @return $this
      */
     protected function withoutExceptionHandling(array $except = []): static
     {
@@ -178,6 +184,7 @@ trait InteractsWithExceptionHandling
      * Assert that the given callback throws an exception with the given message when invoked.
      *
      * @param class-string<Throwable>|Closure(Throwable): bool $expectedClass
+     * @return $this
      */
     protected function assertThrows(Closure $test, string|Closure $expectedClass = Throwable::class, ?string $expectedMessage = null): static
     {
@@ -212,6 +219,8 @@ trait InteractsWithExceptionHandling
 
     /**
      * Assert that the given callback does not throw an exception.
+     *
+     * @return $this
      */
     protected function assertDoesntThrow(Closure $test): static
     {

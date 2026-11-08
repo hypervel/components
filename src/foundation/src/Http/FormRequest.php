@@ -417,6 +417,8 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
 
     /**
      * Set the Validator instance.
+     *
+     * @return $this
      */
     public function setValidator(Validator $validator): static
     {
@@ -427,6 +429,8 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
 
     /**
      * Set the Redirector instance.
+     *
+     * @return $this
      */
     public function setRedirector(Redirector $redirector): static
     {
@@ -437,6 +441,8 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
 
     /**
      * Set the container implementation.
+     *
+     * @return $this
      */
     public function setContainer(Container $container): static
     {

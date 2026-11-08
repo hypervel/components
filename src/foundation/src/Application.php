@@ -429,6 +429,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
      *
      * Boot-only. The configured path and its container binding are shared by
      * every request in the worker.
+     *
+     * @return $this
      */
     public function useAppPath(string $path): static
     {
@@ -460,6 +462,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
      *
      * Boot-only. The configured path and its container binding are shared by
      * every request in the worker.
+     *
+     * @return $this
      */
     public function useBootstrapPath(string $path): static
     {
@@ -491,6 +495,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
      *
      * Boot-only. The configured path and its container binding are shared by
      * every request in the worker.
+     *
+     * @return $this
      */
     public function useConfigPath(string $path): static
     {
@@ -514,6 +520,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
      *
      * Boot-only. The configured path and its container binding are shared by
      * every request in the worker.
+     *
+     * @return $this
      */
     public function useDatabasePath(string $path): static
     {
@@ -537,6 +545,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
      *
      * Boot-only. The configured path and its container binding are shared by
      * every request in the worker.
+     *
+     * @return $this
      */
     public function useLangPath(string $path): static
     {
@@ -560,6 +570,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
      *
      * Boot-only. The configured path and its container binding are shared by
      * every request in the worker.
+     *
+     * @return $this
      */
     public function usePublicPath(string $path): static
     {
@@ -616,6 +628,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
      *
      * Boot-only. The configured path and its container binding are shared by
      * every request in the worker.
+     *
+     * @return $this
      */
     public function useStoragePath(string $path): static
     {

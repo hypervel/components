@@ -25,6 +25,8 @@ class PrecognitionControllerDispatcher extends ControllerDispatcher
     /**
      * Ensure that the given method exists on the controller.
      *
+     * @return $this
+     *
      * @throws RuntimeException
      */
     protected function ensureMethodExists(object $controller, string $method): static
