@@ -66,7 +66,7 @@ To dump the schema without including rows from the migrations table, use the `--
 php artisan schema:dump --without-migration-data
 ```
 
-When you execute this command, Hypervel will write a "schema" file to your application's `database/schema` directory. The schema file's name will correspond to the database connection. Now, when you attempt to migrate your database and no other migrations have been executed, Hypervel will first execute the SQL statements in the schema file of the database connection you are using. After executing the schema file's SQL statements, Hypervel will execute any remaining migrations that were not part of the schema dump.
+When you execute this command, Hypervel will write a "schema" file to your application's `database/schema` directory. The schema file's name will correspond to the database connection. If the connection defines a [`migrations_connection`](#setting-the-migration-connection), the schema is dumped from that connection and named after it, since that is the connection the file is loaded into. Now, when you attempt to migrate your database and no other migrations have been executed, Hypervel will first execute the SQL statements in the schema file of the database connection you are using. After executing the schema file's SQL statements, Hypervel will execute any remaining migrations that were not part of the schema dump.
 
 If your application's tests use a different database connection than the one you typically use during local development, you should ensure you have dumped a schema file using that database connection so that your tests are able to build your database. You may wish to do this after dumping the database connection you typically use during local development:
 
