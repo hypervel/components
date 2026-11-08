@@ -16,6 +16,8 @@ trait Dumpable
 
     /**
      * Dump the given arguments.
+     *
+     * @return $this
      */
     public function dump(mixed ...$args): static
     {

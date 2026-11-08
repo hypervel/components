@@ -110,6 +110,8 @@ class Sleep
 
     /**
      * Sleep for the given duration. Replaces any previously defined duration.
+     *
+     * @return $this
      */
     protected function duration(DateInterval|float|int $duration): static
     {
@@ -133,6 +135,8 @@ class Sleep
 
     /**
      * Sleep for the given number of minutes.
+     *
+     * @return $this
      */
     public function minutes(): static
     {
@@ -144,6 +148,8 @@ class Sleep
 
     /**
      * Sleep for one minute.
+     *
+     * @return $this
      */
     public function minute(): static
     {
@@ -152,6 +158,8 @@ class Sleep
 
     /**
      * Sleep for the given number of seconds.
+     *
+     * @return $this
      */
     public function seconds(): static
     {
@@ -162,6 +170,8 @@ class Sleep
 
     /**
      * Sleep for one second.
+     *
+     * @return $this
      */
     public function second(): static
     {
@@ -170,6 +180,8 @@ class Sleep
 
     /**
      * Sleep for the given number of milliseconds.
+     *
+     * @return $this
      */
     public function milliseconds(): static
     {
@@ -180,6 +192,8 @@ class Sleep
 
     /**
      * Sleep for one millisecond.
+     *
+     * @return $this
      */
     public function millisecond(): static
     {
@@ -188,6 +202,8 @@ class Sleep
 
     /**
      * Sleep for the given number of microseconds.
+     *
+     * @return $this
      */
     public function microseconds(): static
     {
@@ -198,6 +214,8 @@ class Sleep
 
     /**
      * Sleep for one microsecond.
+     *
+     * @return $this
      */
     public function microsecond(): static
     {
@@ -206,6 +224,8 @@ class Sleep
 
     /**
      * Add additional time to sleep for.
+     *
+     * @return $this
      */
     public function and(float|int $duration): static
     {
@@ -216,6 +236,8 @@ class Sleep
 
     /**
      * Sleep while a given callback returns "true".
+     *
+     * @return $this
      */
     public function while(Closure $callback): static
     {
@@ -426,6 +448,8 @@ class Sleep
 
     /**
      * Indicate that the instance should not sleep.
+     *
+     * @return $this
      */
     protected function shouldNotSleep(): static
     {
@@ -436,6 +460,8 @@ class Sleep
 
     /**
      * Only sleep when the given condition is true.
+     *
+     * @return $this
      */
     public function when(bool|Closure $condition): static
     {
@@ -446,6 +472,8 @@ class Sleep
 
     /**
      * Don't sleep when the given condition is true.
+     *
+     * @return $this
      */
     public function unless(bool|Closure $condition): static
     {

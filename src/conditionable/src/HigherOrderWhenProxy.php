@@ -52,6 +52,8 @@ class HigherOrderWhenProxy
 
     /**
      * Indicate that the condition should be negated.
+     *
+     * @return $this
      */
     public function negateConditionOnCapture(): static
     {

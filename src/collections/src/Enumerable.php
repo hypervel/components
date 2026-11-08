@@ -168,6 +168,8 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
 
     /**
      * Dump the collection.
+     *
+     * @return $this
      */
     public function dump(mixed ...$args): static;
 
@@ -240,6 +242,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * Execute a callback over each item.
      *
      * @param callable(TValue, TKey): mixed $callback
+     * @return $this
      */
     public function each(callable $callback): static;
 
@@ -1001,6 +1004,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * Pass the collection to the given callback and then return it.
      *
      * @param callable($this): mixed $callback
+     * @return $this
      */
     public function tap(callable $callback): static;
 
@@ -1169,6 +1173,8 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
 
     /**
      * Indicate that the model's string representation should be escaped when __toString is invoked.
+     *
+     * @return $this
      */
     public function escapeWhenCastingToString(bool $escape = true): static;
 

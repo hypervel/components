@@ -233,6 +233,8 @@ class Composer
 
     /**
      * Set the working path used by the class.
+     *
+     * @return $this
      */
     public function setWorkingPath(string $path): static
     {

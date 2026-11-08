@@ -591,6 +591,8 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
 
     /**
      * Forget all of the resolved mailer instances.
+     *
+     * @return $this
      */
     public function forgetMailers(): static
     {

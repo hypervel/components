@@ -248,6 +248,8 @@ trait EnumeratesValues
 
     /**
      * Dump the items.
+     *
+     * @return $this
      */
     public function dump(mixed ...$args): static
     {
@@ -260,6 +262,7 @@ trait EnumeratesValues
      * Execute a callback over each item.
      *
      * @param callable(TValue, TKey): mixed $callback
+     * @return $this
      */
     public function each(callable $callback): static
     {
@@ -882,6 +885,7 @@ trait EnumeratesValues
      * Pass the collection to the given callback and then return it.
      *
      * @param callable($this): mixed $callback
+     * @return $this
      */
     public function tap(callable $callback): static
     {
@@ -999,6 +1003,8 @@ trait EnumeratesValues
 
     /**
      * Indicate that the model's string representation should be escaped when __toString is invoked.
+     *
+     * @return $this
      */
     public function escapeWhenCastingToString(bool $escape = true): static
     {

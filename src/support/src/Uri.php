@@ -412,6 +412,8 @@ class Uri implements Htmlable, JsonSerializable, Responsable, BaseStringable
 
     /**
      * Dump the string representation of the URI.
+     *
+     * @return $this
      */
     public function dump(mixed ...$args): static
     {

@@ -80,6 +80,8 @@ class BusFake implements Fake, QueueingDispatcher
 
     /**
      * Specify the jobs that should be dispatched instead of faked.
+     *
+     * @return $this
      */
     public function except(array|string $jobsToDispatch): static
     {
@@ -749,6 +751,8 @@ class BusFake implements Fake, QueueingDispatcher
 
     /**
      * Specify if commands should be serialized and restored when dispatched or batched.
+     *
+     * @return $this
      */
     public function serializeAndRestore(bool $serializeAndRestore = true): static
     {
@@ -775,6 +779,8 @@ class BusFake implements Fake, QueueingDispatcher
 
     /**
      * Set the pipes commands should be piped through before dispatching.
+     *
+     * @return $this
      */
     public function pipeThrough(array $pipes): static
     {
@@ -801,6 +807,8 @@ class BusFake implements Fake, QueueingDispatcher
 
     /**
      * Map a command to a handler.
+     *
+     * @return $this
      */
     public function map(array $map): static
     {
@@ -813,6 +821,8 @@ class BusFake implements Fake, QueueingDispatcher
      * Allow dispatching after responses.
      *
      * Tests only. Changes the underlying dispatcher for all coroutines until the setting is restored.
+     *
+     * @return $this
      */
     public function withDispatchingAfterResponses(): static
     {
@@ -825,6 +835,8 @@ class BusFake implements Fake, QueueingDispatcher
      * Disable dispatching after responses.
      *
      * Tests only. Changes the underlying dispatcher for all coroutines until the setting is restored.
+     *
+     * @return $this
      */
     public function withoutDispatchingAfterResponses(): static
     {

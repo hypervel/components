@@ -1117,6 +1117,8 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
 
     /**
      * Dump the string.
+     *
+     * @return $this
      */
     public function dump(mixed ...$args): static
     {

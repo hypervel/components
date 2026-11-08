@@ -55,6 +55,8 @@ class EventFake implements Fake, DispatcherContract
 
     /**
      * Specify the events that should be dispatched instead of faked.
+     *
+     * @return $this
      */
     public function except(array|string $eventsToDispatch): static
     {

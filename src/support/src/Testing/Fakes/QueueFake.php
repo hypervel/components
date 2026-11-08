@@ -110,6 +110,8 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Specify the jobs that should be queued instead of faked.
+     *
+     * @return $this
      */
     public function except(array|string $jobsToBeQueued): static
     {
@@ -792,6 +794,8 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Specify if jobs should be serialized and restored when being "pushed" to the queue.
+     *
+     * @return $this
      */
     public function serializeAndRestore(bool $serializeAndRestore = true): static
     {
@@ -830,6 +834,8 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Register a callback to be invoked before pushing a job.
+     *
+     * @return $this
      */
     public function beforePushing(callable $callback): static
     {
@@ -840,6 +846,8 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Register a callback to be invoked after pushing a job.
+     *
+     * @return $this
      */
     public function afterPushing(callable $callback): static
     {
@@ -866,6 +874,8 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Set the connection name for the queue.
+     *
+     * @return $this
      */
     public function setConnectionName(string $name): static
     {
