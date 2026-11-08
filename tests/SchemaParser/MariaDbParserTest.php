@@ -9,6 +9,7 @@ use Hypervel\SchemaParser\MariaDbParser;
 use Hypervel\SchemaParser\MySqlParser;
 use Hypervel\SchemaParser\ParseException;
 use Hypervel\SchemaParser\ReferentialAction;
+use Hypervel\SchemaParser\TableReference;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -135,6 +136,25 @@ class MariaDbParserTest extends TestCase
         $this->assertSame(['parent_id'], $table->foreignKeys[0]->columns);
         $this->assertSame(ReferentialAction::Cascade, $table->foreignKeys[0]->onDelete);
         $this->assertFalse($table->column('parent_id')->nullable);
+    }
+
+    public function testMariaDbStatementFormsReportTheirImpact(): void
+    {
+        $parser = new MariaDbParser;
+        $impact = $parser->parse(<<<'SQL'
+            CREATE SEQUENCE invoice_numbers;
+            DROP SEQUENCE invoice_numbers;
+            RENAME TABLE IF EXISTS carts WAIT 5 TO baskets, orders NOWAIT TO purchases;
+            SQL)->impact;
+
+        $this->assertEquals([
+            new TableReference('carts'),
+            new TableReference('baskets'),
+            new TableReference('orders'),
+            new TableReference('purchases'),
+        ], $impact->relations);
+        $this->assertFalse($impact->unknown);
+        $this->assertTrue($parser->parse('SET STATEMENT max_statement_time = 60 FOR DROP TABLE users')->impact->unknown);
     }
 
     #[DataProvider('malformedDefinitionProvider')]

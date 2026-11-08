@@ -13,6 +13,7 @@
 - [Completeness and Errors](#completeness-and-errors)
     - [Checking Completeness](#checking-completeness)
     - [Handling Parse Errors](#handling-parse-errors)
+- [Changes to an Existing Schema](#changes-to-an-existing-schema)
 - [Supported Input](#supported-input)
 - [Credits](#credits)
 
@@ -220,6 +221,33 @@ When these checks pass, you may treat a missing column as absent. To establish t
 If the parser detects malformed input, it throws a `Hypervel\SchemaParser\ParseException`. You may use the exception's `sqlLine` property to locate the error in the SQL input when that information is available. The exception's normal `getLine` method refers to the PHP source.
 
 A complete result means the parser understood the schema facts it represents. It does not guarantee that a database server would accept every statement in the input.
+
+<a name="changes-to-an-existing-schema"></a>
+## Changes to an Existing Schema
+
+A result only describes the definitions in its input. When the input is a script that runs against an existing schema, such as raw SQL in a migration, the schema's `impact` property describes how the script affects tables, views and PostgreSQL user types that existed before it:
+
+```php
+use Hypervel\SchemaParser\PostgresParser;
+
+$impact = (new PostgresParser)->parse('ALTER TABLE users RENAME TO members')->impact;
+
+foreach ($impact->relations as $relation) {
+    echo $relation->name; // 'users', then 'members'
+}
+
+$impact->unknown; // false
+```
+
+The `relations` list contains each table and view the script alters, drops or renames, including both names of a renamed relation, even when the script also defines it. These relations may no longer exist or have their earlier columns. Unqualified names use the schema the input selected, such as SQLite's `main` database or a database chosen by a MySQL `USE` statement.
+
+The `types` list contains each PostgreSQL enum and domain the script alters or drops without renaming it, such as an added enum label or a dropped domain, even when the script also defines it. These types may no longer exist or have their earlier definitions.
+
+The `unknown` property is `true` when a statement may have changed relations or types without naming them, such as a cascading drop, a renamed type or domain, a query that calls functions, or a procedure call. It is also `true` when a statement changes how later statements resolve names, such as a MySQL `USE` statement or a PostgreSQL `search_path` setting, because separately parsed input cannot see that change.
+
+Statements that only manage indexes, comments, routines, triggers or sequences, change rows, or change other session settings leave existing relations unchanged. The impact describes only the statements themselves: changing rows can still run triggers or functions on the server, and their effects are not included.
+
+Tables and views the script creates are available through the schema's usual properties. Since the parser does not know which relations existed before the script, a definition guarded by `IF NOT EXISTS` is included even if the existing schema already has that relation.
 
 <a name="supported-input"></a>
 ## Supported Input

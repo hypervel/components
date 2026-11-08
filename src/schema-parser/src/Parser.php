@@ -25,6 +25,23 @@ abstract class Parser implements ParserContract
     /** The texts of the punctuation and terminator that end a list entry. */
     private const array ENTRY_ENDS = [',' => true, ')' => true, '' => true];
 
+    /** Statements that change rows rather than relations. */
+    private const array DATA_STATEMENTS = [
+        'INSERT' => true,
+        'UPDATE' => true,
+        'DELETE' => true,
+        'REPLACE' => true,
+        'TRUNCATE' => true,
+    ];
+
+    /** Kinds of objects that are not relations, which a relation only depends on in ways that stop a drop without CASCADE. */
+    protected const array NON_RELATION_OBJECTS = [
+        'FUNCTION' => true,
+        'PROCEDURE' => true,
+        'TRIGGER' => true,
+        'SEQUENCE' => true,
+    ];
+
     /** Keywords that end a column type or default by beginning the next column clause. */
     protected const array COLUMN_CLAUSES = [
         'CONSTRAINT' => true,
@@ -82,6 +99,18 @@ abstract class Parser implements ParserContract
      * Read a column type.
      */
     abstract protected function parseType(TokenStream $tokens, ParseState $state): ColumnType;
+
+    /**
+     * Record that a statement the dialect does not read may change relations without naming them, unless it only changes rows.
+     *
+     * Row changes can still run server-side code, such as triggers, whose effects are outside the impact.
+     */
+    protected function recordUnreadStatement(TokenStream $tokens, ParseState $state): void
+    {
+        if (! isset(self::DATA_STATEMENTS[$tokens->text()])) {
+            $state->unknownImpact = true;
+        }
+    }
 
     /**
      * Read an identifier.
@@ -472,15 +501,15 @@ abstract class Parser implements ParserContract
     }
 
     /**
-     * Read a view from its name, without inferring the types its query produces.
+     * Read a view from its name, without inferring the types its query produces, and return its name.
      */
-    protected function parseCreateView(TokenStream $tokens, ParseState $state, bool $materialized = false): void
+    protected function parseCreateView(TokenStream $tokens, ParseState $state, bool $materialized = false): TableReference
     {
         $conditional = $tokens->accept('IF', 'NOT', 'EXISTS');
         $reference = $this->parseRelationName($tokens, $state, 'a view name');
 
         if ($this->isTemporary($reference) || ($conditional && $this->relationExists($state, $reference->schema, $reference->name))) {
-            return;
+            return $reference;
         }
 
         // A column list and view options can precede the query.
@@ -497,6 +526,8 @@ abstract class Parser implements ParserContract
         }
 
         $state->addView(new View($reference->name, $this->parseViewQuery($tokens), $reference->schema, $materialized));
+
+        return $reference;
     }
 
     /**
@@ -562,7 +593,14 @@ abstract class Parser implements ParserContract
             $tables[] = $this->freezeTable($table, $state);
         }
 
-        return new Schema($tables, array_values($state->views), array_values($state->enums), array_values($state->domains), $state->issues);
+        return new Schema(
+            $tables,
+            array_values($state->views),
+            array_values($state->enums),
+            array_values($state->domains),
+            $state->issues,
+            new Impact(array_values($state->affectedRelations), $state->unknownImpact, array_values($state->affectedTypes)),
+        );
     }
 
     /**

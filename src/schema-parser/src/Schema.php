@@ -30,6 +30,7 @@ final readonly class Schema
      * @param list<EnumType> $enums
      * @param list<Domain> $domains
      * @param list<Issue> $issues
+     * @param Impact $impact how the input affects relations that existed before it
      */
     public function __construct(
         public array $tables = [],
@@ -37,6 +38,7 @@ final readonly class Schema
         public array $enums = [],
         public array $domains = [],
         public array $issues = [],
+        public Impact $impact = new Impact,
     ) {
         $this->tablesByName = $this->indexDefinitions($tables);
         $this->viewsByName = $this->indexDefinitions($views);

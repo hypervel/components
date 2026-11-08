@@ -12,6 +12,7 @@ use Hypervel\SchemaParser\ParseException;
 use Hypervel\SchemaParser\PostgresParser;
 use Hypervel\SchemaParser\ReferentialAction;
 use Hypervel\SchemaParser\TableReference;
+use Hypervel\SchemaParser\TypeReference;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -913,6 +914,19 @@ class PostgresParserTest extends TestCase
         $this->assertFalse($schema->table('remote')->isComplete());
     }
 
+    public function testTablesCreatedFromQueriesAreIncompleteWithOrWithoutColumnNames(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE copied AS SELECT id FROM users;
+            CREATE TABLE renamed (id, label) AS SELECT id, name FROM users WITH NO DATA;
+            SQL);
+
+        $this->assertSame([], $schema->table('copied')->columns);
+        $this->assertFalse($schema->table('copied')->isComplete());
+        $this->assertSame([], $schema->table('renamed')->columns);
+        $this->assertFalse($schema->table('renamed')->isComplete());
+    }
+
     #[DataProvider('unresolvedSchemaChanges')]
     public function testUnresolvedDependenciesInvalidateTheSchemaInventory(string $statement): void
     {
@@ -1013,6 +1027,110 @@ class PostgresParserTest extends TestCase
         $this->assertCount(2, $schema->views);
         $this->assertSame([], $schema->table('t', 'a')->indexes);
         $this->assertCount(1, $schema->table('t', 'b')->indexes);
+    }
+
+    #[DataProvider('impactProvider')]
+    public function testImpactNamesChangedRelationsAndTypesAndFlagsUnnamedChanges(string $sql, array $relations, bool $unknown, array $types = []): void
+    {
+        $impact = (new PostgresParser)->parse($sql)->impact;
+
+        $this->assertEquals($relations, $impact->relations);
+        $this->assertSame($unknown, $impact->unknown);
+        $this->assertEquals($types, $impact->types);
+    }
+
+    /**
+     * Provide statements with the relations they change, whether they can change others without naming them, and the types they change.
+     */
+    public static function impactProvider(): iterable
+    {
+        yield 'indexes, comments and new definitions' => [<<<'SQL'
+            CREATE TABLE posts (id integer, title text);
+            CREATE VIEW recent AS SELECT id FROM posts;
+            CREATE MATERIALIZED VIEW stats AS SELECT 1 AS total;
+            CREATE TYPE mood AS ENUM ('happy');
+            CREATE DOMAIN code AS text;
+            CREATE UNIQUE INDEX users_email ON users (email);
+            ALTER INDEX users_email RENAME TO users_email_unique;
+            DROP INDEX users_email_unique;
+            COMMENT ON TABLE users IS 'members';
+            COMMENT ON COLUMN users.email IS 'login';
+            CREATE TEMP TABLE scratch (id integer);
+            SQL, [], false];
+
+        yield 'rows, settings, routines and drops without cascade' => [<<<'SQL'
+            SET lock_timeout = '5s';
+            SET standard_conforming_strings = on;
+            INSERT INTO users (email) VALUES ('a@example.com');
+            UPDATE users SET email = lower(email);
+            DELETE FROM users WHERE email IS NULL;
+            TRUNCATE sessions;
+            CREATE OR REPLACE FUNCTION touch() RETURNS trigger AS $$ BEGIN DROP TABLE users CASCADE; END $$ LANGUAGE plpgsql;
+            CREATE TRIGGER touch_users BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION touch();
+            CREATE SEQUENCE invoice_numbers;
+            ALTER SEQUENCE users_id_seq RESTART WITH 1000;
+            DROP TRIGGER touch_users ON users;
+            DROP FUNCTION archive.cascade(integer), touch();
+            DROP SEQUENCE invoice_numbers;
+            DROP SCHEMA archive;
+            SQL, [], false];
+
+        yield 'altered and dropped types' => [<<<'SQL'
+            ALTER TYPE mood ADD VALUE 'sad';
+            ALTER TYPE public.mood RENAME VALUE 'sad' TO 'unhappy';
+            ALTER DOMAIN code SET NOT NULL;
+            ALTER DOMAIN app.code OWNER TO admin;
+            DROP TYPE IF EXISTS mood, app.status;
+            DROP DOMAIN code;
+            SQL, [], false, [
+            new TypeReference('mood'),
+            new TypeReference('mood', 'public'),
+            new TypeReference('code'),
+            new TypeReference('code', 'app'),
+            new TypeReference('status', 'app'),
+        ]];
+
+        yield 'altered, dropped and renamed relations' => [<<<'SQL'
+            CREATE TABLE IF NOT EXISTS users (id integer);
+            DROP TABLE users;
+            ALTER TABLE ONLY public.posts ADD COLUMN body text;
+            ALTER TABLE posts RENAME COLUMN body TO content;
+            ALTER TABLE public.posts DROP COLUMN body;
+            ALTER TABLE accounts RENAME TO members;
+            ALTER TABLE app.logs SET SCHEMA archive;
+            ALTER MATERIALIZED VIEW IF EXISTS stats RENAME TO totals;
+            DROP VIEW IF EXISTS recent, app.feed;
+            DROP FOREIGN TABLE remote;
+            SQL, [
+            new TableReference('users'),
+            new TableReference('posts', 'public'),
+            new TableReference('posts'),
+            new TableReference('accounts'),
+            new TableReference('members'),
+            new TableReference('logs', 'app'),
+            new TableReference('logs', 'archive'),
+            new TableReference('stats'),
+            new TableReference('totals'),
+            new TableReference('recent'),
+            new TableReference('feed', 'app'),
+            new TableReference('remote'),
+        ], false];
+
+        yield 'cascading drop' => ['DROP TABLE users CASCADE', [new TableReference('users')], true];
+        yield 'cascading column drop' => ['ALTER TABLE users DROP COLUMN id CASCADE', [new TableReference('users')], true];
+        yield 'cascading routine drop' => ['DROP FUNCTION touch() CASCADE', [], true];
+        yield 'cascading type drop' => ['DROP TYPE mood CASCADE', [], true, [new TypeReference('mood')]];
+        yield 'type rename' => ['ALTER TYPE mood RENAME TO feeling', [], true];
+        yield 'other type change' => ['ALTER TYPE address ADD ATTRIBUTE zip text', [], true];
+        yield 'domain schema move' => ['ALTER DOMAIN code SET SCHEMA archive', [], true];
+        yield 'schema rename' => ['ALTER SCHEMA app RENAME TO archive', [], true];
+        yield 'search path' => ['SET search_path TO archive, public', [], true];
+        yield 'role' => ['SET LOCAL ROLE admin', [], true];
+        yield 'session authorization' => ['SET SESSION AUTHORIZATION admin', [], true];
+        yield 'function call' => ["SELECT create_hypertable('metrics', 'time')", [], true];
+        yield 'extension' => ['CREATE EXTENSION IF NOT EXISTS pg_trgm', [], true];
+        yield 'table from a query' => ['CREATE TABLE copied (id) AS SELECT id FROM users', [], true];
+        yield 'owned objects' => ['DROP OWNED BY admin', [], true];
     }
 
     public function testIssueLinesAdvanceAcrossMultipleDiagnosticsAndResetForEachParse(): void

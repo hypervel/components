@@ -80,6 +80,13 @@ class SQLiteParser extends Parser
             $this->parseDrop($tokens, $state);
         } elseif ($tokens->accept('ALTER', 'TABLE')) {
             $this->parseAlterTable($tokens, $state);
+        } elseif ($tokens->accept('PRAGMA')) {
+            // It lets later statements write the schema table, which changes relations without naming them.
+            if (strcasecmp($this->parseQualifiedName($tokens, 'a pragma name')->name, 'writable_schema') === 0) {
+                $state->unknownImpact = true;
+            }
+        } else {
+            $this->recordUnreadStatement($tokens, $state);
         }
     }
 
@@ -100,6 +107,8 @@ class SQLiteParser extends Parser
             $this->parseCreateIndex($tokens, $state, true);
         } elseif ($tokens->accept('VIRTUAL', 'TABLE')) {
             $this->parseCreateVirtualTable($tokens, $state);
+        } elseif (! $tokens->is('TEMP') && ! $tokens->is('TEMPORARY') && ! isset(self::NON_RELATION_OBJECTS[$tokens->text()])) {
+            $state->unknownImpact = true;
         }
     }
 
@@ -162,6 +171,8 @@ class SQLiteParser extends Parser
         $table = new TableDefinition($reference->name, $reference->schema);
 
         if ($tokens->accept('AS')) {
+            // The query runs, and can change other relations.
+            $state->unknownImpact = true;
             $table->issues[] = $state->issue('The table declaration does not contain a complete column definition.');
         } else {
             $this->parseTableBody($tokens, $state, $table);
@@ -809,8 +820,13 @@ class SQLiteParser extends Parser
             return;
         }
 
+        $state->affect($reference);
+
         // A renamed table changes the relation names that other definitions and lookups rely on.
-        if ($tokens->is('RENAME', 'TO')) {
+        if ($tokens->accept('RENAME', 'TO')) {
+            // The table stays in its database.
+            $state->affect(new TableReference($this->parseName($tokens, 'a new table name'), $reference->schema));
+
             if ($state->hasDefinitions()) {
                 $state->issues[] = $state->issue('A table rename changes table identities that are not replayed.');
             }
@@ -840,6 +856,10 @@ class SQLiteParser extends Parser
         };
 
         if ($kind === null) {
+            if (! isset(self::NON_RELATION_OBJECTS[$tokens->text()])) {
+                $state->unknownImpact = true;
+            }
+
             return;
         }
 
@@ -856,6 +876,7 @@ class SQLiteParser extends Parser
             return;
         }
 
+        $state->affect($reference);
         $view = $kind === 'view';
         $key = $this->relationKey($state, $reference, $view);
 

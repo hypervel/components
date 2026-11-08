@@ -119,9 +119,13 @@ class MySqlParser extends Parser
         } elseif ($tokens->accept('SET')) {
             $this->parseSet($tokens, $state);
         } elseif ($tokens->accept('USE')) {
+            // Statements parsed separately afterwards run in this database, but read as running in the original one.
+            $state->unknownImpact = true;
             $state->defaultSchema = $this->parseName($tokens, 'a database name');
-        } elseif ($tokens->is('RENAME', 'TABLE')) {
-            $this->reportRename($state);
+        } elseif ($tokens->accept('RENAME', 'TABLE') || $tokens->accept('RENAME', 'TABLES')) {
+            $this->parseRenameTable($tokens, $state);
+        } else {
+            $this->recordUnreadStatement($tokens, $state);
         }
     }
 
@@ -137,6 +141,11 @@ class MySqlParser extends Parser
     {
         $lexer = $tokens->lexer;
         $modes = [$lexer->noBackslashEscapes, $lexer->ansiQuotes];
+
+        // MariaDB runs the statement after FOR with the given settings.
+        if ($tokens->is('STATEMENT')) {
+            $state->unknownImpact = true;
+        }
 
         do {
             if (! $tokens->accept('SESSION')) {
@@ -232,6 +241,8 @@ class MySqlParser extends Parser
             $tokens->next();
             $tokens->next();
             $this->parseCreateIndex($tokens, $state, $replace, $kind);
+        } elseif (! isset(self::NON_RELATION_OBJECTS[$kind])) {
+            $state->unknownImpact = true;
         }
     }
 
@@ -350,6 +361,8 @@ class MySqlParser extends Parser
         }
 
         if (! $tokens->atEnd()) {
+            // The query runs, and can change other relations.
+            $state->unknownImpact = true;
             $table->issues[] = $state->issue('CREATE TABLE SELECT can add columns that are not declared in the schema.');
 
             return;
@@ -894,7 +907,9 @@ class MySqlParser extends Parser
 
         // ALTER VIEW replaces the view's query.
         if ($tokens->accept('VIEW')) {
-            $this->parseCreateView($tokens, $state);
+            $state->affect($this->parseCreateView($tokens, $state));
+        } elseif (! isset(self::NON_RELATION_OBJECTS[$tokens->text()])) {
+            $state->unknownImpact = true;
         }
     }
 
@@ -911,8 +926,17 @@ class MySqlParser extends Parser
             return;
         }
 
+        $state->affect($reference);
+
         while (! $tokens->atEnd()) {
             if ($tokens->is('RENAME') && ! in_array($tokens->keyword(1), ['COLUMN', 'INDEX', 'KEY'], true)) {
+                $tokens->next();
+
+                if (! $tokens->accept('TO')) {
+                    $tokens->accept('AS');
+                }
+
+                $state->affect($this->parseRelationName($tokens, $state, 'a new table name'));
                 $this->reportRename($state);
 
                 return;
@@ -932,6 +956,31 @@ class MySqlParser extends Parser
         } else {
             $table->issues[] = $state->issue('The ALTER TABLE statement could not be applied to the schema definition.');
         }
+    }
+
+    /**
+     * Record both names of each table a RENAME TABLE statement renames.
+     */
+    private function parseRenameTable(TokenStream $tokens, ParseState $state): void
+    {
+        // MariaDB accepts IF EXISTS and a lock wait option.
+        $tokens->accept('IF', 'EXISTS');
+
+        do {
+            $state->affect($this->parseRelationName($tokens, $state, 'a renamed table name'));
+
+            if (! $tokens->accept('NOWAIT') && $tokens->accept('WAIT')) {
+                $tokens->next();
+            }
+
+            if (! $tokens->accept('TO')) {
+                throw $tokens->error('Expected the new table name');
+            }
+
+            $state->affect($this->parseRelationName($tokens, $state, 'a new table name'));
+        } while ($tokens->acceptSymbol(','));
+
+        $this->reportRename($state);
     }
 
     /**
@@ -957,8 +1006,12 @@ class MySqlParser extends Parser
 
         $view = $tokens->accept('VIEW');
 
-        // Dropping a temporary table leaves the schema unchanged.
+        // Temporary tables are session objects, not part of the schema.
         if (! $view && ! $tokens->accept('TABLE')) {
+            if (! $tokens->is('TEMPORARY') && ! isset(self::NON_RELATION_OBJECTS[$tokens->text()])) {
+                $state->unknownImpact = true;
+            }
+
             return;
         }
 
@@ -967,6 +1020,7 @@ class MySqlParser extends Parser
         // MySQL accepts but ignores a trailing RESTRICT or CASCADE.
         do {
             $reference = $this->parseRelationName($tokens, $state, 'a dropped object name');
+            $state->affect($reference);
             $key = $state->key($reference->schema, $reference->name);
 
             if ($view && isset($state->views[$key])) {
