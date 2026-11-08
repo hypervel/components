@@ -10,6 +10,8 @@ interface ValidatorAwareRule
 {
     /**
      * Set the current validator.
+     *
+     * @return $this
      */
     public function setValidator(Validator $validator): static;
 }

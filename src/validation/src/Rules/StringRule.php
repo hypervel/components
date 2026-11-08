@@ -19,6 +19,8 @@ class StringRule implements Stringable
 
     /**
      * The field under validation must be entirely alphabetic characters.
+     *
+     * @return $this
      */
     public function alpha(bool $ascii = false): static
     {
@@ -27,6 +29,8 @@ class StringRule implements Stringable
 
     /**
      * The field under validation must be entirely alpha-numeric characters, dashes, and underscores.
+     *
+     * @return $this
      */
     public function alphaDash(bool $ascii = false): static
     {
@@ -35,6 +39,8 @@ class StringRule implements Stringable
 
     /**
      * The field under validation must be entirely alpha-numeric characters.
+     *
+     * @return $this
      */
     public function alphaNumeric(bool $ascii = false): static
     {
@@ -43,6 +49,8 @@ class StringRule implements Stringable
 
     /**
      * The field under validation must be entirely ASCII characters.
+     *
+     * @return $this
      */
     public function ascii(): static
     {
@@ -51,6 +59,8 @@ class StringRule implements Stringable
 
     /**
      * The field under validation must have a length between the given min and max (inclusive).
+     *
+     * @return $this
      */
     public function between(int $min, int $max): static
     {
@@ -59,6 +69,8 @@ class StringRule implements Stringable
 
     /**
      * The field under validation must not end with any of the given values.
+     *
+     * @return $this
      */
     public function doesntEndWith(string ...$values): static
     {
@@ -67,6 +79,8 @@ class StringRule implements Stringable
 
     /**
      * The field under validation must not start with any of the given values.
+     *
+     * @return $this
      */
     public function doesntStartWith(string ...$values): static
     {
@@ -75,6 +89,8 @@ class StringRule implements Stringable
 
     /**
      * The field under validation must end with one of the given values.
+     *
+     * @return $this
      */
     public function endsWith(string ...$values): static
     {
@@ -83,6 +99,8 @@ class StringRule implements Stringable
 
     /**
      * The field under validation must have an exact length.
+     *
+     * @return $this
      */
     public function exactly(int $value): static
     {
@@ -91,6 +109,8 @@ class StringRule implements Stringable
 
     /**
      * The field under validation must be entirely lowercase.
+     *
+     * @return $this
      */
     public function lowercase(): static
     {
@@ -99,6 +119,8 @@ class StringRule implements Stringable
 
     /**
      * The field under validation must not exceed the given length.
+     *
+     * @return $this
      */
     public function max(int $value): static
     {
@@ -107,6 +129,8 @@ class StringRule implements Stringable
 
     /**
      * The field under validation must have a minimum length.
+     *
+     * @return $this
      */
     public function min(int $value): static
     {
@@ -115,6 +139,8 @@ class StringRule implements Stringable
 
     /**
      * The field under validation must start with one of the given values.
+     *
+     * @return $this
      */
     public function startsWith(string ...$values): static
     {
@@ -123,6 +149,8 @@ class StringRule implements Stringable
 
     /**
      * The field under validation must be entirely uppercase.
+     *
+     * @return $this
      */
     public function uppercase(): static
     {
@@ -162,6 +190,8 @@ class StringRule implements Stringable
 
     /**
      * Add custom rules to the validation rules array.
+     *
+     * @return $this
      */
     protected function addRule(array|string $rules): static
     {

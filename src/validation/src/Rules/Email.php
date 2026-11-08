@@ -111,6 +111,8 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Ensure that the email is an RFC compliant email address.
+     *
+     * @return $this
      */
     public function rfcCompliant(bool $strict = false): static
     {
@@ -125,6 +127,8 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Ensure that the email is a strictly enforced RFC compliant email address.
+     *
+     * @return $this
      */
     public function strict(): static
     {
@@ -135,6 +139,8 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
      * Check the email domain's MX records, with A or AAAA records as a fallback.
      *
      * Requires the PHP intl extension.
+     *
+     * @return $this
      */
     public function validateMxRecord(): static
     {
@@ -145,6 +151,8 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Ensure that the email address is not attempting to spoof another email address using invalid unicode characters.
+     *
+     * @return $this
      */
     public function preventSpoofing(): static
     {
@@ -155,6 +163,8 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Ensure the email address is valid using PHP's native email validation functions.
+     *
+     * @return $this
      */
     public function withNativeValidation(bool $allowUnicode = false): static
     {
@@ -169,6 +179,8 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Specify additional validation rules that should be merged with the default rules during validation.
+     *
+     * @return $this
      */
     public function rules(array|string $rules): static
     {
@@ -250,6 +262,8 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Set the current validator.
+     *
+     * @return $this
      */
     public function setValidator(ValidatorContract $validator): static
     {
@@ -260,6 +274,8 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Set the current data under validation.
+     *
+     * @return $this
      */
     public function setData(array $data): static
     {

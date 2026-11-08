@@ -68,6 +68,8 @@ class AnyOf implements Rule, ValidatorAwareRule
 
     /**
      * Set the current validator.
+     *
+     * @return $this
      */
     public function setValidator(ValidatorContract $validator): static
     {

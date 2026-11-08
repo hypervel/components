@@ -99,6 +99,8 @@ class InvokableValidationRule implements Rule, ValidatorAwareRule
 
     /**
      * Set the data under validation.
+     *
+     * @return $this
      */
     public function setData(array $data): static
     {
@@ -109,6 +111,8 @@ class InvokableValidationRule implements Rule, ValidatorAwareRule
 
     /**
      * Set the current validator.
+     *
+     * @return $this
      */
     public function setValidator(Validator $validator): static
     {

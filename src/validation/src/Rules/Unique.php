@@ -25,6 +25,8 @@ class Unique implements Stringable
 
     /**
      * Ignore the given ID during the unique check.
+     *
+     * @return $this
      */
     public function ignore(mixed $id, ?string $idColumn = null): static
     {
@@ -40,6 +42,8 @@ class Unique implements Stringable
 
     /**
      * Ignore the given model during the unique check.
+     *
+     * @return $this
      */
     public function ignoreModel(Model $model, ?string $idColumn = null): static
     {

@@ -186,6 +186,8 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
 
     /**
      * Set the performing validator.
+     *
+     * @return $this
      */
     public function setValidator(ValidatorContract $validator): static
     {
@@ -196,6 +198,8 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
 
     /**
      * Set the data under validation.
+     *
+     * @return $this
      */
     public function setData(array $data): static
     {
@@ -214,6 +218,8 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
 
     /**
      * Set the maximum size of the password.
+     *
+     * @return $this
      */
     public function max(int $size): static
     {
@@ -224,6 +230,8 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
 
     /**
      * Ensures the password has not been compromised in data leaks.
+     *
+     * @return $this
      */
     public function uncompromised(int $threshold = 0): static
     {
@@ -236,6 +244,8 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
 
     /**
      * Makes the password require at least one uppercase and one lowercase letter.
+     *
+     * @return $this
      */
     public function mixedCase(): static
     {
@@ -246,6 +256,8 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
 
     /**
      * Makes the password require at least one letter.
+     *
+     * @return $this
      */
     public function letters(): static
     {
@@ -256,6 +268,8 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
 
     /**
      * Makes the password require at least one number.
+     *
+     * @return $this
      */
     public function numbers(): static
     {
@@ -266,6 +280,8 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
 
     /**
      * Makes the password require at least one symbol.
+     *
+     * @return $this
      */
     public function symbols(): static
     {
@@ -276,6 +292,8 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
 
     /**
      * Specify additional validation rules that should be merged with the default rules during validation.
+     *
+     * @return $this
      */
     public function rules(array|Closure|Rule|string $rules): static
     {

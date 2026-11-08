@@ -68,6 +68,7 @@ class Enum implements Rule, Stringable, ValidatorAwareRule
      * Specify the cases that should be considered valid.
      *
      * @param Arrayable<array<array-key, UnitEnum>>|UnitEnum|UnitEnum[] $values
+     * @return $this
      */
     public function only(mixed $values): static
     {
@@ -80,6 +81,7 @@ class Enum implements Rule, Stringable, ValidatorAwareRule
      * Specify the cases that should be considered invalid.
      *
      * @param Arrayable<array<array-key, UnitEnum>>|UnitEnum|UnitEnum[] $values
+     * @return $this
      */
     public function except(mixed $values): static
     {
@@ -114,6 +116,8 @@ class Enum implements Rule, Stringable, ValidatorAwareRule
 
     /**
      * Set the current validator.
+     *
+     * @return $this
      */
     public function setValidator(Validator $validator): static
     {

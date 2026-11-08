@@ -51,6 +51,8 @@ class Can implements Rule, ValidatorAwareRule
 
     /**
      * Set the current validator.
+     *
+     * @return $this
      */
     public function setValidator(Validator $validator): static
     {

@@ -423,6 +423,8 @@ class Validator implements ValidatorContract
 
     /**
      * Add an after validation callback.
+     *
+     * @return $this
      */
     public function after(array|callable|string $callback): static
     {
@@ -1640,6 +1642,8 @@ class Validator implements ValidatorContract
 
     /**
      * Set the data under validation.
+     *
+     * @return $this
      */
     public function setData(array $data): static
     {
@@ -1688,6 +1692,8 @@ class Validator implements ValidatorContract
 
     /**
      * Set the validation rules.
+     *
+     * @return $this
      */
     public function setRules(array $rules): static
     {
@@ -1715,6 +1721,7 @@ class Validator implements ValidatorContract
      * rebuilds the complete original rule graph.
      *
      * @param list<string> $attributes
+     * @return $this
      */
     public function retainRules(array $attributes): static
     {
@@ -1731,6 +1738,8 @@ class Validator implements ValidatorContract
 
     /**
      * Append new validation rules to the validator.
+     *
+     * @return $this
      */
     public function appendRules(array $rules): static
     {
@@ -1768,6 +1777,8 @@ class Validator implements ValidatorContract
 
     /**
      * Add conditions to a given field based on a Closure.
+     *
+     * @return $this
      */
     public function sometimes(array|string $attribute, array|object|string $rules, callable $callback): static
     {
@@ -1812,6 +1823,8 @@ class Validator implements ValidatorContract
 
     /**
      * Instruct the validator to stop validating after the first rule failure.
+     *
+     * @return $this
      */
     public function stopOnFirstFailure(bool $stopOnFirstFailure = true): static
     {
@@ -1910,6 +1923,8 @@ class Validator implements ValidatorContract
 
     /**
      * Set the custom messages for the validator.
+     *
+     * @return $this
      */
     public function setCustomMessages(array $messages): static
     {
@@ -1920,6 +1935,8 @@ class Validator implements ValidatorContract
 
     /**
      * Set the custom attributes on the validator.
+     *
+     * @return $this
      */
     public function setAttributeNames(array $attributes): static
     {
@@ -1930,6 +1947,8 @@ class Validator implements ValidatorContract
 
     /**
      * Add custom attributes to the validator.
+     *
+     * @return $this
      */
     public function addCustomAttributes(array $attributes): static
     {
@@ -1940,6 +1959,8 @@ class Validator implements ValidatorContract
 
     /**
      * Set the callback that used to format an implicit attribute.
+     *
+     * @return $this
      */
     public function setImplicitAttributesFormatter(?callable $formatter = null): static
     {
@@ -1950,6 +1971,8 @@ class Validator implements ValidatorContract
 
     /**
      * Set the custom values on the validator.
+     *
+     * @return $this
      */
     public function setValueNames(array $values): static
     {
@@ -1960,6 +1983,8 @@ class Validator implements ValidatorContract
 
     /**
      * Add the custom values for the validator.
+     *
+     * @return $this
      */
     public function addCustomValues(array $customValues): static
     {
@@ -2019,6 +2044,7 @@ class Validator implements ValidatorContract
      * Set the exception to throw upon failed validation.
      *
      * @param class-string<ValidationException>|Throwable $exception
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -2039,6 +2065,7 @@ class Validator implements ValidatorContract
      * Ensure exponents are within range using the given callback.
      *
      * @param callable(int, string, mixed): mixed $callback
+     * @return $this
      */
     public function ensureExponentWithinAllowedRangeUsing(callable $callback): static
     {
