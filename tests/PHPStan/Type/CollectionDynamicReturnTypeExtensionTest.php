@@ -21,6 +21,9 @@ class CollectionDynamicReturnTypeExtensionTest extends TypeInferenceTestCase
     /** @return iterable<mixed> */
     public static function dataFileAsserts(): iterable
     {
+        yield from self::gatherAssertTypes(__DIR__ . '/data/collection-filter.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/collection-reject.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/collection-where.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/collection-narrowing-boundaries.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/collection-where-not-null.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/collection-nullsafe-chain.php');

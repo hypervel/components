@@ -12,5 +12,4 @@ use Hypervel\Database\Eloquent\Collection;
  */
 class TransactionCollection extends Collection
 {
-    //
 }
