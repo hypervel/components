@@ -66,12 +66,16 @@ use ReflectionProperty;
 use function array_fill_keys;
 use function array_keys;
 use function array_map;
+use function array_slice;
 use function array_unique;
 use function array_values;
+use function count;
 use function dirname;
+use function explode;
 use function function_exists;
 use function glob;
 use function Hypervel\Testbench\workbench_path;
+use function implode;
 use function in_array;
 use function is_array;
 use function is_dir;
@@ -101,6 +105,11 @@ final class ConfigSourceResolver
     use HasContainer;
 
     /**
+     * The names of the files a config directory loads, as a directory dependency pattern.
+     */
+    public const string CONFIG_FILE_PATTERN = '*.php';
+
+    /**
      * Whether each merge method replaces recursively, keyed by lowercase name.
      */
     private const array MERGE_METHODS = ['mergeconfigfrom' => false, 'replaceconfigrecursivelyfrom' => true];
@@ -121,6 +130,9 @@ final class ConfigSourceResolver
 
     /** @var null|list<string> */
     private ?array $configDirectories = null;
+
+    /** @var null|list<string> */
+    private ?array $bootedConfigDirectories = null;
 
     /**
      * The sources discovered from the loaded providers, or null before discovery.
@@ -171,6 +183,10 @@ final class ConfigSourceResolver
             return $this->configDirectories;
         }
 
+        if ($this->configuredDirectories === []) {
+            return $this->configDirectories = $this->getBootedConfigDirectories();
+        }
+
         $directories = [];
 
         foreach ($this->configuredDirectories as $configuredDirectory) {
@@ -182,18 +198,97 @@ final class ConfigSourceResolver
             }
         }
 
-        if ($this->configuredDirectories === []) {
-            $bootstrapper = $this->getApplication()->make(LoadConfiguration::class);
+        return $this->configDirectories = array_map($this->fileHelper->normalizePath(...), $directories);
+    }
 
-            if ($bootstrapper instanceof LoadConfigurationWithWorkbench
-                && (fn (): bool => $this->usesWorkbenchConfigFile)->call($bootstrapper)) {
-                $directories[] = workbench_path('config');
-            }
-
-            $directories[] = $this->getApplication()->configPath();
+    /**
+     * Get the config directories the booted application loaded, highest priority first.
+     *
+     * Testbench's workbench config directory overlays the config path when its config
+     * discovery is on.
+     *
+     * @return list<string>
+     */
+    public function getBootedConfigDirectories(): array
+    {
+        if ($this->bootedConfigDirectories !== null) {
+            return $this->bootedConfigDirectories;
         }
 
-        return $this->configDirectories = array_map($this->fileHelper->normalizePath(...), $directories);
+        $directories = [];
+        $bootstrapper = $this->getApplication()->make(LoadConfiguration::class);
+
+        if ($bootstrapper instanceof LoadConfigurationWithWorkbench
+            && (fn (): bool => $this->usesWorkbenchConfigFile)->call($bootstrapper)) {
+            $directories[] = workbench_path('config');
+        }
+
+        $directories[] = $this->getApplication()->configPath();
+
+        return $this->bootedConfigDirectories = array_map($this->fileHelper->normalizePath(...), $directories);
+    }
+
+    /**
+     * Get the paths whose contents can change a config key's loaded value, each mapped to
+     * whether it is a directory of config files.
+     *
+     * In each config directory, these are the file of every prefix of the key, existing or
+     * not, and the directory below the key, whose files make its value a merged one. Then
+     * the framework's file for the key and the package files merged into an overlapping
+     * key. New directories matching a glob config path are not covered.
+     *
+     * @param list<string> $directories the config directories the value loads from
+     * @return array<string, bool>
+     */
+    public function getKeySources(string $key, array $directories): array
+    {
+        $sources = [];
+        $segments = explode('.', $key);
+
+        foreach ($directories as $directory) {
+            for ($length = count($segments); $length > 0; --$length) {
+                $sources[$directory . '/' . implode('/', array_slice($segments, 0, $length)) . '.php'] = false;
+            }
+
+            $sources[$directory . '/' . implode('/', $segments)] = true;
+        }
+
+        if ($this->shouldMergeFrameworkConfiguration()) {
+            $sources[$this->fileHelper->normalizePath(LoadConfiguration::frameworkConfigPath() . '/' . $segments[0] . '.php')] = false;
+        }
+
+        foreach ($this->getMerges() as $merge) {
+            if ($merge['path'] !== null && $this->keysOverlap($key, $merge['key'])) {
+                $sources[$merge['path']] = false;
+            }
+        }
+
+        return $sources;
+    }
+
+    /**
+     * Get the paths whose contents can change any loaded config value, each mapped to whether
+     * it is a directory of config files: the config directories, the framework's config
+     * directory and the package files merged into the configuration.
+     *
+     * @param list<string> $directories the config directories the values load from
+     * @return array<string, bool>
+     */
+    public function getAllSources(array $directories): array
+    {
+        $sources = array_fill_keys($directories, true);
+
+        if ($this->shouldMergeFrameworkConfiguration()) {
+            $sources[$this->fileHelper->normalizePath(LoadConfiguration::frameworkConfigPath())] = true;
+        }
+
+        foreach ($this->getMerges() as $merge) {
+            if ($merge['path'] !== null) {
+                $sources[$merge['path']] = false;
+            }
+        }
+
+        return $sources;
     }
 
     /**

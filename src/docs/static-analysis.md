@@ -6,6 +6,10 @@
     - [Runtime Requirements](#runtime-requirements)
 - [What the Analysis Knows](#what-the-analysis-knows)
     - [Collection Types](#collection-types)
+    - [Model Properties](#model-properties)
+    - [Migrations and Schema Dumps](#migrations-and-schema-dumps)
+    - [Accessor Types](#accessor-types)
+    - [Cast Types](#cast-types)
 - [Fixing and Ignoring Diagnostics](#fixing-and-ignoring-diagnostics)
     - [Environment Variables](#environment-variables)
     - [Configuration Values](#configuration-values)
@@ -17,6 +21,7 @@
     - [Console Input](#console-input)
     - [Authentication in Requests](#authentication-in-requests)
     - [Redis Connections](#redis-connections)
+    - [Schema Dumps](#schema-dumps)
     - [Deprecations](#deprecations)
 
 <a name="introduction"></a>
@@ -111,6 +116,97 @@ Declare the type the collection is meant to hold when you create it:
 $ids = collect([1, 2, 3]);
 ```
 
+<a name="model-properties"></a>
+### Model Properties
+
+Model attributes are typed from the database schema your migrations and schema dumps describe, without connecting to a database. Reading an attribute the model's table does not have is reported:
+
+```php
+public function greeting(User $user): string
+{
+    return "Hello, {$user->nmae}"; // Access to an undefined property App\Models\User::$nmae...
+}
+```
+
+Each model reads the schema of its own connection. A pooled connection, such as `pgsql-pooled`, reads the schema of the connection its migrations run on.
+
+Attributes are typed as your database driver returns them. For example, a `decimal` column reads as a numeric string on MySQL, since decimals are fetched as strings to keep their precision. The connection's PDO options, such as `PDO::ATTR_STRINGIFY_FETCHES`, are taken into account. On SQLite, the types describe the values Hypervel writes, since SQLite only enforces column types on `STRICT` tables. [Casts](/docs/{{version}}/eloquent-mutators#attribute-casting), dates and accessors take precedence over the column's type, so cast an attribute when your code needs a specific type.
+
+When the analysis cannot know whether a table has a column, such as after a migration it cannot follow, the attribute reads as `mixed` and is not reported as missing.
+
+<a name="migrations-and-schema-dumps"></a>
+### Migrations and Schema Dumps
+
+The analysis finds migrations as the `migrate` command does: the `*_*.php` files directly in the directories, and the files, your service providers register with `loadMigrationsFrom`, then in your `database/migrations` directory. A migration with the same name as an earlier one replaces it, so a published migration takes the place of its package's, and migrations apply in name order. It also reads the [schema dumps](/docs/{{version}}/migrations#squashing-migrations) in your `database/schema` directory. To read them from other directories, list the directories using the `databaseMigrationsPath` or `squashedMigrationsPath` parameter. Each replaces its defaults and accepts glob patterns, and every `.php` file below a listed migrations directory is read, including those in subdirectories:
+
+```neon
+parameters:
+    databaseMigrationsPath:
+        - database/migrations
+        - modules/*/migrations
+    squashedMigrationsPath:
+        - database/schema
+```
+
+A schema dump is only read when it has the name the `schema:dump` Artisan command gives it: `{connection}-schema.sql`, or `{connection}-schema.dump`, where `{connection}` is a connection in your `database` configuration. When both exist, the `.dump` file is read, as the `migrate` command does. The schema of a connection with no dump and no migrations is unknown.
+
+Migrations are read as they are written, without running them. Each statement applies to the connection it runs on: the connection given to `Schema::connection()` or `DB::connection()`, otherwise the migration's connection. The analysis follows schema builder calls, `if` and `switch` statements, `Schema::hasTable()` and `Schema::hasColumn()` checks, and literal SQL passed to `DB::statement()` and `DB::unprepared()`. A column that only some branches create reads as `mixed`. Schema builders stored in local variables are followed too:
+
+```php
+$schema = Schema::connection('analytics');
+
+$schema->create('events', function (Blueprint $table) {
+    // ...
+});
+```
+
+Code the analysis cannot follow makes what it could change unknown. Blueprint macros, loops and helpers that receive the `$table` blueprint make the table unknown, and a column name held in a variable means the table may have columns the analysis does not know. A table name the analysis cannot work out makes its connection's schema unknown, and a connection name it cannot work out, such as one built at runtime, makes the schema of every connection unknown.
+
+Schema changes made through a connection the migration gets any other way, such as `$this->db` or `app('db')`, are not seen, so make them through the `Schema` and `DB` facades. Each `DB::statement()` call is also read on its own, so a session change that one call makes for later calls, such as `USE` or `SET search_path`, is not tracked. Instead, define a connection for the other database or schema in your `database` configuration and select it.
+
+Migrations and schema dumps are cached in PHPStan's temporary directory and read again when they, or the classes and configuration they read, change. You may disable the cache using the `enableMigrationCache` parameter, or stop reading migrations or schema dumps using the `disableMigrationScan` or `disableSchemaScan` parameter.
+
+<a name="accessor-types"></a>
+### Accessor Types
+
+An accessor's `Attribute` declares the type its getter returns and the type its setter accepts. The declared getter type may be wider than what the getter returns, and the declared setter type narrower than what the setter accepts:
+
+```php
+/**
+ * @return Attribute<string, never>
+ */
+protected function fullName(): Attribute
+{
+    return Attribute::make(
+        get: fn () => "{$this->first_name} {$this->last_name}",
+    );
+}
+```
+
+To keep these declarations sound, the analysis treats an attribute's `get` and `set` callbacks as read-only once the attribute is created, so assigning `$attribute->get` or `$attribute->set` afterwards is reported as `property.readOnlyByPhpDocAssignOutOfClass`. Reading and writing the model attribute itself is not affected. If your code must replace a callback, ignore the diagnostic with a reason.
+
+<a name="cast-types"></a>
+### Cast Types
+
+The analysis reads a model's `casts` method without running it. It understands a single `return` of an array whose casts are strings, class constants, the `[$cast, ...$arguments]` array form, and helpers such as `AsCollection::of` and `AsEnumCollection::of` given constant arguments.
+
+An attribute whose cast the analysis cannot work out, such as one built from a variable, reads and writes as `mixed`. When the method does not return such an array, for example because it merges the parent's casts or returns from several places, any attribute of the model may be cast, so all of them read as `mixed`. Declare the casts the method returns with an array shape to type them:
+
+```php
+/**
+ * @return array{options: 'array', status: 'App\\Enums\\Status'}
+ */
+protected function casts(): array
+{
+    return array_merge(parent::casts(), [
+        'options' => 'array',
+        'status' => Status::class,
+    ]);
+}
+```
+
+The shape must list every cast the method can return, including inherited ones, since an attribute it leaves out is treated as not cast by the method. If you cannot list them all, end the shape with `...`, and the attributes it does not list keep reading as `mixed`.
+
 <a name="fixing-and-ignoring-diagnostics"></a>
 ## Fixing and Ignoring Diagnostics
 
@@ -136,6 +232,8 @@ The following table summarizes the preferred pattern for each of Hypervel's diag
 | [Views](#views) | Use view names the application can find. | `hypervel.unusedViews`, `argument.type` for view names |
 | [Console Input](#console-input) | Read the arguments and options the command defines. | `hypervel.console.undefinedArgument`, `hypervel.console.undefinedOption` |
 | [Authentication in Requests](#authentication-in-requests) | Use `$request->user()` where a request is available. | `hypervel.noAuthFacadeInRequestScope`, `hypervel.noAuthHelperInRequestScope` |
+| [Redis Connections](#redis-connections) | Call connection-bound methods on a held connection. | `hypervel.redisConnectionBoundMethod` |
+| [Schema Dumps](#schema-dumps) | Keep schema dumps in the plain SQL `schema:dump` writes. | `hypervel.schemaDump` |
 | [Deprecations](#deprecations) | Use the replacement the deprecation names. | `method.deprecated` and the other deprecation identifiers |
 
 <a name="environment-variables"></a>
@@ -283,6 +381,17 @@ Redis::withConnection(function (RedisConnection $connection) {
 ```
 
 These checks may be disabled using the `checkRedisConnectionBoundMethods` parameter.
+
+<a name="schema-dumps"></a>
+### Schema Dumps
+
+When a schema dump your models use cannot be read, such as a PostgreSQL dump in `pg_dump`'s custom archive format or a dump with a syntax error, the analysis reports it once, at the dump:
+
+```text
+database/schema/pgsql-schema.dump:1: Model property types cannot use this schema dump: PostgreSQL archives must be exported as plain SQL before parsing.
+```
+
+Until the dump is fixed, the tables it defines are unknown, so their attributes read as `mixed`. Regenerate the dump using the `schema:dump` Artisan command, which writes plain SQL. A dump is only reported when the analysed code reads a model attribute on its connection. You may stop reading schema dumps using the `disableSchemaScan` parameter.
 
 <a name="deprecations"></a>
 ### Deprecations

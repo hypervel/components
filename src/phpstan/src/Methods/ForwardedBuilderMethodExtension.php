@@ -52,6 +52,7 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
         private readonly ReflectionProvider $reflectionProvider,
         private readonly ModelScopeMethodResolver $scopeMethods,
         private readonly BuilderMacroResolver $builderMacros,
+        private readonly BuilderDependencies $builderDependencies,
     ) {
         $this->scope = new OutOfClassScope;
     }
@@ -103,6 +104,7 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
 
         if (! $this->hasNativeOrDocumentedMethod($classReflection, $methodName)) {
             if ($isEloquentHost) {
+                $this->builderDependencies->track($classReflection, $classReflection);
                 $method = $this->resolveEloquentBuilderMethod($classReflection, $methodName);
             } else {
                 $method = $this->resolveRelationMethod($classReflection, $methodName);
@@ -170,6 +172,11 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
         }
 
         $eloquentBuilder = $builderClasses[0];
+
+        // Relation callers depend on the related model, not on its builder.
+        foreach ($relatedType->getObjectClassReflections() as $relatedClass) {
+            $this->builderDependencies->track($relatedClass, $eloquentBuilder);
+        }
 
         if ($eloquentBuilder->hasNativeMethod($methodName)) {
             $method = $builderType->getMethod($methodName, $this->scope);

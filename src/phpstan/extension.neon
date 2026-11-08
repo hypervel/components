@@ -163,3 +163,10 @@ services:
     -
         class: Hypervel\Filesystem\Filesystem
         autowired: self
+
+    migrationsParser:
+        class: PHPStan\Parser\CachedParser
+        arguments:
+            originalParser: @currentPhpVersionSimpleDirectParser
+            cachedNodesByStringCountMax: %cache.nodesByStringCountMax%
+        autowired: false

@@ -139,25 +139,25 @@ final class ConfigParser
     private array $returnScopes = [];
 
     /**
-     * Files the statements before a config file's return depend on, such as
-     * the config files they read.
+     * Files and directories the statements before a config file's return depend on,
+     * such as the config files they read, each path mapped to whether it is a directory.
      *
-     * @var array<string, list<string>>
+     * @var array<string, array<string, bool>>
      */
     private array $configFileDependencies = [];
 
     /**
-     * Files a config key's value depends on besides the files that can hold
-     * the key, such as config files its expression reads.
+     * Files and directories a config key's value depends on besides the key's own
+     * sources, such as config files its expression reads.
      *
-     * @var array<string, list<string>>
+     * @var array<string, array<string, bool>>
      */
     private array $keyDependencies = [];
 
     /**
-     * Files each top-level key's composed value depends on.
+     * Files and directories each top-level key's composed value depends on.
      *
-     * @var array<string, list<string>>
+     * @var array<string, array<string, bool>>
      */
     private array $compositionDependencies = [];
 
@@ -176,9 +176,9 @@ final class ConfigParser
     private array $expressionTypes = [];
 
     /**
-     * Files each value expression's type depends on, keyed by its object ID.
+     * Files and directories each value expression's type depends on, keyed by its object ID.
      *
-     * @var array<int, list<string>>
+     * @var array<int, array<string, bool>>
      */
     private array $expressionDependencies = [];
 
@@ -186,12 +186,16 @@ final class ConfigParser
      * Dependencies collected for the config files and keys being typed, so
      * a cached result can declare them again to every file reading it.
      *
-     * @var list<array<string, true>>
+     * @var list<array<string, bool>>
      */
     private array $dependencyCollectors = [];
 
-    /** @var array<string, list<string>> */
-    private array $configFileCandidates = [];
+    /**
+     * The paths whose contents can change each config key's value, each mapped to whether it is a directory.
+     *
+     * @var array<string, array<string, bool>>
+     */
+    private array $keySources = [];
 
     /**
      * How many lookups found their config file, expression or composed value already
@@ -224,8 +228,11 @@ final class ConfigParser
      */
     public function getValue(string $key, Scope $scope): ?array
     {
-        // Every analysed file reading the key depends on the config files, parsed or served from the cache.
-        $this->trackFileDependencies($scope, $this->getConfigFileCandidates($key));
+        // Every analysed file reading the key depends on its sources, parsed or served from the cache.
+        $this->trackDependencies($scope, $this->keySources[$key] ??= $this->configSourceResolver->getKeySources(
+            $key,
+            $this->configSourceResolver->getConfigDirectories(),
+        ));
         $this->loadConfigFiles();
 
         // A config file reads the configuration as it stands while the file loads. Framework
@@ -247,7 +254,7 @@ final class ConfigParser
         $cacheKey = $loadingKey === null ? $key : $loadingKey . "\0" . $key;
 
         if (array_key_exists($cacheKey, $this->parsedConfigs)) {
-            $this->trackFileDependencies($scope, $this->keyDependencies[$cacheKey] ?? []);
+            $this->trackDependencies($scope, $this->keyDependencies[$cacheKey] ?? []);
 
             return $this->parsedConfigs[$cacheKey];
         }
@@ -260,13 +267,13 @@ final class ConfigParser
         $inProgressLookups = $this->inProgressLookups;
         $segments = explode('.', $key);
 
-        [$value, $dependencies] = $this->collectFileDependencies(function () use ($segments, $loadingKey, $scope): ?array {
+        [$value, $dependencies] = $this->collectDependencies(function () use ($segments, $loadingKey, $scope): ?array {
             $root = $this->getComposedConfig($segments[0], $loadingKey, $scope);
 
             return $root === null ? null : $this->lookup($root, $segments, $scope);
         });
 
-        $this->trackFileDependencies($scope, $dependencies);
+        $this->trackDependencies($scope, $dependencies);
 
         if ($this->inProgressLookups === $inProgressLookups) {
             $this->keyDependencies[$cacheKey] = $dependencies;
@@ -351,14 +358,14 @@ final class ConfigParser
         $cacheKey = $loadingKey === null ? $name : $loadingKey . "\0" . $name;
 
         if (array_key_exists($cacheKey, $this->composedConfigs)) {
-            $this->trackFileDependencies($scope, $this->compositionDependencies[$cacheKey]);
+            $this->trackDependencies($scope, $this->compositionDependencies[$cacheKey]);
 
             return $this->composedConfigs[$cacheKey];
         }
 
         $inProgressLookups = $this->inProgressLookups;
 
-        [$result, $dependencies] = $this->collectFileDependencies(fn (): ?array => $this->guard(
+        [$result, $dependencies] = $this->collectDependencies(fn (): ?array => $this->guard(
             'hypervel.configComposition.' . $cacheKey,
             fn (): ConfigArray => $this->composeConfig($name, $loadingKey, $scope),
         ));
@@ -399,7 +406,7 @@ final class ConfigParser
         }
 
         if ($frameworkFile !== null) {
-            $this->trackFileDependencies($scope, [$frameworkFile]);
+            $this->trackDependencies($scope, [$frameworkFile => false]);
             $root = new ConfigArray([$name => $this->getFileValue($frameworkFile)]);
         }
 
@@ -432,7 +439,7 @@ final class ConfigParser
         foreach ($merges as $merge) {
             if ($merge['definite'] && $merge['path'] !== null) {
                 $path = $merge['path'];
-                $this->trackFileDependencies($scope, [$path]);
+                $this->trackDependencies($scope, [$path => false]);
 
                 $root = $this->setPath($root, explode('.', $merge['key']), function (ConfigArray|Expr|Type|null $current, bool $exists) use ($merge, $path, $scope): ?ConfigArray {
                     $package = $this->getFileValue($path);
@@ -987,7 +994,7 @@ final class ConfigParser
         $id = spl_object_id($expr);
 
         if (array_key_exists($id, $this->expressionTypes)) {
-            $this->trackFileDependencies($scope, $this->expressionDependencies[$id]);
+            $this->trackDependencies($scope, $this->expressionDependencies[$id]);
 
             return $this->expressionTypes[$id];
         }
@@ -995,14 +1002,14 @@ final class ConfigParser
         $inProgressLookups = $this->inProgressLookups;
         $path = $this->expressionFiles[$id];
 
-        [$result, $dependencies] = $this->collectFileDependencies(fn (): ?array => $this->guard('hypervel.configExpression.' . $id, function () use ($expr, $path, $scope): ?Type {
+        [$result, $dependencies] = $this->collectDependencies(fn (): ?array => $this->guard('hypervel.configExpression.' . $id, function () use ($expr, $path, $scope): ?Type {
             $returnScope = $this->getReturnScope($path);
 
             if ($returnScope === null) {
                 return null;
             }
 
-            $this->trackFileDependencies($scope, $this->configFileDependencies[$path] ?? []);
+            $this->trackDependencies($scope, $this->configFileDependencies[$path] ?? []);
 
             // An undefined variable, such as one an included file assigns, is unknown rather than an error
             return TypeTraverser::map($returnScope->getType($expr), static function (Type $type, callable $traverse): Type {
@@ -1014,7 +1021,7 @@ final class ConfigParser
             });
         }));
 
-        $this->trackFileDependencies($scope, $dependencies);
+        $this->trackDependencies($scope, $dependencies);
 
         $type = $result[0] ?? null;
 
@@ -1096,7 +1103,7 @@ final class ConfigParser
                 return $scope;
             }
 
-            [$statementResult, $dependencies] = $this->collectFileDependencies(fn () => $this->nodeScopeResolver->processStmtNodes(
+            [$statementResult, $dependencies] = $this->collectDependencies(fn () => $this->nodeScopeResolver->processStmtNodes(
                 $return,
                 $statements,
                 $scope,
@@ -1118,40 +1125,44 @@ final class ConfigParser
     }
 
     /**
-     * Declare the files on the scope and on the config files and keys being
-     * typed, whose cached results declare them again later.
+     * Declare the files and config directories on the scope and on the config files
+     * and keys being typed, whose cached results declare them again later.
      *
      * @param DependencyTracker&Scope $scope
-     * @param list<string> $files
+     * @param array<string, bool> $dependencies each path mapped to whether it is a directory
      */
-    private function trackFileDependencies(Scope $scope, array $files): void
+    private function trackDependencies(Scope $scope, array $dependencies): void
     {
-        foreach ($files as $file) {
-            $scope->trackFileDependency($file);
+        foreach ($dependencies as $path => $directory) {
+            if ($directory) {
+                $scope->trackDirectoryDependency($path, ConfigSourceResolver::CONFIG_FILE_PATTERN);
+            } else {
+                $scope->trackFileDependency($path);
+            }
 
             foreach (array_keys($this->dependencyCollectors) as $index) {
-                $this->dependencyCollectors[$index][$file] = true;
+                $this->dependencyCollectors[$index][$path] = $directory;
             }
         }
     }
 
     /**
-     * Run the callback, collecting the files declared while it runs.
+     * Run the callback, collecting the files and directories declared while it runs.
      *
      * @param callable(): T $callback
      *
-     * @return array{T, list<string>} the callback's result and the files declared while it ran
+     * @return array{T, array<string, bool>} the callback's result and the paths declared while it ran
      *
      * @template T
      */
-    private function collectFileDependencies(callable $callback): array
+    private function collectDependencies(callable $callback): array
     {
         $this->dependencyCollectors[] = [];
 
         try {
             $result = $callback();
         } finally {
-            $dependencies = array_keys(array_pop($this->dependencyCollectors));
+            $dependencies = array_pop($this->dependencyCollectors);
         }
 
         return [$result, $dependencies];
@@ -1206,37 +1217,6 @@ final class ConfigParser
                 $this->frameworkConfigFiles[basename($file, '.php')] = $this->fileHelper->normalizePath($file);
             }
         }
-    }
-
-    /**
-     * Get where a file holding the config key's value can be: one path for every
-     * prefix of the key in every config directory, existing or not, so a
-     * created file that changes which file holds the value is noticed.
-     *
-     * Files created below the key's own directory, which make its value a
-     * merged one, and new directories matching a glob config path are not
-     * covered: there is no fixed set of paths to watch for them.
-     *
-     * @return list<string>
-     */
-    private function getConfigFileCandidates(string $key): array
-    {
-        if (array_key_exists($key, $this->configFileCandidates)) {
-            return $this->configFileCandidates[$key];
-        }
-
-        $candidates = [];
-        $keyParts = explode('.', $key);
-
-        for ($length = count($keyParts); $length > 0; --$length) {
-            $relativePath = implode('/', array_slice($keyParts, 0, $length)) . '.php';
-
-            foreach ($this->configSourceResolver->getConfigDirectories() as $configPath) {
-                $candidates[] = $configPath . '/' . $relativePath;
-            }
-        }
-
-        return $this->configFileCandidates[$key] = $candidates;
     }
 
     /**

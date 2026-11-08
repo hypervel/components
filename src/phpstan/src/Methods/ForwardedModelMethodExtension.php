@@ -33,6 +33,7 @@ class ForwardedModelMethodExtension implements MethodsClassReflectionExtension
         private readonly ReflectionProvider $reflectionProvider,
         private readonly ModelScopeMethodResolver $scopeMethods,
         private readonly BuilderMacroResolver $builderMacros,
+        private readonly BuilderDependencies $builderDependencies,
     ) {
         $this->scope = new OutOfClassScope;
     }
@@ -80,6 +81,11 @@ class ForwardedModelMethodExtension implements MethodsClassReflectionExtension
 
         if (! $this->hasNativeOrDocumentedMethod($classReflection, $methodName)) {
             $builderType = $this->activeBuilderType($classReflection);
+
+            foreach ($builderType->getObjectClassReflections() as $builderClass) {
+                $this->builderDependencies->track($classReflection, $builderClass);
+            }
+
             $scopeMethod = $this->scopeMethods->resolve($classReflection, $methodName);
 
             // Native builder methods and local macros run before named scopes.
