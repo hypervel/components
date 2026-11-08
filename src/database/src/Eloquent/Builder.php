@@ -1645,6 +1645,8 @@ class Builder implements BuilderContract
      * Keep existing and callback-added WHERE constraints logically separate
      * so conditions in either group cannot change the meaning of the other,
      * including when later constraints are added.
+     *
+     * @return $this
      */
     public function applyScopeCallback(callable $scope): static
     {

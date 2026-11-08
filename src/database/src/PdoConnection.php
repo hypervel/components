@@ -722,6 +722,8 @@ class PdoConnection extends Connection
 
     /**
      * Set the PDO connection.
+     *
+     * @return $this
      */
     public function setPdo(PDO|Closure|null $pdo): static
     {
@@ -737,6 +739,8 @@ class PdoConnection extends Connection
 
     /**
      * Set the PDO connection used for reading.
+     *
+     * @return $this
      */
     public function setReadPdo(PDO|Closure|null $pdo): static
     {
@@ -748,6 +752,8 @@ class PdoConnection extends Connection
 
     /**
      * Set the read PDO connection configuration.
+     *
+     * @return $this
      */
     public function setReadPdoConfig(array $config): static
     {

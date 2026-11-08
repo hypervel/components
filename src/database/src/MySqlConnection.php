@@ -258,6 +258,8 @@ class MySqlConnection extends PdoConnection
 
     /**
      * Set the PDO connection.
+     *
+     * @return $this
      */
     public function setPdo(PDO|Closure|null $pdo): static
     {

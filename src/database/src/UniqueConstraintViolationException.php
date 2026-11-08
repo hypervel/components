@@ -20,6 +20,8 @@ class UniqueConstraintViolationException extends QueryException
 
     /**
      * Set the unique index which caused the violation.
+     *
+     * @return $this
      */
     public function setIndex(?string $index): self
     {
@@ -32,6 +34,7 @@ class UniqueConstraintViolationException extends QueryException
      * Set the columns that caused the violation.
      *
      * @param list<string> $columns
+     * @return $this
      */
     public function setColumns(array $columns): self
     {

@@ -85,6 +85,8 @@ class BroadcastableModelEventOccurred implements ShouldBroadcast
 
     /**
      * Manually specify the channels the event should broadcast on.
+     *
+     * @return $this
      */
     public function onChannels(array $channels): static
     {

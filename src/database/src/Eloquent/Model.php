@@ -814,6 +814,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Fill the model with an array of attributes.
      *
      * @param array<string, mixed> $attributes
+     * @return $this
      *
      * @throws MassAssignmentException
      */
@@ -868,6 +869,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Fill the model with an array of attributes. Force mass assignment.
      *
      * @param array<string, mixed> $attributes
+     * @return $this
      */
     public function forceFill(array $attributes): static
     {
@@ -997,6 +999,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relations on the model.
      *
      * @param array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string $relations
+     * @return $this
      */
     public function load(array|string $relations): static
     {
@@ -1013,6 +1016,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relationships on the polymorphic relation of a model.
      *
      * @param array<array-key, array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string> $relations
+     * @return $this
      */
     public function loadMorph(string $relation, array $relations): static
     {
@@ -1031,6 +1035,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relations on the model if they are not already eager loaded.
      *
      * @param array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string $relations
+     * @return $this
      */
     public function loadMissing(array|string $relations): static
     {
@@ -1045,6 +1050,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relation's column aggregations on the model.
      *
      * @param array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string $relations
+     * @return $this
      */
     public function loadAggregate(array|string $relations, Expression|string $column, ?string $function = null): static
     {
@@ -1057,6 +1063,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relation counts on the model.
      *
      * @param array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string $relations
+     * @return $this
      */
     public function loadCount(array|string $relations): static
     {
@@ -1069,6 +1076,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relation max column values on the model.
      *
      * @param array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string $relations
+     * @return $this
      */
     public function loadMax(array|string $relations, Expression|string $column): static
     {
@@ -1079,6 +1087,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relation min column values on the model.
      *
      * @param array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string $relations
+     * @return $this
      */
     public function loadMin(array|string $relations, Expression|string $column): static
     {
@@ -1089,6 +1098,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relation's column summations on the model.
      *
      * @param array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string $relations
+     * @return $this
      */
     public function loadSum(array|string $relations, Expression|string $column): static
     {
@@ -1099,6 +1109,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relation average column values on the model.
      *
      * @param array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string $relations
+     * @return $this
      */
     public function loadAvg(array|string $relations, Expression|string $column): static
     {
@@ -1109,6 +1120,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load related model existence values on the model.
      *
      * @param array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string $relations
+     * @return $this
      */
     public function loadExists(array|string $relations): static
     {
@@ -1119,6 +1131,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relationship column aggregation on the polymorphic relation of a model.
      *
      * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
+     * @return $this
      */
     public function loadMorphAggregate(string $relation, array $relations, Expression|string $column, ?string $function = null): static
     {
@@ -1137,6 +1150,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relationship counts on the polymorphic relation of a model.
      *
      * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
+     * @return $this
      */
     public function loadMorphCount(string $relation, array $relations): static
     {
@@ -1147,6 +1161,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relationship max column values on the polymorphic relation of a model.
      *
      * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
+     * @return $this
      */
     public function loadMorphMax(string $relation, array $relations, Expression|string $column): static
     {
@@ -1157,6 +1172,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relationship min column values on the polymorphic relation of a model.
      *
      * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
+     * @return $this
      */
     public function loadMorphMin(string $relation, array $relations, Expression|string $column): static
     {
@@ -1167,6 +1183,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relationship column summations on the polymorphic relation of a model.
      *
      * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
+     * @return $this
      */
     public function loadMorphSum(string $relation, array $relations, Expression|string $column): static
     {
@@ -1177,6 +1194,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relationship average column values on the polymorphic relation of a model.
      *
      * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
+     * @return $this
      */
     public function loadMorphAvg(string $relation, array $relations, Expression|string $column): static
     {
@@ -2497,6 +2515,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Set the connection associated with the model.
+     *
+     * @return $this
      */
     public function setConnection(UnitEnum|string|null $name): static
     {
@@ -2661,6 +2681,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Set the table associated with the model.
+     *
+     * @return $this
      */
     public function setTable(string $table): static
     {
@@ -2679,6 +2701,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Set the primary key for the model.
+     *
+     * @return $this
      */
     public function setKeyName(?string $key): static
     {
@@ -2707,6 +2731,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Set the data type for the primary key.
+     *
+     * @return $this
      */
     public function setKeyType(string $type): static
     {
@@ -2728,6 +2754,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Set whether IDs are incrementing.
+     *
+     * @return $this
      */
     public function setIncrementing(bool $value): static
     {
@@ -2944,6 +2972,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Set the number of models to return per page.
+     *
+     * @return $this
      */
     public function setPerPage(int $perPage): static
     {
@@ -3235,6 +3265,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Indicate that the object's string representation should be escaped when __toString is invoked.
+     *
+     * @return $this
      */
     public function escapeWhenCastingToString(bool $escape = true): static
     {

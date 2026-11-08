@@ -3283,6 +3283,8 @@ class Builder implements BuilderContract
 
     /**
      * Skip rows locked by another transaction when supported by the server.
+     *
+     * @return $this
      */
     public function skipLocked(): static
     {
@@ -3741,6 +3743,7 @@ class Builder implements BuilderContract
      * Sort an ID iteration by its paging column before any other order.
      *
      * @internal
+     * @return $this
      */
     public function prioritizeKeysetOrders(bool $limited = false): static
     {
@@ -3794,6 +3797,7 @@ class Builder implements BuilderContract
      *
      * @param list<array{column: string, original: ExpressionContract|string, direction: string}> $orders
      * @param array<string, mixed> $bindings
+     * @return $this
      * @internal
      */
     public function addCursorPaginationConditions(array $orders, array $bindings): static
@@ -4192,6 +4196,8 @@ class Builder implements BuilderContract
 
     /**
      * Append comparisons using the member's source columns or isolated output names.
+     *
+     * @return $this
      */
     protected function appendKeysetConditions(array $conditions, array $mapping = [], bool $output = false): static
     {

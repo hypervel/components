@@ -124,6 +124,8 @@ trait HasRelationships
 
     /**
      * Define an automatic relationship autoloader callback for this model and its relations.
+     *
+     * @return $this
      */
     public function autoloadRelationsUsing(Closure $callback, mixed $context = null): static
     {

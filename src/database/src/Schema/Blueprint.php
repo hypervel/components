@@ -1707,6 +1707,8 @@ class Blueprint
 
     /**
      * Remove a column from the schema blueprint.
+     *
+     * @return $this
      */
     public function removeColumn(string $name): static
     {

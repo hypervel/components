@@ -109,6 +109,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationships onto the collection.
      *
      * @param  array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string  $relations
+     * @return $this
      */
     public function load(array|string $relations): static
     {
@@ -129,6 +130,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of aggregations over relationship's column onto the collection.
      *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @return $this
      *
      * @throws MissingAttributeException
      */
@@ -191,6 +193,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationship counts onto the collection.
      *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @return $this
      */
     public function loadCount(array|string $relations): static
     {
@@ -201,6 +204,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationship's max column values onto the collection.
      *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @return $this
      */
     public function loadMax(array|string $relations, Expression|string $column): static
     {
@@ -211,6 +215,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationship's min column values onto the collection.
      *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @return $this
      */
     public function loadMin(array|string $relations, Expression|string $column): static
     {
@@ -221,6 +226,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationship's column summations onto the collection.
      *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @return $this
      */
     public function loadSum(array|string $relations, Expression|string $column): static
     {
@@ -231,6 +237,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationship's average column values onto the collection.
      *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @return $this
      */
     public function loadAvg(array|string $relations, Expression|string $column): static
     {
@@ -241,6 +248,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of related existences onto the collection.
      *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @return $this
      */
     public function loadExists(array|string $relations): static
     {
@@ -251,6 +259,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationships onto the collection if they are not already eager loaded.
      *
      * @param  array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string  $relations
+     * @return $this
      */
     public function loadMissing(array|string $relations): static
     {
@@ -353,6 +362,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationships onto the mixed relationship collection.
      *
      * @param  array<array-key, array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string>  $relations
+     * @return $this
      */
     public function loadMorph(string $relation, array $relations): static
     {
@@ -370,6 +380,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationship counts onto the mixed relationship collection.
      *
      * @param  array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string>  $relations
+     * @return $this
      */
     public function loadMorphCount(string $relation, array $relations): static
     {
@@ -657,6 +668,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Make the given, typically visible, attributes hidden across the entire collection.
      *
      * @param array<array-key, string>|string $attributes
+     * @return $this
      */
     public function makeHidden(array|string $attributes): static
     {
@@ -668,6 +680,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Merge the given, typically visible, attributes hidden across the entire collection.
      *
      * @param array<array-key, string>|string $attributes
+     * @return $this
      */
     public function mergeHidden(array|string $attributes): static
     {
@@ -679,6 +692,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Set the hidden attributes across the entire collection.
      *
      * @param array<int, string> $hidden
+     * @return $this
      */
     public function setHidden(array $hidden): static
     {
@@ -690,6 +704,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Make the given, typically hidden, attributes visible across the entire collection.
      *
      * @param array<array-key, string>|string $attributes
+     * @return $this
      */
     public function makeVisible(array|string $attributes): static
     {
@@ -701,6 +716,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Merge the given, typically hidden, attributes visible across the entire collection.
      *
      * @param array<array-key, string>|string $attributes
+     * @return $this
      */
     public function mergeVisible(array|string $attributes): static
     {
@@ -712,6 +728,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Set the visible attributes across the entire collection.
      *
      * @param array<int, string> $visible
+     * @return $this
      */
     public function setVisible(array $visible): static
     {
@@ -723,6 +740,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Append an attribute across the entire collection.
      *
      * @param array<array-key, string>|string $attributes
+     * @return $this
      */
     public function append(array|string $attributes): static
     {
@@ -734,6 +752,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Sets the appends on every element of the collection, overwriting the existing appends for each.
      *
      * @param array<array-key, mixed> $appends
+     * @return $this
      */
     public function setAppends(array $appends): static
     {
@@ -743,6 +762,8 @@ class Collection extends BaseCollection implements QueueableCollection
 
     /**
      * Remove appended properties from every element in the collection.
+     *
+     * @return $this
      */
     public function withoutAppends(): static
     {
@@ -932,6 +953,8 @@ class Collection extends BaseCollection implements QueueableCollection
 
     /**
      * Enable relationship autoloading for all models in this collection.
+     *
+     * @return $this
      */
     public function withRelationshipAutoloading(): static
     {

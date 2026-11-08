@@ -779,6 +779,8 @@ trait HasAttributes
 
     /**
      * Merge new casts with existing casts on the model.
+     *
+     * @return $this
      */
     public function mergeCasts(array $casts): static
     {
@@ -1221,6 +1223,8 @@ trait HasAttributes
 
     /**
      * Set a given JSON attribute on the model.
+     *
+     * @return $this
      */
     public function fillJsonAttribute(string $key, mixed $value): static
     {
@@ -1623,6 +1627,8 @@ trait HasAttributes
 
     /**
      * Set the date format used by the model.
+     *
+     * @return $this
      */
     public function setDateFormat(string $format): static
     {
@@ -2092,6 +2098,8 @@ trait HasAttributes
 
     /**
      * Set the array of model attributes. No checking is done.
+     *
+     * @return $this
      */
     public function setRawAttributes(array $attributes, bool $sync = false): static
     {
@@ -2191,6 +2199,8 @@ trait HasAttributes
 
     /**
      * Sync the original attributes with the current.
+     *
+     * @return $this
      */
     public function syncOriginal(): static
     {
@@ -2201,6 +2211,8 @@ trait HasAttributes
 
     /**
      * Sync a single original attribute with its current value.
+     *
+     * @return $this
      */
     public function syncOriginalAttribute(string $attribute): static
     {
@@ -2211,6 +2223,7 @@ trait HasAttributes
      * Sync multiple original attribute with their current values.
      *
      * @param array<string>|string $attributes
+     * @return $this
      */
     public function syncOriginalAttributes(array|string $attributes): static
     {
@@ -2227,6 +2240,8 @@ trait HasAttributes
 
     /**
      * Sync the changed attributes.
+     *
+     * @return $this
      */
     public function syncChanges(): static
     {
@@ -2242,6 +2257,7 @@ trait HasAttributes
      * Sync the supplied changed attributes.
      *
      * @param array<string, mixed> $changes
+     * @return $this
      */
     private function syncChangesFrom(array $changes): static
     {
@@ -2281,6 +2297,8 @@ trait HasAttributes
 
     /**
      * Discard attribute changes and reset the attributes to their original state.
+     *
+     * @return $this
      */
     public function discardChanges(): static
     {
@@ -2548,6 +2566,7 @@ trait HasAttributes
      * Append attributes to query when building a query.
      *
      * @param array<string>|string $attributes
+     * @return $this
      */
     public function append(array|string $attributes): static
     {
@@ -2568,6 +2587,8 @@ trait HasAttributes
 
     /**
      * Set the accessors to append to model arrays.
+     *
+     * @return $this
      */
     public function setAppends(array $appends): static
     {
@@ -2580,6 +2601,7 @@ trait HasAttributes
      * Merge new appended attributes with existing appended attributes on the model.
      *
      * @param array<string> $appends
+     * @return $this
      */
     public function mergeAppends(array $appends): static
     {
@@ -2602,6 +2624,8 @@ trait HasAttributes
 
     /**
      * Remove all appended properties from the model.
+     *
+     * @return $this
      */
     public function withoutAppends(): static
     {

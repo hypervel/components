@@ -77,6 +77,7 @@ class ModelIdentifier
      * Specify the collection class that should be used when serializing / restoring collections.
      *
      * @param null|class-string<Collection> $collectionClass
+     * @return $this
      */
     public function useCollectionClass(?string $collectionClass): static
     {

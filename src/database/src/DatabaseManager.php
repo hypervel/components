@@ -827,6 +827,8 @@ class DatabaseManager implements ConnectionResolverInterface
      *
      * Tests only. Swaps the singleton's application reference; per-request use
      * races across coroutines and breaks every concurrent database operation.
+     *
+     * @return $this
      */
     public function setApplication(Application $app): static
     {
