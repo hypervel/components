@@ -26,7 +26,10 @@ use RuntimeException;
 
 use function Hypervel\Support\enum_value;
 
-/** @mixin Builder */
+/**
+ * Unlike Laravel, this declares no `@mixin Builder`: Builder is its only user, and the bare mixin made
+ * PHPStan accept on every builder whatever the builder of an unknown model accepts.
+ */
 trait QueriesRelationships
 {
     /**

@@ -5568,7 +5568,7 @@ class ModelStub extends Model
     /**
      * Expose quiet multi-column increments for testing.
      */
-    public function publicIncrementEachQuietly(array $columns, array $extra = []): int|false
+    public function publicIncrementEachQuietly(array $columns, array $extra = []): int
     {
         return $this->incrementEachQuietly($columns, $extra);
     }
@@ -5576,7 +5576,7 @@ class ModelStub extends Model
     /**
      * Expose quiet multi-column decrements for testing.
      */
-    public function publicDecrementEachQuietly(array $columns, array $extra = []): int|false
+    public function publicDecrementEachQuietly(array $columns, array $extra = []): int
     {
         return $this->decrementEachQuietly($columns, $extra);
     }

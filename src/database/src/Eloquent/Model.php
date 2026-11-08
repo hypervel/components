@@ -1306,8 +1306,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param array<string, mixed> $extra
      */
-    protected function incrementQuietly(string $column, float|int $amount = 1, array $extra = []): int|false
+    protected function incrementQuietly(string $column, float|int $amount = 1, array $extra = []): int
     {
+        // fireModelEvent() returns true while events are disabled, so the update never halts with false.
         return static::withoutEvents(
             fn () => $this->incrementOrDecrement($column, $amount, $extra, 'increment')
         );
@@ -1318,8 +1319,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param array<string, mixed> $extra
      */
-    protected function decrementQuietly(string $column, float|int $amount = 1, array $extra = []): int|false
+    protected function decrementQuietly(string $column, float|int $amount = 1, array $extra = []): int
     {
+        // fireModelEvent() returns true while events are disabled, so the update never halts with false.
         return static::withoutEvents(
             fn () => $this->incrementOrDecrement($column, $amount, $extra, 'decrement')
         );
@@ -1353,8 +1355,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * @param array<string, float|int> $columns
      * @param array<string, mixed> $extra
      */
-    protected function incrementEachQuietly(array $columns, array $extra = []): int|false
+    protected function incrementEachQuietly(array $columns, array $extra = []): int
     {
+        // fireModelEvent() returns true while events are disabled, so the update never halts with false.
         return static::withoutEvents(
             fn () => $this->incrementOrDecrementEach($columns, $extra, 'incrementEach')
         );
@@ -1366,8 +1369,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * @param array<string, float|int> $columns
      * @param array<string, mixed> $extra
      */
-    protected function decrementEachQuietly(array $columns, array $extra = []): int|false
+    protected function decrementEachQuietly(array $columns, array $extra = []): int
     {
+        // fireModelEvent() returns true while events are disabled, so the update never halts with false.
         return static::withoutEvents(
             fn () => $this->incrementOrDecrementEach($columns, $extra, 'decrementEach')
         );
@@ -2871,8 +2875,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Retrieve the model for a bound value.
      *
-     * @param  self|Builder|Relation<*, *, *>  $query
-     * @return Builder<static>|Relation<*, *, *>
+     * @template TQuery of Builder<*>|Relation<*, *, *>
+     *
+     * @param self|TQuery $query
+     * @return ($query is self ? Builder<static> : TQuery)
      *
      * @throws ModelNotFoundException<static>
      */

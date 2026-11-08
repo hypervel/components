@@ -564,7 +564,8 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Get a paginator for the "select" statement.
      *
-     * @return LengthAwarePaginator<int, TRelatedModel>
+     * @param null|(Closure(): ?int)|int $total
+     * @return LengthAwarePaginator<int, TRelatedModel, EloquentCollection<int, TRelatedModel>>
      */
     public function paginate(?int $perPage = null, array $columns = ['*'], string $pageName = 'page', ?int $page = null, Closure|int|null $total = null): mixed
     {
@@ -656,6 +657,8 @@ abstract class HasOneOrManyThrough extends Relation
 
     /**
      * Chunk the results of the query.
+     *
+     * @param callable(EloquentCollection<int, TRelatedModel>, int): mixed $callback
      */
     public function chunk(int $count, callable $callback): bool
     {
@@ -664,6 +667,8 @@ abstract class HasOneOrManyThrough extends Relation
 
     /**
      * Chunk the results of a query by comparing numeric IDs.
+     *
+     * @param callable(EloquentCollection<int, TRelatedModel>, int): mixed $callback
      */
     public function chunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
@@ -676,6 +681,8 @@ abstract class HasOneOrManyThrough extends Relation
 
     /**
      * Chunk the results of a query by comparing IDs in descending order.
+     *
+     * @param callable(EloquentCollection<int, TRelatedModel>, int): mixed $callback
      */
     public function chunkByIdDesc(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
@@ -688,6 +695,8 @@ abstract class HasOneOrManyThrough extends Relation
 
     /**
      * Execute a callback over each item while chunking by ID.
+     *
+     * @param callable(TRelatedModel, int): mixed $callback
      */
     public function eachById(callable $callback, int $count = 1000, ?string $column = null, ?string $alias = null): bool
     {
@@ -710,6 +719,8 @@ abstract class HasOneOrManyThrough extends Relation
 
     /**
      * Execute a callback over each item while chunking.
+     *
+     * @param callable(TRelatedModel, int): mixed $callback
      */
     public function each(callable $callback, int $count = 1000): bool
     {
@@ -795,15 +806,23 @@ abstract class HasOneOrManyThrough extends Relation
         );
     }
 
+    /**
+     * Add the constraints for an internal relationship existence query.
+     *
+     * Unlike Laravel, which inherits Relation's types, the parent query is the declaring model's: Relation's
+     * parent here is the intermediate model.
+     *
+     * @param Builder<TRelatedModel> $query
+     * @param Builder<TDeclaringModel> $parentQuery
+     * @return Builder<TRelatedModel>
+     */
     public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         if ($parentQuery->getQuery()->from === $query->getQuery()->from) {
-            // @phpstan-ignore argument.type (template types don't narrow through self-relation detection)
             return $this->getRelationExistenceQueryForSelfRelation($query, $parentQuery, $columns);
         }
 
         if ($parentQuery->getQuery()->from === $this->throughParent->getTable()) {
-            // @phpstan-ignore argument.type (template types don't narrow through self-relation detection)
             return $this->getRelationExistenceQueryForThroughSelfRelation($query, $parentQuery, $columns);
         }
 

@@ -25,7 +25,7 @@ function test(User $user, ScopedUser $scoped, FixedUser $fixed): void
     assertType('Hypervel\Types\CustomBuilderForwarding\UserBuilder<Hypervel\Types\CustomBuilderForwarding\User>', User::query()->selectRaw('id', record: true));
     assertType('Hypervel\Types\CustomBuilderForwarding\UserBuilder<Hypervel\Types\CustomBuilderForwarding\User>', User::query()->ignoredAnswer());
     assertType('int', User::query()->rawAnswer());
-    assertType('Hypervel\Types\CustomBuilderForwarding\UserQuery<int, Hypervel\Types\CustomBuilderForwarding\User, \'fixture\'>', User::query()->dump());
+    assertType('Hypervel\Types\CustomBuilderForwarding\UserQuery', User::query()->dump());
     assertType('Hypervel\Types\CustomBuilderForwarding\UserQuery', User::query()->getQuery());
     assertType('Hypervel\Support\Collection<int, Hypervel\Types\CustomBuilderForwarding\User>', User::tenant('one')->models());
     assertType('Hypervel\Support\Collection<int, Hypervel\Types\CustomBuilderForwarding\Admin>', Admin::tenant('one')->models());
@@ -45,7 +45,7 @@ function test(User $user, ScopedUser $scoped, FixedUser $fixed): void
     assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\CustomBuilderForwarding\User, Hypervel\Types\CustomBuilderForwarding\User>', $user->children()->clone());
     assertType('Hypervel\Types\CustomBuilderForwarding\UserBuilder<Hypervel\Types\CustomBuilderForwarding\User>', $user->children()->applyScopes());
     assertType('int', $user->children()->rawAnswer());
-    assertType('Hypervel\Types\CustomBuilderForwarding\UserQuery<int, Hypervel\Types\CustomBuilderForwarding\User, \'fixture\'>', $user->children()->dump());
+    assertType('Hypervel\Types\CustomBuilderForwarding\UserQuery', $user->children()->dump());
 
     assertType('int', ScopedUser::query()->limit('scope'));
     assertType('int', ScopedUser::limit('scope'));
@@ -62,6 +62,23 @@ function test(User $user, ScopedUser $scoped, FixedUser $fixed): void
     FixedUser::query()->inspectRow(function ($row): void {
         assertType('stdClass', $row);
     });
+
+    // A model's own newQuery() replaces HasBuilder's, so forwarding falls back to the model's builder factory.
+    assertType('Hypervel\Types\CustomBuilderForwarding\UserBuilder<Hypervel\Types\CustomBuilderForwarding\ReplacedQueryUser>', ReplacedQueryUser::tenant('one'));
+    assertType('Hypervel\Types\CustomBuilderForwarding\UserBuilder<Hypervel\Types\CustomBuilderForwarding\ReplacedQueryUser>', (new ReplacedQueryUser)->newQuery());
+}
+
+class ReplacedQueryUser extends Model
+{
+    /** @use HasBuilder<UserBuilder<static>> */
+    use HasBuilder;
+
+    protected static string $builder = UserBuilder::class;
+
+    public function newQuery(): Builder
+    {
+        return parent::newQuery();
+    }
 }
 
 class User extends Model

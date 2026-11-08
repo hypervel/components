@@ -341,7 +341,7 @@ class Builder implements BuilderContract
     /**
      * Add a basic where clause to the query.
      *
-     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
+     * @param array|(Closure(($operator is null ? static : QueryBuilder)): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
      * @return $this
      */
     public function where(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
@@ -366,7 +366,7 @@ class Builder implements BuilderContract
     /**
      * Add a basic where clause to the query, and return the first result.
      *
-     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
+     * @param array|(Closure(($operator is null ? static : QueryBuilder)): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
      * @return null|TModel
      */
     public function firstWhere(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): ?Model
@@ -377,7 +377,10 @@ class Builder implements BuilderContract
     /**
      * Add an "or where" clause to the query.
      *
-     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
+     * A null operator passed as the second of two arguments becomes a comparison with null, which
+     * makes a callback a subquery, so the callback type cannot follow the operator here.
+     *
+     * @param array|(Closure(__benevolent<static|QueryBuilder>): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
      */
     public function orWhere(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null): static
     {
@@ -393,7 +396,7 @@ class Builder implements BuilderContract
     /**
      * Add a basic "where not" clause to the query.
      *
-     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
+     * @param array|(Closure(($operator is null ? static : QueryBuilder)): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
      */
     public function whereNot(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
@@ -409,7 +412,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not" clause to the query.
      *
-     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
+     * @param array|(Closure(($operator is null ? static : QueryBuilder)): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
      */
     public function orWhereNot(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null): static
     {
@@ -1120,7 +1123,9 @@ class Builder implements BuilderContract
     /**
      * Paginate the given query.
      *
-     * @return LengthAwarePaginator<int, TModel>
+     * @param null|(Closure(int): ?int)|int $perPage
+     * @param null|(Closure(): ?int)|int $total
+     * @return LengthAwarePaginator<int, TModel, Collection<int, TModel>>
      *
      * @throws InvalidArgumentException
      */
@@ -1145,7 +1150,7 @@ class Builder implements BuilderContract
     /**
      * Paginate the given query into a simple paginator.
      *
-     * @return Paginator<int, TModel>
+     * @return Paginator<int, TModel, Collection<int, TModel>>
      */
     public function simplePaginate(?int $perPage = null, array|string $columns = ['*'], string $pageName = 'page', ?int $page = null): Paginator
     {
@@ -1167,7 +1172,7 @@ class Builder implements BuilderContract
     /**
      * Paginate the given query into a cursor paginator.
      *
-     * @return CursorPaginator<int, TModel>
+     * @return CursorPaginator<int, TModel, Collection<int, TModel>>
      */
     public function cursorPaginate(?int $perPage = null, array|string $columns = ['*'], string $cursorName = 'cursor', Cursor|string|null $cursor = null): CursorPaginator
     {

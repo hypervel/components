@@ -1074,7 +1074,8 @@ class BelongsToMany extends Relation
     /**
      * Get a paginator for the "select" statement.
      *
-     * @return LengthAwarePaginator<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @param null|(Closure(): ?int)|int $total
+     * @return LengthAwarePaginator<int, object{pivot: TPivotModel}&TRelatedModel, EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>>
      */
     public function paginate(?int $perPage = null, array $columns = ['*'], string $pageName = 'page', ?int $page = null, Closure|int|null $total = null): mixed
     {
@@ -1128,6 +1129,8 @@ class BelongsToMany extends Relation
 
     /**
      * Chunk the results of the query.
+     *
+     * @param callable(EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>, int): mixed $callback
      */
     public function chunk(int $count, callable $callback): bool
     {
@@ -1140,6 +1143,8 @@ class BelongsToMany extends Relation
 
     /**
      * Chunk the results of a query by comparing numeric IDs.
+     *
+     * @param callable(EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>, int): mixed $callback
      */
     public function chunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
@@ -1148,6 +1153,8 @@ class BelongsToMany extends Relation
 
     /**
      * Chunk the results of a query by comparing IDs in descending order.
+     *
+     * @param callable(EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>, int): mixed $callback
      */
     public function chunkByIdDesc(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
@@ -1156,6 +1163,8 @@ class BelongsToMany extends Relation
 
     /**
      * Execute a callback over each item while chunking by ID.
+     *
+     * @param callable(object{pivot: TPivotModel}&TRelatedModel, int): mixed $callback
      */
     public function eachById(callable $callback, int $count = 1000, ?string $column = null, ?string $alias = null): bool
     {
@@ -1170,6 +1179,8 @@ class BelongsToMany extends Relation
 
     /**
      * Chunk the results of a query by comparing IDs in a given order.
+     *
+     * @param callable(EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>, int): mixed $callback
      */
     public function orderedChunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null, SortDirection|bool $descending = false): bool
     {
@@ -1188,6 +1199,8 @@ class BelongsToMany extends Relation
 
     /**
      * Execute a callback over each item while chunking.
+     *
+     * @param callable(object{pivot: TPivotModel}&TRelatedModel, int): mixed $callback
      */
     public function each(callable $callback, int $count = 1000): bool
     {

@@ -3274,7 +3274,9 @@ class Builder implements BuilderContract
     /**
      * Paginate the given query into a simple paginator.
      *
+     * @param (Closure(int): int)|int $perPage
      * @param array<ExpressionContract|string>|ExpressionContract|string $columns
+     * @param null|(Closure(): ?int)|int $total
      */
     public function paginate(
         int|Closure $perPage = 15,
@@ -4359,6 +4361,8 @@ class Builder implements BuilderContract
 
     /**
      * Retrieve the sum of the values of a given column.
+     *
+     * @return float|int|string
      */
     public function sum(ExpressionContract|string $column): mixed
     {
@@ -4369,6 +4373,8 @@ class Builder implements BuilderContract
 
     /**
      * Retrieve the average of the values of a given column.
+     *
+     * @return null|float|int|string
      */
     public function avg(ExpressionContract|string $column): mixed
     {
@@ -4377,6 +4383,8 @@ class Builder implements BuilderContract
 
     /**
      * Alias for the "avg" method.
+     *
+     * @return null|float|int|string
      */
     public function average(ExpressionContract|string $column): mixed
     {
