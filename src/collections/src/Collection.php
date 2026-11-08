@@ -587,6 +587,12 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
     /**
      * Key an associative array by a field or using a callback.
+     *
+     * @TODO Remove repeated generic tags once PHPStan correctly inherits method templates.
+     * @template TNewKey of array-key|null|UnitEnum|BaseStringable
+     *
+     * @param array|(callable(TValue, TKey): TNewKey)|string $keyBy
+     * @return static<($keyBy is (array|string) ? array-key : (TNewKey is array-key ? TNewKey : (TNewKey is (null|BaseStringable) ? string : array-key))), TValue>
      */
     #[Override]
     public function keyBy(callable|array|string $keyBy): static

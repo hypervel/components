@@ -458,10 +458,10 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Key an associative array by a field or using a callback.
      *
-     * @template TNewKey of array-key|UnitEnum|BaseStringable
+     * @template TNewKey of array-key|null|UnitEnum|BaseStringable
      *
      * @param array|(callable(TValue, TKey): TNewKey)|string $keyBy
-     * @return static<($keyBy is (array|string) ? array-key : (TNewKey is array-key ? TNewKey : (TNewKey is BaseStringable ? string : array-key))), TValue>
+     * @return static<($keyBy is (array|string) ? array-key : (TNewKey is array-key ? TNewKey : (TNewKey is (null|BaseStringable) ? string : array-key))), TValue>
      */
     public function keyBy(callable|array|string $keyBy): static;
 

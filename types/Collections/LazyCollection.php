@@ -449,6 +449,8 @@ assertType('Hypervel\Support\LazyCollection<int, User>', $collection->keyBy(stat
 assertType('Hypervel\Support\LazyCollection<(int|string), User>', $collection->keyBy(static fn ($user) => Digit::One));
 assertType('Hypervel\Support\LazyCollection<(int|string), User>', $collection->keyBy(static fn ($user) => NamedDigit::One));
 assertType('Hypervel\Support\LazyCollection<(int|string), User>', $collection->keyBy(static fn ($user) => NumberedDigit::One));
+assertType('Hypervel\Support\LazyCollection<string, User>', $collection->keyBy(static fn ($user): ?string => null));
+assertType('Hypervel\Support\LazyCollection<int<1, 10>, User>', $collection->keyBy(static fn ($user): int => random_int(1, 10)));
 
 assertType('bool', $collection->has(0));
 assertType('bool', $collection->has([0, 1]));

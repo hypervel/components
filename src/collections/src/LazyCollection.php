@@ -349,6 +349,15 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
         return ! $this->containsStrict(...func_get_args());
     }
 
+    /**
+     * Cross join with the given lists, returning all possible permutations.
+     *
+     * @TODO Remove repeated generic tags once PHPStan correctly inherits method templates.
+     * @template TCrossJoinValue
+     *
+     * @param Arrayable<array<array-key, TCrossJoinValue>>|iterable<array-key, TCrossJoinValue> ...$arrays
+     * @return static<int, array<int, TCrossJoinValue|TValue>>
+     */
     #[Override]
     public function crossJoin(Arrayable|iterable ...$arrays): static
     {
@@ -583,6 +592,12 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
 
     /**
      * Key an associative array by a field or using a callback.
+     *
+     * @TODO Remove repeated generic tags once PHPStan correctly inherits method templates.
+     * @template TNewKey of array-key|null|UnitEnum|BaseStringable
+     *
+     * @param array|(callable(TValue, TKey): TNewKey)|string $keyBy
+     * @return static<($keyBy is (array|string) ? array-key : (TNewKey is array-key ? TNewKey : (TNewKey is (null|BaseStringable) ? string : array-key))), TValue>
      */
     #[Override]
     public function keyBy(callable|array|string $keyBy): static
@@ -802,6 +817,18 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
         });
     }
 
+    /**
+     * Run a dictionary map over the items.
+     *
+     * The callback should return an associative array with a single key/value pair.
+     *
+     * @TODO Remove repeated generic tags once PHPStan correctly inherits method templates.
+     * @template TMapToDictionaryKey of array-key
+     * @template TMapToDictionaryValue
+     *
+     * @param callable(TValue, TKey): array<TMapToDictionaryKey, TMapToDictionaryValue> $callback
+     * @return static<TMapToDictionaryKey, array<int, TMapToDictionaryValue>>
+     */
     #[Override]
     public function mapToDictionary(callable $callback): static
     {
@@ -878,6 +905,15 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
         return $this->map(fn ($value, $key) => new $class($value, $key));
     }
 
+    /**
+     * Merge the collection with the given items.
+     *
+     * @TODO Remove repeated generic tags once PHPStan correctly inherits method templates.
+     * @template TMergeValue
+     *
+     * @param Arrayable<array<TKey, TMergeValue>>|iterable<TKey, TMergeValue> $items
+     * @return static<(array<TKey, mixed> is array<int, mixed> ? int : TKey), TMergeValue|TValue>
+     */
     #[Override]
     public function merge(mixed $items): static
     {
@@ -885,6 +921,15 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
+    /**
+     * Recursively merge the collection with the given items.
+     *
+     * @TODO Remove repeated generic tags once PHPStan correctly inherits method templates.
+     * @template TMergeRecursiveValue
+     *
+     * @param Arrayable<array<TKey, TMergeRecursiveValue>>|iterable<TKey, TMergeRecursiveValue> $items
+     * @return static<(array<TKey, mixed> is array<int, mixed> ? int : TKey), (TKey is int ? TMergeRecursiveValue|TValue : array<array-key, mixed>|TMergeRecursiveValue|TValue)>
+     */
     #[Override]
     public function mergeRecursive(mixed $items): static
     {

@@ -570,6 +570,8 @@ assertType('Hypervel\Support\Collection<int, User>', $collection->keyBy(static f
 assertType('Hypervel\Support\Collection<(int|string), User>', $collection->keyBy(static fn ($user) => Digit::One));
 assertType('Hypervel\Support\Collection<(int|string), User>', $collection->keyBy(static fn ($user) => NamedDigit::One));
 assertType('Hypervel\Support\Collection<(int|string), User>', $collection->keyBy(static fn ($user) => NumberedDigit::One));
+assertType('Hypervel\Support\Collection<string, User>', $collection->keyBy(static fn ($user): ?string => null));
+assertType('Hypervel\Support\Collection<int<1, 10>, User>', $collection->keyBy(static fn ($user): int => random_int(1, 10)));
 
 assertType('bool', $collection->has(0));
 assertType('bool', $collection->has([0, 1]));
