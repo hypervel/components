@@ -363,7 +363,10 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Load a set of relationships onto the mixed relationship collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param array<array-key, array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string> $relations
+     * @phpstan-param morph-eager-loads<TRelations> $relations
      * @return $this
      */
     public function loadMorph(string $relation, array $relations): static
@@ -377,7 +380,10 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Load a set of relationship counts onto the mixed relationship collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
+     * @phpstan-param morph-aggregates<TRelations> $relations
      * @return $this
      */
     public function loadMorphCount(string $relation, array $relations): static

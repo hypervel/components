@@ -132,7 +132,7 @@ assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->merg
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->merge([new User]));
 
 assertType(
-    'Hypervel\Support\Collection<int, User>',
+    'Hypervel\Database\Eloquent\Collection<int, User>',
     $collection->map(function ($user, $int) {
         assertType('User', $user);
         assertType('int', $int);
@@ -142,7 +142,7 @@ assertType(
 );
 
 assertType(
-    'Hypervel\Support\Collection<int, User>',
+    'Hypervel\Database\Eloquent\Collection<int, User>',
     $collection->mapWithKeys(function ($user, $int) {
         assertType('User', $user);
         assertType('int', $int);
@@ -151,7 +151,7 @@ assertType(
     })
 );
 assertType(
-    'Hypervel\Support\Collection<string, User>',
+    'Hypervel\Database\Eloquent\Collection<string, User>',
     $collection->mapWithKeys(function ($user, $int) {
         return ['string' => new User];
     })

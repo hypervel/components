@@ -108,7 +108,10 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationships onto the collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string  $relations
+     * @phpstan-param  eager-loads<TModel, TRelations>|string  $relations
      * @return $this
      */
     public function load(array|string $relations): static
@@ -129,7 +132,10 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of aggregations over relationship's column onto the collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @phpstan-param  relation-aggregates<TModel, TRelations>|string  $relations
      * @return $this
      *
      * @throws MissingAttributeException
@@ -192,7 +198,10 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship counts onto the collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @phpstan-param  relation-aggregates<TModel, TRelations>|string  $relations
      * @return $this
      */
     public function loadCount(array|string $relations): static
@@ -203,7 +212,10 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship's max column values onto the collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @phpstan-param  relation-aggregates<TModel, TRelations>|string  $relations
      * @return $this
      */
     public function loadMax(array|string $relations, Expression|string $column): static
@@ -214,7 +226,10 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship's min column values onto the collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @phpstan-param  relation-aggregates<TModel, TRelations>|string  $relations
      * @return $this
      */
     public function loadMin(array|string $relations, Expression|string $column): static
@@ -225,7 +240,10 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship's column summations onto the collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @phpstan-param  relation-aggregates<TModel, TRelations>|string  $relations
      * @return $this
      */
     public function loadSum(array|string $relations, Expression|string $column): static
@@ -236,7 +254,10 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship's average column values onto the collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @phpstan-param  relation-aggregates<TModel, TRelations>|string  $relations
      * @return $this
      */
     public function loadAvg(array|string $relations, Expression|string $column): static
@@ -247,7 +268,10 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of related existences onto the collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @phpstan-param  relation-aggregates<TModel, TRelations>|string  $relations
      * @return $this
      */
     public function loadExists(array|string $relations): static
@@ -258,7 +282,10 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationships onto the collection if they are not already eager loaded.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string  $relations
+     * @phpstan-param  eager-loads<TModel, TRelations>|string  $relations
      * @return $this
      */
     public function loadMissing(array|string $relations): static
@@ -361,7 +388,10 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationships onto the mixed relationship collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string>  $relations
+     * @phpstan-param  morph-eager-loads<TRelations>  $relations
      * @return $this
      */
     public function loadMorph(string $relation, array $relations): static
@@ -379,7 +409,10 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship counts onto the mixed relationship collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string>  $relations
+     * @phpstan-param  morph-aggregates<TRelations>  $relations
      * @return $this
      */
     public function loadMorphCount(string $relation, array $relations): static
@@ -474,7 +507,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @template TMapValue
      *
      * @param callable(TModel, TKey): TMapValue $callback
-     * @return BaseCollection<TKey, TMapValue>|static<TKey, TMapValue>
+     * @return (array{TMapValue} is array{Model} ? static<TKey, Model&TMapValue> : BaseCollection<TKey, TMapValue>)
      */
     #[Override]
     public function map(callable $callback): BaseCollection
@@ -494,7 +527,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @template TMapWithKeysValue
      *
      * @param callable(TModel, TKey): array<TMapWithKeysKey, TMapWithKeysValue> $callback
-     * @return BaseCollection<TMapWithKeysKey, TMapWithKeysValue>|static<TMapWithKeysKey, TMapWithKeysValue>
+     * @return (array{TMapWithKeysValue} is array{Model} ? static<TMapWithKeysKey, Model&TMapWithKeysValue> : BaseCollection<TMapWithKeysKey, TMapWithKeysValue>)
      */
     #[Override]
     public function mapWithKeys(callable $callback): BaseCollection
@@ -508,7 +541,10 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Reload a fresh model instance from the database for all the entities.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string $with
+     * @phpstan-param eager-loads<TModel, TRelations>|string $with
      *
      * @throws MissingAttributeException
      */
