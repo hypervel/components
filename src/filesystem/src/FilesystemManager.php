@@ -990,6 +990,8 @@ class FilesystemManager implements FactoryContract
      * coroutines may already hold a reference to the prior disk and next
      * resolution will return the replacement. Any shared pool remains
      * available until its idle TTL expires or purge() invalidates it.
+     *
+     * @return $this
      */
     public function set(UnitEnum|string $name, mixed $disk): static
     {
@@ -1037,6 +1039,7 @@ class FilesystemManager implements FactoryContract
      * TTL expires or purge() deliberately invalidates them.
      *
      * @param array<string|UnitEnum>|string|UnitEnum $disk
+     * @return $this
      */
     public function forgetDisk(UnitEnum|array|string $disk): static
     {
@@ -1109,6 +1112,8 @@ class FilesystemManager implements FactoryContract
      *
      * Tests only. Swaps the singleton's container reference; per-request use
      * races across coroutines and breaks every concurrent filesystem operation.
+     *
+     * @return $this
      */
     public function setApplication(Container $app): static
     {

@@ -206,6 +206,8 @@ class CookieJar implements JarContract
      * Boot-only. The defaults persist on the worker-lifetime singleton;
      * per-request mutation races across coroutines and affects every
      * subsequent request.
+     *
+     * @return $this
      */
     public function setDefaultPathAndDomain(string $path, ?string $domain, ?bool $secure = false, ?string $sameSite = null): static
     {
@@ -226,6 +228,8 @@ class CookieJar implements JarContract
 
     /**
      * Flush the cookies which have been queued for the next request.
+     *
+     * @return $this
      */
     public function flushQueuedCookies(): static
     {

@@ -340,6 +340,8 @@ class Encrypter implements EncrypterContract, StringEncrypter
      *
      * Boot-only. Mutates the previous-key list; the encrypter is registered as
      * a container singleton, so per-request use races across coroutines.
+     *
+     * @return $this
      */
     public function previousKeys(#[SensitiveParameter] array $keys): static
     {
