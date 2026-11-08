@@ -34,6 +34,8 @@ class FakeProcessDescription
 
     /**
      * Specify the process ID that should be assigned to the process.
+     *
+     * @return $this
      */
     public function id(int $processId): static
     {
@@ -44,6 +46,8 @@ class FakeProcessDescription
 
     /**
      * Describe a line of standard output.
+     *
+     * @return $this
      */
     public function output(array|string $output): static
     {
@@ -60,6 +64,8 @@ class FakeProcessDescription
 
     /**
      * Describe a line of error output.
+     *
+     * @return $this
      */
     public function errorOutput(array|string $output): static
     {
@@ -76,6 +82,8 @@ class FakeProcessDescription
 
     /**
      * Replace the entire output buffer with the given string.
+     *
+     * @return $this
      */
     public function replaceOutput(string $output): static
     {
@@ -96,6 +104,8 @@ class FakeProcessDescription
 
     /**
      * Replace the entire error output buffer with the given string.
+     *
+     * @return $this
      */
     public function replaceErrorOutput(string $output): static
     {
@@ -116,6 +126,8 @@ class FakeProcessDescription
 
     /**
      * Specify the process exit code.
+     *
+     * @return $this
      */
     public function exitCode(int $exitCode): static
     {
@@ -126,6 +138,8 @@ class FakeProcessDescription
 
     /**
      * Specify how many times the "isRunning" method should return "true".
+     *
+     * @return $this
      */
     public function iterations(int $iterations): static
     {
@@ -134,6 +148,8 @@ class FakeProcessDescription
 
     /**
      * Specify how many times the "isRunning" method should return "true".
+     *
+     * @return $this
      */
     public function runsFor(int $iterations): static
     {
