@@ -59,7 +59,7 @@
         "psr/http-message": "^2.0",
         "symfony/console": "^8.1.10",
         "symfony/dom-crawler": "^8.1",
-        "symfony/filesystem": "^8.1",
+        "symfony/filesystem": "^8.1.11",
         "symfony/finder": "^8.1",
         "symfony/var-dumper": "^8.1"
     },

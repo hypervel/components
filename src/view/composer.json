@@ -39,8 +39,8 @@
         "hypervel/macroable": "^0.4",
         "hypervel/reflection": "^0.4",
         "hypervel/support": "^0.4",
-        "symfony/http-foundation": "^8.1",
-        "symfony/http-kernel": "^8.1"
+        "symfony/http-foundation": "^8.1.11",
+        "symfony/http-kernel": "^8.1.11"
     },
     "suggest": {
         "hypervel/foundation": "Required for the @vite, @viteReactRefresh, and @fonts directives."

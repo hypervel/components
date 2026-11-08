@@ -38,8 +38,8 @@
         "hypervel/support": "^0.4",
         "hypervel/view": "^0.4",
         "psr/log": "^3.0",
-        "symfony/http-foundation": "^8.1",
-        "symfony/http-kernel": "^8.1"
+        "symfony/http-foundation": "^8.1.11",
+        "symfony/http-kernel": "^8.1.11"
     },
     "suggest": {
         "hypervel/inertia": "Required for Inertia head management (^0.4)."

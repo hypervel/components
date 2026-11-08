@@ -45,8 +45,8 @@
         "nesbot/carbon": "^3.13.1",
         "paragonie/constant_time_encoding": "^3.1",
         "symfony/console": "^8.1.10",
-        "symfony/http-foundation": "^8.1",
-        "symfony/serializer": "^8.1",
+        "symfony/http-foundation": "^8.1.11",
+        "symfony/serializer": "^8.1.11",
         "web-auth/cose-lib": "^4.8.1",
         "web-auth/webauthn-lib": "^5.3"
     },

@@ -54,8 +54,8 @@
         "hypervel/support": "^0.4",
         "nesbot/carbon": "^3.13.1",
         "symfony/console": "^8.1.10",
-        "symfony/http-foundation": "^8.1",
-        "symfony/http-kernel": "^8.1"
+        "symfony/http-foundation": "^8.1.11",
+        "symfony/http-kernel": "^8.1.11"
     },
     "suggest": {
         "ext-protobuf": "Improves Protocol Buffers serialization performance."
