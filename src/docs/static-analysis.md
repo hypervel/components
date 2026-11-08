@@ -21,6 +21,7 @@
     - [Console Input](#console-input)
     - [Authentication in Requests](#authentication-in-requests)
     - [Redis Connections](#redis-connections)
+    - [Model Relations](#model-relations)
     - [Schema Dumps](#schema-dumps)
     - [Deprecations](#deprecations)
 
@@ -233,6 +234,7 @@ The following table summarizes the preferred pattern for each of Hypervel's diag
 | [Console Input](#console-input) | Read the arguments and options the command defines. | `hypervel.console.undefinedArgument`, `hypervel.console.undefinedOption` |
 | [Authentication in Requests](#authentication-in-requests) | Use `$request->user()` where a request is available. | `hypervel.noAuthFacadeInRequestScope`, `hypervel.noAuthHelperInRequestScope` |
 | [Redis Connections](#redis-connections) | Call connection-bound methods on a held connection. | `hypervel.redisConnectionBoundMethod` |
+| [Model Relations](#model-relations) | Load and query relations the model defines. | `hypervel.relationExistence` |
 | [Schema Dumps](#schema-dumps) | Keep schema dumps in the plain SQL `schema:dump` writes. | `hypervel.schemaDump` |
 | [Deprecations](#deprecations) | Use the replacement the deprecation names. | `method.deprecated` and the other deprecation identifiers |
 
@@ -381,6 +383,18 @@ Redis::withConnection(function (RedisConnection $connection) {
 ```
 
 These checks may be disabled using the `checkRedisConnectionBoundMethods` parameter.
+
+<a name="model-relations"></a>
+### Model Relations
+
+Eager loading, relationship queries and relationship aggregates report a relation the model does not define. Eager loading and the `has`, `whereHas` and `whereRelation` families also check each segment of a nested path:
+
+```php
+// Relation 'comment' is not found in App\Models\Post model.
+$users = User::with('posts.comment')->get();
+```
+
+A relation registered using `resolveRelationUsing` while the application boots is found, though the segments after it are not checked. Relations on an abstract model or a union of models are not checked, since each model may define them differently.
 
 <a name="schema-dumps"></a>
 ### Schema Dumps

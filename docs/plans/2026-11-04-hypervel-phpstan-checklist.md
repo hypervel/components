@@ -25,8 +25,8 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 - copy: `Methods/ModelFactoryMethodsClassReflectionExtension.php`
 - omit: `Properties/ReflectionTypeContainer.php` (unused since upstream removed container ArrayAccess support)
 - copy: `ReturnTypes/{FactoryDynamicMethodReturnTypeExtension,ModelFactoryDynamicStaticMethodReturnTypeExtension}.php`
-- copy with the Eloquent collection port: `ReturnTypes/EloquentCollectionMapDynamicReturnTypeExtension.php`, moving `common/EloquentCollection.stub`'s `map()`/`mapWithKeys()` conditionals into the Eloquent `Collection` source; also `toQuery()`/`load()`/`loadMissing()` typing with `Type/data/eager-loading-callbacks.php` intact (investigate the supported PHPStan hooks before choosing a mechanism)
-- copy: `Rules/*` except below and the ported `ArrKeyExistenceRule`, auth request-scope, config, console, `NoEnvCallsOutsideOfConfigRule`, `NoMissingTranslationsRule`, `NoUnnecessaryEnumerableToArrayCallsRule`, `UnusedViewsRule` and `UselessConstructs/` rules (including `Queue/`)
+- copy with the Eloquent collection port: `ReturnTypes/EloquentCollectionMapDynamicReturnTypeExtension.php`, moving `common/EloquentCollection.stub`'s `map()`/`mapWithKeys()` conditionals into the Eloquent `Collection` source; also `toQuery()`/`load()`/`loadMissing()` typing, merging `Integration/data/eager-loading-callbacks.php` and its `Integration/IntegrationTest.php` entry (investigate the supported PHPStan hooks before choosing a mechanism)
+- copy: `Rules/*` except below and the ported `ArrKeyExistenceRule`, auth request-scope, config, console, `NoEnvCallsOutsideOfConfigRule`, `NoMissingTranslationsRule`, `NoUnnecessaryEnumerableToArrayCallsRule`, `RelationExistenceRule` (with `RelationExistenceHelper` and `ModelRuleHelper`), `UnusedViewsRule` and `UselessConstructs/` rules (including `Queue/`)
 - omit: `Rules/DeferrableServiceProviderMissingProvidesRule.php`, `Rules/OctaneCompatibilityRule.php`
 - omit: `SQL/*` (`hypervel/schema-parser` replaces the parser boundary and its iamcal/phpMyAdmin adapters)
 - copy: `Types/Factory/` with the factory flow; `Types/GenericEloquentCollectionTypeNodeResolverExtension.php` with the Eloquent collection port
@@ -54,8 +54,7 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 - omit: `laravel-test.sh`
 - copy with the Eloquent collection port: `application/app/UserCollection.php`; with the factory flow: `application/app/{Domain/,Shapes/}` and `application/database/factories/`
 - omit: `application/app/{ModelWithConflictingInitializer.php,UserResource.php,Providers/}` (no upstream test or source references them)
-- next checkpoint, with the source corrections it exposes: merge into `Integration/IntegrationTest.php` the remaining upstream entries with `Integration/data/*` (46 files), switching its config to `Type/data/config-check-model-properties.neon` with model properties
-- copy: `Rules/*Test.php` except below and the ported `ArrKeyExistence`, auth, config, console, environment, enumerable `toArray()`, view, translation and useless-construct rule tests, the remaining `Rules/data/*`, `Rules/Queue/data/*`
+- copy: `Rules/*Test.php` except below and the ported `ArrKeyExistence`, auth, config, console, environment, enumerable `toArray()`, relation existence, view, translation and useless-construct rule tests, the remaining `Rules/data/*`, `Rules/Queue/data/*`
 - omit: `Rules/{DeferrableServiceProviderMissingProvidesRuleTest,OctaneCompatibilityRuleTest}.php`, `Rules/data/{CorrectDeferrableProvider,CorrectDeferrableProviderIndirect,IncorrectDeferrableProvider}.php`, `Rules/data/octane.neon`, `Rules/data/ContainerInjection.php`
 - copy: `Type/*Test.php` except below, the ported collection, config and model-property tests, `GeneralTypeTest.php` and `MethodsClassReflectionExtensionTest.php`, with the remaining `Type/data/*`
 - merge into `Type/BleedingEdgeTypeTest.php` with the Eloquent ports: `bleeding-edge/closure-usage-inference.php` (relation callbacks) and `bleeding-edge/eloquent-collection-map.php`
@@ -63,5 +62,5 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 - merge into `Type/CollectionDynamicReturnTypeExtensionTest.php` with the model fixtures: `collection-filter.php`, `collection-reject.php`, `collection-where.php` (they need `accounts()->active()->get()` to return `AccountCollection`)
 - omit: `Type/data/collection-generic-static-methods-l11.php` (Laravel 11's Eloquent `partition()` returned `static`; Hypervel follows the Laravel 12 base collection)
 - merge: the remaining `Type/GeneralTypeTest.php` data entries (its `phpstan-tests.neon` already matches upstream's `config-with-migrations.neon`)
-- copy: `Unit/ModelFactoryDynamicStaticMethodReturnTypeExtensionTest.php` with the factory flow
+- copy with the factory flow: `Unit/ModelFactoryDynamicStaticMethodReturnTypeExtensionTest.php`; merge `Integration/data/{model-factories,model-property-model-factory}.php` and their `Integration/IntegrationTest.php` entries
 - omit: `Unit/SQL/*` (parser factory and phpMyAdmin adapter tests; `hypervel/schema-parser` has its own)
