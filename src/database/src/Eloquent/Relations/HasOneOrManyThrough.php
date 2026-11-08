@@ -342,7 +342,7 @@ abstract class HasOneOrManyThrough extends Relation
     {
         return tap($this->firstOrCreate($attributes, array_merge($extra, [$column => $default])), function (Model $instance) use ($column, $step, $extra): void {
             if (! $instance->wasRecentlyCreated) {
-                $instance->increment($column, $step, $extra); // @phpstan-ignore method.protected (handled by __call)
+                $instance->increment($column, $step, $extra);
             }
         });
     }

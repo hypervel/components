@@ -14,7 +14,7 @@ use PHPStan\Type\Type;
 use function array_map;
 
 /**
- * Describe a builder method forwarded through an Eloquent model.
+ * Describe a method an Eloquent model's __call() or __callStatic() handles, which is callable both ways.
  */
 class ForwardedModelMethodReflection extends ForwardedMethodReflection
 {

@@ -18,11 +18,23 @@ use PHPStan\Type\StaticType;
 use PHPStan\Type\Type;
 
 /**
- * Describe Eloquent builder methods forwarded through models.
+ * Describe the methods an Eloquent model's __call() and __callStatic() handle.
  */
 #[AutowiredService]
 class ForwardedModelMethodExtension implements MethodsClassReflectionExtension
 {
+    // Model::__call() dispatches these protected methods; the list must stay in sync with it.
+    private const array MODEL_CALL_FORWARDED_METHODS = [
+        'increment',
+        'decrement',
+        'incrementQuietly',
+        'decrementQuietly',
+        'incrementEach',
+        'decrementEach',
+        'incrementEachQuietly',
+        'decrementEachQuietly',
+    ];
+
     /** @var array<string, false|MethodReflection> */
     private array $methods = [];
 
@@ -83,7 +95,10 @@ class ForwardedModelMethodExtension implements MethodsClassReflectionExtension
 
         $method = null;
 
-        if (! $this->hasNativeOrDocumentedMethod($classReflection, $methodName)) {
+        // Unlike upstream, these are static too: __callStatic() calls them on a new model from the model's scope.
+        if (in_array($methodName, self::MODEL_CALL_FORWARDED_METHODS, true) && $classReflection->hasNativeMethod($methodName)) {
+            $method = new ForwardedModelMethodReflection($classReflection, $classReflection->getNativeMethod($methodName));
+        } elseif (! $this->hasNativeOrDocumentedMethod($classReflection, $methodName)) {
             // Keep static, so PHPStan binds it to the called model.
             $builderType = $this->builderHelper->determineBuilderClass($classReflection->getName(), new StaticType($classReflection));
 
