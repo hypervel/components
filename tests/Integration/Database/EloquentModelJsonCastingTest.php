@@ -10,7 +10,9 @@ use Hypervel\Database\Eloquent\Casts\AsEnumArrayObject;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use stdClass;
 
@@ -76,6 +78,33 @@ class EloquentModelJsonCastingTest extends DatabaseTestCase
         $this->assertSame('value1', $user->collection_as_json_field->get('key1'));
     }
 
+    #[RequiresDatabase('sqlite')]
+    public function testNumbersReadFromNativeSqliteJsonColumnsAreCastable(): void
+    {
+        // Blueprint creates text columns unless use_native_json is set, and only json columns store numbers.
+        DB::statement('create table json_numbers (id integer primary key, array_field json, object_field json, array_object_field jsonb)');
+        $id = JsonNumber::query()->insertGetId(['array_field' => '5', 'object_field' => '1.5', 'array_object_field' => '5']);
+
+        $model = JsonNumber::query()->findOrFail($id);
+
+        $this->assertSame(['id' => $id, 'array_field' => 5, 'object_field' => 1.5, 'array_object_field' => 5], $model->getRawOriginal());
+        $this->assertSame(5, $model->array_field);
+        $this->assertSame(1.5, $model->object_field);
+        $this->assertNull($model->array_object_field);
+
+        $model->array_field = 5;
+        $model->object_field = 1.5;
+
+        $this->assertFalse($model->isDirty());
+
+        $model->array_field = 6;
+        $model->object_field = 2.5;
+
+        $this->assertTrue($model->isDirty(['array_field', 'object_field']));
+        $this->assertTrue($model->save());
+        $this->assertSame(['id' => $id, 'array_field' => 6, 'object_field' => 2.5, 'array_object_field' => 5], JsonNumber::query()->findOrFail($id)->getRawOriginal());
+    }
+
     public function testValidAssignmentsCanReplaceMalformedStoredJson(): void
     {
         $casts = [
@@ -123,6 +152,21 @@ class JsonCast extends Model
         'array_as_json_field' => 'array',
         'object_as_json_field' => 'object',
         'collection_as_json_field' => 'collection',
+    ];
+}
+
+class JsonNumber extends Model
+{
+    public ?string $table = 'json_numbers';
+
+    public bool $timestamps = false;
+
+    protected array $guarded = [];
+
+    public array $casts = [
+        'array_field' => 'array',
+        'object_field' => 'object',
+        'array_object_field' => AsArrayObject::class,
     ];
 }
 

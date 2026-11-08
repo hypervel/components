@@ -96,7 +96,9 @@ trait HasAttributes
     /**
      * The attributes that should be cast.
      *
-     * @var array<string, string>
+     * A cast may be declared as [$cast, ...$arguments], which the model normalizes to a string when it is constructed.
+     *
+     * @var array<string, non-empty-list<int|string>|string>
      */
     protected array $casts = [];
 
@@ -1396,7 +1398,7 @@ trait HasAttributes
     /**
      * Decode the given JSON back into an array or object.
      */
-    public function fromJson(?string $value, bool $asObject = false): mixed
+    public function fromJson(string|int|float|null $value, bool $asObject = false): mixed
     {
         if ($value === null || $value === '') {
             return null;
@@ -1661,7 +1663,7 @@ trait HasAttributes
     /**
      * Get the attributes that should be cast.
      *
-     * @return array<string, list<string>|string|Stringable>
+     * @return array<string, non-empty-list<int|string>|string|Stringable>
      */
     protected function casts(): array
     {
@@ -2488,7 +2490,7 @@ trait HasAttributes
     /**
      * Compare JSON values using the structure exposed by their cast.
      */
-    protected function jsonIsEquivalent(?string $attribute, ?string $original, bool $asObject): bool
+    protected function jsonIsEquivalent(string|int|float|null $attribute, string|int|float|null $original, bool $asObject): bool
     {
         $current = $this->fromJson($attribute, $asObject);
 

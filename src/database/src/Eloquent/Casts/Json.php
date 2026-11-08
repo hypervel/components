@@ -44,6 +44,11 @@ class Json
             return (static::$decoder)($value, $associative);
         }
 
+        // SQLite returns a JSON number stored in a json or jsonb column as an int or float, which decodes to itself.
+        if (is_int($value) || is_float($value)) {
+            return $value;
+        }
+
         // An empty string is Eloquent's established empty stored representation.
         return $value === ''
             ? null
