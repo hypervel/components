@@ -1160,6 +1160,7 @@ class Dispatcher implements DispatcherContract
      * worker lifetime and is consulted whenever a queued listener is dispatched.
      *
      * @param callable(): QueueFactory $resolver
+     * @return $this
      */
     public function setQueueResolver(callable $resolver): static
     {
@@ -1187,6 +1188,7 @@ class Dispatcher implements DispatcherContract
      * worker lifetime and is consulted for every transaction-aware dispatch.
      *
      * @param callable(): ?DatabaseTransactionsManager $resolver
+     * @return $this
      */
     public function setTransactionManagerResolver(callable $resolver): static
     {

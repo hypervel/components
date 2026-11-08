@@ -22,6 +22,8 @@ class PendingBroadcast
 
     /**
      * Broadcast the event using a specific broadcaster.
+     *
+     * @return $this
      */
     public function via(UnitEnum|string|null $connection = null): static
     {
@@ -36,6 +38,8 @@ class PendingBroadcast
 
     /**
      * Broadcast the event to everyone except the current user.
+     *
+     * @return $this
      */
     public function toOthers(): static
     {
