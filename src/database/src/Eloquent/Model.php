@@ -2253,6 +2253,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Convert the model instance to an array.
+     *
+     * @return array<string, mixed>
      */
     public function toArray(): array
     {

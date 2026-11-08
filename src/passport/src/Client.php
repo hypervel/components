@@ -152,6 +152,8 @@ class Client extends Model
 
     /**
      * Interact with the client's secret.
+     *
+     * @return Attribute<never, null|string>
      */
     protected function secret(): Attribute
     {
@@ -167,6 +169,8 @@ class Client extends Model
 
     /**
      * Interact with the client's plain secret.
+     *
+     * @return Attribute<null|string, never>
      */
     protected function plainSecret(): Attribute
     {

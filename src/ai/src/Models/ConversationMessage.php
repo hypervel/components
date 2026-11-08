@@ -62,6 +62,8 @@ class ConversationMessage extends Model
 
     /**
      * The tool calls made across every step of the turn, in step order.
+     *
+     * @return Attribute<array, never>
      */
     protected function toolCalls(): Attribute
     {
@@ -70,6 +72,8 @@ class ConversationMessage extends Model
 
     /**
      * The provider-hosted tool calls made across every step of the turn, in step order.
+     *
+     * @return Attribute<array, never>
      */
     protected function providerToolCalls(): Attribute
     {
@@ -78,6 +82,8 @@ class ConversationMessage extends Model
 
     /**
      * The tool results recorded across every step of the turn, in step order.
+     *
+     * @return Attribute<list<array>, never>
      */
     protected function toolResults(): Attribute
     {

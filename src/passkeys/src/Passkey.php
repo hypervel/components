@@ -74,6 +74,8 @@ class Passkey extends Model
 
     /**
      * Get the authenticator name based on the AAGUID.
+     *
+     * @return Attribute<null|string, never>
      */
     protected function authenticator(): Attribute
     {

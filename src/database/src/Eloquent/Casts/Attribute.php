@@ -4,19 +4,29 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Casts;
 
+/**
+ * Unlike Laravel, the templates are variant, so an accessor can declare a wider type than its
+ * getter returns, such as Attribute<string, never> for a getter returning a non-empty string.
+ * Variance requires the callbacks to be read-only to analysis; runtime assignment is unchanged.
+ *
+ * @template-covariant TGet
+ * @template-contravariant TSet
+ */
 class Attribute
 {
     /**
      * The attribute accessor.
      *
-     * @var null|callable
+     * @var null|(callable(mixed, array<string, mixed>): TGet)
+     * @readonly
      */
     public mixed $get;
 
     /**
      * The attribute mutator.
      *
-     * @var null|callable
+     * @var null|(callable(TSet, array<string, mixed>): mixed)
+     * @readonly
      */
     public mixed $set;
 
@@ -32,6 +42,11 @@ class Attribute
 
     /**
      * Create a new attribute accessor / mutator.
+     *
+     * @template TValue
+     *
+     * @param null|(callable(TValue, array<string, mixed>): TGet) $get
+     * @param null|(callable(TSet, array<string, mixed>): mixed) $set
      */
     public function __construct(?callable $get = null, ?callable $set = null)
     {
@@ -41,6 +56,14 @@ class Attribute
 
     /**
      * Create a new attribute accessor / mutator.
+     *
+     * @template TValue
+     * @template TMakeGet = never
+     * @template TMakeSet = never
+     *
+     * @param null|(callable(TValue, array<string, mixed>): TMakeGet) $get
+     * @param null|(callable(TMakeSet, array<string, mixed>): mixed) $set
+     * @return static<TMakeGet, TMakeSet>
      */
     public static function make(?callable $get = null, ?callable $set = null): static
     {
@@ -49,6 +72,12 @@ class Attribute
 
     /**
      * Create a new attribute accessor.
+     *
+     * @template TValue
+     * @template TMakeGet
+     *
+     * @param callable(TValue, array<string, mixed>): TMakeGet $get
+     * @return static<TMakeGet, never>
      */
     public static function get(callable $get): static
     {
@@ -57,6 +86,11 @@ class Attribute
 
     /**
      * Create a new attribute mutator.
+     *
+     * @template TMakeSet
+     *
+     * @param callable(TMakeSet, array<string, mixed>): mixed $set
+     * @return static<never, TMakeSet>
      */
     public static function set(callable $set): static
     {
