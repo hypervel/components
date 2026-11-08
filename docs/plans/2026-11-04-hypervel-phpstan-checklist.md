@@ -32,7 +32,7 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 - copy with the Eloquent collection port: `ReturnTypes/EloquentCollectionMapDynamicReturnTypeExtension.php`, moving `common/EloquentCollection.stub`'s `map()`/`mapWithKeys()` conditionals into the Eloquent `Collection` source
 - copy: `Rules/*` except below and the ported `ArrKeyExistenceRule`, auth request-scope, config, console, `NoEnvCallsOutsideOfConfigRule`, `NoMissingTranslationsRule`, `NoUnnecessaryEnumerableToArrayCallsRule`, `UnusedViewsRule` and `UselessConstructs/` rules (including `Queue/`)
 - omit: `Rules/DeferrableServiceProviderMissingProvidesRule.php`, `Rules/OctaneCompatibilityRule.php`
-- copy: `SQL/*` (7 files)
+- omit: `SQL/*` (`hypervel/schema-parser` replaces the parser boundary and its iamcal/phpMyAdmin adapters)
 - copy: `Types/*` except the ported `ArrPullParameterOutTypeExtension` and `ViewString*` files (12 files)
 
 ## New Hypervel source
@@ -40,7 +40,6 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 - add: `Rules/Coroutine/` cancellation, worker-lifetime, static-state, unbounded-cache, runtime-config, transaction-coroutine and raw-sleep rules
 - add: `Rules/` legacy model scope and legacy model property rules; `Rules/Queue/NoLegacyQueuePropertiesRule.php`
 - add: `Rules/Validation/` pipe-separated validation rule
-- add: PostgreSQL and SQLite schema parser adapters under `SQL/`
 
 ## stubs
 
@@ -67,4 +66,5 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 - merge into `Type/CollectionDynamicReturnTypeExtensionTest.php` with the model fixtures: `collection-filter.php`, `collection-reject.php`, `collection-where.php` (they need `accounts()->active()->get()` to return `AccountCollection`)
 - omit: `Type/data/collection-generic-static-methods-l11.php` (Laravel 11's Eloquent `partition()` returned `static`; Hypervel follows the Laravel 12 base collection)
 - merge: the remaining `Type/GeneralTypeTest.php` data entries, and its `data/config-with-migrations.neon` configuration once migrations are ported; `higher-order-collection-proxy-methods.php` needs model properties and Hypervel's proxy results (`avg` is `float|int|null`, `max`/`min` include `null`)
-- copy: `Unit/*Test.php` except `Support/{BootstrapErrorHandlerTest,RecursiveDirectoryIteratorTest}.php` (11 classes, including `SQL/` and `Support/`), `Unit/data/*`
+- copy: `Unit/*Test.php` (9 classes; upstream's `IamcalSqlParser` becomes `MySqlParser`), `Unit/data/*`
+- omit: `Unit/SQL/*` (parser factory and phpMyAdmin adapter tests; `hypervel/schema-parser` has its own)
