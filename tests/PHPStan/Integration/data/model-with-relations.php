@@ -18,7 +18,7 @@ function callbacks(User $user, string $dynamic): void
     User::with(['accounts' => function (Relation $relation): void {}]);
     User::with([$dynamic => function (Relation $relation): void {}]);
 
-    // A benevolent union intentionally does not retain key-to-callback correlation.
+    // Hypervel: each key's callback is checked against that key's own relation.
     User::with([
         'accounts' => function (BelongsTo $relation): void {},
         'group' => function (HasMany $relation): void {},

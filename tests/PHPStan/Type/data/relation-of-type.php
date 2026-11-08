@@ -25,7 +25,8 @@ function relations($accounts, $group, $nested, $columns, $union, $nullable, $int
     assertType('Hypervel\Database\Eloquent\Relations\BelongsTo<App\Group, App\User>', $group);
     assertType('Hypervel\Database\Eloquent\Relations\MorphMany<App\Comment, App\Post>', $nested);
     assertType('Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>', $columns);
-    assertType('(Hypervel\Database\Eloquent\Relations\BelongsTo<App\Group, App\User>|Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>)', $union);
+    // Hypervel: several possible relations form a strict union, not upstream's benevolent one.
+    assertType('Hypervel\Database\Eloquent\Relations\BelongsTo<App\Group, App\User>|Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>', $union);
     assertType('Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>|null', $nullable);
     assertType('Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User&object{extra: string}>', $intersection);
 }

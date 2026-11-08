@@ -40,7 +40,11 @@ class GeneralTypeTest extends TypeInferenceTestCase
         yield from self::gatherAssertTypes(__DIR__ . '/data/container-make.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/contracts.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/custom-eloquent-builder.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/custom-eloquent-collection.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/custom-query-collections.php');
+        // Hypervel: covers the per-key eager-load, aggregate and morph map types.
+        yield from self::gatherAssertTypes(__DIR__ . '/data/eager-load-maps.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/eager-loading-callbacks.php');
         // REMOVED: eloquent-builder.php; it asserts Laravel releases before 11.42.
         yield from self::gatherAssertTypes(__DIR__ . '/data/eloquent-builder-l11-42.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/eloquent-builder-l12-19.php');
@@ -61,6 +65,8 @@ class GeneralTypeTest extends TypeInferenceTestCase
         yield from self::gatherAssertTypes(__DIR__ . '/data/inherited-method-templates.php');
         // REMOVED: model.php; it asserts Laravel releases before 11.42.
         yield from self::gatherAssertTypes(__DIR__ . '/data/model-l11-42.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/model-collections-l11-28.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/model-collections-l13-4.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/model-date-column-casts.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/model-increment-each-l13-3.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/model-increment-each-l13-20.php');

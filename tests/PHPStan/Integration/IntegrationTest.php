@@ -108,16 +108,47 @@ class IntegrationTest extends PHPStanTestCase
 
         yield 'framework-docblock-types' => [__DIR__ . '/data/framework-docblock-types.php'];
 
-        // Hypervel: eager-loading constraints accept any callable, as Builder::combineConstraints() calls them.
+        // Hypervel: eager-loading constraints accept any callable, as Builder::combineConstraints() calls them, and
+        // each key's callback is checked against that key's own relation instead of a union of the keys' relations.
         yield 'model-with-relations' => [
             __DIR__ . '/data/model-with-relations.php',
             [
-                27 => ['Parameter #1 $relations of static method Hypervel\Database\Eloquent\Model::with() expects array<int|string, array<mixed>|(callable(Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string, non-empty-array<string, Closure(Hypervel\Database\Eloquent\Relations\HasMany): void> given.'],
-                28 => ['Parameter #1 $relations of static method Hypervel\Database\Eloquent\Model::with() expects array<\'accounts\'|int, array<mixed>|(callable(Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>): mixed)|string>|string, array{accounts: Closure(Hypervel\Database\Eloquent\Relations\BelongsTo): void} given.'],
-                29 => ['Parameter #1 $relations of static method Hypervel\Database\Eloquent\Model::with() expects array<\'accounts\'|int, array<mixed>|(callable(Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>): mixed)|string>|string, array{accounts: Closure(int): void} given.'],
+                22 => ['Parameter #1 $relations of static method Hypervel\Database\Eloquent\Model::with() expects array{accounts: array|(callable(Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>): mixed)|string, group: array|(callable(Hypervel\Database\Eloquent\Relations\BelongsTo<App\Group, App\User>): mixed)|string}|string, array{accounts: Closure(Hypervel\Database\Eloquent\Relations\BelongsTo): void, group: Closure(Hypervel\Database\Eloquent\Relations\HasMany): void} given.'],
+                27 => ['Parameter #1 $relations of static method Hypervel\Database\Eloquent\Model::with() expects array<array|(callable(Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string, non-empty-array<string, Closure(Hypervel\Database\Eloquent\Relations\HasMany): void> given.'],
+                28 => ['Parameter #1 $relations of static method Hypervel\Database\Eloquent\Model::with() expects array{accounts: array|(callable(Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>): mixed)|string}|string, array{accounts: Closure(Hypervel\Database\Eloquent\Relations\BelongsTo): void} given.'],
+                29 => ['Parameter #1 $relations of static method Hypervel\Database\Eloquent\Model::with() expects array{accounts: array|(callable(Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>): mixed)|string}|string, array{accounts: Closure(int): void} given.'],
                 30 => ['Relation \'missing\' is not found in App\User model.'],
-                31 => ['Parameter #1 $relations of static method Hypervel\Database\Eloquent\Model::with() expects array<int|string, array<mixed>|(callable(Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string, non-empty-array<string, Closure(Hypervel\Database\Eloquent\Relations\HasMany): void> given.'],
+                31 => ['Parameter #1 $relations of static method Hypervel\Database\Eloquent\Model::with() expects array<array|(callable(Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string, non-empty-array<string, Closure(Hypervel\Database\Eloquent\Relations\HasMany): void> given.'],
                 34 => ['Parameter #1 $relation of function ModelWithRelationsIntegration\acceptsAccounts expects Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>, Hypervel\Database\Eloquent\Relations\BelongsTo<App\Group, App\User> given.'],
+            ],
+        ];
+
+        // Hypervel: each key's callback is checked against that key's own relation, and eager-loading constraints
+        // accept any callable.
+        yield 'eager-loading-callbacks' => [
+            __DIR__ . '/data/eager-loading-callbacks.php',
+            [
+                32 => ['Parameter #1 $relations of method Hypervel\Database\Eloquent\Builder<App\User>::with() expects array{accounts: array|(callable(Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>): mixed)|string}|string, array{accounts: Closure(Hypervel\Database\Eloquent\Relations\BelongsTo): void} given.'],
+                33 => ['Parameter #1 $relations of method Hypervel\Database\Eloquent\Builder<App\User>::withOnly() expects array{accounts: array|(callable(Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>): mixed)|string}|string, array{accounts: Closure(int): void} given.'],
+                34 => ['Parameter #1 $relations of method Hypervel\Database\Eloquent\Model::load() expects array{accounts: array|(callable(Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>): mixed)|string}|string, array{accounts: Closure(Hypervel\Database\Eloquent\Relations\BelongsTo): void} given.'],
+                35 => ['Parameter #1 $relations of method Hypervel\Database\Eloquent\Model::loadMissing() expects array{group: array|(callable(Hypervel\Database\Eloquent\Relations\BelongsTo<App\Group, App\User>): mixed)|string}|string, array{group: Closure(Hypervel\Database\Eloquent\Relations\HasMany): void} given.'],
+                36 => ['Parameter #1 $relations of method Hypervel\Database\Eloquent\Collection<int,App\User>::load() expects array{accounts: array|(callable(Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>): mixed)|string}|string, array{accounts: Closure(Hypervel\Database\Eloquent\Relations\BelongsTo): void} given.'],
+                37 => ['Parameter #1 $relations of method Hypervel\Database\Eloquent\Collection<int,App\User>::loadMissing() expects array{group: array|(callable(Hypervel\Database\Eloquent\Relations\BelongsTo<App\Group, App\User>): mixed)|string}|string, array{group: Closure(Hypervel\Database\Eloquent\Relations\HasMany): void} given.'],
+                38 => ['Relation \'missing\' is not found in App\User model.'],
+                39 => ['Parameter #2 $callback of method Hypervel\Database\Eloquent\Builder<App\User>::with() expects (Closure(Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>): mixed)|string|null, Closure(Hypervel\Database\Eloquent\Relations\BelongsTo): void given.'],
+            ],
+        ];
+
+        // Hypervel: per-key aggregate and morph map callbacks, and callbacks that may receive either of two relations.
+        yield 'eager-load-maps' => [
+            __DIR__ . '/data/eager-load-maps.php',
+            [
+                36 => ['Parameter #1 $relations of method Hypervel\Database\Eloquent\Collection<int,App\User>::loadSum() expects array{\'accounts as total\': array{}|(callable(Hypervel\Database\Eloquent\Builder<App\Account>): mixed)|string}|string, array{\'accounts as total\': Closure(App\PostBuilder): (App\PostBuilder&Hypervel\Database\Eloquent\Builder<App\Account>)} given.'],
+                37 => ['Parameter #2 $relations of method Hypervel\Database\Eloquent\Collection<int,App\Comment>::loadMorph() expects array{post: array{users: array|(callable(Hypervel\Database\Eloquent\Relations\BelongsToMany<App\User, App\Post, Hypervel\Database\Eloquent\Relations\Pivot, \'pivot\'>): mixed)|string}|string}, array{post: array{users: Closure(Hypervel\Database\Eloquent\Relations\HasMany): Hypervel\Database\Eloquent\Relations\HasMany}} given.'],
+                38 => ['Parameter #1 $with of method Hypervel\Database\Eloquent\Relations\MorphTo<Hypervel\Database\Eloquent\Model,App\Comment>::morphWith() expects array{post: array{users: array|(callable(Hypervel\Database\Eloquent\Relations\BelongsToMany<App\User, App\Post, Hypervel\Database\Eloquent\Relations\Pivot, \'pivot\'>): mixed)|string}|string}, array{post: array{users: Closure(Hypervel\Database\Eloquent\Relations\HasMany): Hypervel\Database\Eloquent\Relations\HasMany}} given.'],
+                39 => ['Parameter #1 $callbacks of method Hypervel\Database\Eloquent\Relations\MorphTo<Hypervel\Database\Eloquent\Model,App\Comment>::constrain() expects array{App\User: callable(Hypervel\Database\Eloquent\Builder<App\User>): mixed}, array{App\User: Closure(App\PostBuilder): (App\PostBuilder&Hypervel\Database\Eloquent\Builder<App\User>)} given.'],
+                40 => ['Parameter #2 $relations of method Hypervel\Database\Eloquent\Collection<int,App\Comment>::loadMorph() expects array{App\Group: array{users: array|(callable(Hypervel\Database\Eloquent\Relations\BelongsToMany<App\User, App\Role, Hypervel\Database\Eloquent\Relations\Pivot, \'pivot\'>|Hypervel\Database\Eloquent\Relations\HasMany<App\User, App\Group>): mixed)|string}|string}, array{App\Group: array{users: Closure(Hypervel\Database\Eloquent\Relations\HasMany): Hypervel\Database\Eloquent\Relations\HasMany<App\User, App\Group>}} given.'],
+                41 => ['Parameter #2 $callback of method Hypervel\Database\Eloquent\Builder<App\User>::with() expects (Closure(Hypervel\Database\Eloquent\Relations\BelongsTo<App\Group, App\User>|Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>): mixed)|string|null, Closure(Hypervel\Database\Eloquent\Relations\HasMany): Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User> given.'],
             ],
         ];
 
@@ -379,11 +410,11 @@ class IntegrationTest extends PHPStanTestCase
             ],
         ];
 
-        // Hypervel: a model without a readable table has no known schema, and properties that only some union
-        // alternatives have may exist.
+        // Hypervel: properties that only some union alternatives have may exist.
         yield [
             __DIR__ . '/data/model-property-model.php',
             [
+                11 => ['Parameter #1 $attributes of method Hypervel\Database\Eloquent\Model::update() expects array<model property of static(ModelPropertyModel\ModelPropertyOnModel), mixed>, array<string, string> given.'],
                 18 => ['Parameter #1 $attributes of method Hypervel\Database\Eloquent\Model::update() expects array<model property of App\Account|model property of App\User, mixed>, array<string, string> given.'],
                 48 => ['Parameter #1 $property of method ModelPropertyModel\ModelPropertyCustomMethods::foo() expects model property of App\User, string given.'],
                 66 => ['Parameter #1 $property of method ModelPropertyModel\ModelPropertyCustomMethodsInNormalClass::foo() expects model property of App\User, string given.'],
@@ -392,12 +423,13 @@ class IntegrationTest extends PHPStanTestCase
             ],
         ];
 
-        // Hypervel: a model without a readable table has no known schema.
         yield 'fill' => [
             __DIR__ . '/data/model-property-fill.php',
             [
                 10 => ['Parameter #1 $attributes of method Hypervel\Database\Eloquent\Model::fill() expects array<model property of App\User, mixed>, array<string, string> given.'],
                 11 => ['Parameter #1 $attributes of method Hypervel\Database\Eloquent\Model::forceFill() expects array<model property of App\User, mixed>, array<string, string> given.'],
+                29 => ['Parameter #1 $attributes of method Hypervel\Database\Eloquent\Model::fill() expects array<model property of static(ModelPropertyFill\FillOnModel), mixed>, array<string, string> given.'],
+                30 => ['Parameter #1 $attributes of method Hypervel\Database\Eloquent\Model::forceFill() expects array<model property of static(ModelPropertyFill\FillOnModel), mixed>, array<string, string> given.'],
             ],
         ];
 
@@ -434,12 +466,13 @@ class IntegrationTest extends PHPStanTestCase
             ],
         ];
 
-        // Hypervel: a model without a readable table has no known schema.
         yield [
             __DIR__ . '/data/model-property-static-call.php',
             [
                 10 => ['Parameter #1 $attributes of static method App\User::create() expects array<model property of App\User, mixed>, array<string, string> given.'],
                 14 => ['Parameter #1 $attributes of static method App\User::create() expects array<model property of App\User, mixed>, array<string, string> given.'],
+                26 => ['Parameter #1 $attributes of static method ModelPropertyStaticCall\ModelPropertyStaticCallsInClass::create() expects array<model property of static(ModelPropertyStaticCall\ModelPropertyStaticCallsInClass), mixed>, array<string, string> given.'],
+                34 => ['Parameter #1 $attributes of static method ModelPropertyStaticCall\ModelPropertyStaticCallsInClass::create() expects array<model property of static(ModelPropertyStaticCall\ModelPropertyStaticCallsInClass), mixed>, array<string, string> given.'],
             ],
         ];
 

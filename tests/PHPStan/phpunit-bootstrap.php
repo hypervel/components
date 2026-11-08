@@ -3,11 +3,15 @@
 declare(strict_types=1);
 
 use App\Account;
+use App\Group;
+use App\Post;
+use App\Role;
 use App\User;
 use Composer\Autoload\ClassLoader;
 use Hypervel\Console\Application;
 use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\ClosureCommand;
 use Hypervel\Testbench\Bootstrapper;
@@ -57,6 +61,10 @@ require_once __DIR__ . '/../../src/phpstan/bootstrap.php';
 
 // A dynamic relation, registered at boot as a provider would.
 User::resolveRelationUsing('dynamicAccounts', static fn (User $user): HasMany => $user->hasMany(Account::class));
+
+// Morph aliases, registered at boot as a provider would. Group's class name is also Role's alias, which
+// loadMorph() reads by class first and MorphTo by alias first.
+Relation::morphMap(['post' => Post::class, Group::class => Role::class]);
 
 // Package configuration sources, which the config analysis reads from the loaded providers.
 Container::getInstance()->register(ConfigFixtureServiceProvider::class);

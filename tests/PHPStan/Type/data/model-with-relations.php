@@ -22,12 +22,13 @@ function eagerLoad(User $user, string $dynamic, string $name): void
         assertType('Hypervel\Database\Eloquent\Relations\BelongsTo<App\Group, App\User>', $relation);
     }]);
 
+    // Hypervel: each key's callback receives that key's own relation, not a union of the keys' relations.
     User::with([
         'accounts' => function ($relation): void {
-            assertType('(Hypervel\Database\Eloquent\Relations\BelongsTo<App\Group, App\User>|Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>)', $relation);
+            assertType('Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>', $relation);
         },
         'group' => function ($relation): void {
-            assertType('(Hypervel\Database\Eloquent\Relations\BelongsTo<App\Group, App\User>|Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>)', $relation);
+            assertType('Hypervel\Database\Eloquent\Relations\BelongsTo<App\Group, App\User>', $relation);
         },
     ]);
 
@@ -36,8 +37,9 @@ function eagerLoad(User $user, string $dynamic, string $name): void
         assertType('Hypervel\Database\Eloquent\Relations\MorphMany<App\Comment, App\Post>', $relation);
     }]);
 
+    // Hypervel: a key that may be either name receives either relation, as a plain union.
     User::with([$name => function ($relation): void {
-        assertType('(Hypervel\Database\Eloquent\Relations\BelongsTo<App\Group, App\User>|Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>)', $relation);
+        assertType('Hypervel\Database\Eloquent\Relations\BelongsTo<App\Group, App\User>|Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>', $relation);
     }]);
 
     User::with([$dynamic => function ($relation): void {

@@ -200,12 +200,13 @@ function test(
 
         return $relation->where('active', true);
     }]));
+    // Hypervel: each key's callback receives that key's own relation, not a union of the keys' relations.
     $user->with([
         'accounts' => function ($relation) {
-            assertType('(Hypervel\Database\Eloquent\Relations\BelongsTo<App\Group, App\User>|Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>)', $relation);
+            assertType('Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>', $relation);
         },
         'group' => function ($relation) {
-            assertType('(Hypervel\Database\Eloquent\Relations\BelongsTo<App\Group, App\User>|Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>)', $relation);
+            assertType('Hypervel\Database\Eloquent\Relations\BelongsTo<App\Group, App\User>', $relation);
         },
     ]);
     assertType('Hypervel\Database\Eloquent\Builder<App\User>', (new User)->withGlobalScope('test', function () {

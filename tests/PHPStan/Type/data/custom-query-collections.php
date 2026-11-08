@@ -30,6 +30,16 @@ function test(MemberBuilder $query, Member $member): void
     assertType('CustomQueryCollections\Members<int, CustomQueryCollections\Member>', $member->friends()->getResults());
 }
 
+/**
+ * The legacy PHPDoc union of the collection and an array of models reads as the generic collection.
+ *
+ * @param Collection|Member[] $members
+ */
+function legacyCollectionUnion(Collection $members): void
+{
+    assertType('Hypervel\Database\Eloquent\Collection<int, CustomQueryCollections\Member>', $members);
+}
+
 #[CollectedBy(Members::class)]
 class Member extends Model
 {
