@@ -46,11 +46,15 @@ interface Factory
 
     /**
      * Add a new namespace to the loader.
+     *
+     * @return $this
      */
     public function addNamespace(string $namespace, string|array $hints): static;
 
     /**
      * Replace the namespace hints for the given namespace.
+     *
+     * @return $this
      */
     public function replaceNamespace(string $namespace, string|array $hints): static;
 

@@ -261,6 +261,8 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Add a piece of data to the view.
+     *
+     * @return $this
      */
     public function with(string|array $key, mixed $value = null): static
     {
@@ -275,6 +277,8 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Add a view instance to the view data.
+     *
+     * @return $this
      */
     public function nest(string $key, string $view, array $data = []): static
     {
@@ -283,6 +287,8 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Add validation errors to the view.
+     *
+     * @return $this
      */
     public function withErrors(MessageProvider|array|string $provider, string $bag = 'default'): static
     {

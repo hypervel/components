@@ -1027,6 +1027,8 @@ class BladeCompiler extends Compiler implements CompilerInterface
      *
      * Boot-only. The callback persists on the singleton BladeCompiler for the
      * worker lifetime and runs on every subsequent template compilation.
+     *
+     * @return $this
      */
     public function prepareStringsForCompilationUsing(callable $callback): static
     {

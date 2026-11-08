@@ -27,6 +27,8 @@ class ComponentSlot implements Htmlable, Stringable
 
     /**
      * Set the extra attributes that the slot should make available.
+     *
+     * @return $this
      */
     public function withAttributes(array $attributes): static
     {

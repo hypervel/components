@@ -15,6 +15,8 @@ interface View extends Renderable
 
     /**
      * Add a piece of data to the view.
+     *
+     * @return $this
      */
     public function with(string|array $key, mixed $value = null): static;
 

@@ -454,6 +454,8 @@ class Factory implements FactoryContract
      *
      * Boot-only. The namespace persists on the singleton view finder for the
      * worker lifetime and affects every subsequent request.
+     *
+     * @return $this
      */
     public function addNamespace(string $namespace, string|array $hints): static
     {
@@ -467,6 +469,8 @@ class Factory implements FactoryContract
      *
      * Boot-only. The namespace persists on the singleton view finder for the
      * worker lifetime and affects every subsequent request.
+     *
+     * @return $this
      */
     public function prependNamespace(string $namespace, string|array $hints): static
     {
@@ -480,6 +484,8 @@ class Factory implements FactoryContract
      *
      * Boot-only. The namespace persists on the singleton view finder for the
      * worker lifetime and affects every subsequent request.
+     *
+     * @return $this
      */
     public function replaceNamespace(string $namespace, string|array $hints): static
     {

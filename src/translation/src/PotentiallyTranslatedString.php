@@ -29,6 +29,8 @@ class PotentiallyTranslatedString implements Stringable
 
     /**
      * Translate the string.
+     *
+     * @return $this
      */
     public function translate(array $replace = [], ?string $locale = null): static
     {
@@ -39,6 +41,8 @@ class PotentiallyTranslatedString implements Stringable
 
     /**
      * Translate the string based on a count.
+     *
+     * @return $this
      */
     public function translateChoice(array|Countable|float|int $number, array $replace = [], ?string $locale = null): static
     {
