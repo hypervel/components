@@ -455,6 +455,8 @@ class Schedule
      *
      * Boot-only. Mutates the shared mutex instances used by this worker's
      * schedule; per-request use races across coroutines.
+     *
+     * @return $this
      */
     public function useCache(UnitEnum|string|null $store): static
     {

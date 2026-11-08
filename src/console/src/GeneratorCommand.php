@@ -376,6 +376,8 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
 
     /**
      * Replace the namespace for the given stub.
+     *
+     * @return $this
      */
     protected function replaceNamespace(string &$stub, string $name): static
     {

@@ -151,6 +151,8 @@ class CallbackEvent extends Event
      *
      * The expiration time of the underlying cache lock may be specified in minutes.
      *
+     * @return $this
+     *
      * @throws LogicException
      */
     public function withoutOverlapping(int $expiresAt = 1440, bool $releaseOnTerminationSignals = true): static
@@ -166,6 +168,8 @@ class CallbackEvent extends Event
 
     /**
      * Allow the event to only run on one server for each cron expression.
+     *
+     * @return $this
      *
      * @throws LogicException
      */

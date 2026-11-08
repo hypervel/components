@@ -16,6 +16,8 @@ trait ManagesFrequencies
 {
     /**
      * The Cron expression representing the event's frequency.
+     *
+     * @return $this
      */
     public function cron(string $expression): static
     {
@@ -26,6 +28,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run between start and end time.
+     *
+     * @return $this
      */
     public function between(string $startTime, string $endTime): static
     {
@@ -34,6 +38,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to not run between start and end time.
+     *
+     * @return $this
      */
     public function unlessBetween(string $startTime, string $endTime): static
     {
@@ -66,6 +72,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every second.
+     *
+     * @return $this
      */
     public function everySecond(): static
     {
@@ -74,6 +82,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every two seconds.
+     *
+     * @return $this
      */
     public function everyTwoSeconds(): static
     {
@@ -82,6 +92,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every five seconds.
+     *
+     * @return $this
      */
     public function everyFiveSeconds(): static
     {
@@ -90,6 +102,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every ten seconds.
+     *
+     * @return $this
      */
     public function everyTenSeconds(): static
     {
@@ -98,6 +112,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every fifteen seconds.
+     *
+     * @return $this
      */
     public function everyFifteenSeconds(): static
     {
@@ -106,6 +122,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every twenty seconds.
+     *
+     * @return $this
      */
     public function everyTwentySeconds(): static
     {
@@ -114,6 +132,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every thirty seconds.
+     *
+     * @return $this
      */
     public function everyThirtySeconds(): static
     {
@@ -124,6 +144,7 @@ trait ManagesFrequencies
      * Schedule the event to run multiple times per minute.
      *
      * @param int<1, 59> $seconds
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -144,6 +165,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every minute.
+     *
+     * @return $this
      */
     public function everyMinute(): static
     {
@@ -152,6 +175,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every two minutes.
+     *
+     * @return $this
      */
     public function everyTwoMinutes(): static
     {
@@ -160,6 +185,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every three minutes.
+     *
+     * @return $this
      */
     public function everyThreeMinutes(): static
     {
@@ -168,6 +195,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every four minutes.
+     *
+     * @return $this
      */
     public function everyFourMinutes(): static
     {
@@ -176,6 +205,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every five minutes.
+     *
+     * @return $this
      */
     public function everyFiveMinutes(): static
     {
@@ -184,6 +215,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every ten minutes.
+     *
+     * @return $this
      */
     public function everyTenMinutes(): static
     {
@@ -192,6 +225,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every fifteen minutes.
+     *
+     * @return $this
      */
     public function everyFifteenMinutes(): static
     {
@@ -200,6 +235,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every thirty minutes.
+     *
+     * @return $this
      */
     public function everyThirtyMinutes(): static
     {
@@ -208,6 +245,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run hourly.
+     *
+     * @return $this
      */
     public function hourly(): static
     {
@@ -218,6 +257,7 @@ trait ManagesFrequencies
      * Schedule the event to run hourly at a given offset in the hour.
      *
      * @param array|int<0, 59>|int<0, 59>[]|string $offset
+     * @return $this
      */
     public function hourlyAt(array|int|string $offset): static
     {
@@ -226,6 +266,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every odd hour.
+     *
+     * @return $this
      */
     public function everyOddHour(array|int|string $offset = 0): static
     {
@@ -234,6 +276,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every two hours.
+     *
+     * @return $this
      */
     public function everyTwoHours(array|int|string $offset = 0): static
     {
@@ -242,6 +286,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every three hours.
+     *
+     * @return $this
      */
     public function everyThreeHours(array|int|string $offset = 0): static
     {
@@ -250,6 +296,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every four hours.
+     *
+     * @return $this
      */
     public function everyFourHours(array|int|string $offset = 0): static
     {
@@ -258,6 +306,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run every six hours.
+     *
+     * @return $this
      */
     public function everySixHours(array|int|string $offset = 0): static
     {
@@ -266,6 +316,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run daily.
+     *
+     * @return $this
      */
     public function daily(): static
     {
@@ -274,6 +326,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the command at a given time.
+     *
+     * @return $this
      */
     public function at(string $time): static
     {
@@ -282,6 +336,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run daily at a given time (10:00, 19:30, etc).
+     *
+     * @return $this
      */
     public function dailyAt(string $time): static
     {
@@ -298,6 +354,7 @@ trait ManagesFrequencies
      *
      * @param int<0, 23> $first
      * @param int<0, 23> $second
+     * @return $this
      */
     public function twiceDaily(int $first = 1, int $second = 13): static
     {
@@ -310,6 +367,7 @@ trait ManagesFrequencies
      * @param int<0, 23> $first
      * @param int<0, 23> $second
      * @param int<0, 59> $offset
+     * @return $this
      */
     public function twiceDailyAt(int $first = 1, int $second = 13, int $offset = 0): static
     {
@@ -323,6 +381,7 @@ trait ManagesFrequencies
      *
      * @param array|int<0, 59>|string $minutes
      * @param array|int<0, 23>|string $hours
+     * @return $this
      */
     protected function hourBasedSchedule(array|int|string $minutes, array|int|string $hours): static
     {
@@ -336,6 +395,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run only on weekdays.
+     *
+     * @return $this
      */
     public function weekdays(): static
     {
@@ -344,6 +405,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run only on weekends.
+     *
+     * @return $this
      */
     public function weekends(): static
     {
@@ -352,6 +415,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run only on Mondays.
+     *
+     * @return $this
      */
     public function mondays(): static
     {
@@ -360,6 +425,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run only on Tuesdays.
+     *
+     * @return $this
      */
     public function tuesdays(): static
     {
@@ -368,6 +435,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run only on Wednesdays.
+     *
+     * @return $this
      */
     public function wednesdays(): static
     {
@@ -376,6 +445,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run only on Thursdays.
+     *
+     * @return $this
      */
     public function thursdays(): static
     {
@@ -384,6 +455,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run only on Fridays.
+     *
+     * @return $this
      */
     public function fridays(): static
     {
@@ -392,6 +465,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run only on Saturdays.
+     *
+     * @return $this
      */
     public function saturdays(): static
     {
@@ -400,6 +475,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run only on Sundays.
+     *
+     * @return $this
      */
     public function sundays(): static
     {
@@ -408,6 +485,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run weekly.
+     *
+     * @return $this
      */
     public function weekly(): static
     {
@@ -418,6 +497,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run weekly on a given day and time.
+     *
+     * @return $this
      */
     public function weeklyOn(mixed $dayOfWeek, string $time = '0:0'): static
     {
@@ -428,6 +509,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run monthly.
+     *
+     * @return $this
      */
     public function monthly(): static
     {
@@ -440,6 +523,7 @@ trait ManagesFrequencies
      * Schedule the event to run monthly on a given day and time.
      *
      * @param int<1, 31> $dayOfMonth
+     * @return $this
      */
     public function monthlyOn(int $dayOfMonth = 1, string $time = '0:0'): static
     {
@@ -453,6 +537,7 @@ trait ManagesFrequencies
      *
      * @param int<1, 31> $first
      * @param int<1, 31> $second
+     * @return $this
      */
     public function twiceMonthly(int $first = 1, int $second = 16, string $time = '0:0'): static
     {
@@ -465,6 +550,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run on the last day of the month.
+     *
+     * @return $this
      */
     public function lastDayOfMonth(string $time = '0:0'): static
     {
@@ -477,6 +564,7 @@ trait ManagesFrequencies
      * Schedule the event to run on specific days of the month.
      *
      * @param array<int<1, 31>>|int<1, 31> ...$days
+     * @return $this
      */
     public function daysOfMonth(int|array ...$days): static
     {
@@ -490,6 +578,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run quarterly.
+     *
+     * @return $this
      */
     public function quarterly(): static
     {
@@ -501,6 +591,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run quarterly on a given day and time.
+     *
+     * @return $this
      */
     public function quarterlyOn(int $dayOfQuarter = 1, string $time = '0:0'): static
     {
@@ -512,6 +604,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run yearly.
+     *
+     * @return $this
      */
     public function yearly(): static
     {
@@ -523,6 +617,8 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run yearly on a given month, day, and time.
+     *
+     * @return $this
      */
     public function yearlyOn(int $month = 1, int|string $dayOfMonth = 1, string $time = '0:0'): static
     {
@@ -534,6 +630,8 @@ trait ManagesFrequencies
 
     /**
      * Set the days of the week the command should run on.
+     *
+     * @return $this
      */
     public function days(mixed $days): static
     {
@@ -544,6 +642,8 @@ trait ManagesFrequencies
 
     /**
      * Set the timezone the date should be evaluated on.
+     *
+     * @return $this
      */
     public function timezone(DateTimeZone|UnitEnum|string $timezone): static
     {
@@ -556,6 +656,8 @@ trait ManagesFrequencies
 
     /**
      * Splice the given value into the given position of the expression.
+     *
+     * @return $this
      */
     protected function spliceIntoPosition(int $position, int|string $value): static
     {
