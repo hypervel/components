@@ -8,7 +8,7 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 
 ## Package root
 
-- `extension.neon` services: restore upstream's `AbortIfFunctionTypeSpecifyingExtension` (abort/throw), `AppEnvironmentReturnTypeExtension`, `CheckDispatchArgumentTypesCompatibleWithClassConstructorRule` (bus/events `Dispatchable`) and `migrationsParser` entries with their classes; omit the container ArrayAccess entries
+- `extension.neon` services: restore upstream's `CheckDispatchArgumentTypesCompatibleWithClassConstructorRule` (bus/events `Dispatchable`) entries with their class; omit the container ArrayAccess entries
 - `extension.neon` and Components integration: set `reportIgnoresWithoutComments: true`; add `phpstan-deprecation-rules` includes to `phpstan.neon.dist`/`phpstan.types.neon.dist`
 - omit: `phpcs.xml.dist`, `phpstan.neon.dist`, `phpstan-baseline.neon`, `phpunit.xml.dist`, `phpunit-bootstrap.php`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `RELEASE.md`, `UPGRADE.md`, `assets/` (repository tooling; Components owns its own)
 - merge into `src/docs/static-analysis.md`: `docs/custom-config-parameters.md`, `docs/custom-types.md`, `docs/errors-to-ignore.md`, `docs/features.md`, `docs/rules.md`
@@ -25,15 +25,15 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 - omit: `Internal/ComposerHelper.php` (`Support\Composer::vendorPath()` resolves the actual install)
 - copy: `Methods/{BuilderHelper,ModelFactoryMethodsClassReflectionExtension}.php`
 - merge into moved forwarding extensions: `Methods/{EloquentBuilderForwardsCallsExtension,ModelForwardsCallsExtension,RelationForwardsCallsExtension}.php`
-- copy: `Properties/*` except the ported `HigherOrderCollectionProxyPropertyExtension` (16 files, including `Schema/MySqlDataTypeToPhpTypeConverter.php`)
+- omit: `Properties/ReflectionTypeContainer.php` (unused since upstream removed container ArrayAccess support)
 - copy: `Reflection/{AnnotationScopeMethodParameterReflection,AnnotationScopeMethodReflection,DynamicWhereParameterReflection,EloquentBuilderMethodReflection}.php`
 - merge into moved scope reflections: `Reflection/ModelScopeMethodReflection.php`
-- copy: `ReturnTypes/{EloquentBuilderExtension,FactoryDynamicMethodReturnTypeExtension,ModelDynamicStaticMethodReturnTypeExtension,ModelFactoryDynamicStaticMethodReturnTypeExtension,ModelOnlyDynamicMethodReturnTypeExtension,ModelSerializationDynamicMethodReturnTypeExtension,RelationCollectionExtension}.php`
+- copy: `ReturnTypes/{EloquentBuilderExtension,FactoryDynamicMethodReturnTypeExtension,ModelDynamicStaticMethodReturnTypeExtension,ModelFactoryDynamicStaticMethodReturnTypeExtension,ModelOnlyDynamicMethodReturnTypeExtension,RelationCollectionExtension}.php`
 - copy with the Eloquent collection port: `ReturnTypes/EloquentCollectionMapDynamicReturnTypeExtension.php`, moving `common/EloquentCollection.stub`'s `map()`/`mapWithKeys()` conditionals into the Eloquent `Collection` source
 - copy: `Rules/*` except below and the ported `ArrKeyExistenceRule`, auth request-scope, config, console, `NoEnvCallsOutsideOfConfigRule`, `NoMissingTranslationsRule`, `NoUnnecessaryEnumerableToArrayCallsRule`, `UnusedViewsRule` and `UselessConstructs/` rules (including `Queue/`)
 - omit: `Rules/DeferrableServiceProviderMissingProvidesRule.php`, `Rules/OctaneCompatibilityRule.php`
 - omit: `SQL/*` (`hypervel/schema-parser` replaces the parser boundary and its iamcal/phpMyAdmin adapters)
-- copy: `Types/*` except the ported `ArrPullParameterOutTypeExtension` and `ViewString*` files (12 files)
+- copy: `Types/*` except the ported `AbortIfFunctionTypeSpecifyingExtension`, `ArrPullParameterOutTypeExtension`, `ModelProperty/` and `ViewString*` files
 
 ## New Hypervel source
 
@@ -56,15 +56,16 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 ## tests
 
 - omit: `laravel-test.sh`
-- copy: the remaining `application/` fixture app (app, config, factories, migrations, schema dump)
+- copy with the Eloquent builder/relation ports: `application/app/{BareRelations/,ChildUser.php,PostComment.php}`; with the Eloquent collection port: `application/app/UserCollection.php`; with the factory flow: `application/app/{Domain/,Shapes/}` and `application/database/factories/`
+- omit: `application/app/{ModelWithConflictingInitializer.php,UserResource.php,Providers/}` (no upstream test or source references them)
 - merge into `Integration/IntegrationTest.php`: the remaining upstream entries with `Integration/data/*` (46 files), switching its config to `Type/data/config-check-model-properties.neon` with model properties
 - copy: `Rules/*Test.php` except below and the ported `ArrKeyExistence`, auth, config, console, environment, enumerable `toArray()`, view, translation and useless-construct rule tests, the remaining `Rules/data/*`, `Rules/Queue/data/*`
 - omit: `Rules/{DeferrableServiceProviderMissingProvidesRuleTest,OctaneCompatibilityRuleTest}.php`, `Rules/data/{CorrectDeferrableProvider,CorrectDeferrableProviderIndirect,IncorrectDeferrableProvider}.php`, `Rules/data/octane.neon`, `Rules/data/ContainerInjection.php`
-- copy: `Type/*Test.php` except below, the ported collection and config tests, `GeneralTypeTest.php` and `MethodsClassReflectionExtensionTest.php`, with the remaining `Type/data/*`
-- merge into `Type/BleedingEdgeTypeTest.php`: `bleeding-edge/collection-usage-inference.php` with the model-properties port (its `push($user->name)` case needs migration properties), recording its `contains()`/`partition()`/`some()`/`reject()` value-widening cases as `REMOVED:` like `collection-keys.php`'s mutation cases; `bleeding-edge/closure-usage-inference.php` (relation callbacks) and `bleeding-edge/eloquent-collection-map.php` with the Eloquent ports
-- merge into `Type/CollectionDynamicReturnTypeExtensionsTest.php` with the Eloquent collection port, switching it to `config-with-migrations.neon` (they need model properties and the custom collections): `collection-generic-static-methods{,-l12}.php`, `eloquent-collection-map.php`
+- copy: `Type/*Test.php` except below, the ported collection, config and model-property tests, `GeneralTypeTest.php` and `MethodsClassReflectionExtensionTest.php`, with the remaining `Type/data/*`
+- merge into `Type/BleedingEdgeTypeTest.php` with the Eloquent ports: `bleeding-edge/closure-usage-inference.php` (relation callbacks) and `bleeding-edge/eloquent-collection-map.php`
+- merge into `Type/CollectionDynamicReturnTypeExtensionsTest.php` with the Eloquent collection port (they need model properties and the custom collections; its `phpstan-tests.neon` already matches upstream's `config-with-migrations.neon`): `collection-generic-static-methods{,-l12}.php`, `eloquent-collection-map.php`
 - merge into `Type/CollectionDynamicReturnTypeExtensionTest.php` with the model fixtures: `collection-filter.php`, `collection-reject.php`, `collection-where.php` (they need `accounts()->active()->get()` to return `AccountCollection`)
 - omit: `Type/data/collection-generic-static-methods-l11.php` (Laravel 11's Eloquent `partition()` returned `static`; Hypervel follows the Laravel 12 base collection)
-- merge: the remaining `Type/GeneralTypeTest.php` data entries, and its `data/config-with-migrations.neon` configuration once migrations are ported; `higher-order-collection-proxy-methods.php` needs model properties and Hypervel's proxy results (`avg` is `float|int|null`, `max`/`min` include `null`)
-- copy: `Unit/*Test.php` (9 classes; upstream's `IamcalSqlParser` becomes `MySqlParser`), `Unit/data/*`
+- merge: the remaining `Type/GeneralTypeTest.php` data entries (its `phpstan-tests.neon` already matches upstream's `config-with-migrations.neon`)
+- copy: `Unit/ModelFactoryDynamicStaticMethodReturnTypeExtensionTest.php` with the factory flow
 - omit: `Unit/SQL/*` (parser factory and phpMyAdmin adapter tests; `hypervel/schema-parser` has its own)
