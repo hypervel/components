@@ -198,6 +198,8 @@ class Builder implements BuilderContract
 
     /**
      * Register a new global scope.
+     *
+     * @return $this
      */
     public function withGlobalScope(int|string $identifier, Closure|Scope $scope): static
     {
@@ -212,6 +214,8 @@ class Builder implements BuilderContract
 
     /**
      * Remove a registered global scope.
+     *
+     * @return $this
      */
     public function withoutGlobalScope(Scope|int|string $scope): static
     {
@@ -228,6 +232,8 @@ class Builder implements BuilderContract
 
     /**
      * Remove all or passed registered global scopes.
+     *
+     * @return $this
      */
     public function withoutGlobalScopes(?array $scopes = null): static
     {
@@ -244,6 +250,8 @@ class Builder implements BuilderContract
 
     /**
      * Remove all global scopes except the given scopes.
+     *
+     * @return $this
      */
     public function withoutGlobalScopesExcept(array $scopes = []): static
     {
@@ -381,6 +389,7 @@ class Builder implements BuilderContract
      * makes a callback a subquery, so the callback type cannot follow the operator here.
      *
      * @param array|(Closure(__benevolent<static|QueryBuilder>): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
+     * @return $this
      */
     public function orWhere(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null): static
     {
@@ -397,6 +406,7 @@ class Builder implements BuilderContract
      * Add a basic "where not" clause to the query.
      *
      * @param array|(Closure(($operator is null ? static : QueryBuilder)): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
+     * @return $this
      */
     public function whereNot(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
@@ -413,6 +423,7 @@ class Builder implements BuilderContract
      * Add an "or where not" clause to the query.
      *
      * @param array|(Closure(($operator is null ? static : QueryBuilder)): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
+     * @return $this
      */
     public function orWhereNot(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null): static
     {
@@ -421,6 +432,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "order by" clause for a timestamp to the query.
+     *
+     * @return $this
      */
     public function latest(Closure|self|QueryBuilder|Relation|Expression|string|null $column = null): static
     {
@@ -439,6 +452,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "order by" clause for a timestamp to the query.
+     *
+     * @return $this
      */
     public function oldest(Closure|self|QueryBuilder|Relation|Expression|string|null $column = null): static
     {
@@ -770,7 +785,7 @@ class Builder implements BuilderContract
     {
         return tap($this->firstOrCreate($attributes, array_merge($extra, [$column => $default])), function ($instance) use ($column, $step, $extra) {
             if (! $instance->wasRecentlyCreated) {
-                $instance->increment($column, $step, $extra); // @phpstan-ignore method.protected (handled by __call)
+                $instance->increment($column, $step, $extra);
             }
         });
     }
@@ -1015,6 +1030,8 @@ class Builder implements BuilderContract
 
     /**
      * Register a closure to be invoked after the query is executed.
+     *
+     * @return $this
      */
     public function afterQuery(Closure $callback): static
     {
@@ -1726,6 +1743,7 @@ class Builder implements BuilderContract
      *
      * @param  array<array-key, array|(callable(Relation<*,*,*>): mixed)|string>|string  $relations
      * @param  (Closure(Relation<*,*,*>): mixed)|string|null  $callback
+     * @return $this
      */
     public function with(array|string $relations, Closure|string|null $callback = null): static
     {
@@ -1742,6 +1760,8 @@ class Builder implements BuilderContract
 
     /**
      * Prevent the specified relations from being eager loaded.
+     *
+     * @return $this
      */
     public function without(mixed $relations): static
     {
@@ -1756,6 +1776,7 @@ class Builder implements BuilderContract
      * Set the relationships that should be eager loaded while removing any previously added eager loading specifications.
      *
      * @param  array<array-key, array|(callable(Relation<*,*,*>): mixed)|string>|string  $relations
+     * @return $this
      */
     public function withOnly(array|string $relations): static
     {
@@ -1916,6 +1937,8 @@ class Builder implements BuilderContract
      * Specify attributes that should be added to any new models created by this builder.
      *
      * The given key / value pairs will also be added as where conditions to the query.
+     *
+     * @return $this
      */
     public function withAttributes(Expression|array|string $attributes, mixed $value = null, bool $asConditions = true): static
     {
@@ -1936,6 +1959,8 @@ class Builder implements BuilderContract
 
     /**
      * Apply query-time casts to the model instance.
+     *
+     * @return $this
      */
     public function withCasts(array $casts): static
     {
@@ -1979,6 +2004,8 @@ class Builder implements BuilderContract
 
     /**
      * Set the underlying query builder instance.
+     *
+     * @return $this
      */
     public function setQuery(QueryBuilder $query): static
     {
@@ -2005,6 +2032,8 @@ class Builder implements BuilderContract
 
     /**
      * Set the relationships being eagerly loaded.
+     *
+     * @return $this
      */
     public function setEagerLoads(array $eagerLoad): static
     {
@@ -2015,6 +2044,8 @@ class Builder implements BuilderContract
 
     /**
      * Indicate that the given relationships should not be eagerly loaded.
+     *
+     * @return $this
      */
     public function withoutEagerLoad(array $relations): static
     {
@@ -2025,6 +2056,8 @@ class Builder implements BuilderContract
 
     /**
      * Flush the relationships being eagerly loaded.
+     *
+     * @return $this
      */
     public function withoutEagerLoads(): static
     {
@@ -2315,6 +2348,8 @@ class Builder implements BuilderContract
 
     /**
      * Register a closure to be invoked on a clone.
+     *
+     * @return $this
      */
     public function onClone(Closure $callback): static
     {

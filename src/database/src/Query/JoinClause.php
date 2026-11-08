@@ -75,6 +75,8 @@ class JoinClause extends Builder
      *
      * on `contacts`.`user_id` = `users`.`id` and `contacts`.`info_id` = `info`.`id`
      *
+     * @return $this
+     *
      * @throws InvalidArgumentException
      */
     public function on(
