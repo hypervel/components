@@ -64,12 +64,11 @@ class RelationOfType implements CompoundType, LateResolvableType
             );
         }
 
+        // Unlike upstream's benevolent union, a callback for several possible relations must accept each of them.
         $relation = TypeCombinator::union(...$relations);
 
         // Eager loading creates the relation on a fresh model instance.
-        $relation = TypeTraverser::map($relation, static fn (Type $type, callable $traverse): Type => $type instanceof StaticType ? $type->getStaticObjectType() : $traverse($type));
-
-        return TypeUtils::toBenevolentUnion($relation);
+        return TypeTraverser::map($relation, static fn (Type $type, callable $traverse): Type => $type instanceof StaticType ? $type->getStaticObjectType() : $traverse($type));
     }
 
     /**

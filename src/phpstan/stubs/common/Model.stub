@@ -2,9 +2,11 @@
 
 namespace Hypervel\Database\Eloquent;
 
+use Hypervel\Contracts\Database\Query\Expression;
+
 /*
- * Analyzer-only types: builder-of, model-property and relation-of need this package. The source
- * declares the rest, including the property, save() option and increment types upstream stubs.
+ * Analyzer-only types: builder-of, model-property and the eager-load map types need this package. The
+ * source declares the rest, including the property, save() option and increment types upstream stubs.
  */
 abstract class Model
 {
@@ -62,8 +64,8 @@ abstract class Model
     /**
      * Begin querying a model with eager loading.
      *
-     * @template TRelation of string
-     * @param  string|array<int|TRelation, (callable(relation-of<static, TRelation>): mixed)|string|array<mixed>>  $relations
+     * @template TRelations of array
+     * @param  eager-loads<static, TRelations>|string  $relations
      * @return builder-of<static>
      */
     public static function with(array|string $relations): Builder;
@@ -71,18 +73,152 @@ abstract class Model
     /**
      * Eager load relations on the model.
      *
-     * @template TRelation of string
-     * @param  string|array<int|TRelation, (callable(relation-of<static, TRelation>): mixed)|string|array<mixed>>  $relations
+     * @template TRelations of array
+     * @param  eager-loads<static, TRelations>|string  $relations
      * @return $this
      */
     public function load(array|string $relations): static;
 
     /**
+     * Eager load relationships on the polymorphic relation of a model.
+     *
+     * @template TRelations of array
+     * @param  morph-eager-loads<TRelations>  $relations
+     * @return $this
+     */
+    public function loadMorph(string $relation, array $relations): static;
+
+    /**
      * Eager load relations on the model if they are not already eager loaded.
      *
-     * @template TRelation of string
-     * @param  string|array<int|TRelation, (callable(relation-of<static, TRelation>): mixed)|string|array<mixed>>  $relations
+     * @template TRelations of array
+     * @param  eager-loads<static, TRelations>|string  $relations
      * @return $this
      */
     public function loadMissing(array|string $relations): static;
+
+    /**
+     * Eager load relation's column aggregations on the model.
+     *
+     * @template TRelations of array
+     * @param  relation-aggregates<static, TRelations>|string  $relations
+     * @return $this
+     */
+    public function loadAggregate(array|string $relations, Expression|string $column, ?string $function = null): static;
+
+    /**
+     * Eager load relation counts on the model.
+     *
+     * @template TRelations of array
+     * @param  relation-aggregates<static, TRelations>|string  $relations
+     * @return $this
+     */
+    public function loadCount(array|string $relations): static;
+
+    /**
+     * Eager load relation max column values on the model.
+     *
+     * @template TRelations of array
+     * @param  relation-aggregates<static, TRelations>|string  $relations
+     * @return $this
+     */
+    public function loadMax(array|string $relations, Expression|string $column): static;
+
+    /**
+     * Eager load relation min column values on the model.
+     *
+     * @template TRelations of array
+     * @param  relation-aggregates<static, TRelations>|string  $relations
+     * @return $this
+     */
+    public function loadMin(array|string $relations, Expression|string $column): static;
+
+    /**
+     * Eager load relation's column summations on the model.
+     *
+     * @template TRelations of array
+     * @param  relation-aggregates<static, TRelations>|string  $relations
+     * @return $this
+     */
+    public function loadSum(array|string $relations, Expression|string $column): static;
+
+    /**
+     * Eager load relation average column values on the model.
+     *
+     * @template TRelations of array
+     * @param  relation-aggregates<static, TRelations>|string  $relations
+     * @return $this
+     */
+    public function loadAvg(array|string $relations, Expression|string $column): static;
+
+    /**
+     * Eager load related model existence values on the model.
+     *
+     * @template TRelations of array
+     * @param  relation-aggregates<static, TRelations>|string  $relations
+     * @return $this
+     */
+    public function loadExists(array|string $relations): static;
+
+    /**
+     * Eager load relationship column aggregation on the polymorphic relation of a model.
+     *
+     * @template TRelations of array
+     * @param  morph-aggregates<TRelations>  $relations
+     * @return $this
+     */
+    public function loadMorphAggregate(string $relation, array $relations, Expression|string $column, ?string $function = null): static;
+
+    /**
+     * Eager load relationship counts on the polymorphic relation of a model.
+     *
+     * @template TRelations of array
+     * @param  morph-aggregates<TRelations>  $relations
+     * @return $this
+     */
+    public function loadMorphCount(string $relation, array $relations): static;
+
+    /**
+     * Eager load relationship max column values on the polymorphic relation of a model.
+     *
+     * @template TRelations of array
+     * @param  morph-aggregates<TRelations>  $relations
+     * @return $this
+     */
+    public function loadMorphMax(string $relation, array $relations, Expression|string $column): static;
+
+    /**
+     * Eager load relationship min column values on the polymorphic relation of a model.
+     *
+     * @template TRelations of array
+     * @param  morph-aggregates<TRelations>  $relations
+     * @return $this
+     */
+    public function loadMorphMin(string $relation, array $relations, Expression|string $column): static;
+
+    /**
+     * Eager load relationship column summations on the polymorphic relation of a model.
+     *
+     * @template TRelations of array
+     * @param  morph-aggregates<TRelations>  $relations
+     * @return $this
+     */
+    public function loadMorphSum(string $relation, array $relations, Expression|string $column): static;
+
+    /**
+     * Eager load relationship average column values on the polymorphic relation of a model.
+     *
+     * @template TRelations of array
+     * @param  morph-aggregates<TRelations>  $relations
+     * @return $this
+     */
+    public function loadMorphAvg(string $relation, array $relations, Expression|string $column): static;
+
+    /**
+     * Reload a fresh model instance from the database.
+     *
+     * @template TRelations of array
+     * @param  eager-loads<static, TRelations>|string  $with
+     */
+    public function fresh(array|string $with = []): ?static;
 }

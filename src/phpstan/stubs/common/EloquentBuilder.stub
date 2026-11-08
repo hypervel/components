@@ -324,8 +324,9 @@ class Builder
      * Specify relationships that should be eager loaded.
      *
      * @template TRelation of string
+     * @template TRelations of array
      *
-     * @param  TRelation|array<int|TRelation, array<mixed>|(callable(relation-of<TModel, TRelation>): mixed)|string>  $relations
+     * @param  TRelation|eager-loads<TModel, TRelations>  $relations
      * @param  null|(Closure(relation-of<TModel, TRelation>): mixed)|string  $callback
      * @return $this
      */
@@ -334,9 +335,9 @@ class Builder
     /**
      * Set the relationships that should be eager loaded while removing any previously added eager loading specifications.
      *
-     * @template TRelation of string
+     * @template TRelations of array
      *
-     * @param  string|array<int|TRelation, array<mixed>|(callable(relation-of<TModel, TRelation>): mixed)|string>  $relations
+     * @param  eager-loads<TModel, TRelations>|string  $relations
      * @return $this
      */
     public function withOnly(array|string $relations): static;
