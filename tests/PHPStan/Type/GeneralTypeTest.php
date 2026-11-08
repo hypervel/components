@@ -47,6 +47,15 @@ class GeneralTypeTest extends TypeInferenceTestCase
         yield from self::gatherAssertTypes(__DIR__ . '/data/gate-facade.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/helpers.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/higher-order-collection-proxies.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/higher-order-collection-proxy-methods.php');
+        // Hypervel: covers the overrides that repeat method templates for PHPStan 2.3.5.
+        yield from self::gatherAssertTypes(__DIR__ . '/data/inherited-method-templates.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/model-date-column-casts.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/model-properties.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/model-properties-l13.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/model-properties-l13-2.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/model-serialization.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/model-serialization-l13.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/managers.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/optional-helper.php');
         // Upstream runs this per redisDriver setting; Hypervel only has phpredis, so it runs once here.

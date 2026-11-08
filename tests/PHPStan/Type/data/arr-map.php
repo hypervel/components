@@ -43,5 +43,6 @@ function testMapWithKeys(array $items, array $users): void
     assertType('array<int, string>', Arr::mapWithKeys($items, static fn (int $value, string $key): array => [$value => $key]));
 
     assertType("array<'total', int>", Arr::mapWithKeys($items, static fn (int $value): array => ['total' => $value]));
-    assertType('array<string, App\User>', Arr::mapWithKeys($users, static fn (User $user): array => [$user->email => $user]));
+    // Unlike upstream, the key is the name column: User::email() is an accessor Eloquent applies, so email reads as its untyped callback.
+    assertType('array<string, App\User>', Arr::mapWithKeys($users, static fn (User $user): array => [$user->name => $user]));
 }

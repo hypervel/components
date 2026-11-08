@@ -91,6 +91,17 @@ class IntegrationTest extends PHPStanTestCase
             ],
         ];
 
+        // Hypervel: each accessor direction follows Eloquent's precedence, falling back to the attribute's column and casts.
+        yield [
+            __DIR__ . '/data/model-accessors.php',
+            [
+                82 => ['Property ModelAccessors\AccessorModel::$name (string) does not accept int.'],
+                87 => ['Property ModelAccessors\AccessorModel::$email (int) does not accept string.'],
+                92 => ['Property ModelAccessors\AccessorModel::$virtual (string) does not accept int.'],
+                96 => ['Property ModelAccessors\AccessorModel::$password (int) does not accept string.'],
+            ],
+        ];
+
         // Hypervel: optional() passes its callback only values that are not null.
         yield [__DIR__ . '/data/optional-callbacks.php'];
 

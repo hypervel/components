@@ -300,7 +300,7 @@ class User extends Authenticatable
         );
     }
 
-    /** This will not take any effect because it's public and does not specify generic types at return type. */
+    /** Unlike upstream, this takes effect although it is public and its return type has no generic types, as it does in Eloquent. */
     public function email(): Attribute
     {
         return Attribute::make(

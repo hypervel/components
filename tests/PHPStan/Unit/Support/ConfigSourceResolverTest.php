@@ -6,6 +6,7 @@ namespace Hypervel\Tests\PHPStan\Unit\Support;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\PHPStan\Support\ConfigSourceResolver;
 use Hypervel\Support\ServiceProvider;
@@ -27,6 +28,7 @@ use PHPStan\Testing\PHPStanTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function dirname;
+use function ksort;
 
 class ConfigSourceResolverTest extends TestCase
 {
@@ -105,6 +107,33 @@ class ConfigSourceResolverTest extends TestCase
     }
 
     /**
+     * A key's value can come from a file for any prefix of it, files below it, the framework's
+     * file and a package file merged into an overlapping key.
+     */
+    public function testKeySources(): void
+    {
+        $resolver = $this->createResolver(MergeCallableProvider::class);
+        $fileHelper = PHPStanTestCase::getContainer()->getByType(FileHelper::class);
+
+        $expected = [
+            '/app/config/partial.php' => false,
+            '/app/config/partial/option.php' => false,
+            '/app/config/partial/option' => true,
+            $fileHelper->normalizePath(LoadConfiguration::frameworkConfigPath() . '/partial.php') => false,
+            $fileHelper->normalizePath(dirname(__DIR__, 2) . '/Fixtures/Config/config/partial.php') => false,
+        ];
+        $sources = $resolver->getKeySources('partial.option', ['/app/config']);
+        ksort($expected);
+        ksort($sources);
+
+        $this->assertSame($expected, $sources);
+        $this->assertArrayNotHasKey(
+            $fileHelper->normalizePath(dirname(__DIR__, 2) . '/Fixtures/Config/config/partial.php'),
+            $resolver->getKeySources('other', ['/app/config']),
+        );
+    }
+
+    /**
      * Create a resolver whose application has loaded only the given provider.
      *
      * @param class-string<ServiceProvider> $providerClass
@@ -117,6 +146,7 @@ class ConfigSourceResolverTest extends TestCase
         $app->shouldReceive('getProviders')->with(ServiceProvider::class)->andReturn([$providerClass => $provider]);
         $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn(new ConfigMutationTracker);
         $app->shouldReceive('configPath')->andReturn(__DIR__ . '/missing-config');
+        $app->shouldReceive('shouldMergeFrameworkConfiguration')->andReturn(true);
 
         $container = new Container;
         $container->instance(Application::class, $app);

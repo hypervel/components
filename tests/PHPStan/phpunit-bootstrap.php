@@ -21,6 +21,7 @@ require_once __DIR__ . '/../bootstrap.php';
 $loader = require __DIR__ . '/../../vendor/autoload.php';
 $loader->addPsr4('App\\', __DIR__ . '/application/app/');
 $loader->addPsr4('Database\Factories\\', __DIR__ . '/application/database/factories/');
+$loader->addPsr4('Database\Migrations\\', __DIR__ . '/application/database/migrations/');
 
 // The analyzed application is this process's disposable Testbench runtime copy, so
 // its resources become the fixture application's before it boots.
@@ -28,7 +29,7 @@ Bootstrapper::bootstrap();
 
 $filesystem = new Filesystem;
 
-foreach (['app/Console/Commands', 'lang', 'resources/views'] as $directory) {
+foreach (['app/Console/Commands', 'database/migrations', 'database/schema', 'lang', 'resources/views'] as $directory) {
     $filesystem->deleteDirectory(BASE_PATH . '/' . $directory);
     $filesystem->copyDirectory(__DIR__ . '/application/' . $directory, BASE_PATH . '/' . $directory);
 }

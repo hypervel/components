@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\PHPStan\Type;
 
+use PHPStan\Analyser\ResultCache\DirectoryResultCacheValueExtension;
+use PHPStan\Analyser\ResultCache\FileResultCacheValueExtension;
 use PHPStan\Analyser\ValueDependencyCollector;
 use PHPStan\File\FileHelper;
 use PHPStan\Testing\TypeInferenceTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_column;
+use function array_filter;
 use function sprintf;
 
 class ConfigFileResolutionTest extends TypeInferenceTestCase
@@ -38,7 +41,10 @@ class ConfigFileResolutionTest extends TypeInferenceTestCase
         $collector->startFile($file);
         self::processFile($file, static function (): void {
         });
-        $dependencyFiles = array_column($collector->finishFile()['values'], 1);
+        $dependencyFiles = array_column(array_filter(
+            $collector->finishFile()['values'],
+            static fn (array $value): bool => $value[0] === FileResultCacheValueExtension::class,
+        ), 1);
 
         $fileHelper = self::getContainer()->getByType(FileHelper::class);
 
@@ -57,20 +63,27 @@ class ConfigFileResolutionTest extends TypeInferenceTestCase
         }
     }
 
-    public function testConfigFilesReadByAConfigFileAreFileDependencies(): void
+    public function testConfigSourcesReadByAConfigFileAreDependencies(): void
     {
         $collector = self::getContainer()->getByType(ValueDependencyCollector::class);
         $file = __DIR__ . '/data/config-file-scope-dependency.php';
-        $leaf = self::getContainer()->getByType(FileHelper::class)
-            ->normalizePath(__DIR__ . '/data/config-file-resolution/config/scopeleaf.php');
+        $fileHelper = self::getContainer()->getByType(FileHelper::class);
+        $leaf = $fileHelper->normalizePath(__DIR__ . '/data/config-file-resolution/config/scopeleaf.php');
+        // A file created below the key the config file reads changes that key's value.
+        $leafDirectory = DirectoryResultCacheValueExtension::createKey(
+            $fileHelper->normalizePath(__DIR__ . '/data/config-file-resolution/config/scopeleaf/v'),
+            '*.php',
+        );
 
-        // The second run reads the parsed config cache and must still declare the file the config file reads.
+        // The second run reads the parsed config cache and must still declare the sources the config file reads.
         foreach ([1, 2] as $run) {
             $collector->startFile($file);
             self::processFile($file, static function (): void {
             });
+            $dependencies = array_column($collector->finishFile()['values'], 1);
 
-            $this->assertContains($leaf, array_column($collector->finishFile()['values'], 1), sprintf('Run %d', $run));
+            $this->assertContains($leaf, $dependencies, sprintf('Run %d', $run));
+            $this->assertContains($leafDirectory, $dependencies, sprintf('Run %d', $run));
         }
     }
 

@@ -376,7 +376,8 @@
         "classmap": [
             "tests/PHPStan/Integration/data",
             "tests/PHPStan/Rules/data",
-            "tests/PHPStan/Type/data"
+            "tests/PHPStan/Type/data",
+            "tests/PHPStan/Unit/data"
         ],
         "files": [
             "tests/Database/Fixtures/MigrationCreatorFakeMigration.php"
