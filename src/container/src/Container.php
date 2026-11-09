@@ -19,6 +19,7 @@ use Hypervel\Contracts\Container\ContextualBindingBuilder as ContextualBindingBu
 use Hypervel\Contracts\Container\ExecutionScopedAttribute;
 use Hypervel\Contracts\Container\SelfBuilding;
 use Hypervel\Contracts\Container\Transient;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\Traits\ReflectsClosures;
 use InvalidArgumentException;
@@ -29,7 +30,6 @@ use ReflectionException;
 use ReflectionFunction;
 use ReflectionParameter;
 use Swoole\Coroutine as SwooleCoroutine;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use TypeError;
 
@@ -1127,8 +1127,7 @@ class Container implements ContainerContract
         try {
             return $this->resolve($id);
         } catch (Exception $e) {
-            // Cancellation is injected asynchronously, so a dedicated catch analyzes as unreachable here.
-            if ($e instanceof CanceledException) {
+            if (Coroutine::causedByCancellation($e)) {
                 throw $e;
             }
 

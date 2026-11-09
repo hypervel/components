@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\View\Engines;
 
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\RecordNotFoundException;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Filesystem\Filesystem;
@@ -12,7 +13,6 @@ use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Support\Stringable;
 use Hypervel\View\Compilers\CompilerInterface;
 use Hypervel\View\ViewException;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
@@ -114,7 +114,7 @@ class CompilerEngine extends PhpEngine
      */
     protected function handleViewException(Throwable $e, int $obLevel): void
     {
-        if ($e instanceof CanceledException
+        if (Coroutine::causedByCancellation($e)
             || $e instanceof HttpException
             || $e instanceof HttpResponseException
             || $e instanceof RecordNotFoundException

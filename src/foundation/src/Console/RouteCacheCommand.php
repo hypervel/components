@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Command;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\PackageManifest;
 use Hypervel\Routing\RouteCollection;
@@ -170,7 +171,7 @@ class RouteCacheCommand extends Command
 
             throw $throwable;
         } finally {
-            $cleanupException = null;
+            $failure = $exception;
 
             foreach ([$dumpPath, $buildPath] as $path) {
                 if (! is_string($path)) {
@@ -182,12 +183,12 @@ class RouteCacheCommand extends Command
                         throw new RuntimeException("Unable to delete the temporary route cache file [{$path}].");
                     }
                 } catch (Throwable $throwable) {
-                    $cleanupException ??= $throwable;
+                    $failure = Coroutine::preferCancellation($failure, $throwable);
                 }
             }
 
-            if ($exception === null && $cleanupException !== null) {
-                throw $cleanupException;
+            if ($failure !== $exception) {
+                throw $failure;
             }
         }
     }

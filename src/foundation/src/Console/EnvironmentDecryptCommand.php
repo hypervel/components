@@ -7,12 +7,12 @@ namespace Hypervel\Foundation\Console;
 use Dotenv\Parser\Lines;
 use Exception;
 use Hypervel\Console\Command;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Encryption\Encrypter;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Env;
 use Hypervel\Support\Str;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 use function Hypervel\Prompts\password;
@@ -103,9 +103,11 @@ class EnvironmentDecryptCommand extends Command
             }
 
             $this->files->replace($outputFile, $decrypted, $mode);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Exception $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             $this->fail($e->getMessage());
         }
 

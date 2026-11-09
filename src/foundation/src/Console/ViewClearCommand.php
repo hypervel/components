@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Command;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\View\Component;
 use Hypervel\View\Engines\CompilerEngine;
@@ -65,7 +66,7 @@ class ViewClearCommand extends Command
                     throw new RuntimeException("Unable to delete the compiled view [{$view}].");
                 }
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 

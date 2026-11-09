@@ -488,6 +488,7 @@ class Handler implements ExceptionHandlerContract
     public function report(Throwable $e, array $context = [], ?string $level = null): void
     {
         // Cancellation must not reach user-defined exception mappers.
+        // @phpstan-ignore hypervel.cancellation.exactType (a direct cancellation is never reported; a failure carrying it is reported once below)
         if ($e instanceof CanceledException) {
             return;
         }
@@ -655,6 +656,7 @@ class Handler implements ExceptionHandlerContract
      */
     protected function shouldntReport(Throwable $e): bool
     {
+        // @phpstan-ignore hypervel.cancellation.exactType (a direct cancellation is never reported; a failure carrying it is reported once)
         if ($e instanceof CanceledException) {
             return true;
         }

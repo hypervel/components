@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Console;
 use Exception;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Console\Concerns\ReloadsWorkers;
 use Hypervel\Foundation\Events\MaintenanceModeEnabled;
 use Hypervel\Foundation\Exceptions\RegisterErrorViewPaths;
@@ -70,7 +71,7 @@ class DownCommand extends Command
             try {
                 $this->reloadWorkers();
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
 
             if ($exception !== null) {
