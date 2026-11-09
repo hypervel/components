@@ -116,8 +116,8 @@ class AfterEachTestSubscriber implements FinishedSubscriber
 
         \Carbon\Carbon::resetMacros();
         \Carbon\Carbon::resetToStringFormat();
-        \Carbon\Carbon::serializeUsing(null);
-        \Carbon\Carbon::useStrictMode();
+        \Carbon\FactoryImmutable::getDefaultInstance()->serializeUsing(null);
+        \Carbon\FactoryImmutable::getDefaultInstance()->useStrictMode();
         \Carbon\Carbon::setTestNow();
 
         if (class_exists(\Laravel\SerializableClosure\SerializableClosure::class)) {
