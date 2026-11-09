@@ -54,7 +54,7 @@ class ModelRelationDefaultsRule implements Rule
     {
         $class = $node->getClassReflection();
 
-        if (! $class->isSubclassOf(Model::class) || $class->isAbstract()) {
+        if (! $class->is(Model::class) || $class->isAbstract()) {
             return [];
         }
 

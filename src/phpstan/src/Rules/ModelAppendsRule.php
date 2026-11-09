@@ -109,7 +109,7 @@ class ModelAppendsRule implements Rule
                 continue;
             }
 
-            $errors[] = RuleErrorBuilder::message($classReflection->hasProperty($name)
+            $errors[] = RuleErrorBuilder::message($classReflection->hasInstanceProperty($name)
                 ? sprintf("Property '%s' is not a computed property, remove from %s.", $name, $declaration)
                 : sprintf("Property '%s' does not exist in model.", $name))
                 ->identifier('hypervel.modelAppends')
