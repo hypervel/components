@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Jobs;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Reverb\Events\ConnectionPruned;
 use Hypervel\Reverb\Loggers\Log;
@@ -51,7 +52,7 @@ class PruneStaleConnections
                         // The onClose callback owns protocol and shared-state cleanup.
                         $connection->disconnect();
                     } catch (Throwable $throwable) {
-                        $connectionFailure ??= $throwable;
+                        $connectionFailure = Coroutine::preferCancellation($connectionFailure, $throwable);
                     }
 
                     try {
@@ -61,7 +62,7 @@ class PruneStaleConnections
                             ConnectionPruned::dispatch(new ChannelConnection($connection));
                         }
                     } catch (Throwable $throwable) {
-                        $connectionFailure ??= $throwable;
+                        $connectionFailure = Coroutine::preferCancellation($connectionFailure, $throwable);
                     }
 
                     if ($connectionFailure !== null) {
@@ -69,7 +70,7 @@ class PruneStaleConnections
                     }
                 });
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 

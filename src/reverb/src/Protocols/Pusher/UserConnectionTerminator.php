@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Protocols\Pusher;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Throwable;
@@ -33,7 +34,7 @@ class UserConnectionTerminator
             try {
                 $connection->disconnect();
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 

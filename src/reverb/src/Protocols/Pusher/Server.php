@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Protocols\Pusher;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
 use Hypervel\Reverb\Contracts\Connection;
@@ -21,7 +22,6 @@ use Hypervel\Reverb\Protocols\Pusher\Exceptions\RateLimitExceeded;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Support\Str;
 use JsonException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class Server
@@ -68,14 +68,14 @@ class Server
                 }
             }
 
-            if ($e instanceof CanceledException) {
+            if (Coroutine::causedByCancellation($e)) {
                 throw $e;
             }
 
             try {
                 $this->error($connection, $e);
             } catch (Throwable $throwable) {
-                $cleanupFailure ??= $throwable;
+                $cleanupFailure = Coroutine::preferCancellation($cleanupFailure, $throwable);
             }
 
             if ($cleanupFailure !== null) {
@@ -138,9 +138,11 @@ class Server
             if (app('events')->hasListeners(MessageReceived::class)) {
                 MessageReceived::dispatch($from, $message);
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             $terminateOnLimit = $e instanceof RateLimitExceeded
                 && $from->app()->rateLimiting()['terminate_on_limit'];
 
@@ -198,7 +200,7 @@ class Server
                 app(SharedState::class)->releaseConnectionSlot($connection->app()->id());
                 $connection->clearConnectionSlotAcquired();
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
@@ -207,7 +209,7 @@ class Server
                 $this->messageRateLimiter->clear($this->messageLimit($connection));
                 $connection->clearRateLimiterInitialized();
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
@@ -219,7 +221,7 @@ class Server
                     ConnectionClosed::dispatch($connection);
                 }
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Protocols\Pusher\Http\Controllers;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Reverb\Protocols\Pusher\UserConnectionTerminator;
@@ -57,7 +58,7 @@ class UsersTerminateController extends Controller
                     );
                 }
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 

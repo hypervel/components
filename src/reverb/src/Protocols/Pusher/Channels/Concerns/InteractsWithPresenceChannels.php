@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Protocols\Pusher\Channels\Concerns;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\FailureReporter;
 use Hypervel\Reverb\Protocols\Pusher\Channels\ChannelConnection;
@@ -13,7 +14,6 @@ use Hypervel\Reverb\Protocols\Pusher\MetricType;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
 use Hypervel\Reverb\Webhooks\DeferredWebhookManager;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 trait InteractsWithPresenceChannels
@@ -163,9 +163,11 @@ trait InteractsWithPresenceChannels
                 MetricType::Presence->value,
                 ['channel' => $this->name()],
             );
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             // The subscription is already committed, so still answer it with
             // this worker's members when other workers or servers can't be reached.
             FailureReporter::report($exception);

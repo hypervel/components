@@ -12,13 +12,13 @@ use Hypervel\Contracts\Server\BootstrapsForServer;
 use Hypervel\Contracts\Server\OnRequestInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\ResponseSent;
 use Hypervel\HttpServer\RequestBridge;
 use Hypervel\HttpServer\ResponseBridge;
-use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -87,9 +87,11 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
 
                 $response = $this->router->dispatch($request);
             }
-        } catch (CanceledException $cancellation) {
-            throw $cancellation;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $throwable;
+            }
+
             // Keep the original in flight while it is handled and emitted, so
             // any failure at that boundary carries the root cause as previous.
             // The return suppresses it once the response has been emitted.
@@ -133,18 +135,22 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
                         server: $this->serverName,
                     ));
                 }
-            } catch (CanceledException $throwable) {
-                throw $throwable;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $terminalException = $throwable;
             }
         }
 
         try {
             ResponseBridge::send($response, $swooleResponse, request: $request);
-        } catch (CanceledException $throwable) {
-            throw $throwable;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $throwable;
+            }
+
             $terminalException ??= $throwable;
         }
 
@@ -158,9 +164,11 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
                         server: $this->serverName,
                     ));
                 }
-            } catch (CanceledException $throwable) {
-                throw $throwable;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $terminalException ??= $throwable;
             }
         }

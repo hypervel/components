@@ -168,9 +168,11 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
                     $server = $this->getServer();
                     $handshake = [$fd, $class, $instance, $server];
                 }
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $observedException = $throwable;
                 $httpResponse = $this->container->make(SafeCaller::class)->call(
                     fn () => $this->handleException($throwable),
@@ -191,18 +193,22 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
                             server: $this->serverName,
                         ));
                     }
-                } catch (CanceledException $exception) {
-                    throw $exception;
                 } catch (Throwable $throwable) {
+                    if (Coroutine::causedByCancellation($throwable)) {
+                        throw $throwable;
+                    }
+
                     $terminalException = $throwable;
                 }
             }
 
             try {
                 ResponseBridge::send($httpResponse, $response, request: $httpRequest);
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $terminalException ??= $throwable;
             }
 
@@ -216,9 +222,11 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
                             server: $this->serverName,
                         ));
                     }
-                } catch (CanceledException $exception) {
-                    throw $exception;
                 } catch (Throwable $throwable) {
+                    if (Coroutine::causedByCancellation($throwable)) {
+                        throw $throwable;
+                    }
+
                     $terminalException ??= $throwable;
                 }
             }
@@ -240,9 +248,11 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
             if ($httpRequest !== null) {
                 try {
                     $this->terminateRouteMiddleware($httpRequest, $httpResponse);
-                } catch (CanceledException $exception) {
-                    throw $exception;
                 } catch (Throwable $throwable) {
+                    if (Coroutine::causedByCancellation($throwable)) {
+                        throw $throwable;
+                    }
+
                     $terminalException ??= $throwable;
                 }
             }
@@ -320,7 +330,7 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
         } catch (CanceledException) {
             return;
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
             $this->reportCallbackFailure($throwable);
         }
 
@@ -331,7 +341,7 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
         } catch (CanceledException) {
             return;
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
             $this->reportCallbackFailure($throwable);
         }
 
@@ -570,9 +580,11 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
                 if (method_exists($instance, 'terminate')) {
                     $instance->terminate($request, $response);
                 }
-            } catch (CanceledException $throwable) {
-                throw $throwable;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $exception ??= $throwable;
             }
         }
