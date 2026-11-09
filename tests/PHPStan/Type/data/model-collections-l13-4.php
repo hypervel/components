@@ -21,6 +21,10 @@ function test(): void
     assertType('ModelCollectionsL134\StringCollection<int, ModelCollectionsL134\LeadingBackslashString>', LeadingBackslashString::all());
     assertType('ModelCollectionsL134\BaseCollection<int, ModelCollectionsL134\TraitParentChild>', TraitParentChild::all());
     assertType('ModelCollectionsL134\BaseCollection<int, ModelCollectionsL134\TraitChild>', TraitChild::all());
+    // Hypervel: without the attribute, HasCollection uses the static $collectionClass, which a child inherits.
+    assertType('ModelCollectionsL134\StringCollection<int, ModelCollectionsL134\ClassCollectionParent>', ClassCollectionParent::all());
+    assertType('ModelCollectionsL134\StringCollection<int, ModelCollectionsL134\ClassCollectionChild>', ClassCollectionChild::all());
+    assertType('ModelCollectionsL134\BaseCollection<int, ModelCollectionsL134\AttributeOverClassCollection>', AttributeOverClassCollection::all());
 }
 
 #[CollectedBy(BaseCollection::class)]
@@ -91,6 +95,22 @@ class TraitParentChild extends TraitParent
 class TraitChild extends BaseModel
 {
     use HasCollection;
+}
+
+class ClassCollectionParent extends Model
+{
+    protected static string $collectionClass = StringCollection::class;
+}
+
+class ClassCollectionChild extends ClassCollectionParent
+{
+
+}
+
+#[CollectedBy(BaseCollection::class)]
+class AttributeOverClassCollection extends ClassCollectionParent
+{
+
 }
 
 /**

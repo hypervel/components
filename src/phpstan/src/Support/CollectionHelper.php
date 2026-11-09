@@ -8,13 +8,16 @@ use Hypervel\Database\Eloquent\Attributes\CollectedBy;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\HasCollection;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\PHPStan\Reflection\AttributeClassNameResolver;
 use Hypervel\PHPStan\Reflection\ForwardedMethodReflection;
+use Hypervel\PHPStan\Reflection\SourceFiles;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Str;
+use PHPStan\Analyser\DeclarationDependencyTracker;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\ClassReflection;
 use PHPStan\Reflection\MethodReflection;
@@ -37,6 +40,7 @@ use PHPStan\Type\UnionType;
 use function array_map;
 use function count;
 use function in_array;
+use function is_string;
 use function str_starts_with;
 
 #[AutowiredService]
@@ -48,10 +52,19 @@ class CollectionHelper
     private const array FRAMEWORK_COLLECTIONS = [Collection::class, LazyCollection::class, EloquentCollection::class];
 
     /**
+     * The collection type each model's newCollection() creates, before its model and key types are bound, by
+     * class name.
+     *
+     * @var array<string, Type>
+     */
+    private array $collectionTypes = [];
+
+    /**
      * Create a new collection helper instance.
      */
     public function __construct(
         private ReflectionProvider $reflectionProvider,
+        private DeclarationDependencyTracker $declarationDependencyTracker,
         private AttributeClassNameResolver $attributeClassNames,
     ) {
     }
@@ -122,8 +135,9 @@ class CollectionHelper
     }
 
     /**
-     * Get the collection type declared by the model's `CollectedBy` attribute or by the
-     * return type of its `newCollection()` method, which can be a union or an intersection.
+     * Get the collection type the model's `newCollection()` creates: the class its `CollectedBy`
+     * attribute or static $collectionClass names, or the method's declared return, which can be
+     * a union or an intersection.
      */
     private function determineCollectionType(string $modelClassName): Type
     {
@@ -131,11 +145,10 @@ class CollectionHelper
             $modelReflection = $this->reflectionProvider->getClass($modelClassName);
             $newCollectionMethod = $modelReflection->getNativeMethod('newCollection');
 
-            // The attribute is read by HasCollection::newCollection(), so it has no effect when that method is overridden.
-            $newCollectionFileName = $newCollectionMethod->getDeclaringClass()->getNativeReflection()->getMethod('newCollection')->getFileName();
-
-            if ($newCollectionFileName === $this->reflectionProvider->getClass(HasCollection::class)->getFileName()) {
-                $collectionClassName = $this->findCollectedByClassName($modelReflection);
+            // The attribute and $collectionClass are read by HasCollection::newCollection(), so they have no effect
+            // when that method is overridden.
+            if ($this->usesFrameworkNewCollection($modelReflection)) {
+                $collectionClassName = $this->findCollectedByClassName($modelReflection) ?? $this->findCollectionClassDefault($modelReflection);
 
                 if ($collectionClassName !== null) {
                     return new ObjectType($collectionClassName);
@@ -171,13 +184,49 @@ class CollectionHelper
     }
 
     /**
+     * Find the collection class a static $collectionClass default below Model names, which
+     * HasCollection::newCollection() uses without a `CollectedBy` attribute.
+     */
+    private function findCollectionClassDefault(ClassReflection $modelReflection): ?string
+    {
+        // A property default is not part of the model's declarations.
+        foreach (SourceFiles::forInstance($this->reflectionProvider, $modelReflection, Model::class) as $file) {
+            $this->declarationDependencyTracker->trackFileDependency($modelReflection, $file);
+        }
+
+        $nativeReflection = $modelReflection->getNativeReflection();
+
+        if ($nativeReflection->getProperty('collectionClass')->getDeclaringClass()->getName() === Model::class) {
+            return null;
+        }
+
+        $collectionClassName = $nativeReflection->getDefaultProperties()['collectionClass'] ?? null;
+
+        return is_string($collectionClassName) && $this->reflectionProvider->hasClass($collectionClassName)
+            ? $collectionClassName
+            : null;
+    }
+
+    /**
+     * Determine whether the model creates its collections with HasCollection::newCollection(), which uses the
+     * `CollectedBy` attribute or the static $collectionClass.
+     */
+    public function usesFrameworkNewCollection(ClassReflection $modelReflection): bool
+    {
+        return $modelReflection->getNativeReflection()->getMethod('newCollection')->getFileName()
+            === $this->reflectionProvider->getClass(HasCollection::class)->getFileName();
+    }
+
+    /**
      * Get the collection type of the model, with the model and key types filled in.
      */
     public function determineCollectionClass(string $modelClassName, ?Type $modelType = null, ?Type $keyType = null): Type
     {
         $modelType ??= new ObjectType($modelClassName);
 
-        return TypeTraverser::map($this->determineCollectionType($modelClassName), function (Type $type, callable $traverse) use ($modelType, $keyType): Type {
+        $this->collectionTypes[$modelClassName] ??= $this->determineCollectionType($modelClassName);
+
+        return TypeTraverser::map($this->collectionTypes[$modelClassName], function (Type $type, callable $traverse) use ($modelType, $keyType): Type {
             if ($type instanceof UnionType || $type instanceof IntersectionType) {
                 return $traverse($type);
             }
