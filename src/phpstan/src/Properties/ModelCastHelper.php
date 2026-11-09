@@ -61,6 +61,7 @@ use PHPStan\Type\StringType;
 use PHPStan\Type\Type;
 use PHPStan\Type\TypeCombinator;
 use ReflectionException;
+use ReflectionProperty;
 use stdClass;
 use Stringable;
 
@@ -85,6 +86,13 @@ class ModelCastHelper
 {
     /** @var array<string, array{casts: array<string, null|string>, complete: bool}> */
     private array $modelCasts = [];
+
+    /**
+     * The primitive cast types Eloquent reads, which are never class casts.
+     *
+     * @var null|list<string>
+     */
+    private ?array $primitiveCastTypes = null;
 
     /**
      * Create a new model cast helper instance.
@@ -335,6 +343,22 @@ class ModelCastHelper
     public function getCastForProperty(ClassReflection $modelClassReflection, string $propertyName): ?string
     {
         return $this->getModelCasts($modelClassReflection)['casts'][$propertyName] ?? null;
+    }
+
+    /**
+     * Get the class a cast names, as HasAttributes::isClassCastable() reads it, or null for a primitive cast type.
+     *
+     * Class names are case-insensitive, so a primitive type such as datetime would otherwise name DateTime.
+     */
+    public function getCastClass(string $cast): ?ClassReflection
+    {
+        $castType = explode(':', $cast, 2)[0];
+
+        $this->primitiveCastTypes ??= (new ReflectionProperty(Model::class, 'primitiveCastTypes'))->getValue();
+
+        return ! in_array($castType, $this->primitiveCastTypes, true) && $this->reflectionProvider->hasClass($castType)
+            ? $this->reflectionProvider->getClass($castType)
+            : null;
     }
 
     /**

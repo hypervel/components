@@ -332,3 +332,17 @@ function customEnumSerialization(CustomEnumSerializationModel $model): void
 {
     assertType('ModelSerialization\\SerializedStatus', $model->attributesToArray()['name']);
 }
+
+class DateAccessorSerializationModel extends SerializationModel
+{
+    public function getEmailVerifiedAtAttribute(): string
+    {
+        return 'verified';
+    }
+}
+
+// A datetime cast is a primitive cast, not the DateTime class, so the accessor's value is serialized.
+function dateAccessorSerialization(DateAccessorSerializationModel $model): void
+{
+    assertType('string', $model->attributesToArray()['email_verified_at']);
+}

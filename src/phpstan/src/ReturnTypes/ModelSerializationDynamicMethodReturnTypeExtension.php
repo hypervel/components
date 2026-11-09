@@ -22,7 +22,6 @@ use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\ClassReflection;
 use PHPStan\Reflection\MethodReflection;
-use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Type\ArrayType;
 use PHPStan\Type\Constant\ConstantArrayTypeBuilder;
 use PHPStan\Type\Constant\ConstantStringType;
@@ -56,7 +55,7 @@ class ModelSerializationDynamicMethodReturnTypeExtension implements DynamicMetho
     /**
      * Create a new model serialization return type extension instance.
      */
-    public function __construct(private ModelPropertyHelper $properties, private ModelCastHelper $casts, private ReflectionProvider $reflectionProvider)
+    public function __construct(private ModelPropertyHelper $properties, private ModelCastHelper $casts)
     {
     }
 
@@ -189,8 +188,7 @@ class ModelSerializationDynamicMethodReturnTypeExtension implements DynamicMetho
             return new MixedType;
         }
 
-        $castClass = explode(':', $cast ?? '')[0];
-        $castReflection = $this->reflectionProvider->hasClass($castClass) ? $this->reflectionProvider->getClass($castClass) : null;
+        $castReflection = $cast === null ? null : $this->casts->getCastClass($cast);
         $classCast = $castReflection !== null && ! $castReflection->isEnum() && ! $castReflection->is(CastsInboundAttributes::class);
         $enumCast = ! $accessor && $castReflection !== null && $castReflection->isEnum();
         // Only the Attribute getter branch serializes the dates it returns.
@@ -205,11 +203,11 @@ class ModelSerializationDynamicMethodReturnTypeExtension implements DynamicMetho
 
             $cast = null;
         } elseif ($classCast) {
-            if (in_array($castClass, [AsArrayObject::class, AsEncryptedArrayObject::class], true)) {
+            if (in_array($castReflection->getName(), [AsArrayObject::class, AsEncryptedArrayObject::class], true)) {
                 return TypeCombinator::addNull(new ArrayType(TypeCombinator::union(new IntegerType, new StringType), new MixedType));
             }
 
-            if ($castReflection->is(Castable::class) && ! in_array($castClass, [AsCollection::class, AsEncryptedCollection::class, AsStringable::class], true)) {
+            if ($castReflection->is(Castable::class) && ! in_array($castReflection->getName(), [AsCollection::class, AsEncryptedCollection::class, AsStringable::class], true)) {
                 // A castUsing factory can choose a serializer dynamically.
                 return new MixedType;
             }
