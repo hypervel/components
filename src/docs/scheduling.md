@@ -784,10 +784,13 @@ Hypervel dispatches a variety of [events](/docs/{{version}}/events) during the s
 | `Hypervel\Console\Events\ScheduledBackgroundTaskFinished` |
 | `Hypervel\Console\Events\ScheduledTaskSkipped`            |
 | `Hypervel\Console\Events\ScheduledTaskFailed`             |
+| `Hypervel\Console\Events\ScheduledTaskCanceled`           |
 
 </div>
 
-The `ScheduledTaskFailed` event's `runtime` property contains the elapsed execution time in seconds, or `null` when the runtime is unavailable.
+The `ScheduledTaskFailed` event's `runtime` property contains the elapsed execution time in seconds, or `null` when the runtime is unavailable. A failure before the task runs, such as an exception thrown by a `ScheduledTaskStarting` listener, dispatches `ScheduledTaskFailed` without a runtime and still stops `schedule:run`.
+
+When coroutine cancellation stops a task after its `ScheduledTaskStarting` event, either before its outcome event or while that event's listeners run, Hypervel dispatches `ScheduledTaskCanceled` with the `task` and the `cancellation`. Its `runtime` property is set only when the task finished running, and its `exception` property holds the task's failure when cancellation followed it. The cancellation still propagates.
 
 If you would like to be notified when a scheduled task takes too long to run, you may use the `whenTaskRunsLongerThan` method in your application's `routes/console.php` file. Provide a threshold in seconds, or a `CarbonInterval`, and a closure that receives the task and the number of seconds it ran. The closure is invoked once for each run that exceeds the threshold, including runs that fail:
 

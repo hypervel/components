@@ -13,10 +13,12 @@ use Hypervel\Contracts\Server\OnRequestInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\HttpServer\Events\RequestCanceled;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\RequestTerminated;
 use Hypervel\HttpServer\Events\ResponseSent;
+use Hypervel\Support\FailureReporter;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
@@ -78,6 +80,7 @@ class Server implements OnRequestInterface, BootstrapsForServer
         $response = null;
         $exception = null;
         $cancellation = null;
+        $responseSent = false;
 
         try {
             if (! $this->workerStarted) {
@@ -132,7 +135,7 @@ class Server implements OnRequestInterface, BootstrapsForServer
                     if (Coroutine::causedByCancellation($throwable)) {
                         $cancellation = $throwable;
                     } else {
-                        $exception ??= $throwable;
+                        $exception = FailureReporter::preferCancellation($exception, $throwable);
                     }
                 }
             }
@@ -153,9 +156,11 @@ class Server implements OnRequestInterface, BootstrapsForServer
                     if (Coroutine::causedByCancellation($throwable)) {
                         $cancellation = $throwable;
                     } else {
-                        $exception ??= $throwable;
+                        $exception = FailureReporter::preferCancellation($exception, $throwable);
                     }
                 }
+
+                $responseSent = $cancellation === null;
             }
 
             if (isset($request) && $cancellation === null) {
@@ -172,7 +177,7 @@ class Server implements OnRequestInterface, BootstrapsForServer
                     if (Coroutine::causedByCancellation($throwable)) {
                         $cancellation = $throwable;
                     } else {
-                        $exception ??= $throwable;
+                        $exception = FailureReporter::preferCancellation($exception, $throwable);
                     }
                 }
             }
@@ -185,7 +190,7 @@ class Server implements OnRequestInterface, BootstrapsForServer
                     if (Coroutine::causedByCancellation($throwable)) {
                         $cancellation = $throwable;
                     } else {
-                        $exception ??= $throwable;
+                        $exception = FailureReporter::preferCancellation($exception, $throwable);
                     }
                 }
             }
@@ -204,12 +209,34 @@ class Server implements OnRequestInterface, BootstrapsForServer
                     if (Coroutine::causedByCancellation($throwable)) {
                         $cancellation = $throwable;
                     } else {
-                        $exception ??= $throwable;
+                        $exception = FailureReporter::preferCancellation($exception, $throwable);
                     }
                 }
             }
 
             if ($cancellation !== null) {
+                if (isset($request)) {
+                    try {
+                        if ($this->event?->hasListeners(RequestCanceled::class)) {
+                            $this->event->dispatch(new RequestCanceled(
+                                request: $request,
+                                response: $responseSent ? $response : null,
+                                cancellation: $cancellation,
+                                exception: $exception,
+                                server: $this->serverName
+                            ));
+                        }
+                    } catch (Throwable $throwable) {
+                        // The cancellation keeps precedence; the listener failure is still reported.
+                        FailureReporter::report($throwable);
+                    }
+                }
+
+                // The native boundary would have reported this failure if cancellation had not displaced it.
+                if ($exception !== null) {
+                    FailureReporter::report($exception);
+                }
+
                 throw $cancellation;
             }
 

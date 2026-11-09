@@ -22,6 +22,7 @@ use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Http\FdGetter;
 use Hypervel\Http\Request as HttpRequest;
+use Hypervel\HttpServer\Events\RequestCanceled;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\ResponseSent;
@@ -30,6 +31,7 @@ use Hypervel\HttpServer\ResponseBridge;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
+use Hypervel\Support\FailureReporter;
 use Hypervel\Support\SafeCaller;
 use Hypervel\WebSocketServer\Collector\FdCollector;
 use Hypervel\WebSocketServer\Context as WebSocketContext;
@@ -111,6 +113,8 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
         $handshake = null;
         $observedException = null;
         $terminalException = null;
+        $httpResponse = null;
+        $responseSent = false;
 
         try {
             try {
@@ -209,8 +213,10 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
                     throw $throwable;
                 }
 
-                $terminalException ??= $throwable;
+                $terminalException = FailureReporter::preferCancellation($terminalException, $throwable);
             }
+
+            $responseSent = true;
 
             if ($httpRequest !== null) {
                 try {
@@ -227,7 +233,7 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
                         throw $throwable;
                     }
 
-                    $terminalException ??= $throwable;
+                    $terminalException = FailureReporter::preferCancellation($terminalException, $throwable);
                 }
             }
 
@@ -253,7 +259,7 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
                         throw $throwable;
                     }
 
-                    $terminalException ??= $throwable;
+                    $terminalException = FailureReporter::preferCancellation($terminalException, $throwable);
                 }
             }
 
@@ -265,6 +271,22 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
             if ($terminalException !== null) {
                 throw $terminalException;
             }
+        } catch (Throwable $throwable) {
+            if ($httpRequest !== null && Coroutine::causedByCancellation($throwable)) {
+                // The native boundary would have reported this failure if cancellation had not displaced it.
+                if ($terminalException !== null) {
+                    FailureReporter::report($terminalException);
+                }
+
+                throw $this->requestCanceled(
+                    $httpRequest,
+                    $responseSent ? $httpResponse : null,
+                    $observedException ?? $terminalException,
+                    $throwable,
+                );
+            }
+
+            throw $throwable;
         } finally {
             if ($fd !== null && ! $committed) {
                 FdCollector::del($fd);
@@ -318,19 +340,27 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
             if ($this->event?->hasListeners(MessageReceived::class)) {
                 $this->event->dispatch(new MessageReceived($fd, $frame, $this->serverName));
             }
-        } catch (CanceledException) {
-            return;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                $this->messageCanceled($fd, $frame, $throwable);
+
+                return;
+            }
+
             $exception = $throwable;
             $this->reportCallbackFailure($throwable);
         }
 
         try {
             $instance->onMessage($server, $frame);
-        } catch (CanceledException) {
-            return;
         } catch (Throwable $throwable) {
-            $exception = Coroutine::preferCancellation($exception, $throwable);
+            if (Coroutine::causedByCancellation($throwable)) {
+                $this->messageCanceled($fd, $frame, $throwable, $exception);
+
+                return;
+            }
+
+            $exception ??= $throwable;
             $this->reportCallbackFailure($throwable);
         }
 
@@ -338,11 +368,15 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
             if ($this->event?->hasListeners(MessageHandled::class)) {
                 $this->event->dispatch(new MessageHandled($fd, $frame, $this->serverName, $exception));
             }
-        } catch (CanceledException) {
-            return;
         } catch (Throwable $throwable) {
-            $exception = Coroutine::preferCancellation($exception, $throwable);
             $this->reportCallbackFailure($throwable);
+
+            // Completion is already published; cancellation only skips the deferred callbacks.
+            if (Coroutine::causedByCancellation($throwable)) {
+                return;
+            }
+
+            $exception ??= $throwable;
         }
 
         $this->invokeDeferredCallbacks($exception === null);
@@ -366,27 +400,39 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
                 if ($this->event?->hasListeners(ConnectionClosing::class)) {
                     $this->event->dispatch(new ConnectionClosing($fd, $reactorId, $this->serverName));
                 }
-            } catch (CanceledException) {
-                return;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $this->closeCanceled($fd, $reactorId, $throwable);
+
+                    return;
+                }
+
                 $failed = true;
                 $this->reportCallbackFailure($throwable);
             }
 
             try {
                 $this->logger->debug(sprintf('WebSocket: fd[%d] closed.', $fd));
-            } catch (CanceledException) {
-                return;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $this->closeCanceled($fd, $reactorId, $throwable);
+
+                    return;
+                }
+
                 $failed = true;
                 $this->reportCallbackFailure($throwable);
             }
 
             try {
                 $instance = $this->container->make($class);
-            } catch (CanceledException) {
-                return;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $this->closeCanceled($fd, $reactorId, $throwable);
+
+                    return;
+                }
+
                 $failed = true;
                 $this->reportCallbackFailure($throwable);
                 $instance = null;
@@ -395,9 +441,13 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
             if ($instance instanceof OnCloseInterface) {
                 try {
                     $instance->onClose($server, $fd, $reactorId);
-                } catch (CanceledException) {
-                    return;
                 } catch (Throwable $throwable) {
+                    if (Coroutine::causedByCancellation($throwable)) {
+                        $this->closeCanceled($fd, $reactorId, $throwable);
+
+                        return;
+                    }
+
                     $failed = true;
                     $this->reportCallbackFailure($throwable);
                 }
@@ -407,11 +457,15 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
                 if ($this->event?->hasListeners(ConnectionClosed::class)) {
                     $this->event->dispatch(new ConnectionClosed($fd, $reactorId, $this->serverName));
                 }
-            } catch (CanceledException) {
-                return;
             } catch (Throwable $throwable) {
-                $failed = true;
                 $this->reportCallbackFailure($throwable);
+
+                // Completion is already published; cancellation only skips the deferred callbacks.
+                if (Coroutine::causedByCancellation($throwable)) {
+                    return;
+                }
+
+                $failed = true;
             }
 
             $this->invokeDeferredCallbacks(! $failed);
@@ -521,9 +575,13 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
                 if ($this->event?->hasListeners(ConnectionOpened::class)) {
                     $this->event->dispatch(new ConnectionOpened($fd, $request, $this->serverName));
                 }
-            } catch (CanceledException) {
-                return;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $this->openCanceled($httpRequest, $httpResponse, $throwable);
+
+                    return;
+                }
+
                 $failed = true;
                 $this->reportCallbackFailure($throwable);
             }
@@ -531,9 +589,13 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
             if ($instance instanceof OnOpenInterface) {
                 try {
                     $instance->onOpen($server, $request);
-                } catch (CanceledException) {
-                    return;
                 } catch (Throwable $throwable) {
+                    if (Coroutine::causedByCancellation($throwable)) {
+                        $this->openCanceled($httpRequest, $httpResponse, $throwable);
+
+                        return;
+                    }
+
                     $failed = true;
                     $this->reportCallbackFailure($throwable);
                 }
@@ -543,9 +605,13 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
             // has initialized the connection. Drain handshake defers afterward.
             try {
                 $this->terminateRouteMiddleware($httpRequest, $httpResponse);
-            } catch (CanceledException) {
-                return;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $this->openCanceled($httpRequest, $httpResponse, $throwable);
+
+                    return;
+                }
+
                 $failed = true;
                 $this->reportCallbackFailure($throwable);
             }
@@ -595,6 +661,82 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
     }
 
     /**
+     * Complete a message whose handling cancellation stopped, without escaping
+     * the native callback boundary.
+     *
+     * An earlier failure stays the message's outcome; a cleanup failure carrying
+     * the cancellation is reported.
+     */
+    private function messageCanceled(int $fd, Frame $frame, Throwable $cancellation, ?Throwable $exception = null): void
+    {
+        $this->reportCallbackFailure($cancellation);
+
+        try {
+            if ($this->event?->hasListeners(MessageHandled::class)) {
+                $this->event->dispatch(new MessageHandled($fd, $frame, $this->serverName, $exception ?? $cancellation));
+            }
+        } catch (Throwable $throwable) {
+            $this->reportCallbackFailure($throwable);
+        }
+    }
+
+    /**
+     * Notify listeners that the connection closed although cancellation stopped
+     * an earlier close step, without escaping the native callback boundary.
+     */
+    private function closeCanceled(int $fd, int $reactorId, Throwable $cancellation): void
+    {
+        $this->reportCallbackFailure($cancellation);
+
+        try {
+            if ($this->event?->hasListeners(ConnectionClosed::class)) {
+                $this->event->dispatch(new ConnectionClosed($fd, $reactorId, $this->serverName));
+            }
+        } catch (Throwable $throwable) {
+            $this->reportCallbackFailure($throwable);
+        }
+    }
+
+    /**
+     * Complete a handshake request whose connection opening cancellation stopped,
+     * without escaping the native callback boundary.
+     */
+    private function openCanceled(HttpRequest $request, Response $response, Throwable $cancellation): void
+    {
+        $this->reportCallbackFailure($cancellation);
+        $this->requestCanceled($request, $response, null, $cancellation);
+    }
+
+    /**
+     * Notify listeners that cancellation stopped a handshake request's lifecycle.
+     *
+     * Returns the throwable to propagate, so a listener failure never replaces the cancellation.
+     */
+    protected function requestCanceled(
+        HttpRequest $request,
+        ?Response $response,
+        ?Throwable $exception,
+        Throwable $cancellation,
+    ): Throwable {
+        try {
+            if ($this->event?->hasListeners(RequestCanceled::class)) {
+                $this->event->dispatch(new RequestCanceled(
+                    request: $request,
+                    response: $response,
+                    cancellation: $cancellation,
+                    exception: $exception,
+                    server: $this->serverName,
+                ));
+            }
+        } catch (Throwable $throwable) {
+            // The first cancellation keeps precedence; a listener failure is still reported.
+            $this->reportCallbackFailure($throwable);
+        }
+
+        return $cancellation;
+    }
+
+    /**
      * Run deferred work without escaping the native callback boundary.
      */
     private function invokeDeferredCallbacks(bool $successful): void
@@ -607,7 +749,6 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
                     fn (DeferredCallback $callback): bool => $successful || $callback->always
                 );
             }
-        } catch (CanceledException) {
         } catch (Throwable $throwable) {
             $this->reportCallbackFailure($throwable);
         }
@@ -615,9 +756,16 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
 
     /**
      * Report a WebSocket callback failure without escaping the native boundary.
+     *
+     * A direct cancellation is control flow and is not reported; a cleanup failure carrying it is.
      */
     protected function reportCallbackFailure(Throwable $throwable): void
     {
+        // @phpstan-ignore hypervel.cancellation.exactType (a direct cancellation is never reported; a failure carrying it is reported)
+        if ($throwable instanceof CanceledException) {
+            return;
+        }
+
         try {
             $this->container->make(ExceptionHandlerContract::class)->report($throwable);
 

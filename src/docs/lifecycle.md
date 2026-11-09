@@ -64,6 +64,10 @@ Once the route or controller method returns a response, the response will travel
 
 Finally, once the response travels back through the middleware, the HTTP kernel's `handle` method returns the response object to Hypervel's HTTP server. The response is written to the Swoole socket, and then Hypervel runs any terminable middleware and application terminating callbacks.
 
+The HTTP server dispatches events from the `Hypervel\HttpServer\Events` namespace along the way: `RequestReceived` before the kernel handles the request, `RequestHandled` once a response is ready, `ResponseSent` after the response's send attempt finishes, and `RequestTerminated` when the request's coroutine ends. Each event provides the `request`, the `response`, the `server` name, and the `exception` that failed the request, if any.
+
+When coroutine cancellation stops a request before its lifecycle completes, such as during a worker shutdown, the server dispatches `RequestCanceled` in place of the remaining events. Remaining terminable middleware and deferred callbacks do not run, and the cancellation still propagates. The event's `cancellation` property holds the cancellation, or a cleanup failure that carries it. Its `response` property is set once the response's send attempt has finished, even if that attempt failed, and its `exception` property holds the request's earlier failure, such as a failed send. Reverb's HTTP server and WebSocket handshake requests dispatch the same event.
+
 <a name="console-commands"></a>
 ### Console Commands
 

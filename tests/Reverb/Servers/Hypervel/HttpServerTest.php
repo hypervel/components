@@ -9,6 +9,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Http\Request;
+use Hypervel\HttpServer\Events\RequestCanceled;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\ResponseSent;
@@ -134,7 +135,7 @@ class HttpServerTest extends ReverbTestCase
         $this->assertSame([], $dispatchedEvents);
     }
 
-    public function testCancellationSkipsFallbackAndCompletionEvents(): void
+    public function testCancellationSkipsFallbackAndCompletionEventsButPublishesTheCancellation(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
         $cancellation = new CanceledException;
@@ -149,9 +150,9 @@ class HttpServerTest extends ReverbTestCase
 
         $dispatchedEvents = [];
         $events = $this->app->make('events');
-        foreach ([RequestReceived::class, RequestHandled::class, ResponseSent::class] as $eventClass) {
+        foreach ([RequestReceived::class, RequestHandled::class, ResponseSent::class, RequestCanceled::class] as $eventClass) {
             $events->listen($eventClass, function (object $event) use (&$dispatchedEvents): void {
-                $dispatchedEvents[] = $event::class;
+                $dispatchedEvents[$event::class] = $event;
             });
         }
 
@@ -168,7 +169,49 @@ class HttpServerTest extends ReverbTestCase
             $this->assertSame($cancellation, $exception);
         }
 
-        $this->assertSame([RequestReceived::class], $dispatchedEvents);
+        $this->assertSame([RequestReceived::class, RequestCanceled::class], array_keys($dispatchedEvents));
+        $this->assertSame($cancellation, $dispatchedEvents[RequestCanceled::class]->cancellation);
+        $this->assertNull($dispatchedEvents[RequestCanceled::class]->response);
+        $this->assertNull($dispatchedEvents[RequestCanceled::class]->exception);
+    }
+
+    public function testCancellationAfterAHeldFailurePublishesItAndReportsTheFailures(): void
+    {
+        CoordinatorManager::until(Constants::WORKER_START)->resume();
+        $heldFailure = new RuntimeException('Handled listener failed.');
+        $listenerFailure = new RuntimeException('Canceled listener failed.');
+        $cancellation = new CanceledException;
+        $router = m::mock(ReverbRouter::class);
+        $router->shouldReceive('compileAndWarm')->once();
+        $router->shouldReceive('dispatch')->once()->andReturn(new Response('OK'));
+        $this->app->instance(ReverbRouter::class, $router);
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($heldFailure)->ordered();
+        $handler->expects('report')->with($listenerFailure)->ordered();
+        $this->app->instance(ExceptionHandler::class, $handler);
+
+        $canceled = null;
+        $events = $this->app->make('events');
+        $events->listen(RequestHandled::class, static fn () => throw $heldFailure);
+        $events->listen(ResponseSent::class, static fn () => throw $cancellation);
+        $events->listen(RequestCanceled::class, static function (RequestCanceled $event) use (&$canceled, $listenerFailure): never {
+            $canceled = $event;
+
+            throw $listenerFailure;
+        });
+
+        try {
+            $this->makeHttpServer()->onRequest(
+                $this->makeSwooleRequest('/up'),
+                $this->makeSwooleResponse(200, 'OK'),
+            );
+            $this->fail('Expected request cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame($heldFailure, $canceled->exception);
+        $this->assertNotNull($canceled->response);
     }
 
     public function testRejectsRequestsOverMaxRequestSizeWithoutContentLength(): void

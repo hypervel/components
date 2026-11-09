@@ -8,6 +8,7 @@ use Carbon\CarbonInterface;
 use Closure;
 use Hypervel\Console\Commands\ScheduleRunCommand;
 use Hypervel\Console\Events\ScheduledBackgroundTaskFinished;
+use Hypervel\Console\Events\ScheduledTaskCanceled;
 use Hypervel\Console\Events\ScheduledTaskFailed;
 use Hypervel\Console\Events\ScheduledTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskSkipped;
@@ -193,7 +194,7 @@ class ScheduleRunCommandTest extends TestCase
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testCanceledCallbackReleasesItsMutexWithoutRunningFailureOrDeferredCallbacks(bool $cleanupThrows): void
+    public function testCanceledCallbackReleasesItsMutexAndPublishesOnlyTheCancellation(bool $cleanupThrows): void
     {
         $calls = [];
         $cancellation = new CanceledException('Task canceled');
@@ -228,13 +229,18 @@ class ScheduleRunCommandTest extends TestCase
         }
 
         $this->assertSame([], $calls);
-        $this->assertCount(1, $this->dispatched);
+        $this->assertCount(2, $this->dispatched);
         $this->assertInstanceOf(ScheduledTaskStarting::class, $this->dispatched[0]);
+        $this->assertInstanceOf(ScheduledTaskCanceled::class, $this->dispatched[1]);
+        $this->assertSame($cleanup ?? $cancellation, $this->dispatched[1]->cancellation);
+        $this->assertNull($this->dispatched[1]->runtime);
+        $this->assertNull($this->dispatched[1]->exception);
     }
 
-    public function testStartingListenerFailureRunsOnlyAlwaysCallbacksAndPreservesTheException(): void
+    public function testStartingListenerFailureIsPublishedWithoutARuntimeAndRunsOnlyAlwaysCallbacks(): void
     {
         $calls = [];
+        $failed = [];
         $exception = new RuntimeException('Starting listener failed');
         $this->dispatcher = $this->app->make(Dispatcher::class);
         $this->dispatcher->listen(ScheduledTaskStarting::class, function () use (&$calls, $exception): void {
@@ -247,6 +253,9 @@ class ScheduleRunCommandTest extends TestCase
 
             throw $exception;
         });
+        $this->dispatcher->listen(ScheduledTaskFailed::class, function (ScheduledTaskFailed $event) use (&$failed): void {
+            $failed[] = $event;
+        });
         $event = new CallbackEvent(m::mock(EventMutex::class), static fn (): bool => true);
         $caught = null;
 
@@ -258,6 +267,66 @@ class ScheduleRunCommandTest extends TestCase
 
         $this->assertSame($exception, $caught);
         $this->assertSame(['always'], $calls);
+        $this->assertCount(1, $failed);
+        $this->assertSame($exception, $failed[0]->exception);
+        $this->assertNull($failed[0]->runtime);
+    }
+
+    #[TestWith([false], 'starting listener cancelled')]
+    #[TestWith([true], 'failure listener cancelled')]
+    public function testPreRunCancellationIsPublishedWithAnyEarlierFailure(bool $afterFailure): void
+    {
+        $cancellation = new CanceledException;
+        $failure = $afterFailure ? new RuntimeException('Starting listener failed') : null;
+        $this->dispatcher = m::mock(Dispatcher::class);
+        $this->dispatcher->shouldReceive('hasListeners')->andReturnTrue();
+        $this->dispatcher->shouldReceive('dispatch')->andReturnUsing(function (object $event) use ($cancellation, $failure): void {
+            $this->dispatched[] = $event;
+
+            if ($event instanceof ScheduledTaskStarting) {
+                throw $failure ?? $cancellation;
+            }
+
+            if ($event instanceof ScheduledTaskFailed) {
+                throw $cancellation;
+            }
+        });
+        $this->handler->shouldNotReceive('report');
+
+        try {
+            $this->invokeRunEvents($this->makeCommand(), [new CallbackEvent(m::mock(EventMutex::class), static fn (): bool => true)]);
+            $this->fail('Expected the owned task to report cancellation.');
+        } catch (ChildCancellationException $exception) {
+            $this->assertSame($cancellation, $exception->getPrevious());
+        }
+
+        $canceled = array_pop($this->dispatched);
+        $this->assertInstanceOf(ScheduledTaskCanceled::class, $canceled);
+        $this->assertSame($cancellation, $canceled->cancellation);
+        $this->assertNull($canceled->runtime);
+        $this->assertSame($failure, $canceled->exception);
+        $this->assertInstanceOf(ScheduledTaskStarting::class, $this->dispatched[0]);
+        $this->assertCount($afterFailure ? 2 : 1, $this->dispatched);
+    }
+
+    public function testCanceledListenerFailureIsReportedWithoutReplacingTheCancellation(): void
+    {
+        $cancellation = new CanceledException;
+        $listenerFailure = new RuntimeException('Canceled listener failed');
+        $this->dispatcher = m::mock(Dispatcher::class);
+        $this->dispatcher->shouldReceive('hasListeners')->andReturnTrue();
+        $this->dispatcher->shouldReceive('dispatch')->andReturnUsing(function (object $event) use ($cancellation, $listenerFailure): void {
+            throw $event instanceof ScheduledTaskStarting ? $cancellation : $listenerFailure;
+        });
+        $this->app->instance(ExceptionHandler::class, $this->handler);
+        $this->handler->shouldReceive('report')->once()->with($listenerFailure);
+
+        try {
+            $this->invokeRunEvents($this->makeCommand(), [new CallbackEvent(m::mock(EventMutex::class), static fn (): bool => true)]);
+            $this->fail('Expected the owned task to report cancellation.');
+        } catch (ChildCancellationException $exception) {
+            $this->assertSame($cancellation, $exception->getPrevious());
+        }
     }
 
     #[TestWith([false])]
