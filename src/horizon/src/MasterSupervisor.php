@@ -176,6 +176,7 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
                 break;
             }
 
+            // @phpstan-ignore hypervel.rawSleep (waits in real time for supervisor processes to exit)
             sleep(1);
         }
 
@@ -199,6 +200,7 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
         $this->persist();
 
         while (true) {
+            // @phpstan-ignore hypervel.rawSleep (the monitor loop polls its processes in real time)
             sleep(1);
 
             $this->loop();

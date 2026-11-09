@@ -534,6 +534,7 @@ class Task extends Prompt
 
                 $this->render();
                 ++$this->count;
+                // @phpstan-ignore hypervel.rawSleep (prompts does not depend on hypervel/support)
                 usleep($this->interval * 1000);
             }
 
@@ -590,13 +591,13 @@ class Task extends Prompt
         try {
             $this->restoreSignalState();
         } catch (Throwable $exception) {
-            $failure ??= $exception;
+            $failure = Coroutine::preferCancellation($failure, $exception);
         }
 
         try {
             $this->restoreTerminalState();
         } catch (Throwable $exception) {
-            $failure ??= $exception;
+            $failure = Coroutine::preferCancellation($failure, $exception);
         }
 
         return $failure;
@@ -813,7 +814,7 @@ class Task extends Prompt
         try {
             $this->restoreTerminalState();
         } catch (Throwable $exception) {
-            $failure ??= $exception;
+            $failure = Coroutine::preferCancellation($failure, $exception);
         }
 
         return $failure;

@@ -117,7 +117,7 @@ class Logger
         try {
             Utils::writeAll($this->socket, $frame, $this->writeTimeout);
         } catch (RuntimeException $exception) {
-            $this->transportFailure ??= $exception;
+            $this->transportFailure = $exception;
             $this->socket = null;
         }
     }

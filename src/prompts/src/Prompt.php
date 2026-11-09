@@ -352,7 +352,7 @@ abstract class Prompt
             // The Terminal retains its mode on failure so the same controlling TTY can be retried.
             static::terminal()->restoreTty();
         } catch (Throwable $exception) {
-            $failure ??= $exception;
+            $failure = Coroutine::preferCancellation($failure, $exception);
         }
 
         if ($failure !== null) {

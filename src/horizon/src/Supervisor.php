@@ -190,6 +190,7 @@ class Supervisor implements Pausable, Restartable, Terminable
 
         if ($this->shouldWait()) {
             while ($this->processPools->map->runningProcesses()->collapse()->isNotEmpty()) {
+                // @phpstan-ignore hypervel.rawSleep (waits in real time for worker processes to exit)
                 sleep(1);
             }
         }
@@ -219,6 +220,7 @@ class Supervisor implements Pausable, Restartable, Terminable
         $this->persist();
 
         while (true) {
+            // @phpstan-ignore hypervel.rawSleep (the monitor loop polls its processes in real time)
             sleep(1);
 
             $this->loop();
