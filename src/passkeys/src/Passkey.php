@@ -34,6 +34,7 @@ class Passkey extends Model
      *
      * @var list<string>
      */
+    // @phpstan-ignore hypervel.legacyModelProperty (#[Fillable] would merge with a subclass's $fillable instead of letting it replace this list)
     protected array $fillable = [
         'name',
         'credential_id',
@@ -45,6 +46,7 @@ class Passkey extends Model
      *
      * @var list<string>
      */
+    // @phpstan-ignore hypervel.legacyModelProperty (#[Appends] would merge with a subclass's $appends instead of letting it replace this list)
     protected array $appends = [
         'authenticator',
     ];
