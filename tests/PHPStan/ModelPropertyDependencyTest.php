@@ -4,38 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\PHPStan;
 
-use Hypervel\Filesystem\Filesystem;
-use Hypervel\Testing\ParallelTesting;
-use Symfony\Component\Process\Process;
-
-use function basename;
-use function dirname;
 use function file_get_contents;
 use function file_put_contents;
-use function json_decode;
-use function mkdir;
-use function sort;
 use function str_replace;
 
-class ModelPropertyDependencyTest extends TestCase
+class ModelPropertyDependencyTest extends ResultCacheTestCase
 {
-    protected string $tempDir;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->tempDir = ParallelTesting::tempDir('PHPStanModelPropertyDependencyTest');
-        (new Filesystem)->deleteDirectory($this->tempDir);
-        mkdir($this->tempDir, 0777, true);
-    }
-
-    protected function tearDown(): void
-    {
-        (new Filesystem)->deleteDirectory($this->tempDir);
-
-        parent::tearDown();
-    }
+    protected string $fixture = 'ModelPropertyDependency';
 
     /**
      * A config change can move a migration to another connection with no analysed file changing,
@@ -214,75 +189,5 @@ class ModelPropertyDependencyTest extends TestCase
         file_put_contents($queryPath, $query);
 
         $this->assertSame(['Usage.php:14 property.notFound'], $this->diagnostics($this->analyse($applicationPath), 1));
-    }
-
-    /**
-     * Copy the fixture application, with its models, to the temporary directory.
-     */
-    protected function copyApplication(): string
-    {
-        $applicationPath = $this->tempDir . '/application';
-        (new Filesystem)->copyDirectory(__DIR__ . '/Fixtures/ModelPropertyDependency/application', $applicationPath);
-        mkdir($applicationPath . '/bootstrap/cache');
-
-        return $applicationPath;
-    }
-
-    /**
-     * Run PHPStan from the application over its models, with the result and migration caches on.
-     *
-     * PHPStan uses its result cache only when it analyses a directory.
-     */
-    protected function analyse(string $applicationPath): Process
-    {
-        $repositoryPath = dirname(__DIR__, 2);
-
-        file_put_contents($applicationPath . '/phpstan.neon', <<<NEON
-            includes:
-                - {$repositoryPath}/src/phpstan/extension.neon
-            parameters:
-                level: 5
-                tmpDir: {$applicationPath}/cache
-                enableMigrationCache: true
-                paths:
-                    - {$applicationPath}/app/Models
-                bootstrapFiles:
-                    - {$applicationPath}/bootstrap/autoload.php
-            NEON);
-
-        $process = new Process(
-            [PHP_BINARY, $repositoryPath . '/vendor/bin/phpstan', 'analyse', '--configuration=phpstan.neon', '--no-progress', '--error-format=json', '--no-ansi'],
-            $applicationPath,
-            timeout: 300,
-        );
-        $process->run();
-
-        return $process;
-    }
-
-    /**
-     * Get the file diagnostics as "file:line identifier" entries.
-     *
-     * @return list<string>
-     */
-    protected function diagnostics(Process $process, int $exitCode): array
-    {
-        $this->assertSame($exitCode, $process->getExitCode(), $process->getErrorOutput() . $process->getOutput());
-
-        $result = json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR);
-
-        $this->assertSame([], $result['errors']);
-
-        $diagnostics = [];
-
-        foreach ($result['files'] as $file => $errors) {
-            foreach ($errors['messages'] as $message) {
-                $diagnostics[] = basename($file) . ":{$message['line']} {$message['identifier']}";
-            }
-        }
-
-        sort($diagnostics);
-
-        return $diagnostics;
     }
 }
