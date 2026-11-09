@@ -14,6 +14,7 @@ use Hypervel\Database\DatabaseManager;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\PHPStan\Concerns\HasContainer;
 use Hypervel\PHPStan\Concerns\InspectsQueuedJobs;
+use Hypervel\PHPStan\Reflection\ReflectionHelper;
 use Hypervel\PHPStan\Reflection\SourceFiles;
 use Hypervel\PHPStan\Support\ConfigParser;
 use Hypervel\Queue\Attributes\Connection;
@@ -526,7 +527,7 @@ class JobDispatchedInTransactionUsesAfterCommitRule implements Rule
         // Property defaults, constructor bodies and the constants attribute arguments read are not
         // declarations, whose changes alone reanalyse the dispatching file.
         $files = SourceFiles::forInstance($this->reflectionProvider, $job, null);
-        $attribute = $this->findClassAttribute($job, Connection::class);
+        $attribute = ReflectionHelper::findClassAttribute($job, Connection::class);
 
         if ($attribute !== null) {
             $files = array_values(array_unique(array_merge($files, SourceFiles::forAttributeArguments($this->reflectionProvider, $attribute[2], Connection::class))));

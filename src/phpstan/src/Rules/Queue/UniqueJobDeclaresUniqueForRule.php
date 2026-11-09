@@ -6,6 +6,7 @@ namespace Hypervel\PHPStan\Rules\Queue;
 
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\PHPStan\Concerns\InspectsQueuedJobs;
+use Hypervel\PHPStan\Reflection\ReflectionHelper;
 use Hypervel\Queue\Attributes\UniqueFor;
 use PhpParser\Node;
 use PHPStan\Analyser\Scope;
@@ -64,7 +65,7 @@ class UniqueJobDeclaresUniqueForRule implements Rule
         if (
             $classReflection->hasNativeProperty('uniqueFor')
             || $classReflection->hasNativeMethod('uniqueFor')
-            || $this->findClassAttribute($classReflection, UniqueFor::class) !== null
+            || ReflectionHelper::findClassAttribute($classReflection, UniqueFor::class) !== null
         ) {
             return [];
         }

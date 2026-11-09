@@ -13,7 +13,6 @@ use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PHPStan\Analyser\Scope;
-use PHPStan\Reflection\AttributeReflection;
 use PHPStan\Reflection\ClassReflection;
 use PHPStan\Type\ObjectType;
 use PHPStan\Type\Type;
@@ -22,7 +21,6 @@ use PHPStan\Type\VerbosityLevel;
 
 use function array_values;
 use function in_array;
-use function strcasecmp;
 
 trait InspectsQueuedJobs
 {
@@ -36,30 +34,6 @@ trait InspectsQueuedJobs
     private function usesTrait(ClassReflection $classReflection, string $traitName): bool
     {
         return isset($classReflection->getTraits(true)[$traitName]);
-    }
-
-    /**
-     * Find a class attribute as the runtime reads it: on each class of the hierarchy, then the
-     * traits it uses directly, then its parent (`ClassMetadataCache::getAttribute()`).
-     *
-     * Return the attribute, the class the runtime treats as declaring it (the using class for a
-     * trait's attribute), and the class or trait whose source declares it.
-     *
-     * @return null|array{AttributeReflection, ClassReflection, ClassReflection}
-     */
-    private function findClassAttribute(ClassReflection $classReflection, string $attributeClass): ?array
-    {
-        for ($class = $classReflection; $class !== null; $class = $class->getParentClass()) {
-            foreach ([$class, ...array_values($class->getTraits())] as $source) {
-                foreach ($source->getAttributes() as $attribute) {
-                    if (strcasecmp($attribute->getName(), $attributeClass) === 0) {
-                        return [$attribute, $class, $source];
-                    }
-                }
-            }
-        }
-
-        return null;
     }
 
     /**
