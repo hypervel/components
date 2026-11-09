@@ -256,13 +256,17 @@ abstract class Factory
             $records = array_fill(0, $records, []);
         }
 
-        return new EloquentCollection(
-            (new Collection($records))->map(function ($record) {
-                /** @var TModel $model */
-                $model = $this->state($record)->create();
+        $models = (new Collection($records))->map(function ($record) {
+            /** @var TModel $model */
+            $model = $this->state($record)->create();
 
-                return $model;
-            })
+            return $model;
+        });
+
+        // Unlike Laravel, use the model's own collection rather than a plain Eloquent collection, as make() does
+        // for a count. Like make(), build it without automatic eager loading.
+        return Model::withoutAutomaticallyEagerLoadingRelationships(
+            fn () => $this->newModel()->newCollection($models->all()),
         );
     }
 
@@ -383,13 +387,8 @@ abstract class Factory
      */
     public function make(callable|array $attributes = [], ?Model $parent = null): EloquentCollection|Model
     {
-        $autoEagerLoadingEnabled = Model::isAutomaticallyEagerLoadingRelationships();
-
-        if ($autoEagerLoadingEnabled) {
-            Model::automaticallyEagerLoadRelationships(false);
-        }
-
-        try {
+        // Unlike Laravel, which toggles the worker-wide setting, suppress it only for this coroutine.
+        return Model::withoutAutomaticallyEagerLoadingRelationships(function () use ($attributes, $parent) {
             if (! empty($attributes)) {
                 return $this->state($attributes)->make([], $parent);
             }
@@ -411,9 +410,7 @@ abstract class Factory
             $this->callAfterMaking($instances);
 
             return $instances;
-        } finally {
-            Model::automaticallyEagerLoadRelationships($autoEagerLoadingEnabled);
-        }
+        });
     }
 
     /**
@@ -432,13 +429,17 @@ abstract class Factory
             $records = array_fill(0, $records, []);
         }
 
-        return new EloquentCollection(
-            (new Collection($records))->map(function ($record) {
-                /** @var TModel $model */
-                $model = $this->state($record)->make();
+        $models = (new Collection($records))->map(function ($record) {
+            /** @var TModel $model */
+            $model = $this->state($record)->make();
 
-                return $model;
-            })
+            return $model;
+        });
+
+        // Unlike Laravel, use the model's own collection rather than a plain Eloquent collection, as make() does
+        // for a count. Like make(), build it without automatic eager loading.
+        return Model::withoutAutomaticallyEagerLoadingRelationships(
+            fn () => $this->newModel()->newCollection($models->all()),
         );
     }
 

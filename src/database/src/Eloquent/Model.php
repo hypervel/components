@@ -83,6 +83,11 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     protected const string IGNORE_ON_TOUCH_CONTEXT_KEY = '__database.model.ignore_on_touch';
 
     /**
+     * Context key for suppressing automatic eager loading of relationships.
+     */
+    protected const string AUTOMATIC_EAGER_LOADING_SUPPRESSED_CONTEXT_KEY = '__database.model.automatic_eager_loading_suppressed';
+
+    /**
      * Context key for storing whether broadcasting is enabled.
      */
     protected const string BROADCASTING_CONTEXT_KEY = '__database.model.broadcasting';
@@ -705,6 +710,29 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     public static function automaticallyEagerLoadRelationships(bool $value = true): void
     {
         static::$modelsShouldAutomaticallyEagerLoadRelationships = $value;
+    }
+
+    /**
+     * Execute a callback without automatically eager loading relationships for the models it retrieves or makes.
+     *
+     * Uses Context, so concurrent coroutines keep the boot setting.
+     *
+     * @template TReturn
+     *
+     * @param callable(): TReturn $callback
+     * @return TReturn
+     */
+    public static function withoutAutomaticallyEagerLoadingRelationships(callable $callback): mixed
+    {
+        $wasSuppressed = CoroutineContext::get(self::AUTOMATIC_EAGER_LOADING_SUPPRESSED_CONTEXT_KEY, false);
+
+        CoroutineContext::set(self::AUTOMATIC_EAGER_LOADING_SUPPRESSED_CONTEXT_KEY, true);
+
+        try {
+            return $callback();
+        } finally {
+            CoroutineContext::set(self::AUTOMATIC_EAGER_LOADING_SUPPRESSED_CONTEXT_KEY, $wasSuppressed);
+        }
     }
 
     /**
@@ -3019,7 +3047,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function isAutomaticallyEagerLoadingRelationships(): bool
     {
-        return static::$modelsShouldAutomaticallyEagerLoadRelationships;
+        return static::$modelsShouldAutomaticallyEagerLoadRelationships
+            && ! CoroutineContext::get(self::AUTOMATIC_EAGER_LOADING_SUPPRESSED_CONTEXT_KEY, false);
     }
 
     /**
