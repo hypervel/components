@@ -14,6 +14,7 @@ use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Events\CallQueuedListener;
+use Hypervel\Queue\Attributes\Connection;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
 use Hypervel\Queue\CallQueuedClosure;
@@ -401,9 +402,14 @@ class QueueFake extends QueueManager implements Fake, Queue
     /**
      * Resolve a queue connection instance.
      */
-    public function connection(mixed $value = null): Queue
+    public function connection(UnitEnum|string|null $value = null): Queue
     {
-        return $this;
+        if ($value === null) {
+            return $this;
+        }
+
+        // Dispatchers select the connection here, and a job that is not faked must still reach it.
+        return new QueueConnectionFake($this, $value instanceof UnitEnum ? (string) enum_value($value) : $value);
     }
 
     /**
@@ -591,17 +597,20 @@ class QueueFake extends QueueManager implements Fake, Queue
      */
     public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
-        return $this->enqueueUsing($job, $data, $queue, null);
+        return $this->pushToConnection(null, $job, $data, $queue);
     }
 
     /**
-     * Push a job through the fake or its underlying queue.
+     * Push a job onto the fake, or onto the given connection when the job is not faked.
+     *
+     * Without a connection, a job that is not faked goes to its own connection, else the default connection.
      */
-    protected function enqueueUsing(
+    public function pushToConnection(
+        ?string $connection,
         object|string $job,
-        mixed $data,
-        UnitEnum|string|null $queue,
-        DateInterval|DateTimeInterface|int|null $delay,
+        mixed $data = '',
+        UnitEnum|string|null $queue = null,
+        DateInterval|DateTimeInterface|int|null $delay = null,
     ): mixed {
         $queue = $this->normalizeQueue($queue);
 
@@ -634,11 +643,9 @@ class QueueFake extends QueueManager implements Fake, Queue
 
             $result = null;
         } else {
-            $connection = is_object($job) && isset($job->connection)
-                ? $job->connection
-                : null;
-
-            $queueConnection = $this->queue->connection($connection);
+            $queueConnection = $this->queue->connection(
+                $connection ?? (is_object($job) ? $this->getAttributeValue($job, Connection::class, 'connection') : null)
+            );
             $result = $delay === null
                 ? $queueConnection->push($job, $data, $queue)
                 : $queueConnection->later($delay, $job, $data, $queue);
@@ -706,7 +713,7 @@ class QueueFake extends QueueManager implements Fake, Queue
         mixed $data = '',
         UnitEnum|string|null $queue = null,
     ): mixed {
-        return $this->enqueueUsing($job, $data, $queue, $delay);
+        return $this->pushToConnection(null, $job, $data, $queue, $delay);
     }
 
     /**
@@ -761,14 +768,22 @@ class QueueFake extends QueueManager implements Fake, Queue
      */
     public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
-        foreach ($jobs as $job) {
-            $delay = is_object($job) ? $this->getAttributeValue($job, Delay::class, 'delay') : null;
+        return $this->bulkToConnection(null, $jobs, $data, $queue);
+    }
 
-            if ($delay !== null) {
-                $this->later($delay, $job, $data, $queue);
-            } else {
-                $this->push($job, $data, $queue);
-            }
+    /**
+     * Push an array of jobs onto the fake, or onto the given connection for jobs that are not faked.
+     */
+    public function bulkToConnection(?string $connection, array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
+    {
+        foreach ($jobs as $job) {
+            $this->pushToConnection(
+                $connection,
+                $job,
+                $data,
+                $queue,
+                is_object($job) ? $this->getAttributeValue($job, Delay::class, 'delay') : null,
+            );
         }
 
         return null;
