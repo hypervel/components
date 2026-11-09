@@ -23,8 +23,7 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 
 ## New Hypervel source
 
-- add: `Rules/Coroutine/` cancellation, worker-lifetime, static-state, unbounded-cache, runtime-config, transaction-coroutine and raw-sleep rules
-- add: `Rules/` legacy model property rule; `Rules/Queue/NoLegacyQueuePropertiesRule.php`
+- add: `Rules/Coroutine/` worker-lifetime, static-state, unbounded-cache and runtime-config rules
 - add: `Rules/Validation/` pipe-separated validation rule
 
 ## stubs

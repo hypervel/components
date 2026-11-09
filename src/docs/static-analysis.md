@@ -21,6 +21,9 @@
     - [Console Input](#console-input)
     - [Authentication in Requests](#authentication-in-requests)
     - [Redis Connections](#redis-connections)
+    - [Cancellation](#cancellation)
+    - [Coroutines in Transactions](#coroutines-in-transactions)
+    - [Sleeping](#sleeping)
     - [Model Relations](#model-relations)
     - [Model Scopes and Accessors](#model-scopes-and-accessors)
     - [Appended Attributes](#appended-attributes)
@@ -97,7 +100,7 @@ A value typed as an interface only has the interface's methods, even when the co
 
 Calls a manager forwards to its default driver are typed from the return type declared by whatever creates the driver the booted application selects, such as its `create...Driver()` method or an `extend()` callback, unless the manager declares the method or a `@mixin` for its drivers. Analysis never builds the driver, so give `extend()` callbacks a return type. Like container bindings, the selected driver can depend on your environment.
 
-Filesystem disks work the same way. `Storage::disk('s3')` is typed from your `filesystems` configuration as the disk Hypervel builds for it, such as `ClientPooledFilesystem` for a pooled S3 disk or `LocalFilesystemAdapter` for a local one. Calls the `Storage` facade forwards to the default disk are typed from that disk. An unknown or non-constant disk name keeps the `Filesystem` contract type.
+Filesystem disks work the same way. `Storage::disk('s3')` is typed from your `filesystems` configuration as the disk Hypervel builds for it, such as `ClientPooledFilesystem` for a pooled S3 disk or `LocalFilesystemAdapter` for a local one. Calls the `Storage` facade forwards to the default disk are typed from that disk. An unknown or non-constant disk name keeps the `Filesystem` contract type. Concurrency drivers are typed the same way from your `concurrency` configuration, so `Concurrency::driver('sync')` is a `SyncDriver`, while an unknown name or a driver registered using `extend()` keeps the `Driver` contract type.
 
 Request input is typed as what the request can hold. A keyed `query()`, `post()` or `cookie()` value may be a string, number, boolean or array from the client, or a `Stringable` your code stored, so check or cast it before relying on one type. Whole input arrays may have integer keys, such as from a JSON list body. By default, typed helpers such as `$request->string()`, `integer()` and `boolean()` return a single type.
 
@@ -255,6 +258,9 @@ The following table summarizes the preferred pattern for each of Hypervel's diag
 | [Console Input](#console-input) | Read the arguments and options the command defines. | `hypervel.console.undefinedArgument`, `hypervel.console.undefinedOption` |
 | [Authentication in Requests](#authentication-in-requests) | Use `$request->user()` where a request is available. | `hypervel.noAuthFacadeInRequestScope`, `hypervel.noAuthHelperInRequestScope` |
 | [Redis Connections](#redis-connections) | Call connection-bound methods on a held connection. | `hypervel.redisConnectionBoundMethod` |
+| [Cancellation](#cancellation) | Recognize cancellation with `Coroutine::causedByCancellation()` and keep it with `Coroutine::preferCancellation()`. | `hypervel.cancellation.exactType`, `hypervel.cancellation.precedence` |
+| [Coroutines in Transactions](#coroutines-in-transactions) | Start coroutines once the transaction commits. | `hypervel.coroutineInTransaction` |
+| [Sleeping](#sleeping) | Pause with the `Sleep` class. | `hypervel.rawSleep` |
 | [Model Relations](#model-relations) | Load and query relations the model defines. | `hypervel.relationExistence` |
 | [Model Scopes and Accessors](#model-scopes-and-accessors) | Declare local scopes as protected `#[Scope]` methods and accessors as protected methods. | `hypervel.legacyModelScope`, `hypervel.noPublicModelScopeMethod`, `hypervel.noPublicModelAccessorMethod` |
 | [Model Configuration](#model-configuration) | Configure models with attributes such as `Table` and `Fillable`. | `hypervel.legacyModelProperty` |
@@ -416,6 +422,80 @@ Redis::withConnection(function (RedisConnection $connection) {
 ```
 
 These checks may be disabled using the `checkRedisConnectionBoundMethods` parameter.
+
+<a name="cancellation"></a>
+### Cancellation
+
+A failure thrown by a callback or a `finally` block can carry a [coroutine's cancellation](/docs/{{version}}/coroutines#coroutine-cancellation) as its previous exception. A `CanceledException` catch only matches cancellation thrown directly, so a later `Throwable` catch handles the canceled work as an ordinary failure:
+
+```php
+try {
+    $order->sync();
+} catch (CanceledException $exception) {
+    // Catching CanceledException misses cancellation carried by another exception...
+    throw $exception;
+} catch (Throwable $exception) {
+    report($exception);
+}
+```
+
+Check `Coroutine::causedByCancellation` at the start of the `Throwable` catch instead:
+
+```php
+use Hypervel\Coroutine\Coroutine;
+
+try {
+    $order->sync();
+} catch (Throwable $exception) {
+    if (Coroutine::causedByCancellation($exception)) {
+        throw $exception;
+    }
+
+    report($exception);
+}
+```
+
+A `CanceledException` catch that keeps the exception in a variable for later is reported the same way. A `Throwable` catch that only rethrows is not reported, and neither is a `try` block that only waits on channels, wait groups, a `Waiter` or `Coroutine::join`, which throw cancellation directly. An `instanceof CanceledException` check is reported too, unless the value is already known to be a cancellation. Since `causedByCancellation` accepts only a `Throwable`, check `instanceof Throwable` first for a value that may be `null`, such as `getPrevious()`.
+
+When you keep the first of several failures using `??=`, a later failure carrying cancellation is lost. Use `Coroutine::preferCancellation`, which keeps the first failure unless a later one carries this coroutine's cancellation:
+
+```php
+$failure = Coroutine::preferCancellation($failure, $exception);
+```
+
+A `??=` is not reported in a branch that only runs for ordinary failures, or when nothing can have been kept before it. You may disable these checks using the `checkCancellationHandling` and `checkCancellationPrecedence` parameters.
+
+<a name="coroutines-in-transactions"></a>
+### Coroutines in Transactions
+
+A database transaction belongs to the coroutine that started it. A coroutine started inside the transaction's callback borrows its own [pooled connection](/docs/{{version}}/database#connection-pooling), so its queries run outside the transaction:
+
+```php
+DB::transaction(function () use ($order) {
+    $order->save();
+
+    // A coroutine started inside a database transaction runs outside it...
+    Coroutine::create(fn () => $this->notifyWarehouse($order));
+});
+```
+
+Start the coroutine once the transaction commits, such as from a `DB::afterCommit` callback, or do the work in the transaction's own coroutine. The analysis checks `go`, `co`, `parallel`, `wait`, `Coroutine::create` and `Coroutine::fork`, `Parallel`, `Concurrent`, `WaitConcurrent` and `Waiter`, as well as `Concurrency::run` when your configuration uses the `coroutine` driver, or when called on a driver known to be the `coroutine` driver, such as `Concurrency::driver('coroutine')`. Code inside a coroutine that is already reported is not checked again, and neither is a task list known to be empty. You may disable this check using the `noCoroutinesInTransactions` parameter.
+
+<a name="sleeping"></a>
+### Sleeping
+
+Pause using the [`Sleep`](/docs/{{version}}/helpers#sleep) class instead of PHP's `sleep` and `usleep` functions, so tests can fake the delay:
+
+```php
+use Hypervel\Support\Sleep;
+
+// Call Sleep::sleep() instead of sleep(), so tests can fake the delay.
+sleep(1);
+
+Sleep::sleep(1);
+```
+
+Keep the native function only where real time must pass, such as while polling an external process, and ignore the diagnostic with a reason. You may disable this check using the `noRawSleepCalls` parameter.
 
 <a name="model-relations"></a>
 ### Model Relations
