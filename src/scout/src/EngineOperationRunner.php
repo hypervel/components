@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Scout;
 
 use Closure;
-use Hypervel\Coroutine\Coroutine;
 use Hypervel\Scout\Contracts\EngineOperationObserver;
+use Hypervel\Support\FailureReporter;
 use Throwable;
 
 class EngineOperationRunner
@@ -61,10 +61,7 @@ class EngineOperationRunner
 
             $result = $callback();
         } catch (Throwable $throwable) {
-            if (Coroutine::causedByCancellation($throwable)) {
-                throw $throwable;
-            }
-
+            // Cancellation is passed on too, so started observers can finish.
             $operationException = $throwable;
         }
 
@@ -74,20 +71,19 @@ class EngineOperationRunner
             try {
                 $observer->finished($operation, $token, $operationException);
             } catch (Throwable $throwable) {
-                if (Coroutine::causedByCancellation($throwable)) {
-                    throw $throwable;
+                // An observer that rethrows the operation's failure adds none; it is thrown below.
+                if ($throwable !== $operationException) {
+                    $observerException = FailureReporter::preferCancellation($observerException, $throwable);
                 }
-
-                $observerException ??= $throwable;
             }
         }
 
-        if ($operationException !== null) {
-            throw $operationException;
-        }
+        $exception = $observerException === null
+            ? $operationException
+            : FailureReporter::preferCancellation($operationException, $observerException);
 
-        if ($observerException !== null) {
-            throw $observerException;
+        if ($exception !== null) {
+            throw $exception;
         }
 
         return $result;

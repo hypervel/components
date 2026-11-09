@@ -25,6 +25,7 @@ use Hypervel\Grpc\StatusCode;
 use Hypervel\HttpServer\RequestBridge;
 use Hypervel\HttpServer\ResponseBridge;
 use Hypervel\Server\TlsOptions;
+use Hypervel\Support\FailureReporter;
 use InvalidArgumentException;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
@@ -98,7 +99,7 @@ class Server implements OnRequestInterface, BootstrapsForServer
         $operationHandle = null;
         $terminalException = null;
         $emissionFailure = null;
-        $cancelled = false;
+        $cancellation = null;
 
         try {
             CoordinatorManager::until(Constants::WORKER_START)->yield();
@@ -138,7 +139,7 @@ class Server implements OnRequestInterface, BootstrapsForServer
             ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/2', request: $request ?? null);
         } catch (Throwable $throwable) {
             if (Coroutine::causedByCancellation($throwable)) {
-                $cancelled = true;
+                $cancellation = $throwable;
 
                 throw $throwable;
             }
@@ -163,7 +164,7 @@ class Server implements OnRequestInterface, BootstrapsForServer
                 ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/2', request: $request ?? null);
             } catch (Throwable $throwable) {
                 if (Coroutine::causedByCancellation($throwable)) {
-                    $cancelled = true;
+                    $cancellation = $throwable;
 
                     throw $throwable;
                 }
@@ -179,12 +180,16 @@ class Server implements OnRequestInterface, BootstrapsForServer
 
             $this->contexts->forget();
 
-            if (! $cancelled && $operationHandle !== null) {
-                $operationHandle->finish($this->operationResult(
-                    $response,
-                    $terminalException,
-                    $emissionFailure,
-                ));
+            if ($operationHandle !== null && $cancellation === null) {
+                $operationHandle->finish($this->operationResult($response, $terminalException, $emissionFailure));
+            } elseif ($operationHandle !== null) {
+                // A cancelled call sent no final status; a handler failure that preceded it stays the outcome.
+                try {
+                    $operationHandle->finish(new GrpcOperationResult(null, $terminalException ?? $cancellation, 1));
+                } catch (Throwable $throwable) {
+                    // The unwinding cancellation keeps precedence; an observer failure is still reported.
+                    FailureReporter::report($throwable);
+                }
             }
         }
     }

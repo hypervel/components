@@ -16,6 +16,8 @@ interface GrpcOperationObserver
 
     /**
      * Finish observing a logical gRPC operation.
+     *
+     * Every started observer is finished; the result carries the operation's failure or cancellation, if any.
      */
     public function finished(
         GrpcOperation $operation,

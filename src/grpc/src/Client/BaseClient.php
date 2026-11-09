@@ -495,10 +495,6 @@ abstract class BaseClient
 
             return [$state, $connection];
         } catch (Throwable $throwable) {
-            if (Coroutine::causedByCancellation($throwable)) {
-                throw $throwable;
-            }
-
             $operationHandle?->finish(new GrpcOperationResult(
                 $throwable instanceof RpcException ? $throwable->status() : null,
                 $throwable,

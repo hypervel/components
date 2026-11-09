@@ -42,6 +42,7 @@ use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Log\LogLevel;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -349,7 +350,7 @@ class ServerTest extends TestCase
         $environment->contexts->get();
     }
 
-    public function testCancellationSkipsObserverCompletionAndStillCleansTheCall(): void
+    public function testCancellationFinishesObservationWithoutAStatusAndStillCleansTheCall(): void
     {
         $environment = $this->environment();
         $observer = new RecordingServerGrpcOperationObserver;
@@ -366,7 +367,72 @@ class ServerTest extends TestCase
         }
 
         $this->assertCount(1, $observer->started);
-        $this->assertSame([], $observer->finished);
+        $this->assertCount(1, $observer->finished);
+        $this->assertNull($observer->finished[0][2]->status);
+        $this->assertSame($cancellation, $observer->finished[0][2]->exception);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessageIsOrContains('No gRPC server call is active');
+
+        $environment->contexts->get();
+    }
+
+    #[TestWith([null])]
+    #[TestWith(['direct'])]
+    #[TestWith(['wrapped'])]
+    public function testCancellationAfterATerminalFailureKeepsTheFailureAsTheOutcome(?string $observerCancellation): void
+    {
+        $failure = new RuntimeException('route listener failed');
+        $environment = $this->environment();
+        $container = new Container;
+        Container::setInstance($container);
+        $container->instance(ExceptionHandler::class, $environment->exceptionHandler);
+        $environment->router->matched(static function () use ($failure): never {
+            throw $failure;
+        });
+        $observer = new RecordingServerGrpcOperationObserver;
+        $environment->operations->observe($observer);
+        $observerFailure = match ($observerCancellation) {
+            'direct' => new CanceledException,
+            'wrapped' => new RuntimeException('observer cleanup failed', previous: new CanceledException),
+            default => null,
+        };
+
+        if ($observerFailure !== null) {
+            $environment->operations->observe(new class($observerFailure) implements GrpcOperationObserver {
+                public function __construct(private Throwable $failure)
+                {
+                }
+
+                public function starting(GrpcOperation $operation): null
+                {
+                    return null;
+                }
+
+                public function finished(GrpcOperation $operation, mixed $token, GrpcOperationResult $result): void
+                {
+                    throw $this->failure;
+                }
+            });
+        }
+
+        [$swooleResponse, $capture] = $this->response();
+        $cancellation = new CanceledException;
+        $capture->endFailure = $cancellation;
+
+        try {
+            $environment->server->onRequest($this->request(), $swooleResponse);
+            $this->fail('Expected the error response emission to be canceled.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(
+            $observerCancellation === 'wrapped' ? [$failure, $observerFailure] : [$failure],
+            $environment->exceptionHandler->reported,
+        );
+        $this->assertNull($observer->finished[0][2]->status);
+        $this->assertSame($failure, $observer->finished[0][2]->exception);
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessageIsOrContains('No gRPC server call is active');
