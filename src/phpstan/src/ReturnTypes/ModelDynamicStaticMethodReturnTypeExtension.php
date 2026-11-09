@@ -143,7 +143,7 @@ class ModelDynamicStaticMethodReturnTypeExtension implements DynamicStaticMethod
      */
     private function getTypeFromForwardedBuilderCall(StaticCall $methodCall, Scope $scope): ?Type
     {
-        if ($methodCall->class instanceof Name || $methodCall->isFirstClassCallable()) {
+        if ($methodCall->class instanceof Name) {
             return null;
         }
 

@@ -91,7 +91,7 @@ class RelationExistenceRule implements Rule
      */
     public function processNode(Node $node, Scope $scope): array
     {
-        if (! ($node instanceof MethodCall || $node instanceof StaticCall) || ! $node->name instanceof Identifier || $node->isFirstClassCallable()) {
+        if (! ($node instanceof MethodCall || $node instanceof StaticCall) || ! $node->name instanceof Identifier) {
             return [];
         }
 
