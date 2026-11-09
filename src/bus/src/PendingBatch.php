@@ -81,7 +81,7 @@ class PendingBatch
     {
         foreach (Arr::wrap($job) as $job) {
             if ($job instanceof PendingBatch || $job instanceof Closure) {
-                return;
+                continue;
             }
 
             if (! (static::$batchableClasses[$job::class] ?? false) && ! isset(class_uses_recursive($job)[Batchable::class])) {

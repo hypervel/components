@@ -520,6 +520,21 @@ class BusPendingBatchTest extends TestCase
         );
     }
 
+    public function testItThrowsExceptionIfChainedJobAfterClosureIsNotBatchable(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('does not use the Batchable trait');
+
+        new PendingBatch(new Container, new Collection([
+            [
+                function (): void {
+                },
+                new class {
+                },
+            ],
+        ]));
+    }
+
     public function testItCanBatchAClosure(): void
     {
         new PendingBatch(
