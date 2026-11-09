@@ -854,7 +854,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                     try {
                         $this->reportSecondaryFailure($exception);
                     } catch (Throwable $reportingCancellation) {
-                        $cancellation ??= $reportingCancellation;
+                        $cancellation = Coroutine::preferCancellation($cancellation, $reportingCancellation);
                     }
                 }
             }

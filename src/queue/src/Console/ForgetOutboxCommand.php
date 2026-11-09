@@ -10,10 +10,10 @@ use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Queue\Console\Concerns\FindsOutboxMessages;
 use Hypervel\Queue\Outbox\DatabaseOutboxRepository;
 use LogicException;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Throwable;
 
@@ -71,9 +71,11 @@ class ForgetOutboxCommand extends Command
 
         try {
             $this->releaseUniqueLock($message->payload);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $this->components->error("Outbox message [{$uuid}] was deleted, but unique-lock cleanup failed: {$exception->getMessage()}");
             $this->exceptions->report($exception, ['outbox_database' => $found['database'], 'job_uuid' => $uuid]);
 

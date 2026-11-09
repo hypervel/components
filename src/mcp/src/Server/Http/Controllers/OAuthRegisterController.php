@@ -7,6 +7,7 @@ namespace Hypervel\Mcp\Server\Http\Controllers;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\BindingResolutionException;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Mcp\Server\Registrar;
@@ -17,7 +18,6 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Validator;
 use Hypervel\Support\Str;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class OAuthRegisterController
@@ -104,9 +104,11 @@ class OAuthRegisterController
 
                 return [$client, $this->persistClientMetadata($client, $validated)];
             });
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $throwable;
+            }
+
             report($throwable);
 
             return response()->json([

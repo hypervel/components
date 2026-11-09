@@ -40,7 +40,6 @@ use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use Hypervel\Support\Str;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -280,9 +279,11 @@ abstract class Queue
             $command = $this->jobShouldBeEncrypted($job) && $this->container->has(Encrypter::class)
                 ? $this->container->make(Encrypter::class)->encrypt(serialize(clone $job))
                 : serialize(clone $job);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             throw new RuntimeException(
                 sprintf('Failed to serialize job of type [%s]: %s', get_class($job), $e->getMessage()),
                 0,

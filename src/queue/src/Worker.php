@@ -451,6 +451,7 @@ class Worker
                                 throw $exception;
                             }
 
+                            // @phpstan-ignore hypervel.cancellation.exactType (a direct cancellation ends the job quietly; a failure carrying it is reported)
                             if (! $exception instanceof CanceledException && static::$reportJobExceptions) {
                                 $this->withCoroutineContext($options, fn () => $this->reportException($exception));
                             }
@@ -1296,6 +1297,7 @@ class Worker
                     throw $e;
                 }
 
+                // @phpstan-ignore hypervel.cancellation.exactType (the timeout's own cancellation is expected; a failure carrying it is reported)
                 if (! $e instanceof CanceledException && ! $e instanceof TimeoutExceededException && static::$reportJobExceptions) {
                     try {
                         $this->reportException($e);

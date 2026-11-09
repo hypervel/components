@@ -142,6 +142,7 @@ abstract class CoroutineQueue extends SyncQueue
             $this->withLogContext(null, function () use ($payload, $queue): void {
                 try {
                     $this->processPayload($payload, $queue);
+                    // @phpstan-ignore hypervel.cancellation.exactType (native cancellation ends the job silently; a cleanup failure carrying it is reported)
                 } catch (CanceledException $exception) {
                     throw $exception;
                 } catch (Throwable $e) {
