@@ -87,6 +87,7 @@ use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
+use ReflectionProperty;
 use RuntimeException;
 use stdClass;
 use Stringable as NativeStringable;
@@ -4153,6 +4154,32 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertSame([], $invoker->castMetadataCache, 'cache should be cleared by __sleep');
     }
 
+    public function testSerializationKeepsSubclassStateWithoutRunningPropertyHooks(): void
+    {
+        $model = new ModelPrivateStateStub;
+        $model->setRawAttributes(['name' => 'taylor']);
+        $model->changeState('child-changed');
+        $model->changeParentState('parent-changed');
+        $model->hookedLabel = 'label-changed';
+        $model->changeHookedState('hooked-changed');
+
+        $unserialized = unserialize(serialize($model));
+
+        $this->assertSame('taylor', $unserialized->name);
+        $this->assertSame('child-changed', $unserialized->state());
+        $this->assertSame('parent-changed', $unserialized->parentState());
+        $this->assertSame('label-changed', (new ReflectionProperty($unserialized, 'hookedLabel'))->getRawValue($unserialized));
+        $this->assertSame('hooked-changed', (new ReflectionProperty($unserialized, 'hookedState'))->getRawValue($unserialized));
+    }
+
+    public function testSleepOverridesCanExcludeProtectedPropertiesByName(): void
+    {
+        $model = new ModelFilteredSleepStub;
+        $model->changeTransientToken('changed');
+
+        $this->assertSame('default', unserialize(serialize($model))->transientToken());
+    }
+
     public function testIsClassCastableThrowsRepeatedlyForInvalidCast(): void
     {
         $invoker = new ClassInvoker(new CastCacheInvalidClassStub);
@@ -6646,4 +6673,97 @@ enum ConnectionNameBacked: string
 enum IntegerBackedConnectionName: int
 {
     case Zero = 0;
+}
+
+abstract class ModelPrivateStateParentStub extends Model
+{
+    private string $state = 'parent';
+
+    /**
+     * Change the parent's private state.
+     */
+    public function changeParentState(string $state): void
+    {
+        $this->state = $state;
+    }
+
+    /**
+     * Get the parent's private state.
+     */
+    public function parentState(): string
+    {
+        return $this->state;
+    }
+}
+
+class ModelPrivateStateStub extends ModelPrivateStateParentStub
+{
+    public string $hookedLabel = 'label' {
+        get => throw new LogicException('Serialization ran a get hook.');
+        set => $value;
+    }
+
+    private string $state = 'child';
+
+    private string $hookedState = 'hooked' {
+        get => throw new LogicException('Serialization ran a get hook.');
+        set => $value;
+    }
+
+    private string $virtual {
+        get => 'virtual';
+    }
+
+    /**
+     * Change the private state.
+     */
+    public function changeState(string $state): void
+    {
+        $this->state = $state;
+    }
+
+    /**
+     * Change the private hooked state.
+     */
+    public function changeHookedState(string $state): void
+    {
+        $this->hookedState = $state;
+    }
+
+    /**
+     * Get the private state.
+     */
+    public function state(): string
+    {
+        return $this->state;
+    }
+}
+
+class ModelFilteredSleepStub extends Model
+{
+    protected string $transientToken = 'default';
+
+    /**
+     * Change the transient token.
+     */
+    public function changeTransientToken(string $token): void
+    {
+        $this->transientToken = $token;
+    }
+
+    /**
+     * Get the transient token.
+     */
+    public function transientToken(): string
+    {
+        return $this->transientToken;
+    }
+
+    /**
+     * Leave the transient token out of serialization.
+     */
+    public function __sleep(): array
+    {
+        return array_values(array_diff(parent::__sleep(), ['transientToken']));
+    }
 }

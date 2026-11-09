@@ -3321,15 +3321,14 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         $this->relationAutoloadCallback = null;
         $this->relationAutoloadContext = null;
 
-        $keys = get_object_vars($this);
-
-        foreach ((new ReflectionClass($this))->getProperties() as $property) {
-            if ($property->hasHooks()) {
-                unset($keys[$property->getName()]);
-            }
-        }
-
-        return array_keys($keys);
+        // Unlike Laravel, this names every stored property, including a subclass's private ones under
+        // PHP's own keys, without running property hooks. Virtual properties store nothing, so the
+        // array cast leaves them out. Protected names stay plain, as Laravel returns them, so
+        // overrides that filter parent::__sleep() by name keep working.
+        return array_map(
+            static fn (string $key): string => str_starts_with($key, "\0*\0") ? substr($key, 3) : $key,
+            array_keys((array) $this),
+        );
     }
 
     /**
