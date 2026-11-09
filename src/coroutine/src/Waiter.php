@@ -205,6 +205,7 @@ class Waiter
                     $cancellation ??= new CanceledException('Waiting for a child coroutine was canceled.');
                 }
             } catch (CanceledException $exception) {
+                // @phpstan-ignore hypervel.cancellation.precedence (both values are this coroutine's direct cancellation)
                 $cancellation ??= $exception;
             }
         }

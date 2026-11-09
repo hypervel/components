@@ -70,6 +70,7 @@ class Coroutine
      */
     public static function sleep(float $seconds): void
     {
+        // @phpstan-ignore hypervel.rawSleep (the coroutine sleep itself: hooked usleep() yields the coroutine)
         usleep(intval($seconds * 1000 * 1000));
     }
 
@@ -251,6 +252,7 @@ class Coroutine
                 return false;
             }
 
+            // @phpstan-ignore hypervel.cancellation.exactType (the classification primitive walking the chain)
             if ($exception instanceof CanceledException) {
                 return true;
             }
@@ -296,6 +298,7 @@ class Coroutine
      */
     protected static function printLog(Throwable $throwable): void
     {
+        // @phpstan-ignore hypervel.cancellation.exactType (a terminal reporter: a cleanup failure carrying cancellation is still reported)
         if ($throwable instanceof CanceledException) {
             throw $throwable;
         }
@@ -318,9 +321,10 @@ class Coroutine
 
             try {
                 error_log((string) $throwable);
-            } catch (CanceledException $exception) {
-                throw $exception;
-            } catch (Throwable) {
+            } catch (Throwable $exception) {
+                if (static::causedByCancellation($exception)) {
+                    throw $exception;
+                }
             }
         }
     }
@@ -330,6 +334,7 @@ class Coroutine
      */
     protected static function reportUncaught(Throwable $throwable): void
     {
+        // @phpstan-ignore hypervel.cancellation.exactType (a terminal boundary: a cleanup failure carrying cancellation is still reported)
         if ($throwable instanceof CanceledException) {
             return;
         }
