@@ -11,6 +11,7 @@ use Hypervel\Redis\RedisConnection;
 use Hypervel\Routing\ResponseFactory;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Cache;
+use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Support\Optional;
@@ -26,6 +27,7 @@ use Hypervel\Tests\PHPStan\Fixtures\Managers\ResolvedChildDriverManager;
 use Hypervel\Tests\PHPStan\Fixtures\Managers\ResolvedExportManager;
 use Hypervel\Tests\PHPStan\Fixtures\Managers\TabbedCsvDriver;
 use Hypervel\Tests\PHPStan\Fixtures\Managers\WrappedCreatorManager;
+use Hypervel\Tests\PHPStan\Rules\Queue\Data\RoutedJob;
 use League\Flysystem\Filesystem as Flysystem;
 use League\Flysystem\Local\LocalFilesystemAdapter as LocalFlysystemAdapter;
 
@@ -112,6 +114,9 @@ Storage::extend('pooled-custom', static fn (): FilesystemAdapter => Storage::cre
 
 $replacedDiskAdapter = new LocalFlysystemAdapter(sys_get_temp_dir());
 Storage::set('replaced', new FilesystemAdapter(new Flysystem($replacedDiskAdapter), $replacedDiskAdapter));
+
+// Hypervel: a booted queue route for the transaction dispatch fixtures.
+Queue::route(RoutedJob::class, connection: 'sync');
 
 class CustomCollectionMacro
 {
