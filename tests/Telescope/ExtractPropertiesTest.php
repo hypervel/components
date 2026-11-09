@@ -56,6 +56,17 @@ class ExtractPropertiesTest extends TestCase
         ], $properties['value']);
     }
 
+    public function testParentPrivatePropertiesAreExtractedUnderTheirDeclaringClassWhenTheirNameIsTaken(): void
+    {
+        $properties = ExtractProperties::from(new PrivatePropertyChildTarget);
+
+        $this->assertSame([
+            'value' => 'child',
+            PrivatePropertyParentTarget::class . '::$value' => 'parent',
+            'parentOnly' => 'parent only',
+        ], $properties);
+    }
+
     public function testSerializationCancellationEscapesInsteadOfPurgingTheValue(): void
     {
         $failure = new RuntimeException('Serialization cleanup failed.', previous: new CanceledException);
@@ -87,6 +98,18 @@ class PropertyTarget
     public function __construct(public mixed $value)
     {
     }
+}
+
+class PrivatePropertyParentTarget
+{
+    private string $value = 'parent';
+
+    private string $parentOnly = 'parent only';
+}
+
+class PrivatePropertyChildTarget extends PrivatePropertyParentTarget
+{
+    private string $value = 'child';
 }
 
 class ThrowingJsonSerializable implements JsonSerializable
