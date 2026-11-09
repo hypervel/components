@@ -18,6 +18,7 @@ use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\Events\JobQueueingCanceled;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\LuaScripts;
@@ -183,7 +184,7 @@ class QueueRedisQueueTest extends TestCase
         $listener = new RuntimeException('Listener failed.');
         $failed = [];
         $events->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$failed): void {
-            $failed[] = $event->job;
+            $failed[] = $event;
         });
         $events->listen(JobQueueingFailed::class, static fn () => throw $listener);
         $handler = m::mock(ExceptionHandler::class);
@@ -197,14 +198,15 @@ class QueueRedisQueueTest extends TestCase
             $this->assertSame($exception, $actual);
         }
 
-        $this->assertSame(['first', 'second'], $failed);
+        $this->assertSame(['first', 'second'], array_column($failed, 'job'));
+        $this->assertSame([true, true], array_column($failed, 'sendAttempted'));
     }
 
     #[TestWith(['push', false])]
     #[TestWith(['push', true])]
     #[TestWith(['bulk', false])]
     #[TestWith(['bulk', true])]
-    public function testCancellationDoesNotRaiseFailureEvents(string $method, bool $cleanupThrows): void
+    public function testCancellationRaisesCanceledEventsInsteadOfFailureEvents(string $method, bool $cleanupThrows): void
     {
         $cancellation = new CanceledException;
         if ($cleanupThrows) {
@@ -226,6 +228,10 @@ class QueueRedisQueueTest extends TestCase
         $events->listen(JobQueueingFailed::class, static function () use (&$failed): void {
             ++$failed;
         });
+        $canceled = [];
+        $events->listen(JobQueueingCanceled::class, static function (JobQueueingCanceled $event) use (&$canceled): void {
+            $canceled[] = $event;
+        });
 
         try {
             $method === 'bulk' ? $queue->bulk(['first', 'second']) : $queue->push('first');
@@ -235,6 +241,13 @@ class QueueRedisQueueTest extends TestCase
         }
 
         $this->assertSame(0, $failed);
+        $this->assertSame($method === 'bulk' ? ['first', 'second'] : ['first'], array_column($canceled, 'job'));
+
+        foreach ($canceled as $event) {
+            $this->assertSame($cancellation, $event->cancellation);
+            $this->assertTrue($event->sendAttempted);
+            $this->assertFalse($event->queued);
+        }
     }
 
     public function testEmptyBulkDoesNotResolveRedis(): void
@@ -533,6 +546,7 @@ class QueueRedisQueueTest extends TestCase
         $this->assertSame($exception, $caught);
         $this->assertInstanceOf(JobQueueingFailed::class, $failure);
         $this->assertSame($exception, $failure->exception);
+        $this->assertFalse($failure->sendAttempted);
     }
 
     public function testPushRaisesFailedEventWhenRedisThrows(): void
@@ -574,6 +588,7 @@ class QueueRedisQueueTest extends TestCase
                 $this->assertNull($event->queue);
                 $this->assertNull($event->delay);
                 $this->assertSame($exception, $event->exception);
+                $this->assertTrue($event->sendAttempted);
 
                 return true;
             })

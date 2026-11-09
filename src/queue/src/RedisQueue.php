@@ -403,6 +403,8 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
      */
     protected function enqueueBatch(array $jobs, ?string $queue): void
     {
+        $sendAttempted = false;
+
         try {
             foreach ($jobs as $index => $job) {
                 $jobs[$index]['payload'] = $this->finalizePayloadForQueueing(
@@ -432,15 +434,12 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
             $connection = $this->getConnection();
             $this->isCluster ??= $connection->isCluster();
             $queueKey = $this->getQueueRedisKey($queue);
+            $sendAttempted = true;
             $this->pushRawBatch($connection, $queueKey, $arguments);
         } catch (Throwable $exception) {
-            if (Coroutine::causedByCancellation($exception)) {
-                throw $exception;
-            }
-
             $this->notifyBatchMembersOfFailure(
                 $jobs,
-                fn (array $job) => $this->raiseJobQueueingFailedEvent($queue, $job['job'], $job['payload'], $job['delay'], $exception),
+                fn (array $job) => $this->raiseJobQueueingFailedEvent($queue, $job['job'], $job['payload'], $job['delay'], $exception, $sendAttempted),
             );
 
             throw $exception;

@@ -4146,7 +4146,7 @@ class AppServiceProvider extends ServiceProvider
 
 The `duration` property of the `JobProcessed` event contains the number of milliseconds the job took to run. It is `null` when the worker skips the job because it was already deleted, such as by a `JobProcessing` listener.
 
-If you would like to be notified when a job takes too long to run, you may use the `whenJobRunsLongerThan` method. Provide a threshold in milliseconds, or a `CarbonInterval`, and a closure that receives the job and the number of milliseconds the attempt took. The closure is invoked for each attempt that exceeds the threshold, whether or not the attempt succeeds:
+If you would like to be notified when a job takes too long to run, you may use the `whenJobRunsLongerThan` method. Provide a threshold in milliseconds, or a `CarbonInterval`, and a closure that receives the job and the number of milliseconds the attempt took. The closure is invoked for each attempt that exceeds the threshold, whether or not the attempt succeeds, except an attempt stopped by coroutine cancellation:
 
 ```php
 use Hypervel\Contracts\Queue\Job;
@@ -4157,7 +4157,11 @@ Queue::whenJobRunsLongerThan(1000, function (Job $job, float $duration) {
 });
 ```
 
-Hypervel dispatches a `JobQueueing` event immediately before a job is sent to its queue and a `JobQueued` event after the queue accepts it. If the enqueue attempt throws an exception, a `JobQueueingFailed` event is dispatched with the original exception instead. This event is not dispatched when coroutine cancellation interrupts the attempt, including when the exception was caused by cancellation. Jobs deferred until a database transaction commits do not dispatch these events unless the enqueue attempt actually begins.
+When an attempt ends, the worker dispatches a `JobAttempted` event from the attempt's coroutine with the `connectionName`, `job`, `exception`, and `duration`. Its `canceled` property is `true` when coroutine cancellation stopped the attempt, including a job killed by its timeout. The attempt's other completion steps are skipped, deferred callbacks do not run, and `successful()` returns `false`. An attempt whose coroutine never unwinds, such as one still blocked when its timeout stops the worker, does not dispatch the event.
+
+Hypervel dispatches a `JobQueueing` event immediately before a job is sent to its queue and a `JobQueued` event after the queue accepts it. If the enqueue attempt throws an exception, a `JobQueueingFailed` event is dispatched with the original exception instead. Its `sendAttempted` property is `false` when the attempt failed before the job was handed to the queue backend.
+
+When coroutine cancellation stops the enqueue attempt, or interrupts its `JobQueued` or `JobQueueingFailed` notification, a `JobQueueingCanceled` event is dispatched with the `cancellation` and `sendAttempted` properties. Its `queued` property is `true` when the queue had already accepted the job, and its `exception` property holds the enqueue failure when the failure notification was interrupted. The cancellation still propagates to the caller. Jobs deferred until a database transaction commits do not dispatch these events unless the enqueue attempt actually begins.
 
 The `JobPayloadFinalizing` event runs immediately before `JobQueueing` and may replace its encoded `payload`. It also provides the connection, queue, job, and normalized delay in seconds. Use this event for last-mile payload changes that must reach the queue backend. Listening to both events deliberately runs both listeners for each asynchronous job.
 

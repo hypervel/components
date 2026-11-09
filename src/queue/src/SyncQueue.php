@@ -19,6 +19,7 @@ use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Support\Collection;
+use Hypervel\Support\FailureReporter;
 use Throwable;
 use UnitEnum;
 
@@ -235,7 +236,7 @@ class SyncQueue extends Queue implements QueueContract
     protected function processPayload(string $payload, ?string $queue = null): int
     {
         $queueJob = $this->resolveJob($payload, $queue);
-        $canceled = false;
+        $cancellation = null;
 
         try {
             $this->raiseBeforeJobEvent($queueJob);
@@ -251,7 +252,7 @@ class SyncQueue extends Queue implements QueueContract
             $this->raiseAfterJobEvent($queueJob, $duration);
         } catch (Throwable $e) {
             if (Coroutine::causedByCancellation($e)) {
-                $canceled = true;
+                $cancellation = $e;
 
                 throw $e;
             }
@@ -261,13 +262,22 @@ class SyncQueue extends Queue implements QueueContract
             try {
                 $this->handleException($queueJob, $e);
             } catch (Throwable $exception) {
-                $canceled = Coroutine::causedByCancellation($exception);
+                if (Coroutine::causedByCancellation($exception)) {
+                    $cancellation = $exception;
+                }
 
                 throw $exception;
             }
         } finally {
-            if (! $canceled) {
+            if ($cancellation === null) {
                 $this->raiseJobAttemptedEvent($queueJob, $exceptionOccurred ?? null, $duration ?? null);
+            } else {
+                // Telemetry that JobProcessing began must end; the unwinding cancellation keeps precedence.
+                try {
+                    $this->raiseJobAttemptedEvent($queueJob, $exceptionOccurred ?? $cancellation, $duration ?? null, canceled: true);
+                } catch (Throwable $exception) {
+                    FailureReporter::report($exception);
+                }
             }
         }
 
@@ -317,14 +327,14 @@ class SyncQueue extends Queue implements QueueContract
     /**
      * Raise the job attempted event.
      */
-    protected function raiseJobAttemptedEvent(JobContract $job, ?Throwable $exceptionOccurred = null, ?float $duration = null): void
+    protected function raiseJobAttemptedEvent(JobContract $job, ?Throwable $exceptionOccurred = null, ?float $duration = null, bool $canceled = false): void
     {
         if ($this->container->bound('events')) {
             /** @var EventDispatcher $events */
             $events = $this->container->make('events');
 
             if ($events->hasListeners(JobAttempted::class)) {
-                $events->dispatch(new JobAttempted($this->connectionName, $job, $exceptionOccurred, $duration));
+                $events->dispatch(new JobAttempted($this->connectionName, $job, $exceptionOccurred, $duration, $canceled));
             }
         }
     }

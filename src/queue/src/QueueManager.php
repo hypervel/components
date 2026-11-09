@@ -186,7 +186,8 @@ class QueueManager implements FactoryContract, MonitorContract
 
         $this->app->make('events')
             ->listen(JobAttempted::class, function (JobAttempted $event) use ($threshold, $handler): void {
-                if (! is_null($event->duration) && $event->duration > $threshold) {
+                // Application callbacks do not run in a canceled or killed attempt.
+                if (! $event->canceled && ! is_null($event->duration) && $event->duration > $threshold) {
                     $handler($event->job, $event->duration);
                 }
             });

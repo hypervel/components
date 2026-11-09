@@ -15,6 +15,7 @@ class JobQueueingFailed
      *
      * @param Closure|object|string $job
      * @param null|int $delay the number of seconds the job was delayed
+     * @param bool $sendAttempted whether the job was handed to storage or the broker before it failed
      */
     public function __construct(
         public string $connectionName,
@@ -22,7 +23,8 @@ class JobQueueingFailed
         public object|string $job,
         public string $payload,
         public ?int $delay,
-        public Throwable $exception
+        public Throwable $exception,
+        public bool $sendAttempted = true,
     ) {
     }
 

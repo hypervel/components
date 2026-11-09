@@ -44,6 +44,7 @@ use Hypervel\Queue\Events\WorkerStarting;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\QueueManager as ConcreteQueueManager;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\FailureReporter;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use LogicException;
@@ -1201,6 +1202,8 @@ class Worker
         $runningJobId = null;
         $invalidPayloadException = null;
         $canceled = false;
+        // The throwable unwinding a canceled attempt; null when the timeout monitor took over a body that returned.
+        $cancellation = null;
         $processingMarker = null;
 
         try {
@@ -1257,6 +1260,7 @@ class Worker
                             $notification->wait();
                         } catch (CanceledException $exception) {
                             $canceled = true;
+                            $cancellation = $exception;
 
                             throw $exception;
                         }
@@ -1293,6 +1297,7 @@ class Worker
             if ($runningJobId !== null && isset($this->timeoutJobIds[$runningJobId])) {
                 if (static::$killOnTimeout) {
                     $canceled = true;
+                    $cancellation = $e;
 
                     throw $e;
                 }
@@ -1303,6 +1308,7 @@ class Worker
                         $this->reportException($e);
                     } catch (Throwable $exception) {
                         $canceled = true;
+                        $cancellation = $exception;
 
                         throw $exception;
                     }
@@ -1311,6 +1317,7 @@ class Worker
                 $e = $this->timeoutExceededException($job);
             } elseif (FrameworkCoroutine::causedByCancellation($e)) {
                 $canceled = true;
+                $cancellation = $e;
 
                 throw $e;
             }
@@ -1320,7 +1327,10 @@ class Worker
             try {
                 $this->handleJobException($connectionName, $job, $options, $e);
             } catch (Throwable $exception) {
-                $canceled = FrameworkCoroutine::causedByCancellation($exception);
+                if (FrameworkCoroutine::causedByCancellation($exception)) {
+                    $canceled = true;
+                    $cancellation = $exception;
+                }
 
                 throw $exception;
             }
@@ -1353,6 +1363,25 @@ class Worker
 
                 if ($invalidPayloadException !== null && static::$reportJobExceptions) {
                     $this->reportException($invalidPayloadException);
+                }
+            } elseif ($this->events->hasListeners(JobAttempted::class)) {
+                // Telemetry that JobProcessing began must end in this coroutine. The monitor
+                // or the unwinding cancellation owns the attempt's other completion steps.
+                try {
+                    $this->events->dispatch(new JobAttempted(
+                        $connectionName,
+                        $job,
+                        $exceptionOccurred ?? ($timedOut ? $this->timeoutExceededException($job) : $cancellation),
+                        $duration ?? null,
+                        canceled: true,
+                    ));
+                } catch (Throwable $exception) {
+                    // Nothing else is unwinding once the monitor took over a body that returned.
+                    if ($cancellation === null) {
+                        throw $exception;
+                    }
+
+                    FailureReporter::report($exception);
                 }
             }
         }
