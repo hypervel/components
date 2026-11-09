@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\HttpServer;
 
 use Hypervel\Contracts\Http\HasTrailers;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Server\ResponseCancellation;
 use ReflectionProperty;
@@ -219,7 +220,7 @@ class ResponseBridge
         try {
             static::end($swooleResponse);
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($shouldDelete) {
@@ -230,7 +231,7 @@ class ResponseBridge
                     throw new RuntimeException('Unable to delete the binary response file.');
                 }
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
@@ -371,7 +372,7 @@ class ResponseBridge
                     throw new RuntimeException('Unable to close the binary response file.');
                 }
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
@@ -535,7 +536,7 @@ class ResponseBridge
             try {
                 $writable = $swooleResponse->write($chunk);
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
                 $writable = false;
             }
 
@@ -546,7 +547,7 @@ class ResponseBridge
             try {
                 $response->sendContent();
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         } finally {
             static::restoreOutputBufferLevel($level);
@@ -554,7 +555,7 @@ class ResponseBridge
             try {
                 $swooleResponse->end();
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
@@ -590,7 +591,7 @@ class ResponseBridge
         try {
             $swooleResponse->end();
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {

@@ -23,7 +23,6 @@ use InvalidArgumentException;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Swoole\Runtime;
 use Throwable;
 
@@ -159,9 +158,11 @@ class CurlStreamingHandler
             }
 
             return Create::promiseFor($body->response());
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return Create::rejectionFor($exception);
         }
     }
