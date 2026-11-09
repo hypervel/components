@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\ReturnTypes;
 
+use Hypervel\PHPStan\Concerns\InfersUnpackedHelperCalls;
 use PhpParser\Node\Expr\FuncCall;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
@@ -19,6 +20,8 @@ use PHPStan\Type\Type;
 #[AutowiredService]
 class DoubleUnderscoreHelperReturnTypeExtension implements DynamicFunctionReturnTypeExtension
 {
+    use InfersUnpackedHelperCalls;
+
     /**
      * Determine whether the function is the __() helper.
      */
@@ -28,7 +31,7 @@ class DoubleUnderscoreHelperReturnTypeExtension implements DynamicFunctionReturn
     }
 
     /**
-     * Get the translation type for a key that cannot be null.
+     * Get the translation type for a key that cannot be null or comes from unpacked lists.
      */
     public function getTypeFromFunctionCall(
         FunctionReflection $functionReflection,
@@ -39,7 +42,11 @@ class DoubleUnderscoreHelperReturnTypeExtension implements DynamicFunctionReturn
         // possibly null key keeps the helper's declared conditional return type.
         $key = $functionCall->getArgs()[0] ?? null;
 
-        if ($key === null || $key->unpack || ! $scope->getType($key->value)->isNull()->no()) {
+        if ($key !== null && $key->unpack) {
+            return $this->getUnpackedHelperType($functionReflection, $functionCall, $scope);
+        }
+
+        if ($key === null || ! $scope->getType($key->value)->isNull()->no()) {
             return null;
         }
 

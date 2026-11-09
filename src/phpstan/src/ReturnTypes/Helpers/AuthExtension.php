@@ -23,6 +23,7 @@ use function is_object;
 class AuthExtension implements DynamicFunctionReturnTypeExtension
 {
     use Concerns\HasContainer;
+    use Concerns\InfersUnpackedHelperCalls;
 
     /**
      * Create a new extension instance.
@@ -52,13 +53,15 @@ class AuthExtension implements DynamicFunctionReturnTypeExtension
 
         // Unlike guard(null), auth() and auth(null) return the factory rather than the default guard.
         if ($guard === null || (! $guard->unpack && $scope->getType($guard->value)->isNull()->yes())) {
-            $factory = $this->resolve(Factory::class);
-
-            return is_object($factory) ? new ObjectType($factory::class) : null;
+            return $this->getFactoryType();
         }
 
-        // A maybe-null or unpacked guard can still return the factory, so the declared conditional applies.
-        if ($guard->unpack || ! $scope->getType($guard->value)->isNull()->no()) {
+        if ($guard->unpack) {
+            return $this->getUnpackedHelperType($functionReflection, $functionCall, $scope, $this->getFactoryType());
+        }
+
+        // A maybe-null guard can still return the factory, so the declared conditional applies.
+        if (! $scope->getType($guard->value)->isNull()->no()) {
             return null;
         }
 
@@ -69,5 +72,15 @@ class AuthExtension implements DynamicFunctionReturnTypeExtension
             ParametersAcceptorSelector::selectFromArgs($scope, $functionCall->getArgs(), $functionReflection->getVariants())->getReturnType(),
             acceptsEnums: false,
         );
+    }
+
+    /**
+     * Get the type of the booted auth factory.
+     */
+    private function getFactoryType(): ?Type
+    {
+        $factory = $this->resolve(Factory::class);
+
+        return is_object($factory) ? new ObjectType($factory::class) : null;
     }
 }

@@ -17,8 +17,11 @@ enum NumberedGuard: int
     case Zero = 0;
 }
 
-/** @param list<string> $names */
-function test(string $name, ?string $maybeName, array $names): void
+/**
+ * @param list<string> $names
+ * @param non-empty-list<string> $someNames
+ */
+function test(string $name, ?string $maybeName, array $names, array $someNames): void
 {
     // shouldUse() changes the default guard per coroutine, so it may be any configured guard.
     assertType('Hypervel\Auth\RequestGuard|Hypervel\Auth\SessionGuard', Auth::guard());
@@ -32,9 +35,11 @@ function test(string $name, ?string $maybeName, array $names): void
     assertType('Hypervel\Auth\RequestGuard|Hypervel\Auth\SessionGuard', Auth::guard(...$names));
 
     // auth() returns the factory for a null or omitted guard, so these keep the declaration.
-    // PHPStan resolves the declared conditional from an unpacked argument's element type.
     assertType('Hypervel\Contracts\Auth\Factory|Hypervel\Contracts\Auth\Guard', auth($maybeName));
-    assertType('Hypervel\Contracts\Auth\Guard', auth(...$names));
+
+    // An empty unpacked list leaves the guard null, so auth() may return the factory.
+    assertType('Hypervel\Auth\AuthManager|Hypervel\Contracts\Auth\Guard', auth(...$names));
+    assertType('Hypervel\Contracts\Auth\Guard', auth(...$someNames));
 
     assertType(SessionGuard::class, Auth::guard('0'));
     assertType(SessionGuard::class, Auth::guard(NumberedGuard::Zero));
