@@ -201,6 +201,16 @@ class IntegrationTest extends PHPStanTestCase
             ],
         ];
 
+        // Hypervel: also covers the has* sequence and trashed() value forms, trashed() on a model that does not
+        // soft delete, and a has* name whose method returns no relation.
+        yield [
+            __DIR__ . '/data/model-factories.php',
+            [
+                16 => ['Call to an undefined method Database\Factories\Post\PostFactory::trashed().'],
+                17 => ['Call to an undefined method Database\Factories\UserFactory::hasGetTable().'],
+            ],
+        ];
+
         yield [__DIR__ . '/data/blade-view.php'];
 
         yield [
@@ -430,6 +440,16 @@ class IntegrationTest extends PHPStanTestCase
                 11 => ['Parameter #1 $attributes of method Hypervel\Database\Eloquent\Model::forceFill() expects array<model property of App\User, mixed>, array<string, string> given.'],
                 29 => ['Parameter #1 $attributes of method Hypervel\Database\Eloquent\Model::fill() expects array<model property of static(ModelPropertyFill\FillOnModel), mixed>, array<string, string> given.'],
                 30 => ['Parameter #1 $attributes of method Hypervel\Database\Eloquent\Model::forceFill() expects array<model property of static(ModelPropertyFill\FillOnModel), mixed>, array<string, string> given.'],
+            ],
+        ];
+
+        // Hypervel: createQuietly() and createMany() check the attributes too.
+        yield [
+            __DIR__ . '/data/model-property-model-factory.php',
+            [
+                7 => ['Parameter #1 $attributes of method Hypervel\Database\Eloquent\Factories\Factory<App\User>::createOne() expects array<model property of App\User, mixed>|(callable(array<string, mixed>): array<string, mixed>), array{foo: \'bar\'} given.'],
+                8 => ['Parameter #1 $attributes of method Hypervel\Database\Eloquent\Factories\Factory<App\User>::createQuietly() expects array<model property of App\User, mixed>|(callable(array<string, mixed>): array<string, mixed>), array{foo: \'bar\'} given.'],
+                9 => ['Parameter #1 $records of method Hypervel\Database\Eloquent\Factories\Factory<App\User>::createMany() expects int|iterable<int, array<model property of App\User, mixed>>|null, array<int, array<string, string>> given.'],
             ],
         ];
 
