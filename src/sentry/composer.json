@@ -50,6 +50,7 @@
         "hypervel/guzzle": "^8.3",
         "hypervel/guzzle-promises": "^3.1",
         "hypervel/http": "^0.4",
+        "hypervel/http-server": "^0.4",
         "hypervel/log": "^0.4",
         "hypervel/notifications": "^0.4",
         "hypervel/object-pool": "^0.4",
