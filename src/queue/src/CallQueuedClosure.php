@@ -35,6 +35,7 @@ class CallQueuedClosure implements ShouldQueue
     /**
      * Indicate if the job should be deleted when models are missing.
      */
+    // @phpstan-ignore hypervel.legacyQueueProperty (public property; removing it would leave assignments to it without declared storage)
     public bool $deleteWhenMissingModels = true;
 
     /**

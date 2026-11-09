@@ -27,6 +27,7 @@ class BroadcastAgent implements ShouldQueue
     }
     use Queueable;
 
+    // @phpstan-ignore hypervel.legacyQueueProperty (public property; removing it would leave assignments to it without declared storage)
     public int $tries = 1;
 
     public string $invocationId;
