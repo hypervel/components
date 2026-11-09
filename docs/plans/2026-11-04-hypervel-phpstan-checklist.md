@@ -14,10 +14,6 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 - merge into `src/docs/static-analysis.md`: `docs/custom-config-parameters.md`, `docs/custom-types.md`, `docs/errors-to-ignore.md`, `docs/features.md`, `docs/rules.md`
 - omit: `e2e/` Laravel project baselines (replaced by the plan's real-project checks)
 
-## Runtime prerequisites
-
-- `src/bus/src/PendingChain.php`, `src/bus/src/Queueable.php`, `src/bus/src/ChainedBatch.php`, `src/support/src/Testing/Fakes/{QueueFake,PendingChainFake}.php` and their existing tests (chain/fake precedence)
-
 ## src
 
 - omit: `Internal/ComposerHelper.php` (`Support\Composer::vendorPath()` resolves the actual install)

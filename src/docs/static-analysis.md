@@ -257,6 +257,7 @@ The following table summarizes the preferred pattern for each of Hypervel's diag
 | [Redis Connections](#redis-connections) | Call connection-bound methods on a held connection. | `hypervel.redisConnectionBoundMethod` |
 | [Model Relations](#model-relations) | Load and query relations the model defines. | `hypervel.relationExistence` |
 | [Model Scopes and Accessors](#model-scopes-and-accessors) | Declare local scopes as protected `#[Scope]` methods and accessors as protected methods. | `hypervel.legacyModelScope`, `hypervel.noPublicModelScopeMethod`, `hypervel.noPublicModelAccessorMethod` |
+| [Model Configuration](#model-configuration) | Configure models with attributes such as `Table` and `Fillable`. | `hypervel.legacyModelProperty` |
 | [Appended Attributes](#appended-attributes) | Append attributes that a get accessor or class cast computes. | `hypervel.modelAppends` |
 | [Creating Models](#creating-models) | Create models using `new` rather than `make`. | `hypervel.noModelMake` |
 | [Query Results](#query-results) | Let the query count, test or pluck rows instead of fetching every model. | `hypervel.noUnnecessaryCollectionCall` |
@@ -267,6 +268,7 @@ The following table summarizes the preferred pattern for each of Hypervel's diag
 | [Models in Queued Jobs](#models-in-queued-jobs) | Use `SerializesModels` in queued jobs that hold models. | `hypervel.jobSerializesModels` |
 | [Batched Jobs](#batched-jobs) | Use `Batchable` in batched jobs, and dispatch unique jobs individually. | `hypervel.batchedJobIsBatchable`, `hypervel.noBatchedUniqueJob`, `hypervel.batchableJobChecksCancellation` |
 | [Unique Jobs](#unique-jobs) | Declare what makes each unique job distinct. | `hypervel.uniqueJobUniqueId`, `hypervel.uniqueJobUniqueFor` |
+| [Queue Configuration](#queue-configuration) | Configure queued classes with attributes such as `Tries` and `Backoff`. | `hypervel.legacyQueueProperty` |
 | [Deprecations](#deprecations) | Use the replacement the deprecation names. | `method.deprecated` and the other deprecation identifiers |
 
 <a name="environment-variables"></a>
@@ -455,6 +457,28 @@ The analysis reports a legacy `scopePopular` method, naming the attributed scope
 
 When the model already has a method with the scope's name, such as a notification's `read` method beside its `scopeRead` scope, the legacy scope is the only way to keep the scope's name, so it is not reported. A scope defined in a reusable trait should also keep its legacy name, since a model's own method with the same name would silently replace an attributed scope; ignore it with a reason. Likewise, ignore a public scope or accessor that other code calls directly as part of a public API. You may disable these checks using the `noLegacyModelScopes` and `checkModelMethodVisibility` parameters.
 
+<a name="model-configuration"></a>
+### Model Configuration
+
+Configure a model with attributes rather than properties, such as its table, keys, timestamps and mass assignment:
+
+```php
+use Hypervel\Database\Eloquent\Attributes\Fillable;
+use Hypervel\Database\Eloquent\Attributes\Hidden;
+use Hypervel\Database\Eloquent\Attributes\Table;
+
+#[Table('flights', key: 'flight_id')]
+#[Fillable(['name', 'airline'])]
+#[Hidden(['secret'])]
+class Flight extends Model
+{
+}
+```
+
+The analysis reports a model's own `$table`, `$connection`, `$primaryKey`, `$keyType`, `$incrementing`, `$timestamps`, `$dateFormat`, `$fillable`, `$guarded`, `$hidden`, `$visible`, `$appends`, `$touches` and `$refreshes` declarations. It names the attribute that gives the model the same settings, or says the declaration can be removed when the model resolves the same value without it. A single `Table` attribute holds the table, key and key type. The properties keep working. A declaration the constructor assigns, or changes through a model setter such as `setTable` or `mergeFillable`, is not reported; changes made inside other methods the constructor calls, including trait initializers, are not detected.
+
+Attributes and properties take precedence differently through inheritance, so a suggestion holds for the model itself, not necessarily its subclasses. A subclass's own attribute replaces an inherited attribute entirely: a subclass declaring `#[Hidden(['token'])]` adds to a parent's `$hidden = ['password']`, but replaces a parent's `#[Hidden(['password'])]`, so it must repeat `password`. An attribute can also win over a subclass's property, such as a parent's `#[WithoutTimestamps]` over a subclass's `$timestamps = true`. Review a model's subclasses before converting it, and keep the property when attributes cannot express the hierarchy, such as on a model that applications extend and customize through properties; ignore it with a reason. You may disable this check using the `noLegacyModelProperties` parameter.
+
 <a name="appended-attributes"></a>
 ### Appended Attributes
 
@@ -608,6 +632,28 @@ public function uniqueId(): string
 When the job should be unique regardless of its arguments, return a constant from `uniqueId` to make that clear. You may disable this check using the `checkUniqueJobUniqueId` parameter.
 
 When the `checkUniqueJobUniqueFor` parameter is enabled, the analysis also reports unique jobs that do not declare how long they stay unique, using the `UniqueFor` attribute, a `uniqueFor` method or a `$uniqueFor` property. Without one, the lock is acquired without a duration, whose meaning depends on your cache store, so a worker that stops while running the job may leave the lock held.
+
+<a name="queue-configuration"></a>
+### Queue Configuration
+
+Configure queued jobs, listeners, mailables, notifications and broadcast events with attributes rather than properties:
+
+```php
+use Hypervel\Queue\Attributes\Backoff;
+use Hypervel\Queue\Attributes\Queue;
+use Hypervel\Queue\Attributes\Tries;
+
+#[Queue('podcasts')]
+#[Tries(5)]
+#[Backoff([1, 5, 10])]
+class ProcessPodcast implements ShouldQueue
+{
+}
+```
+
+The analysis reports public `$connection`, `$queue`, `$delay`, `$tries`, `$timeout`, `$maxExceptions`, `$backoff`, `$uniqueFor`, `$debounceFor`, `$failOnTimeout`, `$countCrashesAsExceptions` and `$deleteWhenMissingModels` declarations where the class's queue path reads the matching attribute. It names the attribute that keeps the same setting, or says the declaration can be removed. A declaration in a trait the class uses is reported with the attribute to place on the trait, unless its value depends on the class, such as `self::TRIES`. The properties keep working.
+
+A setting computed by a method, such as `tries` or a listener's `viaQueue`, is not reported. Neither is a `false` flag, which can turn off an inherited attribute, nor a declaration the constructor assigns or changes through `onConnection`, `onQueue`, `delay` and the other `Queueable` setters, such as a wrapper job copying the settings of the object it wraps; changes made inside other methods the constructor calls are not detected. A subclass's non-null public property still wins over an inherited attribute, but a subclass's own attribute replaces it entirely: a subclass's `#[DebounceFor(10)]` drops the parent's `maxWait`. Keep a declared property that other code reads or assigns when no parent declares it, since an attribute does not provide that storage; ignore it with a reason. You may disable this check using the `noLegacyQueueProperties` parameter.
 
 <a name="deprecations"></a>
 ### Deprecations
