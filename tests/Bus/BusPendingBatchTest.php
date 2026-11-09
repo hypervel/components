@@ -17,6 +17,8 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Events\Dispatcher as EventsDispatcher;
+use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Tests\TestCase;
@@ -239,6 +241,36 @@ class BusPendingBatchTest extends TestCase
             $batch->expects('cancelled')->andReturnFalse();
             $callbacks[0]($batch);
         }
+    }
+
+    public function testChainedBatchRemainderKeepsJobAttributesOverChainDefaults(): void
+    {
+        $container = new Container;
+        Container::setInstance($container);
+
+        $sourceJob = new BatchableJob;
+        $chainedBatch = new TestableChainedBatch(new PendingBatch($container, new Collection([$sourceJob])));
+        $chainedBatch->chain([new AttributedChainedBatchQueueableJob]);
+        $chainedBatch->chainConnection = 'chain-connection';
+        $chainedBatch->chainQueue = 'chain-queue';
+
+        $dispatcher = m::mock(BusDispatcher::class);
+        $dispatcher->expects('dispatch')->with(m::on(function (AttributedChainedBatchQueueableJob $job): bool {
+            $this->assertNull($job->connection);
+            $this->assertNull($job->queue);
+            $this->assertSame('chain-connection', $job->chainConnection);
+            $this->assertSame('chain-queue', $job->chainQueue);
+
+            return true;
+        }));
+        $container->instance(BusDispatcher::class, $dispatcher);
+
+        $callbacks = $chainedBatch->attachRemainder(new PendingBatch($container, new Collection([$sourceJob])))
+            ->finallyCallbacks();
+
+        $batch = m::mock(Batch::class);
+        $batch->expects('cancelled')->andReturnFalse();
+        $callbacks[0]($batch);
     }
 
     public function testPendingBatchMayBeConfiguredAndDispatched(): void
@@ -702,6 +734,13 @@ class BatchableJob
 }
 
 class ChainedBatchQueueableJob
+{
+    use Queueable;
+}
+
+#[Connection('job-connection')]
+#[QueueAttribute('job-queue')]
+class AttributedChainedBatchQueueableJob
 {
     use Queueable;
 }

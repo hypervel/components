@@ -7,6 +7,8 @@ namespace Hypervel\Bus;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -326,10 +328,14 @@ trait Queueable
             dispatch(tap(unserialize(array_shift($this->chained)), function ($next) {
                 $next->chained = $this->chained;
 
-                $next->onConnection($next->connection === null || $next->connection === ''
+                // Laravel checks only the job's properties, so a chain default replaced the job's own
+                // #[Connection] or #[Queue]. The job's own attribute or property beats the chain default.
+                $defaults = new ChainDefaults;
+
+                $next->onConnection($defaults->appliesTo($next, Connection::class, 'connection')
                     ? $this->chainConnection
                     : $next->connection);
-                $next->onQueue($next->queue === null || $next->queue === ''
+                $next->onQueue($defaults->appliesTo($next, QueueAttribute::class, 'queue')
                     ? $this->chainQueue
                     : $next->queue);
 
