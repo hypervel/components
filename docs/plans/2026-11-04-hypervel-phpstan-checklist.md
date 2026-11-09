@@ -22,13 +22,10 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 
 - copy with the queue rules: `Concerns/InspectsQueuedJobs.php`
 - omit: `Internal/ComposerHelper.php` (`Support\Composer::vendorPath()` resolves the actual install)
-- copy: `Methods/ModelFactoryMethodsClassReflectionExtension.php`
 - omit: `Properties/ReflectionTypeContainer.php` (unused since upstream removed container ArrayAccess support)
-- copy: `ReturnTypes/{FactoryDynamicMethodReturnTypeExtension,ModelFactoryDynamicStaticMethodReturnTypeExtension}.php`
 - copy: `Rules/*` except below and the ported `ArrKeyExistenceRule`, auth request-scope, config, console, `NoEnvCallsOutsideOfConfigRule`, `NoMissingTranslationsRule`, `NoUnnecessaryEnumerableToArrayCallsRule`, `RelationExistenceRule` (with `RelationExistenceHelper` and `ModelRuleHelper`), `UnusedViewsRule` and `UselessConstructs/` rules (including `Queue/`)
 - omit: `Rules/DeferrableServiceProviderMissingProvidesRule.php`, `Rules/OctaneCompatibilityRule.php`
 - omit: `SQL/*` (`hypervel/schema-parser` replaces the parser boundary and its iamcal/phpMyAdmin adapters)
-- copy: `Types/Factory/` with the factory flow
 
 ## New Hypervel source
 
@@ -38,7 +35,7 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 
 ## stubs
 
-- copy with their topic flows: `common/{Attribute,Console/{Command,HasParameters},Contracts/{Cache,Container,Kernel,Mail,Queue,UrlGenerator},Cookie/SymfonyCookie,Database/Eloquent/Concerns/{HasAttributes,HasEvents,HasRelationships},Database/{ManagesTransactions,Migrations/Migrator},Events/Dispatcher,Factory,Http/RedirectResponse,Macroable,Notifications/Notification,Routing/{Redirector,UrlGenerator},Session/SessionManager,Support/{HtmlString,Manager,Optional},ThirdParty,Validation/Validator}.stub`, except below; `EloquentCollection`, `MorphTo`, `MorphToMany`, `Pagination` and `Contracts/Pagination` need no separate stub: the source declares their types, with `toQuery()`'s return-type extension and `MorphTo`'s map refinements in the combined `Database/Eloquent/Relations.stub`
+- copy with their topic flows: `common/{Attribute,Console/{Command,HasParameters},Contracts/{Cache,Container,Kernel,Mail,Queue,UrlGenerator},Cookie/SymfonyCookie,Database/Eloquent/Concerns/{HasAttributes,HasEvents,HasRelationships},Database/{ManagesTransactions,Migrations/Migrator},Events/Dispatcher,Http/RedirectResponse,Macroable,Notifications/Notification,Routing/{Redirector,UrlGenerator},Session/SessionManager,Support/{HtmlString,Manager,Optional},ThirdParty,Validation/Validator}.stub`, except below; `EloquentCollection`, `MorphTo`, `MorphToMany`, `Pagination` and `Contracts/Pagination` need no separate stub: the source declares their types, with `toQuery()`'s return-type extension and `MorphTo`'s map refinements in the combined `Database/Eloquent/Relations.stub`
 - stubs repeat the source's native signatures except returns that name a collection or paginator, whose stubs fail stub validation (variance); `ModelPropertyColumnRule` checks the pagination and `pluck()` columns that upstream's stubs type
 - merge into `common/Helpers.stub` with their topics: the `cookie()`, `logger()`, `logs()`, `redirect()`, `request()`, `session()` and `url()` helper entries, whose conditional returns the source already declares (only `view()` is ported; `optional()` is typed in source and `OptionalExtension`; the stub records the omitted helpers)
 - merge with their topic flows: the upstream typing for the declaration-only stubs that `common/Facades.stub`'s mixins need for stub validation: Events `dispatch()`/`until()` conditionals, `Connection::getQueryLog()` shape, Schema `getColumnListing()`, and the Cache `Repository` `ArrayAccess` implements (check Hypervel's enum keys)
@@ -51,11 +48,9 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 ## tests
 
 - omit: `laravel-test.sh`
-- copy with the factory flow: `application/app/{Domain/,Shapes/}` and `application/database/factories/`
 - omit: `application/app/{ModelWithConflictingInitializer.php,UserResource.php,Providers/}` (no upstream test or source references them)
 - copy: `Rules/*Test.php` except below and the ported `ArrKeyExistence`, auth, config, console, environment, enumerable `toArray()`, relation existence, view, translation and useless-construct rule tests, the remaining `Rules/data/*`, `Rules/Queue/data/*`
 - omit: `Rules/{DeferrableServiceProviderMissingProvidesRuleTest,OctaneCompatibilityRuleTest}.php`, `Rules/data/{CorrectDeferrableProvider,CorrectDeferrableProviderIndirect,IncorrectDeferrableProvider}.php`, `Rules/data/octane.neon`, `Rules/data/ContainerInjection.php`
 - copy: `Type/*Test.php` except below, the ported collection, config and model-property tests, `GeneralTypeTest.php` and `MethodsClassReflectionExtensionTest.php`, with the remaining `Type/data/*`
 - merge: the remaining `Type/GeneralTypeTest.php` data entries (its `phpstan-tests.neon` already matches upstream's `config-with-migrations.neon`)
-- copy with the factory flow: `Unit/ModelFactoryDynamicStaticMethodReturnTypeExtensionTest.php`; merge `Integration/data/{model-factories,model-property-model-factory}.php` and their `Integration/IntegrationTest.php` entries
 - omit: `Unit/SQL/*` (parser factory and phpMyAdmin adapter tests; `hypervel/schema-parser` has its own)

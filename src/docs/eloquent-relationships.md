@@ -2406,6 +2406,14 @@ $users = User::where('vip', true)->get();
 return $users->withRelationshipAutoloading();
 ```
 
+When automatic eager loading is enabled globally, you may disable it for the models retrieved or made within a closure by invoking the `withoutAutomaticallyEagerLoadingRelationships` method. Like `withoutEvents`, it only affects the current coroutine:
+
+```php
+$users = Model::withoutAutomaticallyEagerLoadingRelationships(function () {
+    return User::where('vip', true)->get();
+});
+```
+
 <a name="preventing-lazy-loading"></a>
 ### Preventing Lazy Loading
 

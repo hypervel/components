@@ -93,6 +93,8 @@ Request input is typed as what the request can hold. A keyed `query()`, `post()`
 
 Dates are different: `now()`, `today()` and the `Date` facade return `CarbonInterface`, as they are declared, even when your application configures a specific date class. When your code needs a specific class, convert the value, such as with `toImmutable()`.
 
+Model factories are typed as the factory the model's `factory` method selects, and the analysis follows whether the factory makes one model or a collection: `User::factory()->create()` is a `User`, while `User::factory(3)->create()` is a collection. The `createMany`, `createManyQuietly` and `makeMany` methods clear a factory's count. The analysis follows this when the call is a statement or an assigned value, but not when the call is passed straight to another call, so assign the result first if you use the same factory again afterwards. A factory class with its own `@template` types keeps its generic type instead, so its `create` and `make` methods return the model or a collection of it.
+
 Some facts cannot be known statically. When the analysis cannot tell what a configuration key holds, such as a value that provider code writes in a way the analysis does not recognize and that did not run while your application booted, it uses the declared return type instead of guessing.
 
 Calling `str()` without arguments returns an object that passes method calls to `Str`. The analysis does not check those calls.
