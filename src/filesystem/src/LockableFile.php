@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Filesystem;
 
 use Hypervel\Contracts\Filesystem\LockTimeoutException;
+use Hypervel\Coroutine\Coroutine;
 use RuntimeException;
 use Throwable;
 
@@ -224,7 +225,7 @@ class LockableFile
                 throw new RuntimeException("Unable to close file at path [{$this->path}].");
             }
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {

@@ -313,10 +313,12 @@ class Sleep
 
         while ($while()) {
             if ($seconds > 0) {
+                // @phpstan-ignore hypervel.rawSleep (the Sleep implementation itself)
                 sleep($seconds);
             }
 
             if ($microseconds > 0) {
+                // @phpstan-ignore hypervel.rawSleep (the Sleep implementation itself)
                 usleep($microseconds);
             }
         }

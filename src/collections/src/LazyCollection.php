@@ -2019,6 +2019,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
 
         class_exists(Sleep::class)
             ? Sleep::usleep($microseconds)
+            // @phpstan-ignore hypervel.rawSleep (fallback when collections is installed without hypervel/support)
             : usleep($microseconds);
     }
 
