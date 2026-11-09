@@ -8,6 +8,8 @@ use Hypervel\OpenTelemetry\Contracts\Instrumentation;
 use Hypervel\OpenTelemetry\Support\InstrumentationOptions;
 use OpenTelemetry\API\Metrics\ObserverInterface;
 use OpenTelemetry\SemConv\Version;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 abstract class AbstractInstrumentation implements Instrumentation
 {
@@ -41,6 +43,17 @@ abstract class AbstractInstrumentation implements Instrumentation
     protected function metricEnabled(string $name): bool
     {
         return $this->options->metricEnabled($name);
+    }
+
+    /**
+     * Determine whether the throwable is a direct coroutine cancellation.
+     *
+     * Ending an operation by direct cancellation is control flow, not a failure.
+     */
+    protected function isDirectCancellation(?Throwable $exception): bool
+    {
+        // @phpstan-ignore hypervel.cancellation.exactType (only a direct cancellation is not a failure; a cleanup failure carrying it is recorded as one)
+        return $exception instanceof CanceledException;
     }
 
     /**

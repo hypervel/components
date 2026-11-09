@@ -190,21 +190,22 @@ class WebSocketInstrumentationTest extends TestCase
         );
     }
 
-    public function testCancellationProducesNoFalseCompletionTelemetry(): void
+    public function testCancelledMessageEndsItsSpanWithoutAResult(): void
     {
         $this->instrumentation()->register($this->options(activeConnections: false));
         $frame = $this->frame();
 
         $this->events->dispatch(new MessageReceived(1, $frame, 'websocket'));
-        $active = Span::getCurrent()->getContext();
         $this->events->dispatch(new MessageHandled(1, $frame, 'websocket', new CanceledException));
 
-        $this->assertTrue($active->isValid());
-        $this->assertSame($active->getSpanId(), Span::getCurrent()->getContext()->getSpanId());
-        $this->assertSame([], $this->spanExporter->getSpans());
+        $span = $this->exportedSpan('websocket.message');
+        $this->assertSame(StatusCode::STATUS_UNSET, $span->getStatus()->getCode());
+        $this->assertNull($span->getAttributes()->get('result'));
+        $this->assertNull($span->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
+        $this->assertSame([], $span->getEvents());
+        $this->assertFalse(Span::getCurrent()->getContext()->isValid());
         $this->metricReader->collect();
-        $this->assertCount(0, $this->metric(self::MESSAGES_METRIC)->data->dataPoints);
-        $this->assertSame(1, $this->clock->calls);
+        $this->assertNull($this->sumPoint(self::MESSAGES_METRIC)->attributes->get('result'));
     }
 
     public function testMessageIdentityIsAvailableToTheSampler(): void

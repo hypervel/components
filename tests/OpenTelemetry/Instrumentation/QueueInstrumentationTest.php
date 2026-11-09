@@ -24,6 +24,7 @@ use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\Events\JobQueueingCanceled;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\Events\JobTimedOut;
 use Hypervel\Queue\Events\OutboxBatchDelivered;
@@ -34,6 +35,7 @@ use Hypervel\Queue\SyncQueue;
 use Hypervel\Queue\TimeoutExceededException;
 use Hypervel\Tests\OpenTelemetry\Fixtures\CapturingAlwaysOffSampler;
 use Hypervel\Tests\TestCase;
+use LogicException;
 use Mockery as m;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Trace\Propagation\TraceContextPropagator;
@@ -67,6 +69,7 @@ use OpenTelemetry\SDK\Trace\TracerProvider;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Attributes\ExceptionAttributes;
 use Override;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -508,13 +511,19 @@ class QueueInstrumentationTest extends TestCase
 
         $this->metricReader->collect();
         $this->assertCount(0, $this->metric(self::SENT_MESSAGES_METRIC)->data->dataPoints);
-        $this->assertCount(0, $this->metric(self::SEND_DURATION_METRIC)->data->dataPoints);
+        $this->assertSame(
+            RuntimeException::class,
+            $this->histogramPoint(self::SEND_DURATION_METRIC)->attributes->get(ErrorAttributes::ERROR_TYPE),
+        );
     }
 
-    public function testFinalizerCancellationAbandonsTheSpanAndCommitsNothing(): void
+    #[TestWith([true])]
+    #[TestWith([false], 'metrics only')]
+    public function testFinalizerCancellationEndsTheProducerWithoutAnErrorAndCommitsNothing(bool $traces): void
     {
         $cancellation = new CanceledException;
-        $this->instrumentation(new QueueInstrumentationTestPropagator($cancellation))->register($this->options());
+        $this->exceptionContexts->enable();
+        $this->instrumentation(new QueueInstrumentationTestPropagator($cancellation))->register($this->options(['traces' => $traces]));
         $event = $this->finalizingEvent();
         $originalPayload = $event->payload;
 
@@ -527,9 +536,55 @@ class QueueInstrumentationTest extends TestCase
 
         $this->assertSame($originalPayload, $event->payload);
         $this->assertNull(QueueProducerStateStore::current()->take($originalPayload));
-        $this->assertSame([], $this->spanExporter->getSpans());
+
+        if ($traces) {
+            $span = $this->exportedSpan('enqueue emails');
+            $this->assertSame(StatusCode::STATUS_UNSET, $span->getStatus()->getCode());
+            $this->assertSame([], $span->getEvents());
+        }
+
+        $this->assertNull($this->exceptionContexts->take($cancellation));
         $this->metricReader->collect();
         $this->assertCount(0, $this->metric(self::SENT_MESSAGES_METRIC)->data->dataPoints);
+        $this->assertFalse($this->histogramPoint(self::SEND_DURATION_METRIC)->attributes->has(ErrorAttributes::ERROR_TYPE));
+    }
+
+    #[TestWith(['before send', false, false, null])]
+    #[TestWith(['wrapped after send', true, true, RuntimeException::class])]
+    #[TestWith(['after a failure', true, false, LogicException::class])]
+    #[TestWith(['after queued', true, true, null])]
+    public function testQueueingCancellationEndsTheProducerWithTheKnownOutcome(
+        string $case,
+        bool $sendAttempted,
+        bool $wrapped,
+        ?string $expectedError,
+    ): void {
+        $this->instrumentation()->register($this->options([
+            'metrics' => $this->metrics(sent: true, sendDuration: true),
+        ]));
+        $event = $this->finalizingEvent();
+        $this->events->dispatch($event);
+        $cancellation = $wrapped ? new RuntimeException('Cleanup failed.', previous: new CanceledException) : new CanceledException;
+
+        $this->events->dispatch(new JobQueueingCanceled(
+            'redis',
+            'emails',
+            'SendEmail@handle',
+            $event->payload,
+            null,
+            $cancellation,
+            $sendAttempted,
+            queued: $case === 'after queued',
+            exception: $case === 'after a failure' ? new LogicException('Send failed.') : null,
+        ));
+
+        $span = $this->exportedSpan('enqueue emails');
+        $this->assertSame($expectedError, $span->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
+        $this->assertSame($expectedError === null ? StatusCode::STATUS_UNSET : StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
+        $this->assertNull(QueueProducerStateStore::current()->take($event->payload));
+        $this->metricReader->collect();
+        $this->assertSame($expectedError, $this->histogramPoint(self::SEND_DURATION_METRIC)->attributes->get(ErrorAttributes::ERROR_TYPE));
+        $this->assertCount($sendAttempted ? 1 : 0, $this->metric(self::SENT_MESSAGES_METRIC)->data->dataPoints);
     }
 
     public function testTraceDisabledPropagationFailureCommitsNoMetricState(): void
@@ -604,7 +659,7 @@ class QueueInstrumentationTest extends TestCase
         $this->assertSame([], $this->spanExporter->getSpans());
     }
 
-    public function testLaterFinalizerFailureCompletesMetricsOnlyProducerByUuid(): void
+    public function testLaterFinalizerFailureCompletesMetricsOnlyProducerByUuidWithoutCountingASend(): void
     {
         $exception = new RuntimeException('Later finalizer failed.');
         $this->instrumentation()->register($this->options([
@@ -631,10 +686,10 @@ class QueueInstrumentationTest extends TestCase
         $this->assertFalse($queue->stored);
         $this->assertNull(QueueProducerStateStore::current()->takeUuid('job-uuid'));
         $this->metricReader->collect();
-        $this->assertSame(1, $this->sumPoint(self::SENT_MESSAGES_METRIC)->value);
+        $this->assertCount(0, $this->metric(self::SENT_MESSAGES_METRIC)->data->dataPoints);
         $this->assertSame(
             RuntimeException::class,
-            $this->sumPoint(self::SENT_MESSAGES_METRIC)->attributes->get(ErrorAttributes::ERROR_TYPE),
+            $this->histogramPoint(self::SEND_DURATION_METRIC)->attributes->get(ErrorAttributes::ERROR_TYPE),
         );
     }
 
@@ -954,6 +1009,43 @@ class QueueInstrumentationTest extends TestCase
             TimeoutExceededException::class,
             $this->histogramPoint(self::PROCESS_DURATION_METRIC)
                 ->attributes->get(ErrorAttributes::ERROR_TYPE),
+        );
+    }
+
+    #[TestWith(['direct', null])]
+    #[TestWith(['wrapped', RuntimeException::class])]
+    #[TestWith(['timeout', TimeoutExceededException::class])]
+    #[TestWith(['after a failure', LogicException::class])]
+    public function testCanceledAttemptEndsTheConsumerSpanWithItsKnownOutcomeAndRestoresTheScope(string $case, ?string $expectedError): void
+    {
+        $this->instrumentation()->register($this->options([
+            'propagation' => false,
+            'metrics' => $this->metrics(processDuration: true),
+        ]));
+        $job = $this->job($this->payload());
+        $exception = match ($case) {
+            'wrapped' => new RuntimeException('Cleanup failed.', previous: new CanceledException),
+            'timeout' => new TimeoutExceededException('Job timed out.'),
+            default => new CanceledException,
+        };
+
+        $this->events->dispatch(new JobProcessing('redis', $job));
+        $this->assertTrue(Span::getCurrent()->getContext()->isValid());
+
+        if ($case === 'after a failure') {
+            $this->events->dispatch(new JobExceptionOccurred('redis', $job, new LogicException('Job failed.')));
+        }
+
+        $this->events->dispatch(new JobAttempted('redis', $job, $exception, canceled: true));
+
+        $this->assertFalse(Span::getCurrent()->getContext()->isValid());
+        $span = $this->exportedSpan('process emails');
+        $this->assertSame($expectedError === null ? StatusCode::STATUS_UNSET : StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
+        $this->assertSame($expectedError, $span->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
+        $this->metricReader->collect();
+        $this->assertSame(
+            $expectedError,
+            $this->histogramPoint(self::PROCESS_DURATION_METRIC)->attributes->get(ErrorAttributes::ERROR_TYPE),
         );
     }
 

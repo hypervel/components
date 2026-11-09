@@ -21,6 +21,7 @@ use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobQueued;
+use Hypervel\Queue\Events\JobQueueingCanceled;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\Events\JobTimedOut;
 use Hypervel\Queue\Events\OutboxBatchDelivered;
@@ -44,7 +45,6 @@ use OpenTelemetry\Context\Context;
 use OpenTelemetry\Context\Propagation\ArrayAccessGetterSetter;
 use OpenTelemetry\Context\Propagation\TextMapPropagatorInterface;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use WeakMap;
 
@@ -195,7 +195,15 @@ class QueueInstrumentation extends AbstractInstrumentation
                 $this->finishProducer($event->payload);
             });
             $this->events->listen(JobQueueingFailed::class, function (JobQueueingFailed $event): void {
-                $this->finishProducer($event->payload, $event->exception);
+                $this->finishProducer($event->payload, $event->exception, $event->sendAttempted);
+            });
+            $this->events->listen(JobQueueingCanceled::class, function (JobQueueingCanceled $event): void {
+                // A queued job keeps its success; otherwise only a cleanup failure carrying the cancellation is one.
+                $this->finishProducer(
+                    $event->payload,
+                    $event->exception ?? ($event->queued || $this->isDirectCancellation($event->cancellation) ? null : $event->cancellation),
+                    $event->sendAttempted,
+                );
             });
         }
 
@@ -242,7 +250,7 @@ class QueueInstrumentation extends AbstractInstrumentation
             $this->sentMessages = $meter->createCounter(
                 self::SENT_MESSAGES_METRIC,
                 '{message}',
-                'The number of messages sent to a messaging system.',
+                'The number of messages the producer attempted to send.',
             );
         }
 
@@ -395,19 +403,14 @@ class QueueInstrumentation extends AbstractInstrumentation
                     strlen($finalPayload),
                 );
             }
-            // @phpstan-ignore hypervel.cancellation.exactType (direct cancellation skips completion; a cleanup failure carrying it is recorded; completion on cancellation is pending the next checkpoint)
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
-            if ($span !== null) {
-                $span->recordException($exception);
-                $span->setStatus(StatusCode::STATUS_ERROR);
-                $this->exceptionContexts->associate(
-                    $exception,
-                    $context,
-                    $this->origins->resolve($context, $this->identity),
+            // The job never reached the queue backend, and no later event can find this state.
+            if ($span !== null || $this->sendDuration !== null) {
+                $this->completeProducer(
+                    new QueueProducerState($startedAt, $context, $span, $attributes, $uuid),
+                    $this->isDirectCancellation($exception) ? null : $exception,
+                    sendAttempted: false,
                 );
-                $span->end();
             }
 
             throw $exception;
@@ -424,7 +427,7 @@ class QueueInstrumentation extends AbstractInstrumentation
     /**
      * Complete persistent producer telemetry.
      */
-    protected function finishProducer(string $payload, ?Throwable $exception = null): void
+    protected function finishProducer(string $payload, ?Throwable $exception = null, bool $sendAttempted = true): void
     {
         $store = QueueProducerStateStore::current();
         $state = $store->take($payload);
@@ -437,6 +440,14 @@ class QueueInstrumentation extends AbstractInstrumentation
             return;
         }
 
+        $this->completeProducer($state, $exception, $sendAttempted);
+    }
+
+    /**
+     * Complete producer telemetry from its started state.
+     */
+    protected function completeProducer(QueueProducerState $state, ?Throwable $exception, bool $sendAttempted): void
+    {
         $finishedAt = $state->span === null && $this->sendDuration === null
             ? 0
             : $this->clock->now();
@@ -457,7 +468,10 @@ class QueueInstrumentation extends AbstractInstrumentation
                 );
             }
 
-            $this->sentMessages?->add(1, $attributes, $state->context);
+            if ($sendAttempted) {
+                $this->sentMessages?->add(1, $attributes, $state->context);
+            }
+
             $this->sendDuration?->record(
                 ($finishedAt - $state->startedAt) / ClockInterface::NANOS_PER_SECOND,
                 $attributes,
@@ -646,7 +660,8 @@ class QueueInstrumentation extends AbstractInstrumentation
         $state->completed = true;
         unset($this->consumerStates[$event->job]);
 
-        if ($state->errorType === null && $event->exception !== null) {
+        // A directly cancelled attempt did not fail.
+        if ($state->errorType === null && $event->exception !== null && ! $this->isDirectCancellation($event->exception)) {
             $state->exception = $event->exception;
             $state->errorType = $event->exception::class;
         }

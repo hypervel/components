@@ -149,14 +149,11 @@ class OpenTelemetryManager
             ->setAttributes($attributes)
             ->startSpan();
         $scope = $span->activate();
-        $cancelled = false;
 
         try {
             return $callback($span);
-            // @phpstan-ignore hypervel.cancellation.exactType (direct cancellation skips completion; a cleanup failure carrying it is recorded; completion on cancellation is pending the next checkpoint)
+            // @phpstan-ignore hypervel.cancellation.exactType (only a direct cancellation is not a failure; a cleanup failure carrying it is recorded as one)
         } catch (CanceledException $exception) {
-            $cancelled = true;
-
             throw $exception;
         } catch (Throwable $exception) {
             $context = Context::getCurrent();
@@ -171,10 +168,7 @@ class OpenTelemetryManager
             throw $exception;
         } finally {
             $scope->detach();
-
-            if (! $cancelled) {
-                $span->end();
-            }
+            $span->end();
         }
     }
 

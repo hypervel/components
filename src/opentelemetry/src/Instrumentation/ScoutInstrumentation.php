@@ -20,7 +20,6 @@ use OpenTelemetry\Context\Context;
 use OpenTelemetry\SemConv\Attributes\DbAttributes;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Metrics\DbMetrics;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class ScoutInstrumentation extends AbstractInstrumentation implements EngineOperationObserver
@@ -130,13 +129,14 @@ class ScoutInstrumentation extends AbstractInstrumentation implements EngineOper
         mixed $token,
         ?Throwable $exception
     ): void {
-        // @phpstan-ignore hypervel.cancellation.exactType (direct cancellation skips completion; a cleanup failure carrying it is recorded; completion on cancellation is pending the next checkpoint)
-        if ($exception instanceof CanceledException) {
-            return;
-        }
-
         /** @var ScoutTelemetryState $state */
         $state = $token;
+
+        // A directly cancelled operation did not fail.
+        if ($this->isDirectCancellation($exception)) {
+            $exception = null;
+        }
+
         $finishedAt = $this->clock->now();
         $metricAttributes = $state->metricAttributes;
 

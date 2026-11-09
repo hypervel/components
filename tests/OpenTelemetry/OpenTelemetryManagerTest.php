@@ -238,7 +238,7 @@ class OpenTelemetryManagerTest extends TestCase
         $manager->shutdown();
     }
 
-    public function testTraceDetachesAndRethrowsCancellationWithoutCompletingTheSpan(): void
+    public function testTraceEndsTheSpanWithoutAnErrorWhenCancellationStopsIt(): void
     {
         [$manager, $exporters] = $this->manager();
         $manager->bind(ProcessIdentity::cli());
@@ -257,7 +257,11 @@ class OpenTelemetryManagerTest extends TestCase
 
         $this->assertSame($parent, Span::getCurrent());
         $this->assertTrue($manager->flush());
-        $this->assertSame([], $exporters->spanExporter->getSpans());
+        $spans = $exporters->spanExporter->getSpans();
+        $this->assertCount(1, $spans);
+        $this->assertSame('cancelled', $spans[0]->getName());
+        $this->assertSame(StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode());
+        $this->assertSame([], $spans[0]->getEvents());
 
         $manager->shutdown();
     }

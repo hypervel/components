@@ -265,27 +265,36 @@ class RedisInstrumentationTest extends TestCase
         $this->assertCount(1, $this->metric(DbMetrics::DB_CLIENT_OPERATION_DURATION)->data->dataPoints);
     }
 
-    #[TestWith([false], 'direct cancellation')]
-    #[TestWith([true], 'wrapped cancellation')]
-    public function testResolverCancellationPropagatesWithoutCompletionTelemetry(bool $wrapped): void
+    #[TestWith([false, false], 'direct cancellation after a successful command')]
+    #[TestWith([true, false], 'wrapped cancellation after a successful command')]
+    #[TestWith([false, true], 'direct cancellation after a failed command')]
+    public function testResolverCancellationPropagatesAndKeepsTheCommandOutcome(bool $wrapped, bool $commandFails): void
     {
         $cancellation = $wrapped ? new RuntimeException('Resolver cleanup failed.', previous: new CanceledException) : new CanceledException;
         $resolver = static function () use ($cancellation): never {
             throw $cancellation;
         };
         $this->instrumentation(resolver: $resolver)->register($this->options());
+        $exception = new RuntimeException('connection lost');
         $caught = null;
 
         try {
-            $this->events->dispatch(new CommandExecuted('GET', ['customer:1'], 1, $this->connection()));
-        } catch (Throwable $exception) {
-            $caught = $exception;
+            $this->events->dispatch($commandFails
+                ? new CommandFailed('GET', ['customer:1'], $exception, $this->connection(), 50)
+                : new CommandExecuted('GET', ['customer:1'], 1, $this->connection()));
+        } catch (Throwable $throwable) {
+            $caught = $throwable;
         }
 
         $this->assertSame($cancellation, $caught);
-        $this->assertCount(0, $this->spanExporter->getSpans());
+        $span = $this->spanExporter->getSpans()[0];
+        $this->assertSame($commandFails ? StatusCode::STATUS_ERROR : StatusCode::STATUS_UNSET, $span->getStatus()->getCode());
+        $this->assertSame($commandFails ? RuntimeException::class : null, $span->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
+        $this->assertNull($span->getAttributes()->get(DbAttributes::DB_QUERY_TEXT));
+        $this->assertCount($commandFails ? 1 : 0, $span->getEvents());
         $this->metricReader->collect();
-        $this->assertCount(0, $this->metric(DbMetrics::DB_CLIENT_OPERATION_DURATION)->data->dataPoints);
+        $point = $this->metric(DbMetrics::DB_CLIENT_OPERATION_DURATION)->data->dataPoints[0];
+        $this->assertSame($commandFails ? RuntimeException::class : null, $point->attributes->get(ErrorAttributes::ERROR_TYPE));
     }
 
     public function testQueryTextCanBeDisabledWithoutFormatterOrResolverWork(): void

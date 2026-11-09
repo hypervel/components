@@ -164,6 +164,7 @@ class RedisInstrumentation extends AbstractInstrumentation
                 $elapsedMilliseconds * ClockInterface::NANOS_PER_MILLISECOND,
             );
         }
+
         $operation = strtoupper($command);
         $attributes = $this->attributes(
             $operation,
@@ -183,42 +184,43 @@ class RedisInstrumentation extends AbstractInstrumentation
                 ->setAttributes($attributes)
                 ->startSpan();
             $context = $span->storeInContext($parent);
+        }
 
-            if ($span->isRecording()) {
-                if ($this->queryText) {
-                    $queryText = $this->queryText(
-                        $command,
-                        $operation,
-                        $parameters,
-                        $connection,
-                    );
-
-                    if ($queryText !== null) {
-                        $span->setAttribute(DbAttributes::DB_QUERY_TEXT, $queryText);
-                    }
-                }
-
-                if ($exception !== null) {
+        try {
+            if ($span !== null && $exception !== null) {
+                if ($span->isRecording()) {
                     $span->recordException($exception);
                     $span->setStatus(StatusCode::STATUS_ERROR);
                 }
-            }
 
-            if ($exception !== null) {
                 $this->exceptionContexts->associate(
                     $exception,
                     $context,
                     $this->origins->resolve($context, $this->identity),
                 );
             }
-        }
 
-        $this->duration?->record(
-            $elapsedMilliseconds / ClockInterface::MILLIS_PER_SECOND,
-            $attributes,
-            $context,
-        );
-        $span?->end($finishedAt);
+            // Resolved last: an application resolver may be cancelled and must not drop the outcome recorded above.
+            if ($this->queryText && $span?->isRecording()) {
+                $queryText = $this->queryText(
+                    $command,
+                    $operation,
+                    $parameters,
+                    $connection,
+                );
+
+                if ($queryText !== null) {
+                    $span->setAttribute(DbAttributes::DB_QUERY_TEXT, $queryText);
+                }
+            }
+        } finally {
+            $this->duration?->record(
+                $elapsedMilliseconds / ClockInterface::MILLIS_PER_SECOND,
+                $attributes,
+                $context,
+            );
+            $span?->end($finishedAt);
+        }
     }
 
     /**

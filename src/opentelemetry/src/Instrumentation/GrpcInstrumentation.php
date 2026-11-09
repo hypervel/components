@@ -31,7 +31,6 @@ use OpenTelemetry\Context\Propagation\TextMapPropagatorInterface;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
 use OpenTelemetry\SemConv\Attributes\RpcAttributes;
 use OpenTelemetry\SemConv\Attributes\ServerAttributes;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperationObserver
@@ -147,8 +146,7 @@ class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperati
         mixed $token,
         GrpcOperationResult $result,
     ): void {
-        // @phpstan-ignore hypervel.cancellation.exactType (direct cancellation skips completion; a cleanup failure carrying it is recorded; completion on cancellation is pending the next checkpoint)
-        if ($token === null || $result->exception instanceof CanceledException) {
+        if ($token === null) {
             return;
         }
 
@@ -196,9 +194,6 @@ class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperati
             $metadata = $operation->metadata();
             $this->propagator->inject($metadata, $this->metadataSetter, $context);
             $operation->withMetadata($metadata);
-            // @phpstan-ignore hypervel.cancellation.exactType (direct cancellation skips completion; a cleanup failure carrying it is recorded; completion on cancellation is pending the next checkpoint)
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
             $this->complete(
                 $operation,
@@ -281,11 +276,13 @@ class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperati
         $statusName = null;
         $errorType = null;
         $metricAttributes = $state->metricAttributes;
+        // A directly cancelled call did not fail; any real final status still applies.
+        $exception = $this->isDirectCancellation($result->exception) ? null : $result->exception;
 
         if ($spanRecording || $duration !== null) {
             $status = $result->status?->code();
             $statusName = $status === null ? null : $this->statusName($status);
-            $errorType = $this->errorType($operation, $status, $statusName, $result->exception);
+            $errorType = $this->errorType($operation, $status, $statusName, $exception);
 
             if ($statusName !== null) {
                 $metricAttributes[RpcAttributes::RPC_STATUS_CODE] = $statusName;
@@ -306,8 +303,8 @@ class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperati
                     $state->span->setAttribute(self::ATTEMPT_COUNT_ATTRIBUTE, $result->attemptCount);
                 }
 
-                if ($result->exception !== null) {
-                    $state->span->recordException($result->exception);
+                if ($exception !== null) {
+                    $state->span->recordException($exception);
                 }
 
                 if ($errorType !== null) {
@@ -316,9 +313,9 @@ class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperati
                 }
             }
 
-            if ($operation instanceof ClientGrpcOperation && $result->exception !== null && $state->span !== null) {
+            if ($operation instanceof ClientGrpcOperation && $exception !== null && $state->span !== null) {
                 $this->exceptionContexts->associate(
-                    $result->exception,
+                    $exception,
                     $state->context,
                     $this->origins->resolve($state->context, $this->identity),
                 );

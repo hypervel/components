@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\OpenTelemetry\Instrumentation;
 
+use Hypervel\Console\Events\ScheduledTaskCanceled;
 use Hypervel\Console\Events\ScheduledTaskFailed;
 use Hypervel\Console\Events\ScheduledTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskStarting;
@@ -26,7 +27,7 @@ use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\API\Trace\TracerProviderInterface;
 use OpenTelemetry\Context\Context;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
-use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class SchedulerInstrumentation extends AbstractInstrumentation
 {
@@ -116,10 +117,13 @@ class SchedulerInstrumentation extends AbstractInstrumentation
             $this->start($event);
         });
         $this->events->listen(ScheduledTaskFinished::class, function (ScheduledTaskFinished $event): void {
-            $this->finish($event);
+            $this->finish($event->task);
         });
         $this->events->listen(ScheduledTaskFailed::class, function (ScheduledTaskFailed $event): void {
-            $this->fail($event);
+            $this->fail($event->task, $event->exception);
+        });
+        $this->events->listen(ScheduledTaskCanceled::class, function (ScheduledTaskCanceled $event): void {
+            $this->canceled($event);
         });
     }
 
@@ -171,9 +175,9 @@ class SchedulerInstrumentation extends AbstractInstrumentation
     /**
      * Complete a successful or non-zero scheduled task.
      */
-    protected function finish(ScheduledTaskFinished $event): void
+    protected function finish(Event $task): void
     {
-        $state = $this->takeState($event->task);
+        $state = $this->takeState($task);
 
         if ($state === null) {
             return;
@@ -182,7 +186,7 @@ class SchedulerInstrumentation extends AbstractInstrumentation
         $finishedAt = $state->span === null && $this->duration === null
             ? 0
             : $this->clock->now();
-        $exitCode = $event->task->exitCode();
+        $exitCode = $task->exitCode();
         $result = $exitCode === null || $exitCode === 0 ? 'success' : 'failure';
         $attributes = $state->attributes + ['result' => $result];
 
@@ -208,14 +212,9 @@ class SchedulerInstrumentation extends AbstractInstrumentation
     /**
      * Complete a failed scheduled task.
      */
-    protected function fail(ScheduledTaskFailed $event): void
+    protected function fail(Event $task, Throwable $exception): void
     {
-        // @phpstan-ignore hypervel.cancellation.exactType (direct cancellation skips completion; a cleanup failure carrying it is recorded; completion on cancellation is pending the next checkpoint)
-        if ($event->exception instanceof CanceledException) {
-            return;
-        }
-
-        $state = $this->takeState($event->task);
+        $state = $this->takeState($task);
 
         if ($state === null) {
             return;
@@ -228,21 +227,62 @@ class SchedulerInstrumentation extends AbstractInstrumentation
 
         try {
             if ($state->span?->isRecording()) {
-                $state->span->recordException($event->exception);
+                $state->span->recordException($exception);
                 $state->span->setAttribute('result', 'failure');
-                $state->span->setAttribute(ErrorAttributes::ERROR_TYPE, $event->exception::class);
+                $state->span->setAttribute(ErrorAttributes::ERROR_TYPE, $exception::class);
                 $state->span->setStatus(StatusCode::STATUS_ERROR);
             }
 
             if ($state->span !== null) {
                 $this->exceptionContexts->associate(
-                    $event->exception,
+                    $exception,
                     $state->context,
                     $this->origins->resolve($state->context, $this->identity),
                 );
             }
 
             $this->recordMetrics($state, $finishedAt, $attributes);
+        } finally {
+            $this->close($state, $finishedAt);
+        }
+    }
+
+    /**
+     * Complete a scheduled task that cancellation stopped before its outcome was published.
+     */
+    protected function canceled(ScheduledTaskCanceled $event): void
+    {
+        if ($event->exception !== null) {
+            $this->fail($event->task, $event->exception);
+
+            return;
+        }
+
+        // A task that finished running keeps its outcome; the cancellation came from a listener.
+        if ($event->runtime !== null) {
+            $this->finish($event->task);
+
+            return;
+        }
+
+        if (! $this->isDirectCancellation($event->cancellation)) {
+            $this->fail($event->task, $event->cancellation);
+
+            return;
+        }
+
+        $state = $this->takeState($event->task);
+
+        if ($state === null) {
+            return;
+        }
+
+        $finishedAt = $state->span === null && $this->duration === null
+            ? 0
+            : $this->clock->now();
+
+        try {
+            $this->recordMetrics($state, $finishedAt, $state->attributes);
         } finally {
             $this->close($state, $finishedAt);
         }

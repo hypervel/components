@@ -37,7 +37,6 @@ use OpenTelemetry\SemConv\Metrics\HttpMetrics;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\UriInterface;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnexpectedValueException;
 
@@ -188,9 +187,6 @@ class HttpClientInstrumentation extends AbstractInstrumentation
                     }
 
                     $promise = $handler($request, $options);
-                    // @phpstan-ignore hypervel.cancellation.exactType (direct cancellation skips completion; a cleanup failure carrying it is recorded; completion on cancellation is pending the next checkpoint)
-                } catch (CanceledException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
                     $this->completeFailure(
                         $exception,
@@ -226,11 +222,6 @@ class HttpClientInstrumentation extends AbstractInstrumentation
                         $startedAt,
                         $requestAttributes,
                     ): PromiseInterface {
-                        // @phpstan-ignore hypervel.cancellation.exactType (direct cancellation skips completion; a cleanup failure carrying it is recorded; completion on cancellation is pending the next checkpoint)
-                        if ($reason instanceof CanceledException) {
-                            throw $reason;
-                        }
-
                         if ($reason instanceof Throwable) {
                             $this->completeFailure(
                                 $reason,
@@ -424,7 +415,7 @@ class HttpClientInstrumentation extends AbstractInstrumentation
     }
 
     /**
-     * Complete a failed physical request.
+     * Complete a failed or cancelled physical request.
      *
      * @param array<string, int|string> $requestAttributes
      */
@@ -435,6 +426,13 @@ class HttpClientInstrumentation extends AbstractInstrumentation
         int $startedAt,
         array $requestAttributes,
     ): void {
+        // HTTP client semantic conventions leave a cancelled request's status unset and omit error.type.
+        if ($this->isDirectCancellation($exception)) {
+            $this->complete($span, $context, $startedAt, $requestAttributes);
+
+            return;
+        }
+
         if ($span !== null) {
             $this->exceptionContexts->associate(
                 $exception,
