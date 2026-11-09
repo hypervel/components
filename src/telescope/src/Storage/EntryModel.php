@@ -28,6 +28,7 @@ class EntryModel extends Model
     /**
      * The table associated with the model.
      */
+    // @phpstan-ignore hypervel.legacyModelProperty (a subclass's own #[Table] would drop this table name)
     protected ?string $table = 'telescope_entries';
 
     /**
@@ -45,16 +46,19 @@ class EntryModel extends Model
     /**
      * The primary key for the model.
      */
+    // @phpstan-ignore hypervel.legacyModelProperty (#[Table] would override a subclass's $primaryKey = 'id')
     protected ?string $primaryKey = 'uuid';
 
     /**
      * The "type" of the auto-incrementing ID.
      */
+    // @phpstan-ignore hypervel.legacyModelProperty (#[Table] would override a subclass's $keyType = 'int')
     protected string $keyType = 'string';
 
     /**
      * Prevent Eloquent from overriding uuid with `lastInsertId`.
      */
+    // @phpstan-ignore hypervel.legacyModelProperty (#[WithoutIncrementing] would override a subclass's $incrementing = true)
     public bool $incrementing = false;
 
     /**

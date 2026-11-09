@@ -37,6 +37,7 @@ class ConversationMessage extends Model
      *
      * @var array<int, string>
      */
+    // @phpstan-ignore hypervel.legacyModelProperty (#[Unguarded] would replace a $guarded = ['*'] a subclass constructor sets before parent::__construct())
     protected array $guarded = [];
 
     /**
@@ -44,6 +45,7 @@ class ConversationMessage extends Model
      *
      * @var array<int, string>
      */
+    // @phpstan-ignore hypervel.legacyModelProperty (#[Appends] would merge with a subclass's $appends instead of letting it replace this list)
     protected array $appends = ['tool_calls', 'tool_results', 'provider_tool_calls'];
 
     /**
