@@ -77,8 +77,15 @@ class SourceFiles
             }
 
             foreach ($ancestor->getNativeReflection()->getProperties() as $property) {
-                if ($property->getDeclaringClass()->getName() === $ancestor->getName() && $property->hasDefaultValue()) {
-                    self::addExpressionFiles($reflectionProvider, $ancestor, $property->getDefaultValueExpression(), $files, $constants);
+                if ($property->getDeclaringClass()->getName() !== $ancestor->getName()) {
+                    continue;
+                }
+
+                // An untyped property without a default has a null default but no expression.
+                $default = $property->getBetterReflection()->getDefaultValueExpression();
+
+                if ($default !== null) {
+                    self::addExpressionFiles($reflectionProvider, $ancestor, $default, $files, $constants);
                 }
             }
         }
