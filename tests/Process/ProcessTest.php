@@ -755,13 +755,16 @@ class ProcessTest extends TestCase
 
     #[TestWith([false], 'ordinary callback failure')]
     #[TestWith([true], 'callback failure wraps cancellation')]
-    public function testOutputGuardPreservesCancellationDuringEmergencyStop(bool $wrapped): void
+    #[TestWith([false, true], 'stop failure wraps cancellation')]
+    public function testOutputGuardPreservesCancellationDuringEmergencyStop(bool $wrapped, bool $stopWrapped = false): void
     {
         $failure = new RuntimeException(
             'Output callback failed.',
             previous: $wrapped ? new CanceledException('Output canceled.') : null,
         );
-        $cancellation = new CanceledException('Emergency stop canceled.');
+        $cancellation = $stopWrapped
+            ? new RuntimeException('Emergency stop failed.', previous: new CanceledException('Emergency stop canceled.'))
+            : new CanceledException('Emergency stop canceled.');
         $process = m::mock(SymfonyProcess::class);
         $process->shouldReceive('stop')->once()->with(0)->ordered()->andThrow($cancellation);
         $process->shouldReceive('stop')->once()->with(0)->ordered()->andReturn(0);

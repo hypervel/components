@@ -325,18 +325,14 @@ class Command extends SymfonyCommand
                         ));
                     }
                 } catch (Throwable $throwable) {
-                    if ($exception === null || (Coroutine::causedByCancellation($throwable) && ! Coroutine::causedByCancellation($exception))) {
-                        $exception = $throwable;
-                    }
+                    $exception = Coroutine::preferCancellation($exception, $throwable);
                 }
 
                 if ($commandMutex !== null) {
                     try {
                         $commandMutex->forget($this);
                     } catch (Throwable $throwable) {
-                        if ($exception === null || (Coroutine::causedByCancellation($throwable) && ! Coroutine::causedByCancellation($exception))) {
-                            $exception = $throwable;
-                        }
+                        $exception = Coroutine::preferCancellation($exception, $throwable);
                     }
                 }
 

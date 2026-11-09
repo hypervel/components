@@ -94,33 +94,33 @@ abstract class AbstractProcess implements ProcessInterface
                             $this->event->dispatch(new AfterProcessHandle($this, $i));
                         }
                     } catch (Throwable $throwable) {
-                        $exception ??= $throwable;
+                        $exception = Coroutine::preferCancellation($exception, $throwable);
                     }
 
                     if (isset($quit)) {
                         try {
                             $quit->push(true);
                         } catch (Throwable $throwable) {
-                            $exception ??= $throwable;
+                            $exception = Coroutine::preferCancellation($exception, $throwable);
                         }
                     }
 
                     try {
                         Timer::clearAll();
                     } catch (Throwable $throwable) {
-                        $exception ??= $throwable;
+                        $exception = Coroutine::preferCancellation($exception, $throwable);
                     }
 
                     try {
                         CoordinatorManager::until(Constants::WORKER_EXIT)->resume();
                     } catch (Throwable $throwable) {
-                        $exception ??= $throwable;
+                        $exception = Coroutine::preferCancellation($exception, $throwable);
                     }
 
                     try {
                         Sleep::sleep($this->restartInterval);
                     } catch (Throwable $throwable) {
-                        $exception ??= $throwable;
+                        $exception = Coroutine::preferCancellation($exception, $throwable);
                     }
                 }
 

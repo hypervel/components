@@ -6,7 +6,6 @@ namespace Hypervel\Support\Traits;
 
 use Closure;
 use Hypervel\Coroutine\Coroutine;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Process\Process;
 use Throwable;
 
@@ -34,7 +33,7 @@ trait GuardsProcessOutput
                 return $output($type, $buffer);
             } catch (Throwable $exception) {
                 $failed = true;
-                $cancellation = null;
+                $failure = $exception;
 
                 // Coroutine teardown can expose an invalid native resource through SWOOLE_HOOK_PROC.
                 // Retry failed cleanup while preserving the callback failure or cancellation.
@@ -43,17 +42,12 @@ trait GuardsProcessOutput
                         $process->stop(0);
 
                         break;
-                    } catch (CanceledException $cleanupException) {
-                        $cancellation ??= $cleanupException;
-                    } catch (Throwable) {
+                    } catch (Throwable $cleanupException) {
+                        $failure = Coroutine::preferCancellation($failure, $cleanupException);
                     }
                 }
 
-                if ($cancellation !== null) {
-                    throw Coroutine::preferCancellation($exception, $cancellation);
-                }
-
-                throw $exception;
+                throw $failure;
             }
         };
     }

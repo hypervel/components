@@ -194,9 +194,7 @@ class Event
             try {
                 $this->finish($container, $exitCode);
             } catch (Throwable $throwable) {
-                if ($exception === null || (Coroutine::causedByCancellation($throwable) && ! Coroutine::causedByCancellation($exception))) {
-                    $exception = $throwable;
-                }
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
@@ -315,17 +313,13 @@ class Event
         try {
             $this->callAfterCallbacks($container);
         } catch (Throwable $throwable) {
-            if ($exception === null || (Coroutine::causedByCancellation($throwable) && ! Coroutine::causedByCancellation($exception))) {
-                $exception = $throwable;
-            }
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         try {
             $this->removeMutex();
         } catch (Throwable $throwable) {
-            if ($exception === null || (Coroutine::causedByCancellation($throwable) && ! Coroutine::causedByCancellation($exception))) {
-                $exception = $throwable;
-            }
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         CoroutineContext::forget($this->processContextKey());
