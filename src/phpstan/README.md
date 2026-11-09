@@ -25,5 +25,6 @@ Documentation: https://hypervel.org/docs/static-analysis
 - `relation-of` gives a strict union when several relations may apply, so an eager-loading callback must accept each of them. Upstream gives a benevolent union.
 - A relation path is unknown when any model in a union lacks the relation, because a subclass or `resolveRelationUsing()` can supply it. `builder-of` and `collection-of` of an unknown model give `Builder<*>` and the base model collection. Upstream drops that model, or gives `never`.
 - A custom builder's or relation's override of a method such as `get()` keeps its declared collection type. Upstream replaces it with the model's collection class.
+- A job dispatched in a transaction is reported only when its queue connection is known not to wait for the commit, from the connection's `after_commit` and outbox settings and, for the database driver, the transaction's connection. A dispatch that calls `beforeCommit()`, or a job whose `$afterCommit` is `false`, is not reported. Upstream assumes Laravel's default, where connections dispatch immediately, and reports both. See [Dispatching Jobs in Transactions](https://hypervel.org/docs/static-analysis#dispatching-jobs-in-transactions).
 
 Ported from: https://github.com/larastan/larastan

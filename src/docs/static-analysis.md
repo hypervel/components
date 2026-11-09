@@ -23,6 +23,11 @@
     - [Redis Connections](#redis-connections)
     - [Model Relations](#model-relations)
     - [Schema Dumps](#schema-dumps)
+    - [Dispatching Jobs and Events](#dispatching-jobs-and-events)
+    - [Dispatching Jobs in Transactions](#dispatching-jobs-in-transactions)
+    - [Models in Queued Jobs](#models-in-queued-jobs)
+    - [Batched Jobs](#batched-jobs)
+    - [Unique Jobs](#unique-jobs)
     - [Deprecations](#deprecations)
 
 <a name="introduction"></a>
@@ -247,6 +252,11 @@ The following table summarizes the preferred pattern for each of Hypervel's diag
 | [Redis Connections](#redis-connections) | Call connection-bound methods on a held connection. | `hypervel.redisConnectionBoundMethod` |
 | [Model Relations](#model-relations) | Load and query relations the model defines. | `hypervel.relationExistence` |
 | [Schema Dumps](#schema-dumps) | Keep schema dumps in the plain SQL `schema:dump` writes. | `hypervel.schemaDump` |
+| [Dispatching Jobs and Events](#dispatching-jobs-and-events) | Dispatch with the arguments the constructor accepts. | `hypervel.jobs.noConstructor`, `hypervel.events.noConstructor`, `argument.type` and the other argument identifiers |
+| [Dispatching Jobs in Transactions](#dispatching-jobs-in-transactions) | Queue jobs dispatched in a transaction once it commits. | `hypervel.dispatchInTransactionAfterCommit` |
+| [Models in Queued Jobs](#models-in-queued-jobs) | Use `SerializesModels` in queued jobs that hold models. | `hypervel.jobSerializesModels` |
+| [Batched Jobs](#batched-jobs) | Use `Batchable` in batched jobs, and dispatch unique jobs individually. | `hypervel.batchedJobIsBatchable`, `hypervel.noBatchedUniqueJob`, `hypervel.batchableJobChecksCancellation` |
+| [Unique Jobs](#unique-jobs) | Declare what makes each unique job distinct. | `hypervel.uniqueJobUniqueId`, `hypervel.uniqueJobUniqueFor` |
 | [Deprecations](#deprecations) | Use the replacement the deprecation names. | `method.deprecated` and the other deprecation identifiers |
 
 <a name="environment-variables"></a>
@@ -417,6 +427,84 @@ database/schema/pgsql-schema.dump:1: Model property types cannot use this schema
 ```
 
 Until the dump is fixed, the tables it defines are unknown, so their attributes read as `mixed`. Regenerate the dump using the `schema:dump` Artisan command, which writes plain SQL. A dump is only reported when the analysed code reads a model attribute on its connection. You may stop reading schema dumps using the `disableSchemaScan` parameter.
+
+<a name="dispatching-jobs-and-events"></a>
+### Dispatching Jobs and Events
+
+A job's `dispatch`, `dispatchIf`, `dispatchUnless`, `dispatchSync` and `dispatchAfterResponse` methods, and an event's `dispatch`, `dispatchIf`, `dispatchUnless` and `broadcast` methods, pass their arguments to the class's constructor, so the arguments are checked against it:
+
+```php
+// Parameter #1 $podcast of job class App\Jobs\ProcessPodcast constructor expects App\Models\Podcast...
+ProcessPodcast::dispatch($podcast->id);
+```
+
+The first argument of `dispatchIf` and `dispatchUnless` is the condition, so only the arguments after it are checked. A class that defines its own dispatch method is checked against that method instead.
+
+<a name="dispatching-jobs-in-transactions"></a>
+### Dispatching Jobs in Transactions
+
+A job dispatched inside a database transaction may be processed before the transaction commits, so it may not find the data the transaction writes, or it may run even though the transaction rolls back. The analysis reports a job dispatched inside a `DB::transaction` callback when its queue connection does not wait for the commit:
+
+```php
+DB::transaction(function () use ($order) {
+    $order->save();
+
+    // Job App\Jobs\ShipOrder is dispatched inside a transaction without deferring until commit.
+    ShipOrder::dispatch($order);
+});
+```
+
+Chain the `afterCommit` method onto the dispatch, implement the `ShouldQueueAfterCommit` interface on the job, or enable the [`after_commit` option](/docs/{{version}}/queues#jobs-and-database-transactions) on the queue connection. Jobs staged in the [transactional outbox](/docs/{{version}}/queues#transactional-outbox) are not reported, and neither are jobs queued by the database driver on the transaction's own connection, since their rows commit with the transaction. A dispatch that calls `beforeCommit` is a deliberate choice and is not reported either.
+
+The analysis reads the queue connection from the dispatch, the job's `Connection` attribute or `$connection` property, and your configuration files. When it can't be known, such as a connection read from an environment variable or a job whose constructor changes its own settings, the dispatch is not reported. You may disable this check using the `checkDispatchInTransactionAfterCommit` parameter.
+
+<a name="models-in-queued-jobs"></a>
+### Models in Queued Jobs
+
+A queued job that holds Eloquent models or Eloquent collections in its properties should use the `SerializesModels` trait, which the `Hypervel\Foundation\Queue\Queueable` trait includes. Without it, the whole model is serialized onto the queue and the job runs with the model as it was when the job was dispatched. With it, only the model's identifier is queued, and the model is retrieved fresh when the job runs.
+
+Properties of any visibility are checked, including inherited ones. A job that defines its own `__serialize` method is not checked. You may disable this check using the `checkJobSerializesModels` parameter.
+
+<a name="batched-jobs"></a>
+### Batched Jobs
+
+Every job you add to a batch must use the `Hypervel\Bus\Batchable` trait, or adding it fails. The analysis reports a job that does not use it when you pass it to `Bus::batch()` or to a batch's `add` method, including jobs held in variables and the jobs of a chain within the batch. You may disable this check using the `checkBatchedJobIsBatchable` parameter.
+
+Jobs that implement `ShouldBeUnique` should be dispatched individually, since only an individual dispatch acquires the job's unique lock. `Bus::batch()`, `Bus::bulk()`, `Queue::bulk()` and a batch's `add` method queue jobs without it, so duplicates are queued. A later job of a chain within a batch acquires its lock when the chain reaches it, but when the lock is already held, the job is skipped and the batch never finishes. You may disable this check using the `noBatchedUniqueJob` parameter.
+
+When the `checkBatchableJobChecksCancellation` parameter is enabled, the analysis also reports batchable jobs that do not check whether their batch has been cancelled. Cancelling a batch does not stop jobs that are already queued, so a job should return early when its batch has been cancelled, or use the `SkipIfBatchCancelled` middleware:
+
+```php
+public function handle(): void
+{
+    if ($this->batch()?->cancelled()) {
+        return;
+    }
+
+    // ...
+}
+```
+
+The analysis recognizes the batch's `cancelled` method, the job's `batching` method and the `SkipIfBatchCancelled` middleware in any of the job's methods, including inherited ones. It does not check that the job checks before doing any work.
+
+<a name="unique-jobs"></a>
+### Unique Jobs
+
+A unique job's lock is identified by its class and its `uniqueId`. A job whose constructor accepts arguments, such as a job that updates one product, usually needs a separate lock for each set of arguments, so the analysis reports such a job when it declares no `uniqueId` method or property:
+
+```php
+/**
+ * Get the unique ID for the job.
+ */
+public function uniqueId(): string
+{
+    return (string) $this->product->id;
+}
+```
+
+When the job should be unique regardless of its arguments, return a constant from `uniqueId` to make that clear. You may disable this check using the `checkUniqueJobUniqueId` parameter.
+
+When the `checkUniqueJobUniqueFor` parameter is enabled, the analysis also reports unique jobs that do not declare how long they stay unique, using the `UniqueFor` attribute, a `uniqueFor` method or a `$uniqueFor` property. Without one, the lock is acquired without a duration, whose meaning depends on your cache store, so a worker that stops while running the job may leave the lock held.
 
 <a name="deprecations"></a>
 ### Deprecations
