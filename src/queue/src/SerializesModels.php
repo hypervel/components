@@ -19,9 +19,10 @@ trait SerializesModels
     {
         $values = [];
 
-        [$class, $properties, $classLevelWithoutRelations] = [
-            get_class($this),
-            ClassMetadataCache::properties($this),
+        // Unlike Laravel, a parent's private properties are serialized too, keyed by their declaring
+        // class as PHP keys them, so same-named private properties at different levels stay separate.
+        [$properties, $classLevelWithoutRelations] = [
+            ClassMetadataCache::allProperties($this),
             ClassMetadataCache::hasClassAttribute($this, WithoutRelations::class, ascend: true),
         ];
 
@@ -47,7 +48,7 @@ trait SerializesModels
             $name = $property->getName();
 
             if ($property->isPrivate()) {
-                $name = "\0{$class}\0{$name}";
+                $name = "\0{$property->class}\0{$name}";
             } elseif ($property->isProtected()) {
                 $name = "\0*\0{$name}";
             }
@@ -67,9 +68,7 @@ trait SerializesModels
      */
     public function __unserialize(array $values): void
     {
-        $properties = ClassMetadataCache::properties($this);
-
-        $class = get_class($this);
+        $properties = ClassMetadataCache::allProperties($this);
 
         foreach ($properties as $property) {
             if ($property->isStatic()) {
@@ -79,7 +78,7 @@ trait SerializesModels
             $name = $property->getName();
 
             if ($property->isPrivate()) {
-                $name = "\0{$class}\0{$name}";
+                $name = "\0{$property->class}\0{$name}";
             } elseif ($property->isProtected()) {
                 $name = "\0*\0{$name}";
             }
@@ -88,7 +87,9 @@ trait SerializesModels
                 continue;
             }
 
-            $property->setValue(
+            // Unlike Laravel, the stored value is restored without running a set hook, as native
+            // unserialization does, since the hook already ran when the value was stored.
+            $property->setRawValue(
                 $this,
                 $this->getRestoredPropertyValue($values[$name])
             );
@@ -97,9 +98,12 @@ trait SerializesModels
 
     /**
      * Get the property value for the given property.
+     *
+     * Unlike Laravel, this reads the stored value without running a get hook, as native
+     * serialization does.
      */
     protected function getPropertyValue(ReflectionProperty $property): mixed
     {
-        return $property->getValue($this);
+        return $property->getRawValue($this);
     }
 }
