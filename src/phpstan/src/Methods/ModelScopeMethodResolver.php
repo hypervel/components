@@ -61,6 +61,16 @@ class ModelScopeMethodResolver
     }
 
     /**
+     * Determine whether a method's declared name makes it a legacy scope, as Model::isLegacyScopeMethod() reads it.
+     */
+    public static function isLegacyScopeName(string $methodName): bool
+    {
+        return strncasecmp($methodName, 'scope', 5) === 0
+            && strlen($methodName) > 5
+            && ! ctype_lower($methodName[5]);
+    }
+
+    /**
      * Return the named scopes exposed by a model.
      *
      * @return array<string, MethodReflection>
@@ -84,9 +94,7 @@ class ModelScopeMethodResolver
 
             $methodName = $method->getName();
 
-            if (strncasecmp($methodName, 'scope', 5) === 0
-                && strlen($methodName) > 5
-                && ! ctype_lower($methodName[5])) {
+            if (self::isLegacyScopeName($methodName)) {
                 $legacyScopes[strtolower(substr($methodName, 5))] = $modelClass->getNativeMethod($methodName);
             }
 

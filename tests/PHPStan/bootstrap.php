@@ -11,6 +11,7 @@ use Hypervel\Redis\RedisConnection;
 use Hypervel\Routing\ResponseFactory;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Cache;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Storage;
@@ -27,9 +28,12 @@ use Hypervel\Tests\PHPStan\Fixtures\Managers\ResolvedChildDriverManager;
 use Hypervel\Tests\PHPStan\Fixtures\Managers\ResolvedExportManager;
 use Hypervel\Tests\PHPStan\Fixtures\Managers\TabbedCsvDriver;
 use Hypervel\Tests\PHPStan\Fixtures\Managers\WrappedCreatorManager;
+use Hypervel\Tests\PHPStan\Fixtures\Rules\ScopedAtBootModel;
 use Hypervel\Tests\PHPStan\Rules\Queue\Data\RoutedJob;
 use League\Flysystem\Filesystem as Flysystem;
 use League\Flysystem\Local\LocalFilesystemAdapter as LocalFlysystemAdapter;
+use NoModelMakeHypervel\BootListenedModel;
+use NoUnnecessaryCollectionCallHypervel\RetrievedListenedMember;
 
 Builder::macro('globalCustomMacro', static function (string $arg = 'foobar', int $b = 5): string {
     return $arg;
@@ -117,6 +121,18 @@ Storage::set('replaced', new FilesystemAdapter(new Flysystem($replacedDiskAdapte
 
 // Hypervel: a booted queue route for the transaction dispatch fixtures.
 Queue::route(RoutedJob::class, connection: 'sync');
+
+// Hypervel: a global scope and a model boot listener registered at boot, after which
+// the model make() rule cannot show that make() matches the constructor.
+ScopedAtBootModel::addGlobalScope('scoped', static function (Builder $builder): void {
+});
+Event::listen('eloquent.booted: ' . BootListenedModel::class, static function (): void {
+});
+
+// Hypervel: a retrieved listener registered at boot, which could change the attributes the
+// collection rule would read through a query's pluck() instead.
+Event::listen('eloquent.retrieved: ' . RetrievedListenedMember::class, static function (): void {
+});
 
 class CustomCollectionMacro
 {
