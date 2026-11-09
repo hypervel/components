@@ -7,6 +7,7 @@ namespace Hypervel\Reverb\Jobs;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Reverb\Events\ConnectionPruned;
 use Hypervel\Reverb\Loggers\Log;
+use Hypervel\Reverb\Protocols\Pusher\Channels\ChannelConnection;
 use Hypervel\Reverb\Servers\Hypervel\ConnectionLifecycle;
 use Hypervel\Reverb\Servers\Hypervel\WebSocketHandler;
 use Throwable;
@@ -57,7 +58,7 @@ class PruneStaleConnections
                         Log::info('Connection Pruned', $connection->id());
 
                         if (app('events')->hasListeners(ConnectionPruned::class)) {
-                            ConnectionPruned::dispatch($connection);
+                            ConnectionPruned::dispatch(new ChannelConnection($connection));
                         }
                     } catch (Throwable $throwable) {
                         $connectionFailure ??= $throwable;
