@@ -359,10 +359,14 @@ class CacheStoreIsReachableTest extends TestCase
     }
 
     #[DataProvider('probeExceptions')]
-    public function testCleanupPreservesPrimaryFailuresAndCancellation(bool $primaryCanceled, bool $cleanupCanceled): void
+    public function testCleanupPreservesPrimaryFailuresAndCancellation(bool $primaryCanceled, bool $cleanupCanceled, bool $cleanupCarried = false): void
     {
         $primary = $primaryCanceled ? new CanceledException('primary canceled') : new RuntimeException('primary failed');
-        $cleanup = $cleanupCanceled ? new CanceledException('cleanup canceled') : new RuntimeException('cleanup failed');
+        $cleanup = match (true) {
+            $cleanupCarried => new RuntimeException('cleanup failed', previous: new CanceledException('cleanup canceled')),
+            $cleanupCanceled => new CanceledException('cleanup canceled'),
+            default => new RuntimeException('cleanup failed'),
+        };
         $store = m::mock(Store::class);
         $store->expects('put')->andThrow($primary);
         $store->expects('forget')->andThrow($cleanup);
@@ -391,7 +395,7 @@ class CacheStoreIsReachableTest extends TestCase
      */
     public static function probeExceptions(): array
     {
-        return [[false, false], [true, false], [false, true], [true, true]];
+        return [[false, false], [true, false], [false, true], [true, true], [false, true, true]];
     }
 
     public function testNullStoreIsSkippedAndSessionStoreCanRoundTrip(): void

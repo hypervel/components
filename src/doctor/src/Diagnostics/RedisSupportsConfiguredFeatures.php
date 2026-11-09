@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Doctor\Diagnostics;
 
 use Hypervel\Cache\TagMode;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Doctor\Diagnostic;
 use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\Link;
@@ -15,7 +16,6 @@ use Hypervel\Doctor\Support\Details;
 use Hypervel\Redis\RedisRequirements;
 use Hypervel\Session\SessionManager;
 use Hypervel\Support\Facades\Redis;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class RedisSupportsConfiguredFeatures extends Diagnostic
@@ -79,9 +79,11 @@ class RedisSupportsConfiguredFeatures extends Diagnostic
                 if ($error !== null) {
                     $failures[$connection] = $error;
                 }
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $e) {
+                if (Coroutine::causedByCancellation($e)) {
+                    throw $e;
+                }
+
                 $failures[$connection] = $e->getMessage();
             }
         }

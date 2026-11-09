@@ -6,6 +6,7 @@ namespace Hypervel\Doctor\Diagnostics;
 
 use Hypervel\Cache\Console\CacheTableCommand;
 use Hypervel\Cache\DatabaseStore;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Doctor\Contracts\Fixable;
 use Hypervel\Doctor\Diagnostic;
 use Hypervel\Doctor\EnvironmentMode;
@@ -22,7 +23,6 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -81,9 +81,11 @@ class CacheStoreIsReachable extends Diagnostic implements Fixable
         try {
             $alternatives = $this->failoverStores($store);
             $cleaned = $this->probe($store);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $failure = $exception;
         }
 
@@ -94,9 +96,11 @@ class CacheStoreIsReachable extends Diagnostic implements Fixable
                 if (! $this->probe($alternative)) {
                     $unhealthy[] = "[{$alternative}]: The probe key could not be removed.";
                 }
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 $unhealthy[] = "[{$alternative}]: {$exception->getMessage()}";
             }
         }
@@ -155,9 +159,11 @@ class CacheStoreIsReachable extends Diagnostic implements Fixable
             if (! $this->probe($option)) {
                 return $this->fixFailed('switch-failed')->withDetails('The probe key could not be removed.');
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             return $this->fixFailed('switch-failed')
                 ->withDetails($e->getMessage());
         }
@@ -202,9 +208,11 @@ class CacheStoreIsReachable extends Diagnostic implements Fixable
                 if (! $this->probe($store)) {
                     continue;
                 }
-            } catch (CanceledException $exception) {
-                throw $exception;
-            } catch (Throwable) {
+            } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 if (! $needsTables) {
                     continue;
                 }
@@ -240,9 +248,11 @@ class CacheStoreIsReachable extends Diagnostic implements Fixable
 
             return ! $schema->hasTable(CacheTableCommand::TABLE)
                 && ! $schema->hasTable(DatabaseStore::DEFAULT_LOCK_TABLE);
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return false;
         }
     }
@@ -306,12 +316,8 @@ class CacheStoreIsReachable extends Diagnostic implements Fixable
         } finally {
             try {
                 $cleaned = $repository->forget($key);
-            } catch (CanceledException $exception) {
-                if (! $failure instanceof CanceledException) {
-                    $failure = $exception;
-                }
             } catch (Throwable $exception) {
-                $failure ??= $exception;
+                $failure = Coroutine::preferCancellation($failure, $exception);
             }
         }
 

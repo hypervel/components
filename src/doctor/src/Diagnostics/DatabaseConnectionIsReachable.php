@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Doctor\Diagnostics;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Connectors\ConnectionFactory;
@@ -14,7 +15,6 @@ use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\Configured;
 use PDO;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class DatabaseConnectionIsReachable extends Diagnostic
@@ -68,9 +68,11 @@ class DatabaseConnectionIsReachable extends Diagnostic
                 return $this->fail('unreachable', ['connection' => $connection])
                     ->withDetails(implode(PHP_EOL, $failures));
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             return $this->fail('unreachable', ['connection' => $connection])
                 ->withDetails($e->getMessage());
         }
@@ -93,9 +95,11 @@ class DatabaseConnectionIsReachable extends Diagnostic
         foreach ($this->probeConfigurations($factory, $name, $configuration) as $label => [$selected, $read]) {
             try {
                 $this->probeConnection($factory, $name->base, $selected, $read);
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 $failures[] = ($label === '' ? '' : "[{$label}] ") . $exception->getMessage();
             }
         }
@@ -170,12 +174,8 @@ class DatabaseConnectionIsReachable extends Diagnostic
         } finally {
             try {
                 $database->disconnect();
-            } catch (CanceledException $exception) {
-                if (! $failure instanceof CanceledException) {
-                    $failure = $exception;
-                }
             } catch (Throwable $exception) {
-                $failure ??= $exception;
+                $failure = Coroutine::preferCancellation($failure, $exception);
             }
         }
 

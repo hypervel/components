@@ -6,6 +6,7 @@ namespace Hypervel\Doctor;
 
 use Closure;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Doctor\Contracts\Fixable;
 use Hypervel\Doctor\Results\DiagnosticFixOutcome;
 use Hypervel\Doctor\Results\DiagnosticOutcome;
@@ -15,7 +16,6 @@ use Hypervel\Doctor\Results\FixResult;
 use Hypervel\Support\Collection;
 use InvalidArgumentException;
 use LogicException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -181,9 +181,11 @@ class Doctor
     {
         try {
             $result = $diagnostic->check();
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             $result = DiagnosticResult::error($e->getMessage())
                 ->withContext('exception', $e::class);
         }
@@ -222,9 +224,11 @@ class Doctor
 
         try {
             $result = $diagnostic->fix($outcome->result, $option);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             $result = FixResult::error(
                 sprintf('Failed to fix %s: %s', $diagnostic->name, $e->getMessage()),
             )->withContext('exception', $e::class);
