@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Contracts\Engine\Http\V2\ClientFactoryInterface;
 use Hypervel\Contracts\Engine\Http\V2\ClientInterface;
 use Hypervel\Contracts\Engine\Http\V2\ResponseInterface;
+use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Coroutine\Exceptions\ForeignCancellationException;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Engine\Channel;
@@ -229,9 +230,11 @@ final class Connection
 
             try {
                 $this->startReceiver();
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $throwable) {
+                if (FrameworkCoroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
                 $this->terminateWhileLocked($this->connectionException(
                     $throwable,
                     'Unable to start the gRPC response receiver.',
@@ -776,10 +779,10 @@ final class Connection
                 if ($client->isConnected()) {
                     $client->close();
                 }
-            } catch (CanceledException $exception) {
-                $cancellation ??= $exception;
             } catch (Throwable $throwable) {
-                if ($cancellation === null) {
+                if (FrameworkCoroutine::causedByCancellation($throwable)) {
+                    $cancellation = FrameworkCoroutine::preferCancellation($cancellation, $throwable);
+                } elseif ($cancellation === null) {
                     $failure = new ConnectionException(
                         $this->endpoint->peer,
                         $failure->getMessage() . ' The HTTP/2 client also failed to close: '
@@ -793,9 +796,8 @@ final class Connection
 
         try {
             $this->notifyRetired();
-        } catch (CanceledException $exception) {
-            $cancellation ??= $exception;
         } catch (Throwable $throwable) {
+            // A pending cancellation stays primary over any retirement failure.
             if ($cancellation === null) {
                 throw $throwable;
             }

@@ -28,7 +28,9 @@ use Hypervel\Grpc\Protocol\Timeout;
 use Hypervel\Grpc\StatusCode;
 use Hypervel\Tests\TestCase;
 use LogicException;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
+use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
@@ -1058,9 +1060,13 @@ class ConnectionTest extends TestCase
         $connection->write($active, 'frame', false, Deadline::fromTimeout(null));
     }
 
-    public function testNativeCloseCancellationPreservesTheCallerAfterTerminalCleanup(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testNativeCloseCancellationPreservesTheCallerAfterTerminalCleanup(bool $carried): void
     {
-        $cancellation = new CanceledException;
+        $cancellation = $carried
+            ? new RuntimeException('Close failed.', previous: new CanceledException)
+            : new CanceledException;
         $client = new ConnectionTestClient;
         $client->closeUsing(static function () use ($cancellation): void {
             throw $cancellation;
@@ -1068,14 +1074,15 @@ class ConnectionTest extends TestCase
         $connection = $this->connection(new ConnectionTestClientFactory($client));
         $state = $this->state();
         $this->start($connection, $this->request(), $state);
+        $caught = null;
 
         try {
             $connection->close();
-            $this->fail('Expected cancellation to propagate.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
 
+        $this->assertSame($cancellation, $caught);
         $this->assertTrue($connection->isClosed());
 
         $this->expectException(ConnectionException::class);

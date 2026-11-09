@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Grpc\Server;
 
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Grpc\Exceptions\ProtocolException;
 use Hypervel\Grpc\Exceptions\RpcException;
 use Hypervel\Grpc\StatusCode;
@@ -27,7 +28,7 @@ class ExceptionMapper
      */
     public function map(Throwable $throwable): RpcException
     {
-        if ($throwable instanceof CanceledException) {
+        if (Coroutine::causedByCancellation($throwable)) {
             throw $throwable;
         }
 
@@ -49,7 +50,7 @@ class ExceptionMapper
      */
     public function invalidResponse(Throwable $throwable): RpcException
     {
-        if ($throwable instanceof CanceledException) {
+        if (Coroutine::causedByCancellation($throwable)) {
             throw $throwable;
         }
 
@@ -63,15 +64,18 @@ class ExceptionMapper
      */
     public function report(Throwable $throwable): void
     {
+        // @phpstan-ignore hypervel.cancellation.exactType (a direct cancellation is never reported; a failure carrying it is reported)
         if ($throwable instanceof CanceledException) {
             throw $throwable;
         }
 
         try {
             $this->exceptions->report($throwable);
-        } catch (CanceledException $throwable) {
-            throw $throwable;
-        } catch (Throwable) {
+        } catch (Throwable $reportFailure) {
+            if (Coroutine::causedByCancellation($reportFailure)) {
+                throw $reportFailure;
+            }
+
             try {
                 error_log((string) $throwable);
             } catch (Throwable) {
