@@ -45,6 +45,7 @@
         "hypervel/notifications": "^0.4",
         "hypervel/queue": "^0.4",
         "hypervel/redis": "^0.4",
+        "hypervel/reflection": "^0.4",
         "hypervel/routing": "^0.4",
         "hypervel/sentinel": "^0.4",
         "hypervel/slack-notification-channel": "^0.4",

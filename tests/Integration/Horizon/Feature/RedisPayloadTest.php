@@ -162,6 +162,17 @@ class RedisPayloadTest extends IntegrationTestCase
         $this->assertEquals([FakeModel::class . ':1', FakeModel::class . ':2'], $JobPayload->decoded['tags']);
     }
 
+    public function testTagsAreGatheredFromParentPrivateProperties(): void
+    {
+        $payload = new JobPayload(json_encode(['id' => '1']));
+
+        $model = new FakeModel;
+        $model->id = 1;
+
+        $payload->prepare(new FakeJobWithInheritedPrivateModel($model));
+        $this->assertSame([FakeModel::class . ':1'], $payload->decoded['tags']);
+    }
+
     public function testTagsAreCorrectlyExtractedForListeners(): void
     {
         $JobPayload = new JobPayload(json_encode(['id' => '1']));
@@ -340,4 +351,18 @@ class ListenerEventStateInspectingJob
     {
         return [$event === null ? 'no-event' : 'stale-event'];
     }
+}
+
+class FakeJobWithPrivateModel
+{
+    /**
+     * Create a job holding its model privately.
+     */
+    public function __construct(private FakeModel $model)
+    {
+    }
+}
+
+class FakeJobWithInheritedPrivateModel extends FakeJobWithPrivateModel
+{
 }
