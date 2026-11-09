@@ -17,6 +17,7 @@ use Hypervel\Validation\Rules\Concerns\ClonesCustomRules;
 use InvalidArgumentException;
 use Stringable;
 
+// @phpstan-ignore class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
 class File implements Rule, DataAwareRule, ValidatorAwareRule
 {
     use Conditionable;

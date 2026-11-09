@@ -1383,7 +1383,7 @@ class Validator implements ValidatorContract
     /**
      * Validate an attribute using a custom rule object.
      */
-    protected function validateUsingCustomRule(string $attribute, mixed $value, Rule $rule): void
+    protected function validateUsingCustomRule(string $attribute, mixed $value, Rule $rule): void // @phpstan-ignore parameter.deprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
     {
         $attributeWithPlaceholders = $attribute;
 
@@ -1412,14 +1412,14 @@ class Validator implements ValidatorContract
             $rule->setData($this->data);
         }
 
-        if (! $rule->passes($attribute, $value)) {
+        if (! $rule->passes($attribute, $value)) { // @phpstan-ignore method.deprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
             $ruleClass = $rule instanceof InvokableValidationRule
                 ? get_class($rule->invokable())
                 : get_class($rule);
 
             $this->failedRules[$originalAttribute][$ruleClass] = [];
 
-            $messages = $this->getFromLocalArray($attributeWithPlaceholders, $ruleClass) ?? $rule->message();
+            $messages = $this->getFromLocalArray($attributeWithPlaceholders, $ruleClass) ?? $rule->message(); // @phpstan-ignore method.deprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
 
             $messages = $messages ? (array) $messages : [$ruleClass];
 

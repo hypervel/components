@@ -21,6 +21,7 @@ use InvalidArgumentException;
 use IteratorAggregate;
 use Traversable;
 
+// @phpstan-ignore class.implementsDeprecatedInterface, class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
 class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, ValidatorAwareRule
 {
     use Conditionable;
@@ -295,7 +296,7 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
      *
      * @return $this
      */
-    public function rules(array|Closure|Rule|string $rules): static
+    public function rules(array|Closure|Rule|string $rules): static // @phpstan-ignore parameter.deprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
     {
         $this->customRules = Arr::wrap($rules);
 

@@ -10,6 +10,7 @@ use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Validator;
 
+// @phpstan-ignore class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
 class AnyOf implements Rule, ValidatorAwareRule
 {
     /**

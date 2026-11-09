@@ -17,6 +17,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_try_from;
 use function Hypervel\Support\enum_value;
 
+// @phpstan-ignore class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
 class Enum implements Rule, Stringable, ValidatorAwareRule
 {
     use Conditionable;

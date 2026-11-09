@@ -5,6 +5,7 @@
 
 includes:
   - src/phpstan/extension.neon
+  - vendor/phpstan/phpstan-deprecation-rules/rules.neon
 
 parameters:
   tmpDir: .cache/phpstan

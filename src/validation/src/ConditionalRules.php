@@ -27,7 +27,9 @@ class ConditionalRules
      */
     public function __construct(
         bool|callable $condition,
+        // @phpstan-ignore parameter.deprecatedInterface, parameter.deprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
         protected array|Closure|Rule|string|Stringable|ValidationRule $rules,
+        // @phpstan-ignore parameter.deprecatedInterface, parameter.deprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
         protected array|Closure|Rule|string|Stringable|ValidationRule $defaultRules = []
     ) {
         $this->condition = is_bool($condition) ? $condition : $condition(...);
