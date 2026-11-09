@@ -7,6 +7,7 @@ namespace Hypervel\PHPStan\ReturnTypes;
 use Closure;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\PHPStan\Concerns\HasContainer;
+use Hypervel\PHPStan\Support\InstanceNames;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use PhpParser\Node\Arg;
@@ -88,7 +89,7 @@ class FilesystemDiskHelper
             return null;
         }
 
-        $names = $this->getDiskNames($name, $scope);
+        $names = InstanceNames::fromArgument($name, $scope);
 
         if ($names === null) {
             return null;
@@ -125,42 +126,6 @@ class FilesystemDiskHelper
         }
 
         return $this->getNamedDiskType($manager, null);
-    }
-
-    /**
-     * Get the disk names a name argument can select, with null for the default disk.
-     *
-     * Returns null when the argument can name a disk the analysis does not know.
-     *
-     * @return null|list<?string>
-     */
-    private function getDiskNames(?Arg $name, Scope $scope): ?array
-    {
-        if ($name === null) {
-            return [null];
-        }
-
-        if ($name->unpack) {
-            return null;
-        }
-
-        $names = [];
-
-        foreach ($scope->getType($name->value)->getFiniteTypes() as $type) {
-            if ($type->isNull()->yes()) {
-                $names[] = null;
-            } elseif ($type->getConstantStrings() !== []) {
-                $names[] = $type->getConstantStrings()[0]->getValue();
-            } elseif ($type->getEnumCases() !== []) {
-                // enum_value() resolves a backed case to its value and a pure case to its name.
-                $enumCase = $type->getEnumCases()[0];
-                $names[] = (string) ($enumCase->getBackingValueType()?->getConstantScalarValues()[0] ?? $enumCase->getEnumCaseName());
-            } else {
-                return null;
-            }
-        }
-
-        return $names === [] ? null : $names;
     }
 
     /**

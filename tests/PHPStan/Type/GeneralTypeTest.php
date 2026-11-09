@@ -34,6 +34,7 @@ class GeneralTypeTest extends TypeInferenceTestCase
         yield from self::gatherAssertTypes(__DIR__ . '/data/benchmark.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/builder-of-type.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/collection-of-type.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/concurrency-drivers.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/conditionable.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/console-commands.php');
         // REMOVED: container-array-access.php; container ArrayAccess is unsupported.
