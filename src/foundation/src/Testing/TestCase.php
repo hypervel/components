@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\BootProviders;
@@ -143,7 +144,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         try {
             $this->tearDownTheTestEnvironmentUsingMockery();
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {

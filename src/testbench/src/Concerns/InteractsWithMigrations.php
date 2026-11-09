@@ -6,6 +6,7 @@ namespace Hypervel\Testbench\Concerns;
 
 use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Foundation\Console\Kernel as FoundationConsoleKernel;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
@@ -75,7 +76,7 @@ trait InteractsWithMigrations
             try {
                 $migrator->rollback();
             } catch (Throwable $throwable) {
-                $failure ??= $throwable;
+                $failure = Coroutine::preferCancellation($failure, $throwable);
             }
         }
 

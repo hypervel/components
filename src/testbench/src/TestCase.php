@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
@@ -279,7 +280,7 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
             try {
                 parent::tearDown();
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
 
             if ($exception !== null) {
@@ -299,7 +300,7 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
             try {
                 $teardown();
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
@@ -347,7 +348,7 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
         try {
             static::tearDownAfterClassUsingPHPUnit();
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {

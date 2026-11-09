@@ -9,6 +9,7 @@ use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Di\Bootstrap\GenerateProxies;
 use Hypervel\Foundation\Application;
@@ -822,7 +823,7 @@ trait CreatesApplication
     }
 
     /**
-     * Terminate and flush an application, preserving the first cleanup failure.
+     * Terminate and flush an application, returning any cleanup failure.
      */
     protected static function terminateAndFlushApplication(ApplicationContract $app): ?Throwable
     {
@@ -839,7 +840,7 @@ trait CreatesApplication
         try {
             $app->flush();
         } catch (Throwable $throwable) {
-            $failure ??= $throwable;
+            $failure = Coroutine::preferCancellation($failure, $throwable);
         }
 
         return $failure;

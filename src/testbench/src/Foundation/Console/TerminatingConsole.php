@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Foundation\Console;
 
+use Hypervel\Coroutine\Coroutine;
 use Throwable;
 
 /**
@@ -55,7 +56,7 @@ final class TerminatingConsole
             try {
                 $callback($signal);
             } catch (Throwable $throwable) {
-                $failure ??= $throwable;
+                $failure = Coroutine::preferCancellation($failure, $throwable);
             }
         }
 

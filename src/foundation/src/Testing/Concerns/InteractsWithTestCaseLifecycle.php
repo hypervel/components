@@ -134,7 +134,7 @@ trait InteractsWithTestCaseLifecycle
                     fn () => DatabaseConnectionResolver::flushCachedConnections()
                 );
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
 
             try {
@@ -146,19 +146,19 @@ trait InteractsWithTestCaseLifecycle
                     );
                 }
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
 
             try {
                 ParallelTesting::callTearDownTestCaseCallbacks($this);
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
 
             try {
                 $app->flush();
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
@@ -173,7 +173,7 @@ trait InteractsWithTestCaseLifecycle
         try {
             $this->flushState();
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {

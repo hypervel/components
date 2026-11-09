@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Database;
 
 use Hypervel\Console\Command;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Testbench\Contracts\TestCase;
 use RuntimeException;
@@ -100,7 +101,7 @@ class MigrateProcessor
                         throw new RuntimeException("Migration batch [{$batch}] remains after rollback.");
                     }
                 } catch (Throwable $throwable) {
-                    $failure ??= $throwable;
+                    $failure = Coroutine::preferCancellation($failure, $throwable);
                 }
             }
         });

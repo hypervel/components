@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testing\PHPUnit;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Mockery;
 use PHPUnit\Event\Test\Finished;
@@ -81,19 +82,19 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         try {
             Mockery::close();
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         try {
             DatabaseConnectionResolver::flushCachedConnections();
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         try {
             $this->flushFrameworkState();
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {

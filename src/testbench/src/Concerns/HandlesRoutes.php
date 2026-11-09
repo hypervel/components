@@ -7,6 +7,7 @@ namespace Hypervel\Testbench\Concerns;
 use Attribute;
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application as HypervelApplication;
 use Hypervel\Routing\Router;
@@ -248,7 +249,7 @@ trait HandlesRoutes
                     ));
                 }
             } catch (Throwable $throwable) {
-                $failure ??= $throwable;
+                $failure = Coroutine::preferCancellation($failure, $throwable);
             }
 
             if ($failure !== null) {

@@ -8,6 +8,7 @@ use Composer\Config as ComposerConfig;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Console\View\Components\Factory;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Server\Commands\ServerStartCommand as Command;
 use Hypervel\Support\Env;
@@ -87,7 +88,7 @@ class ServeCommand extends Command
         try {
             (new RemoveAssetSymlinkFolders($files, $config))->handle();
         } catch (Throwable $throwable) {
-            $failure ??= $throwable;
+            $failure = Coroutine::preferCancellation($failure, $throwable);
         }
 
         try {
@@ -95,7 +96,7 @@ class ServeCommand extends Command
                 $events->dispatch(new ServeCommandEnded($input, $styledOutput, $components, $failure === null ? $exitCode : self::FAILURE));
             }
         } catch (Throwable $throwable) {
-            $failure ??= $throwable;
+            $failure = Coroutine::preferCancellation($failure, $throwable);
         }
 
         if ($failure !== null) {

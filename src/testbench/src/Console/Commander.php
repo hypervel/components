@@ -9,6 +9,7 @@ use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernel;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application as HypervelApplication;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
@@ -220,7 +221,7 @@ class Commander
         try {
             $app->flush();
         } catch (Throwable $throwable) {
-            $failure ??= $throwable;
+            $failure = Coroutine::preferCancellation($failure, $throwable);
         }
 
         return $failure;
@@ -244,13 +245,13 @@ class Commander
         try {
             Workbench::flush();
         } catch (Throwable $throwable) {
-            $failure ??= $throwable;
+            $failure = Coroutine::preferCancellation($failure, $throwable);
         }
 
         try {
             $this->unregisterSignals();
         } catch (Throwable $throwable) {
-            $failure ??= $throwable;
+            $failure = Coroutine::preferCancellation($failure, $throwable);
         }
 
         return $failure;
