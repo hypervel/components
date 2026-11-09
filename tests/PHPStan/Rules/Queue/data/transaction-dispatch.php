@@ -326,3 +326,24 @@ class RoutedJob implements ShouldQueue
 DB::transaction(static function (): void {
     RoutedJob::dispatch();
 });
+
+// Not flagged: the enclosing transaction stays known after a statement that invalidates an expression.
+class TrackedOrder
+{
+    public string $status = 'new';
+
+    public function save(): void
+    {
+    }
+}
+
+$order = new TrackedOrder();
+
+DB::connection('pgsql')->transaction(static function () use ($order): void {
+    $order->status = 'paid';
+    $order->save();
+
+    DB::connection('mysql')->transaction(static function (): void {
+        DatabaseQueuedJob::dispatch();
+    });
+});

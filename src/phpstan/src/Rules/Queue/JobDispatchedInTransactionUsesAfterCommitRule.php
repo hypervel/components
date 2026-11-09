@@ -16,6 +16,7 @@ use Hypervel\PHPStan\Concerns\HasContainer;
 use Hypervel\PHPStan\Concerns\InspectsQueuedJobs;
 use Hypervel\PHPStan\Reflection\ReflectionHelper;
 use Hypervel\PHPStan\Reflection\SourceFiles;
+use Hypervel\PHPStan\Support\CallStack;
 use Hypervel\PHPStan\Support\ConfigParser;
 use Hypervel\PHPStan\Support\ConstructorParser;
 use Hypervel\Queue\Attributes\Connection;
@@ -339,7 +340,7 @@ class JobDispatchedInTransactionUsesAfterCommitRule implements Rule
      */
     private function isInDatabaseCall(Scope $scope, string $method): bool
     {
-        foreach ($scope->getFunctionCallStack() as $reflection) {
+        foreach (CallStack::enclosing($scope) as $reflection) {
             if (! $reflection instanceof MethodReflection || strtolower($reflection->getName()) !== strtolower($method)) {
                 continue;
             }
