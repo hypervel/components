@@ -31,6 +31,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Log\LogLevel;
 use Redis;
 use RedisCluster;
@@ -523,9 +524,13 @@ class RedisConnectionTest extends TestCase
         }
     }
 
-    public function testCancellationFromQueueingWarningInvalidatesAndReleasesWithoutDiscarding(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationFromQueueingWarningInvalidatesAndReleasesWithoutDiscarding(bool $carried): void
     {
-        $cancellation = new CanceledException('logging canceled');
+        $cancellation = $carried
+            ? new RuntimeException('logging failed', previous: new CanceledException('logging canceled'))
+            : new CanceledException('logging canceled');
         $logger = m::mock(StdoutLoggerInterface::class);
         $logger->expects('log')
             ->with(
@@ -543,14 +548,15 @@ class RedisConnectionTest extends TestCase
         $redis->shouldNotReceive('close');
         $connection = $this->mockRedisConnection(container: $container, pool: $pool);
         $connection->setActiveConnection($redis);
+        $caught = null;
 
         try {
             $connection->release();
-            $this->fail('Expected the cancellation to escape.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
+        } catch (Throwable $exception) {
+            $caught = $exception;
         }
 
+        $this->assertSame($cancellation, $caught);
         $this->assertTrue($connection->isInvalidForTest());
     }
 

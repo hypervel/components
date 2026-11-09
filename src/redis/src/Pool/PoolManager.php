@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Redis\Pool;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Swoole\Coroutine\CanceledException;
+use Hypervel\Coroutine\Coroutine;
 use Throwable;
 
 class PoolManager
@@ -33,25 +33,18 @@ class PoolManager
     {
         $pools = $this->pools;
         $this->pools = [];
-        $firstException = null;
-        $firstCancellation = null;
+        $exception = null;
 
         foreach ($pools as $pool) {
             try {
                 $pool->close();
-            } catch (CanceledException $exception) {
-                $firstCancellation ??= $exception;
-            } catch (Throwable $exception) {
-                $firstException ??= $exception;
+            } catch (Throwable $throwable) {
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
-        if ($firstCancellation !== null) {
-            throw $firstCancellation;
-        }
-
-        if ($firstException !== null) {
-            throw $firstException;
+        if ($exception !== null) {
+            throw $exception;
         }
     }
 
@@ -92,12 +85,8 @@ class PoolManager
             } catch (Throwable $failure) {
                 try {
                     $pool->close();
-                } catch (CanceledException $cancellation) {
-                    if (! $failure instanceof CanceledException) {
-                        throw $cancellation;
-                    }
-                } catch (Throwable) {
-                    // Preserve the activation failure over an ordinary cleanup failure.
+                } catch (Throwable $cleanupFailure) {
+                    $failure = Coroutine::preferCancellation($failure, $cleanupFailure);
                 }
 
                 throw $failure;

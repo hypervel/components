@@ -23,6 +23,7 @@ class RedisCancellation
      */
     public static function cancellationFrom(Throwable $exception, string $message): ?CanceledException
     {
+        // @phpstan-ignore hypervel.cancellation.exactType (the classification primitive for phpredis failures)
         if ($exception instanceof CanceledException) {
             return $exception;
         }

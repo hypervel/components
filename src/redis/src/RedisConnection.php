@@ -14,6 +14,7 @@ use Hypervel\Contracts\ConnectionPool\ConnectionPool;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Redis\Exceptions\InvalidRedisOptionException;
 use Hypervel\Redis\Exceptions\LuaScriptException;
@@ -733,10 +734,11 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
 
             try {
                 $this->log('Release connection failed, caused by ' . $exception, LogLevel::CRITICAL);
-            } catch (CanceledException $cancellation) {
-                $this->releaseAfterCancellation($cancellation);
-            } catch (Throwable) {
+            } catch (Throwable $loggingException) {
                 // Reporting must not prevent terminal ownership cleanup.
+                if (Coroutine::causedByCancellation($loggingException)) {
+                    $this->releaseAfterCancellation($loggingException);
+                }
             }
 
             $this->resetReleaseState(true);
@@ -755,11 +757,12 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
                             : 'Discarding Redis connection left in WATCH state.',
                         LogLevel::CRITICAL
                     );
-                } catch (CanceledException $cancellation) {
-                    // Native close must not start while cancellation is unwinding.
-                    $this->releaseAfterCancellation($cancellation);
-                } catch (Throwable) {
-                    // Reporting must not prevent terminal ownership cleanup.
+                } catch (Throwable $loggingException) {
+                    // Native close must not start while cancellation is unwinding, and reporting
+                    // must not prevent terminal ownership cleanup.
+                    if (Coroutine::causedByCancellation($loggingException)) {
+                        $this->releaseAfterCancellation($loggingException);
+                    }
                 }
             }
 
@@ -804,10 +807,11 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
                 if ($cancellation === null) {
                     try {
                         $this->log('Release connection failed, caused by ' . $exception, LogLevel::CRITICAL);
-                    } catch (CanceledException $loggingCancellation) {
-                        $cancellation = $loggingCancellation;
-                    } catch (Throwable) {
+                    } catch (Throwable $loggingException) {
                         // Reporting must not prevent terminal ownership cleanup.
+                        if (Coroutine::causedByCancellation($loggingException)) {
+                            $cancellation = $loggingException;
+                        }
                     }
                 }
             }
@@ -835,7 +839,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
     /**
      * Return an invalid connection to its pool after cancellation.
      */
-    private function releaseAfterCancellation(CanceledException $cancellation): never
+    private function releaseAfterCancellation(Throwable $cancellation): never
     {
         $this->markInvalid();
         $this->resetReleaseState(true);

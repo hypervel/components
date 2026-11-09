@@ -8,12 +8,12 @@ use Closure;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Redis\Connection as ConnectionContract;
 use Hypervel\Contracts\Redis\Factory as FactoryContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder;
 use Hypervel\Redis\Limiters\DurationLimiterBuilder;
 use Hypervel\Redis\Pool\PoolManager;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -103,9 +103,7 @@ class RedisManager implements FactoryContract, ConnectionContract
         try {
             $this->poolManager->purge($poolName);
         } catch (Throwable $throwable) {
-            if ($exception === null || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)) {
-                $exception = $throwable;
-            }
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {
@@ -204,9 +202,7 @@ class RedisManager implements FactoryContract, ConnectionContract
             try {
                 $terminate($connection);
             } catch (Throwable $throwable) {
-                if ($exception === null || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)) {
-                    $exception = $throwable;
-                }
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
