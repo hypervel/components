@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Testing\Fakes;
 
-use Closure;
 use Hypervel\Foundation\Bus\PendingChain;
-use Hypervel\Queue\CallQueuedClosure;
 
 class PendingChainFake extends PendingChain
 {
@@ -27,20 +25,6 @@ class PendingChainFake extends PendingChain
      */
     public function dispatch(mixed ...$arguments): mixed
     {
-        if (is_string($this->job)) {
-            $firstJob = new $this->job(...$arguments);
-        } elseif ($this->job instanceof Closure) {
-            $firstJob = CallQueuedClosure::create($this->job);
-        } else {
-            $firstJob = $this->job;
-        }
-
-        $firstJob->allOnConnection($this->connection);
-        $firstJob->allOnQueue($this->queue);
-        $firstJob->chain($this->chain);
-        $firstJob->delay($this->delay);
-        $firstJob->chainCatchCallbacks = $this->catchCallbacks();
-
-        return $this->bus->dispatch($firstJob);
+        return $this->bus->dispatch($this->prepareFirstJob($arguments));
     }
 }

@@ -13,6 +13,9 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Bus\QueueingDispatcher;
 use Hypervel\Contracts\Cache\Repository as Cache;
+use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\Delay;
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Testing\Fakes\BatchRepositoryFake;
 use Hypervel\Support\Testing\Fakes\BusFake;
@@ -692,6 +695,29 @@ class SupportTestingBusFakeTest extends TestCase
         }
     }
 
+    public function testFakeChainKeepsTheFirstJobsOwnSettings(): void
+    {
+        $this->fake->chain([(new ChainedJobStub)->onConnection('job-connection')->delay(5), new ChainedJobStub])->dispatch();
+        $this->fake->chain([new AttributedChainedJobStub, new ChainedJobStub])
+            ->onConnection('chain-connection')
+            ->onQueue('chain-queue')
+            ->delay(10)
+            ->dispatch();
+
+        $this->fake->assertDispatched(
+            ChainedJobStub::class,
+            fn (ChainedJobStub $job) => $job->connection === 'job-connection' && $job->delay === 5 && $job->chainConnection === null,
+        );
+        $this->fake->assertDispatched(
+            AttributedChainedJobStub::class,
+            fn (AttributedChainedJobStub $job) => $job->connection === null
+                && $job->queue === null
+                && $job->delay === null
+                && $job->chainConnection === 'chain-connection'
+                && $job->chainQueue === 'chain-queue',
+        );
+    }
+
     public function testDispatchingAfterResponsesCanBeToggledOnTheFake(): void
     {
         $dispatcher = m::mock(BusDispatcher::class);
@@ -1205,6 +1231,14 @@ class ChainedJobStub
     {
         $this->id = $id;
     }
+}
+
+#[Connection('job-connection')]
+#[QueueAttribute('job-queue')]
+#[Delay(30)]
+class AttributedChainedJobStub
+{
+    use Queueable;
 }
 
 class OtherBusJobStub
