@@ -66,7 +66,7 @@ class SourceFiles
      *
      * @return list<string>
      */
-    public static function forInstance(ReflectionProvider $reflectionProvider, ClassReflection $classReflection, string $baseClass): array
+    public static function forInstance(ReflectionProvider $reflectionProvider, ClassReflection $classReflection, ?string $baseClass): array
     {
         $files = array_fill_keys(self::forClass($classReflection, $baseClass), true);
         $constants = [];
@@ -103,6 +103,25 @@ class SourceFiles
     }
 
     /**
+     * Get the files of the constants the arguments of a class's or trait's attribute read.
+     *
+     * @return list<string>
+     */
+    public static function forAttributeArguments(ReflectionProvider $reflectionProvider, ClassReflection $classReflection, string $attributeClass): array
+    {
+        $files = [];
+        $constants = [];
+
+        foreach ($classReflection->getNativeReflection()->getAttributes($attributeClass) as $attribute) {
+            foreach ($attribute->getArgumentsExpressions() as $expression) {
+                self::addExpressionFiles($reflectionProvider, $classReflection, $expression, $files, $constants);
+            }
+        }
+
+        return array_keys($files);
+    }
+
+    /**
      * Add the files a constant read through a class takes its value from.
      *
      * @param array<string, true> $files
@@ -125,6 +144,11 @@ class SourceFiles
         // An interface declaring the constant is not among the class's parents.
         if ($declaringClass->getFileName() !== null) {
             $files[$declaringClass->getFileName()] = true;
+        }
+
+        // A unit enum case has no value expression.
+        if ($declaringClass->hasEnumCase($name) && ! $declaringClass->isBackedEnum()) {
+            return;
         }
 
         self::addExpressionFiles($reflectionProvider, $declaringClass, $constant->getValueExpr(), $files, $constants);
