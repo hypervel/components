@@ -761,10 +761,12 @@ trait HasAttributes
      */
     protected function mutateAttributeForArray(string $key, mixed $value): mixed
     {
-        if ($this->isClassCastable($key)) {
+        // Unlike Laravel, an enum cast serializes through its get accessor, since instantiating the
+        // enum as a class cast throws. The accessor lookup also fills the read cache for this
+        // spelling, as cacheMutatedAttributes() keeps only snake case keys.
+        if (! $this->isEnumCastable($key) && $this->isClassCastable($key)) {
             $value = $this->getClassCastableAttributeValue($key, $value);
-        } elseif (isset(static::$getAttributeMutatorCache[get_class($this)][$key])
-                  && static::$getAttributeMutatorCache[get_class($this)][$key] === true) {
+        } elseif ($this->hasAttributeGetMutator($key)) {
             $value = $this->mutateAttributeMarkedAttribute($key, $value);
 
             $value = $value instanceof DateTimeInterface

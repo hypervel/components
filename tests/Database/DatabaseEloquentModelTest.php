@@ -3194,6 +3194,23 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertSame(100, $model->toArray()['price']);
     }
 
+    public function testToArraySerializesEnumCastAttributesThroughTheirGetAccessors(): void
+    {
+        $model = new EnumCastWithAccessorsStub;
+        $model->setRawAttributes(['legacy_status' => 'draft', 'status' => 'done']);
+
+        $this->assertSame(['legacy_status' => 'Draft', 'status' => 'Done'], $model->toArray());
+    }
+
+    public function testToArrayAppendsCamelCaseAttributeAccessorBeforeItIsRead(): void
+    {
+        $model = new AppendsCamelCaseAttributeStub;
+
+        $this->assertSame(['fullName' => 'Taylor Otwell'], $model->toArray());
+        $this->assertSame('Taylor Otwell', $model->fullName);
+        $this->assertSame(['fullName' => 'Taylor Otwell'], $model->toArray());
+    }
+
     public function testMergeAppendsMergesAppends(): void
     {
         $model = new AppendsStub;
@@ -5908,6 +5925,34 @@ class AppendsWithExistingAttributeStub extends Model
     protected function price(): Attribute
     {
         return Attribute::get(fn (mixed $value): mixed => $value);
+    }
+}
+
+class EnumCastWithAccessorsStub extends Model
+{
+    protected array $casts = [
+        'legacy_status' => StringStatus::class,
+        'status' => StringStatus::class,
+    ];
+
+    public function getLegacyStatusAttribute(string $value): string
+    {
+        return StringStatus::from($value)->name;
+    }
+
+    protected function status(): Attribute
+    {
+        return Attribute::get(fn (string $value): string => StringStatus::from($value)->name);
+    }
+}
+
+class AppendsCamelCaseAttributeStub extends Model
+{
+    protected array $appends = ['fullName'];
+
+    protected function fullName(): Attribute
+    {
+        return Attribute::get(fn (): string => 'Taylor Otwell');
     }
 }
 
