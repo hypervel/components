@@ -120,6 +120,7 @@ class DatabaseNotification extends Model
      * @param Builder<static> $query
      * @return Builder<static>
      */
+    // @phpstan-ignore hypervel.noPublicModelScopeMethod (public API, kept as Laravel declares it)
     public function scopeRead(Builder $query): Builder
     {
         $query->whereNotNull('read_at');
@@ -133,6 +134,7 @@ class DatabaseNotification extends Model
      * @param Builder<static> $query
      * @return Builder<static>
      */
+    // @phpstan-ignore hypervel.noPublicModelScopeMethod (public API, kept as Laravel declares it)
     public function scopeUnread(Builder $query): Builder
     {
         $query->whereNull('read_at');

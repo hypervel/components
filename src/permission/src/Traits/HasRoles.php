@@ -200,6 +200,7 @@ trait HasRoles
      * @param Builder<static> $query
      * @return Builder<static>
      */
+    // @phpstan-ignore hypervel.legacyModelScope (reusable trait: a using model's own method of the scope's name would silently replace an attributed scope)
     public function scopeRole(
         Builder $query,
         array|Collection|int|Role|string|UnitEnum $roles,
@@ -251,6 +252,7 @@ trait HasRoles
      * @param Builder<static> $query
      * @return Builder<static>
      */
+    // @phpstan-ignore hypervel.legacyModelScope (reusable trait: a using model's own method of the scope's name would silently replace an attributed scope)
     public function scopeWithoutRole(Builder $query, array|Collection|int|Role|string|UnitEnum $roles, ?string $guard = null): Builder
     {
         return $this->scopeRole($query, $roles, $guard, true);
@@ -298,6 +300,7 @@ trait HasRoles
      * @param Builder<static> $query
      * @return Builder<static>
      */
+    // @phpstan-ignore hypervel.legacyModelScope (reusable trait: a using model's own method of the scope's name would silently replace an attributed scope)
     public function scopeTeam(Builder $query, array|Collection|int|Model|string $teams, bool $without = false): Builder
     {
         $teamModel = Config::teamModel();
@@ -338,6 +341,7 @@ trait HasRoles
      * @param Builder<static> $query
      * @return Builder<static>
      */
+    // @phpstan-ignore hypervel.legacyModelScope (reusable trait: a using model's own method of the scope's name would silently replace an attributed scope)
     public function scopeWithoutTeam(Builder $query, array|Collection|int|Model|string $teams): Builder
     {
         return $this->scopeTeam($query, $teams, true);

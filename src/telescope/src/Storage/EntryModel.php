@@ -63,6 +63,7 @@ class EntryModel extends Model
      * @param Builder<static> $query
      * @return Builder<static>
      */
+    // @phpstan-ignore hypervel.legacyModelScope (public API, kept as Telescope declares it)
     public function scopeWithTelescopeOptions(Builder $query, ?string $type, EntryQueryOptions $options): Builder
     {
         $this->whereType($query, $type)
