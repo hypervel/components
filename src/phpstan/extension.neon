@@ -161,6 +161,19 @@ services:
             class: "Hypervel\\Contracts\\Validation\\Validator"
 
     -
+        class: Hypervel\PHPStan\Rules\CheckDispatchArgumentTypesCompatibleWithClassConstructorRule
+        arguments:
+            dispatchableClass: Hypervel\Foundation\Bus\Dispatchable
+        tags:
+            - phpstan.rules.rule
+    -
+        class: Hypervel\PHPStan\Rules\CheckDispatchArgumentTypesCompatibleWithClassConstructorRule
+        arguments:
+            dispatchableClass: Hypervel\Foundation\Events\Dispatchable
+        tags:
+            - phpstan.rules.rule
+
+    -
         class: Hypervel\Filesystem\Filesystem
         autowired: self
 
