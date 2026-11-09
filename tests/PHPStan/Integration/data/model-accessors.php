@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace ModelAccessors;
 
+use Hypervel\Database\Eloquent\Attributes\Table;
 use Hypervel\Database\Eloquent\Casts\Attribute;
 use Hypervel\Database\Eloquent\Model;
 
 use function PHPStan\Testing\assertType;
 
+#[Table('users')]
 class AccessorModel extends Model
 {
-    protected ?string $table = 'users';
-
     protected array $casts = ['virtual' => 'integer', 'blocked' => 'boolean'];
 
     /** @return Attribute<int, never> */
@@ -55,10 +55,9 @@ class AccessorModel extends Model
     }
 }
 
+#[Table('users')]
 class ParentAccessorModel extends Model
 {
-    protected ?string $table = 'users';
-
     public function getStringAttribute(): int
     {
         return 1;

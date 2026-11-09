@@ -9,6 +9,7 @@ use UnitEnum;
 
 abstract class BaseModel extends Model
 {
+    // @phpstan-ignore hypervel.legacyModelProperty (the dependency tests change this default)
     protected UnitEnum|string|null $connection = null;
 
     /**

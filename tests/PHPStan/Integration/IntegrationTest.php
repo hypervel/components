@@ -534,10 +534,10 @@ class IntegrationTest extends PHPStanTestCase
         yield [
             __DIR__ . '/data/model-accessors.php',
             [
-                82 => ['Property ModelAccessors\AccessorModel::$name (string) does not accept int.'],
-                87 => ['Property ModelAccessors\AccessorModel::$email (int) does not accept string.'],
-                92 => ['Property ModelAccessors\AccessorModel::$virtual (string) does not accept int.'],
-                96 => ['Property ModelAccessors\AccessorModel::$password (int) does not accept string.'],
+                81 => ['Property ModelAccessors\AccessorModel::$name (string) does not accept int.'],
+                86 => ['Property ModelAccessors\AccessorModel::$email (int) does not accept string.'],
+                91 => ['Property ModelAccessors\AccessorModel::$virtual (string) does not accept int.'],
+                95 => ['Property ModelAccessors\AccessorModel::$password (int) does not accept string.'],
             ],
         ];
 
