@@ -22,14 +22,13 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 
 - omit: `Internal/ComposerHelper.php` (`Support\Composer::vendorPath()` resolves the actual install)
 - omit: `Properties/ReflectionTypeContainer.php` (unused since upstream removed container ArrayAccess support)
-- copy: `Rules/{ModelAppendsRule,ModelRelationDefaultsRule,NoImplicitQueryBuilderCallRule,NoModelMakeRule,NoPublicModelScopeAndAccessorRule,NoUnnecessaryCollectionCallRule}.php`
 - omit: `Rules/DeferrableServiceProviderMissingProvidesRule.php`, `Rules/OctaneCompatibilityRule.php`
 - omit: `SQL/*` (`hypervel/schema-parser` replaces the parser boundary and its iamcal/phpMyAdmin adapters)
 
 ## New Hypervel source
 
 - add: `Rules/Coroutine/` cancellation, worker-lifetime, static-state, unbounded-cache, runtime-config, transaction-coroutine and raw-sleep rules
-- add: `Rules/` legacy model scope and legacy model property rules; `Rules/Queue/NoLegacyQueuePropertiesRule.php`
+- add: `Rules/` legacy model property rule; `Rules/Queue/NoLegacyQueuePropertiesRule.php`
 - add: `Rules/Validation/` pipe-separated validation rule
 
 ## stubs
@@ -48,7 +47,6 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 
 - omit: `laravel-test.sh`
 - omit: `application/app/{ModelWithConflictingInitializer.php,UserResource.php,Providers/}` (no upstream test or source references them)
-- copy: `Rules/{ModelAppends,ModelRelationDefaults,NoImplicitQueryBuilderCall,NoModelMake,NoPublicModelScopeAndAccessor,NoUnnecessaryCollectionCall}RuleTest.php` with their `Rules/data/*` fixtures
 - omit: `Rules/{DeferrableServiceProviderMissingProvidesRuleTest,OctaneCompatibilityRuleTest}.php`, `Rules/data/{CorrectDeferrableProvider,CorrectDeferrableProviderIndirect,IncorrectDeferrableProvider}.php`, `Rules/data/octane.neon`, `Rules/data/ContainerInjection.php`
 - copy: `Type/*Test.php` except below, the ported collection, config and model-property tests, `GeneralTypeTest.php` and `MethodsClassReflectionExtensionTest.php`, with the remaining `Type/data/*`
 - merge: the remaining `Type/GeneralTypeTest.php` data entries (its `phpstan-tests.neon` already matches upstream's `config-with-migrations.neon`)

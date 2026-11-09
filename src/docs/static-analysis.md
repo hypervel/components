@@ -22,6 +22,11 @@
     - [Authentication in Requests](#authentication-in-requests)
     - [Redis Connections](#redis-connections)
     - [Model Relations](#model-relations)
+    - [Model Scopes and Accessors](#model-scopes-and-accessors)
+    - [Appended Attributes](#appended-attributes)
+    - [Creating Models](#creating-models)
+    - [Query Results](#query-results)
+    - [Starting Queries](#starting-queries)
     - [Schema Dumps](#schema-dumps)
     - [Dispatching Jobs and Events](#dispatching-jobs-and-events)
     - [Dispatching Jobs in Transactions](#dispatching-jobs-in-transactions)
@@ -251,6 +256,11 @@ The following table summarizes the preferred pattern for each of Hypervel's diag
 | [Authentication in Requests](#authentication-in-requests) | Use `$request->user()` where a request is available. | `hypervel.noAuthFacadeInRequestScope`, `hypervel.noAuthHelperInRequestScope` |
 | [Redis Connections](#redis-connections) | Call connection-bound methods on a held connection. | `hypervel.redisConnectionBoundMethod` |
 | [Model Relations](#model-relations) | Load and query relations the model defines. | `hypervel.relationExistence` |
+| [Model Scopes and Accessors](#model-scopes-and-accessors) | Declare local scopes as protected `#[Scope]` methods and accessors as protected methods. | `hypervel.legacyModelScope`, `hypervel.noPublicModelScopeMethod`, `hypervel.noPublicModelAccessorMethod` |
+| [Appended Attributes](#appended-attributes) | Append attributes that a get accessor or class cast computes. | `hypervel.modelAppends` |
+| [Creating Models](#creating-models) | Create models using `new` rather than `make`. | `hypervel.noModelMake` |
+| [Query Results](#query-results) | Let the query count, test or pluck rows instead of fetching every model. | `hypervel.noUnnecessaryCollectionCall` |
+| [Starting Queries](#starting-queries) | Start model queries with `query()`, when you enable the preference. | `hypervel.noImplicitQueryBuilderCall` |
 | [Schema Dumps](#schema-dumps) | Keep schema dumps in the plain SQL `schema:dump` writes. | `hypervel.schemaDump` |
 | [Dispatching Jobs and Events](#dispatching-jobs-and-events) | Dispatch with the arguments the constructor accepts. | `hypervel.jobs.noConstructor`, `hypervel.events.noConstructor`, `argument.type` and the other argument identifiers |
 | [Dispatching Jobs in Transactions](#dispatching-jobs-in-transactions) | Queue jobs dispatched in a transaction once it commits. | `hypervel.dispatchInTransactionAfterCommit` |
@@ -416,6 +426,99 @@ $users = User::with('posts.comment')->get();
 ```
 
 A relation registered using `resolveRelationUsing` while the application boots is found, though the segments after it are not checked. Relations on an abstract model or a union of models are not checked, since each model may define them differently.
+
+A model's default `$with` and `$withCount` eager loads are checked the same way. Defaults a model inherits are checked for each model that inherits them, since the model may define the relation itself.
+
+<a name="model-scopes-and-accessors"></a>
+### Model Scopes and Accessors
+
+Eloquent calls local query scopes and accessors for you, so define scopes as protected methods marked with the `Scope` attribute, and accessors as protected methods:
+
+```php
+use Hypervel\Database\Eloquent\Attributes\Scope;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Casts\Attribute;
+
+#[Scope]
+protected function popular(Builder $query): void
+{
+    $query->where('votes', '>', 100);
+}
+
+protected function firstName(): Attribute
+{
+    return Attribute::get(fn (string $value) => ucfirst($value));
+}
+```
+
+The analysis reports a legacy `scopePopular` method, naming the attributed scope that replaces it, and a scope or accessor that is not protected. Legacy scopes and public methods keep working, while a private scope or accessor is never called by Eloquent.
+
+When the model already has a method with the scope's name, such as a notification's `read` method beside its `scopeRead` scope, the legacy scope is the only way to keep the scope's name, so it is not reported. A scope defined in a reusable trait should also keep its legacy name, since a model's own method with the same name would silently replace an attributed scope; ignore it with a reason. Likewise, ignore a public scope or accessor that other code calls directly as part of a public API. You may disable these checks using the `noLegacyModelScopes` and `checkModelMethodVisibility` parameters.
+
+<a name="appended-attributes"></a>
+### Appended Attributes
+
+A model serializes each attribute it appends, using the `Appends` attribute or the `$appends` property, through the attribute's get accessor or class cast. The analysis reports an appended attribute the model does not have, and a column with neither a get accessor nor a class cast:
+
+```php
+use Hypervel\Database\Eloquent\Attributes\Appends;
+use Hypervel\Database\Eloquent\Casts\Attribute;
+
+#[Appends(['is_admin'])]
+class User extends Model
+{
+    protected function isAdmin(): Attribute
+    {
+        return Attribute::get(fn () => $this->role === 'admin');
+    }
+}
+```
+
+Attributes a model inherits are checked for each model that inherits them, since the model may define the accessor itself. Models that customize how attributes are serialized are not checked. You may disable this check using the `checkModelAppends` parameter.
+
+<a name="creating-models"></a>
+### Creating Models
+
+A model's static `make` method builds a query for the model before creating it, so create the model using `new` instead:
+
+```php
+// Called 'Model::make()' which performs unnecessary work, use 'new Model()'.
+$user = User::make(['name' => 'Taylor']);
+
+$user = new User(['name' => 'Taylor']);
+```
+
+Since `make` creates the model through its query, a global scope can change the model it creates, and the model takes the query's connection. So the analysis only reports models with a fixed connection and no global scopes, boot methods or customized construction. Models using the default connection, or a trait such as `SoftDeletes` that adds a global scope, are not reported, and neither are calls through `static` in a class that may be extended. You may disable this check using the `noModelMake` parameter.
+
+<a name="query-results"></a>
+### Query Results
+
+Fetching every row only to count, test or pluck the results is slower than letting the database do it. The analysis reports a collection method called on a query's results when the query itself can return the same result:
+
+```php
+// Called 'count' on Hypervel collection, but could have been retrieved as a query with 'count()'.
+$active = Flight::where('active', 1)->get()->count();
+
+$active = Flight::where('active', 1)->count();
+```
+
+The `first`, `count`, `isEmpty`, `isNotEmpty`, `take`, `pluck` and `modelKeys` methods are checked, with `isEmpty` and `isNotEmpty` replaced by the query's `doesntExist` and `exists` methods. A call is only reported when the whole query is visible: a model's static query methods or `DB::table`, followed by `where` clauses, ordering, eager loading, joins and limits, then `get` or `all`. Queries held in variables, relationship queries, and queries that select columns or call scopes or macros are not checked, and neither are models with global scopes, such as those using `SoftDeletes`, or with a custom collection that overrides the method or a method it calls. A call whose result a limit, join, accessor or class cast would change, such as plucking an attribute that has an accessor, is not reported, and neither is `pluck` or `modelKeys` on a model with an observer or `retrieved` listener, or one that customizes how it reads attributes.
+
+You may choose the checked methods using the `noUnnecessaryCollectionCallOnly` and `noUnnecessaryCollectionCallExcept` parameters, or disable the rule using the `noUnnecessaryCollectionCall` parameter.
+
+<a name="starting-queries"></a>
+### Starting Queries
+
+When the `noImplicitQueryBuilderCall` parameter is enabled, the analysis recommends starting a model query with `query()` instead of calling a builder method on the model directly:
+
+```php
+// Call to static method App\Models\User::where() is forwarded to the query builder.
+$users = User::where('active', 1)->get();
+
+$users = User::query()->where('active', 1)->get();
+```
+
+Calling builder methods on the model remains fully supported. Models that override `__call`, `__callStatic` or `query` to change how they forward these calls are not checked.
 
 <a name="schema-dumps"></a>
 ### Schema Dumps
