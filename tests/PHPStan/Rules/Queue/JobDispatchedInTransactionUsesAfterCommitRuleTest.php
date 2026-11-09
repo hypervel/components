@@ -7,6 +7,7 @@ namespace Hypervel\Tests\PHPStan\Rules\Queue;
 use Hypervel\Container\Container;
 use Hypervel\PHPStan\Rules\Queue\JobDispatchedInTransactionUsesAfterCommitRule;
 use Hypervel\PHPStan\Support\ConfigParser;
+use Hypervel\PHPStan\Support\ConstructorParser;
 use PHPStan\Reflection\InitializerExprTypeResolver;
 use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Rules\Rule;
@@ -26,7 +27,7 @@ class JobDispatchedInTransactionUsesAfterCommitRuleTest extends RuleTestCase
             $container->getByType(ReflectionProvider::class),
             $container->getByType(ConfigParser::class),
             $container->getByType(InitializerExprTypeResolver::class),
-            $container->getService('cachedRichParser'),
+            $container->getByType(ConstructorParser::class),
         );
     }
 

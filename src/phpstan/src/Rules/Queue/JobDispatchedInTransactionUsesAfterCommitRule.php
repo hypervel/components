@@ -17,6 +17,7 @@ use Hypervel\PHPStan\Concerns\InspectsQueuedJobs;
 use Hypervel\PHPStan\Reflection\ReflectionHelper;
 use Hypervel\PHPStan\Reflection\SourceFiles;
 use Hypervel\PHPStan\Support\ConfigParser;
+use Hypervel\PHPStan\Support\ConstructorParser;
 use Hypervel\Queue\Attributes\Connection;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Queue\QueueRoutes;
@@ -45,14 +46,11 @@ use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt\ClassLike;
-use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\NodeFinder;
 use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
-use PHPStan\DependencyInjection\AutowiredParameter;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\DependencyInjection\Conditional;
-use PHPStan\Parser\Parser;
 use PHPStan\Reflection\ClassReflection;
 use PHPStan\Reflection\InitializerExprContext;
 use PHPStan\Reflection\InitializerExprTypeResolver;
@@ -190,8 +188,7 @@ class JobDispatchedInTransactionUsesAfterCommitRule implements Rule
         private ReflectionProvider $reflectionProvider,
         private ConfigParser $configParser,
         private InitializerExprTypeResolver $initializerExprTypeResolver,
-        #[AutowiredParameter(ref: '@cachedRichParser')]
-        private Parser $parser,
+        private ConstructorParser $constructorParser,
     ) {
     }
 
@@ -603,30 +600,13 @@ class JobDispatchedInTransactionUsesAfterCommitRule implements Rule
      */
     private function constructorChangesSettings(ClassReflection $job, ClassReflection $class): bool
     {
-        $native = $class->getNativeReflection();
+        $constructor = $this->constructorParser->findConstructor($class);
 
-        if (! $native->hasMethod('__construct')) {
+        if ($constructor === null) {
             return false;
         }
 
-        $constructor = $native->getMethod('__construct');
-        $fileName = $constructor->getFileName();
-
-        if ($fileName === false) {
-            return false;
-        }
-
-        $finder = new NodeFinder;
-        $constructorNode = $finder->findFirst(
-            $this->parser->parseFile($fileName),
-            static fn (Node $node): bool => $node instanceof ClassMethod
-                && $node->name->toLowerString() === '__construct'
-                && $node->getStartLine() === $constructor->getStartLine(),
-        );
-
-        if (! $constructorNode instanceof ClassMethod) {
-            return true;
-        }
+        [$constructorNode, $declaringClass] = $constructor;
 
         foreach ($constructorNode->params as $param) {
             if ($param->isPromoted() && $param->var instanceof Variable && in_array($param->var->name, self::SETTING_PROPERTIES, true)) {
@@ -634,10 +614,8 @@ class JobDispatchedInTransactionUsesAfterCommitRule implements Rule
             }
         }
 
-        $declaringClass = $this->reflectionProvider->getClass($constructor->getDeclaringClass()->getName());
-
         /** @var list<Assign|AssignOp|AssignRef|MethodCall|NullsafeMethodCall|StaticCall> $nodes */
-        $nodes = $finder->find($constructorNode->stmts ?? [], static fn (Node $node): bool => $node instanceof Assign || $node instanceof AssignOp || $node instanceof AssignRef || $node instanceof MethodCall || $node instanceof NullsafeMethodCall || $node instanceof StaticCall);
+        $nodes = (new NodeFinder)->find($constructorNode->stmts ?? [], static fn (Node $node): bool => $node instanceof Assign || $node instanceof AssignOp || $node instanceof AssignRef || $node instanceof MethodCall || $node instanceof NullsafeMethodCall || $node instanceof StaticCall);
 
         foreach ($nodes as $node) {
             if ($node instanceof Assign || $node instanceof AssignOp || $node instanceof AssignRef) {
