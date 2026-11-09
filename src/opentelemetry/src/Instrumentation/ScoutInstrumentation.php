@@ -130,6 +130,7 @@ class ScoutInstrumentation extends AbstractInstrumentation implements EngineOper
         mixed $token,
         ?Throwable $exception
     ): void {
+        // @phpstan-ignore hypervel.cancellation.exactType (direct cancellation skips completion; a cleanup failure carrying it is recorded; completion on cancellation is pending the next checkpoint)
         if ($exception instanceof CanceledException) {
             return;
         }

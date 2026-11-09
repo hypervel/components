@@ -275,6 +275,7 @@ class HttpServerInstrumentation extends AbstractInstrumentation
     {
         $state = RequestTelemetryState::current();
 
+        // @phpstan-ignore hypervel.cancellation.exactType (direct cancellation skips completion; a cleanup failure carrying it is recorded; completion on cancellation is pending the next checkpoint)
         if ($event->exception instanceof CanceledException
             || $event->response === null
             || $state === null

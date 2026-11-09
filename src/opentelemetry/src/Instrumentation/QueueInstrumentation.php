@@ -7,6 +7,7 @@ namespace Hypervel\OpenTelemetry\Instrumentation;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\OpenTelemetry\Support\ExceptionContextRegistry;
 use Hypervel\OpenTelemetry\Support\LogContextScopeFactory;
 use Hypervel\OpenTelemetry\Support\OperationOrigin;
@@ -394,6 +395,7 @@ class QueueInstrumentation extends AbstractInstrumentation
                     strlen($finalPayload),
                 );
             }
+            // @phpstan-ignore hypervel.cancellation.exactType (direct cancellation skips completion; a cleanup failure carrying it is recorded; completion on cancellation is pending the next checkpoint)
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
@@ -714,9 +716,11 @@ class QueueInstrumentation extends AbstractInstrumentation
                         foreach ($queues as $queue) {
                             try {
                                 $size = $this->queues->connection($connection)->size($queue);
-                            } catch (CanceledException $exception) {
-                                throw $exception;
                             } catch (Throwable $exception) {
+                                if (Coroutine::causedByCancellation($exception)) {
+                                    throw $exception;
+                                }
+
                                 self::logError('OpenTelemetry queue depth collection failed.', [
                                     'exception' => $exception,
                                     'connection' => $connection,

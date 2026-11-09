@@ -176,6 +176,7 @@ class ConsoleInstrumentation extends AbstractInstrumentation
      */
     protected function finish(AfterExecute $event): void
     {
+        // @phpstan-ignore hypervel.cancellation.exactType (direct cancellation skips completion; a cleanup failure carrying it is recorded; completion on cancellation is pending the next checkpoint)
         if ($event->throwable instanceof CanceledException) {
             return;
         }

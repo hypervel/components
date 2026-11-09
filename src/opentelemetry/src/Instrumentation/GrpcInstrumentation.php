@@ -147,6 +147,7 @@ class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperati
         mixed $token,
         GrpcOperationResult $result,
     ): void {
+        // @phpstan-ignore hypervel.cancellation.exactType (direct cancellation skips completion; a cleanup failure carrying it is recorded; completion on cancellation is pending the next checkpoint)
         if ($token === null || $result->exception instanceof CanceledException) {
             return;
         }
@@ -195,6 +196,7 @@ class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperati
             $metadata = $operation->metadata();
             $this->propagator->inject($metadata, $this->metadataSetter, $context);
             $operation->withMetadata($metadata);
+            // @phpstan-ignore hypervel.cancellation.exactType (direct cancellation skips completion; a cleanup failure carrying it is recorded; completion on cancellation is pending the next checkpoint)
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {

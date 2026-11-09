@@ -210,6 +210,7 @@ class SchedulerInstrumentation extends AbstractInstrumentation
      */
     protected function fail(ScheduledTaskFailed $event): void
     {
+        // @phpstan-ignore hypervel.cancellation.exactType (direct cancellation skips completion; a cleanup failure carrying it is recorded; completion on cancellation is pending the next checkpoint)
         if ($event->exception instanceof CanceledException) {
             return;
         }

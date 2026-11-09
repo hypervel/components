@@ -141,6 +141,7 @@ class ViewInstrumentation extends AbstractInstrumentation
     protected function finish(ViewContract $view, ?Throwable $exception): void
     {
         // Direct notifyRendered() callers can supply cancellation; the framework render path skips this callback.
+        // @phpstan-ignore hypervel.cancellation.exactType (direct cancellation skips completion; a cleanup failure carrying it is recorded; completion on cancellation is pending the next checkpoint)
         if ($exception instanceof CanceledException) {
             return;
         }

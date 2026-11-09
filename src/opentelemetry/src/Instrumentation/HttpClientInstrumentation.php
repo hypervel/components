@@ -188,6 +188,7 @@ class HttpClientInstrumentation extends AbstractInstrumentation
                     }
 
                     $promise = $handler($request, $options);
+                    // @phpstan-ignore hypervel.cancellation.exactType (direct cancellation skips completion; a cleanup failure carrying it is recorded; completion on cancellation is pending the next checkpoint)
                 } catch (CanceledException $exception) {
                     throw $exception;
                 } catch (Throwable $exception) {
@@ -225,6 +226,7 @@ class HttpClientInstrumentation extends AbstractInstrumentation
                         $startedAt,
                         $requestAttributes,
                     ): PromiseInterface {
+                        // @phpstan-ignore hypervel.cancellation.exactType (direct cancellation skips completion; a cleanup failure carrying it is recorded; completion on cancellation is pending the next checkpoint)
                         if ($reason instanceof CanceledException) {
                             throw $reason;
                         }

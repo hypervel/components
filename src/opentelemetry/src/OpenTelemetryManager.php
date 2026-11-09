@@ -7,6 +7,7 @@ namespace Hypervel\OpenTelemetry;
 use Closure;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\OpenTelemetry\Contracts\ExporterFactory;
 use Hypervel\OpenTelemetry\Contracts\Instrumentation;
@@ -152,6 +153,7 @@ class OpenTelemetryManager
 
         try {
             return $callback($span);
+            // @phpstan-ignore hypervel.cancellation.exactType (direct cancellation skips completion; a cleanup failure carrying it is recorded; completion on cancellation is pending the next checkpoint)
         } catch (CanceledException $exception) {
             $cancelled = true;
 
@@ -362,7 +364,7 @@ class OpenTelemetryManager
                     }
                 } catch (Throwable $throwable) {
                     $success = false;
-                    $exception ??= $throwable;
+                    $exception = Coroutine::preferCancellation($exception, $throwable);
                 }
             }
         } finally {

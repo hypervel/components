@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\OpenTelemetry\Support;
 
 use Hypervel\Coordinator\Timer;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\OpenTelemetry\OpenTelemetryManager;
 use OpenTelemetry\API\Behavior\LogsMessagesTrait;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class ExportScheduler
@@ -121,9 +121,11 @@ class ExportScheduler
                 if (! $this->manager->shutdown()) {
                     self::logError('OpenTelemetry provider shutdown did not complete successfully.');
                 }
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 self::logError('OpenTelemetry provider shutdown failed.', ['exception' => $exception]);
             }
 
@@ -150,9 +152,11 @@ class ExportScheduler
             if ($this->manager->flushSignals($dueSignals) === false) {
                 self::logError('OpenTelemetry periodic export did not complete successfully.');
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             self::logError('OpenTelemetry periodic export failed.', ['exception' => $exception]);
         } finally {
             if ($generation === $this->generation) {
