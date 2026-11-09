@@ -261,23 +261,14 @@ class DatabaseTransactionsManager
      */
     protected function executeRollbackCallbacks(Collection $transactions): void
     {
-        $cancellation = null;
         $exception = null;
 
         foreach ($transactions as $transaction) {
             try {
                 $transaction->executeCallbacksForRollback();
             } catch (Throwable $throwable) {
-                if (Coroutine::causedByCancellation($throwable)) {
-                    $cancellation ??= $throwable;
-                } else {
-                    $exception ??= $throwable;
-                }
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
-        }
-
-        if ($cancellation !== null) {
-            throw $cancellation;
         }
 
         if ($exception !== null) {

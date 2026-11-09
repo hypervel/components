@@ -11,6 +11,7 @@ use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Contracts\ConnectionPool\UsageTracker;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Coordinator\Timer;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Connectors\ConnectionFactory;
@@ -524,16 +525,18 @@ class DatabasePool extends ConnectionPool
                 || ($connection->isIdleExpired($now)
                     && $this->getManagedCount() > $this->options->minRetainedConnections);
             $healthy = ! $expired && $connection->ping($this->options->heartbeatTimeout);
-        } catch (CanceledException $cancellation) {
-            try {
-                $this->discardHeartbeatConnection($connection);
-            } catch (CanceledException) {
-            } catch (Throwable $exception) {
-                $this->report($exception);
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                try {
+                    $this->discardHeartbeatConnection($connection);
+                } catch (CanceledException) {
+                } catch (Throwable $cleanupException) {
+                    $this->report($cleanupException);
+                }
+
+                throw $exception;
             }
 
-            throw $cancellation;
-        } catch (Throwable $exception) {
             $this->report('Database heartbeat failed: ' . $exception);
             $healthy = false;
         }

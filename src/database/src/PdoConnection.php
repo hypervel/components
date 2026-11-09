@@ -8,6 +8,7 @@ use Closure;
 use ErrorException;
 use Exception;
 use Generator;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Events\StatementPrepared;
 use Hypervel\Support\Str;
 use PDO;
@@ -15,7 +16,6 @@ use PDOException;
 use PDOStatement;
 use RuntimeException;
 use stdClass;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use WeakMap;
 
@@ -793,11 +793,8 @@ class PdoConnection extends Connection
                 } catch (Throwable $throwable) {
                     $this->markSessionStateUnknown($handle);
 
-                    if (! $this->causedByLostConnection($throwable)
-                        && ($exception === null
-                            || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException))
-                    ) {
-                        $exception = $throwable;
+                    if (! $this->causedByLostConnection($throwable)) {
+                        $exception = Coroutine::preferCancellation($exception, $throwable);
                     }
                 }
             }
@@ -886,7 +883,7 @@ class PdoConnection extends Connection
 
             return true;
         } catch (Throwable $exception) {
-            if ($exception instanceof CanceledException) {
+            if (Coroutine::causedByCancellation($exception)) {
                 throw $exception;
             }
 

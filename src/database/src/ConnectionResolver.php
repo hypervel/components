@@ -381,11 +381,7 @@ class ConnectionResolver implements ConnectionResolverInterface
                 try {
                     $terminate($connection);
                 } catch (Throwable $throwable) {
-                    if ($exception === null
-                        || (Coroutine::causedByCancellation($throwable) && ! Coroutine::causedByCancellation($exception))
-                    ) {
-                        $exception = $throwable;
-                    }
+                    $exception = Coroutine::preferCancellation($exception, $throwable);
                 } finally {
                     CoroutineContext::forget($this->getContextKey($name));
                     CoroutineContext::forget($this->getLeaseContextKey($name));

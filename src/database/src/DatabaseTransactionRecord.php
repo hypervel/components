@@ -94,23 +94,14 @@ class DatabaseTransactionRecord
      */
     public function executeCallbacksForRollback(): void
     {
-        $cancellation = null;
         $exception = null;
 
         foreach ($this->callbacksForRollback as $callback) {
             try {
                 $callback();
             } catch (Throwable $throwable) {
-                if (Coroutine::causedByCancellation($throwable)) {
-                    $cancellation ??= $throwable;
-                } else {
-                    $exception ??= $throwable;
-                }
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
-        }
-
-        if ($cancellation !== null) {
-            throw $cancellation;
         }
 
         if ($exception !== null) {
