@@ -23,6 +23,7 @@ final class PoolErrorReporter
      */
     public static function report(Throwable $exception): void
     {
+        // @phpstan-ignore hypervel.cancellation.exactType (a terminal reporter: a cleanup failure carrying cancellation is still reported)
         if ($exception instanceof CanceledException) {
             return;
         }
