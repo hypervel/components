@@ -59,11 +59,13 @@ abstract class ResultCacheTestCase extends TestCase
 
     /**
      * Run PHPStan from the application over its app directory, with the result and migration caches
-     * and the opt-in rules the fixtures exercise on.
+     * and the opt-in rules the fixtures exercise on, plus any extra top-level configuration.
      *
-     * PHPStan uses its result cache only when it analyses a directory.
+     * PHPStan uses its result cache only when it analyses a directory, and reports whether it reused
+     * the cache on standard error at the very verbose level. The application's autoloader is the
+     * autoload file, so classes PHPStan registers as services load before it builds its container.
      */
-    protected function analyse(string $applicationPath): Process
+    protected function analyse(string $applicationPath, string $configuration = ''): Process
     {
         $repositoryPath = dirname(__DIR__, 2);
 
@@ -77,12 +79,11 @@ abstract class ResultCacheTestCase extends TestCase
                 checkBatchableJobChecksCancellation: true
                 paths:
                     - {$applicationPath}/app
-                bootstrapFiles:
-                    - {$applicationPath}/bootstrap/autoload.php
+            {$configuration}
             NEON);
 
         $process = new Process(
-            [PHP_BINARY, $repositoryPath . '/vendor/bin/phpstan', 'analyse', '--configuration=phpstan.neon', '--no-progress', '--error-format=json', '--no-ansi'],
+            [PHP_BINARY, $repositoryPath . '/vendor/bin/phpstan', 'analyse', '--configuration=phpstan.neon', "--autoload-file={$applicationPath}/bootstrap/autoload.php", '--no-progress', '--error-format=json', '--no-ansi', '-vv'],
             $applicationPath,
             timeout: 300,
         );
