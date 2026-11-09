@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Di\Aop;
 
 use Hypervel\Di\Exceptions\InvalidDefinitionException;
+use PhpParser\Modifiers;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
 use PhpParser\Node\ArrayItem;
@@ -36,7 +37,6 @@ use PhpParser\Node\Scalar\MagicConst\Method as MagicConstMethod;
 use PhpParser\Node\Scalar\MagicConst\Trait_ as MagicConstTrait;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt;
-use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassLike;
 use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Expression;
@@ -246,7 +246,7 @@ class ProxyCallVisitor extends NodeVisitorAbstract
     {
         $helper = clone $node;
         $helper->name = new Identifier($this->helperMethodName);
-        $helper->flags = ($node->flags & Class_::MODIFIER_STATIC) | Class_::MODIFIER_PRIVATE;
+        $helper->flags = ($node->flags & Modifiers::STATIC) | Modifiers::PRIVATE;
         $helper->attrGroups = [];
         $helper->setAttribute('comments', []);
         $helper->params = $this->buildHelperParameters($node->params);
