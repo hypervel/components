@@ -604,6 +604,8 @@ class QueueFake extends QueueManager implements Fake, Queue
      * Push a job onto the fake, or onto the given connection when the job is not faked.
      *
      * Without a connection, a job that is not faked goes to its own connection, else the default connection.
+     *
+     * @internal
      */
     public function pushToConnection(
         ?string $connection,
@@ -773,6 +775,8 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Push an array of jobs onto the fake, or onto the given connection for jobs that are not faked.
+     *
+     * @internal
      */
     public function bulkToConnection(?string $connection, array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
