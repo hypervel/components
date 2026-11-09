@@ -1,0 +1,5 @@
+includes:
+    - ../../phpstan-rules.neon
+parameters:
+    configDirectories:
+        - %rootDir%/../../../tests/PHPStan/Rules/Coroutine/data/config
