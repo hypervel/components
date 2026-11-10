@@ -465,8 +465,8 @@ class Vite implements Htmlable
 
         $base = $preloads->join('') . $stylesheets->join('') . $scripts->join('');
 
-        /* @phpstan-ignore booleanOr.rightAlwaysFalse */
-        if ($this->prefetchStrategy === null || $this->isRunningHot()) {
+        // Laravel also rechecks isRunningHot() here; that branch already returned above.
+        if ($this->prefetchStrategy === null) {
             return new HtmlString($base);
         }
 
