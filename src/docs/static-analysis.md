@@ -24,6 +24,8 @@
     - [Cancellation](#cancellation)
     - [Coroutines in Transactions](#coroutines-in-transactions)
     - [Sleeping](#sleeping)
+    - [Worker State](#worker-state)
+    - [Runtime Configuration](#runtime-configuration)
     - [Model Relations](#model-relations)
     - [Model Scopes and Accessors](#model-scopes-and-accessors)
     - [Appended Attributes](#appended-attributes)
@@ -261,6 +263,8 @@ The following table summarizes the preferred pattern for each of Hypervel's diag
 | [Cancellation](#cancellation) | Recognize cancellation with `Coroutine::causedByCancellation()` and keep it with `Coroutine::preferCancellation()`. | `hypervel.cancellation.exactType`, `hypervel.cancellation.precedence` |
 | [Coroutines in Transactions](#coroutines-in-transactions) | Start coroutines once the transaction commits. | `hypervel.coroutineInTransaction` |
 | [Sleeping](#sleeping) | Pause with the `Sleep` class. | `hypervel.rawSleep` |
+| [Worker State](#worker-state) | Keep per-request values in method arguments or `CoroutineContext`, not on shared services or static properties. | `hypervel.workerSharedState`, `hypervel.staticStateMutation`, `hypervel.unboundedWorkerCache` |
+| [Runtime Configuration](#runtime-configuration) | Set configuration while the application boots. | `hypervel.runtimeConfigMutation` |
 | [Model Relations](#model-relations) | Load and query relations the model defines. | `hypervel.relationExistence` |
 | [Model Scopes and Accessors](#model-scopes-and-accessors) | Declare local scopes as protected `#[Scope]` methods and accessors as protected methods. | `hypervel.legacyModelScope`, `hypervel.noPublicModelScopeMethod`, `hypervel.noPublicModelAccessorMethod` |
 | [Model Configuration](#model-configuration) | Configure models with attributes such as `Table` and `Fillable`. | `hypervel.legacyModelProperty` |
@@ -496,6 +500,68 @@ Sleep::sleep(1);
 ```
 
 Keep the native function only where real time must pass, such as while polling an external process, and ignore the diagnostic with a reason. You may disable this check using the `noRawSleepCalls` parameter.
+
+<a name="worker-state"></a>
+### Worker State
+
+A Hypervel worker handles many requests and jobs, often at the same time, and the container [shares most services](/docs/{{version}}/container#resolution-lifecycles) for the worker's whole life. Anything a shared service or a static property keeps is seen by every later request the worker handles, and by any request running alongside it:
+
+```php
+class InvoiceService
+{
+    protected ?Request $request = null;
+
+    public function prepare(Request $request): void
+    {
+        // Every other request on this worker now sees this request...
+        $this->request = $request;
+    }
+}
+```
+
+Pass request values to the methods that use them, or keep them in [CoroutineContext](/docs/{{version}}/coroutine-context). If the whole object belongs to one request, mark the class [`#[Scoped]`](/docs/{{version}}/container#scoped-attribute) so each request or job gets its own instance. The analysis reports:
+
+- A property of a shared service that keeps the current request, a response, a user, an uploaded file or a model, whether a method assigns it or the constructor receives it. (`hypervel.workerSharedState`)
+- A shared middleware, controller or job that writes to its own properties while handling a request or running a job. (`hypervel.workerSharedState`)
+- A static property written while handling a request or running a job, or one that keeps any of the values above. (`hypervel.staticStateMutation`)
+- An array on a static property or shared service whose keys come from the request or user, such as `$this->visits[$request->ip()]`, since it can grow for as long as the worker runs. Use a cache store with an expiry instead. Keys limited to a small set of values, such as booleans or constants, are not reported, and neither is an array the same method has just reset. When the array is bounded in a way the analysis cannot see, ignore the diagnostic with a reason. (`hypervel.unboundedWorkerCache`)
+
+Code runs "while handling a request" in route middleware and global middleware, controller actions, closures and arrow functions passed as a route's action to a route method such as `Route::get`, and form request methods. Code runs "while running a job" in the `handle`, `__invoke` and `failed` methods of queued classes. Closures nested inside these are not checked, since they may run later.
+
+To decide which classes are shared, the analysis follows the container's own rules using your booted application. It starts from your container bindings and instances, routes and middleware, event listeners, command bus handlers, `#[Singleton]` classes, classes resolved by name without parameters using `app`, `resolve` or the container's `make`, `get` or `factory` methods, and queued jobs, then follows each class's constructor dependencies. Registrations and `#[Singleton]` come first: a class registered with `singleton` or `instance`, or marked `#[Singleton]`, is shared even when it is [transient](/docs/{{version}}/container#transient-classes) or [self-building](/docs/{{version}}/container#self-building-classes). A class registered with `scoped` or marked `#[Scoped]` is not shared, and neither is one registered with `bind`, unless it is bound to a shared class. Other transient and self-building classes, and classes whose constructor takes an execution-scoped value such as `#[CurrentUser]`, are not shared. Classes created by a binding's closure are not followed, since the analysis does not run the closure. A constructor parameter the container always fills with a new object, such as a model a repository uses as a prototype, is not reported unless the constructor replaces it. The `handle` dependencies of a queued job are only followed when the job uses the `Dispatchable` trait.
+
+Methods that only run while the application boots or in tests may say so with a docblock line starting with "Boot-only", "Tests only" or "Boot or tests only". Writes in these methods, and in `flushState` methods, are not reported:
+
+```php
+/**
+ * Set the request used to build URLs.
+ *
+ * Tests only. The request stays on the shared service until a test replaces it.
+ */
+public function setRequestForTesting(Request $request): void
+{
+    $this->request = $request;
+}
+```
+
+Other worker state, such as a lazily created connection or a registry filled while the application boots, is not reported. When a reported write is intended, ignore it with a reason. You may disable these checks using the `checkWorkerSharedState`, `checkStaticStateMutation` and `checkUnboundedWorkerCaches` parameters.
+
+<a name="runtime-configuration"></a>
+### Runtime Configuration
+
+Configuration belongs to the whole worker, so changing it while handling a request changes it for every request the worker handles afterwards, and for any running at the same time:
+
+```php
+public function handle(Request $request, Closure $next): Response
+{
+    // Every request on this worker now uses this locale...
+    config(['app.locale' => $request->user()->locale]);
+
+    return $next($request);
+}
+```
+
+Set configuration while your application boots, and keep per-request values in [CoroutineContext](/docs/{{version}}/coroutine-context). The analysis reports `config` calls with an array, `set`, `push`, `prepend`, `offsetSet` and `offsetUnset` calls on the configuration repository, and statements that set or unset one of its keys, such as `config()['app.locale'] = 'fr'`, while handling a request or running a job as described in [Worker State](#worker-state). The repository may come from the `config` helper, the `Config` facade, the container by any name that resolves to `config`, or a parameter the container injects into a controller action, a route closure, or a job's `handle` or `__invoke` method. A parameter with a default or a contextual attribute is not checked, and neither is a job parameter that a contextual binding gives another repository. Once a method gives a parameter a new value, later writes through it are not checked. Neither is a repository you create or keep in a property. You may disable this check using the `noRuntimeConfigMutation` parameter.
 
 <a name="model-relations"></a>
 ### Model Relations

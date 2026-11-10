@@ -184,6 +184,7 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
                 }
             }
 
+            // @phpstan-ignore hypervel.staticStateMutation (per-class attribute metadata, the same for every request and bounded by the form request classes)
             static::$attributeConfiguration[$class] = $config;
         }
 
