@@ -64,10 +64,13 @@ abstract class ResultCacheTestCase extends TestCase
      * PHPStan uses its result cache only when it analyses a directory, and reports whether it reused
      * the cache on standard error at the very verbose level. The application's autoloader is the
      * autoload file, so classes PHPStan registers as services load before it builds its container.
+     * Reusing collected-data rule errors is the bleeding-edge toggle that skips those rules on a warm
+     * run while their collected data and tracked dependencies are unchanged.
      */
-    protected function analyse(string $applicationPath, string $configuration = ''): Process
+    protected function analyse(string $applicationPath, string $configuration = '', bool $reuseCollectedDataRuleErrors = false): Process
     {
         $repositoryPath = dirname(__DIR__, 2);
+        $reuse = $reuseCollectedDataRuleErrors ? 'true' : 'false';
 
         file_put_contents($applicationPath . '/phpstan.neon', <<<NEON
             includes:
@@ -77,6 +80,8 @@ abstract class ResultCacheTestCase extends TestCase
                 tmpDir: {$applicationPath}/cache
                 enableMigrationCache: true
                 checkBatchableJobChecksCancellation: true
+                featureToggles:
+                    reuseCollectedDataRuleErrors: {$reuse}
                 paths:
                     - {$applicationPath}/app
             {$configuration}
