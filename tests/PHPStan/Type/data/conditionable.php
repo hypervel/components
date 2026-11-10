@@ -2,6 +2,7 @@
 
 namespace ConditionableStubs;
 
+use App\Account;
 use App\User;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Support\Collection;
@@ -115,6 +116,46 @@ function higherOrder(Logger $logger, Collection $numbers, ?string $maybe, callab
     $proxy = new HigherOrderWhenProxy($logger);
     $proxy->condition(true);
     assertType('Hypervel\Support\HigherOrderWhenProxy<ConditionableStubs\Logger, true>', $proxy);
+}
+
+/**
+ * Hypervel: a model runs the call on a new builder and returns the builder's result, while a relation
+ * runs it on its own builder and returns itself in place of that builder.
+ *
+ * @template TModel of User
+ *
+ * @param class-string<TModel> $class
+ * @param callable(Builder<Account>): Builder<Account> $callback
+ * @param Builder<Account> $other
+ */
+function forwarded(User $user, bool $condition, string $class, callable $callback, Builder $other): void
+{
+    assertType('Hypervel\Support\HigherOrderWhenProxy<Hypervel\Database\Eloquent\Builder<App\User>, true>', $user->when($condition));
+    assertType('Hypervel\Support\HigherOrderWhenProxy<Hypervel\Database\Eloquent\Builder<App\User>, true>', User::when($condition));
+    assertType('Hypervel\Support\HigherOrderWhenProxy<Hypervel\Database\Eloquent\Builder<App\User>, false>', User::unless());
+    assertType('Hypervel\Database\Eloquent\Collection<int, App\User>', User::when($condition)->where('name', 'x')->get());
+    assertType('Hypervel\Database\Eloquent\Builder<App\User>|int<0, max>', User::when($condition, fn ($query) => $query->count()));
+    assertType('Hypervel\Database\Eloquent\Builder<App\User>', $user->unless($condition, fn ($query) => $query->where('name', 'x')));
+    assertType('Hypervel\Support\HigherOrderWhenProxy<Hypervel\Database\Eloquent\Builder<TModel of App\User (function ConditionableStubs\forwarded(), argument)>, true>', $class::when($condition));
+
+    assertType('Hypervel\Database\Eloquent\Relations\BelongsToMany<App\Post, App\User, Hypervel\Database\Eloquent\Relations\Pivot, \'pivot\'>', $user->posts()->unless($condition, function ($query) {
+        assertType('$this(App\PostBuilder<App\Post>)', $query);
+
+        return $query->where('name', 'x');
+    }));
+    // A different builder of the same class is not the relation's own, so it is returned as it is.
+    assertType('Hypervel\Database\Eloquent\Builder<App\Account>|Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>', $user->accounts()->when($condition, fn ($query) => clone $query));
+    assertType('Hypervel\Database\Eloquent\Builder<App\Account>|Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>', $user->accounts()->when($condition, fn ($query) => Account::query()));
+    assertType('Hypervel\Database\Eloquent\Builder<App\Account>|Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>', $user->accounts()->when($condition, $callback));
+    assertType('Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>', $user->accounts()->when($condition, fn (Builder $query) => $query->where('active', '1')->latest()));
+    // The value passed to the callback is not the relation's own builder either.
+    assertType('Hypervel\Database\Eloquent\Builder<App\Account>|Hypervel\Database\Eloquent\Relations\HasMany<App\Account, App\User>', $user->accounts()->when($other, function ($query, $value) {
+        assertType('Hypervel\Database\Eloquent\Builder<App\Account>', $value);
+
+        return $value;
+    }));
+    assertType('Hypervel\Support\HigherOrderWhenProxy<App\PostBuilder<App\Post>, true>', $user->posts()->when($condition));
+    assertType('Hypervel\Support\HigherOrderWhenProxy<Hypervel\Database\Eloquent\Builder<App\Account>, false>', $user->accounts()->unless());
 }
 
 class CustomWhen
