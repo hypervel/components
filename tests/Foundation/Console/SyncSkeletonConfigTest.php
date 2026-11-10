@@ -71,7 +71,7 @@ return [
         // Starter kits can choose their default guard.
         'guard' => env('AUTH_GUARD', 'web'),
     ],
-    'model' => App\Models\User::class, // @phpstan-ignore class.notFound
+    'model' => App\Models\User::class, // @phpstan-ignore class.notFound (the application's default user model)
     'literal' => '// @phpstan-ignore class.notFound',
 ];
 
