@@ -39,31 +39,43 @@ class MailMessage extends SimpleMessage implements Renderable
 
     /**
      * The "from" information for the message.
+     *
+     * @var array{0: array|string, 1?: null|string, ...}|array{}
      */
     public array $from = [];
 
     /**
      * The "reply to" information for the message.
+     *
+     * @var array<array{0: array|string, 1?: null|string, ...}>
      */
     public array $replyTo = [];
 
     /**
      * The "cc" information for the message.
+     *
+     * @var array<array{0: array|string, 1?: null|string, ...}>
      */
     public array $cc = [];
 
     /**
      * The "bcc" information for the message.
+     *
+     * @var array<array{0: array|string, 1?: null|string, ...}>
      */
     public array $bcc = [];
 
     /**
      * The attachments for the message.
+     *
+     * @var array<array{file: Attachable|Attachment|string, options: array, ...}>
      */
     public array $attachments = [];
 
     /**
      * The raw attachments for the message.
+     *
+     * @var array<array{data: resource|string, name: string, options: array, ...}>
      */
     public array $rawAttachments = [];
 

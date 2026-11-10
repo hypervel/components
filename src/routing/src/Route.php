@@ -82,6 +82,8 @@ class Route
 
     /**
      * The HTTP methods the route responds to.
+     *
+     * @var array<string>
      */
     public array $methods;
 
@@ -854,6 +856,8 @@ class Route
 
     /**
      * Get the HTTP verbs the route responds to.
+     *
+     * @return array<string>
      */
     public function methods(): array
     {
@@ -1198,7 +1202,7 @@ class Route
     /**
      * Get or set the middlewares attached to the route.
      *
-     * @return ($middleware is null ? array : $this)
+     * @return ($middleware is null ? array<Closure|string> : $this)
      */
     public function middleware(array|string|Stringable|null $middleware = null): static|array
     {

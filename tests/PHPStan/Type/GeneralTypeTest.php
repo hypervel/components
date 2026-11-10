@@ -33,6 +33,19 @@ class GeneralTypeTest extends TypeInferenceTestCase
         yield from self::gatherAssertTypes(__DIR__ . '/data/auth.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/benchmark.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/builder-of-type.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/bug-1346.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/bug-1565.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/bug-1718.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/bug-1760.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/bug-1819.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/bug-1830.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/bug-1985.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/bug-1997.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/bug-2057.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/bug-2073.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/bug-2111.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/bug-2188.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/bug-2283.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/collection-of-type.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/concurrency-drivers.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/conditionable.php');
@@ -43,6 +56,8 @@ class GeneralTypeTest extends TypeInferenceTestCase
         yield from self::gatherAssertTypes(__DIR__ . '/data/custom-eloquent-builder.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/custom-eloquent-collection.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/custom-query-collections.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/database-transaction.php');
+        // REMOVED: date-extension-l11.php and date-extension-l12.php; DateExtension is omitted because the Date facade declares CarbonInterface.
         // Hypervel: covers the per-key eager-load, aggregate and morph map types.
         yield from self::gatherAssertTypes(__DIR__ . '/data/eager-load-maps.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/eager-loading-callbacks.php');
@@ -50,8 +65,10 @@ class GeneralTypeTest extends TypeInferenceTestCase
         yield from self::gatherAssertTypes(__DIR__ . '/data/eloquent-builder-l11-42.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/eloquent-builder-l12-19.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/eloquent-builder-l13-31.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/eloquent-getter-types.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/eloquent-where.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/environment-helper.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/event-dispatcher.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/facade-fakes.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/facades.php');
         // REMOVED: facades-l11-42.php; it asserts Laravel 11's Redis facade docblock types.
@@ -59,11 +76,13 @@ class GeneralTypeTest extends TypeInferenceTestCase
         yield from self::gatherAssertTypes(__DIR__ . '/data/facades-l12-41.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/form-request.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/gate-facade.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/has-events.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/helpers.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/higher-order-collection-proxies.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/higher-order-collection-proxy-methods.php');
         // Hypervel: covers the overrides that repeat method templates for PHPStan 2.3.5.
         yield from self::gatherAssertTypes(__DIR__ . '/data/inherited-method-templates.php');
+        // REMOVED: logger.php; upstream never registers it, and Logger declares no getHandlers().
         // REMOVED: model.php; it asserts Laravel releases before 11.42.
         yield from self::gatherAssertTypes(__DIR__ . '/data/model-l11-42.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/model-collections-l11-28.php');
@@ -85,6 +104,7 @@ class GeneralTypeTest extends TypeInferenceTestCase
         yield from self::gatherAssertTypes(__DIR__ . '/data/model-template-class-string.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/model-with-relations.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/managers.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/migrator.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/optional-helper.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/paginator-extension.php');
         // REMOVED: passthru.php; it asserts Laravel releases before 12.15.
@@ -92,17 +112,20 @@ class GeneralTypeTest extends TypeInferenceTestCase
         yield from self::gatherAssertTypes(__DIR__ . '/data/query-builder.php');
         // Upstream runs this per redisDriver setting; Hypervel only has phpredis, so it runs once here.
         yield from self::gatherAssertTypes(__DIR__ . '/data/redis-driver-phpredis.php');
+        // REMOVED: RedisDriverNullTypeTest.php and RedisDriverPredisTypeTest.php; the redisDriver setting is omitted.
         yield from self::gatherAssertTypes(__DIR__ . '/data/relationship-query-callbacks.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/relation-of-type.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/request-header.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/request-object.php');
         // Upstream never registers request-user.php, which shares request-object.php's namespace.
         yield from self::gatherAssertTypes(__DIR__ . '/data/request-user.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/route.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/storage-disks.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/tappable.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/throw.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/translate.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/translator.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/validator.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/view-exists.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/view.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/where-relation.php');

@@ -181,6 +181,8 @@ trait HasAttributes
 
     /**
      * The accessors to append to the model's array form.
+     *
+     * @var array<string>
      */
     protected array $appends = [];
 
@@ -2581,6 +2583,8 @@ trait HasAttributes
 
     /**
      * Get the accessors that are being appended to model arrays.
+     *
+     * @return array<string>
      */
     public function getAppends(): array
     {
@@ -2590,6 +2594,7 @@ trait HasAttributes
     /**
      * Set the accessors to append to model arrays.
      *
+     * @param array<string> $appends
      * @return $this
      */
     public function setAppends(array $appends): static
@@ -2636,6 +2641,8 @@ trait HasAttributes
 
     /**
      * Get the mutated attributes for a given instance.
+     *
+     * @return list<string>
      */
     public function getMutatedAttributes(): array
     {

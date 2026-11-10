@@ -22,6 +22,9 @@ function view(?string $view = null, array|Arrayable $data = [], array $mergeData
 // Upstream's blank(), filled(), rescue(), retry(), tap() and transform() stubs and its TapExtension
 // are omitted: the source declares their types.
 
+// Upstream's cookie(), logger(), logs(), redirect(), request(), session() and url() stubs are omitted:
+// the source declares their conditional returns.
+
 // Upstream's config() and env() stubs and EnvFunctionDynamicFunctionReturnTypeExtension are omitted:
 // the source declares their types, and an env() default does not decide the type of the value read.
 

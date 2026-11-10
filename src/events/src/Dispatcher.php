@@ -421,6 +421,8 @@ class Dispatcher implements DispatcherContract
 
     /**
      * Fire an event and call the listeners.
+     *
+     * @return ($halt is true ? mixed : null|list<mixed>)
      */
     public function dispatch(object|string $event, mixed $payload = [], bool $halt = false): mixed
     {
