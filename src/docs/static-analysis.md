@@ -4,12 +4,22 @@
 - [Installation](#installation)
     - [Analyzing Packages](#analyzing-packages)
     - [Runtime Requirements](#runtime-requirements)
+- [Configuration](#configuration)
 - [What the Analysis Knows](#what-the-analysis-knows)
     - [Collection Types](#collection-types)
     - [Model Properties](#model-properties)
     - [Migrations and Schema Dumps](#migrations-and-schema-dumps)
     - [Accessor Types](#accessor-types)
     - [Cast Types](#cast-types)
+    - [Model Serialization](#model-serialization)
+    - [Relationships](#relationships)
+    - [Custom Builders and Collections](#custom-builders-and-collections)
+- [Custom PHPDoc Types](#custom-phpdoc-types)
+    - [The `view-string` Type](#view-string)
+    - [The `model-property` Type](#model-property)
+    - [The `collection-of` Type](#collection-of)
+    - [The `builder-of` Type](#builder-of)
+    - [The `relation-of` Type](#relation-of)
 - [Fixing and Ignoring Diagnostics](#fixing-and-ignoring-diagnostics)
     - [Environment Variables](#environment-variables)
     - [Configuration Values](#configuration-values)
@@ -27,7 +37,9 @@
     - [Worker State](#worker-state)
     - [Runtime Configuration](#runtime-configuration)
     - [Model Relations](#model-relations)
+    - [Model Columns](#model-columns)
     - [Model Scopes and Accessors](#model-scopes-and-accessors)
+    - [Model Configuration](#model-configuration)
     - [Appended Attributes](#appended-attributes)
     - [Creating Models](#creating-models)
     - [Query Results](#query-results)
@@ -38,6 +50,7 @@
     - [Models in Queued Jobs](#models-in-queued-jobs)
     - [Batched Jobs](#batched-jobs)
     - [Unique Jobs](#unique-jobs)
+    - [Queue Configuration](#queue-configuration)
     - [Validation Rules](#validation-rules)
     - [Deprecations](#deprecations)
 
@@ -84,6 +97,68 @@ When you analyze a package instead of an application, PHPStan boots the package'
 
 Since PHPStan boots your application, the PHP CLI that runs it needs the same Swoole setup as your application: Swoole (not OpenSwoole) built with OpenSSL and native cURL support, with `swoole.use_shortname` set to `Off`. If the application cannot boot, PHPStan stops and displays the exception that prevented it.
 
+<a name="configuration"></a>
+## Configuration
+
+The extension's checks are configured using parameters in your `phpstan.neon` file. For example, you may enable a check that is off by default, or disable one your project does not want:
+
+```neon
+parameters:
+    checkUnusedViews: true
+    noLegacyModelScopes: false
+```
+
+Parameters that accept directories take absolute paths, or paths relative to the directory you run PHPStan from. The following table lists each parameter, its default value and the section that describes it:
+
+| Parameter | Default | Described In |
+|---|---|---|
+| `noEnvCallsOutsideOfConfig` | `true` | [Environment Variables](#environment-variables) |
+| `checkConfigTypes` | `true` | [Configuration Values](#configuration-values) |
+| `configDirectories` | `[]` | [Configuration Values](#configuration-values) |
+| `noUnnecessaryEnumerableToArrayCalls` | `true` | [Converting Collections to Arrays](#converting-collections-to-arrays) |
+| `checkMissingTranslations` | `true` | [Translations](#translations) |
+| `translationDirectories` | `[]` | [Translations](#translations) |
+| `checkUnusedViews` | `false` | [Views](#views) |
+| `viewDirectories` | `[]` | [Views](#views) |
+| `checkAuthCallsWhenInRequestScope` | `false` | [Authentication in Requests](#authentication-in-requests) |
+| `checkRedisConnectionBoundMethods` | `true` | [Redis Connections](#redis-connections) |
+| `checkCancellationHandling` | `true` | [Cancellation](#cancellation) |
+| `checkCancellationPrecedence` | `true` | [Cancellation](#cancellation) |
+| `noCoroutinesInTransactions` | `true` | [Coroutines in Transactions](#coroutines-in-transactions) |
+| `noRawSleepCalls` | `true` | [Sleeping](#sleeping) |
+| `checkWorkerSharedState` | `true` | [Worker State](#worker-state) |
+| `checkStaticStateMutation` | `true` | [Worker State](#worker-state) |
+| `checkUnboundedWorkerCaches` | `true` | [Worker State](#worker-state) |
+| `noRuntimeConfigMutation` | `true` | [Runtime Configuration](#runtime-configuration) |
+| `databaseMigrationsPath` | `[]` | [Migrations and Schema Dumps](#migrations-and-schema-dumps) |
+| `squashedMigrationsPath` | `[]` | [Migrations and Schema Dumps](#migrations-and-schema-dumps) |
+| `disableMigrationScan` | `false` | [Migrations and Schema Dumps](#migrations-and-schema-dumps) |
+| `disableSchemaScan` | `false` | [Migrations and Schema Dumps](#migrations-and-schema-dumps) |
+| `enableMigrationCache` | `true` | [Migrations and Schema Dumps](#migrations-and-schema-dumps) |
+| `parseModelCastsMethod` | `true` | [Cast Types](#cast-types) |
+| `checkModelProperties` | `true` | [Model Columns](#model-columns) |
+| `eloquentBuilderMacros` | The `SoftDeletes` and Scout `Searchable` macros | [Custom Builders and Collections](#custom-builders-and-collections) |
+| `noLegacyModelScopes` | `true` | [Model Scopes and Accessors](#model-scopes-and-accessors) |
+| `checkModelMethodVisibility` | `true` | [Model Scopes and Accessors](#model-scopes-and-accessors) |
+| `noLegacyModelProperties` | `true` | [Model Configuration](#model-configuration) |
+| `checkModelAppends` | `true` | [Appended Attributes](#appended-attributes) |
+| `noModelMake` | `true` | [Creating Models](#creating-models) |
+| `noUnnecessaryCollectionCall` | `true` | [Query Results](#query-results) |
+| `noUnnecessaryCollectionCallOnly` | `[]` | [Query Results](#query-results) |
+| `noUnnecessaryCollectionCallExcept` | `[]` | [Query Results](#query-results) |
+| `noImplicitQueryBuilderCall` | `false` | [Starting Queries](#starting-queries) |
+| `checkDispatchInTransactionAfterCommit` | `true` | [Dispatching Jobs in Transactions](#dispatching-jobs-in-transactions) |
+| `checkJobSerializesModels` | `true` | [Models in Queued Jobs](#models-in-queued-jobs) |
+| `checkBatchedJobIsBatchable` | `true` | [Batched Jobs](#batched-jobs) |
+| `noBatchedUniqueJob` | `true` | [Batched Jobs](#batched-jobs) |
+| `checkBatchableJobChecksCancellation` | `false` | [Batched Jobs](#batched-jobs) |
+| `checkUniqueJobUniqueId` | `true` | [Unique Jobs](#unique-jobs) |
+| `checkUniqueJobUniqueFor` | `false` | [Unique Jobs](#unique-jobs) |
+| `noLegacyQueueProperties` | `true` | [Queue Configuration](#queue-configuration) |
+| `noPipeSeparatedValidationRules` | `true` | [Validation Rules](#validation-rules) |
+
+PHPStan's own settings, such as its rule level, paths and baseline, keep working as usual. The extension changes one of them: it enables `reportIgnoresWithoutComments`, as described in [Fixing and Ignoring Diagnostics](#fixing-and-ignoring-diagnostics).
+
 <a name="what-the-analysis-knows"></a>
 ## What the Analysis Knows
 
@@ -110,6 +185,22 @@ Request input is typed as what the request can hold. A keyed `query()`, `post()`
 Dates are different: `now()`, `today()` and the `Date` facade return `CarbonInterface`, as they are declared, even when your application configures a specific date class. When your code needs a specific class, convert the value, such as with `toImmutable()`.
 
 Model factories are typed as the factory the model's `factory` method selects, and the analysis follows whether the factory makes one model or a collection: `User::factory()->create()` is a `User`, while `User::factory(3)->create()` is a collection. The `createMany`, `createManyQuietly` and `makeMany` methods clear a factory's count. The analysis follows this when the call is a statement or an assigned value, but not when the call is passed straight to another call, so assign the result first if you use the same factory again afterwards. A factory class with its own `@template` types keeps its generic type instead, so its `create` and `make` methods return the model or a collection of it.
+
+The `Arr::get` and `Arr::pull` methods return the type the array holds under the given key, including keys in "dot" notation. When the key may be missing, the type of the default is added, or `null` without one. `Arr::pull` also removes a top-level key from the type of the array it was given:
+
+```php
+/**
+ * @param array{name: string, email?: string, address: array{city: string}} $user
+ */
+function example(array $user): void
+{
+    Arr::get($user, 'name'); // string
+    Arr::get($user, 'email'); // string|null
+    Arr::get($user, 'address.city'); // string
+
+    Arr::pull($user, 'name'); // string, and $user no longer has a "name" key...
+}
+```
 
 Some facts cannot be known statically. When the analysis cannot tell what a configuration key holds, such as a value that provider code writes in a way the analysis does not recognize and that did not run while your application booted, it uses the declared return type instead of guessing.
 
@@ -235,6 +326,211 @@ protected function casts(): array
 
 The shape must list every cast the method can return, including inherited ones, since an attribute it leaves out is treated as not cast by the method. If you cannot list them all, end the shape with `...`, and the attributes it does not list keep reading as `mixed`.
 
+If you set the `parseModelCastsMethod` parameter to `false`, the method's body is not read, and its casts come only from the array shape its `@return` tag declares.
+
+<a name="model-serialization"></a>
+### Model Serialization
+
+A model's `toArray` and `attributesToArray` methods return an array shape built from the model's columns, casts, accessors and appended attributes, without its hidden attributes. For example, a `posts` table with an integer `id`, a string `title` and a nullable `published_at` column cast to `datetime` gives:
+
+```php
+// array{id?: int, title?: string, published_at?: string|null, ...<string, mixed>}
+$post->toArray();
+```
+
+Every key is optional, since a query may select only some columns, and the shape accepts other string keys for the aliases, aggregates and loaded relations a query can add. A model that customizes how it is serialized, or whose columns are not all known, keeps the declared `array` type.
+
+<a name="relationships"></a>
+### Relationships
+
+The analysis reads a relationship's related model from the relationship method's return type, so declare the relation's generic types:
+
+```php
+/**
+ * @return HasMany<Post, $this>
+ */
+public function posts(): HasMany
+{
+    return $this->hasMany(Post::class);
+}
+```
+
+With this declaration, `$user->posts` is a collection of posts, `$user->posts_count` is an integer, and callbacks that constrain the relationship receive the right types without declaring them:
+
+```php
+User::whereHas('posts.comments', function ($query) {
+    // $query is a Builder<Comment>...
+});
+
+User::with([
+    'posts' => function ($query) {
+        // $query is a HasMany<Post, User>...
+    },
+    'group' => function ($query) {
+        // $query is a BelongsTo<Group, User>...
+    },
+]);
+```
+
+Each callback in an eager loading array receives its own key's relation, following nested paths such as `posts.comments`. Callbacks given to the `loadCount`, `loadSum` and other aggregate methods receive the related model's builder. A relationship whose name is not statically known, such as an arbitrary string, or a method without the generic types above, gives the callback an unknown relation or a builder of an unknown model.
+
+<a name="custom-builders-and-collections"></a>
+### Custom Builders and Collections
+
+A model's queries are typed as its [custom Eloquent builder](/docs/{{version}}/eloquent#custom-eloquent-builders), so the builder's own methods may be chained from the model, its relationships and relationship callbacks. Declare the model as the builder's template type so that results keep the model's type:
+
+```php
+/**
+ * @template TModel of User
+ *
+ * @extends Builder<TModel>
+ */
+class UserBuilder extends Builder
+{
+    /**
+     * @return $this
+     */
+    public function active(): static
+    {
+        return $this->where('active', true);
+    }
+}
+
+#[UseEloquentBuilder(UserBuilder::class)]
+class User extends Model
+{
+    // ...
+}
+
+// UserBuilder<User>, then Collection<int, User>...
+$users = User::query()->active()->get();
+```
+
+Likewise, query results are typed as the model's [custom collection](/docs/{{version}}/eloquent-collections#custom-collections), whether it comes from the `CollectedBy` attribute or a `newCollection` method. The same collection is returned by a paginator's `getCollection` method. Give a collection used by several models `TKey` and `TModel` template types, so each model's results keep their own type:
+
+```php
+/**
+ * @template TKey of array-key
+ * @template TModel of Model
+ *
+ * @extends Collection<TKey, TModel>
+ */
+class ActiveCollection extends Collection
+{
+    // ...
+}
+```
+
+A trait's global scope may add macros to the builder of every model using the trait, as `SoftDeletes` adds `withTrashed`. Since those macros are registered when a query is built, a package describes them to the analysis using the `eloquentBuilderMacros` parameter, which maps the trait to an interface declaring the macros. The interface only supplies their signatures; the scope still registers the macros at runtime. A macro that returns `static` keeps the builder it is called on, and an interface with one template type receives the model:
+
+```neon
+parameters:
+    eloquentBuilderMacros:
+        App\Models\Concerns\Archivable: App\Analysis\ArchivableMacros
+```
+
+Your entries are added to the built-in mappings for `SoftDeletes` and Scout's `Searchable` trait.
+
+<a name="custom-phpdoc-types"></a>
+## Custom PHPDoc Types
+
+The extension adds several PHPDoc types that you may use in your own code. Since only PHPStan with this extension understands them, write them in `@phpstan-param` and `@phpstan-return` tags beside an ordinary `@param` or `@return` tag when other tools read your docblocks.
+
+<a name="view-string"></a>
+### The `view-string` Type
+
+A `view-string` is the name of a view the booted application can find. A statically known name passed to a `view-string` parameter is checked, as described in [Views](#views):
+
+```php
+/**
+ * @phpstan-param view-string $view
+ */
+public function render(string $view): View
+{
+    return view($view);
+}
+```
+
+From PHPStan's level 7, a string that is not known to be a view name is reported as well. A string checked using `view()->exists()` becomes a `view-string` inside the condition, so a name that is not known in advance may be passed on:
+
+```php
+if (view()->exists($name)) {
+    return $this->render($name);
+}
+```
+
+<a name="model-property"></a>
+### The `model-property` Type
+
+A `model-property<User>` is a string naming one of the model's attributes. A statically known name passed to such a parameter is checked against the model, as described in [Model Columns](#model-columns):
+
+```php
+/**
+ * @phpstan-param model-property<User> $column
+ */
+function sortUsersBy(string $column): Collection
+{
+    return User::orderBy($column)->get();
+}
+
+sortUsersBy('emial'); // Reported...
+```
+
+<a name="collection-of"></a>
+### The `collection-of` Type
+
+A `collection-of<User>` is the collection class the model's queries return: the model's custom collection when it has one, otherwise `Hypervel\Database\Eloquent\Collection`. The model may also be a template type or a union of models:
+
+```php
+/**
+ * @template TModel of Model
+ *
+ * @param class-string<TModel> $model
+ *
+ * @phpstan-return collection-of<TModel>
+ */
+function allModels(string $model): Collection
+{
+    return $model::all();
+}
+```
+
+Like `array<TKey, TValue>`, a key type may be given first, such as `collection-of<string, User>`.
+
+<a name="builder-of"></a>
+### The `builder-of` Type
+
+A `builder-of<User>` is the Eloquent builder the model's queries use: the model's custom builder when it has one, otherwise `Hypervel\Database\Eloquent\Builder<User>`. It accepts `static`, `$this`, template types and unions of models:
+
+```php
+/**
+ * @phpstan-return builder-of<static>
+ */
+public function newActiveQuery(): Builder
+{
+    return $this->newQuery()->where('active', true);
+}
+```
+
+A second argument names a relationship of the model, and gives the builder of the related model. Nested paths are followed, and a column list such as `posts:id,title` is ignored:
+
+```php
+/**
+ * @phpstan-param builder-of<User, 'posts.comments'> $query
+ */
+function onlyApproved(Builder $query): void
+{
+    $query->where('approved', true);
+}
+```
+
+A relationship the analysis cannot resolve, such as a name that is not statically known or a relationship method without generic types, gives a builder of an unknown model.
+
+<a name="relation-of"></a>
+### The `relation-of` Type
+
+A `relation-of<User, 'posts'>` is the relation the model's relationship method declares, such as `HasMany<Post, User>`. Like `builder-of`, it accepts template types, nested paths and column lists. When the name may be one of several relationships, the type is a union of their relations, so code receiving it must work with each of them. A relationship the analysis cannot resolve gives `Relation<*, *, *>`.
+
 <a name="fixing-and-ignoring-diagnostics"></a>
 ## Fixing and Ignoring Diagnostics
 
@@ -273,6 +569,7 @@ The following table summarizes the preferred pattern for each of Hypervel's diag
 | [Worker State](#worker-state) | Keep per-request values in method arguments or `CoroutineContext`, not on shared services or static properties. | `hypervel.workerSharedState`, `hypervel.staticStateMutation`, `hypervel.unboundedWorkerCache` |
 | [Runtime Configuration](#runtime-configuration) | Set configuration while the application boots. | `hypervel.runtimeConfigMutation` |
 | [Model Relations](#model-relations) | Load and query relations the model defines. | `hypervel.relationExistence` |
+| [Model Columns](#model-columns) | Name columns the model's table has. | `argument.type` for column names, `method.notFound` and `staticMethod.notFound` for dynamic wheres |
 | [Model Scopes and Accessors](#model-scopes-and-accessors) | Declare local scopes as protected `#[Scope]` methods and accessors as protected methods. | `hypervel.legacyModelScope`, `hypervel.noPublicModelScopeMethod`, `hypervel.noPublicModelAccessorMethod` |
 | [Model Configuration](#model-configuration) | Configure models with attributes such as `Table` and `Fillable`. | `hypervel.legacyModelProperty` |
 | [Appended Attributes](#appended-attributes) | Append attributes that a get accessor or class cast computes. | `hypervel.modelAppends` |
@@ -338,6 +635,15 @@ $allowedOrigins = config()->array('mcp.allowed_origins');
 
 Similarly, when a package ships a `null` default that applications may replace, a typed getter reached only after a `null` check can still be reported, since the analysis reads the configuration key rather than your local value. Ignore that call with a reason. These checks may be disabled using the `checkConfigTypes` parameter.
 
+Your application's configuration files are read from its configuration directory. If they live elsewhere, list the directories using the `configDirectories` parameter, which replaces the default directory and accepts glob patterns:
+
+```neon
+parameters:
+    configDirectories:
+        - config
+        - modules/*/config
+```
+
 <a name="array-keys"></a>
 ### Array Keys
 
@@ -394,7 +700,7 @@ Keep `toArray()` when the items are, or may be, `Arrayable`, such as models. Col
 
 The `__`, `trans` and `trans_choice` helpers, the `Lang` facade and the translator are checked for keys that are missing from a translation file the application can load. Only literal `group.item` and `namespace::group.item` keys are checked, and only when the group's file exists for the requested locale or its fallback. When a lookup does not specify a locale, the application's default locale is used. JSON translations, dynamic keys and custom translators or loaders are not checked.
 
-To fix the diagnostic, add the missing line or correct the key. You may disable the rule using the `checkMissingTranslations` parameter.
+To fix the diagnostic, add the missing line or correct the key. Keys are checked against the translations your application loads. To check them against other directories instead, list the directories using the `translationDirectories` parameter. You may disable the rule using the `checkMissingTranslations` parameter.
 
 <a name="views"></a>
 ### Views
@@ -402,6 +708,16 @@ To fix the diagnostic, add the missing line or correct the key. You may disable 
 Methods that accept a view name, such as `view()` and `View::make()`, require a view the booted application can find, so a misspelled view name is reported as an `argument.type` error. If a package only registers a view namespace when a command runs or a feature is enabled, the analysis cannot see those views; ignore those calls with a reason.
 
 You may also enable the `checkUnusedViews` parameter to report views that no code refers to by a literal name. Views rendered by computed names or used by other packages may still be in use, so treat these diagnostics as a list to review rather than proof that a view can be deleted.
+
+A view counts as used when its literal name is passed to the `view` helper, `View::make` or `Route::view`, to a mailable's or mail notification's `view`, `text` or `markdown` method, to a mail `Content` definition or `Mail::send`, or when another view refers to it using `@extends`, `@include`, `@includeIf`, `@includeWhen`, `@includeUnless`, `@includeFirst` or an anonymous component tag such as `<x-alert>`. By default, the views in your application's view paths are checked. To check other directories instead, list them using the `viewDirectories` parameter:
+
+```neon
+parameters:
+    checkUnusedViews: true
+    viewDirectories:
+        - resources/views
+        - modules/billing/resources/views
+```
 
 <a name="console-input"></a>
 ### Console Input
@@ -584,6 +900,23 @@ $users = User::with('posts.comment')->get();
 A relation registered using `resolveRelationUsing` while the application boots is found, though the segments after it are not checked. Relations on an abstract model or a union of models are not checked, since each model may define them differently.
 
 A model's default `$with` and `$withCount` eager loads are checked the same way. Defaults a model inherits are checked for each model that inherits them, since the model may define the relation itself.
+
+<a name="model-columns"></a>
+### Model Columns
+
+Eloquent methods that accept a column, such as `where`, `firstWhere`, `value`, `pluck`, `create`, `update` and `fill`, are checked against the model's [properties](#model-properties) when the name you pass is statically known. The same applies to queries made through a relationship and to the attributes given to a factory:
+
+```php
+// Parameter #1 $attributes of static method ...::create() expects array<model property of App\Models\User, mixed>...
+User::create([
+    'name' => 'Taylor',
+    'emial' => 'taylor@example.com',
+]);
+```
+
+A name qualified by a table, such as `users.email`, is checked against that table, and only the column of a `column as alias` name is checked. A dynamic where that names an unknown column, such as `whereEmial`, is reported as an undefined method. A name whose value is not statically known, such as an arbitrary string, is not checked, and neither are columns the analysis cannot know about, as described in [Model Properties](#model-properties).
+
+You may check the column arguments of your own code using the [`model-property`](#model-property) type. These checks may be disabled using the `checkModelProperties` parameter.
 
 <a name="model-scopes-and-accessors"></a>
 ### Model Scopes and Accessors
