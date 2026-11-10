@@ -8,6 +8,8 @@ use BackedEnum;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Container\SelfBuilding;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Attributes\Controllers\Middleware as MiddlewareAttribute;
@@ -378,16 +380,18 @@ class Route
     /**
      * Determine if this route's controller may be cached on the shared Route instance.
      *
-     * Worker-shared bindings (singletons, auto-singletons) are safe to cache
-     * on the Route property. Per-coroutine bindings (#[Scoped], explicit bind())
-     * must go through Context to preserve the container's binding contract.
+     * Worker-shared lifetimes (singletons, auto-singletons) are safe to cache
+     * on the Route property. Per-coroutine and fresh lifetimes (#[Scoped],
+     * explicit bind(), unbound Transient or SelfBuilding classes) must go
+     * through Context to preserve the container's binding contract.
      */
     private function shouldCacheControllerOnRoute(string $class): bool
     {
         return $this->shouldCacheControllerOnRoute ??= match (true) {
             $this->container->isScoped($class) => false,
-            $this->container->bound($class) => $this->container->isShared($class),
-            default => true,
+            $this->container->isShared($class) => true,
+            $this->container->bound($class) => false,
+            default => ! is_a($class, Transient::class, true) && ! is_a($class, SelfBuilding::class, true),
         };
     }
 
