@@ -510,7 +510,7 @@ class CurrentWeatherTool extends Tool
     public function handle(Request $request): Response
     {
         $validated = $request->validate([
-            'location' => 'required|string|max:100',
+            'location' => ['required', 'string', 'max:100'],
             'units' => 'in:celsius,fahrenheit',
         ]);
 
@@ -958,7 +958,7 @@ class DescribeWeatherPrompt extends Prompt
     public function handle(Request $request): Response
     {
         $validated = $request->validate([
-            'tone' => 'required|string|max:50',
+            'tone' => ['required', 'string', 'max:50'],
         ]);
 
         $tone = $validated['tone'];

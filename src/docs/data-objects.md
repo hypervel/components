@@ -1115,7 +1115,7 @@ class UserData extends Data
 }
 ```
 
-There is no need to add `Required` or `StringType` here; they are inferred from the property declarations. Attributes take precedence over inferred rules of the same type. You may also use `#[Rule('required|string')]` or `#[Rule(['required', 'string'])]` for ordinary rule syntax. See the [validation rule reference](/docs/{{version}}/validation#available-validation-rules) for rule behavior.
+There is no need to add `Required` or `StringType` here; they are inferred from the property declarations. Attributes take precedence over inferred rules of the same type. You may also use ordinary rule syntax with `#[Rule('required', 'string')]` or `#[Rule(['required', 'string'])]`. See the [validation rule reference](/docs/{{version}}/validation#available-validation-rules) for rule behavior.
 
 To skip validation for one property, add `#[WithoutValidation]`. Its input is still used during creation, so use this only when that value does not need validation.
 

@@ -700,7 +700,7 @@ use Hypervel\Validation\ValidationException;
 
 Route::post('/sanctum/token', function (Request $request) {
     $request->validate([
-        'email' => 'required|email',
+        'email' => ['required', 'email'],
         'password' => 'required',
         'device_name' => 'required',
     ]);

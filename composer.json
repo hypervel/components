@@ -378,6 +378,7 @@
             "tests/PHPStan/Rules/Coroutine/data",
             "tests/PHPStan/Rules/data",
             "tests/PHPStan/Rules/Queue/data",
+            "tests/PHPStan/Rules/Validation/data",
             "tests/PHPStan/Type/data",
             "tests/PHPStan/Unit/data"
         ],

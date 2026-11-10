@@ -38,6 +38,7 @@
     - [Models in Queued Jobs](#models-in-queued-jobs)
     - [Batched Jobs](#batched-jobs)
     - [Unique Jobs](#unique-jobs)
+    - [Validation Rules](#validation-rules)
     - [Deprecations](#deprecations)
 
 <a name="introduction"></a>
@@ -279,6 +280,7 @@ The following table summarizes the preferred pattern for each of Hypervel's diag
 | [Batched Jobs](#batched-jobs) | Use `Batchable` in batched jobs, and dispatch unique jobs individually. | `hypervel.batchedJobIsBatchable`, `hypervel.noBatchedUniqueJob`, `hypervel.batchableJobChecksCancellation` |
 | [Unique Jobs](#unique-jobs) | Declare what makes each unique job distinct. | `hypervel.uniqueJobUniqueId`, `hypervel.uniqueJobUniqueFor` |
 | [Queue Configuration](#queue-configuration) | Configure queued classes with attributes such as `Tries` and `Backoff`. | `hypervel.legacyQueueProperty` |
+| [Validation Rules](#validation-rules) | List validation rules in arrays. | `hypervel.pipeSeparatedValidationRules` |
 | [Deprecations](#deprecations) | Use the replacement the deprecation names. | `method.deprecated` and the other deprecation identifiers |
 
 <a name="environment-variables"></a>
@@ -800,6 +802,24 @@ class ProcessPodcast implements ShouldQueue
 The analysis reports public `$connection`, `$queue`, `$delay`, `$tries`, `$timeout`, `$maxExceptions`, `$backoff`, `$uniqueFor`, `$debounceFor`, `$failOnTimeout`, `$countCrashesAsExceptions` and `$deleteWhenMissingModels` declarations where the class's queue path reads the matching attribute. It names the attribute that keeps the same setting, or says the declaration can be removed. A declaration in a trait the class uses is reported with the attribute to place on the trait, unless its value depends on the class, such as `self::TRIES`. The properties keep working.
 
 A setting computed by a method, such as `tries` or a listener's `viaQueue`, is not reported. Neither is a `false` flag, which can turn off an inherited attribute, nor a declaration the constructor assigns or changes through `onConnection`, `onQueue`, `delay` and the other `Queueable` setters, such as a wrapper job copying the settings of the object it wraps; changes made inside other methods the constructor calls are not detected. A subclass's non-null public property still wins over an inherited attribute, but a subclass's own attribute replaces it entirely: a subclass's `#[DebounceFor(10)]` drops the parent's `maxWait`. Keep a declared property that other code reads or assigns when no parent declares it, since an attribute does not provide that storage; ignore it with a reason. You may disable this check using the `noLegacyQueueProperties` parameter.
+
+<a name="validation-rules"></a>
+### Validation Rules
+
+List validation rules in arrays rather than pipe-separated strings:
+
+```php
+$request->validate([
+    'title' => ['required', 'string', 'max:255'],
+    'code' => ['required', 'regex:/^(draft|published)$/'],
+]);
+```
+
+The analysis reports the pipe-separated strings the validator splits where you write them: the rules you pass to `Validator::make`, `validator`, `$request->validate`, the controller `validate` methods, `Rule::when`, `Rule::anyOf` and a prompt's `validate` argument, the arrays a form request's or data class's `rules` method returns, and data `#[Rule]` attributes. Strings built with concatenation or interpolation are reported too. Running `phpstan analyse --fix` replaces a plain string whose split is unambiguous with the array of its rules; a string with an empty rule or with whitespace around a rule is reported without a fix.
+
+A string holding a `regex` or `not_regex` rule is reported without a fix, because the validator also splits the pattern at its own `|`. Give the regex its own array element, where the validator keeps it whole. Data rules differ: a data rule string that starts with a regex rule is kept whole, so it is not reported.
+
+The analysis reads the rules array where you write it. A constant or conditional value inside that array is checked, but a rules array built in a variable, helper or closure is not followed. You may disable this check using the `noPipeSeparatedValidationRules` parameter.
 
 <a name="deprecations"></a>
 ### Deprecations

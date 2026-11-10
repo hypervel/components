@@ -40,7 +40,7 @@ class ConfirmablePasswordController extends Controller
     public function store(Request $request): Responsable
     {
         $request->validate([
-            'password' => 'nullable|string',
+            'password' => ['nullable', 'string'],
         ]);
 
         $guardName = Fortify::guardName();
