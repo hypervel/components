@@ -68,7 +68,7 @@ class Task
         /** @var bool $action */
         $action = $pretending === true ? true : call_user_func($this->action);
 
-        /* @phpstan-ignore argument.type */
+        /* @phpstan-ignore argument.type (value()'s PHPDoc models one callback argument and no null; it calls this two-argument callback and returns null unchanged) */
         value($this->response, $action, $pretending);
     }
 

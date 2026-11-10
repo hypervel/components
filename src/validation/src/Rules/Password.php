@@ -21,7 +21,7 @@ use InvalidArgumentException;
 use IteratorAggregate;
 use Traversable;
 
-// @phpstan-ignore class.implementsDeprecatedInterface, class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
+// @phpstan-ignore class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.), class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
 class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, ValidatorAwareRule
 {
     use Conditionable;
@@ -321,8 +321,8 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
         $validator = Validator::make(
             $this->data,
             [$attribute => [...$this]],
-            $this->validator->customMessages, // @phpstan-ignore property.notFound
-            $this->validator->customAttributes // @phpstan-ignore property.notFound
+            $this->validator->customMessages, // @phpstan-ignore property.notFound (public property of the framework Validator)
+            $this->validator->customAttributes // @phpstan-ignore property.notFound (public property of the framework Validator)
         )->after(function ($validator) use ($attribute, $value) {
             if (! is_string($value)) {
                 return;

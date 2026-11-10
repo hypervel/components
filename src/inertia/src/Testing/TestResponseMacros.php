@@ -16,7 +16,7 @@ class TestResponseMacros
     public function assertInertia(): Closure
     {
         return function (?Closure $callback = null) {
-            // @phpstan-ignore argument.type
+            // @phpstan-ignore argument.type (the macro closure is bound to the TestResponse)
             $assert = AssertableInertia::fromTestResponse($this);
 
             if (is_null($callback)) {
@@ -35,7 +35,7 @@ class TestResponseMacros
     public function inertiaPage(): Closure
     {
         return function () {
-            // @phpstan-ignore argument.type
+            // @phpstan-ignore argument.type (the macro closure is bound to the TestResponse)
             return AssertableInertia::fromTestResponse($this)->toArray();
         };
     }
@@ -46,7 +46,7 @@ class TestResponseMacros
     public function inertiaProps(): Closure
     {
         return function (?string $propName = null) {
-            // @phpstan-ignore argument.type
+            // @phpstan-ignore argument.type (the macro closure is bound to the TestResponse)
             $page = AssertableInertia::fromTestResponse($this)->toArray();
 
             return Arr::get($page['props'], $propName);
@@ -59,7 +59,7 @@ class TestResponseMacros
     public function assertInertiaFlash(): Closure
     {
         return function (string $key, mixed $expected = null) {
-            // @phpstan-ignore method.notFound
+            // @phpstan-ignore method.notFound (the macro closure is bound to the TestResponse)
             $flash = $this->session()->get(SessionKey::FLASH_DATA, []);
 
             func_num_args() > 1
@@ -76,7 +76,7 @@ class TestResponseMacros
     public function assertInertiaFlashMissing(): Closure
     {
         return function (string $key) {
-            // @phpstan-ignore method.notFound
+            // @phpstan-ignore method.notFound (the macro closure is bound to the TestResponse)
             $flash = $this->session()->get(SessionKey::FLASH_DATA, []);
 
             AssertableInertia::assertFlashMissing($flash, $key);

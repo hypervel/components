@@ -490,8 +490,7 @@ class Mailable implements MailableContract, Renderable
             $options = $attachment['options'];
 
             if (! isset($options['mime'])) {
-                // The contract omits adapter metadata methods, which every shipped disk provides.
-                // @phpstan-ignore method.notFound
+                // @phpstan-ignore method.notFound (the contract omits adapter metadata methods, which every shipped disk provides)
                 $mime = $storage->mimeType($attachment['path']);
 
                 if ($mime !== false) {

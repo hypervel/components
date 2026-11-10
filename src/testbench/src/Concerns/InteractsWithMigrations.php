@@ -246,14 +246,14 @@ trait InteractsWithMigrations
     {
         if (
             static::usesRefreshDatabaseTestingConcern()
-            && $this->usingInMemoryDatabases() /* @phpstan-ignore method.notFound */
+            && $this->usingInMemoryDatabases() /* @phpstan-ignore method.notFound (provided by RefreshDatabase, checked first) */
         ) {
             return true;
         }
 
         if (static::usesTestingConcern(DatabaseTruncation::class)) {
             // Every cached truncation PDO needs the same class-boundary state owner.
-            return $this->usingInMemoryDatabasesForTruncation(); /* @phpstan-ignore method.notFound */
+            return $this->usingInMemoryDatabasesForTruncation(); /* @phpstan-ignore method.notFound (provided by DatabaseTruncation, checked above) */
         }
 
         return $this->usesSqliteInMemoryDatabaseConnection();

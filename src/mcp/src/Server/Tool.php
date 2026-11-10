@@ -103,7 +103,7 @@ abstract class Tool extends Primitive
             ];
         }
 
-        // @phpstan-ignore return.type
+        // @phpstan-ignore return.type (PHPStan reduces mergeMeta()'s array{_meta?: …}&T return to the added key)
         return $result;
     }
 

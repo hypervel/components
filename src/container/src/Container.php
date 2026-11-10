@@ -1960,7 +1960,7 @@ class Container implements ContainerContract
         $resolutionState->buildStack[] = $concrete;
 
         try {
-            $instance = $this->call([$concrete, 'newInstance']); // @phpstan-ignore argument.type
+            $instance = $this->call([$concrete, 'newInstance']); // @phpstan-ignore argument.type (a class name and static method name form a callable)
         } finally {
             array_pop($resolutionState->buildStack);
         }

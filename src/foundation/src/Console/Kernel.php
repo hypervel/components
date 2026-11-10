@@ -192,14 +192,14 @@ class Kernel implements KernelContract
             // reporting or rendering carries it as that failure's previous. The
             // return suppresses it once the command status is produced.
             try {
-                /* @phpstan-ignore finally.exitPoint */
+                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 throw $e;
             } finally {
                 $this->reportException($e);
 
                 $this->renderException($output, $e);
 
-                /* @phpstan-ignore finally.exitPoint */
+                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 return 1;
             }
         }

@@ -37,11 +37,10 @@ class GetFileUrl extends FilesystemTool
                 return "File [{$path}] does not exist.";
             }
 
-            // URL methods are disk capabilities outside the base filesystem contract.
             return $minutes > 0
-                // @phpstan-ignore method.notFound
+                // @phpstan-ignore method.notFound (disk capability outside the Filesystem contract)
                 ? $disk->temporaryUrl($path, now()->addMinutes($minutes))
-                // @phpstan-ignore method.notFound
+                // @phpstan-ignore method.notFound (disk capability outside the Filesystem contract)
                 : $disk->url($path);
         } catch (Throwable $throwable) {
             if (Coroutine::causedByCancellation($throwable)) {

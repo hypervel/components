@@ -142,7 +142,7 @@ trait InteractsWithQueue
             PHPUnit::assertInstanceOf(
                 $exception,
                 $this->job->failedWith, // @phpstan-ignore property.notFound (FakeJob test-double property)
-                'Expected job to be manually failed with [' . $exception . '] but job failed with [' . get_class($this->job->failedWith) . '].' // @phpstan-ignore property.notFound
+                'Expected job to be manually failed with [' . $exception . '] but job failed with [' . get_class($this->job->failedWith) . '].' // @phpstan-ignore property.notFound (FakeJob test-double property)
             );
 
             return $this;
@@ -155,19 +155,19 @@ trait InteractsWithQueue
         PHPUnit::assertInstanceOf(
             get_class($exception),
             $this->job->failedWith, // @phpstan-ignore property.notFound (FakeJob test-double property)
-            'Expected job to be manually failed with [' . get_class($exception) . '] but job failed with [' . get_class($this->job->failedWith) . '].' // @phpstan-ignore property.notFound
+            'Expected job to be manually failed with [' . get_class($exception) . '] but job failed with [' . get_class($this->job->failedWith) . '].' // @phpstan-ignore property.notFound (FakeJob test-double property)
         );
 
         PHPUnit::assertEquals(
             $exception->getCode(),
             $this->job->failedWith->getCode(), // @phpstan-ignore property.notFound (FakeJob test-double property)
-            'Expected exception code [' . $exception->getCode() . '] but job failed with exception code [' . $this->job->failedWith->getCode() . '].' // @phpstan-ignore property.notFound
+            'Expected exception code [' . $exception->getCode() . '] but job failed with exception code [' . $this->job->failedWith->getCode() . '].' // @phpstan-ignore property.notFound (FakeJob test-double property)
         );
 
         PHPUnit::assertEquals(
             $exception->getMessage(),
             $this->job->failedWith->getMessage(), // @phpstan-ignore property.notFound (FakeJob test-double property)
-            'Expected exception message [' . $exception->getMessage() . '] but job failed with exception message [' . $this->job->failedWith->getMessage() . '].' // @phpstan-ignore property.notFound
+            'Expected exception message [' . $exception->getMessage() . '] but job failed with exception message [' . $this->job->failedWith->getMessage() . '].' // @phpstan-ignore property.notFound (FakeJob test-double property)
         );
 
         return $this;

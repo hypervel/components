@@ -385,7 +385,7 @@ class Mailer implements MailerContract, MailQueueContract
 
         if ($queue !== null) {
             // Queueable owns identifier normalization, so it is intentionally absent from the Mailable contract.
-            $view->onQueue($queue); // @phpstan-ignore method.notFound
+            $view->onQueue($queue); // @phpstan-ignore method.notFound (Queueable method outside the Mailable contract)
         }
 
         return $view->mailer($this->name)->queue($this->queue);
@@ -422,7 +422,7 @@ class Mailer implements MailerContract, MailQueueContract
 
         if ($queue !== null) {
             // Queueable owns identifier normalization, so it is intentionally absent from the Mailable contract.
-            $view->onQueue($queue); // @phpstan-ignore method.notFound
+            $view->onQueue($queue); // @phpstan-ignore method.notFound (Queueable method outside the Mailable contract)
         }
 
         return $view->mailer($this->name)->later($delay, $this->queue);

@@ -30,7 +30,7 @@ Head::defaults(function ($head): void {
 
 assertType(HeadManager::class, Head::when(true, fn ($head): HeadManager => $head->title('Page'))->description('Description'));
 
-// @phpstan-ignore argument.type
+// @phpstan-ignore argument.type (asserts a callback with the wrong parameter type is rejected)
 Head::resolveErrorsUsing(fn (string $head): string => $head);
 
 class CustomHeadSchema extends SchemaObject

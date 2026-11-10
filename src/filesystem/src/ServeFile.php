@@ -41,8 +41,7 @@ class ServeFile
             ];
 
             return tap(
-                // The contract omits adapter response methods, which every shipped disk provides.
-                // @phpstan-ignore method.notFound
+                // @phpstan-ignore method.notFound (the contract omits adapter response methods, which every shipped disk provides)
                 $disk->serve($request, $path, headers: $headers),
                 function (Response $response) use ($headers): void {
                     if (! $response->headers->has('Content-Security-Policy')) {

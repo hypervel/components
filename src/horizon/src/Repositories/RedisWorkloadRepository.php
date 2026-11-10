@@ -49,9 +49,9 @@ class RedisWorkloadRepository implements WorkloadRepository
                 $totalProcesses = $processes[$queue] ?? 0;
 
                 $length = ! Str::contains($queue, ',')
-                    ? collect([$queueName => $this->queue->connection($connection)->readyNow($queueName)]) // @phpstan-ignore method.notFound
+                    ? collect([$queueName => $this->queue->connection($connection)->readyNow($queueName)]) // @phpstan-ignore method.notFound (RedisQueue has readyNow method)
                     : collect(explode(',', $queueName))->mapWithKeys(function ($queueName) use ($connection) {
-                        // @phpstan-ignore method.notFound
+                        // @phpstan-ignore method.notFound (RedisQueue has readyNow method)
                         return [$queueName => $this->queue->connection($connection)->readyNow($queueName)];
                     });
 

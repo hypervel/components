@@ -204,11 +204,11 @@ trait InteractsWithTestCaseLifecycle
         $this->setUpDatabaseTraits($uses);
 
         if (isset($uses[WithoutMiddleware::class])) {
-            $this->disableMiddlewareForAllTests(); // @phpstan-ignore method.notFound
+            $this->disableMiddlewareForAllTests(); // @phpstan-ignore method.notFound (provided by WithoutMiddleware, checked above)
         }
 
         if (isset($uses[WithoutEvents::class])) {
-            $this->disableEventsForAllTests(); // @phpstan-ignore method.notFound
+            $this->disableEventsForAllTests(); // @phpstan-ignore method.notFound (provided by WithoutEvents, checked above)
         }
 
         foreach ($uses as $trait) {
@@ -259,19 +259,19 @@ trait InteractsWithTestCaseLifecycle
         $this->forgetStaleMigrationState($uses);
 
         if (isset($uses[RefreshDatabase::class])) {
-            $this->refreshDatabase(); // @phpstan-ignore method.notFound
+            $this->refreshDatabase(); // @phpstan-ignore method.notFound (provided by RefreshDatabase, checked above)
         }
 
         if (isset($uses[DatabaseMigrations::class])) {
-            $this->runDatabaseMigrations(); // @phpstan-ignore method.notFound
+            $this->runDatabaseMigrations(); // @phpstan-ignore method.notFound (provided by DatabaseMigrations, checked above)
         }
 
         if (isset($uses[DatabaseTruncation::class])) {
-            $this->truncateDatabaseTables(); // @phpstan-ignore method.notFound
+            $this->truncateDatabaseTables(); // @phpstan-ignore method.notFound (provided by DatabaseTruncation, checked above)
         }
 
         if (isset($uses[DatabaseTransactions::class])) {
-            $this->beginDatabaseTransaction(); // @phpstan-ignore method.notFound
+            $this->beginDatabaseTransaction(); // @phpstan-ignore method.notFound (provided by DatabaseTransactions, checked above)
         }
     }
 
@@ -285,8 +285,8 @@ trait InteractsWithTestCaseLifecycle
         }
 
         if (
-            (isset($uses[RefreshDatabase::class]) && $this->hasMissingInMemoryDatabaseForRefresh()) // @phpstan-ignore method.notFound
-            || (isset($uses[DatabaseTruncation::class]) && $this->hasMissingInMemoryDatabaseForTruncation()) // @phpstan-ignore method.notFound
+            (isset($uses[RefreshDatabase::class]) && $this->hasMissingInMemoryDatabaseForRefresh()) // @phpstan-ignore method.notFound (provided by RefreshDatabase, checked first)
+            || (isset($uses[DatabaseTruncation::class]) && $this->hasMissingInMemoryDatabaseForTruncation()) // @phpstan-ignore method.notFound (provided by DatabaseTruncation, checked first)
         ) {
             // A persistent database's migrated flag does not describe an uncached in-memory database.
             RefreshDatabaseState::$migrated = false;

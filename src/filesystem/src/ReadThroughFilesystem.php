@@ -57,7 +57,7 @@ class ReadThroughFilesystem extends FilesystemAdapter
     {
         return isset($this->temporaryUrlCallback)
             ? ($this->temporaryUrlCallback)($path, $expiration, $options)
-            : $this->readerFor($path)->temporaryUrl($this->readThroughPrefixer->prefixPath($path), $expiration, $options); // @phpstan-ignore method.notFound
+            : $this->readerFor($path)->temporaryUrl($this->readThroughPrefixer->prefixPath($path), $expiration, $options); // @phpstan-ignore method.notFound (adapter method outside the Cloud contract)
     }
 
     /**
@@ -65,7 +65,7 @@ class ReadThroughFilesystem extends FilesystemAdapter
      */
     public function providesTemporaryUploadUrls(): bool
     {
-        return isset($this->temporaryUploadUrlCallback) || $this->primary->providesTemporaryUploadUrls(); // @phpstan-ignore method.notFound
+        return isset($this->temporaryUploadUrlCallback) || $this->primary->providesTemporaryUploadUrls(); // @phpstan-ignore method.notFound (adapter method outside the Cloud contract)
     }
 
     /**
@@ -75,7 +75,7 @@ class ReadThroughFilesystem extends FilesystemAdapter
     {
         return isset($this->temporaryUploadUrlCallback)
             ? ($this->temporaryUploadUrlCallback)($path, $expiration, $options)
-            : $this->primary->temporaryUploadUrl($this->readThroughPrefixer->prefixPath($path), $expiration, $options); // @phpstan-ignore method.notFound
+            : $this->primary->temporaryUploadUrl($this->readThroughPrefixer->prefixPath($path), $expiration, $options); // @phpstan-ignore method.notFound (adapter method outside the Cloud contract)
     }
 
     /**
@@ -84,8 +84,8 @@ class ReadThroughFilesystem extends FilesystemAdapter
     public function providesTemporaryUrls(): bool
     {
         return isset($this->temporaryUrlCallback)
-            || $this->primary->providesTemporaryUrls() // @phpstan-ignore method.notFound
-            || $this->fallback->providesTemporaryUrls(); // @phpstan-ignore method.notFound
+            || $this->primary->providesTemporaryUrls() // @phpstan-ignore method.notFound (adapter method outside the Cloud contract)
+            || $this->fallback->providesTemporaryUrls(); // @phpstan-ignore method.notFound (adapter method outside the Cloud contract)
     }
 
     /**

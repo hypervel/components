@@ -122,7 +122,7 @@ trait HandlesRoutes
 
         if (
             $this->app instanceof HypervelApplication
-            && property_exists($this, 'setUpHasRun') /* @phpstan-ignore function.alreadyNarrowedType */
+            && property_exists($this, 'setUpHasRun') /* @phpstan-ignore function.alreadyNarrowedType (not every class using this trait declares the property) */
             && $this->setUpHasRun === true
         ) {
             $attribute->beforeEach($this->app);

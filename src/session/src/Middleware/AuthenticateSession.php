@@ -38,7 +38,7 @@ class AuthenticateSession implements AuthenticatesSessions
         }
 
         if ($this->guard()->viaRemember()) { // @phpstan-ignore method.notFound (proxied to SessionGuard via AuthManager::__call)
-            $passwordHashFromCookie = explode('|', $request->cookies->get($this->guard()->getRecallerName()))[2] ?? null; // @phpstan-ignore method.notFound
+            $passwordHashFromCookie = explode('|', $request->cookies->get($this->guard()->getRecallerName()))[2] ?? null; // @phpstan-ignore method.notFound (proxied to SessionGuard via AuthManager::__call)
 
             if (! $passwordHashFromCookie
                 || ! $this->validatePasswordHash($request->user()->getAuthPassword(), $passwordHashFromCookie)) {
@@ -74,7 +74,7 @@ class AuthenticateSession implements AuthenticatesSessions
 
         $passwordHash = $request->user()->getAuthPassword();
 
-        $passwordHash = $this->guard()->hashPasswordForCookie($passwordHash); // @phpstan-ignore method.notFound
+        $passwordHash = $this->guard()->hashPasswordForCookie($passwordHash); // @phpstan-ignore method.notFound (proxied to SessionGuard via AuthManager::__call)
 
         $request->session()->put([
             'password_hash_' . $this->auth->getDefaultDriver() => $passwordHash,
@@ -91,7 +91,7 @@ class AuthenticateSession implements AuthenticatesSessions
     protected function validatePasswordHash(string $passwordHash, mixed $storedValue): bool
     {
         return is_string($storedValue)
-            && hash_equals($this->guard()->hashPasswordForCookie($passwordHash), $storedValue); // @phpstan-ignore method.notFound
+            && hash_equals($this->guard()->hashPasswordForCookie($passwordHash), $storedValue); // @phpstan-ignore method.notFound (proxied to SessionGuard via AuthManager::__call)
     }
 
     /**
@@ -101,7 +101,7 @@ class AuthenticateSession implements AuthenticatesSessions
      */
     protected function logout(Request $request): void
     {
-        $this->guard()->logoutCurrentDevice(); // @phpstan-ignore method.notFound
+        $this->guard()->logoutCurrentDevice(); // @phpstan-ignore method.notFound (proxied to SessionGuard via AuthManager::__call)
 
         $request->session()->flush();
 

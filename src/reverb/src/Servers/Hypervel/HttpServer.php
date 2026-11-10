@@ -98,7 +98,7 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
             // any failure at that boundary carries the root cause as previous.
             // The return suppresses it once the response has been emitted.
             try {
-                /* @phpstan-ignore finally.exitPoint */
+                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 throw $throwable;
             } finally {
                 try {
@@ -117,7 +117,7 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
 
                 $this->sendResponse($request, $response, $swooleResponse, $throwable);
 
-                /* @phpstan-ignore finally.exitPoint */
+                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 return;
             }
         }

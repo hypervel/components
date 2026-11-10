@@ -116,11 +116,11 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         $this->traitsUsedByTest ??= class_uses_recursive(static::class);
 
         if (isset(CachedState::$cachedConfig, $this->traitsUsedByTest[WithCachedConfig::class])) {
-            $this->markConfigCached($app); // @phpstan-ignore method.notFound
+            $this->markConfigCached($app); // @phpstan-ignore method.notFound (provided by WithCachedConfig, checked above)
         }
 
         if (isset(CachedState::$cachedRoutes, $this->traitsUsedByTest[WithCachedRoutes::class])) {
-            $this->markRoutesCached($app); // @phpstan-ignore method.notFound
+            $this->markRoutesCached($app); // @phpstan-ignore method.notFound (provided by WithCachedRoutes, checked above)
         }
     }
 

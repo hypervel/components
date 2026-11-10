@@ -192,7 +192,7 @@ class Post extends BasePost
         return null;
     }
 
-    /** @phpstan-ignore missingType.return */
+    /** @phpstan-ignore missingType.return (the fixture needs a scope without a return type) */
     #[Scope]
     protected function untypedReturn(BuilderContract $query)
     {

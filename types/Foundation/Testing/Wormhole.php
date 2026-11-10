@@ -30,41 +30,41 @@ assertType('42', $wormhole->microsecond(fn () => 42));
 assertType('42', $wormhole->milliseconds(fn () => 42));
 assertType('42', $wormhole->millisecond(fn () => 42));
 
-/* @phpstan-ignore method.void */
+/* @phpstan-ignore method.void (asserts the void result) */
 assertType('null', $wormhole->seconds($voidFunction));
-/* @phpstan-ignore method.void */
+/* @phpstan-ignore method.void (asserts the void result) */
 assertType('null', $wormhole->second($voidFunction));
-/* @phpstan-ignore method.void */
+/* @phpstan-ignore method.void (asserts the void result) */
 assertType('null', $wormhole->minutes($voidFunction));
-/* @phpstan-ignore method.void */
+/* @phpstan-ignore method.void (asserts the void result) */
 assertType('null', $wormhole->minute($voidFunction));
-/* @phpstan-ignore method.void */
+/* @phpstan-ignore method.void (asserts the void result) */
 assertType('null', $wormhole->hours($voidFunction));
-/* @phpstan-ignore method.void */
+/* @phpstan-ignore method.void (asserts the void result) */
 assertType('null', $wormhole->hour($voidFunction));
-/* @phpstan-ignore method.void */
+/* @phpstan-ignore method.void (asserts the void result) */
 assertType('null', $wormhole->days($voidFunction));
-/* @phpstan-ignore method.void */
+/* @phpstan-ignore method.void (asserts the void result) */
 assertType('null', $wormhole->day($voidFunction));
-/* @phpstan-ignore method.void */
+/* @phpstan-ignore method.void (asserts the void result) */
 assertType('null', $wormhole->weeks($voidFunction));
-/* @phpstan-ignore method.void */
+/* @phpstan-ignore method.void (asserts the void result) */
 assertType('null', $wormhole->week($voidFunction));
-/* @phpstan-ignore method.void */
+/* @phpstan-ignore method.void (asserts the void result) */
 assertType('null', $wormhole->months($voidFunction));
-/* @phpstan-ignore method.void */
+/* @phpstan-ignore method.void (asserts the void result) */
 assertType('null', $wormhole->month($voidFunction));
-/* @phpstan-ignore method.void */
+/* @phpstan-ignore method.void (asserts the void result) */
 assertType('null', $wormhole->years($voidFunction));
-/* @phpstan-ignore method.void */
+/* @phpstan-ignore method.void (asserts the void result) */
 assertType('null', $wormhole->year($voidFunction));
-/* @phpstan-ignore method.void */
+/* @phpstan-ignore method.void (asserts the void result) */
 assertType('null', $wormhole->microseconds($voidFunction));
-/* @phpstan-ignore method.void */
+/* @phpstan-ignore method.void (asserts the void result) */
 assertType('null', $wormhole->microsecond($voidFunction));
-/* @phpstan-ignore method.void */
+/* @phpstan-ignore method.void (asserts the void result) */
 assertType('null', $wormhole->milliseconds($voidFunction));
-/* @phpstan-ignore method.void */
+/* @phpstan-ignore method.void (asserts the void result) */
 assertType('null', $wormhole->millisecond($voidFunction));
 
 assertType('null', $wormhole->seconds());

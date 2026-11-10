@@ -36,8 +36,8 @@ function test(Post $post, Article $article): void
     assertType('Hypervel\Types\SoftDeletes\ArticleBuilder<Hypervel\Types\SoftDeletes\Archive>', Archive::query()->onlyTrashed());
 
     // Macro names are case-sensitive, and only soft-deleting models have them.
-    Post::query()->WithTrashed(); // @phpstan-ignore method.notFound
-    Plain::query()->withTrashed(); // @phpstan-ignore method.notFound
+    Post::query()->WithTrashed(); // @phpstan-ignore method.notFound (asserts macro names are case-sensitive)
+    Plain::query()->withTrashed(); // @phpstan-ignore method.notFound (asserts only soft-deleting models have the macro)
 }
 
 class Post extends Model

@@ -147,7 +147,7 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
     protected function setUpDatabaseTraits(array $uses): void
     {
         if (isset($uses[Concerns\WithWorkbench::class])) {
-            $this->setUpWithWorkbench(); // @phpstan-ignore method.notFound
+            $this->setUpWithWorkbench(); // @phpstan-ignore method.notFound (provided by WithWorkbench, checked above)
         }
 
         // Reset before database attributes register paths against retained schema state.

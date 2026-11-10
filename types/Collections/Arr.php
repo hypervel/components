@@ -122,9 +122,9 @@ function generateArray(): iterable
     yield 1;
 }
 
-/* @phpstan-ignore staticMethod.alreadyNarrowedType */
+/* @phpstan-ignore staticMethod.alreadyNarrowedType (asserts the constant result) */
 assertType('true', Arr::arrayable([]));
-/* @phpstan-ignore staticMethod.alreadyNarrowedType */
+/* @phpstan-ignore staticMethod.alreadyNarrowedType (asserts the constant result) */
 assertType('true', Arr::arrayable(new class implements Arrayable {
     /**
      * Get the instance as an array.
@@ -134,7 +134,7 @@ assertType('true', Arr::arrayable(new class implements Arrayable {
         return [];
     }
 }));
-/* @phpstan-ignore staticMethod.alreadyNarrowedType */
+/* @phpstan-ignore staticMethod.alreadyNarrowedType (asserts the constant result) */
 assertType('true', Arr::arrayable(new class implements Jsonable {
     /**
      * Convert the object to its JSON representation.
@@ -144,9 +144,9 @@ assertType('true', Arr::arrayable(new class implements Jsonable {
         return '{"foo":"bar"}';
     }
 }));
-/* @phpstan-ignore staticMethod.alreadyNarrowedType */
+/* @phpstan-ignore staticMethod.alreadyNarrowedType (asserts the constant result) */
 assertType('true', Arr::arrayable(generateArray()));
-/* @phpstan-ignore staticMethod.alreadyNarrowedType */
+/* @phpstan-ignore staticMethod.alreadyNarrowedType (asserts the constant result) */
 assertType('true', Arr::arrayable(new class implements JsonSerializable {
     /**
      * Return data for JSON serialization.
@@ -157,23 +157,23 @@ assertType('true', Arr::arrayable(new class implements JsonSerializable {
         return '{"foo":"bar"}';
     }
 }));
-/* @phpstan-ignore staticMethod.alreadyNarrowedType */
+/* @phpstan-ignore staticMethod.alreadyNarrowedType (asserts the constant result) */
 assertType('true', Arr::arrayable(new ArrayObject));
-/* @phpstan-ignore staticMethod.impossibleType */
+/* @phpstan-ignore staticMethod.impossibleType (asserts the constant result) */
 assertType('false', Arr::arrayable(1));
 
 assertType('array<int, array<1|2|3>>', Arr::crossJoin([1], [2], ['a' => 3]));
 
-/* @phpstan-ignore staticMethod.impossibleType */
+/* @phpstan-ignore staticMethod.impossibleType (asserts the constant result) */
 assertType('false', Arr::isAssoc([1]));
 
-/* @phpstan-ignore staticMethod.alreadyNarrowedType */
+/* @phpstan-ignore staticMethod.alreadyNarrowedType (asserts the constant result) */
 assertType('true', Arr::isAssoc(['a' => 1]));
 
-/* @phpstan-ignore staticMethod.alreadyNarrowedType */
+/* @phpstan-ignore staticMethod.alreadyNarrowedType (asserts the constant result) */
 assertType('true', Arr::isList([1]));
 
-/* @phpstan-ignore staticMethod.impossibleType */
+/* @phpstan-ignore staticMethod.impossibleType (asserts the constant result) */
 assertType('false', Arr::isList(['a' => 1]));
 
 assertType('array<0|1|2, 1|2|3>', Arr::sort([1, 3, 2]));
@@ -254,7 +254,7 @@ Arr::sortDesc($users, [['name', true]]);
 
 // A comparison list receives two values, while a top-level callback receives a value and key.
 Arr::sort($users, fn (array $user, int $key): string => $user['name']);
-Arr::sort($users, [fn (array $user, int $key): int => $key]); // @phpstan-ignore argument.type
+Arr::sort($users, [fn (array $user, int $key): int => $key]); // @phpstan-ignore argument.type (asserts a comparison list rejects a value-and-key callback)
 
 $target = [];
 assertType('array', Arr::push($target, 'items', new stdClass));

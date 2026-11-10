@@ -567,7 +567,7 @@ class MailManager implements FactoryContract
             ? ['message_stream' => $config['message_stream_id']]
             : [];
 
-        return $factory->create(new Dsn( // @phpstan-ignore return.type
+        return $factory->create(new Dsn( // @phpstan-ignore return.type (the Postmark factory creates this transport for the postmark+api scheme)
             'postmark+api',
             'default',
             $config['key'],

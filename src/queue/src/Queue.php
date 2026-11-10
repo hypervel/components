@@ -95,7 +95,7 @@ abstract class Queue
      */
     public function pushOn(UnitEnum|string|null $queue, object|string $job, mixed $data = ''): mixed
     {
-        return $this->push($job, $data, $queue); // @phpstan-ignore method.notFound
+        return $this->push($job, $data, $queue); // @phpstan-ignore method.notFound (declared by the Queue contract each driver implements)
     }
 
     /**
@@ -103,7 +103,7 @@ abstract class Queue
      */
     public function laterOn(UnitEnum|string|null $queue, DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = ''): mixed
     {
-        return $this->later($delay, $job, $data, $queue); // @phpstan-ignore method.notFound
+        return $this->later($delay, $job, $data, $queue); // @phpstan-ignore method.notFound (declared by the Queue contract each driver implements)
     }
 
     /**
@@ -118,9 +118,9 @@ abstract class Queue
             $delay = $this->getJobDelay($job);
 
             if ($delay !== null) {
-                $this->later($delay, $job, $data, $queue); // @phpstan-ignore method.notFound
+                $this->later($delay, $job, $data, $queue); // @phpstan-ignore method.notFound (declared by the Queue contract each driver implements)
             } else {
-                $this->push($job, $data, $queue); // @phpstan-ignore method.notFound
+                $this->push($job, $data, $queue); // @phpstan-ignore method.notFound (declared by the Queue contract each driver implements)
             }
         }
 

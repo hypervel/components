@@ -42,7 +42,7 @@ abstract class Prompt extends Primitive
      */
     public function toArray(): array
     {
-        // @phpstan-ignore return.type
+        // @phpstan-ignore return.type (PHPStan reduces mergeMeta()'s array{_meta?: …}&T return to the added key)
         return $this->mergeMeta($this->mergeIcons([
             'name' => $this->name(),
             'title' => $this->title(),

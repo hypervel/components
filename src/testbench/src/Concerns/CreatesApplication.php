@@ -398,13 +398,13 @@ trait CreatesApplication
      */
     protected function resolveApplicationEnvironmentVariables(ApplicationContract $app): void
     {
-        if (property_exists($this, 'loadEnvironmentVariables') && $this->loadEnvironmentVariables !== true) { /* @phpstan-ignore function.alreadyNarrowedType */
-            if ($this instanceof PHPUnitTestCase && method_exists($this, 'beforeApplicationDestroyed')) { /* @phpstan-ignore function.alreadyNarrowedType */
+        if (property_exists($this, 'loadEnvironmentVariables') && $this->loadEnvironmentVariables !== true) { /* @phpstan-ignore function.alreadyNarrowedType (not every class using this trait declares the property) */
+            if ($this instanceof PHPUnitTestCase && method_exists($this, 'beforeApplicationDestroyed')) { /* @phpstan-ignore function.alreadyNarrowedType (not every class using this trait has the method) */
                 $this->beforeApplicationDestroyed($this->maskInheritedApplicationEnvironment());
             }
         }
 
-        if (property_exists($this, 'loadEnvironmentVariables') && $this->loadEnvironmentVariables === true) { /* @phpstan-ignore function.alreadyNarrowedType */
+        if (property_exists($this, 'loadEnvironmentVariables') && $this->loadEnvironmentVariables === true) { /* @phpstan-ignore function.alreadyNarrowedType (not every class using this trait declares the property) */
             $app->make(LoadEnvironmentVariables::class)->bootstrap($app);
         }
 
@@ -421,7 +421,7 @@ trait CreatesApplication
             },
         );
 
-        if ($this instanceof PHPUnitTestCase && method_exists($this, 'beforeApplicationDestroyed')) { /* @phpstan-ignore function.alreadyNarrowedType */
+        if ($this instanceof PHPUnitTestCase && method_exists($this, 'beforeApplicationDestroyed')) { /* @phpstan-ignore function.alreadyNarrowedType (not every class using this trait has the method) */
             $this->beforeApplicationDestroyed(static function () use ($attributeCallbacks) {
                 $attributeCallbacks->reverse()->handle();
             });
@@ -582,8 +582,8 @@ trait CreatesApplication
         TestingFeature::run(
             testCase: $this,
             attribute: function () use ($app) {
-                $this->parseTestMethodAttributes($app, ResolvesHypervel::class); /* @phpstan-ignore method.notFound */
-                $this->parseTestMethodAttributes($app, UsesFrameworkConfiguration::class); /* @phpstan-ignore method.notFound */
+                $this->parseTestMethodAttributes($app, ResolvesHypervel::class); /* @phpstan-ignore method.notFound (provided by HandlesAttributes, which TestingFeature::run() checks) */
+                $this->parseTestMethodAttributes($app, UsesFrameworkConfiguration::class); /* @phpstan-ignore method.notFound (provided by HandlesAttributes, which TestingFeature::run() checks) */
             },
         );
 
@@ -620,7 +620,7 @@ trait CreatesApplication
 
         TestingFeature::run(
             testCase: $this,
-            attribute: fn () => $this->parseTestMethodAttributes($app, WithConfig::class), /* @phpstan-ignore method.notFound */
+            attribute: fn () => $this->parseTestMethodAttributes($app, WithConfig::class), /* @phpstan-ignore method.notFound (provided by HandlesAttributes, which TestingFeature::run() checks) */
         );
     }
 
@@ -718,13 +718,13 @@ trait CreatesApplication
         TestingFeature::run(
             testCase: $this,
             default: fn () => $this->defineEnvironment($app),
-            attribute: fn () => $this->parseTestMethodAttributes($app, DefineEnvironment::class), /* @phpstan-ignore method.notFound */
+            attribute: fn () => $this->parseTestMethodAttributes($app, DefineEnvironment::class), /* @phpstan-ignore method.notFound (provided by HandlesAttributes, which TestingFeature::run() checks) */
         );
 
         $this->resolveApplicationRateLimiting($app);
 
         if (static::usesTestingConcern(WithWorkbench::class)) {
-            $this->bootDiscoverRoutesForWorkbench($app); /* @phpstan-ignore method.notFound */
+            $this->bootDiscoverRoutesForWorkbench($app); /* @phpstan-ignore method.notFound (provided by WithWorkbench, checked above) */
         }
 
         // Keep this after proxy generation because resolving db loads classes an aspect

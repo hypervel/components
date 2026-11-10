@@ -35,8 +35,7 @@ trait HasStoredContent
     {
         $disk = Storage::disk($this->disk);
 
-        // The contract omits adapter metadata methods, which every shipped disk provides.
-        // @phpstan-ignore method.notFound
+        // @phpstan-ignore method.notFound (the contract omits adapter metadata methods, which every shipped disk provides)
         return $this->mime ?? ($disk->mimeType($this->path) ?: null);
     }
 

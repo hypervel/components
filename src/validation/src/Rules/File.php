@@ -265,8 +265,8 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
         $validator = Validator::make(
             $this->data,
             [$attribute => $this->buildValidationRules()],
-            $this->validator->customMessages, // @phpstan-ignore property.notFound
-            $this->validator->customAttributes // @phpstan-ignore property.notFound
+            $this->validator->customMessages, // @phpstan-ignore property.notFound (public property of the framework Validator)
+            $this->validator->customAttributes // @phpstan-ignore property.notFound (public property of the framework Validator)
         );
 
         if ($validator->fails()) {

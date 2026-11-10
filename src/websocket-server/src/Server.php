@@ -487,12 +487,12 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
         // resolution or handling carries it as that failure's previous. The
         // return suppresses it once a response exists.
         try {
-            /* @phpstan-ignore finally.exitPoint */
+            /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
             throw $throwable;
         } finally {
             $handler = $this->container->make(WebSocketExceptionHandler::class);
 
-            /* @phpstan-ignore finally.exitPoint */
+            /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
             return $handler->handle($throwable, new Response);
         }
     }

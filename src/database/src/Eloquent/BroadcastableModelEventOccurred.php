@@ -53,7 +53,7 @@ class BroadcastableModelEventOccurred implements ShouldBroadcast
     public function broadcastOn(): array
     {
         $channels = empty($this->channels)
-            ? ($this->model->broadcastOn($this->event) ?: []) // @phpstan-ignore method.notFound
+            ? ($this->model->broadcastOn($this->event) ?: []) // @phpstan-ignore method.notFound (provided by BroadcastsEvents on the broadcasting model)
             : $this->channels;
 
         return (new Collection($channels))

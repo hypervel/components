@@ -327,14 +327,14 @@ class Commander
             // resolution, reporting, or rendering carries it as that failure's
             // previous. The return suppresses it once the status is produced.
             try {
-                /* @phpstan-ignore finally.exitPoint */
+                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 throw $error;
             } finally {
                 $handler = $this->app->make(ExceptionHandler::class);
                 $handler->report($error);
                 $handler->renderForConsole($output, $error);
 
-                /* @phpstan-ignore finally.exitPoint */
+                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 return 1;
             }
         }

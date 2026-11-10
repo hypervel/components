@@ -32,7 +32,7 @@ final class TestingFeature
         $defaultResolver = self::once($default);
 
         if ($testCase instanceof PHPUnitTestCase) {
-            /* @phpstan-ignore staticMethod.notFound */
+            /* @phpstan-ignore staticMethod.notFound (provided by InteractsWithTestCase on Testbench test cases) */
             if ($testCase::usesTestingConcern(HandlesAttributes::class)) {
                 $result['attribute'] = value($attribute, $defaultResolver);
             }

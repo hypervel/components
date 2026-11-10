@@ -202,9 +202,9 @@ abstract class HasOneOrManyThrough extends Relation
         // models without having to do nested looping which will be quite slow.
         foreach ($results as $key => $result) {
             if ($isAssociative) {
-                $dictionary[$result->hypervel_through_key][$key] = $result; // @phpstan-ignore property.notFound
+                $dictionary[$result->hypervel_through_key][$key] = $result; // @phpstan-ignore property.notFound (through key alias the relation's query selects)
             } else {
-                $dictionary[$result->hypervel_through_key][] = $result; // @phpstan-ignore property.notFound
+                $dictionary[$result->hypervel_through_key][] = $result; // @phpstan-ignore property.notFound (through key alias the relation's query selects)
             }
         }
 

@@ -85,7 +85,7 @@ class CacheStorage implements StorageContract
      */
     public function flush(): bool
     {
-        // @phpstan-ignore method.notFound
+        // @phpstan-ignore method.notFound (Repository method outside the cache contract)
         return $this->cache->tags([$this->tag])->flush();
     }
 
@@ -94,7 +94,7 @@ class CacheStorage implements StorageContract
      */
     protected function writeCache(): CacheContract
     {
-        // @phpstan-ignore method.notFound
+        // @phpstan-ignore method.notFound (Repository method outside the cache contract)
         return $this->writesThroughTags ? $this->cache->tags([$this->tag]) : $this->cache;
     }
 
@@ -103,7 +103,7 @@ class CacheStorage implements StorageContract
      */
     protected function readCache(): CacheContract
     {
-        // @phpstan-ignore method.notFound
+        // @phpstan-ignore method.notFound (Repository method outside the cache contract)
         return $this->readsThroughTags ? $this->cache->tags([$this->tag]) : $this->cache;
     }
 

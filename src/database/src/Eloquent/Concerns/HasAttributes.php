@@ -1465,7 +1465,7 @@ trait HasAttributes
             return Hash::make($value);
         }
 
-        /* @phpstan-ignore staticMethod.notFound */
+        /* @phpstan-ignore staticMethod.notFound (HashManager's internal method, which the facade's tags omit) */
         if (! Hash::verifyConfiguration($value)) {
             throw new RuntimeException("Could not verify the hashed value's configuration.");
         }

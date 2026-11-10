@@ -91,7 +91,7 @@ class Markdown
         $viewFactory = $this->viewFactoryWithMailNamespace($this->htmlComponentPaths());
 
         $bladeCompiler = $viewFactory
-            ->getEngineResolver() // @phpstan-ignore method.notFound
+            ->getEngineResolver() // @phpstan-ignore method.notFound (view Factory method outside the contract)
             ->resolve('blade')
             ->getCompiler();
 
