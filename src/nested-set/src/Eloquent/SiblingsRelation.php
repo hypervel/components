@@ -48,7 +48,7 @@ class SiblingsRelation extends BaseRelation
 
         $this->whereParentId($this->query, $this->parent);
 
-        $this->parent->applyNestedSetScope($this->query); /* @phpstan-ignore method.notFound */
+        $this->parent->applyNestedSetScope($this->query); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
         if (! $this->andSelf) {
             $this->query->where(
@@ -67,7 +67,7 @@ class SiblingsRelation extends BaseRelation
         $query->whereNested(function (Builder $query) use ($model): void {
             $this->whereParentId($query, $model);
 
-            $model->applyNestedSetScope($query); /* @phpstan-ignore method.notFound */
+            $model->applyNestedSetScope($query); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
             if (! $this->andSelf) {
                 $query->where(
@@ -138,7 +138,7 @@ class SiblingsRelation extends BaseRelation
 
         foreach ($results as $related) {
             $scope = $this->scopeKey($related);
-            $parentId = $related->getParentId(); /* @phpstan-ignore method.notFound */
+            $parentId = $related->getParentId(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
             if ($parentId === null) {
                 $index[$scope]['roots'][] = $related;
@@ -207,7 +207,7 @@ class SiblingsRelation extends BaseRelation
     protected function siblingColumns(Model $model): array
     {
         $columns = array_fill_keys(array_keys($this->scopeValues($model)), false);
-        $columns[$model->getParentIdName()] = false; /* @phpstan-ignore method.notFound */
+        $columns[$model->getParentIdName()] = false; /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
         if (! $this->andSelf) {
             $columns[$model->getKeyName()] = true;
@@ -240,9 +240,9 @@ class SiblingsRelation extends BaseRelation
      */
     protected function whereParentId(Builder|QueryBuilder $query, Model $model): void
     {
-        $parentIdName = $model->getParentIdName(); /* @phpstan-ignore method.notFound */
+        $parentIdName = $model->getParentIdName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         $qualifiedParentIdName = $model->qualifyColumn($parentIdName);
-        $parentId = $model->getParentId(); /* @phpstan-ignore method.notFound */
+        $parentId = $model->getParentId(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
         $parentId === null
             ? $query->whereNull($qualifiedParentIdName)

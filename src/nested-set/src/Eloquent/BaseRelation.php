@@ -112,8 +112,8 @@ abstract class BaseRelation extends Relation
         $condition = $this->relationExistenceCondition(
             $grammar->wrapTable($hash),
             $grammar->wrapTable($parentQuery->getModel()->getTable()),
-            $grammar->wrap($this->parent->getLftName()), /* @phpstan-ignore method.notFound */
-            $grammar->wrap($this->parent->getRgtName()) /* @phpstan-ignore method.notFound */
+            $grammar->wrap($this->parent->getLftName()), /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+            $grammar->wrap($this->parent->getRgtName()) /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         );
 
         $query->whereRaw($condition);
@@ -353,11 +353,11 @@ abstract class BaseRelation extends Relation
             $scope = $this->scopeKey($related);
             $buckets[$scope]['models'][] = $related;
             $buckets[$scope]['keys'][] = $this->matchKey($related);
-            $buckets[$scope]['lfts'][] = $related->getLft(); /* @phpstan-ignore method.notFound */
+            $buckets[$scope]['lfts'][] = $related->getLft(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             $buckets[$scope]['rgts'] ??= [];
 
             if ($includeRgt) {
-                $buckets[$scope]['rgts'][] = $related->getRgt(); /* @phpstan-ignore method.notFound */
+                $buckets[$scope]['rgts'][] = $related->getRgt(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             }
 
             $buckets[$scope]['positions'][] = $position++;
@@ -422,7 +422,7 @@ abstract class BaseRelation extends Relation
      */
     protected function scopeValues(Model $model): array
     {
-        return $model->getNestedSetScope(); /* @phpstan-ignore method.notFound */
+        return $model->getNestedSetScope(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
     }
 
     /**
@@ -430,7 +430,7 @@ abstract class BaseRelation extends Relation
      */
     protected function scopeKey(Model $model): string
     {
-        return $model->getNestedSetScopeKey(); /* @phpstan-ignore method.notFound */
+        return $model->getNestedSetScopeKey(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
     }
 
     /**
@@ -438,7 +438,7 @@ abstract class BaseRelation extends Relation
      */
     public function getForeignKeyName(): string
     {
-        return $this->parent->getParentIdName(); /* @phpstan-ignore method.notFound */
+        return $this->parent->getParentIdName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
     }
 
     /**

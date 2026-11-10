@@ -30,9 +30,9 @@ class QueryBuilder extends EloquentBuilder
     {
         $this->ensureConcreteNestedSetScope('node lookup');
 
-        $lftName = $this->model->getLftName(); /* @phpstan-ignore method.notFound */
-        $rgtName = $this->model->getRgtName(); /* @phpstan-ignore method.notFound */
-        $depthName = $this->model->getDepthName(); /* @phpstan-ignore method.notFound */
+        $lftName = $this->model->getLftName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+        $rgtName = $this->model->getRgtName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+        $depthName = $this->model->getDepthName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
         // first() ignores its columns once a global scope has selected some,
         // so select() replaces any scope projection with the structural columns.
@@ -56,8 +56,8 @@ class QueryBuilder extends EloquentBuilder
         $data = $this->getNodeData($id, $required);
 
         return [
-            $data[$this->model->getLftName()] ?? 0, /* @phpstan-ignore method.notFound */
-            $data[$this->model->getRgtName()] ?? 0, /* @phpstan-ignore method.notFound */
+            $data[$this->model->getLftName()] ?? 0, /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+            $data[$this->model->getRgtName()] ?? 0, /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         ];
     }
 
@@ -66,7 +66,7 @@ class QueryBuilder extends EloquentBuilder
      */
     public function whereIsRoot(): static
     {
-        $this->query->whereNull($this->model->qualifyColumn($this->model->getParentIdName())); /* @phpstan-ignore method.notFound */
+        $this->query->whereNull($this->model->qualifyColumn($this->model->getParentIdName())); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
         return $this;
     }
@@ -82,14 +82,14 @@ class QueryBuilder extends EloquentBuilder
             $model = $id;
             $this->ensureUsableNodeForPositionalQuery($model);
             $value = '?';
-            $bindings = [$id->getRgt()]; /* @phpstan-ignore method.notFound */
+            $bindings = [$id->getRgt()]; /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         } else {
             $this->ensureConcreteNestedSetScope('scalar lookup');
 
             $valueQuery = $this->model
-                ->newNestedSetQuery('_n') /* @phpstan-ignore method.notFound */
+                ->newNestedSetQuery('_n') /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
                 ->toBase()
-                ->select('_n.' . $this->model->getRgtName()) /* @phpstan-ignore method.notFound */
+                ->select('_n.' . $this->model->getRgtName()) /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
                 ->from($this->model->getTable() . ' as _n')
                 ->where('_n.' . $this->model->getKeyName(), '=', $id);
 
@@ -112,11 +112,11 @@ class QueryBuilder extends EloquentBuilder
                         $id,
                     );
                 } else {
-                    $inner->whereRaw("{$rgt} > ?", [$model->getRgt()]); /* @phpstan-ignore method.notFound */
+                    $inner->whereRaw("{$rgt} > ?", [$model->getRgt()]); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
                 }
             }
             if ($model !== null) {
-                $model->applyNestedSetScope($inner); /* @phpstan-ignore method.notFound */
+                $model->applyNestedSetScope($inner); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             }
         }, $boolean);
 
@@ -165,7 +165,7 @@ class QueryBuilder extends EloquentBuilder
     public function whereNodeBetween(array $values, string $boolean = 'and', bool $not = false, ?BaseQueryBuilder $query = null): static
     {
         ($query ?? $this->query)->whereBetween(
-            $this->model->qualifyColumn($this->model->getLftName()), /* @phpstan-ignore method.notFound */
+            $this->model->qualifyColumn($this->model->getLftName()), /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             $values,
             $boolean,
             $not,
@@ -190,8 +190,8 @@ class QueryBuilder extends EloquentBuilder
         $this->query->whereNested(function (BaseQueryBuilder $inner) use ($id, $andSelf, $not) {
             if ($id instanceof Model) {
                 $this->ensureUsableNodeForPositionalQuery($id);
-                $id->applyNestedSetScope($inner); /* @phpstan-ignore method.notFound */
-                $data = $id->getBounds(); /* @phpstan-ignore method.notFound */
+                $id->applyNestedSetScope($inner); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+                $data = $id->getBounds(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             } else {
                 $this->ensureConcreteNestedSetScope('scalar lookup');
 
@@ -276,14 +276,14 @@ class QueryBuilder extends EloquentBuilder
             $model = $id;
             $this->ensureUsableNodeForPositionalQuery($model);
             $value = '?';
-            $bindings = [$id->getLft()]; /* @phpstan-ignore method.notFound */
+            $bindings = [$id->getLft()]; /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         } else {
             $this->ensureConcreteNestedSetScope('scalar lookup');
 
             $valueQuery = $this->model
-                ->newNestedSetQuery('_n') /* @phpstan-ignore method.notFound */
+                ->newNestedSetQuery('_n') /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
                 ->toBase()
-                ->select('_n.' . $this->model->getLftName()) /* @phpstan-ignore method.notFound */
+                ->select('_n.' . $this->model->getLftName()) /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
                 ->from($this->model->getTable() . ' as _n')
                 ->where('_n.' . $this->model->getKeyName(), '=', $id);
 
@@ -303,7 +303,7 @@ class QueryBuilder extends EloquentBuilder
             $bindings,
         ) {
             if ($model !== null) {
-                $model->applyNestedSetScope($inner); /* @phpstan-ignore method.notFound */
+                $model->applyNestedSetScope($inner); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             }
 
             $inner->whereRaw("{$lft} {$operator} {$value}", $bindings);
@@ -360,7 +360,7 @@ class QueryBuilder extends EloquentBuilder
         }
 
         $grammar = $this->query->getGrammar();
-        $column = $grammar->wrap($this->model->qualifyColumn($this->model->getDepthName())); /* @phpstan-ignore method.notFound */
+        $column = $grammar->wrap($this->model->qualifyColumn($this->model->getDepthName())); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         $alias = $grammar->wrap($as);
 
         $this->query->selectRaw("{$column} as {$alias}");
@@ -376,8 +376,8 @@ class QueryBuilder extends EloquentBuilder
         $grammar = $this->query->getGrammar();
 
         return [
-            $grammar->wrap($this->model->qualifyColumn($this->model->getLftName())), /* @phpstan-ignore method.notFound */
-            $grammar->wrap($this->model->qualifyColumn($this->model->getRgtName())), /* @phpstan-ignore method.notFound */
+            $grammar->wrap($this->model->qualifyColumn($this->model->getLftName())), /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+            $grammar->wrap($this->model->qualifyColumn($this->model->getRgtName())), /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         ];
     }
 
@@ -387,7 +387,7 @@ class QueryBuilder extends EloquentBuilder
     public function withoutRoot(): static
     {
         $this->query->whereNotNull(
-            $this->model->qualifyColumn($this->model->getParentIdName()), /* @phpstan-ignore method.notFound */
+            $this->model->qualifyColumn($this->model->getParentIdName()), /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         );
 
         return $this;
@@ -399,7 +399,7 @@ class QueryBuilder extends EloquentBuilder
     public function hasParent(): static
     {
         $this->query->whereNotNull(
-            $this->model->qualifyColumn($this->model->getParentIdName()), /* @phpstan-ignore method.notFound */
+            $this->model->qualifyColumn($this->model->getParentIdName()), /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         );
 
         return $this;
@@ -424,7 +424,7 @@ class QueryBuilder extends EloquentBuilder
     {
         $this->query->reorder();
 
-        $lftName = $this->model->getLftName(); /* @phpstan-ignore method.notFound */
+        $lftName = $this->model->getLftName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
         // A compound query can order only by columns projected in its result.
         $column = $this->query->unions
@@ -462,9 +462,9 @@ class QueryBuilder extends EloquentBuilder
         $this->query->useWritePdo();
 
         $data = $nodeData ?: $this->newNestedSetLookupQuery()->getNodeData($key, true);
-        $lftName = $this->model->getLftName(); /* @phpstan-ignore method.notFound */
-        $rgtName = $this->model->getRgtName(); /* @phpstan-ignore method.notFound */
-        $depthName = $this->model->getDepthName(); /* @phpstan-ignore method.notFound */
+        $lftName = $this->model->getLftName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+        $rgtName = $this->model->getRgtName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+        $depthName = $this->model->getDepthName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
         foreach ([$lftName, $rgtName, $depthName] as $column) {
             if (! isset($data[$column])) {
@@ -513,8 +513,8 @@ class QueryBuilder extends EloquentBuilder
         $boundary = [$from, $to];
 
         $query = $this->toBase()
-            ->where($this->model->getRgtName(), '>=', $boundary[0]) /* @phpstan-ignore method.notFound */
-            ->where($this->model->getLftName(), '<=', $boundary[1]); /* @phpstan-ignore method.notFound */
+            ->where($this->model->getRgtName(), '>=', $boundary[0]) /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+            ->where($this->model->getLftName(), '<=', $boundary[1]); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
         return $query->update($this->patch($params));
     }
@@ -530,11 +530,11 @@ class QueryBuilder extends EloquentBuilder
 
         // A base read keeps this internal lookup from hydrating a model and firing retrieved listeners.
         $depth = $this->newNestedSetLookupQuery()
-            ->where($this->model->getLftName(), '<', $position) /* @phpstan-ignore method.notFound */
-            ->where($this->model->getRgtName(), '>=', $position) /* @phpstan-ignore method.notFound */
-            ->orderBy($this->model->getLftName(), 'desc') /* @phpstan-ignore method.notFound */
+            ->where($this->model->getLftName(), '<', $position) /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+            ->where($this->model->getRgtName(), '>=', $position) /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+            ->orderBy($this->model->getLftName(), 'desc') /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             ->toBase()
-            ->value($this->model->getDepthName()); /* @phpstan-ignore method.notFound */
+            ->value($this->model->getDepthName()); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
         return $depth === null ? 0 : ((int) $depth + 1);
     }
@@ -544,7 +544,7 @@ class QueryBuilder extends EloquentBuilder
      */
     protected function newNestedSetLookupQuery(?string $table = null): self
     {
-        $query = $this->model->newNestedSetQuery($table); /* @phpstan-ignore method.notFound */
+        $query = $this->model->newNestedSetQuery($table); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
         return $this->query->useWritePdo ? $query->useWritePdo() : $query;
     }
@@ -573,7 +573,7 @@ class QueryBuilder extends EloquentBuilder
         $params = compact('cut', 'height');
 
         $query = $this->toBase()
-            ->where($this->model->getRgtName(), '>=', $cut); /* @phpstan-ignore method.notFound */
+            ->where($this->model->getRgtName(), '>=', $cut); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
         return $query->update($this->patch($params));
     }
@@ -590,13 +590,13 @@ class QueryBuilder extends EloquentBuilder
         // MySQL and MariaDB evaluate assignments in order, so depth must read
         // the original left bound before the interval columns are updated.
         if (($params['depth'] ?? 0) !== 0) {
-            $column = $this->model->getDepthName(); /* @phpstan-ignore method.notFound */
+            $column = $this->model->getDepthName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             $columns[$column] = $this->depthPatch($grammar->wrap($column), $params);
         }
 
         foreach ([
-            $this->model->getLftName(), /* @phpstan-ignore method.notFound */
-            $this->model->getRgtName(), /* @phpstan-ignore method.notFound */
+            $this->model->getLftName(), /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+            $this->model->getRgtName(), /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         ] as $col) {
             $columns[$col] = $this->columnPatch($grammar->wrap($col), $params);
         }
@@ -616,7 +616,7 @@ class QueryBuilder extends EloquentBuilder
         $distance = abs($depth);
 
         return new Expression(
-            "case when {$this->query->getGrammar()->wrap($this->model->getLftName())} " /* @phpstan-ignore method.notFound */
+            "case when {$this->query->getGrammar()->wrap($this->model->getLftName())} " /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
                 . "between {$lft} and {$rgt} then {$column} {$operator} {$distance} else {$column} end"
         );
     }
@@ -710,7 +710,7 @@ class QueryBuilder extends EloquentBuilder
     protected function getEndpointEventsQuery(): BaseQueryBuilder
     {
         [$lft, $rgt] = $this->wrappedColumns();
-        $depth = $this->query->getGrammar()->wrap($this->model->getDepthName()); /* @phpstan-ignore method.notFound */
+        $depth = $this->query->getGrammar()->wrap($this->model->getDepthName()); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
         // A left endpoint opens a node at its stored depth, while a right
         // endpoint closes it after one additional active level.
@@ -812,7 +812,7 @@ class QueryBuilder extends EloquentBuilder
     {
         $childAlias = 'nested_set_child';
         $parentAlias = 'nested_set_parent';
-        $parentIdName = $this->model->getParentIdName(); /* @phpstan-ignore method.notFound */
+        $parentIdName = $this->model->getParentIdName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         $keyName = $this->model->getKeyName();
 
         $query = $this->newNestedSetLookupQuery($childAlias)
@@ -843,11 +843,11 @@ class QueryBuilder extends EloquentBuilder
     {
         $childAlias = 'nested_set_child';
         $parentAlias = 'nested_set_parent';
-        $parentIdName = $this->model->getParentIdName(); /* @phpstan-ignore method.notFound */
+        $parentIdName = $this->model->getParentIdName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         $keyName = $this->model->getKeyName();
-        $lftName = $this->model->getLftName(); /* @phpstan-ignore method.notFound */
-        $rgtName = $this->model->getRgtName(); /* @phpstan-ignore method.notFound */
-        $depthName = $this->model->getDepthName(); /* @phpstan-ignore method.notFound */
+        $lftName = $this->model->getLftName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+        $rgtName = $this->model->getRgtName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+        $depthName = $this->model->getDepthName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         $grammar = $this->query->getGrammar();
 
         $query = $this->newNestedSetLookupQuery($childAlias)
@@ -899,9 +899,9 @@ class QueryBuilder extends EloquentBuilder
     {
         $childAlias = 'nested_set_child';
         $parentAlias = 'nested_set_parent';
-        $parentIdName = $this->model->getParentIdName(); /* @phpstan-ignore method.notFound */
+        $parentIdName = $this->model->getParentIdName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         $keyName = $this->model->getKeyName();
-        $depthName = $this->model->getDepthName(); /* @phpstan-ignore method.notFound */
+        $depthName = $this->model->getDepthName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         $grammar = $this->query->getGrammar();
 
         $query = $this->newNestedSetLookupQuery($childAlias)
@@ -960,7 +960,7 @@ class QueryBuilder extends EloquentBuilder
         string $firstAlias,
         string $secondAlias,
     ): void {
-        foreach (array_keys($this->model->getNestedSetScope()) as $attribute) { /* @phpstan-ignore method.notFound */
+        foreach (array_keys($this->model->getNestedSetScope()) as $attribute) { /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             $first = $firstAlias . '.' . $attribute;
             $second = $secondAlias . '.' . $attribute;
 
@@ -981,7 +981,7 @@ class QueryBuilder extends EloquentBuilder
     {
         $attributes = $this->model->getAttributes();
 
-        foreach (array_keys($this->model->getNestedSetScope()) as $attribute) { /* @phpstan-ignore method.notFound */
+        foreach (array_keys($this->model->getNestedSetScope()) as $attribute) { /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             if (! array_key_exists($attribute, $attributes)) {
                 throw new LogicException(sprintf(
                     'Nested set %s for [%s] requires a concrete scoped([...]) selection because attribute [%s] was not selected.',
@@ -1015,8 +1015,8 @@ class QueryBuilder extends EloquentBuilder
             ));
         }
 
-        if ($node->getLft() === null /* @phpstan-ignore method.notFound */
-            || $node->getRgt() === null /* @phpstan-ignore method.notFound */
+        if ($node->getLft() === null /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+            || $node->getRgt() === null /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         ) {
             throw new LogicException(sprintf(
                 'Nested set node [%s] must have loaded bounds.',
@@ -1026,7 +1026,7 @@ class QueryBuilder extends EloquentBuilder
 
         $attributes = $node->getAttributes();
 
-        foreach (array_keys($node->getNestedSetScope()) as $attribute) { /* @phpstan-ignore method.notFound */
+        foreach (array_keys($node->getNestedSetScope()) as $attribute) { /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             if (! array_key_exists($attribute, $attributes)) {
                 throw new LogicException(sprintf(
                     'Nested set node [%s] must have scope attribute [%s] selected.',
@@ -1069,11 +1069,11 @@ class QueryBuilder extends EloquentBuilder
             ));
         }
 
-        $root->prepareForNestedSetMutation(); /* @phpstan-ignore method.notFound */
+        $root->prepareForNestedSetMutation(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
-        if ($this->model->hasCompleteNestedSetScope() /* @phpstan-ignore method.notFound */
-            && $this->model->getNestedSetScopeKey() /* @phpstan-ignore method.notFound */
-                !== $root->getNestedSetScopeKey() /* @phpstan-ignore method.notFound */
+        if ($this->model->hasCompleteNestedSetScope() /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+            && $this->model->getNestedSetScopeKey() /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+                !== $root->getNestedSetScopeKey() /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         ) {
             throw new LogicException(sprintf(
                 'Nested set %s root [%s] does not match the query scoped([...]) selection.',
@@ -1091,10 +1091,10 @@ class QueryBuilder extends EloquentBuilder
     protected function ensureSubtreeBoundsAreValid(Model $root): void
     {
         $keyName = $root->getKeyName();
-        $parentIdName = $root->getParentIdName(); /* @phpstan-ignore method.notFound */
-        $lftName = $root->getLftName(); /* @phpstan-ignore method.notFound */
-        $lft = $root->getLft(); /* @phpstan-ignore method.notFound */
-        $rgt = $root->getRgt(); /* @phpstan-ignore method.notFound */
+        $parentIdName = $root->getParentIdName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+        $lftName = $root->getLftName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+        $lft = $root->getLft(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+        $rgt = $root->getRgt(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
         if ($lft === null || $rgt === null || $lft < 1 || $rgt <= $lft) {
             throw new LogicException(sprintf(
@@ -1107,12 +1107,12 @@ class QueryBuilder extends EloquentBuilder
         $bounds = [$lft, $rgt];
 
         $selectedKeys = $root
-            ->newNestedSetQuery() /* @phpstan-ignore method.notFound */
+            ->newNestedSetQuery() /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             ->select($keyName)
             ->whereBetween($lftName, $bounds);
 
         $crossesBoundary = $root
-            ->newNestedSetQuery() /* @phpstan-ignore method.notFound */
+            ->newNestedSetQuery() /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             ->useWritePdo()
             ->whereIn($parentIdName, $selectedKeys)
             ->whereNotBetween($lftName, $bounds)
@@ -1169,14 +1169,14 @@ class QueryBuilder extends EloquentBuilder
         }
 
         $model = $root ?? $this->model;
-        $parentIdName = $model->getParentIdName(); /* @phpstan-ignore method.notFound */
-        $scopeColumns = array_keys($model->getNestedSetScope()); /* @phpstan-ignore method.notFound */
+        $parentIdName = $model->getParentIdName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+        $scopeColumns = array_keys($model->getNestedSetScope()); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         $columns = array_values(array_unique([
             $model->getKeyName(),
             $parentIdName,
-            $model->getLftName(), /* @phpstan-ignore method.notFound */
-            $model->getRgtName(), /* @phpstan-ignore method.notFound */
-            $model->getDepthName(), /* @phpstan-ignore method.notFound */
+            $model->getLftName(), /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+            $model->getRgtName(), /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+            $model->getDepthName(), /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             ...$scopeColumns,
             ...$extraColumns,
         ]));
@@ -1184,7 +1184,7 @@ class QueryBuilder extends EloquentBuilder
         // Repair reads plain rows and hydrates only the nodes it saves, so a
         // large, mostly healthy tree is not loaded as models.
         $rows = $model
-            ->newNestedSetQuery() /* @phpstan-ignore method.notFound */
+            ->newNestedSetQuery() /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             ->useWritePdo()
             ->when($root, function (self $query) use ($root) {
                 return $query->whereDescendantOf($root);
@@ -1223,8 +1223,8 @@ class QueryBuilder extends EloquentBuilder
     ): int {
         $model = $parent ?? $this->model;
         $parentId = $parent?->getKey();
-        $cut = $parent ? $parent->getLft() + 1 : 1; /* @phpstan-ignore method.notFound */
-        $depth = $parent ? $parent->getDepth() + 1 : 0; /* @phpstan-ignore method.notFound */
+        $cut = $parent ? $parent->getLft() + 1 : 1; /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+        $depth = $parent ? $parent->getDepth() + 1 : 0; /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         $placements = [];
         $moved = 0;
 
@@ -1274,13 +1274,13 @@ class QueryBuilder extends EloquentBuilder
             );
         }
 
-        $grown = $parent ? $cut - $parent->getRgt() : 0; /* @phpstan-ignore method.notFound */
+        $grown = $parent ? $cut - $parent->getRgt() : 0; /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         $gapCut = null;
 
         if ($parent !== null && $grown !== 0) {
-            $gapCut = $parent->getRgt() + 1; /* @phpstan-ignore method.notFound */
+            $gapCut = $parent->getRgt() + 1; /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             $moved = $parent
-                ->newNestedSetQuery() /* @phpstan-ignore method.notFound */
+                ->newNestedSetQuery() /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
                 ->makeGap($gapCut, $grown);
         }
 
@@ -1293,11 +1293,11 @@ class QueryBuilder extends EloquentBuilder
         }
 
         if ($parent !== null && $gapCut !== null) {
-            static::saveRepairNode($parent->rawNode( /* @phpstan-ignore method.notFound */
-                $parent->getLft(), /* @phpstan-ignore method.notFound */
+            static::saveRepairNode($parent->rawNode( /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+                $parent->getLft(), /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
                 $cut,
-                $parent->getParentId(), /* @phpstan-ignore method.notFound */
-                $parent->getDepth(), /* @phpstan-ignore method.notFound */
+                $parent->getParentId(), /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+                $parent->getDepth(), /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             ));
 
             ++$changed;
@@ -1317,8 +1317,8 @@ class QueryBuilder extends EloquentBuilder
     protected function applyRepairPlacement(Model $model, array $placement, ?int $gapCut, int $height): bool
     {
         [$node, $lft, $rgt, $parentId, $depth] = $placement;
-        $lftName = $model->getLftName(); /* @phpstan-ignore method.notFound */
-        $rgtName = $model->getRgtName(); /* @phpstan-ignore method.notFound */
+        $lftName = $model->getLftName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+        $rgtName = $model->getRgtName(); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
         if ($node instanceof Model) {
             static::assignRepairNode($node, $lft, $rgt, $parentId, $depth);
@@ -1366,10 +1366,10 @@ class QueryBuilder extends EloquentBuilder
     protected function repairRowMatches(Model $model, stdClass $row, array $placement): bool
     {
         $stored = [
-            1 => $row->{$model->getLftName()}, /* @phpstan-ignore method.notFound */
-            2 => $row->{$model->getRgtName()}, /* @phpstan-ignore method.notFound */
-            3 => $row->{$model->getParentIdName()}, /* @phpstan-ignore method.notFound */
-            4 => $row->{$model->getDepthName()}, /* @phpstan-ignore method.notFound */
+            1 => $row->{$model->getLftName()}, /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+            2 => $row->{$model->getRgtName()}, /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+            3 => $row->{$model->getParentIdName()}, /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+            4 => $row->{$model->getDepthName()}, /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         ];
 
         foreach ($stored as $index => $value) {
@@ -1487,10 +1487,10 @@ class QueryBuilder extends EloquentBuilder
         int|string|null $parentId,
         ?int $depth,
     ): void {
-        $model->setLft($lft); /* @phpstan-ignore method.notFound */
-        $model->setRgt($rgt); /* @phpstan-ignore method.notFound */
-        $model->setParentId($parentId); /* @phpstan-ignore method.notFound */
-        $model->setDepth($depth); /* @phpstan-ignore method.notFound */
+        $model->setLft($lft); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+        $model->setRgt($rgt); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+        $model->setParentId($parentId); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+        $model->setDepth($depth); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
     }
 
     /**
@@ -1552,7 +1552,7 @@ class QueryBuilder extends EloquentBuilder
 
         $model = $root ?? $this->model;
         $result = $model
-            ->newNestedSetQuery() /* @phpstan-ignore method.notFound */
+            ->newNestedSetQuery() /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             ->useWritePdo()
             ->when($root, function (self $query) use ($root) {
                 return $query->whereDescendantOf($root);
@@ -1566,7 +1566,7 @@ class QueryBuilder extends EloquentBuilder
         $parentId = $root?->getKey();
         $scopeAttributes = array_intersect_key(
             $model->getAttributes(),
-            array_flip(array_keys($model->getNestedSetScope())), /* @phpstan-ignore method.notFound */
+            array_flip(array_keys($model->getNestedSetScope())), /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         );
 
         $this->buildRebuildDictionary(
@@ -1585,9 +1585,9 @@ class QueryBuilder extends EloquentBuilder
             if ($delete && ! $usesSoftDeletes) {
                 // MySQL and MariaDB check a restricting parent key as each row is deleted.
                 $model
-                    ->newNestedSetQuery() /* @phpstan-ignore method.notFound */
+                    ->newNestedSetQuery() /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
                     ->whereIn($model->getKeyName(), array_keys($existing))
-                    ->orderBy($model->getLftName(), 'desc') /* @phpstan-ignore method.notFound */
+                    ->orderBy($model->getLftName(), 'desc') /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
                     ->delete();
             } else {
                 $deletedAtColumn = $delete && $usesSoftDeletes
@@ -1655,7 +1655,7 @@ class QueryBuilder extends EloquentBuilder
                 $model->setRawAttributes(array_replace($model->getAttributes(), $scopeAttributes));
 
                 // Set temporary values without scheduling a tree action.
-                $model->rawNode(0, 0, $parentId, 0); /* @phpstan-ignore method.notFound */
+                $model->rawNode(0, 0, $parentId, 0); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
             } else {
                 $key = $itemData[$keyName];
 
@@ -1715,7 +1715,7 @@ class QueryBuilder extends EloquentBuilder
      */
     public function applyNestedSetScope(?string $table = null): static
     {
-        /* @phpstan-ignore method.notFound */
+        /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
         return $this->model->applyNestedSetScope($this, $table);
     }
 
