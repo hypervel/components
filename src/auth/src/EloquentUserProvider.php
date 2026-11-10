@@ -145,7 +145,7 @@ class EloquentUserProvider implements UserProvider
      */
     protected function fetchUserById(mixed $identifier): ?UserContract
     {
-        return $this->newUserByIdQuery($identifier)->first(); // @phpstan-ignore return.type
+        return $this->newUserByIdQuery($identifier)->first();
     }
 
     /**
@@ -153,11 +153,13 @@ class EloquentUserProvider implements UserProvider
      */
     protected function fetchUserByIdForCache(mixed $identifier): ?UserContract
     {
-        return $this->newUserByIdQuery($identifier)->useWritePdo()->first(); // @phpstan-ignore return.type
+        return $this->newUserByIdQuery($identifier)->useWritePdo()->first();
     }
 
     /**
      * Get the query for retrieving a user by ID.
+     *
+     * @return Builder<Model&UserContract>
      */
     protected function newUserByIdQuery(mixed $identifier): Builder
     {
@@ -242,7 +244,7 @@ class EloquentUserProvider implements UserProvider
             }
         }
 
-        return $query->first(); /* @phpstan-ignore return.type */
+        return $query->first();
     }
 
     /**
@@ -600,7 +602,7 @@ class EloquentUserProvider implements UserProvider
      * @template TModel of Model
      *
      * @param null|TModel $model
-     * @return Builder<TModel>
+     * @return ($model is null ? Builder<Model&UserContract> : Builder<TModel>)
      */
     protected function newModelQuery(?Model $model = null): Builder
     {
