@@ -21,21 +21,12 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 - omit: `Rules/DeferrableServiceProviderMissingProvidesRule.php`, `Rules/OctaneCompatibilityRule.php`
 - omit: `SQL/*` (`hypervel/schema-parser` replaces the parser boundary and its iamcal/phpMyAdmin adapters)
 
-## New Hypervel source
-
-- add: `Rules/Coroutine/` worker-lifetime, static-state, unbounded-cache and runtime-config rules
-- add: `Rules/Validation/` pipe-separated validation rule
-
 ## stubs
 
-- copy with their topic flows: `common/{Attribute,Console/{Command,HasParameters},Contracts/{Cache,Container,Kernel,Mail,Queue,UrlGenerator},Cookie/SymfonyCookie,Database/Eloquent/Concerns/{HasAttributes,HasEvents,HasRelationships},Database/{ManagesTransactions,Migrations/Migrator},Events/Dispatcher,Http/RedirectResponse,Macroable,Notifications/Notification,Routing/{Redirector,UrlGenerator},Session/SessionManager,Support/{HtmlString,Manager,Optional},ThirdParty,Validation/Validator}.stub`, except below; `EloquentCollection`, `MorphTo`, `MorphToMany`, `Pagination` and `Contracts/Pagination` need no separate stub: the source declares their types, with `toQuery()`'s return-type extension and `MorphTo`'s map refinements in the combined `Database/Eloquent/Relations.stub`
-- stubs repeat the source's native signatures except returns that name a collection or paginator, whose stubs fail stub validation (variance); `ModelPropertyColumnRule` checks the pagination and `pluck()` columns that upstream's stubs type
-- merge into `common/Helpers.stub` with their topics: the `cookie()`, `logger()`, `logs()`, `redirect()`, `request()`, `session()` and `url()` helper entries, whose conditional returns the source already declares (only `view()` is ported; `optional()` is typed in source and `OptionalExtension`; the stub records the omitted helpers)
-- merge with their topic flows: the upstream typing for the declaration-only stubs that `common/Facades.stub`'s mixins need for stub validation: Events `dispatch()`/`until()` conditionals, `Connection::getQueryLog()` shape, Schema `getColumnListing()`, and the Cache `Repository` `ArrayAccess` implements (check Hypervel's enum keys)
-- add to source with the routing stubs: upstream `common/Route.stub`'s `methods()` and `middleware()` element types as `Route` PHPDoc in `src/routing`, with a `types/` fixture (the stub keeps only the empty declaration stub validation needs)
+- omit, because the source declares their types: `common/{Attribute,Console/{Command,HasParameters},Contracts/{Events/Dispatcher,Kernel},Database/Eloquent/Concerns/{HasAttributes,HasEvents,HasRelationships},Database/{ManagesTransactions,Migrations/Migrator},Events/Dispatcher,Macroable,Notifications/Notification,Routing/UrlGenerator,Validation/Validator}.stub`, the `cookie()`, `logger()`, `logs()`, `redirect()`, `request()`, `session()` and `url()` entries of `common/Helpers.stub`, and the `common/{MailMessage,Route}.stub` properties and methods (now PHPDoc in `src/notifications` and `src/routing`); `EloquentCollection`, `MorphTo`, `MorphToMany`, `Pagination` and `Contracts/Pagination` likewise, with `toQuery()`'s return-type extension and `MorphTo`'s map refinements in the combined `Database/Eloquent/Relations.stub`
+- omit: `common/{Contracts/{Cache,Container,Mail,Queue,UrlGenerator},Cookie/SymfonyCookie,Http/RedirectResponse,Routing/Redirector,Session/SessionManager,Support/{HtmlString,Manager,Optional},ThirdParty}.stub` (declarations for upstream's other stubs; no Hypervel stub references them)
 - omit: `common/{Http/InteractsWithInput,Foundation/Http/FormRequest,Support/ValidatedInput}.stub`; `common/Http/Request.stub` stays an empty declaration (the source declares the request getter, `safe()` and `validated()` types)
 - omit: `common/Redis/*.stub` and `common/Contracts/Redis.stub` (the source tags, `MultiExec` and mixins type the pooled surface; `@mixin \Redis` would drop the cluster unions and expose connection-bound methods), `common/Gate.stub` (Hypervel's `Gate::forUser()` and its contract already return `static`)
-- add to source: upstream `common/MailMessage.stub`'s property shapes (`$view`, `$from`, `$replyTo`, `$attachments`, `$rawAttachments`) as `MailMessage` PHPDoc in `src/notifications`, with a `types/` fixture
 - omit: `common/Contracts/Translation.stub` (only upstream's omitted `trans()` helper stub references it)
 
 ## tests
@@ -43,6 +34,5 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 - omit: `laravel-test.sh`
 - omit: `application/app/{ModelWithConflictingInitializer.php,UserResource.php,Providers/}` (no upstream test or source references them)
 - omit: `Rules/{DeferrableServiceProviderMissingProvidesRuleTest,OctaneCompatibilityRuleTest}.php`, `Rules/data/{CorrectDeferrableProvider,CorrectDeferrableProviderIndirect,IncorrectDeferrableProvider}.php`, `Rules/data/octane.neon`, `Rules/data/ContainerInjection.php`
-- copy: `Type/*Test.php` except below, the ported collection, config and model-property tests, `GeneralTypeTest.php` and `MethodsClassReflectionExtensionTest.php`, with the remaining `Type/data/*`
-- merge: the remaining `Type/GeneralTypeTest.php` data entries (its `phpstan-tests.neon` already matches upstream's `config-with-migrations.neon`)
+- omit: `Type/RedisDriver{Null,Predis}TypeTest.php` with their data (the `redisDriver` setting is omitted), `Type/data/logger.php` (never registered upstream) and `Type/data/config-with-migrations*.neon` (`phpstan-tests.neon` matches them)
 - omit: `Unit/SQL/*` (parser factory and phpMyAdmin adapter tests; `hypervel/schema-parser` has its own)
