@@ -100,7 +100,7 @@ class FormBuilder
     /**
      * Prompt the user for multiline text input.
      */
-    public function textarea(string $label, string $placeholder = '', string $default = '', bool|string $required = false, ?Closure $validate = null, string $hint = '', int $rows = 5, ?string $name = null, ?Closure $transform = null): self
+    public function textarea(string $label, string $placeholder = '', string $default = '', bool|string $required = false, mixed $validate = null, string $hint = '', int $rows = 5, ?string $name = null, ?Closure $transform = null): self
     {
         return $this->runPrompt(textarea(...), get_defined_vars());
     }
