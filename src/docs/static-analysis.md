@@ -245,7 +245,13 @@ Whenever possible, fix the code a diagnostic points to. Ignore a diagnostic only
 $token = Env::get('TEST_TOKEN');
 ```
 
-Avoid `@phpstan-ignore-line` and `@phpstan-ignore-next-line`, which hide every error on the line, and always give a reason, so the next reader knows why the diagnostic does not apply. Never add a real defect to a baseline.
+The reason tells the next reader why the diagnostic does not apply, so the extension enables PHPStan's `reportIgnoresWithoutComments` setting: an ignore without a reason is reported, and so are `@phpstan-ignore-line` and `@phpstan-ignore-next-line`, which hide every error on the line. When one comment ignores several identifiers, each needs its own reason:
+
+```php
+// @phpstan-ignore property.notFound (Queueable property), method.notFound (Queueable method)
+```
+
+Never add a real defect to a baseline.
 
 The following table summarizes the preferred pattern for each of Hypervel's diagnostics:
 

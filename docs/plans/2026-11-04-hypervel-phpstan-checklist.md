@@ -8,8 +8,6 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 
 ## Package root
 
-- `extension.neon` services: omit the container ArrayAccess entries
-- `extension.neon`: set `reportIgnoresWithoutComments: true`
 - omit: `phpcs.xml.dist`, `phpstan.neon.dist`, `phpstan-baseline.neon`, `phpunit.xml.dist`, `phpunit-bootstrap.php`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `RELEASE.md`, `UPGRADE.md`, `assets/` (repository tooling; Components owns its own)
 - merge into `src/docs/static-analysis.md`: `docs/custom-config-parameters.md`, `docs/custom-types.md`, `docs/errors-to-ignore.md`, `docs/features.md`, `docs/rules.md`
 - omit: `e2e/` Laravel project baselines (replaced by the plan's real-project checks)

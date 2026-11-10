@@ -41,6 +41,12 @@ parameters:
       identifier: function.alreadyNarrowedType
       path: src/testbench/src/Concerns/CreatesApplication.php
 
+    # InteractsWithTestCase is imported through several Testbench traits, so PHPStan reports this
+    # WithFixtures call once per import, and an inline ignore covers only one report.
+    - message: '#^Call to an undefined static method .+::setupWithFixturesForTestingEnvironment\(\)\.$#'
+      identifier: staticMethod.notFound
+      path: src/testbench/src/Concerns/InteractsWithTestCase.php
+
     # protoc 35.1 emits a two-argument enum check, while google/protobuf 5.35.1
     # declares the userland method with one argument and relies on PHP ignoring the extra value.
     - identifier: arguments.count
