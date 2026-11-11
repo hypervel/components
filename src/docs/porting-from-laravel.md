@@ -24,6 +24,7 @@
 - [Other API Differences](#other-api-differences)
     - [Development Processes](#development-processes)
     - [Doctor](#doctor)
+    - [Static Analysis](#static-analysis)
     - [Scheduling](#scheduling)
     - [Maintenance Mode](#maintenance-mode)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
@@ -513,6 +514,11 @@ For `artisan dev`, install `@laravel/multiplex` locally when using pnpm or Yarn.
 ### Doctor
 
 Replace `laravel/doctor` with `hypervel/doctor` and the `Laravel\Doctor` namespace with `Hypervel\Doctor`. Rename calls to `EnvironmentMode::fromLaravelEnvironment()` to `fromHypervelEnvironment()`. Remove explicit registrations of `ApplicationTimezoneIsValid`: Hypervel rejects invalid timezones during startup, before Doctor can run. Register custom diagnostics during provider boot, and run programmatic repairs without concurrent application traffic. See [Doctor](/docs/{{version}}/doctor).
+
+<a name="static-analysis"></a>
+### Static Analysis
+
+Replace `larastan/larastan` with `hypervel/phpstan`. If you include Larastan's `extension.neon` manually, include `vendor/hypervel/phpstan/extension.neon` and `vendor/phpstan/phpstan-deprecation-rules/rules.neon` instead. Rename ignored Larastan identifiers from `larastan.*` to `hypervel.*`, and `rules.modelAppends` to `hypervel.modelAppends`; PHPStan's own identifiers stay the same. Larastan's parameters keep their names, though several defaults are stricter. Remove the unsupported `checkOctaneCompatibility`, `generalizeEnvReturnType` and `redisDriver` parameters, along with ignores of the Octane and deferred provider diagnostics. The extension also reports ignores without a reason and uses of deprecated APIs. See [Static Analysis](/docs/{{version}}/static-analysis).
 
 <a name="scheduling"></a>
 ### Scheduling

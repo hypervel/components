@@ -62,7 +62,7 @@ Hypervel's `hypervel/phpstan` package is a [PHPStan](https://phpstan.org) extens
 <a name="installation"></a>
 ## Installation
 
-To get started, install the package as a development dependency:
+New applications include the package already, so you may run `composer analyse` right away. To add it to an existing application or package, install it as a development dependency. The package requires PHPStan 2.3.5 or later:
 
 ```shell
 composer require hypervel/phpstan --dev
@@ -176,6 +176,8 @@ The facts your application registers come from the booted application: container
 
 A value typed as an interface only has the interface's methods, even when the container binds a class with more of them or macros are registered on that class. When your code needs a specific implementation, type it as that implementation. Resolving a service from the container, such as `app(Repository::class)`, is typed as the class the booted application binds. So are the factories that helpers such as `response()`, `view()`, `validator()`, `url()` and `logger()` resolve, which is why `response()` has your response macros and `url()->full()` is available.
 
+Macros and mixins your application registers while it boots are known, typed from the parameters and return type the macro declares, so declare them on macro closures. A `@method` tag on the class takes precedence over the macro's own signature. A macro registered later, such as inside a controller action, is not known.
+
 Calls a manager forwards to its default driver are typed from the return type declared by whatever creates the driver the booted application selects, such as its `create...Driver()` method or an `extend()` callback, unless the manager declares the method or a `@mixin` for its drivers. Analysis never builds the driver, so give `extend()` callbacks a return type. Like container bindings, the selected driver can depend on your environment.
 
 Filesystem disks work the same way. `Storage::disk('s3')` is typed from your `filesystems` configuration as the disk Hypervel builds for it, such as `ClientPooledFilesystem` for a pooled S3 disk or `LocalFilesystemAdapter` for a local one. Calls the `Storage` facade forwards to the default disk are typed from that disk. An unknown or non-constant disk name keeps the `Filesystem` contract type. Concurrency drivers are typed the same way from your `concurrency` configuration, so `Concurrency::driver('sync')` is a `SyncDriver`, while an unknown name or a driver registered using `extend()` keeps the `Driver` contract type.
@@ -205,6 +207,8 @@ function example(array $user): void
 Some facts cannot be known statically. When the analysis cannot tell what a configuration key holds, such as a value that provider code writes in a way the analysis does not recognize and that did not run while your application booted, it uses the declared return type instead of guessing.
 
 Calling `str()` without arguments returns an object that passes method calls to `Str`. The analysis does not check those calls.
+
+PHPStan's result cache reanalyses only the files a change affects. Since many facts come from the booted application, changing your environment or a file the application loads while booting, such as a service provider or route file, reanalyses every file that uses those facts.
 
 <a name="collection-types"></a>
 ### Collection Types
@@ -406,6 +410,15 @@ class User extends Model
 $users = User::query()->active()->get();
 ```
 
+A model may also declare its builder's type using the `HasBuilder` trait, which the analysis prefers over the builder the model selects. The trait only declares the type, so the model still selects its builder as shown above. You need it when a trait the model uses defines its own `newEloquentBuilder` method, such as the [nested set](/docs/{{version}}/nested-set#model-setup) `HasNode` trait, since that method's return type would otherwise be used:
+
+```php
+/** @use HasBuilder<UserBuilder<static>> */
+use HasBuilder;
+```
+
+If your Eloquent builder uses a custom query builder, declare that type on the builder's `getQuery` method, so methods forwarded to the query builder are typed from it.
+
 Likewise, query results are typed as the model's [custom collection](/docs/{{version}}/eloquent-collections#custom-collections), whether it comes from the `CollectedBy` attribute or a `newCollection` method. The same collection is returned by a paginator's `getCollection` method. Give a collection used by several models `TKey` and `TModel` template types, so each model's results keep their own type:
 
 ```php
@@ -549,6 +562,8 @@ The reason tells the next reader why the diagnostic does not apply, so the exten
 
 Never add a real defect to a baseline.
 
+Some diagnostics include a fix that `phpstan analyse --fix` applies for you: it lists pipe-separated validation rules in an array, removes a `value` or `with` call that does nothing, makes a private scope or accessor protected, and, when you enable the preference, starts a model query with `query()`. Review the changes before committing them.
+
 The following table summarizes the preferred pattern for each of Hypervel's diagnostics:
 
 | Topic | Preferred Pattern | Identifiers |
@@ -626,14 +641,7 @@ Correct the configuration value, casting environment variables within the config
 
 Only values the analysis knows are checked. A key the analysis cannot follow keeps the getter's declared type.
 
-Configuration types include the defaults of any package whose configuration your application has not published. If a package supports configuration that is wider than its shipped default, its code should declare the contract it accepts where it reads the value, rather than relying on the type of the default:
-
-```php
-/** @var list<string> $allowedOrigins */
-$allowedOrigins = config()->array('mcp.allowed_origins');
-```
-
-Similarly, when a package ships a `null` default that applications may replace, a typed getter reached only after a `null` check can still be reported, since the analysis reads the configuration key rather than your local value. Ignore that call with a reason. These checks may be disabled using the `checkConfigTypes` parameter.
+Configuration types include the defaults of any package whose configuration your application has not published. When you analyse a package, values merged from package configuration files keep the getter's declared type instead, since the applications using the package replace them. The framework's defaults and your workbench configuration files are still typed. These checks may be disabled using the `checkConfigTypes` parameter.
 
 Your application's configuration files are read from its configuration directory. If they live elsewhere, list the directories using the `configDirectories` parameter, which replaces the default directory and accepts glob patterns:
 
@@ -941,6 +949,8 @@ protected function firstName(): Attribute
 ```
 
 The analysis reports a legacy `scopePopular` method, naming the attributed scope that replaces it, and a scope or accessor that is not protected. Legacy scopes and public methods keep working, while a private scope or accessor is never called by Eloquent.
+
+A scope call can be chained when the scope declares no return type, `void`, `null` or the query builder, since it returns the query. A broader return type, such as `mixed` or `object`, is kept, because the scope may return something else. In a union containing the builder, such as `Builder|int`, the builder becomes the query the scope was called on.
 
 When the model already has a method with the scope's name, such as a notification's `read` method beside its `scopeRead` scope, the legacy scope is the only way to keep the scope's name, so it is not reported. A scope defined in a reusable trait should also keep its legacy name, since a model's own method with the same name would silently replace an attributed scope; ignore it with a reason. Likewise, ignore a public scope or accessor that other code calls directly as part of a public API. You may disable these checks using the `noLegacyModelScopes` and `checkModelMethodVisibility` parameters.
 
