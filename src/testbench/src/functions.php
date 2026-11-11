@@ -307,7 +307,7 @@ function package_path(array|string $path = ''): string
         $resolvedPath = realpath(match (true) {
             defined('TESTBENCH_WORKING_PATH') => TESTBENCH_WORKING_PATH,
             is_string($configuredWorkingPath) && $configuredWorkingPath !== '' => $configuredWorkingPath,
-            default => InstalledVersions::getRootPackage()['install_path'],
+            default => Composer::rootPackage()['install_path'],
         });
 
         return $resolvedPath !== false ? $resolvedPath : getcwd();

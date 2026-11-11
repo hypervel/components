@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Testing\PHPUnit;
 
-use Composer\InstalledVersions;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\PackageManifest;
 use Hypervel\Support\Composer;
@@ -55,7 +54,7 @@ class TestStateRegistrars
      */
     protected static function installedRootPath(): string
     {
-        $rootPackage = InstalledVersions::getRootPackage();
+        $rootPackage = Composer::rootPackage();
 
         return static::resolveInstalledRootPath($rootPackage['install_path'] ?? null);
     }

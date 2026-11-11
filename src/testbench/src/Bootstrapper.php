@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench;
 
-use Composer\InstalledVersions;
 use FilesystemIterator;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Composer;
@@ -34,9 +33,16 @@ class Bootstrapper
     protected static ?string $runtimePath = null;
 
     /**
-     * Bootstrap the testbench environment.
+     * The skeleton directory the runtime copy was made from.
      */
-    public static function bootstrap(): void
+    protected static ?string $runtimeSourcePath = null;
+
+    /**
+     * Bootstrap the testbench environment.
+     *
+     * @param null|string $configurationPath the directory to load testbench.yaml from, instead of resolveConfigurationPath()
+     */
+    public static function bootstrap(?string $configurationPath = null): void
     {
         $workingPath = defined('TESTBENCH_WORKING_PATH') ? TESTBENCH_WORKING_PATH : package_path();
 
@@ -46,7 +52,7 @@ class Bootstrapper
 
         static::exportAbsoluteComposerVendorDirectory($workingPath);
 
-        static::loadConfigFromYaml(static::resolveConfigurationPath($workingPath));
+        static::loadConfigFromYaml($configurationPath ?? static::resolveConfigurationPath($workingPath));
 
         if (defined('BASE_PATH')) {
             return;
@@ -108,6 +114,17 @@ class Bootstrapper
         $runtimePath = realpath(static::$runtimePath);
 
         return $runtimePath !== false && realpath($path) === $runtimePath;
+    }
+
+    /**
+     * Get the skeleton directory the runtime copy created by this process was made from.
+     *
+     * Static analysis tracks a copied file through its skeleton source, because the copy is
+     * deleted when the process exits.
+     */
+    public static function runtimeSourcePath(): ?string
+    {
+        return static::$runtimeSourcePath;
     }
 
     /**
@@ -191,7 +208,7 @@ class Bootstrapper
             return $workingPath;
         }
 
-        return InstalledVersions::getRootPackage()['name'] === 'hypervel/components'
+        return Composer::rootPackage()['name'] === 'hypervel/components'
             ? testbench_path()
             : $workingPath;
     }
@@ -302,6 +319,7 @@ class Bootstrapper
         }
 
         static::$runtimePath = $runtimePath;
+        static::$runtimeSourcePath = $sourcePath;
 
         register_shutdown_function(static function () use ($pid): void {
             // A forked child inherits this callback but owns no runtime copy.
@@ -480,6 +498,7 @@ class Bootstrapper
         static::deleteRuntimeDirectory(static::$runtimePath);
 
         static::$runtimePath = null;
+        static::$runtimeSourcePath = null;
     }
 
     /**
@@ -717,7 +736,7 @@ class Bootstrapper
     public static function flushState(): void
     {
         static::$configuration = null;
-        // The runtime path and filesystem are process-wide infrastructure:
+        // The runtime paths and filesystem are process-wide infrastructure:
         // runtimePath must survive until shutdown cleanup, and Filesystem is reusable.
     }
 }

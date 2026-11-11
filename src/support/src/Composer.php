@@ -6,6 +6,7 @@ namespace Hypervel\Support;
 
 use Closure;
 use Composer\Autoload\ClassLoader;
+use Composer\InstalledVersions;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Traits\GuardsProcessOutput;
 use JsonException;
@@ -287,16 +288,45 @@ class Composer
 
     /**
      * Find the application Composer autoloader registered with a vendor directory.
+     *
+     * A tool shipped as a PHAR, such as PHPStan, registers its own autoloader first, so a
+     * loader outside a PHAR is preferred.
      */
     protected static function findLoader(): ClassLoader
     {
         $loaders = ClassLoader::getRegisteredLoaders();
+
+        foreach ($loaders as $vendorDirectory => $loader) {
+            if (! str_starts_with($vendorDirectory, 'phar://')) {
+                return $loader;
+            }
+        }
 
         if ($loaders !== []) {
             return reset($loaders);
         }
 
         throw new RuntimeException('Composer loader not found.');
+    }
+
+    /**
+     * Get the root package of the application's Composer installation.
+     *
+     * A tool shipped as a PHAR, such as PHPStan, registers its own installation first, so
+     * InstalledVersions::getRootPackage() returns the tool's. The first installation outside
+     * a PHAR is preferred.
+     *
+     * @return array{name: string, pretty_version: string, version: string, reference: null|string, type: string, install_path: string, aliases: string[], dev: bool}
+     */
+    public static function rootPackage(): array
+    {
+        foreach (InstalledVersions::getAllRawData() as $installed) {
+            if (! str_starts_with($installed['root']['install_path'], 'phar://')) {
+                return $installed['root'];
+            }
+        }
+
+        return InstalledVersions::getRootPackage();
     }
 
     /**

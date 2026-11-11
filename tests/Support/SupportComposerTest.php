@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use Composer\Autoload\ClassLoader;
+use Composer\InstalledVersions;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Composer;
 use Hypervel\Support\Env;
@@ -88,6 +89,44 @@ class SupportComposerTest extends TestCase
         } finally {
             $auxiliary->unregister();
             Composer::setLoader($original);
+        }
+    }
+
+    public function testFindsTheApplicationLoaderAfterAPharLoaderIsPrepended(): void
+    {
+        $original = Composer::getLoader();
+        $pharLoader = new ClassLoader('phar:///opt/tool.phar/vendor');
+        $pharLoader->setClassMapAuthoritative(true);
+        $pharLoader->register(true);
+
+        try {
+            Composer::flushState();
+
+            $this->assertSame($original, Composer::getLoader());
+        } finally {
+            $pharLoader->unregister();
+            Composer::setLoader($original);
+        }
+    }
+
+    public function testRootPackageSkipsAnInstallationInsideAPhar(): void
+    {
+        $vendorPath = $this->tempDir . '/tool/vendor';
+        mkdir($vendorPath . '/composer', 0777, true);
+        file_put_contents(
+            $vendorPath . '/composer/installed.php',
+            "<?php return ['root' => ['name' => 'tool/tool', 'install_path' => 'phar:///opt/tool.phar/'], 'versions' => []];",
+        );
+
+        $loader = new ClassLoader($vendorPath);
+        $loader->setClassMapAuthoritative(true);
+        $loader->register(true);
+
+        try {
+            $this->assertSame('tool/tool', InstalledVersions::getRootPackage()['name']);
+            $this->assertSame('hypervel/components', Composer::rootPackage()['name']);
+        } finally {
+            $loader->unregister();
         }
     }
 

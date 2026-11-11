@@ -384,6 +384,7 @@ class BootstrapperTest extends TestCase
             $this->withRuntimeCopyEnvironment('bootstrapper-vendor-link', false, function () use ($sourcePath, $packagePath, &$runtimePath): void {
                 $runtimePath = $this->createRuntimeCopy($sourcePath, $packagePath);
 
+                $this->assertSame($sourcePath, Bootstrapper::runtimeSourcePath());
                 $this->assertTrue(is_link($runtimePath . '/vendor'));
                 $this->assertSame(realpath($packagePath . '/vendor'), readlink($runtimePath . '/vendor'));
                 $this->assertFileExists($runtimePath . '/vendor/dependency/file.php');
@@ -678,6 +679,45 @@ class BootstrapperTest extends TestCase
             });
         } finally {
             $this->deleteDirectory($workingPath);
+        }
+    }
+
+    #[Test]
+    #[PreserveGlobalState(false)]
+    #[RunInSeparateProcess]
+    public function itLoadsTheConfigurationFromTheGivenDirectory(): void
+    {
+        $workingPath = $this->temporaryDirectory('given-configuration-working');
+        $runtimePath = $this->temporaryDirectory('given-configuration-runtime');
+
+        mkdir($workingPath, 0777, true);
+        mkdir($runtimePath, 0777, true);
+
+        try {
+            define('TESTBENCH_WORKING_PATH', $workingPath);
+            define('BASE_PATH', $runtimePath);
+
+            $this->withComposerRoot('hypervel/components', function () use ($workingPath): void {
+                Bootstrapper::bootstrap($workingPath);
+
+                $this->assertSame($workingPath, Bootstrapper::getConfiguration()?->getConfigurationPath());
+                $this->assertSame([], Bootstrapper::getConfiguration()?->getExtraAttributes()['dont-discover']);
+
+                Bootstrapper::flushState();
+                Config::flushState();
+                Bootstrapper::bootstrap();
+
+                $this->assertSame(testbench_path(), Bootstrapper::getConfiguration()?->getConfigurationPath());
+
+                // The configuration a process loaded first stays, and names where it came from.
+                Bootstrapper::bootstrap($workingPath);
+
+                $this->assertSame(testbench_path(), Bootstrapper::getConfiguration()?->getConfigurationPath());
+                $this->assertSame(['hypervel/components'], Bootstrapper::getConfiguration()?->getExtraAttributes()['dont-discover']);
+            });
+        } finally {
+            $this->deleteDirectory($workingPath);
+            $this->deleteDirectory($runtimePath);
         }
     }
 
@@ -1127,6 +1167,7 @@ class BootstrapperTest extends TestCase
         $previousEnvironmentPackageTester = $_ENV['TESTBENCH_PACKAGE_TESTER'] ?? null;
         $previousProcessPackageTester = getenv('TESTBENCH_PACKAGE_TESTER');
         $previousRuntimePath = $reflection->getStaticPropertyValue('runtimePath');
+        $previousRuntimeSourcePath = $reflection->getStaticPropertyValue('runtimeSourcePath');
 
         try {
             $this->setTestToken($token);
@@ -1142,6 +1183,7 @@ class BootstrapperTest extends TestCase
             $this->restoreTestToken($previousServerToken, $previousEnvironmentToken);
             $this->restorePackageTester($previousServerPackageTester, $previousEnvironmentPackageTester, $previousProcessPackageTester);
             $reflection->setStaticPropertyValue('runtimePath', $previousRuntimePath);
+            $reflection->setStaticPropertyValue('runtimeSourcePath', $previousRuntimeSourcePath);
         }
     }
 
