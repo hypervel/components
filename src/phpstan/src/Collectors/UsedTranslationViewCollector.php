@@ -15,7 +15,6 @@ use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PhpParser\Node\Stmt;
-use PhpParser\Node\Stmt\InlineHTML;
 use PhpParser\NodeFinder;
 use PHPStan\DependencyInjection\AutowiredService;
 
@@ -142,15 +141,14 @@ class UsedTranslationViewCollector
             }
         }
 
-        $statements = $this->viewParser->parseCode($source);
-
-        foreach ((new NodeFinder)->findInstanceOf($statements, InlineHTML::class) as $node) {
-            foreach ($this->textFragments($node->value) as [$code, $offset]) {
-                $fragments[] = [$code, $node->getStartLine() + substr_count($node->value, "\n", 0, $offset)];
+        foreach ($this->bladeScanner->text($source) as [$html, $line]) {
+            foreach ($this->textFragments($html) as [$code, $offset]) {
+                $fragments[] = [$code, $line + substr_count($html, "\n", 0, $offset)];
             }
         }
 
-        $translations = $this->lookups($statements, 0);
+        // Native PHP is read only when the view parses as PHP before Blade compiles it.
+        $translations = $this->lookups($this->viewParser->parseCode($source), 0);
 
         foreach ($fragments as [$code, $line]) {
             // Most fragments make no translation call, so they are not parsed.

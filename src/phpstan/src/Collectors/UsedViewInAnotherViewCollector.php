@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\PHPStan\Collectors;
 
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\PHPStan\Concerns\HasContainer;
 use Hypervel\PHPStan\Support\BladeScanner;
 use Hypervel\PHPStan\Support\ViewFileHelper;
 use Hypervel\PHPStan\Support\ViewParser;
 use Hypervel\Support\Str;
+use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\ViewName;
 use PhpParser\Node\ArrayItem;
 use PhpParser\Node\Expr;
@@ -16,21 +18,21 @@ use PhpParser\Node\Expr\Array_;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt\Expression;
-use PhpParser\Node\Stmt\InlineHTML;
-use PhpParser\NodeFinder;
 use PHPStan\DependencyInjection\AutowiredService;
 
 use function array_map;
 use function array_merge;
+use function array_unique;
 use function preg_match_all;
+use function str_contains;
 use function str_starts_with;
 use function strtolower;
-
-use const PREG_SET_ORDER;
 
 #[AutowiredService]
 class UsedViewInAnotherViewCollector
 {
+    use HasContainer;
+
     /**
      * The directives that render views, with the view parameters of the factory method each one compiles to, by name and position.
      *
@@ -55,12 +57,12 @@ class UsedViewInAnotherViewCollector
     ];
 
     /**
-     * Anonymous Blade component tags — `<x-alert>`, `<x-forms.input />`, `</x-card>` — which resolve to the
-     * `components.<name>` view (or its `.index` variant). `<x-slot …>` is a slot, not a component.
+     * The names of opening Blade component tags, such as `<x-alert>`, `<x-forms.input />` and
+     * `<x-dashboard::panel>`, spelled as ComponentTagCompiler matches them.
      *
-     * @see https://hypervel.org/docs/blade#anonymous-components
+     * Upstream matches only the `x-` prefix and stops at `::`, so namespaced components lost their name.
      */
-    private const string COMPONENT_TAG_REGEX = '/<\/?x-([a-zA-Z0-9][a-zA-Z0-9._-]*)/';
+    private const string COMPONENT_TAG_REGEX = '/<\s*x[-:]([\w\-:.]+)/';
 
     /**
      * Create a new collector instance.
@@ -103,8 +105,8 @@ class UsedViewInAnotherViewCollector
 
         $usedViews = [];
 
-        foreach ((new NodeFinder)->findInstanceOf($this->viewParser->parseCode($source), InlineHTML::class) as $node) {
-            foreach ($this->bladeScanner->directives($node->value) as [$name, $arguments]) {
+        foreach ($this->bladeScanner->text($source) as [$html]) {
+            foreach ($this->bladeScanner->directives($html) as [$name, $arguments]) {
                 $parameters = self::VIEW_DIRECTIVES[strtolower($name)] ?? null;
 
                 if ($parameters !== null) {
@@ -112,7 +114,7 @@ class UsedViewInAnotherViewCollector
                 }
             }
 
-            $usedViews = array_merge($usedViews, $this->componentViews($node->value));
+            $usedViews = array_merge($usedViews, $this->componentViews($html));
         }
 
         return $usedViews;
@@ -153,35 +155,87 @@ class UsedViewInAnotherViewCollector
     }
 
     /**
-     * Get the views referenced through anonymous Blade component tags in the given HTML.
+     * Get the views that Blade component tags in the given HTML may render.
+     *
+     * These are the views ComponentTagCompiler::componentClass() tries: a component alias naming
+     * a view, then the anonymous component views in the components directory, the registered
+     * anonymous component namespaces and the registered anonymous component paths. Each one
+     * is collected, since which of them exists is decided by the rule. Upstream only collects
+     * the components directory's view, so registered components were reported as unused.
      *
      * @return list<string>
      */
     private function componentViews(string $html): array
     {
-        preg_match_all(self::COMPONENT_TAG_REGEX, $html, $matches, PREG_SET_ORDER, 0);
+        preg_match_all(self::COMPONENT_TAG_REGEX, $html, $matches);
 
+        if ($matches[1] === []) {
+            return [];
+        }
+
+        /** @var BladeCompiler $compiler */
+        $compiler = $this->resolve('blade.compiler');
+        $aliases = $compiler->getClassComponentAliases();
+        $namespaces = $compiler->getAnonymousComponentNamespaces();
+        $paths = $compiler->getAnonymousComponentPaths();
         $usedViews = [];
 
-        foreach ($matches as $match) {
-            $name = $match[1];
-
-            if ($name === 'slot') {
+        foreach (array_unique($matches[1]) as $name) {
+            // Blade compiles slots before components.
+            if ($name === 'slot' || str_starts_with($name, 'slot:')) {
                 continue;
             }
 
-            // The `resources/views/components` directory is commonly registered as its own view path, where
-            // an anonymous component is named by its short path (`alert`); the same file is also reachable
-            // as `components.alert` under `resources/views`. A component can additionally be an index file
-            // (`alert/index.blade.php`) or a file named like its directory (`card/card.blade.php`). Emit
-            // every form so whichever naming the project uses is matched.
-            foreach ([$name, 'components.' . $name] as $view) {
-                $usedViews[] = $view;
-                $usedViews[] = $view . '.index';
-                $usedViews[] = $view . '.' . Str::afterLast($name, '.');
+            if (isset($aliases[$name])) {
+                $usedViews[] = $aliases[$name];
+            }
+
+            $candidates = [['components', $name]];
+
+            foreach ($namespaces as $prefix => $directory) {
+                if (str_starts_with($name, $prefix . '::')) {
+                    $candidates[] = [$directory, Str::after($name, $prefix . '::')];
+                }
+            }
+
+            foreach ($candidates as [$directory, $componentName]) {
+                $usedViews = array_merge($usedViews, $this->anonymousViews($this->guessViewName($componentName, $directory), $componentName));
+            }
+
+            foreach ($paths as $path) {
+                $prefixed = str_starts_with($name, $path['prefix'] . '::');
+
+                if (! $prefixed && str_contains($name, '::')) {
+                    continue;
+                }
+
+                $componentName = $prefixed ? Str::after($name, '::') : $name;
+                $usedViews = array_merge($usedViews, $this->anonymousViews($path['prefixHash'] . '::' . $componentName, $componentName));
             }
         }
 
         return $usedViews;
+    }
+
+    /**
+     * Get the views an anonymous component's view name may refer to: the view itself, its index view, or the view named like its directory.
+     *
+     * @return list<string>
+     */
+    private function anonymousViews(string $view, string $componentName): array
+    {
+        return [$view, $view . '.index', $view . '.' . Str::afterLast(Str::afterLast($componentName, '.'), ':')];
+    }
+
+    /**
+     * Get the view name of an anonymous component in the given directory, as ComponentTagCompiler::guessViewName() does.
+     */
+    private function guessViewName(string $name, string $directory): string
+    {
+        $prefix = Str::finish($directory, '.');
+
+        return str_contains($name, '::')
+            ? Str::replaceFirst('::', '::' . $prefix, $name)
+            : $prefix . $name;
     }
 }

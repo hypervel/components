@@ -24,11 +24,10 @@ use PHPStan\Rules\Rule;
 use PHPStan\Rules\RuleError;
 use PHPStan\Rules\RuleErrorBuilder;
 
-use function array_diff;
-use function array_filter;
 use function array_unique;
 use function collect;
 use function iterator_to_array;
+use function realpath;
 use function view;
 
 /** @implements Rule<CollectedDataNode> */
@@ -83,17 +82,32 @@ class UnusedViewsRule implements Rule
         $factory = view();
         $finder = $factory->getFinder();
 
-        $allViews = iterator_to_array($this->viewFileHelper->getAllViewNames());
+        // Unlike upstream, views are compared by file: a view can be found under several names, such
+        // as an anonymous component in a registered path, whose name holds the path's hashed prefix.
+        $usedFiles = [];
 
-        $usedViews = self::filterExistingViews($factory, $usedViews);
-        $allViews = self::filterExistingViews($factory, $allViews);
-
-        $unusedViews = array_unique(array_diff($allViews, $usedViews));
+        foreach ($usedViews as $view) {
+            if ($factory->exists($view)) {
+                $usedFiles[self::realPath($finder->find($view))] = true;
+            }
+        }
 
         $errors = [];
 
-        foreach ($unusedViews as $file) {
-            $path = $finder->find($file);
+        foreach (array_unique(iterator_to_array($this->viewFileHelper->getAllViewNames(), false)) as $view) {
+            if (! $factory->exists($view)) {
+                continue;
+            }
+
+            $path = $finder->find($view);
+            $file = self::realPath($path);
+
+            if (isset($usedFiles[$file])) {
+                continue;
+            }
+
+            // A file reached under another name is reported once.
+            $usedFiles[$file] = true;
 
             // Upstream says the view is not used, but only usages with literal view names
             // in the analyzed code and views can be found.
@@ -109,16 +123,10 @@ class UnusedViewsRule implements Rule
     }
 
     /**
-     * Get the given views that the view factory can find.
-     *
-     * @param string[] $views
-     *
-     * @return string[]
+     * Get the file a found view path refers to, which a registered path can spell another way.
      */
-    private static function filterExistingViews(Factory $factory, array $views): array
+    private static function realPath(string $path): string
     {
-        return array_filter($views, static function (string $view) use ($factory): bool {
-            return $factory->exists($view);
-        });
+        return realpath($path) ?: $path;
     }
 }

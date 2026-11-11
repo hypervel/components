@@ -19,6 +19,7 @@ use Hypervel\PHPStan\Support\BladeScanner;
 use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\PHPStan\Support\ViewFileHelper;
 use Hypervel\PHPStan\Support\ViewParser;
+use Hypervel\Support\Facades\Blade;
 use Hypervel\Testing\ParallelTesting;
 use PhpParser\Node;
 use PHPStan\Analyser\DependencyTracker;
@@ -205,6 +206,49 @@ class UnusedViewsRuleTest extends RuleTestCase
 
             $this->assertSame(['shared/card.blade.php', 'shared/orphan.blade.php'], $reports);
         } finally {
+            $finder->setPaths($paths);
+            $finder->flush();
+            (new Filesystem)->deleteDirectory($root);
+        }
+    }
+
+    public function testRegisteredAnonymousComponentsAndViewsThatParseOnlyOnceCompiled(): void
+    {
+        $root = ParallelTesting::tempDir('PHPStanUnusedViewsRuleComponents');
+        $compiler = Blade::getFacadeRoot();
+        $finder = view()->getFinder();
+        $paths = $finder->getPaths();
+        $hints = $finder->getHints();
+        $registrations = [$compiler->getAnonymousComponentPaths(), $compiler->getAnonymousComponentNamespaces()];
+
+        (new Filesystem)->deleteDirectory($root);
+        mkdir($root . '/views/dashboard', 0777, true);
+        mkdir($root . '/views/widgets');
+        file_put_contents($root . '/views/page.blade.php', "<x-dashboard::panel />\n<x:ui::alert>\n</x:ui::alert>\n@include('mixed')\n");
+        // The native if is only closed once Blade compiles @endif, so the view parses only once compiled.
+        file_put_contents($root . '/views/mixed.blade.php', "<?php if (true): ?>\n@include('included')\n@endif\n");
+        touch($root . '/views/included.blade.php');
+        touch($root . '/views/dashboard/panel.blade.php');
+        touch($root . '/views/widgets/alert.blade.php');
+        touch($root . '/views/widgets/orphan.blade.php');
+
+        $this->viewDirectories = [$root . '/views'];
+        $finder->addLocation($root . '/views');
+        $compiler->anonymousComponentPath($root . '/views/dashboard', 'dashboard');
+        $compiler->anonymousComponentNamespace('widgets', 'ui');
+
+        try {
+            $reports = array_map(
+                static fn (Error $error): string => str_replace($root . '/views/', '', $error->getFile()),
+                $this->gatherAnalyserErrors([__DIR__ . '/data/FooController.php']),
+            );
+
+            sort($reports);
+
+            $this->assertSame(['page.blade.php', 'widgets/orphan.blade.php'], $reports);
+        } finally {
+            (fn () => [$this->anonymousComponentPaths, $this->anonymousComponentNamespaces] = $registrations)->call($compiler);
+            (fn () => $this->hints = $hints)->call($finder);
             $finder->setPaths($paths);
             $finder->flush();
             (new Filesystem)->deleteDirectory($root);

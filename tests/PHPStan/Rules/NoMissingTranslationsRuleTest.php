@@ -16,6 +16,7 @@ use Hypervel\PHPStan\Support\BladeScanner;
 use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\PHPStan\Support\ViewFileHelper;
 use Hypervel\PHPStan\Support\ViewParser;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Translation\FileLoader;
 use Hypervel\Translation\Translator;
 use LogicException;
@@ -30,7 +31,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_fill_keys;
 use function dirname;
+use function file_put_contents;
 use function lang_path;
+use function mkdir;
 use function view;
 
 /** @extends RuleTestCase<NoMissingTranslationsRule> */
@@ -222,6 +225,7 @@ class NoMissingTranslationsRuleTest extends RuleTestCase
 
         try {
             // The configured directories replace the application's, so none of its groups are known.
+            // Their JSON file has a line named like the lookups group, which must not hide the group.
             $this->analyse([__DIR__ . '/../Fixtures/Rules/TranslationLookups.php'], [
                 ...$errorsFromBladeFile,
                 ['Translation "lookups.missing" has not been found.', 20],
@@ -259,6 +263,50 @@ class NoMissingTranslationsRuleTest extends RuleTestCase
             ['Translation "added.missing" has not been found.', 17],
             ['Translation "added.missing" has not been found for locale "fr".', 18],
         ]);
+    }
+
+    public function testInvalidLocales(): void
+    {
+        $translator = new Translator(new FileLoader(new Filesystem, []), 'en');
+        $translator->addNamespace('package', __DIR__ . '/../Fixtures/Rules/lang');
+
+        $this->translator = $translator;
+
+        // The translator throws for the locale, which must not drop the rule's other errors.
+        $this->analyse([__DIR__ . '/../Fixtures/Rules/InvalidTranslationLocales.php'], [
+            ['Translation locale "../fr" contains invalid characters.', 14],
+            ['Translation "package::lookups.missing" has not been found.', 15],
+        ]);
+    }
+
+    public function testViewsThatParseOnlyOnceCompiled(): void
+    {
+        $root = ParallelTesting::tempDir('PHPStanNoMissingTranslationsRule');
+        $finder = view()->getFinder();
+        $paths = $finder->getPaths();
+
+        (new Filesystem)->deleteDirectory($root);
+        mkdir($root, 0777, true);
+        // The native if is only closed once Blade compiles @endif, so the view parses only once compiled.
+        file_put_contents($root . '/mixed.blade.php', "<?php if (true): ?>\n{{ __('package::lookups.missing') }}\n@endif\n");
+
+        $translator = new Translator(new FileLoader(new Filesystem, []), 'en');
+        $translator->addNamespace('package', __DIR__ . '/../Fixtures/Rules/lang');
+
+        $this->translator = $translator;
+        $finder->setPaths([$root]);
+
+        try {
+            // PHPStan runs the rule only when a collector collected something, so the analyzed file makes a lookup too.
+            $this->analyse([__DIR__ . '/data/NamespacedTranslationFunction.php'], [
+                ['Translation "package::lookups.missing" has not been found.', 2],
+                ['Translation "package::lookups.missing" has not been found.', 21],
+            ]);
+        } finally {
+            $finder->setPaths($paths);
+            $finder->flush();
+            (new Filesystem)->deleteDirectory($root);
+        }
     }
 
     public function testLocalesFromTheTranslatorsResolver(): void

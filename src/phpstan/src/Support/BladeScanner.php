@@ -24,6 +24,7 @@ use function ucfirst;
 use const PREG_OFFSET_CAPTURE;
 use const PREG_SET_ORDER;
 use const PREG_UNMATCHED_AS_NULL;
+use const T_INLINE_HTML;
 
 /**
  * Finds the code Blade compiles in a view by following Blade's own passes, without compiling the view.
@@ -83,6 +84,27 @@ class BladeScanner
         }
 
         return $remaining;
+    }
+
+    /**
+     * Get the text outside a view's PHP tags, which is what Blade compiles, with each block's line.
+     *
+     * Blade splits the view with PHP's tokenizer, so a view whose PHP only becomes valid once
+     * Blade compiles it, such as native PHP opening a block that @endif closes, still has text.
+     *
+     * @return list<array{string, int}>
+     */
+    public function text(string $source): array
+    {
+        $blocks = [];
+
+        foreach (token_get_all($source) as $token) {
+            if (is_array($token) && $token[0] === T_INLINE_HTML) {
+                $blocks[] = [$token[1], $token[2]];
+            }
+        }
+
+        return $blocks;
     }
 
     /**

@@ -17,6 +17,7 @@ use Hypervel\PHPStan\Support\ViewFileHelper;
 use Hypervel\Support\Arr;
 use Hypervel\Translation\FileLoader;
 use Hypervel\Translation\Translator;
+use InvalidArgumentException;
 use PhpParser\Node;
 use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
@@ -121,6 +122,21 @@ class NoMissingTranslationsRule implements Rule
         foreach ($usedTranslations as $file => $translations) {
             foreach ($translations as ['key' => $translation, 'line' => $line, 'locales' => $locales, 'fallback' => $fallback, 'choice' => $choice]) {
                 foreach ($locales as $locale) {
+                    // The translator throws for a locale that could reach outside the lang directories.
+                    if ($locale !== null && $locale !== '') {
+                        try {
+                            (fn () => $this->ensureValidLocale($locale))->call($translator);
+                        } catch (InvalidArgumentException) {
+                            $errors[] = RuleErrorBuilder::message(sprintf('Translation locale "%s" contains invalid characters.', $locale))
+                                ->file($file)
+                                ->line($line)
+                                ->identifier('hypervel.invalidTranslationLocale')
+                                ->build();
+
+                            continue;
+                        }
+                    }
+
                     if (! $this->isMissing($translator, $translation, $locale, $fallback, $choice)) {
                         continue;
                     }
@@ -182,19 +198,15 @@ class NoMissingTranslationsRule implements Rule
         }
 
         [$namespace, $group, $item] = $translator->parseKey($key);
-        $groupKey = $namespace === '*' ? $group : "{$namespace}::{$group}";
         $knownGroup = false;
 
         /** @var list<string> $locales */
         $locales = $fallback ? (fn (): array => $this->localeArray($locale))->call($translator) : [$locale];
 
         foreach ($locales as $groupLocale) {
-            // has() skips the application's missing-key callback, which get() runs for a missing group.
-            if (! $translator->has($groupKey, $groupLocale, false)) {
-                continue;
-            }
-
-            $lines = $translator->get($groupKey, [], $groupLocale, false);
+            // Unlike get(), getLine() reads the PHP group even when a JSON line has the group's name,
+            // and runs no missing-key callback. It returns null for a missing or empty group.
+            $lines = (fn (): array|string|null => $this->getLine($namespace, $group, $groupLocale, null, []))->call($translator);
 
             if (! is_array($lines)) {
                 continue;
