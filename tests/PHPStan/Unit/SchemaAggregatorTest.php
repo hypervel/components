@@ -523,6 +523,30 @@ class SchemaAggregatorTest extends PHPStanTestCase
     }
 
     /**
+     * A column's Fluent mutators can set any attribute, so the table is unknown, while a foreign key's keep the column.
+     */
+    #[Test]
+    public function itForgetsATableWhoseColumnAFluentMutatorChanges(): void
+    {
+        foreach ([
+            'fill' => "\$table->string('name')->fill(['nullable' => true]);",
+            'set' => "\$table->string('name')->set('type', 'integer');",
+            'offsetSet' => "\$table->string('name')->offsetSet('nullable', true);",
+            'offsetUnset' => "\$table->string('name')->nullable()->offsetUnset('nullable');",
+            'foreign key' => "\$table->foreignId('user_id')->constrained()->fill(['onDelete' => 'cascade']);",
+        ] as $case => $statement) {
+            $aggregator = $this->aggregate(<<<PHP
+                Schema::create('users', function (Blueprint \$table) {
+                    {$statement}
+                });
+            PHP);
+
+            $this->assertSame($case === 'foreign key', $this->table($aggregator, 'users')->complete, $case);
+            $this->assertSame($case === 'foreign key' ? ['user_id' => ['int<0, max>|numeric-string', false]] : [], $this->columns($aggregator, 'users'), $case);
+        }
+    }
+
+    /**
      * A type() modifier replaces the column's type; a type that is not constant leaves it unknown.
      */
     #[Test]
@@ -1149,15 +1173,29 @@ class SchemaAggregatorTest extends PHPStanTestCase
     }
 
     /**
-     * A class between the migration and Migration can choose the connection in a way the analysis does not read.
+     * A class between the migration and Migration, or a trait the migration uses, can choose the connection in a
+     * way the analysis does not read.
      */
     #[Test]
     public function itReadsOnlyTheConnectionInheritedFromMigration(): void
     {
-        foreach (['Migration' => true, 'ConnectionPropertyMigration' => false, 'ConnectionMethodMigration' => false, 'ConnectionWritingMigration' => false] as $parent => $known) {
+        $migrations = [
+            'Migration' => ['Migration', ''],
+            'ConnectionPropertyMigration' => ['ConnectionPropertyMigration', ''],
+            'ConnectionMethodMigration' => ['ConnectionMethodMigration', ''],
+            'ConnectionWritingMigration' => ['ConnectionWritingMigration', ''],
+            'trait method' => ['Migration', 'use ChoosesConnection;'],
+            'nested trait method' => ['Migration', 'use NestedChoosesConnection;'],
+            'trait property' => ['Migration', 'use DefinesConnection;'],
+            'trait alias' => ['Migration', 'use NamesConnection { connectionName as getConnection; }'],
+        ];
+
+        foreach ($migrations as $case => [$parent, $members]) {
             $aggregator = $this->apply(<<<PHP
                 return new class extends {$parent}
                 {
+                    {$members}
+
                     public function up(): void
                     {
                         Schema::create('posts', fn (Blueprint \$table) => \$table->string('title'));
@@ -1165,8 +1203,10 @@ class SchemaAggregatorTest extends PHPStanTestCase
                 };
             PHP, $this->aggregate("Schema::create('users', fn (Blueprint \$table) => \$table->string('name'));", config('database.default')));
 
-            $this->assertSame($known, $this->schema($aggregator, config('database.default'))->complete, $parent);
-            $this->assertSame($known ? ['title' => ['string', false]] : null, $this->columns($aggregator, 'posts', config('database.default')), $parent);
+            $known = $case === 'Migration';
+
+            $this->assertSame($known, $this->schema($aggregator, config('database.default'))->complete, $case);
+            $this->assertSame($known ? ['title' => ['string', false]] : null, $this->columns($aggregator, 'posts', config('database.default')), $case);
         }
     }
 

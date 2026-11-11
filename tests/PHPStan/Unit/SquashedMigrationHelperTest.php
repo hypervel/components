@@ -15,6 +15,7 @@ use PHPStan\Testing\PHPStanTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 
+use function array_column;
 use function array_keys;
 use function config;
 use function database_path;
@@ -133,6 +134,24 @@ class SquashedMigrationHelperTest extends PHPStanTestCase
             [['path' => $directory . '/pgsql-schema.dump', 'line' => 1, 'message' => 'PostgreSQL archives must be exported as plain SQL before parsing.']],
             $connections['pgsql']->unusableDumps,
         );
+    }
+
+    /**
+     * A dump that cannot be read may define any relation another dump of its connection defines, whichever is read first.
+     */
+    #[Test]
+    public function itForgetsTheOtherDumpsOfAConnectionWithAnUnusableDump(): void
+    {
+        $readable = __DIR__ . '/data/schema/basic_schema';
+        $unusable = __DIR__ . '/data/schema/unusable_dumps';
+
+        foreach ([[$readable, $unusable], [$unusable, $readable]] as $directories) {
+            $connections = $this->createHelper($directories)->initializeConnections();
+
+            $this->assertSame([], $connections['mysql']->tables);
+            $this->assertFalse($connections['mysql']->complete);
+            $this->assertSame([$unusable . '/mysql-schema.sql'], array_column($connections['mysql']->unusableDumps, 'path'));
+        }
     }
 
     /**

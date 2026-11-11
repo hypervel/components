@@ -491,12 +491,34 @@ class SchemaAggregator
 
     /**
      * Determine whether a class inherits a method, or the property when no method is named, from
-     * Migration itself rather than from a class between them.
+     * Migration itself rather than from a class between them or a trait it uses.
      */
     private function inheritsFromMigration(PhpParser\Node\Stmt\Class_ $class, string $member): bool
     {
         if ($class->extends === null || ! $this->reflectionProvider->hasClass($class->extends->toString())) {
             return false;
+        }
+
+        // A trait's member, or a member an alias names, is not read, as for a method found through findMethod().
+        foreach ($class->getTraitUses() as $traitUse) {
+            foreach ($traitUse->adaptations as $adaptation) {
+                if ($adaptation instanceof PhpParser\Node\Stmt\TraitUseAdaptation\Alias
+                    && $adaptation->newName?->toLowerString() === strtolower($member)) {
+                    return false;
+                }
+            }
+
+            foreach ($traitUse->traits as $trait) {
+                if (! $this->reflectionProvider->hasClass($trait->toString())) {
+                    return false;
+                }
+
+                $traitReflection = $this->reflectionProvider->getClass($trait->toString());
+
+                if ($member === 'connection' ? $traitReflection->hasNativeProperty($member) : $traitReflection->hasNativeMethod($member)) {
+                    return false;
+                }
+            }
         }
 
         $parent = $this->reflectionProvider->getClass($class->extends->toString());
@@ -1858,8 +1880,10 @@ class SchemaAggregator
             return;
         }
 
-        // removeColumn() returns the Blueprint, so the calls chained after it change the table too.
-        if ($method === 'removecolumn' && $call !== $expr) {
+        // removeColumn() returns the Blueprint, so the calls chained after it change the table too. The column's
+        // Fluent mutators can set any attribute, including its type and nullability.
+        if (($method === 'removecolumn' && $call !== $expr)
+            || array_any($chain, static fn (array $link): bool => in_array($link[0], ['fill', 'set', 'offsetset', 'offsetunset'], true))) {
             $this->forgetTableByKey($tableScope['connection'], $tableScope['key']);
 
             return;

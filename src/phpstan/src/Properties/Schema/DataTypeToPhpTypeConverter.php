@@ -28,7 +28,9 @@ use PHPStan\Type\UnionType;
 
 use function array_key_exists;
 use function array_map;
+use function count;
 use function in_array;
+use function is_array;
 use function str_contains;
 
 /**
@@ -112,6 +114,10 @@ class DataTypeToPhpTypeConverter
      */
     private function convertMySqlType(ColumnType $type): array
     {
+        if (in_array($type->name, ['binary', 'varbinary', 'tinyblob', 'blob', 'mediumblob', 'longblob'], true)) {
+            return ['readable' => new StringType, 'writable' => $this->binaryInput()];
+        }
+
         $unsignedInteger = IntegerRangeType::fromInterval(0, null);
         $unsignedBigInteger = TypeCombinator::union($unsignedInteger, $this->numericString());
 
@@ -128,8 +134,8 @@ class DataTypeToPhpTypeConverter
             'enum' => $this->labels($type->values),
             // Unlike upstream's labels, a set holds a comma-joined combination of them.
             'char', 'varchar', 'character', 'character varying', 'nchar', 'nvarchar', 'tinytext', 'text',
-            'mediumtext', 'longtext', 'binary', 'varbinary', 'tinyblob', 'blob', 'mediumblob', 'longblob', 'json',
-            'date', 'datetime', 'timestamp', 'time', 'set', 'uuid', 'inet4', 'inet6' => new StringType,
+            'mediumtext', 'longtext', 'json', 'date', 'datetime', 'timestamp', 'time', 'set', 'uuid', 'inet4',
+            'inet6' => new StringType,
             default => new MixedType,
         };
 
@@ -150,10 +156,11 @@ class DataTypeToPhpTypeConverter
      * so a definition the facts hold as uncertain is never bypassed.
      *
      * @param list<string> $searchPath
+     * @param array<string, true> $domains the identity keys of the domains this resolution passed through
      *
      * @return array{readable: Type, writable: Type}
      */
-    private function convertPostgresType(ColumnType $type, SchemaConnection $schema, array $searchPath): array
+    private function convertPostgresType(ColumnType $type, SchemaConnection $schema, array $searchPath, array $domains = []): array
     {
         // PDO fetches arrays, including arrays of a domain, as their text representation.
         if ($type->isArray()) {
@@ -164,6 +171,10 @@ class DataTypeToPhpTypeConverter
         $schemas = $type->schema !== null
             ? [$type->schema]
             : (in_array('pg_catalog', $searchPath, true) ? $searchPath : ['pg_catalog', ...$searchPath]);
+
+        // A domain's unqualified base named a type when the domain was created. Unless pg_catalog and one schema are
+        // searched, in that order, a user type of that name created later in an earlier schema now shadows it.
+        $shadowable = $domains !== [] && $type->schema === null && ($schemas[0] !== 'pg_catalog' || count($schemas) !== 2);
 
         // Raw migration SQL can define a type without a schema, in whichever path schema existed first.
         $unqualifiedKey = $schema->key(null, $type->name);
@@ -180,23 +191,31 @@ class DataTypeToPhpTypeConverter
             if (array_key_exists($key, $schema->types)) {
                 $userType = $schema->types[$key];
 
-                return $userType === null || $hasUnqualified ? $this->unknown() : $this->convertPostgresUserType($userType, $schema, $searchPath);
+                return $userType === null || $hasUnqualified || $shadowable || isset($domains[$key])
+                    ? $this->unknown()
+                    : $this->convertPostgresUserType($userType, $schema, $searchPath, $domains + [$key => true]);
             }
         }
 
         $unqualified = $hasUnqualified ? $schema->types[$unqualifiedKey] : null;
 
-        return $unqualified === null ? $this->unknown() : $this->convertPostgresUserType($unqualified, $schema, $searchPath);
+        return $unqualified === null || $shadowable || isset($domains[$unqualifiedKey])
+            ? $this->unknown()
+            : $this->convertPostgresUserType($unqualified, $schema, $searchPath, $domains + [$unqualifiedKey => true]);
     }
 
     /**
      * Get the types of a PostgreSQL enum or domain.
      *
+     * A domain revisited through its own base can only come from migrations that fail, such as dropping a domain
+     * another depends on without CASCADE and creating it again over that one, so it reads as unknown.
+     *
      * @param list<string> $searchPath
+     * @param array<string, true> $domains the identity keys of the domains this resolution passed through
      *
      * @return array{readable: Type, writable: Type}
      */
-    private function convertPostgresUserType(Domain|EnumType $userType, SchemaConnection $schema, array $searchPath): array
+    private function convertPostgresUserType(Domain|EnumType $userType, SchemaConnection $schema, array $searchPath, array $domains): array
     {
         if ($userType instanceof EnumType) {
             $labels = $this->labels($userType->values);
@@ -205,7 +224,7 @@ class DataTypeToPhpTypeConverter
         }
 
         // A domain's NOT NULL does not stop outer joins from reading null, so only its base type is used.
-        return $this->convertPostgresType($userType->type, $schema, $searchPath);
+        return $this->convertPostgresType($userType->type, $schema, $searchPath, $domains);
     }
 
     /**
@@ -231,7 +250,7 @@ class DataTypeToPhpTypeConverter
             'readable' => $readable,
             'writable' => match ($name) {
                 'numeric' => $this->decimalInput(new StringType),
-                'bytea' => new StringType,
+                'bytea' => $this->binaryInput(),
                 default => $readable,
             },
         ];
@@ -256,19 +275,19 @@ class DataTypeToPhpTypeConverter
             in_array($name, ['json', 'jsonb'], true) => TypeCombinator::union(new FloatType, new IntegerType, new StringType),
             in_array($name, ['bool', 'boolean'], true) || str_contains($name, 'int') => new IntegerType,
             str_contains($name, 'char') || str_contains($name, 'clob') || str_contains($name, 'text') => new StringType,
-            str_contains($name, 'blob') => new StringType,
+            str_contains($name, 'blob') => ['readable' => new StringType, 'writable' => $this->binaryInput()],
             str_contains($name, 'real') || str_contains($name, 'floa') || str_contains($name, 'doub') => new FloatType,
             // Unlike upstream's float type, numeric affinity stores whole numbers as integers.
-            in_array($name, ['numeric', 'decimal'], true) => null,
+            in_array($name, ['numeric', 'decimal'], true) => [
+                'readable' => TypeCombinator::union(new FloatType, new IntegerType),
+                'writable' => $this->decimalInput($this->numericString()),
+            ],
             // Other names, and a column without a type, keep whatever value was written.
             default => new MixedType,
         };
 
-        if ($readable === null) {
-            return [
-                'readable' => TypeCombinator::union(new FloatType, new IntegerType),
-                'writable' => $this->decimalInput($this->numericString()),
-            ];
+        if (is_array($readable)) {
+            return $readable;
         }
 
         return [
@@ -316,6 +335,14 @@ class DataTypeToPhpTypeConverter
         return $values === []
             ? new StringType
             : TypeCombinator::union(...array_map(static fn (string $value): Type => new ConstantStringType($value), $values));
+    }
+
+    /**
+     * Get the types a binary column accepts: PdoConnection::bindValues() binds a stream as a large object.
+     */
+    private function binaryInput(): Type
+    {
+        return TypeCombinator::union(new StringType, new ResourceType);
     }
 
     /**

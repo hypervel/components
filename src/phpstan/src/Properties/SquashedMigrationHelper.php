@@ -13,6 +13,7 @@ use SplFileInfo;
 
 use function array_column;
 use function array_key_exists;
+use function array_keys;
 use function database_path;
 use function file_get_contents;
 use function is_file;
@@ -50,26 +51,33 @@ class SquashedMigrationHelper
     public function initializeConnections(): array
     {
         $connections = [];
+        $uninterpreted = [];
 
         foreach ($this->findSchemaFiles() as [$name, $file]) {
             $connection = $this->connectionConfigResolver->connection($name);
 
-            if ($connection !== null) {
-                $this->addDump($connections[$connection->owner] ??= new SchemaConnection($connection->owner, $connection->driver), $connection, $file);
+            if ($connection !== null
+                && ! $this->addDump($connections[$connection->owner] ??= new SchemaConnection($connection->owner, $connection->driver), $connection, $file)) {
+                $uninterpreted[$connection->owner] = true;
             }
+        }
+
+        // A dump that could not be read may define any relation the owner's other dumps define.
+        foreach (array_keys($uninterpreted) as $owner) {
+            $connections[$owner]->forget();
         }
 
         return $connections;
     }
 
     /**
-     * Add a schema dump's definitions to its owner's facts.
+     * Add a schema dump's definitions to its owner's facts, or return false when the dump cannot be interpreted.
      *
      * Schema-level issues mean represented definitions may be wrong, so its tables are incomplete
      * and its types uncertain. Another dump defining the same relation, or a type differently,
      * makes it unknown.
      */
-    private function addDump(SchemaConnection $owner, ConnectionConfig $connection, SplFileInfo $file): void
+    private function addDump(SchemaConnection $owner, ConnectionConfig $connection, SplFileInfo $file): bool
     {
         $sql = file_get_contents($file->getPathname());
         $schema = null;
@@ -88,9 +96,7 @@ class SquashedMigrationHelper
         }
 
         if ($schema === null) {
-            $owner->complete = false;
-
-            return;
+            return false;
         }
 
         $complete = $schema->issues === [];
@@ -122,6 +128,8 @@ class SquashedMigrationHelper
             $key = $owner->key($type->schema, $type->name);
             $owner->types[$key] = ! $complete || (array_key_exists($key, $owner->types) && $owner->types[$key] != $type) ? null : $type;
         }
+
+        return true;
     }
 
     /**
