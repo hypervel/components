@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\HttpServer;
 
+use Hypervel\Engine\Http\V2\Client as Http2Client;
+use Hypervel\Engine\Http\V2\Request as Http2Request;
 use RuntimeException;
 
 class RequestFramingTest extends HttpServerIntegrationTestCase
@@ -60,6 +62,32 @@ class RequestFramingTest extends HttpServerIntegrationTestCase
         $this->assertNotFalse($first);
         $this->assertNotFalse($second);
         $this->assertLessThan($second, $first);
+    }
+
+    public function testOversizedHttpTwoRequestBodyLeavesOtherStreamsUsable(): void
+    {
+        // @TODO: Remove this skip once Swoole resets only the HTTP/2 stream whose request body exceeds package_max_length.
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped('Swoole closes the whole HTTP/2 connection when one request body exceeds package_max_length.');
+        }
+
+        $client = new Http2Client($this->getServerHost(), $this->getServerPort());
+
+        try {
+            // The fixture server's package_max_length is 64 KB.
+            $client->send(new Http2Request('/inspect', 'POST', str_repeat('a', 128 * 1024)));
+            $streamId = $client->send(new Http2Request('/up'));
+
+            do {
+                $response = $client->recv(5);
+                $this->assertNotNull($response);
+            } while ($response->getStreamId() !== $streamId);
+        } finally {
+            $client->close();
+        }
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('up', $response->getBody());
     }
 
     /**
