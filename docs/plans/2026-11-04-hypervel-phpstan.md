@@ -43,7 +43,8 @@ Remaining work:
 - Also completed: package-mode config composition (see Static configuration), with the package-default workarounds removed and the skeleton's `phpstan.neon` reduced to PHPStan's defaults.
 - Also completed: the final review and cleanup of the components repo work under Consumer migration and final cleanup.
 - Also completed: the owner-approved `Verified` fix exposed by the consumer audit. `Verified::$user` is natively `Authenticatable|MustVerifyEmail`, because explicit verification (`EmailVerificationRequest::fulfill()`, Fortify and Workbench) dispatches it for authenticated users that only use the `MustVerifyEmail` trait, as Laravel's untyped event allows, while objects implementing only the contract stay accepted.
-- Next: the framework/package integration review across all checkpoints, before asking the owner to approve merging this branch. After the approved merge, adoption in the private packages and apps happens directly on monorepo `main`; shared concerns and helpers move with their first consumers, because PHPStan reports unused traits. Then review that consumer integration and complete the reporting (see Completion criteria).
+- Also completed: the framework/package integration review across all checkpoints.
+- Next: the owner's decision on merging this branch. After the approved merge, adoption in the private packages and apps happens directly on monorepo `main`; shared concerns and helpers move with their first consumers, because PHPStan reports unused traits. Then review that consumer integration and complete the reporting (see Completion criteria).
 - Complete the implementation and verification sections below, keeping the single remaining-file checklist in [2026-11-04-hypervel-phpstan-checklist.md](2026-11-04-hypervel-phpstan-checklist.md) during porting.
 
 ## Design decisions
