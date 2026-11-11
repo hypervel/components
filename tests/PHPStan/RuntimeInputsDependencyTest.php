@@ -253,6 +253,28 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
         $this->assertStringContainsString('Result cache not used because the metadata do not match', $process->getErrorOutput());
     }
 
+    public function testRepointedEnvironmentFileLinksAreNoticed(): void
+    {
+        $applicationPath = $this->copyApplication();
+        $unset = ['FIXTURE_GREETER' => false];
+        mkdir($applicationPath . '/environments');
+        file_put_contents($applicationPath . '/environments/english', "FIXTURE_GREETER=english\n");
+        file_put_contents($applicationPath . '/environments/french', "FIXTURE_GREETER=french\n");
+        symlink($applicationPath . '/environments/english', $applicationPath . '/.env');
+
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: self::PARAMETERS, environment: $unset));
+
+        // The file the link pointed to is unchanged, so only the link's own path shows the new values.
+        unlink($applicationPath . '/.env');
+        symlink($applicationPath . '/environments/french', $applicationPath . '/.env');
+        $french = ['Usage.php:33 staticMethod.notFound', 'Usage.php:38 return.type'];
+        $this->assertDiagnostics($french, $this->analyse($applicationPath, parameters: self::PARAMETERS, environment: $unset));
+
+        $process = $this->analyse($applicationPath, parameters: self::PARAMETERS, environment: $unset);
+        $this->assertDiagnostics($french, $process);
+        $this->assertReanalyzed(0, $process);
+    }
+
     public function testCachedConfigurationSkipsTheEnvironmentFileAndConfigFiles(): void
     {
         $applicationPath = $this->copyApplication();

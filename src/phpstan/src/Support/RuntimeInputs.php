@@ -386,20 +386,24 @@ class RuntimeInputs
         $files[] = $app->bootstrapPath('providers.php');
         $files = array_merge($files, $this->environmentFiles($app), $this->testbenchConfigurationFiles());
 
-        $outputs = [];
+        $outputs = [$app->getCachedConfigPath(), $app->getCachedPackagesPath(), $app->getCachedRoutesPath(), $app->getCachedEventsPath()];
 
-        foreach ([$app->getCachedConfigPath(), $app->getCachedPackagesPath(), $app->getCachedRoutesPath(), $app->getCachedEventsPath()] as $output) {
-            $outputs[realpath($output) ?: $output] = true;
+        // A cache file the boot loaded is listed by its resolved path, so either spelling identifies it.
+        $generated = [];
+
+        foreach ($outputs as $output) {
+            $generated[$output] = true;
+            $generated[realpath($output) ?: $output] = true;
         }
 
         $trackedFiles = [];
 
-        foreach ([...$files, ...array_keys($outputs)] as $file) {
-            $file = realpath($file) ?: $file;
+        // Files keep their own paths: a key holding a symlink's target would miss the link being pointed elsewhere.
+        foreach ([...$files, ...$outputs] as $file) {
             $source = $this->sourcePath($file);
 
             // The boot writes these caches into the runtime copy from the inputs tracked here.
-            if ($source === $file && isset($outputs[$file]) && $this->isInRuntimeCopy($file)) {
+            if ($source === $file && isset($generated[$file]) && $this->isInRuntimeCopy($file)) {
                 continue;
             }
 
