@@ -233,7 +233,7 @@ class Http2ClientTest extends TestCase
 
     public function testReceiveAcknowledgesServerPingsWithTheirPayload(): void
     {
-        // @TODO: Remove this skip once Swoole's HTTP/2 client echoes the server's PING payload in its ACK.
+        // @TODO: Remove this skip once https://github.com/swoole/swoole-src/pull/6394 is released.
         if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped("Swoole's HTTP/2 client answers server PINGs with the wrong payload.");
         }
