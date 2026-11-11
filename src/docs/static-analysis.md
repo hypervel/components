@@ -299,9 +299,9 @@ $schema->create('events', function (Blueprint $table) {
 });
 ```
 
-Dynamic migration code can limit attribute typing. Blueprint macros, loops and helpers that receive a blueprint make its table unknown. A `switch` statement whose case can end early, such as through a `break` inside an `if`, makes the tables it changes unknown. When a migration, its base class or one of its traits assigns the `$connection` property outside the `down` method, such as in a constructor, the connection its calls use by default is unknown. A trait method a migration renames with `as` or selects with `insteadof` makes every connection's schema unknown. Unknown column names leave room for additional columns; unknown table names make the connection's schema unknown, and unknown connection names make every connection's schema unknown. A column created in only some branches reads as `mixed`.
+Dynamic migration code can limit attribute typing. Blueprint macros, loops and helpers that receive a blueprint make its table unknown. A `switch` statement whose case can end early, such as through a `break` inside an `if`, makes the tables it changes unknown. When a migration, its base class or one of its traits assigns the `$connection` property outside the `down` method, such as in a constructor, the connection its calls use by default is unknown. A trait method a migration renames with `as` or selects with `insteadof`, or a method called by a dynamic name such as `$this->{$method}()`, makes every connection's schema unknown. A dynamic method name on the `Schema` facade or a schema builder, such as `Schema::{$method}()`, makes that connection's schema unknown. Unknown column names leave room for additional columns; unknown table names make the connection's schema unknown, and unknown connection names make every connection's schema unknown. A column created in only some branches reads as `mixed`.
 
-Use the `Schema` and `DB` facades for schema changes; connections obtained through properties or helpers such as `app('db')` are not followed. To target another database or schema, configure a connection and select it instead of relying on `USE` or `SET search_path` across separate SQL calls.
+Use the `Schema` and `DB` facades for schema changes. Unlike a schema builder, a database connection stored in a variable is not followed, so `$connection = DB::connection('analytics')` makes that connection's schema unknown, even if the connection only updates rows. Schema changes through connections obtained in other ways, such as from a property or `app('db')`, are not followed either. To target another database or schema, configure a connection and select it instead of relying on `USE` or `SET search_path` across separate SQL calls.
 
 Migrations and schema dumps are cached in PHPStan's temporary directory and read again when they, or the classes and configuration they read, change. You may disable the cache using the `enableMigrationCache` parameter, or stop reading migrations or schema dumps using the `disableMigrationScan` or `disableSchemaScan` parameter.
 
@@ -593,7 +593,7 @@ The following sections explain the diagnostics and their remedies. Use this tabl
 | [Array Keys](#array-keys) | `offsetAccess.notFound` |
 | [Value and With Helpers](#value-and-with-helpers) | `hypervel.uselessConstructs.value`, `hypervel.uselessConstructs.with` |
 | [Converting Collections to Arrays](#converting-collections-to-arrays) | `hypervel.unnecessaryEnumerableToArrayCall` |
-| [Translations](#translations) | `hypervel.missingTranslations` |
+| [Translations](#translations) | `hypervel.missingTranslations`, `hypervel.invalidTranslationLocale` |
 | [Views](#views) | `hypervel.unusedViews`, `argument.type` for view names |
 | [Console Input](#console-input) | `hypervel.console.undefinedArgument`, `hypervel.console.undefinedOption` |
 | [Authentication in Requests](#authentication-in-requests) | `hypervel.noAuthFacadeInRequestScope`, `hypervel.noAuthHelperInRequestScope` |
@@ -726,9 +726,9 @@ Keep `toArray()` when the items are, or may be, `Arrayable`, such as models. Col
 <a name="translations"></a>
 ### Translations
 
-PHPStan checks literal `group.item` and `namespace::group.item` translation keys used by the translation helpers, `Lang` facade and translator. It uses the requested locale and fallback, or your application's default locale. Checks require the group's translation file to exist; JSON translations, dynamic keys and custom translators or loaders are not checked.
+PHPStan checks literal `group.item` and `namespace::group.item` translation keys used by the translation helpers, `Lang` facade and translator. It uses the requested locale and fallback, or your application's default locale. Checks require the group's translation file to exist; JSON translations, dynamic keys and custom translators or loaders are not checked. A locale the translator rejects, such as one containing `/` or `..`, is reported too.
 
-To fix the diagnostic, add the missing line or correct the key. Keys are checked against the translations your application loads. To check them against other directories instead, list the directories using the `translationDirectories` parameter. You may disable the rule using the `checkMissingTranslations` parameter.
+To fix the diagnostic, add the missing line or correct the key or locale. Keys are checked against the translations your application loads. To check them against other directories instead, list the directories using the `translationDirectories` parameter. You may disable the rule using the `checkMissingTranslations` parameter.
 
 <a name="views"></a>
 ### Views
@@ -737,7 +737,7 @@ Methods that accept a view name, such as `view()` and `View::make()`, require a 
 
 You may also enable the `checkUnusedViews` parameter to report views that no code refers to by a known name, such as a string or a constant. Views rendered by computed names or used by other packages may still be in use, so treat these diagnostics as a list to review rather than proof that a view can be deleted.
 
-View usage is recognized in view helpers, view routes, mail definitions, Blade directives that render views, such as `@extends`, `@include` and `@each`, and anonymous component tags such as `<x-alert>`. By default, your application's view paths are checked. To check other directories instead, use the `viewDirectories` parameter:
+View usage is recognized in view helpers, view routes, mail definitions, Blade directives that render views, such as `@extends`, `@include` and `@each`, and anonymous component tags such as `<x-alert>`, including components in directories registered with `Blade::anonymousComponentPath()` or `Blade::anonymousComponentNamespace()`. By default, your application's view paths are checked. To check other directories instead, use the `viewDirectories` parameter:
 
 ```neon
 parameters:
