@@ -27,3 +27,12 @@ class HypervelEventWithoutConstructor
 {
     use Dispatchable;
 }
+
+class HypervelEventWithReference
+{
+    use Dispatchable;
+
+    public function __construct(int &$count)
+    {
+    }
+}

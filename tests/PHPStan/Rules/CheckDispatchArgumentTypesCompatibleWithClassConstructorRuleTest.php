@@ -84,6 +84,7 @@ class CheckDispatchArgumentTypesCompatibleWithClassConstructorRuleTest extends R
             ['Event class Hypervel\Tests\PHPStan\Rules\Data\HypervelEventWithoutConstructor does not have a constructor and must be dispatched without any parameters.', 15],
             ['Event class Hypervel\Tests\PHPStan\Rules\Data\HypervelEventWithoutConstructor does not have a constructor and must be dispatched without any parameters.', 18],
             ['Event class Hypervel\Tests\PHPStan\Rules\Data\HypervelEvent constructor invoked with 1 parameter in Hypervel\Tests\PHPStan\Rules\Data\HypervelEvent::broadcast(), 2 required.', 21],
+            ['Parameter #1 $count of event class Hypervel\Tests\PHPStan\Rules\Data\HypervelEventWithReference constructor expects int in Hypervel\Tests\PHPStan\Rules\Data\HypervelEventWithReference::dispatch(), string given.', 25],
         ]);
     }
 }

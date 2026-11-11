@@ -53,7 +53,8 @@ class ModelScopeParameterReflection implements ParameterReflection
      */
     public function passedByReference(): PassedByReference
     {
-        return $this->parameter->passedByReference();
+        // A scope is called with the argument values __call() received, never the caller's variables.
+        return PassedByReference::createNo();
     }
 
     /**

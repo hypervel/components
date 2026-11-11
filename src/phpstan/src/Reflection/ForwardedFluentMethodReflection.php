@@ -25,7 +25,7 @@ class ForwardedFluentMethodReflection extends ForwardedMethodReflection
             fn (ParametersAcceptor $variant): FunctionVariant => new FunctionVariant(
                 $variant->getTemplateTypeMap(),
                 $variant->getResolvedTemplateTypeMap(),
-                $variant->getParameters(),
+                ProxiedParameterReflection::fromTargetParameters($variant->getParameters()),
                 $variant->isVariadic(),
                 new ThisType($this->declaringClass),
                 $variant instanceof ExtendedParametersAcceptor ? $variant->getCallSiteVarianceMap() : null,

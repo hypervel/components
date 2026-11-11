@@ -6,6 +6,7 @@ namespace Hypervel\PHPStan\Rules;
 
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Events\Dispatchable as EventDispatchable;
+use Hypervel\PHPStan\Reflection\ProxiedMethodReflection;
 use PhpParser\Node;
 use PhpParser\Node\Expr\StaticCall;
 use PHPStan\Analyser\Scope;
@@ -149,13 +150,13 @@ class CheckDispatchArgumentTypesCompatibleWithClassConstructorRule implements Ru
 
         $classDisplayName = str_replace('%', '%%', $jobClassReflection->getDisplayName());
 
+        $variant = ParametersAcceptorSelector::selectFromArgs($scope, $node->getArgs(), $constructorReflection->getVariants());
+
         // @phpstan-ignore phpstanApi.method (PHPStan's own argument check, which new and static calls use.)
         return $this->check->check(
-            ParametersAcceptorSelector::selectFromArgs(
-                $scope,
-                $node->getArgs(),
-                $constructorReflection->getVariants(),
-            ),
+            // Unlike upstream, a reference parameter takes any expression: the dispatch method passes its
+            // variadic arguments' values to the constructor, never the caller's variables.
+            ProxiedMethodReflection::proxyVariant($variant, $variant->getReturnType()),
             $scope,
             $constructorReflection->getDeclaringClass()->isBuiltin(),
             $node,

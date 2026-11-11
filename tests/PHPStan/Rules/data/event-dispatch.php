@@ -19,3 +19,7 @@ HypervelEventWithoutConstructor::dispatchUnless(true, 'foo');
 
 // Hypervel: broadcast() constructs the event too.
 HypervelEvent::broadcast('foo');
+
+// Hypervel: dispatch() passes its arguments' values on, so a reference parameter takes any expression.
+HypervelEventWithReference::dispatch(1);
+HypervelEventWithReference::dispatch('foo');

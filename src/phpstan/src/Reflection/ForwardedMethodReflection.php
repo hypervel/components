@@ -6,10 +6,16 @@ namespace Hypervel\PHPStan\Reflection;
 
 use PHPStan\Reflection\ClassMemberReflection;
 use PHPStan\Reflection\ClassReflection;
+use PHPStan\Reflection\ExtendedParametersAcceptor;
+use PHPStan\Reflection\FunctionVariant;
 use PHPStan\Reflection\MethodReflection;
+use PHPStan\Reflection\ParameterReflection;
 use PHPStan\Reflection\ParametersAcceptor;
 use PHPStan\TrinaryLogic;
 use PHPStan\Type\Type;
+
+use function array_all;
+use function array_map;
 
 /**
  * Describe a method that another object handles for the receiver.
@@ -96,11 +102,27 @@ class ForwardedMethodReflection implements MethodReflection
     /**
      * Return the forwarded method variants.
      *
+     * The receiver's __call() passes the argument values on, so a reference parameter never gets
+     * the caller's variable. A variant without one stays as it is, keeping PHPStan's extended metadata.
+     *
      * @return list<ParametersAcceptor>
      */
     public function getVariants(): array
     {
-        return $this->forwardedMethod->getVariants();
+        return array_map(
+            static fn (ParametersAcceptor $variant): ParametersAcceptor => array_all(
+                $variant->getParameters(),
+                static fn (ParameterReflection $parameter): bool => $parameter->passedByReference()->no(),
+            ) ? $variant : new FunctionVariant(
+                $variant->getTemplateTypeMap(),
+                $variant->getResolvedTemplateTypeMap(),
+                ProxiedParameterReflection::fromTargetParameters($variant->getParameters()),
+                $variant->isVariadic(),
+                $variant->getReturnType(),
+                $variant instanceof ExtendedParametersAcceptor ? $variant->getCallSiteVarianceMap() : null,
+            ),
+            $this->forwardedMethod->getVariants(),
+        );
     }
 
     /**
