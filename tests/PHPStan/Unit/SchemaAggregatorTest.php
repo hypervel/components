@@ -504,6 +504,53 @@ class SchemaAggregatorTest extends PHPStanTestCase
     }
 
     /**
+     * A type() modifier replaces the column's type; a type that is not constant leaves it unknown.
+     */
+    #[Test]
+    public function itAppliesTheTypeModifier(): void
+    {
+        $aggregator = $this->aggregate(<<<'PHP'
+            Schema::create('users', function (Blueprint $table) {
+                $table->string('votes')->type('integer');
+                $table->foreignIdFor(Author::class)->type('integer');
+                $table->string('dynamic')->type($this->type);
+            });
+        PHP, members: 'public string $type = "integer";');
+
+        $this->assertSame(
+            ['votes' => ['int', false], 'author_id' => ['int', false], 'dynamic' => [null, false]],
+            $this->columns($aggregator, 'users'),
+        );
+    }
+
+    /**
+     * A foreign ID column's constrained() and references() return its foreign key, so the calls after them leave the
+     * column alone. On another column they are attributes that return the column.
+     */
+    #[Test]
+    public function itAppliesOnlyTheColumnModifiersBeforeAForeignKey(): void
+    {
+        $aggregator = $this->aggregate(<<<'PHP'
+            Schema::create('posts', function (Blueprint $table) {
+                $table->foreignId('user_id')->constrained()->nullable();
+                $table->foreignId('editor_id')->nullable()->constrained()->cascadeOnDelete();
+                $table->foreignUuid('owner_id')->references('id')->on('owners')->nullable();
+                $table->unsignedBigInteger('team_id')->references('id')->nullable();
+            });
+        PHP);
+
+        $this->assertSame(
+            [
+                'user_id' => ['int<0, max>|numeric-string', false],
+                'editor_id' => ['int<0, max>|numeric-string', true],
+                'owner_id' => ['string', false],
+                'team_id' => ['int<0, max>|numeric-string', true],
+            ],
+            $this->columns($aggregator, 'posts'),
+        );
+    }
+
+    /**
      * Unlike upstream's drop, removeColumn() only cancels the definitions the Blueprint queued.
      */
     #[Test]
@@ -630,6 +677,55 @@ class SchemaAggregatorTest extends PHPStanTestCase
             } elseif (Schema::dropIfExists('users') === null) {
             }
         PHP);
+
+        $this->assertSame(['name' => ['string', false], 'email' => ['string', false]], $this->columns($aggregator, 'users'));
+        $this->assertTrue($this->table($aggregator, 'users')->complete);
+    }
+
+    #[Test]
+    public function itForgetsWhatASwitchLeftPartwayChanges(): void
+    {
+        $members = 'public bool $flag = true; public array $items = [];';
+
+        foreach ([
+            'if' => "if (\$this->flag) {\n    break;\n}",
+            'nested loop' => "foreach (\$this->items as \$item) {\n    break 2;\n}",
+        ] as $case => $exit) {
+            $aggregator = $this->aggregate(<<<PHP
+                Schema::create('users', fn (Blueprint \$table) => \$table->string('name'));
+
+                switch (\$this->flag) {
+                    default:
+                        {$exit}
+
+                        Schema::table('users', fn (Blueprint \$table) => \$table->string('email'));
+                }
+            PHP, members: $members);
+
+            $this->assertSame([], $this->columns($aggregator, 'users'), $case);
+            $this->assertFalse($this->table($aggregator, 'users')->complete, $case);
+        }
+
+        // A break that leaves only a nested loop or switch keeps the case going.
+        $aggregator = $this->aggregate(<<<'PHP'
+            Schema::create('users', fn (Blueprint $table) => $table->string('name'));
+
+            switch ($this->flag) {
+                default:
+                    foreach ($this->items as $item) {
+                        break;
+                    }
+
+                    switch ($this->flag) {
+                        case true:
+                            if ($this->flag) {
+                                break;
+                            }
+                    }
+
+                    Schema::table('users', fn (Blueprint $table) => $table->string('email'));
+            }
+        PHP, members: $members);
 
         $this->assertSame(['name' => ['string', false], 'email' => ['string', false]], $this->columns($aggregator, 'users'));
         $this->assertTrue($this->table($aggregator, 'users')->complete);
@@ -808,6 +904,40 @@ class SchemaAggregatorTest extends PHPStanTestCase
         yield 'facade default' => ["public function getConnection(): ?string { return Config::get('schema_aggregator.connection', 'pgsql'); }", [], 'pgsql'];
         yield 'null for a string return type' => ["public function getConnection(): string { return config('schema_aggregator.connection'); }", [], null];
         yield 'unreadable' => ['public function getConnection(): ?string { return $this->name(); }', [], null];
+    }
+
+    /**
+     * A connection property the migration sets at runtime could select any connection, unless only down() sets it.
+     */
+    #[Test]
+    public function itForgetsTheConnectionAMigrationSetsAtRuntime(): void
+    {
+        $migrations = [
+            'constructor' => ['protected $connection = null; public function __construct() { $this->connection = config("schema_aggregator.connection"); }', ''],
+            'up' => ['protected $connection = null;', '$this->connection ??= "sqlite";'],
+            'promoted' => ['public function __construct(protected ?string $connection = null) {}', ''],
+            'down only' => ['protected $connection = null; public function down(): void { $this->connection = "sqlite"; }', ''],
+        ];
+
+        foreach ($migrations as $case => [$members, $up]) {
+            $aggregator = $this->apply(<<<PHP
+                return new class extends Migration
+                {
+                    {$members}
+
+                    public function up(): void
+                    {
+                        {$up}
+                        Schema::create('posts', fn (Blueprint \$table) => \$table->string('title'));
+                    }
+                };
+            PHP, $this->aggregate("Schema::create('users', fn (Blueprint \$table) => \$table->string('name'));", config('database.default')));
+
+            $known = $case === 'down only';
+
+            $this->assertSame($known, $this->schema($aggregator, config('database.default'))->complete, $case);
+            $this->assertSame($known ? ['title' => ['string', false]] : null, $this->columns($aggregator, 'posts', config('database.default')), $case);
+        }
     }
 
     /**

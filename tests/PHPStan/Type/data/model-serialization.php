@@ -4,6 +4,7 @@ namespace ModelSerialization;
 
 use Carbon\Carbon;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Contracts\Database\Eloquent\CastsInboundAttributes;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Casts\Attribute;
 use Hypervel\Database\Eloquent\Model;
@@ -376,4 +377,77 @@ class DateAccessorSerializationModel extends SerializationModel
 function dateAccessorSerialization(DateAccessorSerializationModel $model): void
 {
     assertType('string', $model->attributesToArray()['email_verified_at']);
+}
+
+class SerializationInboundCast implements CastsInboundAttributes
+{
+    public function set(Model $model, string $key, mixed $value, array $attributes): string
+    {
+        return 'value';
+    }
+}
+
+class InboundCastAccessorSerializationModel extends SerializationModel
+{
+    protected array $casts = ['name' => SerializationInboundCast::class];
+
+    public function getNameAttribute(): bool
+    {
+        return true;
+    }
+}
+
+class AppendedCastSerializationModel extends SerializationModel
+{
+    protected array $visible = ['name', 'email', 'remember_token'];
+
+    protected array $appends = ['name', 'email', 'remember_token'];
+
+    protected array $casts = ['name' => SerializationValueCast::class, 'email' => SerializationInboundCast::class];
+}
+
+// mutateAttributeForArray() reads a class cast before any accessor and without its serialize hook, and an inbound caster
+// leaves the raw value. An appended attribute without either makes it call a get{Name}Attribute() method that is missing.
+function mutatedCastSerialization(InboundCastAccessorSerializationModel $accessor, AppendedCastSerializationModel $appended): void
+{
+    assertType('string', $accessor->attributesToArray()['name']);
+    assertType('array{name?: array{value: int}, email?: string, remember_token?: mixed, ...<string, mixed>}', $appended->attributesToArray());
+}
+
+/** @extends Collection<int, string> */
+class OverridingSerializationCollection extends Collection
+{
+    /** @return list<'custom'> */
+    public function toArray(): array
+    {
+        return ['custom'];
+    }
+}
+
+/** @extends Collection<int, SerializationValue> */
+class InheritingSerializationCollection extends Collection
+{
+}
+
+class CustomCollectionSerializationModel extends AppendedSerializationModel
+{
+    protected array $visible = ['overriding', 'inheriting'];
+
+    protected array $appends = ['overriding', 'inheriting'];
+
+    public function getOverridingAttribute(): OverridingSerializationCollection
+    {
+        return new OverridingSerializationCollection(['value']);
+    }
+
+    public function getInheritingAttribute(): InheritingSerializationCollection
+    {
+        return new InheritingSerializationCollection([new SerializationValue()]);
+    }
+}
+
+function customCollectionSerialization(CustomCollectionSerializationModel $model): void
+{
+    assertType("list<'custom'>", $model->attributesToArray()['overriding']);
+    assertType('array<int, array{value: int}>', $model->attributesToArray()['inheriting']);
 }

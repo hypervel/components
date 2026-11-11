@@ -79,7 +79,10 @@ use function explode;
 use function implode;
 use function in_array;
 use function is_string;
+use function preg_match;
 use function str_contains;
+use function strtolower;
+use function trim;
 
 #[AutowiredService]
 class ModelCastHelper
@@ -321,6 +324,15 @@ class ModelCastHelper
      */
     private function parseCast(string $cast): string
     {
+        $lowercase = strtolower(trim($cast));
+
+        // Hypervel: as getCastType() does, a cast other than a class or a date or decimal cast with arguments matches
+        // in lowercase, so ENCRYPTED:ARRAY is encrypted:array. A date or decimal cast with arguments matches only as written.
+        if (! $this->reflectionProvider->hasClass(explode(':', $cast)[0])
+            && preg_match('/^(?:date|datetime|immutable_date|immutable_datetime|decimal):/', $lowercase) !== 1) {
+            $cast = $lowercase;
+        }
+
         foreach (explode(':', $cast) as $part) {
             // If the cast is prefixed with `encrypted:` we need to skip to the next
             if ($part === 'encrypted') {

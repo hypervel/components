@@ -387,3 +387,22 @@ class Dimensions
     {
     }
 }
+
+class UppercaseCastsModel extends Model
+{
+    protected ?string $table = 'model_with_casts';
+
+    protected array $casts = [
+        'string' => 'BOOLEAN',
+        'array' => 'ENCRYPTED:ARRAY',
+        'datetime' => 'DATETIME:Y-m-d',
+    ];
+}
+
+// Primitive casts match in lowercase, as getCastType() normalizes them, but a date cast with arguments matches only as written.
+function uppercaseCasts(UppercaseCastsModel $model): void
+{
+    assertType('bool', $model->string);
+    assertType('array', $model->array);
+    assertType('mixed', $model->datetime);
+}

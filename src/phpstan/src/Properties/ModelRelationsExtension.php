@@ -106,15 +106,16 @@ class ModelRelationsExtension implements PropertiesClassReflectionExtension
             ->getReturnType();
 
         $relationType = TypeTraverser::map($returnType, static function (Type $type, callable $traverse): Type {
+            // A relation intersected with an interface yields its result, which the interface does not describe.
+            if ((new ObjectType(Relation::class))->isSuperTypeOf($type)->yes()) {
+                return $type->getTemplateType(Relation::class, 'TResult');
+            }
+
             if ($type instanceof UnionType || $type instanceof IntersectionType) {
                 return $traverse($type);
             }
 
-            if (! (new ObjectType(Relation::class))->isSuperTypeOf($type)->yes()) {
-                return $type;
-            }
-
-            return $type->getTemplateType(Relation::class, 'TResult');
+            return $type;
         });
 
         $relationType = $this->collectionHelper->replaceCollectionsInType($relationType);

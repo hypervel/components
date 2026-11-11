@@ -228,18 +228,18 @@ class ModelPropertyHelper
 
         if ($propertyName === $modelInstance->getKeyName() && ! isset($table->columns[$propertyName])) {
             $keyType = $this->stringResolver->resolve($modelInstance->getKeyType());
-            [$readableType, $writableType, $nullable] = [$keyType, $keyType, false];
+            [$readableType, $writableType, $readNullable, $writeNullable] = [$keyType, $keyType, false, false];
         } else {
             // A virtual attribute behind an accessor has no column, so its raw value is whatever was assigned,
             // or null when nothing was.
-            [$readableType, $writableType, $nullable] = $lookup === null || $table === null || $this->hasColumn($lookup, $propertyName)->no()
-                ? [new MixedType, new MixedType, true]
+            [$readableType, $writableType, $readNullable, $writeNullable] = $lookup === null || $table === null || $this->hasColumn($lookup, $propertyName)->no()
+                ? [new MixedType, new MixedType, true, true]
                 : $this->getColumnTypes($lookup, $table, $propertyName);
         }
 
         $hasCast = $this->modelCastHelper->hasCastForProperty($classReflection, $propertyName);
         $cast = $this->modelCastHelper->getCastForProperty($classReflection, $propertyName);
-        $date = $this->hasDate($modelInstance, $propertyName);
+        $date = $this->hasDate($classReflection, $modelInstance, $propertyName);
 
         if ($hasCast && $cast === null) {
             // A cast that cannot be determined may turn the attribute into anything.
@@ -257,15 +257,15 @@ class ModelPropertyHelper
             $writableType = $this->modelCastHelper->getWriteableType($cast, $writableType);
         }
 
-        if (($date || $cast !== null) && $nullable) {
+        if (($date || $cast !== null) && ($readNullable || $writeNullable)) {
             // A caster's get() and set() also handle null, so their declarations decide it.
             $caster = $cast === null ? null : $this->modelCastHelper->getCaster($cast);
 
-            if (! $caster?->is(CastsAttributes::class)) {
+            if ($readNullable && ! $caster?->is(CastsAttributes::class)) {
                 $readableType = TypeCombinator::addNull($readableType);
             }
 
-            if ($date || $caster === null) {
+            if ($writeNullable && ($date || $caster === null)) {
                 $writableType = TypeCombinator::addNull($writableType);
             }
         }
@@ -279,29 +279,28 @@ class ModelPropertyHelper
     }
 
     /**
-     * Get the types a column attribute reads as and accepts, with whether the column is nullable.
+     * Get the types a column attribute reads as and accepts, with whether a read may be null and whether a write may be.
      *
      * Raw types include null and the connection's fetch options; the attribute reads the column
      * each option set's ATTR_CASE fetches under that name, or null when none does.
      *
      * @param array{config: ConnectionConfig, schema: SchemaConnection, table: null|SchemaTable} $lookup
      *
-     * @return array{Type, Type, bool}
+     * @return array{Type, Type, bool, bool}
      */
     private function getColumnTypes(array $lookup, SchemaTable $table, string $propertyName): array
     {
         $config = $lookup['config'];
 
         if ($config->customized) {
-            return [new MixedType, new MixedType, true];
+            return [new MixedType, new MixedType, true, true];
         }
 
         $schema = $lookup['schema'];
         $searchPath = $table->searchPath ?? $config->searchPath;
         $writeColumn = $table->columns[$propertyName] ?? null;
-        // Without a known column, the attribute may hold null.
-        $nullable = $writeColumn->nullable ?? true;
         $readableTypes = [];
+        $readNullable = false;
 
         foreach ($config->fetchOptions as $options) {
             $name = $this->getFetchedNames($table, $options)[$propertyName] ?? null;
@@ -309,21 +308,19 @@ class ModelPropertyHelper
 
             if ($column === null) {
                 $readableTypes[] = $table->complete ? new NullType : new MixedType;
-                $nullable = true;
+                $readNullable = true;
 
                 continue;
             }
 
-            $nullable = $nullable || $column->nullable;
-
-            if ($column->type === null) {
-                $readableTypes[] = new MixedType;
-
-                continue;
-            }
-            $readableType = $this->converter->convert($schema->driver, $column->type, $column->options, $schema, $searchPath)['readable'];
-            $readableType = $column->nullable ? TypeCombinator::addNull($readableType) : $readableType;
-            $readableTypes[] = $this->converter->applyFetchOptions($readableType, $schema->driver, [$options]);
+            $readableType = $column->type === null
+                ? new MixedType
+                : $this->converter->convert($schema->driver, $column->type, $column->options, $schema, $searchPath)['readable'];
+            // The column decides null, for an unknown or unmapped type too, before the fetch options apply.
+            $readableType = $column->nullable ? TypeCombinator::addNull($readableType) : TypeCombinator::remove($readableType, new NullType);
+            $readableType = $this->converter->applyFetchOptions($readableType, $schema->driver, [$options]);
+            $readableTypes[] = $readableType;
+            $readNullable = $readNullable || ! $readableType->isNull()->no();
         }
 
         if ($writeColumn?->type === null) {
@@ -333,7 +330,8 @@ class ModelPropertyHelper
             $writableType = $writeColumn->nullable ? TypeCombinator::addNull($writableType) : $writableType;
         }
 
-        return [TypeCombinator::union(...$readableTypes), $writableType, $nullable];
+        // Without a known column, the attribute may hold null.
+        return [TypeCombinator::union(...$readableTypes), $writableType, $readNullable, $writeColumn->nullable ?? true];
     }
 
     /**
@@ -702,12 +700,15 @@ class ModelPropertyHelper
     /**
      * Determine whether the model treats the attribute as a date.
      */
-    private function hasDate(Model $modelInstance, string $propertyName): bool
+    private function hasDate(ClassReflection $classReflection, Model $modelInstance, string $propertyName): bool
     {
         $dates = $modelInstance->getDates();
 
         // In order to support SoftDeletes
-        if (method_exists($modelInstance, 'getDeletedAtColumn')) {
+        // Hypervel: initializeSoftDeletes() adds its datetime cast only when the column has no cast,
+        // including one an undetermined casts() entry may hold.
+        if (method_exists($modelInstance, 'getDeletedAtColumn')
+            && ! $this->modelCastHelper->hasCastForProperty($classReflection, $modelInstance->getDeletedAtColumn())) {
             $dates[] = $modelInstance->getDeletedAtColumn();
         }
 

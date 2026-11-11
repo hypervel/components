@@ -29,6 +29,8 @@ use function array_filter;
 use function array_key_exists;
 use function array_keys;
 use function array_map;
+use function array_reverse;
+use function array_slice;
 use function array_values;
 use function class_basename;
 use function class_uses_recursive;
@@ -123,6 +125,9 @@ class SchemaAggregator
 
     /** Blueprint methods that add a nullable column. */
     private const array NULLABLE_COLUMN_METHODS = ['remembertoken', 'softdeletes', 'softdeletesdatetime', 'softdeletestz'];
+
+    /** Blueprint methods that return a ForeignIdColumnDefinition, whose constrained() and references() return its foreign key. */
+    private const array FOREIGN_ID_COLUMN_METHODS = ['foreignid', 'foreignidfor', 'foreignulid', 'foreignulidfor', 'foreignuuid', 'foreignuuidfor'];
 
     /** Blueprint methods that change no columns. */
     private const array IGNORED_BLUEPRINT_METHODS = [
@@ -329,6 +334,10 @@ class SchemaAggregator
      */
     private function evaluateConnectionProperty(PhpParser\Node\Stmt\Class_ $class): array
     {
+        if ($this->writesConnectionProperty($class)) {
+            return [false, null];
+        }
+
         foreach ($class->getProperties() as $property) {
             foreach ($property->props as $prop) {
                 if ($prop->name->toString() === 'connection') {
@@ -342,6 +351,39 @@ class SchemaAggregator
         }
 
         return $this->inheritsFromMigration($class, 'connection') ? [true, null] : [false, null];
+    }
+
+    /**
+     * Determine whether a migration sets its connection property at runtime: in a method other than down(), which
+     * runs on its own, or from a promoted constructor parameter. A write in a nested class only makes this cautious.
+     */
+    private function writesConnectionProperty(PhpParser\Node\Stmt\Class_ $class): bool
+    {
+        foreach ($class->getMethods() as $method) {
+            if ($method->name->toLowerString() === 'down') {
+                continue;
+            }
+
+            foreach ($method->params as $param) {
+                if ($param->flags !== 0 && $param->var instanceof PhpParser\Node\Expr\Variable && $param->var->name === 'connection') {
+                    return true;
+                }
+            }
+
+            $write = (new NodeFinder)->findFirst($method->stmts ?? [], fn (PhpParser\Node $node): bool => ($node instanceof PhpParser\Node\Expr\Assign
+                    || $node instanceof PhpParser\Node\Expr\AssignRef
+                    || $node instanceof PhpParser\Node\Expr\AssignOp)
+                && $node->var instanceof PhpParser\Node\Expr\PropertyFetch
+                && $this->isThis($node->var->var)
+                && $node->var->name instanceof PhpParser\Node\Identifier
+                && $node->var->name->toString() === 'connection');
+
+            if ($write !== null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -485,7 +527,8 @@ class SchemaAggregator
                 return [false, $this->mergeStates($returned, $this->snapshot())];
             }
 
-            if ($stmt instanceof PhpParser\Node\Stmt\If_ || $stmt instanceof PhpParser\Node\Stmt\Switch_) {
+            // A switch that a case leaves partway, such as through a break in an if, is not followed, as loops are not.
+            if ($stmt instanceof PhpParser\Node\Stmt\If_ || ($stmt instanceof PhpParser\Node\Stmt\Switch_ && ! $this->leavesSwitchPartway($stmt))) {
                 [$continuing, $branchReturned] = $this->applyBranches($stmt, $scope);
                 $returned = $this->mergeStates($returned, $branchReturned);
 
@@ -500,6 +543,64 @@ class SchemaAggregator
         }
 
         return [true, $returned];
+    }
+
+    /**
+     * Determine whether a case leaves the switch other than at a break among its own statements, where its body ends.
+     */
+    private function leavesSwitchPartway(PhpParser\Node\Stmt\Switch_ $switch): bool
+    {
+        foreach ($switch->cases as $case) {
+            foreach ($case->stmts as $stmt) {
+                if ($stmt instanceof PhpParser\Node\Stmt\Break_) {
+                    break;
+                }
+
+                if ($this->leavesSwitch([$stmt], 0)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine whether nodes hold a break or continue that leaves the switch around them, past the loops and
+     * switches between them. A function or class starts its own.
+     *
+     * @param array<mixed> $nodes
+     * @param int $depth the loops and switches between the nodes and the switch
+     */
+    private function leavesSwitch(array $nodes, int $depth): bool
+    {
+        foreach ($nodes as $node) {
+            if ($node instanceof PhpParser\Node\Stmt\Break_ || $node instanceof PhpParser\Node\Stmt\Continue_) {
+                if (($node->num instanceof PhpParser\Node\Scalar\Int_ ? $node->num->value : 1) > $depth) {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if (! $node instanceof PhpParser\Node || $node instanceof PhpParser\Node\FunctionLike || $node instanceof PhpParser\Node\Stmt\ClassLike) {
+                continue;
+            }
+
+            $inner = $node instanceof PhpParser\Node\Stmt\For_ || $node instanceof PhpParser\Node\Stmt\Foreach_
+                || $node instanceof PhpParser\Node\Stmt\While_ || $node instanceof PhpParser\Node\Stmt\Do_
+                || $node instanceof PhpParser\Node\Stmt\Switch_ ? $depth + 1 : $depth;
+
+            foreach ($node->getSubNodeNames() as $name) {
+                $subNode = $node->{$name};
+
+                if ($this->leavesSwitch(is_array($subNode) ? $subNode : [$subNode], $inner)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1402,8 +1503,8 @@ class SchemaAggregator
     /**
      * Apply a statement of a Blueprint callback to its table.
      *
-     * Only a call chain on the Blueprint is followed: its first call, with the last nullable() and
-     * unsigned() modifiers of the chain. A method it does not know, such as a macro, or a name that
+     * Only a call chain on the Blueprint is followed: its first call, with the last nullable(), unsigned()
+     * and type() modifiers of the chain. A method it does not know, such as a macro, or a name that
      * is not constant makes the table unknown. Other statements make the table unknown when they use
      * the Blueprint. Creating a first-class callable runs nothing.
      *
@@ -1414,15 +1515,34 @@ class SchemaAggregator
         /** @var TableScope $tableScope */
         $tableScope = $scope['table'];
         $call = $expr;
-        $modifiers = [];
+        $chain = [];
 
         while ($call instanceof PhpParser\Node\Expr\MethodCall && $call->var instanceof PhpParser\Node\Expr\MethodCall) {
-            // The outermost modifier runs last, so it decides.
             if ($call->name instanceof PhpParser\Node\Identifier && ! $call->isFirstClassCallable()) {
-                $modifiers[$call->name->toLowerString()] ??= $call;
+                $chain[] = [$call->name->toLowerString(), $call];
             }
 
             $call = $call->var;
+        }
+
+        // A foreign ID column's constrained() or references() returns its foreign key, so the calls after it change the key.
+        if ($call instanceof PhpParser\Node\Expr\MethodCall
+            && $call->name instanceof PhpParser\Node\Identifier
+            && in_array($call->name->toLowerString(), self::FOREIGN_ID_COLUMN_METHODS, true)) {
+            foreach (array_reverse($chain, true) as $position => [$name]) {
+                if ($name === 'constrained' || $name === 'references') {
+                    $chain = array_slice($chain, $position + 1);
+
+                    break;
+                }
+            }
+        }
+
+        $modifiers = [];
+
+        foreach ($chain as [$name, $modifier]) {
+            // The outermost modifier runs last, so it decides.
+            $modifiers[$name] ??= $modifier;
         }
 
         if (! $call instanceof PhpParser\Node\Expr\MethodCall
@@ -1499,7 +1619,7 @@ class SchemaAggregator
                 $connection,
                 $table,
                 $name,
-                $type,
+                $this->getTypeModifier($modifiers, $type, $table),
                 $this->getModifier($modifiers, 'unsigned', match (true) {
                     in_array($method, self::UNSIGNED_COLUMN_METHODS, true) => true,
                     in_array($method, self::SIGNABLE_COLUMN_METHODS, true) => $this->getBooleanArgument($call, 2, 'unsigned', false),
@@ -1509,7 +1629,7 @@ class SchemaAggregator
                 $this->getModifier($modifiers, 'nullable', isset($parameters['nullable'])
                     ? $this->resolveBoolean($parameters['nullable'])
                     : in_array($method, self::NULLABLE_COLUMN_METHODS, true)) ?? true,
-                in_array($type, ['enum', 'set'], true)
+                in_array($type, ['enum', 'set'], true) && ! isset($modifiers['type'])
                     ? $this->getAllowedValues($method === 'addcolumn' ? $parameters['allowed'] ?? null : $this->getArgument($call, 1, 'allowed'), $table)
                     : null,
             );
@@ -1540,7 +1660,7 @@ class SchemaAggregator
                     $connection,
                     $table,
                     $name,
-                    $type,
+                    $this->getTypeModifier($modifiers, $type, $table),
                     $this->getModifier($modifiers, 'unsigned', $type === 'biginteger'),
                     $this->getModifier($modifiers, 'nullable', false) ?? true,
                 );
@@ -1756,6 +1876,24 @@ class SchemaAggregator
     private function getModifier(array $modifiers, string $name, ?bool $default): ?bool
     {
         return isset($modifiers[$name]) ? $this->getBooleanArgument($modifiers[$name], 0, 'value', true) : $default;
+    }
+
+    /**
+     * Get the lowercase Blueprint type a type() modifier gives the column, the given type without one, or null
+     * when the modifier's type is not constant.
+     *
+     * @param array<string, PhpParser\Node\Expr\MethodCall> $modifiers
+     */
+    private function getTypeModifier(array $modifiers, ?string $type, SchemaTable $table): ?string
+    {
+        if (! isset($modifiers['type'])) {
+            return $type;
+        }
+
+        $argument = $this->getArgument($modifiers['type'], 0, 'type');
+        $name = $argument === null ? null : $this->resolveName($argument, $table);
+
+        return $name === null ? null : strtolower($name);
     }
 
     /**

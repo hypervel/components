@@ -2,9 +2,11 @@
 
 namespace ModelCastWrites;
 
+use DateTimeImmutable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Database\Eloquent\Attributes\Table;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\SoftDeletes;
 
 use function PHPStan\Testing\assertType;
 
@@ -33,6 +35,14 @@ function testUnknownNullability(UnknownTableModel $model): void
 {
     $model->count = 1;
     $model->count = null;
+}
+
+// A custom cast on the soft-delete column replaces its datetime cast, so writes follow the caster.
+function testSoftDeleteColumnCast(SoftDeleteCastModel $model): void
+{
+    assertType('ModelCastWrites\Label', $model->deleted_at);
+    $model->deleted_at = new Label('text');
+    $model->deleted_at = new DateTimeImmutable();
 }
 
 enum IntStatus: int
@@ -65,6 +75,16 @@ class CasterModel extends Model
 {
     protected array $casts = [
         'nullable_collection' => LabelCast::class,
+    ];
+}
+
+#[Table('model_with_casts')]
+class SoftDeleteCastModel extends Model
+{
+    use SoftDeletes;
+
+    protected array $casts = [
+        'deleted_at' => LabelCast::class,
     ];
 }
 

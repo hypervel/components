@@ -37,6 +37,7 @@ use PHPStan\Reflection\InitializerExprTypeResolver;
 use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Rules\DirectRegistry as DirectRuleRegistry;
 use PHPStan\Testing\PHPStanTestCase;
+use PHPStan\Type\NullType;
 use PHPStan\Type\StringType;
 use PHPStan\Type\TypeCombinator;
 use PHPStan\Type\VerbosityLevel;
@@ -140,6 +141,54 @@ class ModelPropertyHelperTest extends PHPStanTestCase
             self::assertSame('string', $modelPropertyHelper->getDatabaseProperty($member, 'EMAIL')->getReadableType()->describe(VerbosityLevel::precise()));
             self::assertSame('null', $modelPropertyHelper->getDatabaseProperty($member, 'email')->getReadableType()->describe(VerbosityLevel::precise()));
         });
+    }
+
+    /**
+     * A read can be null when a fetch option turns an empty string into null, even from a NOT NULL column,
+     * and cannot be when a fetch option turns null into an empty string.
+     */
+    #[Test]
+    public function itReadsNullAsTheConnectionsFetchOptionsProduceIt(): void
+    {
+        $cases = [
+            PDO::NULL_NATURAL => ['Carbon\CarbonInterface', 'mixed~null', 'mixed'],
+            PDO::NULL_EMPTY_STRING => ['Carbon\CarbonInterface|null', 'mixed', 'mixed'],
+            PDO::NULL_TO_STRING => ['Carbon\CarbonInterface', 'mixed~null', 'mixed~null'],
+        ];
+
+        foreach ($cases as $nulls => [$createdAt, $payload, $extra]) {
+            $this->withConfig(['database.connections.' . config('database.default') . '.options' => [PDO::ATTR_ORACLE_NULLS => $nulls]], function () use ($createdAt, $payload, $extra): void {
+                $modelPropertyHelper = $this->buildModelPropertyHelper(
+                    [__DIR__ . '/data/fetch_options_migration'],
+                    connectionConfigResolver: new ConnectionConfigResolver,
+                );
+                $member = $this->reflectionProvider->getClass(Member::class);
+
+                self::assertSame($createdAt, $modelPropertyHelper->getDatabaseProperty($member, 'created_at')->getReadableType()->describe(VerbosityLevel::precise()));
+                self::assertSame($payload, $modelPropertyHelper->getDatabaseProperty($member, 'payload')->getReadableType()->describe(VerbosityLevel::precise()));
+                self::assertSame($extra, $modelPropertyHelper->getDatabaseProperty($member, 'extra')->getReadableType()->describe(VerbosityLevel::precise()));
+                // Writes follow the column alone.
+                self::assertFalse($modelPropertyHelper->getDatabaseProperty($member, 'created_at')->getWritableType()->accepts(new NullType, true)->yes());
+
+                // A known type the driver's mapping does not cover reads as an unknown one.
+                $connectionConfigResolver = new ConnectionConfigResolver;
+                $dumpedPropertyHelper = $this->buildModelPropertyHelper(
+                    [],
+                    new MigrationHelper(
+                        $this->parser,
+                        [],
+                        $this->fileHelper,
+                        true,
+                        $this->reflectionProvider,
+                        self::getContainer()->getByType(InitializerExprTypeResolver::class),
+                        $connectionConfigResolver,
+                    ),
+                    [__DIR__ . '/data/schema/unmapped_type'],
+                    $connectionConfigResolver,
+                );
+                self::assertSame($payload, $dumpedPropertyHelper->getDatabaseProperty($member, 'shape')->getReadableType()->describe(VerbosityLevel::precise()));
+            });
+        }
     }
 
     /**

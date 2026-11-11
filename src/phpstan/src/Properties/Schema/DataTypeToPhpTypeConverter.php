@@ -18,6 +18,7 @@ use PHPStan\Type\IntegerRangeType;
 use PHPStan\Type\IntegerType;
 use PHPStan\Type\IntersectionType;
 use PHPStan\Type\MixedType;
+use PHPStan\Type\NullType;
 use PHPStan\Type\ResourceType;
 use PHPStan\Type\StringType;
 use PHPStan\Type\Type;
@@ -88,9 +89,10 @@ class DataTypeToPhpTypeConverter
             }
 
             $fetched = match ($options[PDO::ATTR_ORACLE_NULLS] ?? PDO::NULL_NATURAL) {
+                // remove() also subtracts null from mixed, which removeNull() leaves alone.
                 PDO::NULL_TO_STRING => $fetched->isNull()->no()
                     ? $fetched
-                    : TypeCombinator::union(TypeCombinator::removeNull($fetched), new ConstantStringType('')),
+                    : TypeCombinator::union(TypeCombinator::remove($fetched, new NullType), new ConstantStringType('')),
                 PDO::NULL_EMPTY_STRING => $fetched->isSuperTypeOf(new ConstantStringType(''))->no()
                     ? $fetched
                     : TypeCombinator::addNull($fetched),

@@ -206,9 +206,10 @@ class IntegrationTest extends PHPStanTestCase
         yield 'model-cast-writes' => [
             __DIR__ . '/data/model-cast-writes.php',
             [
-                16 => ['Property ModelCastWrites\EnumCastModel::$int (int|ModelCastWrites\IntStatus|numeric-string) does not accept \'one\'.'],
-                22 => ['Property ModelCastWrites\EnumCastModel::$integer (ModelCastWrites\PureStatus|string) does not accept int.'],
-                29 => ['Property ModelCastWrites\CasterModel::$nullable_collection (ModelCastWrites\Label) does not accept null.'],
+                18 => ['Property ModelCastWrites\EnumCastModel::$int (int|ModelCastWrites\IntStatus|numeric-string) does not accept \'one\'.'],
+                24 => ['Property ModelCastWrites\EnumCastModel::$integer (ModelCastWrites\PureStatus|string) does not accept int.'],
+                31 => ['Property ModelCastWrites\CasterModel::$nullable_collection (ModelCastWrites\Label) does not accept null.'],
+                45 => ['Property ModelCastWrites\SoftDeleteCastModel::$deleted_at (ModelCastWrites\Label) does not accept DateTimeImmutable.'],
             ],
         ];
 

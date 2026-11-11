@@ -51,6 +51,22 @@ class Foo extends Model
     {
         //
     }
+
+    /** @return HasMany<Bar, $this>&RelationMarker */
+    public function markedRelation(): HasMany
+    {
+        //
+    }
+
+    /** @return (HasMany<Bar, $this>&RelationMarker)|BelongsTo<Baz, $this> */
+    public function markedRelationUnion(): HasMany|BelongsTo
+    {
+        //
+    }
+}
+
+interface RelationMarker
+{
 }
 
 /**
@@ -105,4 +121,7 @@ function test(Foo $foo, Bar $bar, Account $account): void
     assertType('Hypervel\Database\Eloquent\Collection<int, ModelPropertiesRelations\Bar>|ModelPropertiesRelations\Baz|null', $foo->relationReturningUnion);
     assertType('Hypervel\Database\Eloquent\Collection<int, ModelPropertiesRelations\Bar>|ModelPropertiesRelations\Baz|null', $foo->relationReturningUnion2);
     assertType('Hypervel\Database\Eloquent\Collection<int, ModelPropertiesRelations\Foo>', $foo->ancestors);
+    // Hypervel: a relation intersected with an interface reads as its result alone.
+    assertType('Hypervel\Database\Eloquent\Collection<int, ModelPropertiesRelations\Bar>', $foo->markedRelation);
+    assertType('Hypervel\Database\Eloquent\Collection<int, ModelPropertiesRelations\Bar>|ModelPropertiesRelations\Baz|null', $foo->markedRelationUnion);
 }
