@@ -204,7 +204,7 @@ class Http2ClientTest extends TestCase
 
     public function testFailedSendDisconnectsTheClient(): void
     {
-        // @TODO: Remove this skip once Swoole's HTTP/2 client closes the connection when a write fails.
+        // @TODO: Remove this skip once https://github.com/swoole/swoole-src/pull/6391 is released.
         if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped('Swoole keeps the HTTP/2 client connected after a failed write leaves part of a frame unsent.');
         }
