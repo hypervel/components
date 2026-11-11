@@ -6,8 +6,6 @@ namespace Hypervel\PHPStan\Concerns;
 
 use Hypervel\View\ViewName;
 use PhpParser\Node\Expr;
-use PhpParser\Node\Expr\Array_;
-use PhpParser\Node\Scalar\String_;
 use PHPStan\Analyser\Scope;
 use PHPStan\Type\Constant\ConstantIntegerType;
 use PHPStan\Type\Constant\ConstantStringType;
@@ -15,8 +13,10 @@ use PHPStan\Type\Constant\ConstantStringType;
 /** @internal */
 trait CollectsMailViews
 {
+    use CollectsViewNames;
+
     /**
-     * Get the views a literal mail view argument names.
+     * Get the views a mail view argument names.
      *
      * Upstream reads only a string. The mailer also takes an array, which names the HTML and
      * plain-text views at 0 and 1, or under the html and text keys. Its raw key holds text.
@@ -25,15 +25,11 @@ trait CollectsMailViews
      */
     private function getMailViews(?Expr $view, Scope $scope): ?array
     {
-        if ($view instanceof String_) {
-            return [ViewName::normalize($view->value)];
-        }
-
-        if (! $view instanceof Array_) {
+        if ($view === null) {
             return null;
         }
 
-        $views = [];
+        $views = $this->getViewNames($view, $scope) ?? [];
 
         foreach ($scope->getType($view)->getConstantArrays() as $array) {
             $keys = $array->hasOffsetValueType(new ConstantIntegerType(0))->yes()

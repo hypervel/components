@@ -4,22 +4,23 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\Collectors;
 
+use Hypervel\PHPStan\Concerns\CollectsViewNames;
 use Hypervel\Support\Facades\Route;
-use Hypervel\View\ViewName;
 use PhpParser\Node;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
-use PhpParser\Node\Scalar\String_;
 use PHPStan\Analyser\Scope;
 use PHPStan\Collectors\Collector;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Type\ObjectType;
 
-/** @implements Collector<StaticCall, string> */
+/** @implements Collector<StaticCall, list<string>> */
 #[AutowiredService]
 class UsedRouteFacadeViewCollector implements Collector
 {
+    use CollectsViewNames;
+
     /**
      * Get the node type the collector inspects.
      */
@@ -32,8 +33,9 @@ class UsedRouteFacadeViewCollector implements Collector
      * Collect the view registered by a Route::view() call.
      *
      * @param StaticCall $node
+     * @return null|list<string>
      */
-    public function processNode(Node $node, Scope $scope): ?string
+    public function processNode(Node $node, Scope $scope): ?array
     {
         $name = $node->name;
 
@@ -42,13 +44,6 @@ class UsedRouteFacadeViewCollector implements Collector
         }
 
         if ($name->toLowerString() !== 'view') {
-            return null;
-        }
-
-        // Upstream reads the second argument by position, which misses reordered named arguments.
-        $template = $node->getArg('view', 1)?->value;
-
-        if (! $template instanceof String_) {
             return null;
         }
 
@@ -64,6 +59,7 @@ class UsedRouteFacadeViewCollector implements Collector
             return null;
         }
 
-        return ViewName::normalize($template->value);
+        // Upstream reads the second argument by position, which misses reordered named arguments.
+        return $this->getViewNames($node->getArg('view', 1)?->value, $scope);
     }
 }

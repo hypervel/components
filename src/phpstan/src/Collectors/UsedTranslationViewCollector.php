@@ -6,10 +6,9 @@ namespace Hypervel\PHPStan\Collectors;
 
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\PHPStan\Concerns\CollectsTranslationLookups;
-use Hypervel\PHPStan\Concerns\HasContainer;
+use Hypervel\PHPStan\Support\BladeScanner;
 use Hypervel\PHPStan\Support\ViewFileHelper;
 use Hypervel\PHPStan\Support\ViewParser;
-use Hypervel\View\Compilers\BladeCompiler;
 use PhpParser\Node\Expr\CallLike;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\StaticCall;
@@ -20,22 +19,11 @@ use PhpParser\Node\Stmt\InlineHTML;
 use PhpParser\NodeFinder;
 use PHPStan\DependencyInjection\AutowiredService;
 
-use function array_any;
 use function array_push;
-use function array_slice;
-use function is_array;
-use function method_exists;
 use function preg_match;
 use function preg_match_all;
-use function preg_replace;
-use function preg_replace_callback;
-use function strlen;
-use function strpos;
 use function strtolower;
-use function substr;
 use function substr_count;
-use function token_get_all;
-use function ucfirst;
 
 use const PREG_OFFSET_CAPTURE;
 use const PREG_SET_ORDER;
@@ -48,19 +36,6 @@ use const PREG_UNMATCHED_AS_NULL;
 class UsedTranslationViewCollector
 {
     use CollectsTranslationLookups;
-    use HasContainer;
-
-    /**
-     * Verbatim blocks, which Blade sets aside before compiling anything else.
-     */
-    private const string VERBATIM_REGEX = '/(?<!@)@verbatim(.*?)@endverbatim/s';
-
-    /**
-     * Blocks of PHP statements, which Blade sets aside next.
-     */
-    private const string PHP_BLOCK_REGEX = '/(?<!@)@php(.*?)@endphp/s';
-
-    private const string COMMENT_REGEX = '/\{\{--.*?--\}\}/s';
 
     /**
      * Component tags, whose attributes are matched as Blade matches them.
@@ -93,14 +68,6 @@ class UsedTranslationViewCollector
     private const string BOUND_ATTRIBUTE_REGEX = '/(?<!\S):(?!:)[\w\-:.@]+=(?:"(?<double>[^"]*)"|\'(?<single>[^\']*)\')/';
 
     /**
-     * The start of a directive with arguments, up to its opening parenthesis.
-     *
-     * Blade leaves an @@ prefixed directive, or one that follows a word character as in
-     * an email address, as text.
-     */
-    private const string DIRECTIVE_REGEX = '/(?<![\w@])@(\w+)[ \t]*(?=\()/';
-
-    /**
      * Echoes in Blade's compile order: raw, escaped, then regular. An @ prefix leaves an echo as text.
      *
      * @var list<non-empty-string>
@@ -116,6 +83,7 @@ class UsedTranslationViewCollector
      */
     public function __construct(
         private ViewParser $viewParser,
+        private BladeScanner $bladeScanner,
         private ViewFileHelper $viewFileHelper,
         private Filesystem $filesystem,
     ) {
@@ -150,29 +118,16 @@ class UsedTranslationViewCollector
     {
         $fragments = [];
 
-        $verbatimBlocks = $this->take(self::VERBATIM_REGEX, $source);
-        $phpBlocks = $this->take(self::PHP_BLOCK_REGEX, $source);
-        $comments = $this->take(self::COMMENT_REGEX, $source);
-
-        // Blade sets verbatim and @php blocks aside before it removes comments, so a comment
-        // around a block removes the block too.
-        $commented = static fn (int $offset): bool => array_any(
-            $comments,
-            static fn (array $comment): bool => $offset >= $comment[0][1] && $offset < $comment[0][1] + strlen($comment[0][0]),
-        );
+        [$verbatimBlocks, $phpBlocks] = $this->bladeScanner->setAside($source);
 
         // Blade restores a verbatim block as written: its Blade syntax stays text, while its
         // PHP tags still run.
-        foreach ($verbatimBlocks as $match) {
-            if (! $commented($match[1][1])) {
-                $fragments[] = [$match[1][0], 1 + substr_count($source, "\n", 0, $match[1][1])];
-            }
+        foreach ($verbatimBlocks as [$code, $offset]) {
+            $fragments[] = [$code, 1 + substr_count($source, "\n", 0, $offset)];
         }
 
-        foreach ($phpBlocks as $match) {
-            if (! $commented($match[1][1])) {
-                $fragments[] = ["<?php {$match[1][0]} ?>", 1 + substr_count($source, "\n", 0, $match[1][1])];
-            }
+        foreach ($phpBlocks as [$code, $offset]) {
+            $fragments[] = ["<?php {$code} ?>", 1 + substr_count($source, "\n", 0, $offset)];
         }
 
         preg_match_all(self::COMPONENT_TAG_REGEX, $source, $tags, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
@@ -219,33 +174,12 @@ class UsedTranslationViewCollector
     {
         $fragments = [];
 
-        preg_match_all(self::DIRECTIVE_REGEX, $html, $directives, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
-
-        $end = 0;
-
-        foreach ($directives as $directive) {
-            // Blade reads a directive inside another's arguments as part of those arguments.
-            if ($directive[0][1] < $end) {
-                continue;
-            }
-
-            $start = $directive[0][1] + strlen($directive[0][0]);
-            $arguments = $this->argumentList($html, $start);
-
-            if ($arguments === null) {
-                continue;
-            }
-
-            $end = $start + strlen($arguments);
-            $code = $this->directiveCode($directive[1][0], $arguments);
-
-            if ($code !== null) {
-                $fragments[] = [$code, $start];
-            }
+        foreach ($this->bladeScanner->directives($html) as [$name, $arguments, $offset]) {
+            $fragments[] = [$this->directiveCode($name, $arguments), $offset];
         }
 
         foreach (self::ECHO_REGEXES as $pattern) {
-            foreach ($this->take($pattern, $html) as $match) {
+            foreach ($this->bladeScanner->take($pattern, $html) as $match) {
                 if ($match[1][0] === null) {
                     $fragments[] = ["<?php echo {$match[2][0]};", $match[2][1]];
                 }
@@ -256,22 +190,13 @@ class UsedTranslationViewCollector
     }
 
     /**
-     * Get the PHP that runs a directive's arguments, or null when Blade does not run them as written.
+     * Get the PHP that runs a built-in directive's arguments.
      *
-     * Blade leaves an unknown directive as text, and a custom directive's handler decides
-     * what its arguments mean. Built-in directives run their arguments as PHP: @lang and
-     * @choice compile to the translator's get() and choice() methods, and loop headers
-     * keep their own syntax.
+     * Built-in directives run their arguments as PHP: @lang and @choice compile to the
+     * translator's get() and choice() methods, and loop headers keep their own syntax.
      */
-    private function directiveCode(string $name, string $arguments): ?string
+    private function directiveCode(string $name, string $arguments): string
     {
-        /** @var BladeCompiler $compiler */
-        $compiler = $this->resolve('blade.compiler');
-
-        if (isset($compiler->getCustomDirectives()[$name]) || ! method_exists($compiler, 'compile' . ucfirst($name))) {
-            return null;
-        }
-
         return match (strtolower($name)) {
             'lang' => "<?php Lang::get{$arguments};",
             'choice' => "<?php Lang::choice{$arguments};",
@@ -279,24 +204,6 @@ class UsedTranslationViewCollector
             'foreach', 'forelse' => "<?php foreach{$arguments} {}",
             default => "<?php f{$arguments};",
         };
-    }
-
-    /**
-     * Take the matches of the given pattern out of the view text, keeping every offset and line.
-     *
-     * @return list<array<array{null|string, int}>>
-     */
-    private function take(string $pattern, string &$html): array
-    {
-        preg_match_all($pattern, $html, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE | PREG_UNMATCHED_AS_NULL);
-
-        $html = (string) preg_replace_callback(
-            $pattern,
-            static fn (array $match): string => (string) preg_replace('/[^\n]/', ' ', $match[0]),
-            $html,
-        );
-
-        return $matches;
     }
 
     /**
@@ -346,34 +253,5 @@ class UsedTranslationViewCollector
         }
 
         return $lookups;
-    }
-
-    /**
-     * Get the parenthesized argument list starting at the given offset of the view text.
-     */
-    private function argumentList(string $html, int $offset): ?string
-    {
-        // Try each closing parenthesis in turn, so only the call itself is tokenized.
-        // PHP's tokenizer keeps parentheses inside strings and comments out of the count.
-        for ($end = strpos($html, ')', $offset); $end !== false; $end = strpos($html, ')', $end + 1)) {
-            $arguments = substr($html, $offset, $end + 1 - $offset);
-            $depth = 0;
-
-            foreach (array_slice(token_get_all('<?php ' . $arguments), 1) as $token) {
-                $value = is_array($token) ? $token[1] : $token;
-
-                if ($value === '(') {
-                    ++$depth;
-                } elseif ($value === ')') {
-                    --$depth;
-                }
-            }
-
-            if ($depth === 0) {
-                return $arguments;
-            }
-        }
-
-        return null;
     }
 }

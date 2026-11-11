@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\PHPStan\Collectors;
 
 use Hypervel\Mail\Mailables\Content;
-use Hypervel\View\ViewName;
+use Hypervel\PHPStan\Concerns\CollectsViewNames;
 use PhpParser\Node;
 use PhpParser\Node\Expr\New_;
 use PhpParser\Node\Name;
-use PhpParser\Node\Scalar\String_;
 use PHPStan\Analyser\Scope;
 use PHPStan\Collectors\Collector;
 use PHPStan\DependencyInjection\AutowiredService;
 
+use function array_push;
 use function count;
 use function in_array;
 
@@ -21,6 +21,8 @@ use function in_array;
 #[AutowiredService]
 class UsedEmailAlternativeSyntaxViewCollector implements Collector
 {
+    use CollectsViewNames;
+
     private const array VIEW_PARAM_NAMES = ['view', 'html', 'text', 'markdown'];
 
     /**
@@ -67,11 +69,7 @@ class UsedEmailAlternativeSyntaxViewCollector implements Collector
                 continue;
             }
 
-            if (! $arg->value instanceof String_) {
-                continue;
-            }
-
-            $views[] = ViewName::normalize($arg->value->value);
+            array_push($views, ...$this->getViewNames($arg->value, $scope) ?? []);
         }
 
         return $views !== [] ? $views : null;

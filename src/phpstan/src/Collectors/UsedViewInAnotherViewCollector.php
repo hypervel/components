@@ -4,23 +4,54 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\Collectors;
 
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\PHPStan\Support\BladeScanner;
 use Hypervel\PHPStan\Support\ViewFileHelper;
 use Hypervel\PHPStan\Support\ViewParser;
 use Hypervel\View\ViewName;
-use PhpParser\Node\Stmt;
+use PhpParser\Node\ArrayItem;
+use PhpParser\Node\Expr;
+use PhpParser\Node\Expr\Array_;
+use PhpParser\Node\Expr\FuncCall;
+use PhpParser\Node\Scalar\String_;
+use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Stmt\InlineHTML;
+use PhpParser\NodeFinder;
 use PHPStan\DependencyInjection\AutowiredService;
 
+use function array_map;
 use function array_merge;
 use function preg_match_all;
+use function str_starts_with;
+use function strtolower;
 
 use const PREG_SET_ORDER;
 
 #[AutowiredService]
 class UsedViewInAnotherViewCollector
 {
-    /** @see https://regex101.com/r/OyHHCY/1 */
-    private const string VIEW_NAME_REGEX = '/@(extends|include(If|Unless|When|First)?)(\(.*?([\'"])(.*?)([\'"])([),]))/m';
+    /**
+     * The directives that render views, with the view parameters of the factory method each one compiles to, by name and position.
+     *
+     * Upstream matches the first quoted string after @extends and the @include directives,
+     * so @includeWhen collected part of its condition, @includeFirst only its first view,
+     * and @each none of its views.
+     *
+     * @var array<string, array<string, int>>
+     */
+    private const array VIEW_DIRECTIVES = [
+        'component' => ['view' => 0],
+        'componentfirst' => ['names' => 0],
+        'each' => ['view' => 0, 'empty' => 3],
+        'extends' => ['view' => 0],
+        'extendsfirst' => ['views' => 0],
+        'include' => ['view' => 0],
+        'includefirst' => ['views' => 0],
+        'includeif' => ['view' => 0],
+        'includeisolated' => ['view' => 0],
+        'includeunless' => ['view' => 1],
+        'includewhen' => ['view' => 1],
+    ];
 
     /**
      * Anonymous Blade component tags — `<x-alert>`, `<x-forms.input />`, `</x-card>` — which resolve to the
@@ -33,8 +64,12 @@ class UsedViewInAnotherViewCollector
     /**
      * Create a new collector instance.
      */
-    public function __construct(private ViewParser $viewParser, private ViewFileHelper $viewFileHelper)
-    {
+    public function __construct(
+        private ViewParser $viewParser,
+        private BladeScanner $bladeScanner,
+        private ViewFileHelper $viewFileHelper,
+        private Filesystem $filesystem,
+    ) {
     }
 
     /**
@@ -47,37 +82,70 @@ class UsedViewInAnotherViewCollector
         $usedViews = [];
 
         foreach ($this->viewFileHelper->getAllViewFilePaths() as $viewFile) {
-            $parserNodes = $this->viewParser->getNodes($viewFile);
-
-            $usedViews = array_merge($usedViews, $this->processNodes($parserNodes));
+            $usedViews = array_merge($usedViews, $this->processView($this->filesystem->get($viewFile)));
         }
 
         return $usedViews;
     }
 
     /**
-     * Get the views referenced by the given view nodes.
+     * Get the views referenced by the given view source.
      *
-     * @param Stmt[] $nodes
+     * Only the text Blade compiles is read, following Blade's own passes, so escaped,
+     * commented and verbatim directives and tags are not usages.
      *
      * @return list<string>
      */
-    private function processNodes(array $nodes): array
+    private function processView(string $source): array
     {
+        $this->bladeScanner->setAside($source);
+
         $usedViews = [];
 
-        foreach ($nodes as $node) {
-            if (! $node instanceof InlineHTML) {
-                continue;
-            }
+        foreach ((new NodeFinder)->findInstanceOf($this->viewParser->parseCode($source), InlineHTML::class) as $node) {
+            foreach ($this->bladeScanner->directives($node->value) as [$name, $arguments]) {
+                $parameters = self::VIEW_DIRECTIVES[strtolower($name)] ?? null;
 
-            preg_match_all(self::VIEW_NAME_REGEX, $node->value, $matches, PREG_SET_ORDER, 0);
-
-            foreach ($matches as $match) {
-                $usedViews[] = ViewName::normalize($match[5]);
+                if ($parameters !== null) {
+                    $usedViews = array_merge($usedViews, $this->directiveViews($arguments, $parameters));
+                }
             }
 
             $usedViews = array_merge($usedViews, $this->componentViews($node->value));
+        }
+
+        return $usedViews;
+    }
+
+    /**
+     * Get the views named by literals in a view directive's arguments.
+     *
+     * @param array<string, int> $parameters
+     * @return list<string>
+     */
+    private function directiveViews(string $arguments, array $parameters): array
+    {
+        $statement = $this->viewParser->parseCode("<?php f{$arguments};")[0] ?? null;
+
+        if (! $statement instanceof Expression || ! $statement->expr instanceof FuncCall) {
+            return [];
+        }
+
+        $usedViews = [];
+
+        foreach ($parameters as $parameter => $position) {
+            $argument = $statement->expr->getArg($parameter, $position)?->value;
+
+            $names = $argument instanceof Array_
+                ? array_map(static fn (ArrayItem $item): Expr => $item->value, $argument->items)
+                : [$argument];
+
+            foreach ($names as $name) {
+                // renderEach() shows an empty value starting with raw| as text.
+                if ($name instanceof String_ && ! str_starts_with($name->value, 'raw|')) {
+                    $usedViews[] = ViewName::normalize($name->value);
+                }
+            }
         }
 
         return $usedViews;

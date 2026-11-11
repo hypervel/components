@@ -5,20 +5,21 @@ declare(strict_types=1);
 namespace Hypervel\PHPStan\Collectors;
 
 use Hypervel\Contracts\View\Factory;
-use Hypervel\View\ViewName;
+use Hypervel\PHPStan\Concerns\CollectsViewNames;
 use PhpParser\Node;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Identifier;
-use PhpParser\Node\Scalar\String_;
 use PHPStan\Analyser\Scope;
 use PHPStan\Collectors\Collector;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Type\ObjectType;
 
-/** @implements Collector<MethodCall, string> */
+/** @implements Collector<MethodCall, list<string>> */
 #[AutowiredService]
 class UsedViewMakeCollector implements Collector
 {
+    use CollectsViewNames;
+
     /**
      * Get the node type the collector inspects.
      */
@@ -31,8 +32,9 @@ class UsedViewMakeCollector implements Collector
      * Collect the view made through a view factory.
      *
      * @param MethodCall $node
+     * @return null|list<string>
      */
-    public function processNode(Node $node, Scope $scope): ?string
+    public function processNode(Node $node, Scope $scope): ?array
     {
         $name = $node->name;
 
@@ -44,19 +46,13 @@ class UsedViewMakeCollector implements Collector
             return null;
         }
 
-        // Upstream reads the first argument by position, which misses reordered named arguments.
-        $template = $node->getArg('view', 0)?->value;
-
-        if (! $template instanceof String_) {
-            return null;
-        }
-
         $class = $node->var;
 
         if (! (new ObjectType(Factory::class))->isSuperTypeOf($scope->getType($class))->yes()) {
             return null;
         }
 
-        return ViewName::normalize($template->value);
+        // Upstream reads the first argument by position, which misses reordered named arguments.
+        return $this->getViewNames($node->getArg('view', 0)?->value, $scope);
     }
 }

@@ -11,6 +11,7 @@ use Hypervel\PHPStan\Collectors\UsedTranslationFunctionCollector;
 use Hypervel\PHPStan\Collectors\UsedTranslationTranslatorCollector;
 use Hypervel\PHPStan\Collectors\UsedTranslationViewCollector;
 use Hypervel\PHPStan\Rules\NoMissingTranslationsRule;
+use Hypervel\PHPStan\Support\BladeScanner;
 use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\PHPStan\Support\ViewFileHelper;
 use Hypervel\PHPStan\Support\ViewParser;
@@ -46,7 +47,7 @@ class NoMissingTranslationsRuleTest extends RuleTestCase
         $viewFileHelper = new ViewFileHelper([], $this->getFileHelper(), $runtimeInputs);
 
         $filesystem = new Filesystem;
-        $rule = new NoMissingTranslationsRule(new UsedTranslationViewCollector($viewParser, $viewFileHelper, $filesystem), $viewFileHelper, $filesystem, $runtimeInputs, $this->translationDirectories);
+        $rule = new NoMissingTranslationsRule(new UsedTranslationViewCollector($viewParser, new BladeScanner, $viewFileHelper, $filesystem), $viewFileHelper, $filesystem, $runtimeInputs, $this->translationDirectories);
 
         // A test's own translator replaces the application's without changing the shared application.
         if ($this->translator !== null) {

@@ -4,24 +4,23 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\Collectors;
 
-use Hypervel\View\ViewName;
+use Hypervel\PHPStan\Concerns\CollectsViewNames;
 use PhpParser\Node;
-use PhpParser\Node\Expr\BinaryOp\Concat;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Name;
-use PhpParser\Node\Scalar\String_;
 use PHPStan\Analyser\Scope;
 use PHPStan\Collectors\Collector;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\ReflectionProvider;
 
-use function count;
 use function strtolower;
 
-/** @implements Collector<FuncCall, string> */
+/** @implements Collector<FuncCall, list<string>> */
 #[AutowiredService]
 class UsedViewFunctionCollector implements Collector
 {
+    use CollectsViewNames;
+
     /**
      * Create a new collector instance.
      */
@@ -41,8 +40,9 @@ class UsedViewFunctionCollector implements Collector
      * Collect the view rendered through the view() helper.
      *
      * @param FuncCall $node
+     * @return null|list<string>
      */
-    public function processNode(Node $node, Scope $scope): ?string
+    public function processNode(Node $node, Scope $scope): ?array
     {
         $funcName = $node->name;
 
@@ -56,24 +56,6 @@ class UsedViewFunctionCollector implements Collector
         }
 
         // Upstream reads the first argument by position, which misses reordered named arguments.
-        $template = $node->getArg('view', 0)?->value;
-
-        if ($template instanceof String_) {
-            return ViewName::normalize($template->value);
-        }
-
-        if ($template instanceof Concat) {
-            $template = $scope->getType($template);
-
-            $constantStrings = $template->getConstantStrings();
-
-            if (count($constantStrings) !== 1) {
-                return null;
-            }
-
-            return ViewName::normalize($constantStrings[0]->getValue());
-        }
-
-        return null;
+        return $this->getViewNames($node->getArg('view', 0)?->value, $scope);
     }
 }

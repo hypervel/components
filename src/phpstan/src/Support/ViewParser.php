@@ -10,14 +10,9 @@ use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Parser\Parser;
 use PHPStan\Parser\ParserErrorsException;
 
-use function array_key_exists;
-
 #[AutowiredService]
 class ViewParser
 {
-    /** @var array<string, Stmt[]> */
-    private array $nodes = [];
-
     /**
      * Create a new view parser instance.
      */
@@ -25,20 +20,6 @@ class ViewParser
         #[AutowiredParameter(ref: '@currentPhpVersionSimpleDirectParser')]
         private Parser $parser,
     ) {
-    }
-
-    /**
-     * Get the parsed statements of the given view file.
-     *
-     * @return Stmt[]
-     */
-    public function getNodes(string $path): array
-    {
-        if (! array_key_exists($path, $this->nodes)) {
-            $this->nodes[$path] = $this->parseFile($path);
-        }
-
-        return $this->nodes[$path];
     }
 
     /**
@@ -50,20 +31,6 @@ class ViewParser
     {
         try {
             return $this->parser->parseString($code);
-        } catch (ParserErrorsException) {
-            return [];
-        }
-    }
-
-    /**
-     * Parse the given view file.
-     *
-     * @return Stmt[]
-     */
-    private function parseFile(string $path): array
-    {
-        try {
-            return $this->parser->parseFile($path);
         } catch (ParserErrorsException) {
             return [];
         }

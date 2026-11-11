@@ -181,3 +181,36 @@ class CaseInsensitiveMailMessage extends MailMessage
         return $this->View('case-insensitive.mail-message-view');
     }
 }
+
+// Hypervel: view names are read from the argument's type, so a constant and each name of a union count.
+class ConstantViewNames
+{
+    private const string HELPER = 'constant-names.helper';
+
+    private const string FACTORY_MAKE = 'constant-names.factory-make';
+
+    private const string FACADE_MAKE = 'constant-names.facade-make';
+
+    private const string ROUTE_VIEW = 'constant-names.route-view';
+
+    private const string CONTENT = 'constant-names.content';
+
+    private const array MAIL_VIEWS = ['constant-names.mail-html', 'constant-names.mail-text'];
+
+    public function render(Factory $factory, MailerContract $mailer, bool $compact): void
+    {
+        view(self::HELPER);
+        view($compact ? 'constant-names.compact' : 'constant-names.full');
+        $factory->make(self::FACTORY_MAKE);
+        \Hypervel\Support\Facades\View::make(self::FACADE_MAKE);
+        Route::view('/constant-names', self::ROUTE_VIEW);
+        $mailer->send(self::MAIL_VIEWS);
+        new Content(view: self::CONTENT);
+    }
+}
+
+// Hypervel: the views rendered through Blade directives are read from their arguments.
+function bladeDirectives(): View
+{
+    return view('blade-directives.index');
+}
