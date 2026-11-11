@@ -10,6 +10,7 @@ use Hypervel\View\Factory as ViewFactory;
 use Hypervel\View\FileViewFinder;
 use Hypervel\View\ViewFinderInterface;
 use PHPStan\Analyser\DependencyTracker;
+use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredParameter;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\File\FileHelper;
@@ -65,6 +66,7 @@ class ViewFileHelper
         #[AutowiredParameter]
         array $viewDirectories,
         private FileHelper $fileHelper,
+        private RuntimeInputs $runtimeInputs,
     ) {
         $hintDirectories = [];
 
@@ -91,11 +93,15 @@ class ViewFileHelper
      * Track the root view directories.
      *
      * The result cache runs the rule again when a view file in the root view directories changes.
+     *
+     * @param DependencyTracker&Scope $scope
      */
-    public function trackRootViewDirectories(DependencyTracker $dependencyTracker): void
+    public function trackRootViewDirectories(Scope $scope): void
     {
+        $this->runtimeInputs->track($scope);
+
         foreach ($this->finder()->getPaths() as $path) {
-            $dependencyTracker->trackDirectoryDependency($this->fileHelper->absolutizePath($path), '*.blade.php');
+            $scope->trackDirectoryDependency($this->runtimeInputs->sourceDirectory($this->fileHelper->absolutizePath($path), '*.blade.php'), '*.blade.php');
         }
     }
 
@@ -103,11 +109,15 @@ class ViewFileHelper
      * Track every view directory.
      *
      * The result cache runs the rule again when a view file in any of the view directories changes.
+     *
+     * @param DependencyTracker&Scope $scope
      */
-    public function trackAllViewDirectories(DependencyTracker $dependencyTracker): void
+    public function trackAllViewDirectories(Scope $scope): void
     {
+        $this->runtimeInputs->track($scope);
+
         foreach ($this->viewDirectories as $viewDirectory) {
-            $dependencyTracker->trackDirectoryDependency($viewDirectory, '*.blade.php');
+            $scope->trackDirectoryDependency($this->runtimeInputs->sourceDirectory($viewDirectory, '*.blade.php'), '*.blade.php');
         }
     }
 

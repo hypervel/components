@@ -2,24 +2,31 @@
 
 declare(strict_types=1);
 
-use Composer\InstalledVersions;
 use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\PHPStan\ApplicationResolver;
 use Hypervel\PHPStan\Support\BootstrapErrorHandler;
+use Hypervel\PHPStan\Support\EnvironmentSnapshot;
+use Hypervel\PHPStan\Support\RuntimeInputs;
+use Hypervel\Support\Composer;
 use Hypervel\Testbench\Bootstrapper;
 
+// The result cache compares environment variables as they were before booting loads the environment file.
+EnvironmentSnapshot::capture();
+
 try {
+    $packageApplication = false;
     $applicationPath = getcwd() . '/bootstrap/app.php';
     if (file_exists($applicationPath)) { // Applications and Local Dev
         $app = require $applicationPath;
     } else {
         // Composer's root package path also covers custom vendor directories.
-        $applicationPath = InstalledVersions::getRootPackage()['install_path'] . '/bootstrap/app.php';
+        $applicationPath = Composer::rootPackage()['install_path'] . '/bootstrap/app.php';
         if (file_exists($applicationPath)) {
             $app = require $applicationPath;
         } elseif (class_exists(Bootstrapper::class)) { // Packages
             $app = ApplicationResolver::resolve();
+            $packageApplication = true;
         } else {
             // Upstream continues without an application, which silently drops every
             // boot-derived type instead of reporting the missing package dependency.
@@ -31,7 +38,12 @@ try {
         throw new UnexpectedValueException("The application bootstrap file [{$applicationPath}] must return the Hypervel application.");
     }
 
+    // Testbench's package application loads no environment file, only its YAML env.
+    $environmentFile = $packageApplication ? null : $app->environmentFilePath();
+
     $app->make(Kernel::class)->bootstrap();
+
+    RuntimeInputs::captureBoot($app, $environmentFile);
 } catch (Throwable $throwable) {
     $argv = $_SERVER['argv'] ?? [];
     $decorated = null;

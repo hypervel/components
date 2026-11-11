@@ -20,6 +20,7 @@ use Hypervel\PHPStan\Collectors\WorkerStateWriteCollector;
 use Hypervel\PHPStan\Rules\Coroutine\CoroutineRuleHelper;
 use Hypervel\PHPStan\Rules\Coroutine\WorkerStateHelper;
 use Hypervel\PHPStan\Rules\Coroutine\WorkerStateRule;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Routing\Router;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\BinderController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\BoundFreshService;
@@ -93,7 +94,7 @@ class WorkerStateRuleTest extends RuleTestCase
 
     protected function getRule(): Rule
     {
-        $rule = new WorkerStateRule($this->createReflectionProvider(), $this->createHelper());
+        $rule = new WorkerStateRule($this->createReflectionProvider(), $this->createHelper(), self::getContainer()->getByType(RuntimeInputs::class));
         $rule->setContainer($this->createApplication());
 
         return $rule;

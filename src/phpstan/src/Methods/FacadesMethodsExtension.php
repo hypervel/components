@@ -7,6 +7,7 @@ namespace Hypervel\PHPStan\Methods;
 use Hypervel\PHPStan\Internal\RecursionGuard;
 use Hypervel\PHPStan\Reflection\ReflectionHelper;
 use Hypervel\PHPStan\Reflection\StaticMethodReflection;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Support\Facades\Facade;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\ClassReflection;
@@ -31,8 +32,10 @@ class FacadesMethodsExtension implements MethodsClassReflectionExtension
     /**
      * Create a new facade methods extension.
      */
-    public function __construct(private ReflectionProvider $reflectionProvider)
-    {
+    public function __construct(
+        private ReflectionProvider $reflectionProvider,
+        private RuntimeInputs $runtimeInputs,
+    ) {
     }
 
     /**
@@ -57,12 +60,16 @@ class FacadesMethodsExtension implements MethodsClassReflectionExtension
 
             $facadeClass = $classReflection->getName();
 
+            $this->runtimeInputs->track($classReflection);
+
             $concrete = $this->getFacadeRoot($facadeClass);
 
             if ($concrete !== null) {
                 $concreteClass = $concrete::class;
 
                 if ($this->reflectionProvider->hasClass($concreteClass)) {
+                    $this->runtimeInputs->trackClass($classReflection, $concreteClass);
+
                     $concreteReflection = $this->reflectionProvider->getClass($concreteClass);
 
                     // Use hasNativeMethod() instead of hasMethod() to avoid

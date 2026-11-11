@@ -7,6 +7,7 @@ namespace Hypervel\PHPStan\ReturnTypes\ConsoleCommand;
 use Hypervel\Console\Command;
 use Hypervel\PHPStan\Internal\ConsoleApplicationResolver;
 use PhpParser\Node\Expr\MethodCall;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\MethodReflection;
@@ -47,6 +48,8 @@ class HasArgumentDynamicReturnTypeExtension implements DynamicMethodReturnTypeEx
 
     /**
      * Get whether the command defines the given argument.
+     *
+     * @param DependencyTracker&Scope $scope
      */
     public function getTypeFromMethodCall(
         MethodReflection $methodReflection,
@@ -66,7 +69,7 @@ class HasArgumentDynamicReturnTypeExtension implements DynamicMethodReturnTypeEx
         $returnTypes = [];
 
         // Upstream reads the enclosing class, which mistypes calls on another command.
-        foreach ($this->consoleApplicationResolver->findCommandsForType($scope->getType($methodCall->var)) as $command) {
+        foreach ($this->consoleApplicationResolver->findCommandsForType($scope->getType($methodCall->var), $scope) as $command) {
             $returnTypes[] = $command->getDefinition()->hasArgument($constantStrings[0]->getValue());
         }
 

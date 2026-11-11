@@ -13,6 +13,7 @@ use Hypervel\PHPStan\Properties\ModelHelper;
 use Hypervel\PHPStan\Properties\ModelPropertyHelper;
 use Hypervel\PHPStan\Reflection\ReflectionHelper;
 use Hypervel\PHPStan\Support\CollectionHelper;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Str;
@@ -22,6 +23,7 @@ use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredParameter;
 use PHPStan\DependencyInjection\AutowiredService;
@@ -215,6 +217,7 @@ class NoUnnecessaryCollectionCallRule implements Rule
         private ModelPropertyHelper $modelPropertyHelper,
         private ModelScopeMethodResolver $modelScopeMethodResolver,
         private CollectionHelper $collectionHelper,
+        private RuntimeInputs $runtimeInputs,
         #[AutowiredParameter(ref: '%noUnnecessaryCollectionCallOnly%')]
         array $onlyMethods,
         #[AutowiredParameter(ref: '%noUnnecessaryCollectionCallExcept%')]
@@ -250,6 +253,7 @@ class NoUnnecessaryCollectionCallRule implements Rule
     /**
      * Report collection methods called on a query's results that the query itself could have returned.
      *
+     * @param DependencyTracker&Scope $scope
      * @return list<IdentifierRuleError>
      */
     public function processNode(Node $node, Scope $scope): array
@@ -271,6 +275,8 @@ class NoUnnecessaryCollectionCallRule implements Rule
 
     /**
      * Determine whether the query the collection was fetched with returns the method's result itself.
+     *
+     * @param DependencyTracker&Scope $scope
      */
     private function isReplaceableByQuery(MethodCall $call, string $method, Scope $scope): bool
     {
@@ -312,6 +318,9 @@ class NoUnnecessaryCollectionCallRule implements Rule
         if ($query === null) {
             return false;
         }
+
+        // The booted global and query macros decide what a link name calls.
+        $this->runtimeInputs->track($scope);
 
         $models = $query['models'];
         $joins = false;

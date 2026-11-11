@@ -6,6 +6,7 @@ namespace Hypervel\PHPStan\ReturnTypes;
 
 use Hypervel\Contracts\Container\Container;
 use PhpParser\Node\Expr\MethodCall;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\MethodReflection;
@@ -50,6 +51,8 @@ class ContainerMakeDynamicReturnTypeExtension implements DynamicMethodReturnType
 
     /**
      * Get the type of the resolved container entry.
+     *
+     * @param DependencyTracker&Scope $scope
      */
     public function getTypeFromMethodCall(MethodReflection $methodReflection, MethodCall $methodCall, Scope $scope): ?Type
     {

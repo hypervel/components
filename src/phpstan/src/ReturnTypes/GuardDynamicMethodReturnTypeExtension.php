@@ -6,6 +6,7 @@ namespace Hypervel\PHPStan\ReturnTypes;
 
 use Hypervel\Contracts\Auth\Factory;
 use PhpParser\Node\Expr\MethodCall;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\MethodReflection;
@@ -46,6 +47,8 @@ class GuardDynamicMethodReturnTypeExtension implements DynamicMethodReturnTypeEx
 
     /**
      * Get the type of the requested guard.
+     *
+     * @param DependencyTracker&Scope $scope
      */
     public function getTypeFromMethodCall(
         MethodReflection $methodReflection,

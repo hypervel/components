@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\PHPStan\Methods;
 
 use Hypervel\PHPStan\Reflection\ProxiedMethodReflection;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\Facades\Redis;
 use PHPStan\Analyser\OutOfClassScope;
@@ -41,6 +42,7 @@ class RedisCommandMethodsExtension implements MethodsClassReflectionExtension
      */
     public function __construct(
         private ReflectionProvider $reflectionProvider,
+        private RuntimeInputs $runtimeInputs,
     ) {
     }
 
@@ -85,9 +87,15 @@ class RedisCommandMethodsExtension implements MethodsClassReflectionExtension
 
         $commandName = $this->getCommandNames()[strtolower($methodName)] ?? null;
 
+        if ($commandName === null || $commandName === $methodName) {
+            return null;
+        }
+
+        $this->runtimeInputs->track($classReflection);
+
         // __call() runs a macro registered under the exact name before it lowercases the name. Macros are
         // registered at runtime, so the registry of an owner the booted application never loaded is unavailable.
-        if ($commandName === null || $commandName === $methodName || (class_exists($macroClass, false) && $macroClass::hasMacro($methodName))) {
+        if (class_exists($macroClass, false) && $macroClass::hasMacro($methodName)) {
             return null;
         }
 

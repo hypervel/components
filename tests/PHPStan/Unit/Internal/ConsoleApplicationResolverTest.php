@@ -7,6 +7,7 @@ namespace Hypervel\Tests\PHPStan\Unit\Internal;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Console\Kernel;
 use Hypervel\PHPStan\Internal\ConsoleApplicationResolver;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Tests\PHPStan\Fixtures\Console\LookupCommand;
 use Hypervel\Tests\PHPStan\Fixtures\Console\WithArgumentCommand;
 use Hypervel\Tests\PHPStan\Fixtures\Console\WithoutArgumentCommand;
@@ -31,10 +32,11 @@ class ConsoleApplicationResolverTest extends TestCase
             'lookup:without-alias' => $without,
         ]]));
 
-        $resolver = new ConsoleApplicationResolver;
+        $reflectionProvider = PHPStanTestCase::createReflectionProvider();
+        $resolver = new ConsoleApplicationResolver($reflectionProvider, m::mock(RuntimeInputs::class));
         $resolver->setContainer($container);
 
-        $commands = $resolver->findCommands(PHPStanTestCase::createReflectionProvider()->getClass(LookupCommand::class));
+        $commands = $resolver->findCommands($reflectionProvider->getClass(LookupCommand::class));
 
         $this->assertSame([$with, $without], array_values($commands));
     }

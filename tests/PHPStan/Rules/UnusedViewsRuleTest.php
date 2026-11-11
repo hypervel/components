@@ -13,6 +13,7 @@ use Hypervel\PHPStan\Collectors\UsedViewFunctionCollector;
 use Hypervel\PHPStan\Collectors\UsedViewInAnotherViewCollector;
 use Hypervel\PHPStan\Collectors\UsedViewMakeCollector;
 use Hypervel\PHPStan\Rules\UnusedViewsRule;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\PHPStan\Support\ViewFileHelper;
 use Hypervel\PHPStan\Support\ViewParser;
 use PhpParser\Node;
@@ -48,7 +49,7 @@ class UnusedViewsRuleTest extends RuleTestCase
     {
         $viewParser = new ViewParser($this->getContainer()->getService('currentPhpVersionSimpleDirectParser'));
         $fileHelper = $this->workingDirectory === null ? $this->getFileHelper() : new FileHelper($this->workingDirectory);
-        $viewFileHelper = new ViewFileHelper($this->viewDirectories, $fileHelper);
+        $viewFileHelper = new ViewFileHelper($this->viewDirectories, $fileHelper, self::getContainer()->getByType(RuntimeInputs::class));
 
         return new UnusedViewsRule(new UsedViewInAnotherViewCollector($viewParser, $viewFileHelper), $viewFileHelper);
     }

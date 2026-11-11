@@ -33,7 +33,10 @@ class ApplicationResolver
             define('TESTBENCH_WORKING_PATH', $workingPath);
         }
 
-        Bootstrapper::bootstrap();
+        // Load the analysed package's own configuration. For the components repo,
+        // resolveConfigurationPath() selects Testbench's contract-suite configuration,
+        // which excludes the providers the analysis needs.
+        Bootstrapper::bootstrap($workingPath);
 
         /** @var Config $config bootstrap() always loads the configuration. */
         $config = Bootstrapper::getConfiguration();

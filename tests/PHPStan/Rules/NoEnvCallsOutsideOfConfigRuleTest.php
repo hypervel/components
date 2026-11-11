@@ -6,6 +6,7 @@ namespace Hypervel\Tests\PHPStan\Rules;
 
 use Hypervel\PHPStan\Rules\NoEnvCallsOutsideOfConfigRule;
 use Hypervel\PHPStan\Support\ConfigSourceResolver;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use PHPStan\Rules\Rule;
 use PHPStan\Testing\RuleTestCase;
 use PHPUnit\Framework\Attributes\Test;
@@ -33,6 +34,7 @@ class NoEnvCallsOutsideOfConfigRuleTest extends RuleTestCase
             self::getContainer()->getByType(ConfigSourceResolver::class),
             $this->getFileHelper(),
             $this->createReflectionProvider(),
+            self::getContainer()->getByType(RuntimeInputs::class),
             $this->singleReflectionFile,
             $this->singleReflectionInsteadOfFile,
         );

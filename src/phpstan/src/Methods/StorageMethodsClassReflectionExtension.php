@@ -7,6 +7,7 @@ namespace Hypervel\PHPStan\Methods;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\PHPStan\Reflection\StaticMethodReflection;
 use Hypervel\PHPStan\ReturnTypes\FilesystemDiskHelper;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Support\Facades\Storage;
 use PHPStan\Analyser\OutOfClassScope;
 use PHPStan\DependencyInjection\AutowiredService;
@@ -26,6 +27,7 @@ class StorageMethodsClassReflectionExtension implements MethodsClassReflectionEx
     public function __construct(
         private ReflectionProvider $reflectionProvider,
         private FilesystemDiskHelper $diskHelper,
+        private RuntimeInputs $runtimeInputs,
     ) {
     }
 
@@ -38,7 +40,7 @@ class StorageMethodsClassReflectionExtension implements MethodsClassReflectionEx
             return false;
         }
 
-        return $this->getTargetType($methodName)->hasMethod($methodName)->yes();
+        return $this->getTargetType($classReflection, $methodName)->hasMethod($methodName)->yes();
     }
 
     /**
@@ -48,7 +50,7 @@ class StorageMethodsClassReflectionExtension implements MethodsClassReflectionEx
         ClassReflection $classReflection,
         string $methodName,
     ): MethodReflection {
-        return new StaticMethodReflection($this->getTargetType($methodName)->getMethod($methodName, new OutOfClassScope));
+        return new StaticMethodReflection($this->getTargetType($classReflection, $methodName)->getMethod($methodName, new OutOfClassScope));
     }
 
     /**
@@ -58,7 +60,7 @@ class StorageMethodsClassReflectionExtension implements MethodsClassReflectionEx
      * mixins would shadow the default disk, whose methods differ for a pooled disk, so the manager's
      * declared mixins only apply when the default disk cannot be typed.
      */
-    private function getTargetType(string $methodName): Type
+    private function getTargetType(ClassReflection $classReflection, string $methodName): Type
     {
         $manager = $this->reflectionProvider->getClass(FilesystemManager::class);
 
@@ -66,6 +68,17 @@ class StorageMethodsClassReflectionExtension implements MethodsClassReflectionEx
             return new ObjectType(FilesystemManager::class);
         }
 
-        return $this->diskHelper->getDefaultDiskType() ?? new ObjectType(FilesystemManager::class);
+        $diskType = $this->diskHelper->getDefaultDiskType($classReflection);
+
+        if ($diskType === null) {
+            return new ObjectType(FilesystemManager::class);
+        }
+
+        // The facade declares the disk's methods.
+        foreach ($diskType->getObjectClassNames() as $diskClass) {
+            $this->runtimeInputs->trackClass($classReflection, $diskClass);
+        }
+
+        return $diskType;
     }
 }

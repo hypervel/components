@@ -10,6 +10,7 @@ use PHPStan\Type\CompoundType;
 use PHPStan\Type\IsSuperTypeOfResult;
 use PHPStan\Type\StringType;
 use PHPStan\Type\Type;
+use PHPStan\Type\TypeTraverser;
 use PHPStan\Type\VerbosityLevel;
 
 use function count;
@@ -85,6 +86,24 @@ class ViewStringType extends StringType
         }
 
         return IsSuperTypeOfResult::createNo();
+    }
+
+    /**
+     * Determine whether a view-string type occurs in the type, such as in a union or a callable signature.
+     */
+    public static function occursIn(Type $type): bool
+    {
+        $found = false;
+
+        TypeTraverser::map($type, static function (Type $type, callable $traverse) use (&$found): Type {
+            if ($type instanceof self) {
+                $found = true;
+            }
+
+            return $found ? $type : $traverse($type);
+        });
+
+        return $found;
     }
 
     /**

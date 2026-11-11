@@ -9,6 +9,7 @@ use Hypervel\PHPStan\Internal\ConsoleApplicationHelper;
 use Hypervel\PHPStan\Internal\ConsoleApplicationResolver;
 use InvalidArgumentException;
 use PhpParser\Node\Expr\MethodCall;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\MethodReflection;
@@ -50,6 +51,8 @@ class ArgumentDynamicReturnTypeExtension implements DynamicMethodReturnTypeExten
 
     /**
      * Get the type of the requested command arguments.
+     *
+     * @param DependencyTracker&Scope $scope
      */
     public function getTypeFromMethodCall(
         MethodReflection $methodReflection,
@@ -57,7 +60,7 @@ class ArgumentDynamicReturnTypeExtension implements DynamicMethodReturnTypeExten
         Scope $scope,
     ): ?Type {
         // Upstream reads the enclosing class, which mistypes calls on another command.
-        $commands = $this->consoleApplicationResolver->findCommandsForType($scope->getType($methodCall->var));
+        $commands = $this->consoleApplicationResolver->findCommandsForType($scope->getType($methodCall->var), $scope);
 
         if ($commands === []) {
             return null;

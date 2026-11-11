@@ -8,6 +8,7 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Factory;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\PHPStan\Concerns;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Support\Facades\Auth;
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\CallLike;
@@ -16,6 +17,7 @@ use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\MethodReflection;
@@ -42,6 +44,7 @@ class GuardExtension implements DynamicMethodReturnTypeExtension
     public function __construct(
         private AuthGuardHelper $authGuardHelper,
         private ReflectionProvider $reflectionProvider,
+        private RuntimeInputs $runtimeInputs,
     ) {
     }
 
@@ -63,6 +66,8 @@ class GuardExtension implements DynamicMethodReturnTypeExtension
 
     /**
      * Get the user type of the guard the call was made on.
+     *
+     * @param DependencyTracker&Scope $scope
      */
     public function getTypeFromMethodCall(
         MethodReflection $methodReflection,
@@ -75,6 +80,8 @@ class GuardExtension implements DynamicMethodReturnTypeExtension
         if (! $declaredType->isSuperTypeOf(TypeCombinator::addNull(new ObjectType(Authenticatable::class)))->yes()) {
             return null;
         }
+
+        $this->runtimeInputs->track($scope);
 
         $authModels = $this->getAuthModels(
             $this->getContainer()->get('config'),
@@ -99,6 +106,7 @@ class GuardExtension implements DynamicMethodReturnTypeExtension
      * Returns null for a guard that did not come from the auth factory, the Auth
      * facade or the auth() helper, which may be any configured guard.
      *
+     * @param DependencyTracker&Scope $scope
      * @return ?list<string>
      */
     private function getGuardNamesFromMethodCall(Scope $scope, MethodCall $methodCall): ?array

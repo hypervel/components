@@ -8,9 +8,11 @@ use Closure;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\PHPStan\Concerns\HasContainer;
 use Hypervel\PHPStan\Support\InstanceNames;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use PhpParser\Node\Arg;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\ClassReflection;
@@ -52,11 +54,19 @@ class FilesystemDiskHelper
     private false|array|null $manager = null;
 
     /**
+     * The class of the bound manager, when it is a filesystem manager.
+     *
+     * @var null|class-string<FilesystemManager>
+     */
+    private ?string $managerClass = null;
+
+    /**
      * Create a new helper instance.
      */
     public function __construct(
         private ReflectionProvider $reflectionProvider,
         private ClosureTypeFactory $closureTypeFactory,
+        private RuntimeInputs $runtimeInputs,
     ) {
     }
 
@@ -65,11 +75,12 @@ class FilesystemDiskHelper
      *
      * Returns null when the call's declared return already describes the disk.
      *
+     * @param DependencyTracker&Scope $scope
      * @param list<string> $receiverClasses the receiving manager classes, empty for the Storage facade
      */
     public function getDiskType(string $methodName, ?Arg $name, Scope $scope, Type $declaredType, array $receiverClasses = []): ?Type
     {
-        $manager = $this->getManager();
+        $manager = $this->getManager($scope);
 
         if ($manager === null) {
             return null;
@@ -114,11 +125,11 @@ class FilesystemDiskHelper
     }
 
     /**
-     * Get the type of the default disk, which the manager forwards unknown calls to.
+     * Get the type of the default disk, which the manager forwards unknown calls to, for what a class declares.
      */
-    public function getDefaultDiskType(): ?Type
+    public function getDefaultDiskType(ClassReflection $classReflection): ?Type
     {
-        $manager = $this->getManager();
+        $manager = $this->getManager($classReflection);
 
         // __call() forwards to disk(), so an override of either replaces the stock forwarding.
         if ($manager === null || $this->overrides($manager[1], '__call') || $this->overrides($manager[1], 'disk')) {
@@ -217,15 +228,19 @@ class FilesystemDiskHelper
     /**
      * Get the bound filesystem manager and its reflection when it resolves disks the stock way.
      *
+     * @param ClassReflection|(DependencyTracker&Scope) $dependent
      * @return null|array{FilesystemManager, ClassReflection}
      */
-    private function getManager(): ?array
+    private function getManager(Scope|ClassReflection $dependent): ?array
     {
+        $this->runtimeInputs->track($dependent);
+
         if ($this->manager === null) {
             $manager = $this->resolve('filesystem');
             $this->manager = false;
 
             if ($manager instanceof FilesystemManager) {
+                $this->managerClass = $manager::class;
                 $reflection = $this->reflectionProvider->getClass($manager::class);
 
                 // These replace how a selected disk name becomes a disk.
@@ -233,6 +248,10 @@ class FilesystemDiskHelper
                     $this->manager = [$manager, $reflection];
                 }
             }
+        }
+
+        if ($this->managerClass !== null) {
+            $this->runtimeInputs->trackClass($dependent, $this->managerClass);
         }
 
         return $this->manager === false ? null : $this->manager;

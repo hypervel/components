@@ -19,6 +19,7 @@ use Hypervel\PHPStan\Properties\ModelPropertyHelper;
 use Hypervel\PHPStan\Properties\Schema\DataTypeToPhpTypeConverter;
 use Hypervel\PHPStan\Properties\SquashedMigrationHelper;
 use Hypervel\PHPStan\Support\ConfigSourceResolver;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Tests\PHPStan\Fixtures\OverridesConfig;
 use ModelCastsParsing\UnknownCastsModel;
 use ModelCastsParsing\VirtualCastModel;
@@ -296,6 +297,7 @@ class ModelPropertyHelperTest extends PHPStanTestCase
             $connectionConfigResolver,
             self::getContainer()->getByType(DataTypeToPhpTypeConverter::class),
             self::getContainer()->getByType(ConfigSourceResolver::class),
+            self::getContainer()->getByType(RuntimeInputs::class),
         );
     }
 

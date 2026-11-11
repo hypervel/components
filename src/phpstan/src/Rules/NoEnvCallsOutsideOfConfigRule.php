@@ -6,6 +6,7 @@ namespace Hypervel\PHPStan\Rules;
 
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use Hypervel\PHPStan\Support\ConfigSourceResolver;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Support\Env;
 use PhpParser\Node;
 use PhpParser\Node\Expr\CallLike;
@@ -13,6 +14,7 @@ use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredParameter;
 use PHPStan\DependencyInjection\AutowiredService;
@@ -64,6 +66,7 @@ class NoEnvCallsOutsideOfConfigRule implements Rule
         private ConfigSourceResolver $configSourceResolver,
         private FileHelper $fileHelper,
         private ReflectionProvider $reflectionProvider,
+        private RuntimeInputs $runtimeInputs,
         #[AutowiredParameter]
         private ?string $singleReflectionFile = null,
         #[AutowiredParameter]
@@ -83,6 +86,7 @@ class NoEnvCallsOutsideOfConfigRule implements Rule
      * Report environment reads outside of config files.
      *
      * @param CallLike $node
+     * @param DependencyTracker&Scope $scope
      *
      * @return list<IdentifierRuleError>
      */
@@ -90,7 +94,14 @@ class NoEnvCallsOutsideOfConfigRule implements Rule
     {
         $reader = $this->getReaderName($node, $scope);
 
-        if ($reader === null || ! $this->isCalledOutsideOfConfig($node, $scope)) {
+        if ($reader === null) {
+            return [];
+        }
+
+        // The booted application decides the config directories and package config files.
+        $this->runtimeInputs->track($scope);
+
+        if (! $this->isCalledOutsideOfConfig($node, $scope)) {
             return [];
         }
 

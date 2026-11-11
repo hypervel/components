@@ -8,6 +8,7 @@ use Hypervel\Contracts\Routing\UrlGenerator;
 use Hypervel\PHPStan\Concerns\InfersBoundHelperCalls;
 use Hypervel\PHPStan\ReturnTypes\AppMakeHelper;
 use PhpParser\Node\Expr\FuncCall;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\FunctionReflection;
@@ -24,8 +25,6 @@ use PHPStan\Type\Type;
 class UrlExtension implements DynamicFunctionReturnTypeExtension
 {
     use InfersBoundHelperCalls;
-
-    private ?Type $generatorType = null;
 
     /**
      * Create a url() return type extension.
@@ -45,6 +44,8 @@ class UrlExtension implements DynamicFunctionReturnTypeExtension
 
     /**
      * Get the generator for a null path, and otherwise the URL.
+     *
+     * @param DependencyTracker&Scope $scope
      */
     public function getTypeFromFunctionCall(
         FunctionReflection $functionReflection,
@@ -56,7 +57,7 @@ class UrlExtension implements DynamicFunctionReturnTypeExtension
             $functionCall,
             $scope,
             UrlGenerator::class,
-            $this->generatorType ??= $this->appMakeHelper->resolveAbstractType(UrlGenerator::class),
+            fn (): Type => $this->appMakeHelper->resolveAbstractType(UrlGenerator::class, $scope),
         );
     }
 }

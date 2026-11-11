@@ -44,7 +44,7 @@ class StrExtension implements DynamicFunctionReturnTypeExtension
         // Upstream counts arguments, so it types every call with unpacked arguments as a stringable, though they may be empty.
         return $this->getFactoryHelperType(
             $functionCall,
-            $this->mixedType ??= new MixedType,
+            fn (): Type => $this->mixedType ??= new MixedType,
             $this->stringableType ??= new ObjectType(Stringable::class),
         );
     }

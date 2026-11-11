@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\PHPStan\Methods;
 
 use Hypervel\PHPStan\Reflection\ProxiedMethodReflection;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Support\Optional;
 use PHPStan\Analyser\OutOfClassScope;
 use PHPStan\DependencyInjection\AutowiredService;
@@ -25,16 +26,29 @@ use PHPStan\Type\TypeCombinator;
 class OptionalExtension implements MethodsClassReflectionExtension
 {
     /**
+     * Create a new extension instance.
+     */
+    public function __construct(
+        private RuntimeInputs $runtimeInputs,
+    ) {
+    }
+
+    /**
      * Determine whether the object the Optional holds has the public method.
      */
     public function hasMethod(ClassReflection $classReflection, string $methodName): bool
     {
         $targetType = $this->getTargetType($classReflection);
 
+        if ($targetType === null) {
+            return false;
+        }
+
+        $this->runtimeInputs->track($classReflection);
+
         // Optional::__call() runs a macro before the held object's method, so the macro extension
         // resolves it. The Optional calls the held object's method from outside the object's class.
-        return $targetType !== null
-            && ! Optional::hasMacro($methodName)
+        return ! Optional::hasMacro($methodName)
             && $targetType->hasMethod($methodName)->yes()
             && $targetType->getMethod($methodName, new OutOfClassScope)->isPublic();
     }

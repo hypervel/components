@@ -9,6 +9,7 @@ use Hypervel\Container\Container;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\PHPStan\Methods\StorageMethodsClassReflectionExtension;
 use Hypervel\PHPStan\ReturnTypes\FilesystemDiskHelper;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Tests\PHPStan\Fixtures\Filesystem\ForwardingFilesystemManager;
 use Hypervel\Tests\PHPStan\Fixtures\Filesystem\SelectingFilesystemManager;
@@ -33,10 +34,11 @@ class StorageMethodsClassReflectionExtensionTest extends PHPStanTestCase
         $app->instance('filesystem', new $managerClass($app));
 
         $reflectionProvider = $this->createReflectionProvider();
-        $diskHelper = new FilesystemDiskHelper($reflectionProvider, self::getContainer()->getByType(ClosureTypeFactory::class));
+        $runtimeInputs = self::getContainer()->getByType(RuntimeInputs::class);
+        $diskHelper = new FilesystemDiskHelper($reflectionProvider, self::getContainer()->getByType(ClosureTypeFactory::class), $runtimeInputs);
         $diskHelper->setContainer($app);
 
-        $method = (new StorageMethodsClassReflectionExtension($reflectionProvider, $diskHelper))
+        $method = (new StorageMethodsClassReflectionExtension($reflectionProvider, $diskHelper, $runtimeInputs))
             ->getMethod($reflectionProvider->getClass(Storage::class), 'assertExists');
 
         $this->assertSame($returnType, $method->getVariants()[0]->getReturnType()->describe(VerbosityLevel::precise()));
@@ -52,5 +54,11 @@ class StorageMethodsClassReflectionExtensionTest extends PHPStanTestCase
         // manager's declared mixins apply.
         yield 'overridden disk()' => [SelectingFilesystemManager::class, 'Hypervel\Filesystem\FilesystemAdapter'];
         yield 'overridden __call()' => [ForwardingFilesystemManager::class, 'Hypervel\Filesystem\FilesystemAdapter'];
+    }
+
+    /** @return string[] */
+    public static function getAdditionalConfigFiles(): array
+    {
+        return [__DIR__ . '/../phpstan-tests.neon'];
     }
 }

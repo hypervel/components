@@ -12,6 +12,7 @@ use Hypervel\Http\Request;
 use Hypervel\PHPStan\Methods\MacroMethodsClassReflectionExtension;
 use Hypervel\PHPStan\Methods\WithHeadExtension;
 use Hypervel\PHPStan\ReturnTypes\AuthGuardHelper;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Tests\PHPStan\Fixtures\Macros\MacroableAuthManager;
@@ -42,6 +43,7 @@ class MacroMethodsClassReflectionExtensionTest extends PHPStanTestCase
             self::getContainer()->getByType(ClosureTypeFactory::class),
             self::getContainer()->getByType(WithHeadExtension::class),
             self::getContainer()->getByType(AuthGuardHelper::class),
+            self::getContainer()->getByType(RuntimeInputs::class),
         );
     }
 
@@ -150,7 +152,8 @@ class MacroMethodsClassReflectionExtensionTest extends PHPStanTestCase
         $app->instance('auth', $auth);
 
         $closureTypeFactory = self::getContainer()->getByType(ClosureTypeFactory::class);
-        $guards = new AuthGuardHelper($this->reflectionProvider, $closureTypeFactory);
+        $runtimeInputs = self::getContainer()->getByType(RuntimeInputs::class);
+        $guards = new AuthGuardHelper($this->reflectionProvider, $closureTypeFactory, $runtimeInputs);
         $guards->setContainer($app);
 
         return new MacroMethodsClassReflectionExtension(
@@ -158,6 +161,7 @@ class MacroMethodsClassReflectionExtensionTest extends PHPStanTestCase
             $closureTypeFactory,
             self::getContainer()->getByType(WithHeadExtension::class),
             $guards,
+            $runtimeInputs,
         );
     }
 

@@ -12,6 +12,7 @@ use PhpParser\Node\Expr\CallLike;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Rules\IdentifierRuleError;
@@ -87,6 +88,7 @@ class RelationExistenceRule implements Rule
     /**
      * Report the relations the call names that the model does not define.
      *
+     * @param DependencyTracker&Scope $scope
      * @return list<IdentifierRuleError>
      */
     public function processNode(Node $node, Scope $scope): array

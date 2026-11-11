@@ -8,9 +8,12 @@ use Closure;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\PHPStan\Concerns\HasContainer;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use PhpParser\Node\Arg;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
+use PHPStan\Reflection\ClassReflection;
 use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Type\ClosureTypeFactory;
 use PHPStan\Type\ObjectType;
@@ -44,11 +47,19 @@ class AuthGuardHelper
     private array $driverTypes = [];
 
     /**
+     * The class of the bound auth manager, or false when it is not an auth manager.
+     *
+     * @var null|class-string<AuthManager>|false
+     */
+    private false|string|null $managerClass = null;
+
+    /**
      * Create a new helper instance.
      */
     public function __construct(
         private ReflectionProvider $reflectionProvider,
         private ClosureTypeFactory $closureTypeFactory,
+        private RuntimeInputs $runtimeInputs,
     ) {
     }
 
@@ -56,9 +67,13 @@ class AuthGuardHelper
      * Get the type of the guard selected by the given name argument.
      *
      * Returns null when the call's declared return already describes the guard.
+     *
+     * @param DependencyTracker&Scope $scope
      */
     public function getGuardType(?Arg $name, Scope $scope, Type $declaredType, bool $acceptsEnums = true): ?Type
     {
+        $this->track($scope);
+
         $guardType = $this->getGuardsType($this->getGuardNames($name, $scope, $acceptsEnums));
 
         if ($guardType === null) {
@@ -70,13 +85,34 @@ class AuthGuardHelper
     }
 
     /**
-     * Get the type of the current default guard, which shouldUse() can set to any configured guard.
+     * Get the type of the current default guard, which shouldUse() can set to any configured guard, for what a class declares.
      *
      * Returns null when a configured guard's type is unknown.
      */
-    public function getDefaultGuardType(): ?Type
+    public function getDefaultGuardType(ClassReflection $classReflection): ?Type
     {
+        $this->track($classReflection);
+
         return $this->getGuardsType($this->getConfiguredGuardNames());
+    }
+
+    /**
+     * Declare the dependent's dependency on the booted guards and the bound auth manager's declaration.
+     *
+     * @param ClassReflection|(DependencyTracker&Scope) $dependent
+     */
+    private function track(Scope|ClassReflection $dependent): void
+    {
+        $this->runtimeInputs->track($dependent);
+
+        if ($this->managerClass === null) {
+            $manager = $this->resolve('auth');
+            $this->managerClass = $manager instanceof AuthManager ? $manager::class : false;
+        }
+
+        if ($this->managerClass !== false) {
+            $this->runtimeInputs->trackClass($dependent, $this->managerClass);
+        }
     }
 
     /**
@@ -108,6 +144,7 @@ class AuthGuardHelper
      * which shouldUse() can set to any configured guard per coroutine. An unknown name
      * can also be any configured guard, because resolving any other name throws.
      *
+     * @param DependencyTracker&Scope $scope
      * @return list<string>
      */
     public function getGuardNames(?Arg $name, Scope $scope, bool $acceptsEnums): array
@@ -129,6 +166,8 @@ class AuthGuardHelper
         }
 
         if ($values === [] || in_array('', $values, true)) {
+            $this->runtimeInputs->track($scope);
+
             return $this->getConfiguredGuardNames();
         }
 

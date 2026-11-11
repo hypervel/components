@@ -8,6 +8,7 @@ use Hypervel\Container\Container;
 use Hypervel\PHPStan\Rules\Queue\JobDispatchedInTransactionUsesAfterCommitRule;
 use Hypervel\PHPStan\Support\ConfigParser;
 use Hypervel\PHPStan\Support\ConstructorParser;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use PHPStan\Reflection\InitializerExprTypeResolver;
 use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Rules\Rule;
@@ -28,6 +29,7 @@ class JobDispatchedInTransactionUsesAfterCommitRuleTest extends RuleTestCase
             $container->getByType(ConfigParser::class),
             $container->getByType(InitializerExprTypeResolver::class),
             $container->getByType(ConstructorParser::class),
+            $container->getByType(RuntimeInputs::class),
         );
     }
 

@@ -10,6 +10,7 @@ use PhpParser\Node;
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Identifier;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Rules\Rule;
@@ -43,6 +44,7 @@ class UndefinedArgumentOrOptionRule implements Rule
     /**
      * Report arguments and options that the command does not define.
      *
+     * @param DependencyTracker&Scope $scope
      * @return RuleError[] errors
      */
     public function processNode(Node $node, Scope $scope): array
@@ -91,7 +93,7 @@ class UndefinedArgumentOrOptionRule implements Rule
         $errors = [];
 
         // Upstream checks the enclosing command, which misreports calls on another command.
-        foreach ($this->consoleApplicationResolver->findCommandsForType($receiverType) as $command) {
+        foreach ($this->consoleApplicationResolver->findCommandsForType($receiverType, $scope) as $command) {
             $name = $command->getName();
 
             if ($methodName === 'argument') {

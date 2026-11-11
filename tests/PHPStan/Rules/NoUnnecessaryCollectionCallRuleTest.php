@@ -10,6 +10,7 @@ use Hypervel\PHPStan\Properties\ModelPropertyHelper;
 use Hypervel\PHPStan\Rules\ModelRuleHelper;
 use Hypervel\PHPStan\Rules\NoUnnecessaryCollectionCallRule;
 use Hypervel\PHPStan\Support\CollectionHelper;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use PHPStan\Rules\Rule;
 use PHPStan\Testing\RuleTestCase;
 
@@ -37,6 +38,7 @@ class NoUnnecessaryCollectionCallRuleTest extends RuleTestCase
             $container->getByType(ModelPropertyHelper::class),
             $container->getByType(ModelScopeMethodResolver::class),
             $container->getByType(CollectionHelper::class),
+            $container->getByType(RuntimeInputs::class),
             $this->onlyMethods,
             $this->excludeMethods,
         );

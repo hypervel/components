@@ -9,6 +9,7 @@ use Hypervel\Http\Response;
 use Hypervel\PHPStan\Concerns\InfersFactoryHelperCalls;
 use Hypervel\PHPStan\ReturnTypes\AppMakeHelper;
 use PhpParser\Node\Expr\FuncCall;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\FunctionReflection;
@@ -21,8 +22,6 @@ use PHPStan\Type\Type;
 class ResponseExtension implements DynamicFunctionReturnTypeExtension
 {
     use InfersFactoryHelperCalls;
-
-    private ?Type $responseFactoryType = null;
 
     private ?ObjectType $responseType = null;
 
@@ -44,6 +43,8 @@ class ResponseExtension implements DynamicFunctionReturnTypeExtension
 
     /**
      * Get the factory for a call without arguments, and otherwise the response.
+     *
+     * @param DependencyTracker&Scope $scope
      */
     public function getTypeFromFunctionCall(
         FunctionReflection $functionReflection,
@@ -54,7 +55,7 @@ class ResponseExtension implements DynamicFunctionReturnTypeExtension
         // Hypervel: the factory is the booted binding, as for app(ResponseFactory::class), rather than the contract.
         return $this->getFactoryHelperType(
             $functionCall,
-            $this->responseFactoryType ??= $this->appMakeHelper->resolveAbstractType(ResponseFactory::class),
+            fn (): Type => $this->appMakeHelper->resolveAbstractType(ResponseFactory::class, $scope),
             $this->responseType ??= new ObjectType(Response::class),
         );
     }

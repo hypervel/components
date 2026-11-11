@@ -214,6 +214,7 @@ class ConfigParser
         private ScopeFactory $scopeFactory,
         private NodeScopeResolver $nodeScopeResolver,
         private ConfigSourceResolver $configSourceResolver,
+        private RuntimeInputs $runtimeInputs,
     ) {
     }
 
@@ -228,6 +229,9 @@ class ConfigParser
      */
     public function getValue(string $key, Scope $scope): ?array
     {
+        // The booted providers decide the config directories, merges and writes.
+        $this->runtimeInputs->track($scope);
+
         // Every analysed file reading the key depends on its sources, parsed or served from the cache.
         $this->trackDependencies($scope, $this->keySources[$key] ??= $this->configSourceResolver->getKeySources(
             $key,
@@ -1135,9 +1139,12 @@ class ConfigParser
     {
         foreach ($dependencies as $path => $directory) {
             if ($directory) {
-                $scope->trackDirectoryDependency($path, ConfigSourceResolver::CONFIG_FILE_PATTERN);
+                $scope->trackDirectoryDependency(
+                    $this->runtimeInputs->sourceDirectory($path, ConfigSourceResolver::CONFIG_FILE_PATTERN),
+                    ConfigSourceResolver::CONFIG_FILE_PATTERN,
+                );
             } else {
-                $scope->trackFileDependency($path);
+                $scope->trackFileDependency($this->runtimeInputs->sourcePath($path));
             }
 
             foreach (array_keys($this->dependencyCollectors) as $index) {

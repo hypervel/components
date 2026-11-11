@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\Concerns;
 
+use Closure;
 use PhpParser\Node\Expr\FuncCall;
 use PHPStan\Analyser\Scope;
 use PHPStan\Reflection\FunctionReflection;
@@ -22,13 +23,14 @@ trait InfersBoundHelperCalls
      * including an explicit null, named, maybe-null and unpacked arguments.
      *
      * @param class-string $contract
+     * @param Closure(): Type $boundType called only when the call can return the contract
      */
     protected function getBoundHelperType(
         FunctionReflection $functionReflection,
         FuncCall $functionCall,
         Scope $scope,
         string $contract,
-        Type $boundType,
+        Closure $boundType,
     ): Type {
         $returnType = ParametersAcceptorSelector::selectFromArgs(
             $scope,
@@ -42,6 +44,6 @@ trait InfersBoundHelperCalls
             return $returnType;
         }
 
-        return TypeCombinator::union(TypeCombinator::remove($returnType, $contractType), $boundType);
+        return TypeCombinator::union(TypeCombinator::remove($returnType, $contractType), $boundType());
     }
 }

@@ -6,6 +6,7 @@ namespace Hypervel\PHPStan\ReturnTypes\Helpers;
 
 use Hypervel\PHPStan\ReturnTypes\AppMakeHelper;
 use PhpParser\Node\Expr\FuncCall;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\FunctionReflection;
@@ -33,6 +34,8 @@ class AppExtension implements DynamicFunctionReturnTypeExtension
 
     /**
      * Get the type of the resolved container entry.
+     *
+     * @param DependencyTracker&Scope $scope
      */
     public function getTypeFromFunctionCall(
         FunctionReflection $functionReflection,

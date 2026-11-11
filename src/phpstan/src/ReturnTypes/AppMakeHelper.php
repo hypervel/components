@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\PHPStan\ReturnTypes;
 
 use Hypervel\PHPStan\Concerns\HasContainer;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Type\ClosureType;
@@ -28,10 +30,20 @@ class AppMakeHelper
     use HasContainer;
 
     /**
+     * Create a new helper instance.
+     */
+    public function __construct(
+        private RuntimeInputs $runtimeInputs,
+    ) {
+    }
+
+    /**
      * Resolve the type of the container entry requested by the call.
      *
      * Returns null when the call's declared return type already describes the
      * result, such as a generic class-string or a null abstract.
+     *
+     * @param DependencyTracker&Scope $scope
      */
     public function resolveTypeFromCall(FuncCall|MethodCall|StaticCall $call, Scope $scope): ?Type
     {
@@ -58,7 +70,7 @@ class AppMakeHelper
         $types = [];
 
         foreach ($constantStrings as $constantString) {
-            $types[] = $this->resolveAbstractType($constantString->getValue());
+            $types[] = $this->resolveAbstractType($constantString->getValue(), $scope);
         }
 
         return TypeCombinator::union(...$types);
@@ -66,9 +78,13 @@ class AppMakeHelper
 
     /**
      * Resolve the type of the container entry for the given abstract.
+     *
+     * @param DependencyTracker&Scope $scope
      */
-    public function resolveAbstractType(string $abstract): Type
+    public function resolveAbstractType(string $abstract, Scope $scope): Type
     {
+        $this->runtimeInputs->track($scope);
+
         $resolved = $this->resolve($abstract);
 
         if (is_object($resolved)) {
@@ -89,6 +105,8 @@ class AppMakeHelper
 
     /**
      * Resolve the type of the closure returned by a container factory() call.
+     *
+     * @param DependencyTracker&Scope $scope
      */
     public function resolveFactoryTypeFromCall(MethodCall|StaticCall $call, Scope $scope): ?Type
     {

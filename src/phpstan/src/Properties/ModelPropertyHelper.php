@@ -9,6 +9,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\PHPStan\Properties\Schema\DataTypeToPhpTypeConverter;
 use Hypervel\PHPStan\Reflection\ReflectionHelper;
 use Hypervel\PHPStan\Support\ConfigSourceResolver;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Support\Str;
 use PDO;
 use PHPStan\Analyser\DeclarationDependencyTracker;
@@ -80,6 +81,7 @@ class ModelPropertyHelper
         private ConnectionConfigResolver $connectionConfigResolver,
         private DataTypeToPhpTypeConverter $converter,
         private ConfigSourceResolver $configSourceResolver,
+        private RuntimeInputs $runtimeInputs,
     ) {
     }
 
@@ -440,7 +442,7 @@ class ModelPropertyHelper
         $tableFacts = $key === null ? null : $schema->tables[$key];
 
         foreach (array_keys($tableFacts->sources ?? []) as $source) {
-            $this->declarationDependencyTracker->trackFileDependency($classReflection, $source);
+            $this->declarationDependencyTracker->trackFileDependency($classReflection, $this->runtimeInputs->sourcePath($source));
         }
 
         return ['config' => $config, 'schema' => $schema, 'table' => $tableFacts];
@@ -612,20 +614,23 @@ class ModelPropertyHelper
             $this->loadMigrations();
         }
 
+        // The booted configuration and migrator choose the connections and migration paths.
+        $this->runtimeInputs->track($classReflection);
+
         foreach ($this->migrationHelper->getMigrationPaths() as $path => $pattern) {
             if ($pattern === null) {
-                $this->declarationDependencyTracker->trackFileDependency($classReflection, $path);
+                $this->declarationDependencyTracker->trackFileDependency($classReflection, $this->runtimeInputs->sourcePath($path));
             } else {
-                $this->declarationDependencyTracker->trackDirectoryDependency($classReflection, $path, $pattern);
+                $this->declarationDependencyTracker->trackDirectoryDependency($classReflection, $this->runtimeInputs->sourceDirectory($path, $pattern), $pattern);
             }
         }
 
         foreach ($this->squashedMigrationHelper->getSchemaDirectories() as $directory) {
-            $this->declarationDependencyTracker->trackDirectoryDependency($classReflection, $directory);
+            $this->declarationDependencyTracker->trackDirectoryDependency($classReflection, $this->runtimeInputs->sourceDirectory($directory));
         }
 
         foreach (array_keys($this->schemaSources) as $source) {
-            $this->declarationDependencyTracker->trackFileDependency($classReflection, $source);
+            $this->declarationDependencyTracker->trackFileDependency($classReflection, $this->runtimeInputs->sourcePath($source));
         }
 
         $this->trackConfigSources($classReflection, $this->getSchemaConfigSources());
@@ -640,9 +645,13 @@ class ModelPropertyHelper
     {
         foreach ($sources as $path => $directory) {
             if ($directory) {
-                $this->declarationDependencyTracker->trackDirectoryDependency($classReflection, $path, ConfigSourceResolver::CONFIG_FILE_PATTERN);
+                $this->declarationDependencyTracker->trackDirectoryDependency(
+                    $classReflection,
+                    $this->runtimeInputs->sourceDirectory($path, ConfigSourceResolver::CONFIG_FILE_PATTERN),
+                    ConfigSourceResolver::CONFIG_FILE_PATTERN,
+                );
             } else {
-                $this->declarationDependencyTracker->trackFileDependency($classReflection, $path);
+                $this->declarationDependencyTracker->trackFileDependency($classReflection, $this->runtimeInputs->sourcePath($path));
             }
         }
     }

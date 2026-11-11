@@ -10,8 +10,13 @@ use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Foundation\Console\ClosureCommand;
 use Hypervel\PHPStan\Concerns\HasContainer;
+use Hypervel\PHPStan\Reflection\SourceFiles;
+use Hypervel\PHPStan\Support\RuntimeInputs;
+use PHPStan\Analyser\DependencyTracker;
+use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\ClassReflection;
+use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Type\Type;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Throwable;
@@ -34,6 +39,22 @@ class ConsoleApplicationResolver
 
     /** @var array<string, array<int, SymfonyCommand>> */
     private array $commandsByClass = [];
+
+    /**
+     * The files each command class's definition comes from.
+     *
+     * @var array<class-string, list<string>>
+     */
+    private array $commandFiles = [];
+
+    /**
+     * Create a new resolver instance.
+     */
+    public function __construct(
+        private ReflectionProvider $reflectionProvider,
+        private RuntimeInputs $runtimeInputs,
+    ) {
+    }
 
     /**
      * Find the registered commands that are instances of the given class.
@@ -77,10 +98,13 @@ class ConsoleApplicationResolver
     /**
      * Find the registered commands the given receiver type can be.
      *
+     * @param DependencyTracker&Scope $scope
      * @return array<int, SymfonyCommand> keyed by object ID
      */
-    public function findCommandsForType(Type $type): array
+    public function findCommandsForType(Type $type, Scope $scope): array
     {
+        $this->runtimeInputs->track($scope);
+
         $commands = [];
 
         foreach ($type->getObjectClassReflections() as $classReflection) {
@@ -93,6 +117,14 @@ class ConsoleApplicationResolver
             }
 
             $commands += $classCommands;
+        }
+
+        // A definition comes from property defaults and method bodies, which are not declarations, in
+        // classes the boot need not load.
+        foreach ($commands as $command) {
+            foreach ($this->commandFiles[$command::class] ??= SourceFiles::forInstance($this->reflectionProvider, $this->reflectionProvider->getClass($command::class), Command::class) as $file) {
+                $scope->trackFileDependency($this->runtimeInputs->sourcePath($file));
+            }
         }
 
         return $commands;

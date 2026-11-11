@@ -7,7 +7,9 @@ namespace Hypervel\PHPStan\ReturnTypes\Helpers;
 use Hypervel\Contracts\Auth\Factory;
 use Hypervel\PHPStan\Concerns;
 use Hypervel\PHPStan\ReturnTypes\AuthGuardHelper;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use PhpParser\Node\Expr\FuncCall;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\FunctionReflection;
@@ -30,6 +32,7 @@ class AuthExtension implements DynamicFunctionReturnTypeExtension
      */
     public function __construct(
         private AuthGuardHelper $authGuardHelper,
+        private RuntimeInputs $runtimeInputs,
     ) {
     }
 
@@ -43,6 +46,8 @@ class AuthExtension implements DynamicFunctionReturnTypeExtension
 
     /**
      * Get the type of the auth factory or requested guard.
+     *
+     * @param DependencyTracker&Scope $scope
      */
     public function getTypeFromFunctionCall(
         FunctionReflection $functionReflection,
@@ -53,11 +58,11 @@ class AuthExtension implements DynamicFunctionReturnTypeExtension
 
         // Unlike guard(null), auth() and auth(null) return the factory rather than the default guard.
         if ($guard === null || (! $guard->unpack && $scope->getType($guard->value)->isNull()->yes())) {
-            return $this->getFactoryType();
+            return $this->getFactoryType($scope);
         }
 
         if ($guard->unpack) {
-            return $this->getUnpackedHelperType($functionReflection, $functionCall, $scope, $this->getFactoryType());
+            return $this->getUnpackedHelperType($functionReflection, $functionCall, $scope, $this->getFactoryType($scope));
         }
 
         // A maybe-null guard can still return the factory, so the declared conditional applies.
@@ -76,9 +81,13 @@ class AuthExtension implements DynamicFunctionReturnTypeExtension
 
     /**
      * Get the type of the booted auth factory.
+     *
+     * @param DependencyTracker&Scope $scope
      */
-    private function getFactoryType(): ?Type
+    private function getFactoryType(Scope $scope): ?Type
     {
+        $this->runtimeInputs->track($scope);
+
         $factory = $this->resolve(Factory::class);
 
         return is_object($factory) ? new ObjectType($factory::class) : null;

@@ -7,6 +7,7 @@ namespace Hypervel\PHPStan\ReturnTypes\Helpers;
 use Hypervel\PHPStan\Concerns\InfersBoundHelperCalls;
 use Hypervel\PHPStan\ReturnTypes\AppMakeHelper;
 use PhpParser\Node\Expr\FuncCall;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\FunctionReflection;
@@ -23,8 +24,6 @@ use Psr\Log\LoggerInterface;
 class LoggerExtension implements DynamicFunctionReturnTypeExtension
 {
     use InfersBoundHelperCalls;
-
-    private ?Type $loggerType = null;
 
     /**
      * Create a logger() return type extension.
@@ -44,6 +43,8 @@ class LoggerExtension implements DynamicFunctionReturnTypeExtension
 
     /**
      * Get the logger for a null message, and otherwise null.
+     *
+     * @param DependencyTracker&Scope $scope
      */
     public function getTypeFromFunctionCall(
         FunctionReflection $functionReflection,
@@ -55,7 +56,7 @@ class LoggerExtension implements DynamicFunctionReturnTypeExtension
             $functionCall,
             $scope,
             LoggerInterface::class,
-            $this->loggerType ??= $this->appMakeHelper->resolveAbstractType(LoggerInterface::class),
+            fn (): Type => $this->appMakeHelper->resolveAbstractType(LoggerInterface::class, $scope),
         );
     }
 }

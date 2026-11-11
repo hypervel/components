@@ -11,6 +11,7 @@ use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\PHPStan\Reflection\ProxiedMethodReflection;
 use Hypervel\PHPStan\Reflection\StaticMethodReflection;
 use Hypervel\PHPStan\ReturnTypes\AuthGuardHelper;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Traits\Macroable;
@@ -59,6 +60,7 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
         private ClosureTypeFactory $closureTypeFactory,
         private WithHeadExtension $withHeadExtension,
         private AuthGuardHelper $authGuardHelper,
+        private RuntimeInputs $runtimeInputs,
     ) {
     }
 
@@ -111,6 +113,8 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
         if (array_key_exists($cacheKey, $this->methods)) {
             return $this->methods[$cacheKey] === false ? null : $this->methods[$cacheKey];
         }
+
+        $this->runtimeInputs->track($classReflection);
 
         $methodReflection = $this->forwardsToGuard($classReflection)
             ? $this->findGuardMacro($classReflection, $methodName)
@@ -250,9 +254,18 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
      */
     private function findGuardMacro(ClassReflection $classReflection, string $methodName): ?MethodReflection
     {
-        $guardType = $this->authGuardHelper->getDefaultGuardType();
+        $guardType = $this->authGuardHelper->getDefaultGuardType($classReflection);
 
-        if ($guardType === null || ! $guardType->hasMethod($methodName)->yes()) {
+        if ($guardType === null) {
+            return null;
+        }
+
+        // The class declares the guards' methods.
+        foreach ($guardType->getObjectClassNames() as $guardClass) {
+            $this->runtimeInputs->trackClass($classReflection, $guardClass);
+        }
+
+        if (! $guardType->hasMethod($methodName)->yes()) {
             return null;
         }
 
@@ -346,6 +359,8 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
             }
 
             if (is_object($concrete)) {
+                $this->runtimeInputs->trackClass($classReflection, $concrete::class);
+
                 $classNames = [$concrete::class];
                 $macroTraitProperty = 'macros';
             }

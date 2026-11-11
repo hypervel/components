@@ -11,6 +11,7 @@ use Hypervel\PHPStan\Collectors\WorkerStateConfigOffsetCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateParameterCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateWriteCollector;
 use Hypervel\PHPStan\Concerns\HasContainer;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use PhpParser\Node;
 use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
@@ -76,6 +77,7 @@ class WorkerStateRule implements Rule
     public function __construct(
         private ReflectionProvider $reflectionProvider,
         private WorkerStateHelper $helper,
+        private RuntimeInputs $runtimeInputs,
     ) {
     }
 
@@ -100,6 +102,9 @@ class WorkerStateRule implements Rule
         if (! $this->helper->isEnabled()) {
             return [];
         }
+
+        // Lifetimes come from the booted bindings, routes, middleware, listeners and Bus handlers.
+        $this->runtimeInputs->track($scope);
 
         $classes = $node->get(WorkerStateClassCollector::class);
         $configWrites = $node->get(WorkerStateConfigOffsetCollector::class);

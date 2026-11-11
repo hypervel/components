@@ -6,8 +6,10 @@ namespace Hypervel\PHPStan\Rules;
 
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\PHPStan\Properties\ModelHelper;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use PhpParser\Node;
 use PhpParser\Node\Expr\MethodCall;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Node\Expr\TypeExpr;
@@ -40,12 +42,14 @@ class RelationExistenceHelper
     public function __construct(
         private ModelRuleHelper $modelRuleHelper,
         private ModelHelper $modelHelper,
+        private RuntimeInputs $runtimeInputs,
     ) {
     }
 
     /**
      * Report each relation, or segment of a dotted relation path, that the queried model does not define.
      *
+     * @param DependencyTracker&Scope $scope
      * @param bool $selectsColumns whether a name may end with a column selection, such as `posts:id`
      * @param bool $followsPaths whether a dotted name is a path through related models
      * @return list<IdentifierRuleError>
@@ -87,6 +91,8 @@ class RelationExistenceHelper
 
                     continue;
                 }
+
+                $this->runtimeInputs->track($scope);
 
                 // Unlike upstream, a relation resolveRelationUsing() registers exists, though its related model is unknown.
                 if (! $this->hasDynamicRelation($modelReflection, $relationName)) {

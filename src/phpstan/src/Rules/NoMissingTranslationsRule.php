@@ -12,6 +12,7 @@ use Hypervel\PHPStan\Collectors\UsedTranslationTranslatorCollector;
 use Hypervel\PHPStan\Collectors\UsedTranslationViewCollector;
 use Hypervel\PHPStan\Concerns\CollectsTranslationLookups;
 use Hypervel\PHPStan\Concerns\HasContainer;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\PHPStan\Support\ViewFileHelper;
 use Hypervel\Support\Arr;
 use Hypervel\Translation\FileLoader;
@@ -55,6 +56,7 @@ class NoMissingTranslationsRule implements Rule
         private UsedTranslationViewCollector $usedTranslationViewCollector,
         private ViewFileHelper $viewFileHelper,
         private Filesystem $filesystem,
+        private RuntimeInputs $runtimeInputs,
         #[AutowiredParameter]
         private array $translationDirectories,
     ) {
@@ -76,6 +78,8 @@ class NoMissingTranslationsRule implements Rule
      */
     public function processNode(Node $node, Scope $scope): array
     {
+        $this->runtimeInputs->track($scope);
+
         $translator = $this->translator();
         $loader = $translator instanceof Translator ? $translator->getLoader() : null;
 
@@ -90,7 +94,7 @@ class NoMissingTranslationsRule implements Rule
 
         // The rule reads the translation files and the views, so the result cache can reuse its errors only while they stay the same.
         foreach ([...$loader->paths(), ...$loader->jsonPaths(), ...array_values($loader->namespaces())] as $path) {
-            $scope->trackDirectoryDependency($path);
+            $scope->trackDirectoryDependency($this->runtimeInputs->sourceDirectory($path));
         }
 
         $this->viewFileHelper->trackRootViewDirectories($scope);

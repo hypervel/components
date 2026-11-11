@@ -6,6 +6,7 @@ namespace Hypervel\PHPStan\ReturnTypes;
 
 use Hypervel\Filesystem\FilesystemManager;
 use PhpParser\Node\Expr\MethodCall;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\MethodReflection;
@@ -46,6 +47,8 @@ class FilesystemManagerDynamicMethodReturnTypeExtension implements DynamicMethod
 
     /**
      * Get the type of the selected disk.
+     *
+     * @param DependencyTracker&Scope $scope
      */
     public function getTypeFromMethodCall(
         MethodReflection $methodReflection,

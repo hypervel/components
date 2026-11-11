@@ -6,8 +6,10 @@ namespace Hypervel\PHPStan\ReturnTypes;
 
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\PHPStan\Concerns;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Support\Facades\Auth;
 use PhpParser\Node\Expr\StaticCall;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\MethodReflection;
@@ -25,6 +27,14 @@ class AuthExtension implements DynamicStaticMethodReturnTypeExtension
 {
     use Concerns\HasContainer;
     use Concerns\LoadsAuthModel;
+
+    /**
+     * Create a new extension instance.
+     */
+    public function __construct(
+        private RuntimeInputs $runtimeInputs,
+    ) {
+    }
 
     /**
      * Get the class whose static method calls are typed.
@@ -46,12 +56,16 @@ class AuthExtension implements DynamicStaticMethodReturnTypeExtension
 
     /**
      * Get the user type of every configured guard.
+     *
+     * @param DependencyTracker&Scope $scope
      */
     public function getTypeFromStaticMethodCall(
         MethodReflection $methodReflection,
         StaticCall $methodCall,
         Scope $scope,
     ): ?Type {
+        $this->runtimeInputs->track($scope);
+
         $authModels = $this->getAuthModels($this->getContainer()->get('config'));
 
         if (count($authModels) === 0) {

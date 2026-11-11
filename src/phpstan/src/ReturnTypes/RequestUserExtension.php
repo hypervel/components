@@ -7,7 +7,9 @@ namespace Hypervel\PHPStan\ReturnTypes;
 use Hypervel\Http\Request;
 use Hypervel\PHPStan\Concerns\HasContainer;
 use Hypervel\PHPStan\Concerns\LoadsAuthModel;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use PhpParser\Node\Expr\MethodCall;
+use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\MethodReflection;
@@ -31,6 +33,7 @@ class RequestUserExtension implements DynamicMethodReturnTypeExtension
      */
     public function __construct(
         private AuthGuardHelper $authGuardHelper,
+        private RuntimeInputs $runtimeInputs,
     ) {
     }
 
@@ -52,6 +55,8 @@ class RequestUserExtension implements DynamicMethodReturnTypeExtension
 
     /**
      * Get the user type of the requested guard, or of every guard.
+     *
+     * @param DependencyTracker&Scope $scope
      */
     public function getTypeFromMethodCall(
         MethodReflection $methodReflection,
@@ -61,6 +66,8 @@ class RequestUserExtension implements DynamicMethodReturnTypeExtension
         if ($methodReflection->getDeclaringClass()->getName() !== Request::class) {
             return null;
         }
+
+        $this->runtimeInputs->track($scope);
 
         // Upstream reads one constant guard name, so user('') looked up an empty name
         // instead of the default guard that the request's user resolver uses.

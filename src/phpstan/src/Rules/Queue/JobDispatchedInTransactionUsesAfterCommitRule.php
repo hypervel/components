@@ -19,6 +19,7 @@ use Hypervel\PHPStan\Reflection\SourceFiles;
 use Hypervel\PHPStan\Support\CallStack;
 use Hypervel\PHPStan\Support\ConfigParser;
 use Hypervel\PHPStan\Support\ConstructorParser;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Queue\Attributes\Connection;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Queue\QueueRoutes;
@@ -190,6 +191,7 @@ class JobDispatchedInTransactionUsesAfterCommitRule implements Rule
         private ConfigParser $configParser,
         private InitializerExprTypeResolver $initializerExprTypeResolver,
         private ConstructorParser $constructorParser,
+        private RuntimeInputs $runtimeInputs,
     ) {
     }
 
@@ -796,8 +798,12 @@ class JobDispatchedInTransactionUsesAfterCommitRule implements Rule
         };
 
         // Booted routes and forwards may come from the environment, so they never establish a connection.
-        if ($connection === null && $this->routesMayChooseConnection($job)) {
-            return null;
+        if ($connection === null) {
+            $this->runtimeInputs->track($scope);
+
+            if ($this->routesMayChooseConnection($job)) {
+                return null;
+            }
         }
 
         if ($connection !== null && $connection !== '') {

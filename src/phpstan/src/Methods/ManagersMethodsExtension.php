@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\PHPStan\Concerns\HasContainer;
 use Hypervel\PHPStan\Reflection\ProxiedMethodReflection;
 use Hypervel\PHPStan\Reflection\ReflectionHelper;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Support\Manager;
 use InvalidArgumentException;
 use PHPStan\Analyser\OutOfClassScope;
@@ -49,6 +50,7 @@ class ManagersMethodsExtension implements MethodsClassReflectionExtension
     public function __construct(
         private ReflectionProvider $reflectionProvider,
         private ClosureTypeFactory $closureTypeFactory,
+        private RuntimeInputs $runtimeInputs,
     ) {
     }
 
@@ -114,7 +116,15 @@ class ManagersMethodsExtension implements MethodsClassReflectionExtension
         $key = $classReflection->getCacheKey();
 
         if (! array_key_exists($key, $this->driverTypes)) {
-            $this->driverTypes[$key] = $this->resolveDriverType($classReflection);
+            $this->runtimeInputs->track($classReflection);
+
+            $driverType = $this->resolveDriverType($classReflection);
+
+            foreach ($driverType?->getObjectClassNames() ?? [] as $driverClass) {
+                $this->runtimeInputs->trackClass($classReflection, $driverClass);
+            }
+
+            $this->driverTypes[$key] = $driverType;
         }
 
         return $this->driverTypes[$key];
@@ -129,9 +139,13 @@ class ManagersMethodsExtension implements MethodsClassReflectionExtension
 
         // The container can bind the manager to a subclass, whose methods then do the forwarding. A manager
         // that does not resolve still types an overriding driver() from its declaration.
-        $managerReflection = $manager instanceof Manager && $manager::class !== $classReflection->getName()
-            ? $this->reflectionProvider->getClass($manager::class)
-            : $classReflection;
+        $managerReflection = $classReflection;
+
+        if ($manager instanceof Manager && $manager::class !== $classReflection->getName()) {
+            $this->runtimeInputs->trackClass($classReflection, $manager::class);
+
+            $managerReflection = $this->reflectionProvider->getClass($manager::class);
+        }
 
         // A Macroable or custom __call() keeps its own API instead of forwarding to the driver.
         if ($this->overrides($managerReflection, '__call')) {

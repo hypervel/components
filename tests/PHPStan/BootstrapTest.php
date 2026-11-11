@@ -63,6 +63,22 @@ class BootstrapTest extends TestCase
         }
     }
 
+    public function testComponentsAnalysisBootsItsOwnProviders(): void
+    {
+        $repositoryPath = dirname(__DIR__, 2);
+
+        // Testbench's contract-suite configuration, which Testbench selects for the components repo, excludes them.
+        $process = $this->runBootstrap($repositoryPath, code: <<<'PHP'
+            echo json_encode([
+                Hypervel\Testbench\Bootstrapper::getConfiguration()?->getConfigurationPath(),
+                isset(Hypervel\Support\Facades\Facade::getFacadeApplication()->getLoadedProviders()[Hypervel\Telescope\TelescopeServiceProvider::class]),
+            ]);
+            PHP);
+
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput());
+        $this->assertSame([$repositoryPath, true], json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR));
+    }
+
     public function testApplicationAnalysisBootsTheApplication(): void
     {
         $applicationPath = $this->tempDir . '/application';
@@ -112,17 +128,17 @@ class BootstrapTest extends TestCase
     /**
      * Run the analyzer's bootstrap file from the working path.
      *
-     * PHPStan only requires this file, so its failure handling needs no analysis run
-     * or container compilation.
+     * PHPStan only requires this file, so its boot needs no analysis run or container
+     * compilation. The code runs after it.
      *
      * @param list<string> $phpOptions
      */
-    protected function runBootstrap(string $workingPath, array $phpOptions = []): Process
+    protected function runBootstrap(string $workingPath, array $phpOptions = [], string $code = ''): Process
     {
         $repositoryPath = dirname(__DIR__, 2);
 
         $process = new Process(
-            [PHP_BINARY, ...$phpOptions, '-r', 'require $argv[1]; require $argv[2];', $repositoryPath . '/vendor/autoload.php', $repositoryPath . '/src/phpstan/bootstrap.php'],
+            [PHP_BINARY, ...$phpOptions, '-r', 'require $argv[1]; require $argv[2]; ' . $code, $repositoryPath . '/vendor/autoload.php', $repositoryPath . '/src/phpstan/bootstrap.php'],
             $workingPath,
             timeout: 60,
         );
