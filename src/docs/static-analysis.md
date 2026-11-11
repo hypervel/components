@@ -289,7 +289,7 @@ parameters:
 
 A schema dump is only read when it has the name the `schema:dump` Artisan command gives it: `{connection}-schema.sql`, or `{connection}-schema.dump`, where `{connection}` is a connection in your `database` configuration. When both exist, the `.dump` file is read, as the `migrate` command does. The schema of a connection with no dump and no migrations is unknown.
 
-PHPStan reads migrations without executing them. It follows schema builder calls, `if` and `switch` statements, `Schema::hasTable()` and `Schema::hasColumn()` checks, and literal SQL passed to `DB::statement()` or `DB::unprepared()`. Each call uses the migration's connection unless it selects another with `Schema::connection()` or `DB::connection()`, including through a builder stored in a variable:
+PHPStan reads migrations without executing them. It follows schema builder calls, `if` and `switch` statements, `Schema::hasTable()` and `Schema::hasColumn()` checks, and literal SQL passed to `DB::statement()` or `DB::unprepared()`. It also follows the methods a migration calls on itself, including an `up` method or helpers it inherits from a base migration class or a trait. Each call uses the migration's connection unless it selects another with `Schema::connection()` or `DB::connection()`, including through a builder stored in a variable:
 
 ```php
 $schema = Schema::connection('analytics');
@@ -299,7 +299,7 @@ $schema->create('events', function (Blueprint $table) {
 });
 ```
 
-Dynamic migration code can limit attribute typing. Blueprint macros, loops and helpers that receive a blueprint make its table unknown. A `switch` statement whose case can end early, such as through a `break` inside an `if`, makes the tables it changes unknown. When a migration assigns its `$connection` property outside its `down` method, such as in its constructor, the connection its calls use by default is unknown. Unknown column names leave room for additional columns; unknown table names make the connection's schema unknown, and unknown connection names make every connection's schema unknown. A column created in only some branches reads as `mixed`.
+Dynamic migration code can limit attribute typing. Blueprint macros, loops and helpers that receive a blueprint make its table unknown. A `switch` statement whose case can end early, such as through a `break` inside an `if`, makes the tables it changes unknown. When a migration, its base class or one of its traits assigns the `$connection` property outside the `down` method, such as in a constructor, the connection its calls use by default is unknown. A trait method a migration renames with `as` or selects with `insteadof` makes every connection's schema unknown. Unknown column names leave room for additional columns; unknown table names make the connection's schema unknown, and unknown connection names make every connection's schema unknown. A column created in only some branches reads as `mixed`.
 
 Use the `Schema` and `DB` facades for schema changes; connections obtained through properties or helpers such as `app('db')` are not followed. To target another database or schema, configure a connection and select it instead of relying on `USE` or `SET search_path` across separate SQL calls.
 
@@ -393,6 +393,10 @@ User::with([
 ```
 
 Each callback in an eager loading array receives its own key's relation, following nested paths such as `posts.comments`. Callbacks given to the `loadCount`, `loadSum` and other aggregate methods receive the related model's builder. A relationship whose name is not statically known, such as an arbitrary string, or a method without the generic types above, gives the callback an unknown relation or a builder of an unknown model.
+
+A relationship method without a relation return type, such as an untyped method, is still recognized, but its related model is unknown: `$user->posts` is `mixed`, and a nested path such as `posts.comments` is not checked beyond it.
+
+A relationship registered using `resolveRelationUsing` while the application boots is typed by its resolver's return type, which the analysis reads without running the resolver. Calls such as `throughCars()` and `hasOwner()` have the types of `through('cars')` and `has('owner')`.
 
 <a name="custom-builders-and-collections"></a>
 ### Custom Builders and Collections
@@ -731,9 +735,9 @@ To fix the diagnostic, add the missing line or correct the key. Keys are checked
 
 Methods that accept a view name, such as `view()` and `View::make()`, require a view the booted application can find, so a misspelled view name is reported as an `argument.type` error. If a package only registers a view namespace when a command runs or a feature is enabled, the analysis cannot see those views; ignore those calls with a reason.
 
-You may also enable the `checkUnusedViews` parameter to report views that no code refers to by a literal name. Views rendered by computed names or used by other packages may still be in use, so treat these diagnostics as a list to review rather than proof that a view can be deleted.
+You may also enable the `checkUnusedViews` parameter to report views that no code refers to by a known name, such as a string or a constant. Views rendered by computed names or used by other packages may still be in use, so treat these diagnostics as a list to review rather than proof that a view can be deleted.
 
-View usage is recognized in view helpers, view routes, mail definitions, Blade layouts and includes, and anonymous component tags such as `<x-alert>`. By default, your application's view paths are checked. To check other directories instead, use the `viewDirectories` parameter:
+View usage is recognized in view helpers, view routes, mail definitions, Blade directives that render views, such as `@extends`, `@include` and `@each`, and anonymous component tags such as `<x-alert>`. By default, your application's view paths are checked. To check other directories instead, use the `viewDirectories` parameter:
 
 ```neon
 parameters:
@@ -923,7 +927,7 @@ Eager loading, relationship queries and relationship aggregates report a relatio
 $users = User::with('posts.comment')->get();
 ```
 
-A relation registered using `resolveRelationUsing` while the application boots is found, though the segments after it are not checked. Relations on an abstract model or a union of models are not checked, since each model may define them differently.
+A model method that requires arguments is reported, since loading a relation calls its method without any. A relation registered using `resolveRelationUsing` while the application boots is found. The segments after it are checked only when its resolver's return type names the related model. Relations on an abstract model or a union of models are not checked, since each model may define them differently.
 
 A model's default `$with` and `$withCount` eager loads are checked the same way. Defaults a model inherits are checked for each model that inherits them, since the model may define the relation itself.
 
