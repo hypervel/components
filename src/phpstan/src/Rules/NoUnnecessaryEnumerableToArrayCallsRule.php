@@ -51,7 +51,7 @@ class NoUnnecessaryEnumerableToArrayCallsRule implements Rule
     {
         $name = $node->name;
 
-        if (! $name instanceof Identifier || $name->toString() !== 'toArray') {
+        if (! $name instanceof Identifier || $name->toLowerString() !== 'toarray') {
             return [];
         }
 

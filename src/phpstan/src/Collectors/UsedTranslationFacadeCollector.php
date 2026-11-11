@@ -50,7 +50,9 @@ class UsedTranslationFacadeCollector implements Collector
             return null;
         }
 
-        if (! in_array($name->name, ['get', 'choice'], true)) {
+        $method = $name->toLowerString();
+
+        if (! in_array($method, ['get', 'choice'], true)) {
             return null;
         }
 
@@ -66,7 +68,7 @@ class UsedTranslationFacadeCollector implements Collector
             return null;
         }
 
-        return $name->name === 'get'
+        return $method === 'get'
             ? $this->translationLookup($node, choice: false, acceptsFallback: true, scope: $scope)
             : $this->translationLookup($node, choice: true, acceptsFallback: false, scope: $scope);
     }

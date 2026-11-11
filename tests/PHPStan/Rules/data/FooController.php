@@ -144,3 +144,40 @@ class NamedArgumentsMailMessage extends MailMessage
         return $this->view(data: [], view: 'named-arguments.mail-message-view');
     }
 }
+
+// Hypervel: a mailer view array names the HTML and plain-text views, and the other mailer methods
+// that take a view count too. The raw key holds text, not a view.
+function mailerViews(MailerContract $mailer): void
+{
+    Mail::send(['emails.mail-send.positional-html', 'emails.mail-send.positional-text']);
+    $mailer->send(['html' => 'emails.mail-send.keyed-html', 'text' => 'emails.mail-send.keyed-text', 'raw' => 'unused']);
+    Mail::sendNow('emails.mail-send.send-now');
+    Mail::plain('emails.mail-send.plain', [], static function (): void {
+    });
+    Mail::render('emails.mail-send.render');
+}
+
+class ArrayViewMailMessage extends MailMessage
+{
+    public function build(): self
+    {
+        return $this->view(['emails.mail-message.array-html', 'emails.mail-message.array-text']);
+    }
+}
+
+// Hypervel: method names are case-insensitive.
+function caseInsensitiveMethods(Factory $factory): void
+{
+    $factory->MAKE('case-insensitive.factory-make');
+    \Hypervel\Support\Facades\View::Make('case-insensitive.facade-make');
+    Route::VIEW('/case-insensitive', 'case-insensitive.route-view');
+    Mail::Send('case-insensitive.mail-send');
+}
+
+class CaseInsensitiveMailMessage extends MailMessage
+{
+    public function build(): self
+    {
+        return $this->View('case-insensitive.mail-message-view');
+    }
+}

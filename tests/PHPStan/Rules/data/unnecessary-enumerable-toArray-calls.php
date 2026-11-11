@@ -32,6 +32,8 @@ function test(
     // should be reported
     $ints->toArray();
     $plain->toArray();
+    // Hypervel: method names are case-insensitive.
+    $ints->ToArray();
 
     // should not be reported
     $unknown->toArray();

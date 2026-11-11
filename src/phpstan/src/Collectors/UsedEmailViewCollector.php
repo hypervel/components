@@ -7,11 +7,10 @@ namespace Hypervel\PHPStan\Collectors;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\Mailables\Content;
 use Hypervel\Notifications\Messages\MailMessage;
-use Hypervel\View\ViewName;
+use Hypervel\PHPStan\Concerns\CollectsMailViews;
 use PhpParser\Node;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Identifier;
-use PhpParser\Node\Scalar\String_;
 use PHPStan\Analyser\Scope;
 use PHPStan\Collectors\Collector;
 use PHPStan\DependencyInjection\AutowiredService;
@@ -20,10 +19,12 @@ use PHPStan\Type\ObjectType;
 use function count;
 use function in_array;
 
-/** @implements Collector<MethodCall, string> */
+/** @implements Collector<MethodCall, list<string>> */
 #[AutowiredService]
 class UsedEmailViewCollector implements Collector
 {
+    use CollectsMailViews;
+
     private const array VIEW_METHOD_NAMES = ['view', 'html', 'text', 'markdown'];
 
     /**
@@ -38,8 +39,9 @@ class UsedEmailViewCollector implements Collector
      * Collect the view passed to a mailable, mail message or mail content method.
      *
      * @param MethodCall $node
+     * @return null|list<string>
      */
-    public function processNode(Node $node, Scope $scope): ?string
+    public function processNode(Node $node, Scope $scope): ?array
     {
         $name = $node->name;
 
@@ -47,7 +49,9 @@ class UsedEmailViewCollector implements Collector
             return null;
         }
 
-        if (! in_array($name->name, self::VIEW_METHOD_NAMES, true)) {
+        $method = $name->toLowerString();
+
+        if (! in_array($method, self::VIEW_METHOD_NAMES, true)) {
             return null;
         }
 
@@ -61,7 +65,7 @@ class UsedEmailViewCollector implements Collector
 
         $isContent = (new ObjectType(Content::class))->isSuperTypeOf($type)->yes();
 
-        if ($name->name === 'html' && ! $isContent) {
+        if ($method === 'html' && ! $isContent) {
             return null;
         }
 
@@ -75,14 +79,8 @@ class UsedEmailViewCollector implements Collector
 
         // Upstream reads the first argument by position, which misses reordered named arguments. The
         // mailable and mail message text() methods name it textView; the others name it view.
-        $parameter = $name->name === 'text' && ! $isContent ? 'textView' : 'view';
+        $parameter = $method === 'text' && ! $isContent ? 'textView' : 'view';
 
-        $template = $node->getArg($parameter, 0)?->value;
-
-        if (! $template instanceof String_) {
-            return null;
-        }
-
-        return ViewName::normalize($template->value);
+        return $this->getMailViews($node->getArg($parameter, 0)?->value, $scope);
     }
 }

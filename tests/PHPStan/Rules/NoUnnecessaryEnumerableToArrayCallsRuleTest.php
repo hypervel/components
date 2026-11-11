@@ -23,6 +23,7 @@ class NoUnnecessaryEnumerableToArrayCallsRuleTest extends RuleTestCase
         $this->analyse([__DIR__ . '/data/unnecessary-enumerable-toArray-calls.php'], [
             [$message, 33],
             [$message, 34],
+            [$message, 36],
         ]);
     }
 }

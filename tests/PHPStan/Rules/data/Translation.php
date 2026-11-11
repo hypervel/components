@@ -44,5 +44,9 @@ class Translation
         __('messages.You\'re beautiful');
 
         __('messages.A.Key.With.Dots.');
+
+        // Hypervel: method names are case-insensitive.
+        $translator->GET('messages.test');
+        Lang::Choice('messages.test', 1);
     }
 }

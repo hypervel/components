@@ -41,7 +41,7 @@ class UsedRouteFacadeViewCollector implements Collector
             return null;
         }
 
-        if ($name->name !== 'view') {
+        if ($name->toLowerString() !== 'view') {
             return null;
         }
 

@@ -40,7 +40,7 @@ class UsedViewMakeCollector implements Collector
             return null;
         }
 
-        if ($name->name !== 'make') {
+        if ($name->toLowerString() !== 'make') {
             return null;
         }
 
