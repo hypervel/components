@@ -261,7 +261,7 @@ class Http2ClientTest extends TestCase
 
     public function testReceiveParsesHeaderBlocksSplitAcrossContinuationFrames(): void
     {
-        // @TODO: Remove this skip once Swoole's HTTP/2 client accepts header blocks continued in CONTINUATION frames.
+        // @TODO: Remove this skip once https://github.com/swoole/swoole-src/pull/6399 is released.
         if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped("Swoole's HTTP/2 client ignores CONTINUATION frames, so a split header block fails to parse.");
         }
