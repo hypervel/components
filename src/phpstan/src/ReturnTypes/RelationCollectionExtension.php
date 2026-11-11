@@ -23,7 +23,7 @@ use function in_array;
  *
  * Upstream also turns a forwarded call's builder result into the relation. The forwarding extension
  * decides that from whether the builder method returns itself, because a builder result such as
- * applyScopes()'s is a different object, which Relation::__call() returns as it is. The Conditionable
+ * cloneWithout()'s is a different object, which Relation::__call() returns as it is. The Conditionable
  * extension types when() and unless(), which return the builder or the callback's result.
  *
  * @internal

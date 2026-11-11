@@ -45,6 +45,9 @@ class BuilderHelper
     /** @var array<string, string|Type> */
     private array $builders = [];
 
+    /** @var array<string, string|Type> */
+    private array $modelQueryBuilders = [];
+
     /** @var array<string, Type> */
     private array $builderTypes = [];
 
@@ -157,10 +160,22 @@ class BuilderHelper
     }
 
     /**
-     * Determine the model's builder as Model::newEloquentBuilder() does: an override's declared return, else a
-     * builder named by the UseEloquentBuilder attribute, else the $builder default (which upstream ignores).
+     * Determine the builder Model::newQuery() returns, which query(), forwarded calls and relations run.
      */
     private function determineBuilder(ClassReflection $modelReflection): string|Type
+    {
+        return $this->overridingBuilder($modelReflection, 'newQuery')
+            ?? ($this->modelQueryBuilders[$modelReflection->getName()] ??= $this->determineModelQueryBuilder($modelReflection));
+    }
+
+    /**
+     * Determine the builder Model::newModelQuery() returns, which newQuery() and the unscoped queries build on.
+     *
+     * Without an override, this is the builder Model::newEloquentBuilder() creates: an override's declared
+     * return, else a builder named by the UseEloquentBuilder attribute, else the $builder default (which
+     * upstream ignores).
+     */
+    private function determineModelQueryBuilder(ClassReflection $modelReflection): string|Type
     {
         // The base model, which stands for an unknown model, creates the base builder. Stub validation
         // relies on this too: it reflects only the stubs, whose Model declares no newEloquentBuilder().
@@ -168,25 +183,10 @@ class BuilderHelper
             return EloquentBuilder::class;
         }
 
-        // Forwarded calls run through newQuery(). HasBuilder's declares the builder its @use names, even when another
-        // trait's newEloquentBuilder() wins the conflict, as Nested Set's HasNode does. Its origin is checked by file
-        // first: reflecting an undocumented override resolves its inherited builder-of<static>, which calls back here.
-        if ($modelReflection->getNativeReflection()->getMethod('newQuery')->getFileName()
-            === $this->reflectionProvider->getClass(HasBuilder::class)->getFileName()) {
-            return $modelReflection->getNativeMethod('newQuery')->getVariants()[0]->getReturnType();
-        }
+        $builder = $this->overridingBuilder($modelReflection, 'newModelQuery');
 
-        // Every query entry point runs newModelQuery(), so an override naming a builder decides. Only its native
-        // return is read: an undocumented override inherits builder-of<static>, which calls back here, so a
-        // PHPDoc-only narrowing is not seen.
-        $newModelQuery = $modelReflection->getNativeReflection()->getMethod('newModelQuery');
-        $returnType = $newModelQuery->getReturnType();
-
-        if ($newModelQuery->getDeclaringClass()->getName() !== Model::class
-            && $returnType instanceof ReflectionNamedType
-            && $this->reflectionProvider->hasClass($returnType->getName())
-            && $this->reflectionProvider->getClass($returnType->getName())->isSubclassOfClass($this->reflectionProvider->getClass(EloquentBuilder::class))) {
-            return $returnType->getName();
+        if ($builder !== null) {
+            return $builder;
         }
 
         $method = $modelReflection->getNativeMethod('newEloquentBuilder');
@@ -218,6 +218,38 @@ class BuilderHelper
     }
 
     /**
+     * Return the builder a model's override of a query factory names: HasBuilder's @use type, else a native return
+     * naming a builder subclass.
+     *
+     * HasBuilder's override declares the builder its @use names, even when another trait's newEloquentBuilder() wins
+     * the conflict, as Nested Set's HasNode does. Its origin is checked by file first: reflecting an undocumented
+     * override resolves the Model stub's builder-of<static> or model-query-of<static>, which calls back here. For
+     * the same reason only another override's native return is read, so a PHPDoc-only narrowing is not seen, and an
+     * override declaring the base builder (such as one calling its parent) leaves the builder to the factory it
+     * builds on.
+     */
+    private function overridingBuilder(ClassReflection $modelReflection, string $methodName): string|Type|null
+    {
+        $method = $modelReflection->getNativeReflection()->getMethod($methodName);
+
+        if ($method->getDeclaringClass()->getName() === Model::class) {
+            return null;
+        }
+
+        if ($method->getFileName() === $this->reflectionProvider->getClass(HasBuilder::class)->getFileName()) {
+            return $modelReflection->getNativeMethod($methodName)->getVariants()[0]->getReturnType();
+        }
+
+        $returnType = $method->getReturnType();
+
+        return $returnType instanceof ReflectionNamedType
+            && $this->reflectionProvider->hasClass($returnType->getName())
+            && $this->reflectionProvider->getClass($returnType->getName())->isSubclassOfClass($this->reflectionProvider->getClass(EloquentBuilder::class))
+                ? $returnType->getName()
+                : null;
+    }
+
+    /**
      * Mirror Model::resolveCustomBuilderClass(): the model, its traits, then each parent and its traits, nearest first.
      *
      * It instantiates the attribute, so the argument may also be named.
@@ -243,8 +275,10 @@ class BuilderHelper
 
     /**
      * Return the builder type the model creates, with the given model type bound to it.
+     *
+     * @param bool $modelQuery whether to return newModelQuery()'s builder instead of newQuery()'s
      */
-    public function determineBuilderClass(string $modelClassName, Type $modelType): ?Type
+    public function determineBuilderClass(string $modelClassName, Type $modelType, bool $modelQuery = false): ?Type
     {
         // Unlike upstream, which crashes, a missing class is left to PHPStan's class.notFound report.
         if (! $this->reflectionProvider->hasClass($modelClassName)) {
@@ -257,7 +291,9 @@ class BuilderHelper
             return null;
         }
 
-        $builder = $this->builders[$modelClassName] ??= $this->determineBuilder($modelReflection);
+        $builder = $modelQuery
+            ? ($this->modelQueryBuilders[$modelClassName] ??= $this->determineModelQueryBuilder($modelReflection))
+            : ($this->builders[$modelClassName] ??= $this->determineBuilder($modelReflection));
 
         return $this->getBuilderType(is_string($builder) ? new ObjectType($builder) : $builder, $modelType);
     }

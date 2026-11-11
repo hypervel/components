@@ -585,6 +585,16 @@ class IntegrationTest extends PHPStanTestCase
             ],
         ];
 
+        // Hypervel: Model::__call() cannot reach a protected builder method, so the builder's __call() runs a
+        // scope of that name, and throws without one.
+        yield [
+            __DIR__ . '/data/model-protected-builder-methods.php',
+            [
+                45 => ['Call to an undefined static method App\User::addUpdatedAtColumn().'],
+                46 => ['Call to an undefined method App\User::addUpdatedAtColumn().'],
+            ],
+        ];
+
         // Hypervel: optional() passes its callback only values that are not null.
         yield [__DIR__ . '/data/optional-callbacks.php'];
 

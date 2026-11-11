@@ -533,7 +533,7 @@ Like `array<TKey, TValue>`, a key type may be given first, such as `collection-o
 <a name="builder-of"></a>
 ### The `builder-of` Type
 
-A `builder-of<User>` is the Eloquent builder the model's queries use: the model's custom builder when it has one, otherwise `Hypervel\Database\Eloquent\Builder<User>`. It accepts `static`, `$this`, template types and unions of models:
+A `builder-of<User>` is the Eloquent builder the model's `newQuery()` creates, which `query()`, forwarded calls and relationships use: the model's custom builder when it has one, otherwise `Hypervel\Database\Eloquent\Builder<User>`. It accepts `static`, `$this`, template types and unions of models:
 
 ```php
 /**

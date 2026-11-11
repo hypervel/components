@@ -43,7 +43,8 @@ function test(User $user, ScopedUser $scoped, FixedUser $fixed): void
     assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\CustomBuilderForwarding\User, Hypervel\Types\CustomBuilderForwarding\User>', $user->children()->ignoredAnswer());
     assertType('Hypervel\Support\Collection<int, Hypervel\Types\CustomBuilderForwarding\User>', $user->children()->tenant('one')->models());
     assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\CustomBuilderForwarding\User, Hypervel\Types\CustomBuilderForwarding\User>', $user->children()->clone());
-    assertType('Hypervel\Types\CustomBuilderForwarding\UserBuilder<Hypervel\Types\CustomBuilderForwarding\User>', $user->children()->applyScopes());
+    // applyScopes() returns the same builder when there are no scopes, which the relation returns as itself.
+    assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\CustomBuilderForwarding\User, Hypervel\Types\CustomBuilderForwarding\User>|Hypervel\Types\CustomBuilderForwarding\UserBuilder<Hypervel\Types\CustomBuilderForwarding\User>', $user->children()->applyScopes());
     assertType('int', $user->children()->rawAnswer());
     assertType('Hypervel\Types\CustomBuilderForwarding\UserQuery', $user->children()->dump());
 

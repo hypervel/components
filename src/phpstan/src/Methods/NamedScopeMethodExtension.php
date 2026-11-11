@@ -163,8 +163,9 @@ class NamedScopeMethodExtension implements MethodsClassReflectionExtension
         Type $queryType,
         bool $static,
     ): bool {
-        if ($classReflection->hasNativeMethod($methodName)
-            && (! $static || $classReflection->getNativeMethod($methodName)->isPublic())) {
+        // PHPStan asks this extension only for calls that cannot reach the native method, and a protected
+        // method is unreachable from outside, so the host's __call() runs the scope.
+        if ($classReflection->hasNativeMethod($methodName) && $classReflection->getNativeMethod($methodName)->isPublic()) {
             return true;
         }
 
@@ -173,9 +174,11 @@ class NamedScopeMethodExtension implements MethodsClassReflectionExtension
             return true;
         }
 
-        // Every host also yields to its active builder's methods, and Builder::__call() runs global macros first.
+        // Every host also yields to its active builder's public methods (a protected one is unreachable from outside,
+        // so Builder::__call() runs), and Builder::__call() runs global macros first.
         foreach ($queryType->getObjectClassReflections() as $builderClass) {
-            if ($builderClass->hasNativeMethod($methodName) || $this->macroMethods->hasMethod($builderClass, $methodName)) {
+            if (($builderClass->hasNativeMethod($methodName) && $builderClass->getNativeMethod($methodName)->isPublic())
+                || $this->macroMethods->hasMethod($builderClass, $methodName)) {
                 return true;
             }
         }

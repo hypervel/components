@@ -19,8 +19,9 @@ use PHPStan\Type\Type;
 /**
  * Return the model's own builder from toQuery(), which runs the first model's newModelQuery().
  *
- * Upstream's stub declares builder-of<TModel>. The collection cannot be stubbed, and an analyzer-only
- * return type in source would read as mixed without this package, so the source keeps Builder<TModel>.
+ * Upstream's stub declares builder-of<TModel>, which is newQuery()'s builder. The collection cannot be
+ * stubbed, and an analyzer-only return type in source would read as mixed without this package, so the
+ * source keeps Builder<TModel>.
  */
 #[AutowiredService]
 class EloquentCollectionToQueryDynamicReturnTypeExtension implements DynamicMethodReturnTypeExtension
@@ -63,6 +64,6 @@ class EloquentCollectionToQueryDynamicReturnTypeExtension implements DynamicMeth
             ->getReturnType()
             ->getTemplateType(Builder::class, 'TModel');
 
-        return (new BuilderOfType($modelType, $this->builderHelper))->resolve();
+        return (new BuilderOfType($modelType, $this->builderHelper, modelQuery: true))->resolve();
     }
 }

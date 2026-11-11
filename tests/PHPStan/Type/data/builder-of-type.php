@@ -344,7 +344,9 @@ function unknownModel($unknown, \Hypervel\Database\Eloquent\Relations\Relation $
 {
     // Unlike upstream, which resolves to never, an unknown model's builder is unknown too.
     assertType('Hypervel\Database\Eloquent\Builder<*>', $unknown);
-    assertType('Hypervel\Database\Eloquent\Builder<*>', $relation->getRelationExistenceCountQuery($query, $query));
+
+    // Hypervel: an existence query returns the builder it is given, whatever the relation's model.
+    assertType('Hypervel\Database\Eloquent\Builder<mixed>', $relation->getRelationExistenceCountQuery($query, $query));
 
     // Unlike upstream, which crashes analysis, a missing class is an unknown model.
     assertType('Hypervel\Database\Eloquent\Builder<*>', $missing);

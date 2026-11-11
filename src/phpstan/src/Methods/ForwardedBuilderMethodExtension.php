@@ -33,8 +33,6 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
 {
     /** @var list<string> */
     private const array RELATION_NON_DECORATED_METHODS = [
-        'applyscopes',
-        'clone',
         'clonewithout',
         'clonewithoutbindings',
     ];
@@ -230,6 +228,11 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
 
             if (! $method->isPublic()) {
                 return null;
+            }
+
+            // Without scopes, applyScopes() returns the same builder, which Relation::__call() turns into the relation.
+            if ($normalizedMethodName === 'applyscopes') {
+                return new ForwardedFluentMethodReflection($classReflection, $method, mayReturnForwardedResult: true);
             }
 
             if (in_array($normalizedMethodName, self::RELATION_NON_DECORATED_METHODS, strict: true)

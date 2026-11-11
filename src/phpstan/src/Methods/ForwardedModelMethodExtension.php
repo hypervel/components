@@ -116,14 +116,17 @@ class ForwardedModelMethodExtension implements MethodsClassReflectionExtension
                 && $builderType->hasMethod($methodName)->yes()) {
                 $builderMethod = $builderType->getMethod($methodName, $this->scope);
 
-                // Model::__call() makes an instance call, so the builder's mixin() reaches the query's and returns it.
-                $method = new ForwardedModelMethodReflection(
-                    $classReflection,
-                    $builderMethod,
-                    $methodName === 'mixin' && $builderMethod->getPrototype() instanceof MacroRegistrationMethodReflection
-                        ? $builderType
-                        : null,
-                );
+                // Model::__call() cannot reach a protected builder method: the builder's own __call() runs and throws.
+                if ($builderMethod->isPublic()) {
+                    // Model::__call() makes an instance call, so the builder's mixin() reaches the query's and returns it.
+                    $method = new ForwardedModelMethodReflection(
+                        $classReflection,
+                        $builderMethod,
+                        $methodName === 'mixin' && $builderMethod->getPrototype() instanceof MacroRegistrationMethodReflection
+                            ? $builderType
+                            : null,
+                    );
+                }
             }
         }
 
@@ -133,12 +136,15 @@ class ForwardedModelMethodExtension implements MethodsClassReflectionExtension
     }
 
     /**
-     * Determine whether an active builder owns a native method or global macro.
+     * Determine whether an active builder owns a public native method or global macro.
+     *
+     * A protected builder method is unreachable from Model::__call(), so the builder's __call() runs a scope of that name.
      */
     private function builderMethodTakesPrecedence(Type $builderType, string $methodName): bool
     {
         foreach ($builderType->getObjectClassReflections() as $builderClass) {
-            if ($builderClass->hasNativeMethod($methodName) || $this->macroMethods->hasMethod($builderClass, $methodName)) {
+            if (($builderClass->hasNativeMethod($methodName) && $builderClass->getNativeMethod($methodName)->isPublic())
+                || $this->macroMethods->hasMethod($builderClass, $methodName)) {
                 return true;
             }
         }

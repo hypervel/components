@@ -117,12 +117,13 @@ class RelationshipQueryCallbackExtension implements MethodParameterClosureTypeEx
             return null;
         }
 
+        // The callbacks run on each queried model's newQueryWithoutRelationships().
         $fallback = [];
 
         foreach (TypeUtils::flattenTypes($scope->getType($relation)) as $relationType) {
             $fallback[] = $relationType->isString()->yes()
-                ? (new BuilderOfType($model, $this->builderHelper, $relationType))->resolve()
-                : (new BuilderOfType($relationType->getTemplateType(Relation::class, 'TRelatedModel'), $this->builderHelper))->resolve();
+                ? (new BuilderOfType($model, $this->builderHelper, $relationType, modelQuery: true))->resolve()
+                : (new BuilderOfType($relationType->getTemplateType(Relation::class, 'TRelatedModel'), $this->builderHelper, modelQuery: true))->resolve();
         }
 
         $fallback = TypeCombinator::union(...$fallback);
@@ -136,7 +137,7 @@ class RelationshipQueryCallbackExtension implements MethodParameterClosureTypeEx
             foreach (TypeUtils::flattenTypes($type) as $target) {
                 $objectType = $target->getClassStringObjectType();
                 $builders[] = $target->isClassString()->yes() && (new ObjectType(Model::class))->isSuperTypeOf($objectType)->yes()
-                    ? (new BuilderOfType($objectType, $this->builderHelper))->resolve()
+                    ? (new BuilderOfType($objectType, $this->builderHelper, modelQuery: true))->resolve()
                     : $fallback;
             }
         }

@@ -29,8 +29,12 @@ use PHPStan\Type\VerbosityLevel;
 use function array_merge;
 
 /**
- * The builder a model creates, written builder-of<TModel>, or of a relation path's related model,
- * written builder-of<TModel, 'path'>.
+ * The builder a model's newQuery() creates, written builder-of<TModel>, or of a relation path's related
+ * model, written builder-of<TModel, 'path'>.
+ *
+ * model-query-of<TModel> and model-query-of<TModel, 'path'> are the builder newModelQuery() creates, which
+ * the unscoped queries, relationship existence queries and toQuery() run. It differs from newQuery()'s
+ * when the model overrides newQuery() with another builder.
  */
 // @phpstan-ignore phpstanApi.interface (PHPStan's own late-resolvable types are compound, so comparisons resolve them first.)
 class BuilderOfType implements CompoundType, LateResolvableType
@@ -39,9 +43,15 @@ class BuilderOfType implements CompoundType, LateResolvableType
 
     /**
      * Create a builder-of type.
+     *
+     * @param bool $modelQuery whether the type is newModelQuery()'s builder, written model-query-of
      */
-    public function __construct(private Type $type, private BuilderHelper $builderHelper, private ?Type $relationType = null)
-    {
+    public function __construct(
+        private Type $type,
+        private BuilderHelper $builderHelper,
+        private ?Type $relationType = null,
+        private bool $modelQuery = false,
+    ) {
     }
 
     /**
@@ -68,7 +78,7 @@ class BuilderOfType implements CompoundType, LateResolvableType
 
         foreach (TypeUtils::flattenTypes($relatedType) as $modelType) {
             foreach ($modelType->getObjectClassNames() as $className) {
-                $builderType = $this->builderHelper->determineBuilderClass($className, $modelType);
+                $builderType = $this->builderHelper->determineBuilderClass($className, $modelType, $this->modelQuery);
 
                 if ($builderType === null) {
                     continue;
@@ -128,7 +138,7 @@ class BuilderOfType implements CompoundType, LateResolvableType
      */
     public function equals(Type $type): bool
     {
-        return $type instanceof self && $this->type->equals($type->type)
+        return $type instanceof self && $this->modelQuery === $type->modelQuery && $this->type->equals($type->type)
             && ($this->relationType === null
                 ? $type->relationType === null
                 : $type->relationType !== null && $this->relationType->equals($type->relationType));
@@ -139,7 +149,7 @@ class BuilderOfType implements CompoundType, LateResolvableType
      */
     public function describe(VerbosityLevel $level): string
     {
-        return 'builder-of<' . $this->type->describe($level)
+        return $this->name() . '<' . $this->type->describe($level)
             . ($this->relationType === null ? '' : ', ' . $this->relationType->describe($level)) . '>';
     }
 
@@ -157,7 +167,7 @@ class BuilderOfType implements CompoundType, LateResolvableType
             return $this;
         }
 
-        return new self($type, $this->builderHelper, $relationType);
+        return new self($type, $this->builderHelper, $relationType, $this->modelQuery);
     }
 
     /**
@@ -165,7 +175,9 @@ class BuilderOfType implements CompoundType, LateResolvableType
      */
     public function traverseSimultaneously(Type $right, callable $cb): Type
     {
-        if (! $right instanceof self || ($this->relationType === null) !== ($right->relationType === null)) {
+        if (! $right instanceof self
+            || $this->modelQuery !== $right->modelQuery
+            || ($this->relationType === null) !== ($right->relationType === null)) {
             return $this;
         }
 
@@ -178,7 +190,7 @@ class BuilderOfType implements CompoundType, LateResolvableType
             return $this;
         }
 
-        return new self($type, $this->builderHelper, $relationType);
+        return new self($type, $this->builderHelper, $relationType, $this->modelQuery);
     }
 
     /**
@@ -192,7 +204,15 @@ class BuilderOfType implements CompoundType, LateResolvableType
             $types[] = $this->relationType->toPhpDocNode();
         }
 
-        return new GenericTypeNode(new IdentifierTypeNode('builder-of'), $types);
+        return new GenericTypeNode(new IdentifierTypeNode($this->name()), $types);
+    }
+
+    /**
+     * Get the type's PHPDoc name.
+     */
+    private function name(): string
+    {
+        return $this->modelQuery ? 'model-query-of' : 'builder-of';
     }
 
     /**

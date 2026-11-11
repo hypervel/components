@@ -5,8 +5,9 @@ namespace Hypervel\Database\Eloquent;
 use Hypervel\Contracts\Database\Query\Expression;
 
 /*
- * Analyzer-only types: builder-of, model-property and the eager-load map types need this package. The
- * source declares the rest, including the property, save() option and increment types upstream stubs.
+ * Analyzer-only types: builder-of, model-query-of, model-property and the eager-load map types need this
+ * package. The source declares the rest, including the property, save() option and increment types upstream
+ * stubs.
  */
 abstract class Model
 {
@@ -43,13 +44,13 @@ abstract class Model
     /** @return builder-of<static> */
     public function newQuery(): Builder;
 
-    /** @return builder-of<static> */
+    /** @return model-query-of<static> */
     public function newModelQuery(): Builder;
 
-    /** @return builder-of<static> */
+    /** @return model-query-of<static> */
     public function newQueryWithoutRelationships(): Builder;
 
-    /** @return builder-of<static> */
+    /** @return model-query-of<static> */
     public function newQueryWithoutScopes(): Builder;
 
     /** @return builder-of<static> */
@@ -57,7 +58,7 @@ abstract class Model
 
     /**
      * @param  array<mixed>|int|string  $ids
-     * @return builder-of<static>
+     * @return model-query-of<static>
      */
     public function newQueryForRestoration(array|int|string $ids): Builder;
 

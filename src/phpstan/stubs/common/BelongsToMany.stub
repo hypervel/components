@@ -192,7 +192,7 @@ class BelongsToMany extends Relation
     /**
      * Add a basic where clause to the query, and return the first result.
      *
-     * @param  array<int|model-property<TRelatedModel>, mixed>|(Closure(($operator is null ? builder-of<TRelatedModel> : QueryBuilder)): mixed)|model-property<TRelatedModel>  $column
+     * @param  array<int|model-property<TRelatedModel>, mixed>|(Closure(($operator is null ? model-query-of<TRelatedModel> : QueryBuilder)): mixed)|model-property<TRelatedModel>  $column
      * @return null|(object{pivot: TPivotModel}&TRelatedModel)
      */
     public function firstWhere(Closure|string|array $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): ?Model;

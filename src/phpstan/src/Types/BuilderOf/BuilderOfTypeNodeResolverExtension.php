@@ -18,6 +18,7 @@ use PHPStan\Type\ObjectType;
 use PHPStan\Type\Type;
 
 use function count;
+use function in_array;
 
 #[AutowiredService]
 class BuilderOfTypeNodeResolverExtension implements TypeNodeResolverExtension, TypeNodeResolverAwareExtension
@@ -32,11 +33,11 @@ class BuilderOfTypeNodeResolverExtension implements TypeNodeResolverExtension, T
     }
 
     /**
-     * Resolve a builder-of<TModel> or builder-of<TModel, 'path'> type node.
+     * Resolve a builder-of<TModel> or builder-of<TModel, 'path'> type node, or its model-query-of form.
      */
     public function resolve(TypeNode $typeNode, NameScope $nameScope): ?Type
     {
-        if (! $typeNode instanceof GenericTypeNode || (string) $typeNode->type !== 'builder-of') {
+        if (! $typeNode instanceof GenericTypeNode || ! in_array((string) $typeNode->type, ['builder-of', 'model-query-of'], true)) {
             return null;
         }
 
@@ -58,7 +59,7 @@ class BuilderOfTypeNodeResolverExtension implements TypeNodeResolverExtension, T
             return null;
         }
 
-        return new BuilderOfType($genericType, $this->builderHelper, $relationType);
+        return new BuilderOfType($genericType, $this->builderHelper, $relationType, (string) $typeNode->type === 'model-query-of');
     }
 
     /**

@@ -3,7 +3,9 @@
 namespace CustomEloquentBuilder;
 
 use App\User;
+use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Eloquent\Relations\HasMany;
@@ -19,6 +21,8 @@ function test(FooModel $foo, NonGenericBuilder $nonGenericBuilder, ModelWithNonG
     assertType('Hypervel\Database\Eloquent\Relations\HasMany<CustomEloquentBuilder\ModelWithCustomBuilder, CustomEloquentBuilder\FooModel>', $foo->customModels()->category('foo'));
     // A relation returns itself only when the builder method returns the same builder, which cloneWithout() does not.
     assertType('CustomEloquentBuilder\CustomEloquentBuilder<CustomEloquentBuilder\ModelWithCustomBuilder>', $foo->customModels()->cloneWithout(['orders']));
+    // applyScopes() returns the same builder when there are no scopes, else a clone.
+    assertType('CustomEloquentBuilder\CustomEloquentBuilder<CustomEloquentBuilder\ModelWithCustomBuilder>|Hypervel\Database\Eloquent\Relations\HasMany<CustomEloquentBuilder\ModelWithCustomBuilder, CustomEloquentBuilder\FooModel>', $foo->customModels()->applyScopes());
     assertType('CustomEloquentBuilder\CustomEloquentBuilder<CustomEloquentBuilder\ModelWithCustomBuilder>', ModelWithCustomBuilder::whereEmail(['bar'])->type('foo')->whereEmail(['bar']));
     assertType('CustomEloquentBuilder\CustomEloquentBuilder<CustomEloquentBuilder\ModelWithCustomBuilder>', ModelWithCustomBuilder::whereEmail(['bar'])->categories(['foo'])->whereType(['bar']));
     assertType('CustomEloquentBuilder\ModelWithCustomBuilder|null', ModelWithCustomBuilder::whereEmail(['bar'])->type('foo')->first());
@@ -106,6 +110,49 @@ function testNewModelQueryOverride(ModelWithOwnModelQuery $model): void
     assertType('CustomEloquentBuilder\OwnModelQueryBuilder<CustomEloquentBuilder\ModelWithOwnModelQuery>', $model->newQueryWithoutScopes());
     assertType('CustomEloquentBuilder\OwnModelQueryBuilder<CustomEloquentBuilder\ModelWithOwnModelQuery>', $model->newQueryWithoutRelationships());
     assertType('CustomEloquentBuilder\OwnModelQueryBuilder<CustomEloquentBuilder\ModelWithOwnModelQuery>', ModelWithOwnModelQuery::active());
+}
+
+/**
+ * Hypervel: query(), forwarded calls and relations run newQuery(), while the unscoped queries, relationship
+ * existence queries and toQuery() run newModelQuery(), so a newQuery() override changes only the former.
+ *
+ * @param EloquentCollection<int, ModelWithOwnQuery> $models
+ */
+function testNewQueryOverride(ModelWithOwnQuery $model, EloquentCollection $models, ModelWithParentQuery $parentQueryModel): void
+{
+    assertType('CustomEloquentBuilder\OwnQueryBuilder<CustomEloquentBuilder\ModelWithOwnQuery>', ModelWithOwnQuery::query());
+    assertType('CustomEloquentBuilder\OwnQueryBuilder<CustomEloquentBuilder\ModelWithOwnQuery>', $model->newQuery());
+    assertType('CustomEloquentBuilder\OwnQueryBuilder<CustomEloquentBuilder\ModelWithOwnQuery>', ModelWithOwnQuery::where('name', 'a'));
+    assertType('CustomEloquentBuilder\OwnQueryBuilder<CustomEloquentBuilder\ModelWithOwnQuery>', ModelWithOwnQuery::active());
+    assertType('Hypervel\Database\Eloquent\Relations\HasMany<CustomEloquentBuilder\ModelWithOwnQuery, CustomEloquentBuilder\ModelWithOwnQuery>', $model->children()->active());
+
+    assertType('Hypervel\Database\Eloquent\Builder<CustomEloquentBuilder\ModelWithOwnQuery>', $model->newModelQuery());
+    assertType('Hypervel\Database\Eloquent\Builder<CustomEloquentBuilder\ModelWithOwnQuery>', $model->newQueryWithoutScopes());
+    assertType('Hypervel\Database\Eloquent\Builder<CustomEloquentBuilder\ModelWithOwnQuery>', $models->toQuery());
+    ModelWithOwnQuery::whereHas('children', function ($query): void {
+        assertType('Hypervel\Database\Eloquent\Builder<CustomEloquentBuilder\ModelWithOwnQuery>', $query);
+    });
+    ModelWithOwnQuery::whereHasMorph('subject', [ModelWithOwnQuery::class], function ($query): void {
+        assertType('Hypervel\Database\Eloquent\Builder<CustomEloquentBuilder\ModelWithOwnQuery>', $query);
+    });
+
+    // A nested where runs on newQueryWithoutRelationships(); with an operator, the closure builds a subquery.
+    ModelWithOwnQuery::where(function ($query): void {
+        assertType('Hypervel\Database\Eloquent\Builder<CustomEloquentBuilder\ModelWithOwnQuery>', $query);
+    });
+    $model->children()->where(function ($query): void {
+        assertType('Hypervel\Database\Eloquent\Builder<CustomEloquentBuilder\ModelWithOwnQuery>', $query);
+    });
+    ModelWithOwnQuery::query()->orWhere(function ($query): void {
+        assertType('(Hypervel\Database\Eloquent\Builder<CustomEloquentBuilder\ModelWithOwnQuery>|Hypervel\Database\Query\Builder)', $query);
+    });
+    ModelWithOwnQuery::query()->where(function ($query): void {
+        assertType('Hypervel\Database\Query\Builder', $query);
+    }, '=', 1);
+
+    // An override declaring the base builder, such as one calling its parent, keeps the custom builder.
+    assertType('CustomEloquentBuilder\OwnModelQueryBuilder<CustomEloquentBuilder\ModelWithParentQuery>', ModelWithParentQuery::query());
+    assertType('CustomEloquentBuilder\OwnModelQueryBuilder<CustomEloquentBuilder\ModelWithParentQuery>', $parentQueryModel->newQuery());
 }
 
 /**
@@ -355,5 +402,56 @@ class OwnModelQueryBuilder extends Builder
     public function active(): static
     {
         return $this;
+    }
+}
+
+class ModelWithOwnQuery extends Model
+{
+    /**
+     * Get a new query builder for the model's table.
+     */
+    public function newQuery(): OwnQueryBuilder
+    {
+        $query = (new OwnQueryBuilder($this->newBaseQueryBuilder()))->setModel($this);
+
+        $this->registerGlobalScopes($query);
+
+        return $query;
+    }
+
+    /** @return HasMany<ModelWithOwnQuery, $this> */
+    public function children(): HasMany
+    {
+        return $this->hasMany(self::class);
+    }
+}
+
+/**
+ * @template TModel of Model
+ *
+ * @extends Builder<TModel>
+ */
+class OwnQueryBuilder extends Builder
+{
+    /**
+     * Limit the query to active models.
+     *
+     * @return $this
+     */
+    public function active(): static
+    {
+        return $this;
+    }
+}
+
+#[UseEloquentBuilder(OwnModelQueryBuilder::class)]
+class ModelWithParentQuery extends Model
+{
+    /**
+     * Get a new query builder for the model's table.
+     */
+    public function newQuery(): Builder
+    {
+        return parent::newQuery();
     }
 }

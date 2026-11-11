@@ -13,6 +13,12 @@ use Hypervel\Contracts\Database\Query\Expression;
  * the source and add only analyzer-only types. Keep them in sync with the source. Native signatures
  * repeat the source too, except return types naming a collection, which stub validation cannot
  * declare; their docblocks type them.
+ *
+ * Unlike the source, the existence queries return the builder they are given: has() passes the
+ * related model's newQueryWithoutRelationships(), whose builder differs from newQuery()'s when the
+ * model overrides newQuery() with another builder.
+ * Both queries are templates, so a relation whose models are unknown (`*`) accepts any builder,
+ * which a plain Builder<TDeclaringModel> parameter would reject.
  */
 
 /**
@@ -46,9 +52,12 @@ abstract class Relation
     /**
      * Add the constraints for a relationship count query.
      *
-     * @param  builder-of<TRelatedModel>  $query
-     * @param  builder-of<TDeclaringModel>  $parentQuery
-     * @return builder-of<TRelatedModel>
+     * @template TQuery of Builder<TRelatedModel>
+     * @template TParentQuery of Builder<TDeclaringModel>
+     *
+     * @param  TQuery  $query
+     * @param  TParentQuery  $parentQuery
+     * @return TQuery
      */
     public function getRelationExistenceCountQuery(Builder $query, Builder $parentQuery): Builder;
 
@@ -57,10 +66,13 @@ abstract class Relation
      *
      * Essentially, these queries compare on column names like whereColumn.
      *
-     * @param  builder-of<TRelatedModel>  $query
-     * @param  builder-of<TDeclaringModel>  $parentQuery
+     * @template TQuery of Builder<TRelatedModel>
+     * @template TParentQuery of Builder<TDeclaringModel>
+     *
+     * @param  TQuery  $query
+     * @param  TParentQuery  $parentQuery
      * @param  array<int, model-property<TRelatedModel>|Expression|'*'>|model-property<TRelatedModel>|Expression|'*'  $columns
-     * @return builder-of<TRelatedModel>
+     * @return TQuery
      */
     public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder;
 
