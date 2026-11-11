@@ -102,23 +102,31 @@ class SchemaAggregatorTest extends PHPStanTestCase
     #[Test]
     public function itForgetsRelationsRawSqlChanges(): void
     {
-        $aggregator = $this->aggregate(<<<'PHP'
-            Schema::create('users', function (Blueprint $table) {
-                $table->string('name');
-            });
+        foreach ([
+            'DB facade' => ['', 'DB::statement'],
+            'Schema facade connection' => ['', 'Schema::getConnection()->statement'],
+            'schema builder connection' => ["\$schema = Schema::connection('mysql');", '$schema->getConnection()->statement'],
+        ] as $case => [$setup, $statement]) {
+            $aggregator = $this->aggregate(<<<PHP
+                Schema::create('users', function (Blueprint \$table) {
+                    \$table->string('name');
+                });
 
-            Schema::create('posts', function (Blueprint $table) {
-                $table->string('title');
-            });
+                Schema::create('posts', function (Blueprint \$table) {
+                    \$table->string('title');
+                });
 
-            DB::statement('ALTER TABLE users RENAME COLUMN name TO full_name');
-            DB::statement('INSERT INTO posts (title) VALUES (1)');
-        PHP);
+                {$setup}
+                {$statement}('ALTER TABLE users RENAME COLUMN name TO full_name');
+                {$statement}('INSERT INTO posts (title) VALUES (1)');
+            PHP);
 
-        $this->assertSame([], $this->columns($aggregator, 'users'));
-        $this->assertFalse($this->table($aggregator, 'users')->complete);
-        $this->assertSame(['title' => ['string', false]], $this->columns($aggregator, 'posts'));
-        $this->assertTrue($this->schema($aggregator)->complete);
+            $this->assertSame([], $this->columns($aggregator, 'users'), $case);
+            $this->assertFalse($this->table($aggregator, 'users')->complete, $case);
+            $this->assertSame(['title' => ['string', false]], $this->columns($aggregator, 'posts'), $case);
+            $this->assertTrue($this->table($aggregator, 'posts')->complete, $case);
+            $this->assertTrue($this->schema($aggregator)->complete, $case);
+        }
     }
 
     #[Test]
