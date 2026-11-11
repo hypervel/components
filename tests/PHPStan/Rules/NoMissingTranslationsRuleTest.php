@@ -11,6 +11,7 @@ use Hypervel\PHPStan\Collectors\UsedTranslationFunctionCollector;
 use Hypervel\PHPStan\Collectors\UsedTranslationTranslatorCollector;
 use Hypervel\PHPStan\Collectors\UsedTranslationViewCollector;
 use Hypervel\PHPStan\Rules\NoMissingTranslationsRule;
+use Hypervel\PHPStan\RuntimeInputsResultCacheValueExtension;
 use Hypervel\PHPStan\Support\BladeScanner;
 use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\PHPStan\Support\ViewFileHelper;
@@ -27,7 +28,7 @@ use PHPStan\Rules\Rule;
 use PHPStan\Testing\RuleTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-use function array_map;
+use function array_fill_keys;
 use function dirname;
 use function lang_path;
 use function view;
@@ -166,17 +167,22 @@ class NoMissingTranslationsRuleTest extends RuleTestCase
     {
         $tracked = [];
         $scope = $this->createStubForIntersectionOfInterfaces([Scope::class, DependencyTracker::class]);
-        $scope->method('trackDirectoryDependency')->willReturnCallback(static function (string $directory, string $pattern) use (&$tracked): void {
-            $tracked[] = [$directory, $pattern];
+        $scope->method('trackValueDependency')->willReturnCallback(static function (string $extension, string $key) use (&$tracked): void {
+            $tracked[] = [$extension, $key];
         });
 
         $this->getRule()->processNode(new CollectedDataNode([], false), $scope);
 
-        $this->assertSame([
-            [dirname(__DIR__, 3) . '/src/translation/lang', '*'],
-            [lang_path(), '*'],
-            ...array_map(static fn (string $path): array => [$path, '*.blade.php'], view()->getFinder()->getPaths()),
-        ], $tracked);
+        $valueExtension = self::getContainer()->getByType(RuntimeInputsResultCacheValueExtension::class);
+
+        $this->assertContains([RuntimeInputsResultCacheValueExtension::class, $valueExtension->createKey(linkedDirectories: [
+            dirname(__DIR__, 3) . '/src/translation/lang' => '*',
+            lang_path() => '*',
+        ])], $tracked);
+
+        $this->assertContains([RuntimeInputsResultCacheValueExtension::class, $valueExtension->createKey(
+            linkedDirectories: array_fill_keys(view()->getFinder()->getPaths(), '*.blade.php'),
+        )], $tracked);
     }
 
     public function testLookupArguments(): void
@@ -209,6 +215,9 @@ class NoMissingTranslationsRuleTest extends RuleTestCase
             ['Translation "lookups.missing" has not been found.', 36],
             ['Translation "lookups.missing" has not been found.', 38],
             ['Translation "lookups.missing" has not been found.', 42],
+            ['Translation "lookups.missing" has not been found.', 44],
+            ['Translation "lookups.missing" has not been found.', 46],
+            ['Translation "lookups.missing" has not been found.', 47],
         ];
 
         try {

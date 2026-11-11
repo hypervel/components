@@ -63,9 +63,9 @@ class UsedTranslationViewCollector
     REGEXP;
 
     /**
-     * Component attributes bound with a single colon, whose values are PHP expressions.
+     * Component attributes bound with a single colon or bind:, whose values are PHP expressions.
      */
-    private const string BOUND_ATTRIBUTE_REGEX = '/(?<!\S):(?!:)[\w\-:.@]+=(?:"(?<double>[^"]*)"|\'(?<single>[^\']*)\')/';
+    private const string BOUND_ATTRIBUTE_REGEX = '/(?<!\S)(?:bind:|:(?!:))[\w\-:.@]+=(?:"(?<double>[^"]*)"|\'(?<single>[^\']*)\')/';
 
     /**
      * Echoes in Blade's compile order: raw, escaped, then regular. An @ prefix leaves an echo as text.
@@ -235,8 +235,8 @@ class UsedTranslationViewCollector
 
             $operation = match ($name) {
                 '__', 'trans' => [false, false],
-                'trans_choice', 'lang::choice' => [true, false],
-                'lang::get' => [false, true],
+                'trans_choice', 'lang::choice', 'hypervel\support\facades\lang::choice' => [true, false],
+                'lang::get', 'hypervel\support\facades\lang::get' => [false, true],
                 default => null,
             };
 

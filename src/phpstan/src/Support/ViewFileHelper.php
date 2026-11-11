@@ -99,10 +99,7 @@ class ViewFileHelper
     public function trackRootViewDirectories(Scope $scope): void
     {
         $this->runtimeInputs->track($scope);
-
-        foreach ($this->finder()->getPaths() as $path) {
-            $scope->trackDirectoryDependency($this->runtimeInputs->sourceDirectory($this->fileHelper->absolutizePath($path), '*.blade.php'), '*.blade.php');
-        }
+        $this->runtimeInputs->trackLinkedDirectories($scope, array_map($this->fileHelper->absolutizePath(...), $this->finder()->getPaths()), '*.blade.php');
     }
 
     /**
@@ -115,10 +112,7 @@ class ViewFileHelper
     public function trackAllViewDirectories(Scope $scope): void
     {
         $this->runtimeInputs->track($scope);
-
-        foreach ($this->viewDirectories as $viewDirectory) {
-            $scope->trackDirectoryDependency($this->runtimeInputs->sourceDirectory($viewDirectory, '*.blade.php'), '*.blade.php');
-        }
+        $this->runtimeInputs->trackLinkedDirectories($scope, $this->viewDirectories, '*.blade.php');
     }
 
     /**
@@ -186,9 +180,10 @@ class ViewFileHelper
             return [];
         }
 
+        // The view finder finds views through symlinked directories too.
         return iterator_to_array(
             new RegexIterator(
-                new RecursiveIteratorIterator(new RecursiveDirectoryIterator($absolutePath)),
+                new RecursiveIteratorIterator(RecursiveDirectoryIterator::followingLinks($absolutePath)),
                 '/\.blade\.php$/i',
             ),
         );

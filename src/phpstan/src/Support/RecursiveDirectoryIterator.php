@@ -4,7 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\Support;
 
+use FilesystemIterator;
+use RecursiveCallbackFilterIterator;
 use RecursiveDirectoryIterator as SplRecursiveDirectoryIterator;
+use SplFileInfo;
+
+use function dirname;
+use function realpath;
+use function strlen;
 
 /**
  * A \RecursiveDirectoryIterator that skips the redundant first rewind().
@@ -30,6 +37,32 @@ use RecursiveDirectoryIterator as SplRecursiveDirectoryIterator;
 class RecursiveDirectoryIterator extends SplRecursiveDirectoryIterator
 {
     private bool $ignoreFirstRewind = true;
+
+    /**
+     * Create an iterator over a directory that also enters its symlinked directories, as PHP's file functions do.
+     *
+     * A link to a directory the walk is already inside would be entered forever, so it is skipped. Every
+     * other linked directory is listed under the link's path, so one linked twice is listed under both.
+     */
+    public static function followingLinks(string $directory): RecursiveCallbackFilterIterator
+    {
+        return new RecursiveCallbackFilterIterator(
+            new self($directory, FilesystemIterator::SKIP_DOTS | FilesystemIterator::FOLLOW_SYMLINKS),
+            static function (SplFileInfo $file) use ($directory): bool {
+                if (! $file->isLink() || ! $file->isDir()) {
+                    return true;
+                }
+
+                for ($path = $file->getPath(); realpath($path) !== $file->getRealPath(); $path = dirname($path)) {
+                    if (strlen($path) <= strlen($directory)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            },
+        );
+    }
 
     /**
      * Move to the next entry.

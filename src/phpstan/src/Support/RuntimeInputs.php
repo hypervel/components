@@ -43,6 +43,7 @@ use function is_string;
 use function json_decode;
 use function preg_match;
 use function realpath;
+use function rtrim;
 use function str_starts_with;
 use function strlen;
 use function strtolower;
@@ -256,6 +257,31 @@ class RuntimeInputs
     }
 
     /**
+     * Declare that the analysis of the current file depends on the names and contents of the files in directories, as the view finder and translation loader read them.
+     *
+     * Both find files through symlinked directories, which PHPStan's directory dependency does not enter.
+     *
+     * @param DependencyTracker&Scope $scope
+     * @param list<string> $directories
+     */
+    public function trackLinkedDirectories(Scope $scope, array $directories, string $pattern = '*'): void
+    {
+        $linkedDirectories = [];
+
+        foreach ($directories as $directory) {
+            $source = $this->mapRuntimePath(
+                $this->trimDirectory($directory),
+                "linked-directory\t" . $pattern,
+                static fn (string $path): string => RuntimeInputsResultCacheValueExtension::directoryDigest($path, $pattern, followLinks: true),
+            );
+
+            $linkedDirectories[$source] = $pattern;
+        }
+
+        $scope->trackValueDependency(RuntimeInputsResultCacheValueExtension::class, $this->valueExtension->createKey(linkedDirectories: $linkedDirectories));
+    }
+
+    /**
      * Get the path to track for a file the analysis reads.
      *
      * A file in the runtime copy is tracked through its skeleton source while the two are
@@ -304,7 +330,7 @@ class RuntimeInputs
         $listings = [];
 
         foreach ($directories as $directory) {
-            $listings[] = $this->mapRuntimePath(realpath($directory) ?: $directory, 'listing', RuntimeInputsResultCacheValueExtension::listingDigest(...));
+            $listings[] = $this->mapRuntimePath($this->trimDirectory($directory), 'listing', RuntimeInputsResultCacheValueExtension::listingDigest(...));
         }
 
         return $this->valueExtension->createKey(listings: $listings);
@@ -605,6 +631,19 @@ class RuntimeInputs
         $source = $runtimeCopy[1] . substr($path, strlen($runtimeCopy[0]));
 
         return $this->sourcePaths[$comparison . "\0" . $path] ??= $digest($path) === $digest($source) ? $source : $path;
+    }
+
+    /**
+     * Get a directory path without trailing separators, which would shift the digested relative names.
+     *
+     * A symlinked directory keeps its own path rather than its target's, so the digest follows the link
+     * on every run and notices a link pointed somewhere else.
+     */
+    private function trimDirectory(string $directory): string
+    {
+        $trimmed = rtrim($directory, '/');
+
+        return $trimmed === '' ? '/' : $trimmed;
     }
 
     /**

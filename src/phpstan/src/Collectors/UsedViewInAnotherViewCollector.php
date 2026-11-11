@@ -8,6 +8,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\PHPStan\Support\BladeScanner;
 use Hypervel\PHPStan\Support\ViewFileHelper;
 use Hypervel\PHPStan\Support\ViewParser;
+use Hypervel\Support\Str;
 use Hypervel\View\ViewName;
 use PhpParser\Node\ArrayItem;
 use PhpParser\Node\Expr;
@@ -172,10 +173,12 @@ class UsedViewInAnotherViewCollector
             // The `resources/views/components` directory is commonly registered as its own view path, where
             // an anonymous component is named by its short path (`alert`); the same file is also reachable
             // as `components.alert` under `resources/views`. A component can additionally be an index file
-            // (`alert/index.blade.php`). Emit every form so whichever naming the project uses is matched.
+            // (`alert/index.blade.php`) or a file named like its directory (`card/card.blade.php`). Emit
+            // every form so whichever naming the project uses is matched.
             foreach ([$name, 'components.' . $name] as $view) {
                 $usedViews[] = $view;
                 $usedViews[] = $view . '.index';
+                $usedViews[] = $view . '.' . Str::afterLast($name, '.');
             }
         }
 

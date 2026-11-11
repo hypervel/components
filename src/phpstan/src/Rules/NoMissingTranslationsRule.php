@@ -93,10 +93,7 @@ class NoMissingTranslationsRule implements Rule
         }
 
         // The rule reads the translation files and the views, so the result cache can reuse its errors only while they stay the same.
-        foreach ([...$loader->paths(), ...$loader->jsonPaths(), ...array_values($loader->namespaces())] as $path) {
-            $scope->trackDirectoryDependency($this->runtimeInputs->sourceDirectory($path));
-        }
-
+        $this->runtimeInputs->trackLinkedDirectories($scope, [...$loader->paths(), ...$loader->jsonPaths(), ...array_values($loader->namespaces())]);
         $this->viewFileHelper->trackRootViewDirectories($scope);
 
         /** @var array<string, TranslationLookup[]>[] $collectors */

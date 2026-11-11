@@ -12,6 +12,7 @@ use function file_get_contents;
 use function file_put_contents;
 use function mkdir;
 use function preg_match;
+use function symlink;
 use function unlink;
 
 /**
@@ -340,6 +341,27 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
         $process = $this->analyse($applicationPath, parameters: self::PARAMETERS);
         $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $process, []);
         $this->assertReanalyzed(0, $process);
+    }
+
+    public function testLinkedTemplateEditsRecheckTheirTranslations(): void
+    {
+        $applicationPath = $this->copyApplication();
+
+        // The view finder finds shared.panel through the link, so the translation rule checks it.
+        mkdir($applicationPath . '/lang/en', 0777, true);
+        file_put_contents($applicationPath . '/lang/en/fixture.php', "<?php\n\nreturn ['greeting' => 'Hello'];\n");
+        mkdir($applicationPath . '/resources/shared');
+        file_put_contents($applicationPath . '/resources/shared/panel.blade.php', "{{ __('fixture.missing') }}\n");
+        symlink($applicationPath . '/resources/shared', $applicationPath . '/resources/views/shared');
+
+        $this->assertDiagnostics(
+            [...self::BOOT_DIAGNOSTICS, 'panel.blade.php:1 hypervel.missingTranslations'],
+            $this->analyse($applicationPath, reuseCollectedDataRuleErrors: true, parameters: self::PARAMETERS),
+        );
+
+        // An edit that keeps the template's name runs the rule again.
+        file_put_contents($applicationPath . '/resources/shared/panel.blade.php', "{{ __('fixture.greeting') }}\n");
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, reuseCollectedDataRuleErrors: true, parameters: self::PARAMETERS));
     }
 
     /**

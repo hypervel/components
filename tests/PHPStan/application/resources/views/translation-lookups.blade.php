@@ -41,3 +41,7 @@ test@lang('lookups.missing')
 {{-- @php __('lookups.missing'); @endphp --}}
 @verbatim <?php __('lookups.missing'); ?> {{ __('lookups.missing') }} @endverbatim
 {{-- @verbatim <?php __('lookups.missing'); ?> @endverbatim --}}
+<x-input-label bind:value="__('lookups.missing')" />
+<x-input-label x-bind:value="__('lookups.missing')" />
+{{ \Hypervel\Support\Facades\Lang::get('lookups.missing') }}
+{{ Hypervel\Support\Facades\Lang::choice('lookups.missing', 1) }}

@@ -14,10 +14,12 @@ use Hypervel\PHPStan\Collectors\UsedViewFunctionCollector;
 use Hypervel\PHPStan\Collectors\UsedViewInAnotherViewCollector;
 use Hypervel\PHPStan\Collectors\UsedViewMakeCollector;
 use Hypervel\PHPStan\Rules\UnusedViewsRule;
+use Hypervel\PHPStan\RuntimeInputsResultCacheValueExtension;
 use Hypervel\PHPStan\Support\BladeScanner;
 use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\PHPStan\Support\ViewFileHelper;
 use Hypervel\PHPStan\Support\ViewParser;
+use Hypervel\Testing\ParallelTesting;
 use PhpParser\Node;
 use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Error;
@@ -30,9 +32,14 @@ use PHPStan\Testing\RuleTestCase;
 
 use function array_map;
 use function dirname;
+use function file_put_contents;
+use function mkdir;
 use function resource_path;
 use function sort;
 use function str_replace;
+use function symlink;
+use function touch;
+use function view;
 
 /** @extends RuleTestCase<UnusedViewsRule> */
 class UnusedViewsRuleTest extends RuleTestCase
@@ -80,6 +87,7 @@ class UnusedViewsRuleTest extends RuleTestCase
         // `unused.blade.php` and `components/orphan.blade.php` are referenced nowhere. The
         // `components/alert.blade.php` view IS used, but only through the `<x-alert>` Blade component tag
         // in `index.blade.php` — so it must not be reported (regression guard for component-tag detection).
+        // `components/card/card.blade.php` is used the same way, through `<x-card>`.
         // The translation rule's `translation-lookups.blade.php` fixture is referenced nowhere either, and
         // `blade-directives/index.blade.php` names three views only in escaped, commented or verbatim text.
         $viewsPath = resource_path('views') . '/';
@@ -152,16 +160,55 @@ class UnusedViewsRuleTest extends RuleTestCase
     {
         $tracked = [];
         $scope = $this->createStubForIntersectionOfInterfaces([Scope::class, DependencyTracker::class]);
-        $scope->method('trackDirectoryDependency')->willReturnCallback(static function (string $directory, string $pattern) use (&$tracked): void {
-            $tracked[] = [$directory, $pattern];
+        $scope->method('trackValueDependency')->willReturnCallback(static function (string $extension, string $key) use (&$tracked): void {
+            $tracked[] = [$extension, $key];
         });
 
         $this->getRule()->processNode(new CollectedDataNode([], false), $scope);
 
-        $this->assertSame([
-            [__DIR__ . '/../application/resources/views/', '*.blade.php'],
-            [__DIR__ . '/../../../src/foundation/src/Exceptions/views', '*.blade.php'],
+        $this->assertContains([
+            RuntimeInputsResultCacheValueExtension::class,
+            self::getContainer()->getByType(RuntimeInputsResultCacheValueExtension::class)->createKey(linkedDirectories: [
+                __DIR__ . '/../application/resources/views' => '*.blade.php',
+                __DIR__ . '/../../../src/foundation/src/Exceptions/views' => '*.blade.php',
+            ]),
         ], $tracked);
+    }
+
+    public function testViewsInSymlinkedDirectories(): void
+    {
+        $root = ParallelTesting::tempDir('PHPStanUnusedViewsRule');
+        $finder = view()->getFinder();
+        $paths = $finder->getPaths();
+
+        (new Filesystem)->deleteDirectory($root);
+        mkdir($root . '/views', 0777, true);
+        mkdir($root . '/shared');
+        file_put_contents($root . '/shared/card.blade.php', "@include('shared.badge')\n");
+        touch($root . '/shared/badge.blade.php');
+        touch($root . '/shared/orphan.blade.php');
+
+        // The finder finds shared.card through the link, which links back to the views it is inside.
+        symlink($root . '/shared', $root . '/views/shared');
+        symlink($root . '/views', $root . '/shared/loop');
+
+        $this->viewDirectories = [$root . '/views'];
+        $finder->addLocation($root . '/views');
+
+        try {
+            $reports = array_map(
+                static fn (Error $error): string => str_replace($root . '/views/', '', $error->getFile()),
+                $this->gatherAnalyserErrors([__DIR__ . '/data/FooController.php']),
+            );
+
+            sort($reports);
+
+            $this->assertSame(['shared/card.blade.php', 'shared/orphan.blade.php'], $reports);
+        } finally {
+            $finder->setPaths($paths);
+            $finder->flush();
+            (new Filesystem)->deleteDirectory($root);
+        }
     }
 
     /** @return string[] */

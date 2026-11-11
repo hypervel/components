@@ -48,6 +48,8 @@ class RuntimeInputsResultCacheValueExtension implements ResultCacheValueExtensio
 
     private const string DIRECTORY = 'directory';
 
+    private const string LINKED_DIRECTORY = 'linked-directory';
+
     private const string LISTING = 'listing';
 
     private const string VARIABLE = 'env';
@@ -76,7 +78,8 @@ class RuntimeInputsResultCacheValueExtension implements ResultCacheValueExtensio
      * @param list<string> $files files compared by content
      * @param list<string> $presenceFiles files compared only by whether they exist
      * @param array<string, string> $directories directories mapped to the fnmatch() pattern of the files compared in them, recursively
-     * @param list<string> $listings directories compared by the names of the files in them, recursively
+     * @param array<string, string> $linkedDirectories directories compared as $directories are, also through their symlinked directories
+     * @param list<string> $listings directories compared by the names of the files in them, recursively, also through their symlinked directories
      * @param list<string> $variables environment variable names
      * @param list<string> $variablePatterns fnmatch() patterns of environment variable names, matched when compared
      */
@@ -84,22 +87,18 @@ class RuntimeInputsResultCacheValueExtension implements ResultCacheValueExtensio
         array $files = [],
         array $presenceFiles = [],
         array $directories = [],
+        array $linkedDirectories = [],
         array $listings = [],
         array $variables = [],
         array $variablePatterns = [],
     ): string {
-        $directoryEntries = [];
-
-        foreach ($directories as $directory => $pattern) {
-            $directoryEntries[] = $this->relativePath($directory) . "\t" . $pattern;
-        }
-
         $lines = [];
 
         foreach ([
             self::FILE => array_map($this->relativePath(...), $files),
             self::PRESENCE => array_map($this->relativePath(...), $presenceFiles),
-            self::DIRECTORY => $directoryEntries,
+            self::DIRECTORY => $this->directoryEntries($directories),
+            self::LINKED_DIRECTORY => $this->directoryEntries($linkedDirectories),
             self::LISTING => array_map($this->relativePath(...), $listings),
             self::VARIABLE => $variables,
             self::VARIABLE_PATTERN => $variablePatterns,
@@ -126,7 +125,7 @@ class RuntimeInputsResultCacheValueExtension implements ResultCacheValueExtensio
     /**
      * Get the digest of the names and contents of the files in a directory, recursively, whose names match the pattern.
      */
-    public static function directoryDigest(string $directory, string $pattern): string
+    public static function directoryDigest(string $directory, string $pattern, bool $followLinks = false): string
     {
         if (! is_dir($directory)) {
             return 'missing';
@@ -134,7 +133,7 @@ class RuntimeInputsResultCacheValueExtension implements ResultCacheValueExtensio
 
         $lines = [];
 
-        foreach (self::files($directory, $pattern) as $name => $path) {
+        foreach (self::files($directory, $pattern, $followLinks) as $name => $path) {
             $lines[] = $name . "\t" . self::fileDigest($path);
         }
 
@@ -143,10 +142,12 @@ class RuntimeInputsResultCacheValueExtension implements ResultCacheValueExtensio
 
     /**
      * Get the digest of the names of the files in a directory, recursively, or 'missing'.
+     *
+     * The view finder finds views through symlinked directories, so the listing follows them.
      */
     public static function listingDigest(string $directory): string
     {
-        return is_dir($directory) ? hash('xxh128', implode("\n", array_keys(self::files($directory, '*')))) : 'missing';
+        return is_dir($directory) ? hash('xxh128', implode("\n", array_keys(self::files($directory, '*', followLinks: true)))) : 'missing';
     }
 
     /**
@@ -168,8 +169,7 @@ class RuntimeInputsResultCacheValueExtension implements ResultCacheValueExtensio
             match ($type) {
                 self::FILE => $parts[] = $entry . "\t" . self::fileDigest($this->absolutePath($entry)),
                 self::PRESENCE => $parts[] = $entry . "\t" . (is_file($this->absolutePath($entry)) ? 'present' : 'missing'),
-                // The pattern follows the directory, so resolving the entry resolves the directory.
-                self::DIRECTORY => $parts[] = $entry . "\t" . self::directoryDigest(...explode("\t", $this->absolutePath($entry), 2)),
+                self::DIRECTORY, self::LINKED_DIRECTORY => $parts[] = $entry . "\t" . $this->directoryEntryDigest($entry, $type === self::LINKED_DIRECTORY),
                 self::LISTING => $parts[] = $entry . "\t" . self::listingDigest($this->absolutePath($entry)),
                 self::VARIABLE => $variables[] = $entry,
                 self::VARIABLE_PATTERN => $variablePatterns[] = $entry,
@@ -202,12 +202,14 @@ class RuntimeInputsResultCacheValueExtension implements ResultCacheValueExtensio
      *
      * @return array<string, string>
      */
-    private static function files(string $directory, string $pattern): array
+    private static function files(string $directory, string $pattern, bool $followLinks = false): array
     {
         $files = [];
-        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS));
+        $directories = $followLinks
+            ? RecursiveDirectoryIterator::followingLinks($directory)
+            : new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS);
 
-        foreach ($iterator as $file) {
+        foreach (new RecursiveIteratorIterator($directories) as $file) {
             if ($file instanceof SplFileInfo && $file->isFile() && fnmatch($pattern, $file->getFilename())) {
                 $files[substr($file->getPathname(), strlen($directory) + 1)] = $file->getPathname();
             }
@@ -216,6 +218,34 @@ class RuntimeInputsResultCacheValueExtension implements ResultCacheValueExtensio
         ksort($files);
 
         return $files;
+    }
+
+    /**
+     * Get the digest of a directory entry, which holds the directory and its pattern.
+     */
+    private function directoryEntryDigest(string $entry, bool $followLinks): string
+    {
+        // The pattern follows the directory, so resolving the entry resolves the directory.
+        [$directory, $pattern] = explode("\t", $this->absolutePath($entry), 2);
+
+        return self::directoryDigest($directory, $pattern, $followLinks);
+    }
+
+    /**
+     * Get the key entries of directories mapped to their patterns.
+     *
+     * @param array<string, string> $directories
+     * @return list<string>
+     */
+    private function directoryEntries(array $directories): array
+    {
+        $entries = [];
+
+        foreach ($directories as $directory => $pattern) {
+            $entries[] = $this->relativePath($directory) . "\t" . $pattern;
+        }
+
+        return $entries;
     }
 
     /**
@@ -237,7 +267,7 @@ class RuntimeInputsResultCacheValueExtension implements ResultCacheValueExtensio
     /**
      * Get the typed entries of a key.
      *
-     * @return list<array{self::DIRECTORY|self::FILE|self::LISTING|self::PRESENCE|self::VARIABLE|self::VARIABLE_PATTERN, string}>
+     * @return list<array{self::DIRECTORY|self::FILE|self::LINKED_DIRECTORY|self::LISTING|self::PRESENCE|self::VARIABLE|self::VARIABLE_PATTERN, string}>
      */
     private function entries(string $key): array
     {
@@ -248,7 +278,7 @@ class RuntimeInputsResultCacheValueExtension implements ResultCacheValueExtensio
         $entries = [];
 
         foreach (explode("\n", $key) as $line) {
-            /** @var array{self::DIRECTORY|self::FILE|self::LISTING|self::PRESENCE|self::VARIABLE|self::VARIABLE_PATTERN, string} $entry createKey() writes each line as a type and an entry */
+            /** @var array{self::DIRECTORY|self::FILE|self::LINKED_DIRECTORY|self::LISTING|self::PRESENCE|self::VARIABLE|self::VARIABLE_PATTERN, string} $entry createKey() writes each line as a type and an entry */
             $entry = explode("\t", $line, 2);
             $entries[] = $entry;
         }
