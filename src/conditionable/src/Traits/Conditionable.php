@@ -18,7 +18,7 @@ trait Conditionable
      * @param null|(Closure($this): TWhenParameter)|TWhenParameter $value
      * @param null|(callable($this, TWhenParameter): (null|TWhenReturnType|void)) $callback
      * @param null|(callable($this, TWhenParameter): (null|TWhenReturnType|void)) $default
-     * @return ($callback is null ? $this|HigherOrderWhenProxy<$this, bool>|TWhenReturnType : $this|TWhenReturnType)
+     * @return ($callback is null ? ($default is null ? $this|HigherOrderWhenProxy<$this, bool>|TWhenReturnType : $this|TWhenReturnType) : $this|TWhenReturnType)
      */
     public function when(mixed $value = null, ?callable $callback = null, ?callable $default = null): mixed
     {
@@ -51,7 +51,7 @@ trait Conditionable
      * @param null|(Closure($this): TUnlessParameter)|TUnlessParameter $value
      * @param null|(callable($this, TUnlessParameter): (null|TUnlessReturnType|void)) $callback
      * @param null|(callable($this, TUnlessParameter): (null|TUnlessReturnType|void)) $default
-     * @return ($callback is null ? $this|HigherOrderWhenProxy<$this, bool>|TUnlessReturnType : $this|TUnlessReturnType)
+     * @return ($callback is null ? ($default is null ? $this|HigherOrderWhenProxy<$this, bool>|TUnlessReturnType : $this|TUnlessReturnType) : $this|TUnlessReturnType)
      */
     public function unless(mixed $value = null, ?callable $callback = null, ?callable $default = null): mixed
     {

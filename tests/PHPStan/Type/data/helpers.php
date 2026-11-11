@@ -239,8 +239,10 @@ function testHypervelArguments(array $closures, array $arguments): void
 
 /**
  * The factory helpers resolve their factory from the container, so it is the booted binding.
+ *
+ * @param list<string> $strings
  */
-function testBoundHelpers(ResponseFactory $factory, ?string $path, ?string $message, array $arguments): void
+function testBoundHelpers(ResponseFactory $factory, ?string $path, ?string $message, array $arguments, array $strings): void
 {
     assertType('string', response()->caps('foo'));
     // A contract value does not gain the macros of its current binding.
@@ -256,6 +258,10 @@ function testBoundHelpers(ResponseFactory $factory, ?string $path, ?string $mess
     assertType('Hypervel\Log\LogManager', logger(null));
     assertType('null', logger('message'));
     assertType('Hypervel\Log\LogManager|null', logger($message));
+
+    // A list of strings may be empty, which leaves the path or message at its null default.
+    assertType('Hypervel\Routing\UrlGenerator|string', url(...$strings));
+    assertType('Hypervel\Log\LogManager|null', logger(...$strings));
 }
 
 /**

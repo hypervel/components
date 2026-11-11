@@ -106,6 +106,10 @@ function higherOrder(Logger $logger, Collection $numbers, ?string $maybe, callab
     assertType("'default'|ConditionableStubs\Logger", $logger->when(default: fn () => 'default'));
     assertType('Hypervel\Support\HigherOrderWhenProxy<ConditionableStubs\Logger, true>', $logger->when(value: true));
 
+    // Unpacked arguments keep the declaration, which a default rules the proxy out of.
+    assertType("'fallback'|ConditionableStubs\Logger", $logger->when(...[false, null, fn () => 'fallback']));
+    assertType("'fallback'|ConditionableStubs\Logger", $logger->unless(...[true, null, fn () => 'fallback']));
+
     // What the callback or default returns is kept, even a proxy or mixed.
     $captured = $logger->when();
     assertType('ConditionableStubs\Logger|Hypervel\Support\HigherOrderWhenProxy<ConditionableStubs\Logger, false>', $logger->when(true, fn () => $captured));
