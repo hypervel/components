@@ -259,6 +259,44 @@ class Http2ClientTest extends TestCase
         }
     }
 
+    public function testReceiveParsesHeaderBlocksSplitAcrossContinuationFrames(): void
+    {
+        // @TODO: Remove this skip once Swoole's HTTP/2 client accepts header blocks continued in CONTINUATION frames.
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped("Swoole's HTTP/2 client ignores CONTINUATION frames, so a split header block fails to parse.");
+        }
+
+        $server = new Socket(AF_INET, SOCK_STREAM, 0);
+        $this->assertTrue($server->bind('127.0.0.1', 0));
+        $this->assertTrue($server->listen());
+        $client = new Client('127.0.0.1', $server->getsockname()['port']);
+        $connection = $server->accept(1);
+        $this->assertInstanceOf(Socket::class, $connection);
+
+        try {
+            $streamId = $client->send(new Request);
+
+            // Servers split header blocks larger than the client's 16 KB max frame size into CONTINUATION frames.
+            // An empty SETTINGS frame, then ":status: 200" and "x-a: b" split mid-field across HEADERS and CONTINUATION.
+            $connection->sendAll(
+                "\0\0\0\x04\0\0\0\0\0"
+                . "\0\0\x04\x01\x01\0\0\0\x01\x88\0\x03x"
+                . "\0\0\x04\x09\x04\0\0\0\x01-a\x01b"
+            );
+
+            $response = $client->recv(1);
+        } finally {
+            $client->close();
+            $connection->close();
+            $server->close();
+        }
+
+        $this->assertNotNull($response);
+        $this->assertSame($streamId, $response->getStreamId());
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame(['x-a' => 'b'], $response->getHeaders());
+    }
+
     public function testExposesNormalizedStreamExistence(): void
     {
         $native = new Http2ClientTestNativeClient;
