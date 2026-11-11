@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Foundation;
 
+use ErrorException;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
@@ -455,14 +456,18 @@ class ApplicationTest extends TestCase
         try {
             date_default_timezone_set('Europe/London');
 
+            // A real vendor directory blocks the link. The disposable application keeps the
+            // worker's own vendor link out of reach, since creating a link first removes it.
+            (new Filesystem)->ensureDirectoryExists($this->customApplicationPath . '/vendor');
+
             try {
                 StandaloneTimezoneTestbenchApplication::createVendorSymlink(
-                    (string) default_skeleton_path(),
-                    (string) default_skeleton_path('missing-vendor'),
+                    $this->customApplicationPath,
+                    package_path('vendor'),
                 );
                 $this->fail('Expected vendor symlink creation to fail.');
-            } catch (Throwable) {
-                $this->addToAssertionCount(1);
+            } catch (ErrorException $exception) {
+                $this->assertStringContainsString('symlink(): File exists', $exception->getMessage());
             }
 
             $this->assertSame('Europe/London', date_default_timezone_get());

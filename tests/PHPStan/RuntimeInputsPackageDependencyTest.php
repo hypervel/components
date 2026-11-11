@@ -108,7 +108,7 @@ class RuntimeInputsPackageDependencyTest extends ResultCacheTestCase
             NEON);
 
         $process = new Process(
-            [PHP_BINARY, $repositoryPath . '/vendor/bin/phpstan', 'analyse', '--configuration=phpstan.neon', '--no-progress', '--error-format=json', '--no-ansi', '-vv'],
+            [PHP_BINARY, $repositoryPath . '/vendor/bin/phpstan', 'analyse', '--configuration=phpstan.neon', '--memory-limit=1G', '--no-progress', '--error-format=json', '--no-ansi', '-vv'],
             $packagePath,
             $environment,
             timeout: 300,

@@ -28,7 +28,8 @@
         <!-- Keep isolated-child startup errors on stderr so PHPUnit reports their cause. -->
         <ini name="display_errors" value="stderr"/>
         <ini name="display_startup_errors" value="on"/>
-        <ini name="memory_limit" value="1024M"/>
+        <!-- PHPStan's test case keeps a container per config set, and the analyzed fixtures stay cached, so a worker's memory grows with the files it runs. -->
+        <ini name="memory_limit" value="2G"/>
         <server name="HYPERVEL_PARALLEL_TESTING" value="1"/>
         <!--
             Fix terminal dimensions so console-output assertions do not depend

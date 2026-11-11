@@ -177,7 +177,7 @@ class BootstrapTest extends TestCase
             NEON);
 
         $process = new Process(
-            [PHP_BINARY, $repositoryPath . '/vendor/bin/phpstan', 'analyse', '--configuration=phpstan.neon', '--no-progress', '--error-format=json', '--no-ansi'],
+            [PHP_BINARY, $repositoryPath . '/vendor/bin/phpstan', 'analyse', '--configuration=phpstan.neon', '--memory-limit=1G', '--no-progress', '--error-format=json', '--no-ansi'],
             $workingPath,
             ['HYPERVEL_PHPSTAN_BOOT_EVIDENCE' => $this->tempDir . '/evidence.jsonl'],
             timeout: 300,

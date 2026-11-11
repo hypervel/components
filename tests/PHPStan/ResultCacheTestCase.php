@@ -66,6 +66,7 @@ abstract class ResultCacheTestCase extends TestCase
      * PHPStan uses its result cache only when it analyzes a directory, and reports whether it reused
      * the cache on standard error at the very verbose level. The application's autoloader is the
      * autoload file, so classes PHPStan registers as services load before it builds its container.
+     * The explicit memory limit keeps the run independent of php.ini, whose default is often 128M.
      * Reusing collected-data rule errors is the bleeding-edge toggle that skips those rules on a warm
      * run while their collected data and tracked dependencies are unchanged.
      *
@@ -99,7 +100,7 @@ abstract class ResultCacheTestCase extends TestCase
             NEON);
 
         $process = new Process(
-            [PHP_BINARY, $repositoryPath . '/vendor/bin/phpstan', 'analyse', '--configuration=phpstan.neon', "--autoload-file={$applicationPath}/bootstrap/autoload.php", '--no-progress', '--error-format=json', '--no-ansi', '-vv'],
+            [PHP_BINARY, $repositoryPath . '/vendor/bin/phpstan', 'analyse', '--configuration=phpstan.neon', "--autoload-file={$applicationPath}/bootstrap/autoload.php", '--memory-limit=1G', '--no-progress', '--error-format=json', '--no-ansi', '-vv'],
             $applicationPath,
             $environment,
             timeout: 300,
