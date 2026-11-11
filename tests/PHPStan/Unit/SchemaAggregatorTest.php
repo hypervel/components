@@ -725,6 +725,59 @@ class SchemaAggregatorTest extends PHPStanTestCase
         $this->assertTrue($this->table($aggregator, 'users')->complete);
     }
 
+    /**
+     * Blueprint commands run once the callback returns, so a guard on the callback's own table reads it as it was before them.
+     */
+    #[Test]
+    public function itDecidesGuardsInABlueprintCallbackFromTheTableBeforeIt(): void
+    {
+        $aggregator = $this->aggregate(<<<'PHP'
+            Schema::create('users', function (Blueprint $table) {
+                $table->string('name');
+                $table->string('status');
+            });
+
+            Schema::table('users', function (Blueprint $table) {
+                if (Schema::hasColumn('users', 'status')) {
+                    $table->dropColumn('status');
+                }
+
+                if (Schema::hasColumn('users', 'status')) {
+                    $table->string('state');
+                }
+            });
+
+            Schema::create('posts', function (Blueprint $table) {
+                $table->string('title');
+
+                if (! Schema::hasTable('posts')) {
+                    $table->string('body');
+                }
+            });
+        PHP);
+
+        $this->assertSame(['name' => ['string', false], 'state' => ['string', false]], $this->columns($aggregator, 'users'));
+        $this->assertTrue($this->table($aggregator, 'users')->complete);
+        $this->assertSame(['title' => ['string', false], 'body' => ['string', false]], $this->columns($aggregator, 'posts'));
+        $this->assertTrue($this->table($aggregator, 'posts')->complete);
+
+        // Another Schema::table() call runs at once, so the table is not known before the guard.
+        $aggregator = $this->aggregate(<<<'PHP'
+            Schema::create('users', fn (Blueprint $table) => $table->string('name'));
+
+            Schema::table('users', function (Blueprint $table) {
+                Schema::table('users', fn (Blueprint $inner) => $inner->string('nickname'));
+
+                if (Schema::hasColumn('users', 'nickname')) {
+                    $table->string('alias');
+                }
+            });
+        PHP);
+
+        $this->assertSame(['alias' => [null, true]], $this->columns($aggregator, 'users'));
+        $this->assertFalse($this->table($aggregator, 'users')->complete);
+    }
+
     #[Test]
     public function itForgetsWhatASwitchLeftPartwayChanges(): void
     {
@@ -779,6 +832,7 @@ class SchemaAggregatorTest extends PHPStanTestCase
     {
         $aggregator = $this->aggregate(<<<'PHP'
             $this->createUsers();
+            $this::addNickname();
 
             Schema::withoutForeignKeyConstraints(function () {
                 Schema::table('users', fn (Blueprint $table) => $table->string('email'));
@@ -790,9 +844,14 @@ class SchemaAggregatorTest extends PHPStanTestCase
 
                 $this->createUsers();
             }
+
+            private function addNickname(): void
+            {
+                Schema::table('users', fn (Blueprint $table) => $table->string('nickname'));
+            }
         PHP);
 
-        $this->assertSame(['name' => ['string', false], 'email' => ['string', false]], $this->columns($aggregator, 'users'));
+        $this->assertSame(['name' => ['string', false], 'nickname' => ['string', false], 'email' => ['string', false]], $this->columns($aggregator, 'users'));
     }
 
     /**
@@ -917,26 +976,88 @@ class SchemaAggregatorTest extends PHPStanTestCase
         $this->assertSame(['name' => ['string', false]], $this->columns($aggregator, 'gizmos', 'sqlite'));
     }
 
+    /**
+     * A closure, or a callable array naming one of the migration's methods, runs where the analysis cannot follow it.
+     */
     #[Test]
     public function itForgetsTablesInheritedHelpersChangeWhereTheyCannotBeFollowed(): void
     {
-        $aggregator = $this->apply(<<<'PHP'
-            return new class extends LayeredMigration
-            {
-                protected $connection = 'mysql';
-
-                public function up(): void
+        foreach ([
+            'DB::transaction(fn () => $this->createWidgets());',
+            "call_user_func([\$this, 'createWidgets']);",
+            "call_user_func([self::class, 'createWidgets']);",
+            "call_user_func([static::class, 'createWidgets']);",
+            "call_user_func([parent::class, 'createWidgets']);",
+        ] as $statement) {
+            $aggregator = $this->apply(<<<PHP
+                return new class extends LayeredMigration
                 {
-                    Schema::create('widgets', fn (Blueprint $table) => $table->string('label'));
-                    Schema::create('posts', fn (Blueprint $table) => $table->string('title'));
+                    protected \$connection = 'mysql';
 
-                    DB::transaction(fn () => $this->createWidgets());
+                    public function up(): void
+                    {
+                        Schema::create('widgets', fn (Blueprint \$table) => \$table->string('label'));
+                        Schema::create('posts', fn (Blueprint \$table) => \$table->string('title'));
+
+                        {$statement}
+                    }
+                };
+                PHP);
+
+            $this->assertFalse($this->table($aggregator, 'widgets')->complete, $statement);
+            $this->assertTrue($this->table($aggregator, 'posts')->complete, $statement);
+        }
+    }
+
+    /**
+     * A dynamic method name can run any of the migration's methods, which can change any connection or the morph key type.
+     */
+    #[Test]
+    public function itForgetsEveryConnectionForADynamicMethodName(): void
+    {
+        foreach (['$this->{$this->method}();', 'static::{$this->method}();', 'call_user_func([$this, $this->method]);'] as $statement) {
+            $aggregator = $this->aggregate(<<<PHP
+                Schema::connection('sqlite')->create('posts', fn (Blueprint \$table) => \$table->string('title'));
+
+                {$statement}
+
+                Schema::create('comments', fn (Blueprint \$table) => \$table->morphs('commentable'));
+            PHP, members: <<<'PHP'
+                public string $method = 'useUuids';
+
+                private function useUuids(): void
+                {
+                    Schema::morphUsingUuids();
                 }
-            };
             PHP);
 
-        $this->assertFalse($this->table($aggregator, 'widgets')->complete);
-        $this->assertTrue($this->table($aggregator, 'posts')->complete);
+            $this->assertFalse($this->schema($aggregator)->complete, $statement);
+            $this->assertFalse($this->schema($aggregator, 'sqlite')->complete, $statement);
+            $this->assertSame(['commentable_type' => ['string', false], 'commentable_id' => [null, false]], $this->columns($aggregator, 'comments'), $statement);
+        }
+    }
+
+    /**
+     * A dynamic Schema builder method can change any relation of its connection, or the morph key type.
+     */
+    #[Test]
+    public function itForgetsTheConnectionADynamicSchemaMethodRunsOn(): void
+    {
+        foreach (["Schema::{\$this->method}('users');", "\$schema = Schema::connection('mysql');\n\$schema->{\$this->method}('users');"] as $statement) {
+            $aggregator = $this->aggregate(<<<PHP
+                Schema::connection('sqlite')->create('posts', fn (Blueprint \$table) => \$table->string('title'));
+                Schema::create('users', fn (Blueprint \$table) => \$table->string('name'));
+
+                {$statement}
+
+                Schema::create('comments', fn (Blueprint \$table) => \$table->morphs('commentable'));
+            PHP, members: "public string \$method = 'drop';");
+
+            $this->assertFalse($this->schema($aggregator)->complete, $statement);
+            $this->assertTrue($this->schema($aggregator, 'sqlite')->complete, $statement);
+            $this->assertSame(['title' => ['string', false]], $this->columns($aggregator, 'posts', 'sqlite'), $statement);
+            $this->assertSame(['commentable_type' => ['string', false], 'commentable_id' => [null, false]], $this->columns($aggregator, 'comments'), $statement);
+        }
     }
 
     #[Test]

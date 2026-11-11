@@ -55,12 +55,13 @@ use function strtolower;
  * A state is a copy of the facts: the connections, whether an earlier migration could have changed
  * any connection, and the morph key type. A scope holds the migration class, the class declaring the
  * body being applied (null for the migration class itself), the connection its statements default to
- * (null when it is unknown), inside a Blueprint callback the table it changes and the Blueprint's
- * variable, and the local variables holding Schema builders: those whose calls are followed, and those
- * that escape, whose uses make the connections they select unknown.
+ * (null when it is unknown), inside a Blueprint callback the table it changes, with its physical name and
+ * a copy of it as it was before the callback, and the Blueprint's variable, and the local variables holding
+ * Schema builders: those whose calls are followed, and those that escape, whose uses make the connections
+ * they select unknown.
  *
  * @phpstan-type State array{array<string, SchemaConnection>, bool, ?string}
- * @phpstan-type TableScope array{connection: ConnectionConfig, key: string, variable: string}
+ * @phpstan-type TableScope array{connection: ConnectionConfig, key: string, name: array{?string, string}, before: ?SchemaTable, variable: string}
  * @phpstan-type BuilderVariables array{builders: array<string, ?ConnectionConfig>, escaped: array<string, list<?ConnectionConfig>>}
  * @phpstan-type Scope array{class: PhpParser\Node\Stmt\Class_, declaring: ?string, connection: ?ConnectionConfig, table: ?TableScope, builders: array<string, ?ConnectionConfig>, escaped: array<string, list<?ConnectionConfig>>}
  *
@@ -237,9 +238,20 @@ class SchemaAggregator
     }
 
     /**
-     * Make every connection's facts unknown, for a migration that cannot be read.
+     * Make every connection's facts and the morph key type unknown, for migration code that cannot be read.
      */
     public function invalidate(): void
+    {
+        $this->forgetEveryConnection();
+
+        // Unread code may also change the key type morphs() adds, such as through Schema::morphUsingUuids().
+        $this->morphKeyType = null;
+    }
+
+    /**
+     * Make every connection's facts unknown.
+     */
+    private function forgetEveryConnection(): void
     {
         foreach ($this->connections as $connection) {
             $connection->forget();
@@ -868,13 +880,16 @@ class SchemaAggregator
             $this->getNameArgument($call['call'], 0, 'table'),
             $call['method'] === 'hascolumn' ? $this->getNameArgument($call['call'], 1, 'column') : null,
             $call['method'] === 'hascolumn',
+            $scope['table'],
         );
     }
 
     /**
      * Decide whether a table, or a column of it, exists from established facts, or return null when it is unknown.
+     *
+     * @param ?TableScope $pending the table of the Blueprint callback the guard runs in
      */
-    private function decideGuard(ConnectionConfig $connection, ?string $tableName, ?string $columnName, bool $checksColumn): ?bool
+    private function decideGuard(ConnectionConfig $connection, ?string $tableName, ?string $columnName, bool $checksColumn, ?array $pending = null): ?bool
     {
         if ($tableName === null) {
             return null;
@@ -883,7 +898,34 @@ class SchemaAggregator
         [$schema, $name] = $connection->physicalTable($tableName);
         $owner = $this->owner($connection);
         $key = $this->findTableKey($connection, $schema, $name);
-        $table = is_string($key) ? $owner->tables[$key] : null;
+
+        if ($key === false) {
+            return null;
+        }
+
+        $table = $key === null ? null : $owner->tables[$key];
+        $pendingKey = null;
+
+        // Blueprint commands run once the callback returns, so a guard on the callback's own table reads the
+        // table as it was before them. An immediate change to it, such as another Schema::table() call, makes
+        // that unknown, as does a queued drop or rename, which the facts already apply.
+        if ($pending !== null
+            && $pending['connection']->owner === $connection->owner
+            && ([$schema, $name] === $pending['name'] || $key === $pending['key'])) {
+            $current = $owner->tables[$pending['key']] ?? null;
+
+            if ($current !== null) {
+                $this->sources += $current->sources;
+            }
+
+            if ($current === null || ! $current->complete) {
+                return null;
+            }
+
+            $pendingKey = $pending['key'];
+            $table = $pending['before'];
+            $key = $table === null ? null : $pendingKey;
+        }
 
         // The outcome the guard selects can change any table, so the files the table's facts were read from
         // become sources of every fact.
@@ -896,7 +938,8 @@ class SchemaAggregator
             return match (true) {
                 $table !== null && $table->complete => true,
                 $key === null && $owner->complete
-                    && ! array_any($owner->tables, static fn (SchemaTable $known): bool => mb_strtolower($known->name) === mb_strtolower($name)) => false,
+                    && ! array_any($owner->tables, static fn (SchemaTable $known, string $knownKey): bool => $knownKey !== $pendingKey
+                        && mb_strtolower($known->name) === mb_strtolower($name)) => false,
                 default => null,
             };
         }
@@ -1040,26 +1083,39 @@ class SchemaAggregator
      * Get the method a call on $this, self, static or parent runs, which up() runs inline, with the class
      * self:: names in it.
      *
-     * $this and static:: dispatch on the migration, except that $this reaches a private method of the class
-     * declaring the calling body first; self:: dispatches on that class, and parent:: on its parent.
+     * $this, $this:: and static:: dispatch on the migration, except that $this reaches a private method of the
+     * class declaring the calling body first; self:: dispatches on that class, and parent:: on its parent.
      *
      * @param Scope $scope
      * @return null|array{PhpParser\Node\Stmt\ClassMethod, ?string}|false null for another call, false for a
-     *                                                                    method whose body cannot be read
+     *                                                                    method whose body cannot be read or
+     *                                                                    whose name is not constant
      */
     private function getHelperMethod(PhpParser\Node\Expr\MethodCall|PhpParser\Node\Expr\StaticCall $call, array $scope): false|array|null
     {
-        if (! $call->name instanceof PhpParser\Node\Identifier) {
+        if ($call instanceof PhpParser\Node\Expr\MethodCall) {
+            $class = $this->isThis($call->var) ? '$this' : null;
+        } else {
+            $class = match (true) {
+                $call->class instanceof PhpParser\Node\Name => $call->class->toLowerString(),
+                // $this:: names the migration's class, as static:: does.
+                $this->isThis($call->class) => 'static',
+                default => null,
+            };
+        }
+
+        if (! in_array($class, ['$this', 'static', 'self', 'parent'], true)) {
             return null;
+        }
+
+        // A dynamic name can run any of the migration's methods.
+        if (! $call->name instanceof PhpParser\Node\Identifier) {
+            return false;
         }
 
         $name = $call->name->toString();
 
-        if ($call instanceof PhpParser\Node\Expr\MethodCall) {
-            if (! $this->isThis($call->var)) {
-                return null;
-            }
-
+        if ($class === '$this') {
             // PHP runs a private method of the class whose code calls it, even when the migration declares its own.
             if ($scope['declaring'] !== null) {
                 $declaring = $this->reflectionProvider->getClass($scope['declaring']);
@@ -1074,8 +1130,6 @@ class SchemaAggregator
             return $this->findMethod($scope, null, $name);
         }
 
-        $class = $call->class instanceof PhpParser\Node\Name ? $call->class->toLowerString() : null;
-
         if ($class === 'parent') {
             // A declaring class came from reflection, so it is known.
             $parent = $scope['declaring'] === null
@@ -1085,11 +1139,41 @@ class SchemaAggregator
             return $parent === null ? null : $this->findDeclaredMethod($parent, $name);
         }
 
-        return match ($class) {
-            'static' => $this->findMethod($scope, null, $name),
-            'self' => $this->findMethod($scope, $scope['declaring'], $name),
-            default => null,
-        };
+        return $this->findMethod($scope, $class === 'self' ? $scope['declaring'] : null, $name);
+    }
+
+    /**
+     * Get the call a callable array naming one of the migration's methods makes, such as [$this, 'createUsers'].
+     *
+     * Its method name is not constant unless the second item is a string literal.
+     */
+    private function getCallableArrayCall(PhpParser\Node\Expr\Array_ $array): PhpParser\Node\Expr\MethodCall|PhpParser\Node\Expr\StaticCall|null
+    {
+        if (count($array->items) !== 2) {
+            return null;
+        }
+
+        [$target, $method] = $array->items;
+
+        if ($target->key !== null || $method->key !== null || $target->unpack || $method->unpack) {
+            return null;
+        }
+
+        $name = $method->value instanceof PhpParser\Node\Scalar\String_ ? new PhpParser\Node\Identifier($method->value->value) : $method->value;
+
+        if ($this->isThis($target->value)) {
+            return new PhpParser\Node\Expr\MethodCall($target->value, $name);
+        }
+
+        $class = $target->value;
+
+        return $class instanceof PhpParser\Node\Expr\ClassConstFetch
+            && $class->class instanceof PhpParser\Node\Name
+            && in_array($class->class->toLowerString(), ['static', 'self', 'parent'], true)
+            && $class->name instanceof PhpParser\Node\Identifier
+            && $class->name->toLowerString() === 'class'
+                ? new PhpParser\Node\Expr\StaticCall($class->class, $name)
+                : null;
     }
 
     /**
@@ -1233,31 +1317,33 @@ class SchemaAggregator
      *
      * The connection is null when it is unknown. An explicit connection is not routed to its migration
      * connection, but its facts belong to the connection that owns its schema. A first-class callable
-     * is included, since a kept one can run later with arguments that are not known.
+     * is included, since a kept one can run later with arguments that are not known. The method is null
+     * for a dynamic name, which can run any Schema builder method.
      *
      * @param Scope $scope
-     * @return null|array{call: PhpParser\Node\Expr\MethodCall|PhpParser\Node\Expr\StaticCall, method: lowercase-string, connection: ?ConnectionConfig}
+     * @return null|array{call: PhpParser\Node\Expr\MethodCall|PhpParser\Node\Expr\StaticCall, method: ?lowercase-string, connection: ?ConnectionConfig}
      */
     private function getSchemaCall(PhpParser\Node\Expr $expr, array $scope): ?array
     {
-        if (! ($expr instanceof PhpParser\Node\Expr\StaticCall || $expr instanceof PhpParser\Node\Expr\MethodCall)
-            || ! $expr->name instanceof PhpParser\Node\Identifier) {
+        if (! ($expr instanceof PhpParser\Node\Expr\StaticCall || $expr instanceof PhpParser\Node\Expr\MethodCall)) {
             return null;
         }
 
+        $method = $expr->name instanceof PhpParser\Node\Identifier ? $expr->name->toLowerString() : null;
+
         if ($expr instanceof PhpParser\Node\Expr\StaticCall) {
-            return $this->isFacade($expr->class, Schema::class) && $expr->name->toLowerString() !== 'connection'
-                ? ['call' => $expr, 'method' => $expr->name->toLowerString(), 'connection' => $scope['connection']]
+            return $this->isFacade($expr->class, Schema::class) && $method !== 'connection'
+                ? ['call' => $expr, 'method' => $method, 'connection' => $scope['connection']]
                 : null;
         }
 
         if ($expr->var instanceof PhpParser\Node\Expr\Variable && is_string($expr->var->name) && array_key_exists($expr->var->name, $scope['builders'])) {
-            return ['call' => $expr, 'method' => $expr->name->toLowerString(), 'connection' => $scope['builders'][$expr->var->name]];
+            return ['call' => $expr, 'method' => $method, 'connection' => $scope['builders'][$expr->var->name]];
         }
 
         $selector = $this->getSchemaSelector($expr->var, $scope);
 
-        return $selector === null ? null : ['call' => $expr, 'method' => $expr->name->toLowerString(), 'connection' => $selector['connection']];
+        return $selector === null ? null : ['call' => $expr, 'method' => $method, 'connection' => $selector['connection']];
     }
 
     /**
@@ -1427,9 +1513,11 @@ class SchemaAggregator
      *
      * Schema changes to a named table make that table unknown; other changes make their connection
      * unknown, and changes on an unknown connection make every connection unknown. The methods the
-     * migration calls on itself are searched too. Inside a Blueprint callback, any use of the Blueprint makes its
-     * table unknown. A selector whose builder or connection escapes, and any use of a variable holding
-     * one, make the connection it selects unknown. Only query chains on a DB connection are kept.
+     * migration calls on itself, or names in a callable array such as [$this, 'createUsers'], are searched
+     * too, and a dynamic method name makes every connection unknown. Inside a Blueprint callback, any use
+     * of the Blueprint makes its table unknown. A selector whose builder or connection escapes, and any use
+     * of a variable holding one, make the connection it selects unknown. Only query chains on a DB
+     * connection are kept.
      *
      * @param PhpParser\Node|PhpParser\Node[] $node
      * @param Scope $scope
@@ -1439,7 +1527,8 @@ class SchemaAggregator
         $nodes = (new NodeFinder)->find($node, static fn (PhpParser\Node $found): bool => $found instanceof PhpParser\Node\Expr\Variable
             || $found instanceof PhpParser\Node\Expr\Assign
             || $found instanceof PhpParser\Node\Expr\StaticCall
-            || $found instanceof PhpParser\Node\Expr\MethodCall);
+            || $found instanceof PhpParser\Node\Expr\MethodCall
+            || $found instanceof PhpParser\Node\Expr\Array_);
 
         $calls = [];
         // The selectors a builder variable or a recognized call consumes, and every receiver of a method call.
@@ -1464,6 +1553,13 @@ class SchemaAggregator
 
                 if ($found instanceof PhpParser\Node\Expr\MethodCall) {
                     $receivers[spl_object_id($found->var)] = true;
+                }
+            } elseif ($found instanceof PhpParser\Node\Expr\Array_) {
+                // A callable array can run the method it names later, like a kept first-class callable.
+                $callable = $this->getCallableArrayCall($found);
+
+                if ($callable !== null) {
+                    $calls[] = $callable;
                 }
             }
         }
@@ -1511,7 +1607,11 @@ class SchemaAggregator
             $method = $schemaCall['method'];
             $connection = $schemaCall['connection'];
 
-            if (in_array($method, self::MORPH_KEY_SCHEMA_METHODS, true)) {
+            if ($method === null) {
+                // A dynamic name can change the connection's relations or the morph key type.
+                $this->morphKeyType = null;
+                $this->forgetConnection($connection);
+            } elseif (in_array($method, self::MORPH_KEY_SCHEMA_METHODS, true)) {
                 $this->morphKeyType = null;
             } elseif ($connection === null || ! isset(self::TABLE_SCHEMA_METHODS[$method])) {
                 if (! in_array($method, self::IGNORED_SCHEMA_METHODS, true)) {
@@ -1549,7 +1649,7 @@ class SchemaAggregator
     private function forgetConnection(?ConnectionConfig $connection): void
     {
         if ($connection === null) {
-            $this->invalidate();
+            $this->forgetEveryConnection();
         } else {
             $this->owner($connection)->forget();
         }
@@ -1757,16 +1857,19 @@ class SchemaAggregator
             return;
         }
 
-        [$schema, $name] = $connection->physicalTable($tableName);
+        $physicalName = $connection->physicalTable($tableName);
+        [$schema, $name] = $physicalName;
 
         if ($creating) {
             $schema ??= $connection->definitionSchema();
             $key = $owner->key($schema, $name);
+            $before = isset($owner->tables[$key]) ? clone $owner->tables[$key] : null;
             $owner->tables[$key] = new SchemaTable($name, $schema);
             $owner->tables[$key]->searchPath = $schema === null ? $connection->searchPath : null;
         } else {
             $key = $this->resolveTable($connection, $schema, $name);
             $owner->forgetDescendants($key);
+            $before = clone $owner->tables[$key];
         }
 
         $callback = $this->getArgument($call, $callbackPosition, 'callback');
@@ -1785,7 +1888,7 @@ class SchemaAggregator
         /** @var PhpParser\Node\Expr\ArrowFunction|PhpParser\Node\Expr\Closure $callback */
         $this->applyBody(
             $this->getUpdateStatements($callback),
-            ['table' => ['connection' => $connection, 'key' => $key, 'variable' => $variable]] + $scope,
+            ['table' => ['connection' => $connection, 'key' => $key, 'name' => $physicalName, 'before' => $before, 'variable' => $variable]] + $scope,
         );
     }
 
