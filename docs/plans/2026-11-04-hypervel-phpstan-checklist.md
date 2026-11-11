@@ -8,7 +8,7 @@ Destinations: package root `src/phpstan/`; upstream `src/` -> `src/phpstan/src/`
 
 ## Package root
 
-- omit: `phpcs.xml.dist`, `phpstan.neon.dist`, `phpstan-baseline.neon`, `phpunit.xml.dist`, `phpunit-bootstrap.php`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `RELEASE.md`, `UPGRADE.md`, `assets/` (repository tooling; Components owns its own)
+- omit: `phpcs.xml.dist`, `phpstan.neon.dist`, `phpstan-baseline.neon`, `phpunit.xml.dist`, `phpunit-bootstrap.php`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `RELEASE.md`, `UPGRADE.md`, `assets/` (repository tooling; the components repo owns its own)
 - omit: `docs/errors-to-ignore.md` (higher-order messages on support collections are typed, and NEON pattern ignores are not recommended)
 - omit: `e2e/` Laravel project baselines (replaced by the plan's real-project checks)
 

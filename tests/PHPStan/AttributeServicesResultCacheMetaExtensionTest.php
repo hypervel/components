@@ -31,6 +31,6 @@ class AttributeServicesResultCacheMetaExtensionTest extends ResultCacheTestCase
         $process = $this->analyse($applicationPath, $configuration);
 
         $this->assertSame(['Usage.php:14 return.type'], $this->diagnostics($process, 1));
-        $this->assertStringContainsString('Result cache restored. 0 files will be reanalysed.', $process->getErrorOutput());
+        $this->assertReanalysed(0, $process);
     }
 }

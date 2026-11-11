@@ -1,0 +1,243 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\PHPStan;
+
+use Symfony\Component\Process\Process;
+
+use function dirname;
+use function file_get_contents;
+use function file_put_contents;
+use function mkdir;
+use function unlink;
+
+/**
+ * Everything the booted application decides depends on the inputs it was built from, which no
+ * analysed file references: provider and helper code, configuration, the environment, routes,
+ * and the classes and views the boot selected.
+ */
+class RuntimeInputsDependencyTest extends ResultCacheTestCase
+{
+    /**
+     * The global type alias the alias fixture uses, and one file per job, so the main process and
+     * several workers each compute the values.
+     */
+    private const string PARAMETERS = "typeAliases:\n    RenderView: 'Closure(view-string): void'\nparallel:\n    jobSize: 1";
+
+    /**
+     * The diagnostics of the unedited boot inputs.
+     */
+    private const array BOOT_DIAGNOSTICS = [
+        'Usage.php:28 method.notFound',
+        'Usage.php:33 staticMethod.notFound',
+        'Usage.php:38 return.type',
+    ];
+
+    /**
+     * The diagnostics of missing views, which the boot input tests leave alone.
+     */
+    private const array VIEW_DIAGNOSTICS = [
+        'MailUsage.php:13 argument.type',
+        'ViewUsage.php:11 argument.type',
+        'ViewUsage.php:16 argument.type',
+        'alias.php:12 argument.type',
+    ];
+
+    protected string $fixture = 'RuntimeInputs';
+
+    public function testUnchangedRunsReanalyseNothing(): void
+    {
+        // Each run rewrites phpstan.neon, so PHPStan recompiles its container, which embeds the run's environment.
+        $applicationPath = $this->copyApplication();
+
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: self::PARAMETERS));
+
+        $firstWarm = $this->analyse($applicationPath, parameters: self::PARAMETERS);
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $firstWarm);
+
+        $secondWarm = $this->analyse($applicationPath, parameters: self::PARAMETERS);
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $secondWarm);
+        $this->assertReanalysed(0, $secondWarm);
+
+        // Asserted last: PHPStan's class values can differ between the run that first reflected a
+        // built-in ancestor's stub and later runs reading it from its cache.
+        $this->assertReanalysed(0, $firstWarm);
+    }
+
+    public function testBootInputEditsReanalyseTheirConsumers(): void
+    {
+        $applicationPath = $this->copyApplication();
+        $base = self::BOOT_DIAGNOSTICS;
+
+        $this->assertDiagnostics($base, $this->analyse($applicationPath, parameters: self::PARAMETERS));
+
+        // A macro registered by a provider.
+        $this->edit($applicationPath . '/app/Providers/FixtureServiceProvider.php', 'fn (): int => 1', "fn (): string => ''");
+        $this->assertDiagnostics([...$base, 'Usage.php:18 return.type'], $this->analyse($applicationPath, parameters: self::PARAMETERS));
+        $this->edit($applicationPath . '/app/Providers/FixtureServiceProvider.php', "fn (): string => ''", 'fn (): int => 1');
+        $this->assertDiagnostics($base, $this->analyse($applicationPath, parameters: self::PARAMETERS));
+
+        // A mixin class only the provider references.
+        $this->edit($applicationPath . '/app/StrMixin.php', 'static fn (): int => 1', "static fn (): string => ''");
+        $this->assertDiagnostics([...$base, 'Usage.php:23 return.type'], $this->analyse($applicationPath, parameters: self::PARAMETERS));
+
+        // The body of a registration helper the provider calls.
+        $this->edit($applicationPath . '/app/Registrar.php', "=== 'french'", "!== 'french'");
+        $this->assertDiagnostics(
+            ['Usage.php:23 return.type', 'Usage.php:33 staticMethod.notFound', 'Usage.php:38 return.type'],
+            $this->analyse($applicationPath, parameters: self::PARAMETERS),
+        );
+
+        // A facade root that lacked the method, which loads only when analysis resolves it.
+        $this->edit($applicationPath . '/app/FacadeRoot.php', "{\n}", "{\n    public function shout(): string\n    {\n        return '';\n    }\n}");
+        $this->assertDiagnostics(['Usage.php:23 return.type', 'Usage.php:38 return.type'], $this->analyse($applicationPath, parameters: self::PARAMETERS));
+
+        // The method of a driver the manager forwards to, typed from the manager's declaration.
+        $this->edit($applicationPath . '/app/Exports/CsvDriver.php', "export(): string\n    {\n        return '';", "export(): int\n    {\n        return 0;");
+        $this->assertDiagnostics(['Usage.php:23 return.type'], $this->analyse($applicationPath, parameters: self::PARAMETERS));
+
+        // The morph map, which a collection's loadMorph() reads.
+        $this->edit($applicationPath . '/app/Providers/FixtureServiceProvider.php', "'post' => Post::class", "'post' => \\RuntimeInputs\\Models\\Video::class");
+        $this->assertDiagnostics(['Usage.php:23 return.type', 'Usage.php:46 argument.type'], $this->analyse($applicationPath, parameters: self::PARAMETERS));
+
+        // A route file and a provider binding, which decide the worker's lifetimes.
+        $this->edit($applicationPath . '/routes/web.php', "'ok');", "'ok');\nRoute::get('/counter', [\\RuntimeInputs\\CounterController::class, 'index']);");
+        $this->assertDiagnostics(
+            ['CounterController.php:13 hypervel.workerSharedState', 'Usage.php:23 return.type', 'Usage.php:46 argument.type'],
+            $this->analyse($applicationPath, parameters: self::PARAMETERS),
+        );
+        $this->edit($applicationPath . '/app/Providers/FixtureServiceProvider.php', 'Registrar::register($this->app);', "Registrar::register(\$this->app);\n        \$this->app->scoped(\\RuntimeInputs\\CounterController::class);");
+        $this->assertDiagnostics(['Usage.php:23 return.type', 'Usage.php:46 argument.type'], $this->analyse($applicationPath, parameters: self::PARAMETERS));
+    }
+
+    public function testEnvironmentChangesReanalyseTheirConsumers(): void
+    {
+        $applicationPath = $this->copyApplication();
+        file_put_contents($applicationPath . '/.env', "FIXTURE_GREETER=\${DEPLOY_GREETER}\n");
+        $unset = ['FIXTURE_GREETER' => false, 'DEPLOY_GREETER' => false];
+
+        $this->assertContains('Usage.php:28 method.notFound', $this->diagnostics($this->analyse($applicationPath, parameters: self::PARAMETERS, environment: $unset), 1));
+
+        // A variable only the process sets, which the configuration reads.
+        $this->assertNotContains(
+            'Usage.php:28 method.notFound',
+            $this->diagnostics($this->analyse($applicationPath, parameters: self::PARAMETERS, environment: ['FIXTURE_GREETER' => 'french', 'DEPLOY_GREETER' => false]), 1),
+        );
+        $this->assertContains('Usage.php:28 method.notFound', $this->diagnostics($this->analyse($applicationPath, parameters: self::PARAMETERS, environment: $unset), 1));
+
+        // A variable the environment file interpolates.
+        $interpolated = ['FIXTURE_GREETER' => false, 'DEPLOY_GREETER' => 'french'];
+        $this->assertNotContains('Usage.php:28 method.notFound', $this->diagnostics($this->analyse($applicationPath, parameters: self::PARAMETERS, environment: $interpolated), 1));
+
+        $process = $this->analyse($applicationPath, parameters: self::PARAMETERS, environment: $interpolated);
+        $this->assertNotContains('Usage.php:28 method.notFound', $this->diagnostics($process, 1));
+        $this->assertReanalysed(0, $process);
+
+        // Reading every variable would make results depend on unrelated ones, such as a session's.
+        $this->assertStringNotContainsString("env-pattern\t*", (string) file_get_contents($applicationPath . '/cache/resultCache.php'));
+
+        // A computed name reads every variable, compared by digest only.
+        $this->edit($applicationPath . '/config/fixture.php', "env('FIXTURE_GREETER'", "env(strtoupper('fixture_greeter')");
+        $this->assertNotContains('Usage.php:28 method.notFound', $this->diagnostics($this->analyse($applicationPath, parameters: self::PARAMETERS, environment: $interpolated), 1));
+        $this->assertStringContainsString("env-pattern\t*", (string) file_get_contents($applicationPath . '/cache/resultCache.php'));
+
+        $process = $this->analyse($applicationPath, parameters: self::PARAMETERS, environment: $interpolated);
+        $this->assertNotContains('Usage.php:28 method.notFound', $this->diagnostics($process, 1));
+        $this->assertReanalysed(0, $process);
+
+        $unrelatedValue = 'runtime-inputs-unrelated-value';
+        $process = $this->analyse($applicationPath, parameters: self::PARAMETERS, environment: [...$interpolated, 'RUNTIME_INPUTS_UNRELATED' => $unrelatedValue]);
+        $this->assertNotContains('Usage.php:28 method.notFound', $this->diagnostics($process, 1));
+        $this->assertMatchesRegularExpression('/Result cache restored\. [1-9]\d* files? will be reanalysed\./', $process->getErrorOutput());
+        $this->assertStringNotContainsString($unrelatedValue, (string) file_get_contents($applicationPath . '/cache/resultCache.php'));
+
+        // The environment selects which application boots.
+        $process = $this->analyse($applicationPath, parameters: self::PARAMETERS, environment: [...$interpolated, 'APP_ENV' => 'staging']);
+        $this->assertStringContainsString('Result cache not used because the metadata do not match', $process->getErrorOutput());
+    }
+
+    public function testCachedConfigurationSkipsTheEnvironmentFileAndConfigFiles(): void
+    {
+        $applicationPath = $this->copyApplication();
+        $unset = ['FIXTURE_GREETER' => false];
+        $this->cacheConfiguration($applicationPath);
+
+        // The boot neither loads nor validates the environment file while configuration is cached.
+        file_put_contents($applicationPath . '/.env', "BROKEN=\"unterminated\n");
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: self::PARAMETERS, environment: $unset));
+
+        file_put_contents($applicationPath . '/.env', "FIXTURE_GREETER=french\n");
+        file_put_contents($applicationPath . '/config/unused.php', "<?php\n\nreturn [];\n");
+        $process = $this->analyse($applicationPath, parameters: self::PARAMETERS, environment: $unset);
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $process);
+        $this->assertReanalysed(0, $process);
+
+        // Clearing the cache loads them again.
+        unlink($applicationPath . '/bootstrap/cache/config.php');
+        $this->assertDiagnostics(
+            ['Usage.php:33 staticMethod.notFound', 'Usage.php:38 return.type'],
+            $this->analyse($applicationPath, parameters: self::PARAMETERS, environment: $unset),
+        );
+    }
+
+    public function testViewNameChangesReanalyseOnlyViewConsumers(): void
+    {
+        $applicationPath = $this->copyApplication();
+        $viewsPath = $applicationPath . '/resources/views';
+
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: self::PARAMETERS));
+
+        // A free function's parameter, a class member's, a namespaced view and a global alias's.
+        file_put_contents($viewsPath . '/fixture-page.blade.php', 'Page');
+        file_put_contents($viewsPath . '/mail-page.blade.php', 'Mail');
+        file_put_contents($viewsPath . '/alias-view.blade.php', 'Alias');
+        mkdir($applicationPath . '/resources/fixture-views');
+        file_put_contents($applicationPath . '/resources/fixture-views/panel.blade.php', 'Panel');
+
+        $process = $this->analyse($applicationPath, parameters: self::PARAMETERS);
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $process, []);
+        $this->assertReanalysed(4, $process);
+
+        unlink($viewsPath . '/fixture-page.blade.php');
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: self::PARAMETERS), ['ViewUsage.php:11 argument.type']);
+
+        file_put_contents($viewsPath . '/fixture-page.blade.php', 'Page');
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: self::PARAMETERS), []);
+
+        // Which views exist does not depend on their contents.
+        file_put_contents($viewsPath . '/welcome.blade.php', '<p>Welcome back</p>');
+        $process = $this->analyse($applicationPath, parameters: self::PARAMETERS);
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $process, []);
+        $this->assertReanalysed(0, $process);
+    }
+
+    /**
+     * Write the application's configuration cache as config:cache does.
+     */
+    private function cacheConfiguration(string $applicationPath): void
+    {
+        $process = new Process([PHP_BINARY, '-r', <<<'PHP'
+            require $argv[1] . '/vendor/autoload.php';
+            require $argv[2] . '/bootstrap/autoload.php';
+            $app = require $argv[2] . '/bootstrap/app.php';
+            $app->make(Hypervel\Contracts\Console\Kernel::class)->bootstrap();
+            file_put_contents($app->getCachedConfigPath(), '<?php return ' . var_export($app->make('config')->all(), true) . ';' . PHP_EOL);
+            PHP, dirname(__DIR__, 2), $applicationPath], $applicationPath, ['FIXTURE_GREETER' => false]);
+        $process->mustRun();
+    }
+
+    /**
+     * Assert the run's diagnostics: the given ones plus the missing-view ones.
+     *
+     * @param list<string> $expected
+     * @param null|list<string> $views the missing-view diagnostics, all of them when null
+     */
+    private function assertDiagnostics(array $expected, Process $process, ?array $views = null): void
+    {
+        $expected = [...$expected, ...($views ?? self::VIEW_DIAGNOSTICS)];
+        sort($expected);
+
+        $this->assertSame($expected, $this->diagnostics($process, $expected === [] ? 0 : 1));
+    }
+}
