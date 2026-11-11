@@ -7,6 +7,8 @@ namespace RuntimeInputs\Providers;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Str;
+use RuntimeInputs\Exports\BoundReportManager;
+use RuntimeInputs\Exports\ReportManager;
 use RuntimeInputs\FacadeRoot;
 use RuntimeInputs\Models\Post;
 use RuntimeInputs\Registrar;
@@ -23,6 +25,7 @@ class FixtureServiceProvider extends ServiceProvider
 
         // Bound lazily, so the root class loads during analysis, after the boot.
         $this->app->bind('fixture.root', static fn (): FacadeRoot => new FacadeRoot);
+        $this->app->singleton(ReportManager::class, BoundReportManager::class);
     }
 
     /**

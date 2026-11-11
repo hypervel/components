@@ -8,6 +8,7 @@ use Hypervel\Auth\GenericUser;
 use Hypervel\Auth\RequestGuard;
 use Hypervel\Auth\SessionGuard;
 use Hypervel\Contracts\Auth\Authenticatable;
+use App\CustomAuth;
 use Hypervel\Support\Facades\Auth;
 
 use function PHPStan\Testing\assertType;
@@ -69,4 +70,8 @@ function test(string $name, ?string $maybeName, array $names, array $someNames):
     assertType('int', auth()->guardMacro());
     assertType('*ERROR*', Auth::sessionGuardMacro());
     assertType('*ERROR*', auth()->sessionGuardMacro());
+
+    // A custom facade over the auth binding forwards to the current guard too.
+    assertType('int', CustomAuth::guardMacro());
+    assertType('*ERROR*', CustomAuth::sessionGuardMacro());
 }

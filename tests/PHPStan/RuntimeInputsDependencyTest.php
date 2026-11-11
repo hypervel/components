@@ -101,6 +101,15 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
         $this->edit($applicationPath . '/app/Exports/ExportManager.php', "return 'json';", "return 'csv';");
         $this->assertDiagnostics(['Usage.php:23 return.type', 'Usage.php:38 return.type'], $this->analyse($applicationPath, parameters: self::PARAMETERS));
 
+        // An interface the bound manager subclass's driver creator takes its return type from.
+        $this->edit($applicationPath . '/app/Exports/CreatesReportDrivers.php', '@return JsonDriver', '@return CsvDriver');
+        $this->assertDiagnostics(
+            ['BoundReportManager.php:14 return.type', 'ReportUsage.php:13 return.type', 'Usage.php:23 return.type', 'Usage.php:38 return.type'],
+            $this->analyse($applicationPath, parameters: self::PARAMETERS),
+        );
+        $this->edit($applicationPath . '/app/Exports/CreatesReportDrivers.php', '@return CsvDriver', '@return JsonDriver');
+        $this->assertDiagnostics(['Usage.php:23 return.type', 'Usage.php:38 return.type'], $this->analyse($applicationPath, parameters: self::PARAMETERS));
+
         // The method of a driver the manager forwards to, typed from the manager's declaration.
         $this->edit($applicationPath . '/app/Exports/CsvDriver.php', "export(): string\n    {\n        return '';", "export(): int\n    {\n        return 0;");
         $this->assertDiagnostics(['Usage.php:23 return.type'], $this->analyse($applicationPath, parameters: self::PARAMETERS));

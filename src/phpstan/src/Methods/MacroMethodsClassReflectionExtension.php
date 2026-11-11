@@ -12,7 +12,6 @@ use Hypervel\PHPStan\Reflection\ProxiedMethodReflection;
 use Hypervel\PHPStan\Reflection\StaticMethodReflection;
 use Hypervel\PHPStan\ReturnTypes\AuthGuardHelper;
 use Hypervel\PHPStan\Support\RuntimeInputs;
-use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Traits\Macroable;
 use PHPStan\Analyser\OutOfClassScope;
@@ -226,8 +225,8 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
      */
     private function forwardsToGuard(ClassReflection $classReflection): bool
     {
-        // The Auth facade forwards to its booted root, which getMacroSources() resolves.
-        if ($classReflection->getName() === Auth::class) {
+        // A facade, such as Auth or a custom one over the auth binding, forwards to its booted root, which getMacroSources() resolves.
+        if ($classReflection->is(Facade::class)) {
             [$classNames] = $this->getMacroSources($classReflection);
 
             if ($classNames === []) {
@@ -344,12 +343,10 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
         ) {
             $this->runtimeInputs->track($classReflection);
 
+            // REMOVED: upstream's extra base Builder registry for subclasses. The subclass's reflected $macros
+            // already is the inherited registry, unless the subclass redeclares it to keep its own.
             $classNames = [$classReflection->getName()];
             $macroTraitProperty = 'macros';
-
-            if ($classReflection->is(Builder::class)) {
-                $classNames[] = Builder::class;
-            }
         } elseif ($classReflection->is(Facade::class)) {
             // REMOVED: upstream's fixed hosts for the Auth and Cache facades. findGuardMacro() handles Auth. The
             // Cache facade's root, CacheManager, is not Macroable, and the facade's mixins already reach the

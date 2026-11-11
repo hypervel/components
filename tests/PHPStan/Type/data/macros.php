@@ -215,3 +215,20 @@ class ModelWithMacroNamedScope extends Model
     {
     }
 }
+
+/**
+ * A builder that redeclares the registry keeps its own macros, without the base builder's.
+ *
+ * @template TModel of Model
+ *
+ * @extends Builder<TModel>
+ */
+class IsolatedMacroBuilder extends Builder
+{
+    protected static array $macros = [];
+}
+
+function isolatedMacroRegistry(): void
+{
+    assertType('*ERROR*', IsolatedMacroBuilder::globalCustomMacro());
+}
