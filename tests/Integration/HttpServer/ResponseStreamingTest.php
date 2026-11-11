@@ -106,7 +106,7 @@ class ResponseStreamingTest extends HttpServerIntegrationTestCase
 
     public function testHttpTwoPingWhileALargeResponseWaitsForTheClientDoesNotKillTheWorker(): void
     {
-        // @TODO: Remove this skip once Swoole's HTTP/2 server no longer kills the worker when a PING arrives while a response waits for the client.
+        // @TODO: Remove this skip once https://github.com/swoole/swoole-src/pull/6398 is released.
         if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped("Swoole's HTTP/2 server kills the worker when a PING arrives while a response waits for the client.");
         }
