@@ -179,6 +179,8 @@ return ['enabled' => (bool) env('FEATURE_ENABLED', false)];
 $enabled = config('feature.enabled');
 ```
 
+Configuration types assume you are reading your application's configuration repository. If you build a separate repository, such as `new Repository($items)`, add a PHPDoc type to the values you read from it, or ignore a reported call with a reason when needed.
+
 PHPStan boots your application to discover its services, authentication guards, commands, views and translations. Run analysis with the same environment locally and in CI, since settings such as `DB_CONNECTION` and `AUTH_MODEL` affect the inferred types. Package analysis uses your Testbench application's registrations.
 
 A service resolved using `app(Repository::class)` has the type of its container binding. Helpers such as `response()` and `url()` also return their bound implementations, so those classes' methods and registered macros are available. A value typed as an interface exposes only that interface's methods, even when the bound class has additional methods or macros. Use the concrete type when your code requires them.
@@ -872,7 +874,7 @@ Pass request values to the methods that use them, or keep them in [CoroutineCont
 - A static property written while handling a request or running a job, or one that keeps any of the values above. (`hypervel.staticStateMutation`)
 - An array on a static property or shared service whose keys come from the request or user, such as `$this->visits[$request->ip()]`, since it can grow for as long as the worker runs. Use a cache store with an expiry instead. Keys limited to a small set of values, such as booleans or constants, are not reported, and neither is an array the same method has just reset. When the array is bounded in a way the analysis cannot see, ignore the diagnostic with a reason. (`hypervel.unboundedWorkerCache`)
 
-Request and job checks cover middleware, controller actions, route closures, form requests, and queued classes' `handle`, `__invoke` and `failed` methods. Nested closures are not checked because they may run later.
+Request and job checks cover middleware, controller actions, route closures, form requests, and queued classes' `handle`, `__invoke` and `failed` methods, along with the methods they call directly on `$this`. Nested closures are not checked because they may run later.
 
 Shared services are identified from your application's container registrations, resolved classes, handlers and constructor dependencies, following the container's [resolution lifecycles](/docs/{{version}}/container#resolution-lifecycles). A constructor-injected model used as a fresh prototype is allowed. Objects created inside binding closures are not inspected, and job `handle` dependencies are followed only for jobs using `Dispatchable`.
 
@@ -1134,7 +1136,7 @@ The analysis recognizes the batch's `cancelled` method, the job's `batching` met
 <a name="unique-jobs"></a>
 ### Unique Jobs
 
-A unique job's lock is identified by its class and its `uniqueId`. A job whose constructor accepts arguments, such as a job that updates one product, usually needs a separate lock for each set of arguments, so the analysis reports such a job when it declares no `uniqueId` method or property:
+A unique job's lock is identified by its class and its `uniqueId`. A job whose constructor accepts arguments, such as a job that updates one product, usually needs a separate lock for each set of arguments, so the analysis reports such a job unless it declares a public `uniqueId` method or property:
 
 ```php
 /**
@@ -1148,7 +1150,7 @@ public function uniqueId(): string
 
 When the job should be unique regardless of its arguments, return a constant from `uniqueId` to make that clear. You may disable this check using the `checkUniqueJobUniqueId` parameter.
 
-When the `checkUniqueJobUniqueFor` parameter is enabled, the analysis also reports unique jobs that do not declare how long they stay unique, using the `UniqueFor` attribute, a `uniqueFor` method or a `$uniqueFor` property. Without one, the lock is acquired without a duration, whose meaning depends on your cache store, so a worker that stops while running the job may leave the lock held.
+When the `checkUniqueJobUniqueFor` parameter is enabled, the analysis also reports unique jobs that do not declare how long they stay unique, using the `UniqueFor` attribute, a public `uniqueFor` method or a public `$uniqueFor` property. Without one, the lock is acquired without a duration, whose meaning depends on your cache store, so a worker that stops while running the job may leave the lock held.
 
 <a name="queue-configuration"></a>
 ### Queue Configuration
