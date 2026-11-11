@@ -346,7 +346,7 @@ trait ValidatesAttributes
     protected function getDateTime(DateTimeInterface|float|int|string $value): ?DateTimeInterface
     {
         try {
-            return @Date::parse($value) ?: null; // @phpstan-ignore ternary.alwaysTrue (Date::parse() PHPDoc claims non-null but can fail at runtime)
+            return @Date::parse($value) ?: null;
         } catch (Exception) {
         }
 
@@ -1124,7 +1124,7 @@ trait ValidatesAttributes
         $verifier = $this->getPresenceVerifier($connection);
 
         $extra = $this->getExtraConditions(
-            array_values(array_slice($parameters, 2)) // @phpstan-ignore arrayValues.list (mirrors Laravel; only the PHPDoc type says the sliced parameters are already a list)
+            array_values(array_slice($parameters, 2))
         );
 
         if ($this->currentRule instanceof Exists) {
@@ -2641,7 +2641,7 @@ trait ValidatesAttributes
     {
         $version = null;
 
-        if ($parameters !== null && count($parameters) === 1) { // @phpstan-ignore notIdentical.alwaysTrue (the parameters are natively mixed; their PHPDoc type is not a runtime guarantee)
+        if ($parameters !== null && count($parameters) === 1) {
             $version = $parameters[0];
 
             if ($version !== 'max') {

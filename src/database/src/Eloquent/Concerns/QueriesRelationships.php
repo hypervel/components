@@ -55,7 +55,6 @@ trait QueriesRelationships
         }
 
         if ($relation instanceof MorphTo) {
-            // @phpstan-ignore argument.type (callback template types don't narrow through forwarding)
             return $this->hasMorph($relation, ['*'], $operator, $count, $boolean, $callback);
         }
 
@@ -612,7 +611,6 @@ trait QueriesRelationships
         $foreignKey = $relation->getQualifiedForeignKeyName();
 
         if (is_null($model)) {
-            // @phpstan-ignore return.type (mixin returns $this at runtime)
             return $this->whereNull($morphType, $boolean);
         }
 
@@ -662,7 +660,6 @@ trait QueriesRelationships
         $foreignKey = $relation->getQualifiedForeignKeyName();
 
         if (is_null($model)) {
-            // @phpstan-ignore return.type (mixin returns $this at runtime)
             return $this->whereNotNull($morphType, $boolean);
         }
 
@@ -941,7 +938,7 @@ trait QueriesRelationships
                 $this->selectRaw(
                     sprintf('%s as %s', $this->getQuery()->grammar->compileExistsColumn($query->toSql()), $this->getQuery()->grammar->wrapIdentifier($alias)),
                     $query->getBindings()
-                )->withCasts([$alias => 'bool']); // @phpstan-ignore method.notFound (selectRaw returns Eloquent\Builder $this, not Query\Builder)
+                )->withCasts([$alias => 'bool']);
             } else {
                 $this->selectSub(
                     $function ? $query : $query->limit(1),
@@ -1056,7 +1053,6 @@ trait QueriesRelationships
      */
     public function mergeConstraintsFrom(Builder $from): static
     {
-        // @phpstan-ignore nullCoalesce.offset (defensive fallback)
         $whereBindings = $from->getQuery()->getRawBindings()['where'] ?? [];
 
         $wheres = $from->getQuery()->from !== $this->getQuery()->from
@@ -1069,7 +1065,6 @@ trait QueriesRelationships
         // Here we have some other query that we want to merge the where constraints from. We will
         // copy over any where constraints on the query as well as remove any global scopes the
         // query might have removed. Then we will return ourselves with the finished merging.
-        // @phpstan-ignore return.type (mixin method returns $this at runtime)
         return $this->withoutGlobalScopes(
             $from->removedScopes()
         )->mergeWheres(

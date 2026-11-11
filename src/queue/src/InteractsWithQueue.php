@@ -160,14 +160,14 @@ trait InteractsWithQueue
 
         PHPUnit::assertEquals(
             $exception->getCode(),
-            $this->job->failedWith->getCode(), // @phpstan-ignore property.notFound (FakeJob test-double property)
-            'Expected exception code [' . $exception->getCode() . '] but job failed with exception code [' . $this->job->failedWith->getCode() . '].' // @phpstan-ignore property.notFound (FakeJob test-double property)
+            $this->job->failedWith->getCode(),
+            'Expected exception code [' . $exception->getCode() . '] but job failed with exception code [' . $this->job->failedWith->getCode() . '].'
         );
 
         PHPUnit::assertEquals(
             $exception->getMessage(),
-            $this->job->failedWith->getMessage(), // @phpstan-ignore property.notFound (FakeJob test-double property)
-            'Expected exception message [' . $exception->getMessage() . '] but job failed with exception message [' . $this->job->failedWith->getMessage() . '].' // @phpstan-ignore property.notFound (FakeJob test-double property)
+            $this->job->failedWith->getMessage(),
+            'Expected exception message [' . $exception->getMessage() . '] but job failed with exception message [' . $this->job->failedWith->getMessage() . '].'
         );
 
         return $this;

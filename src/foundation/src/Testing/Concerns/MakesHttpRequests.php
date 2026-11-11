@@ -718,7 +718,7 @@ trait MakesHttpRequests
             return [];
         }
 
-        return $auth->getAuthContextKeys(); /* @phpstan-ignore method.notFound (optional guard capability, checked with method_exists() above) */
+        return $auth->getAuthContextKeys();
     }
 
     /**

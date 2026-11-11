@@ -399,7 +399,7 @@ trait CreatesApplication
     protected function resolveApplicationEnvironmentVariables(ApplicationContract $app): void
     {
         if (property_exists($this, 'loadEnvironmentVariables') && $this->loadEnvironmentVariables !== true) { /* @phpstan-ignore function.alreadyNarrowedType (not every class using this trait declares the property) */
-            if ($this instanceof PHPUnitTestCase && method_exists($this, 'beforeApplicationDestroyed')) { /* @phpstan-ignore function.alreadyNarrowedType (not every class using this trait has the method) */
+            if ($this instanceof PHPUnitTestCase && method_exists($this, 'beforeApplicationDestroyed')) {
                 $this->beforeApplicationDestroyed($this->maskInheritedApplicationEnvironment());
             }
         }
@@ -421,7 +421,7 @@ trait CreatesApplication
             },
         );
 
-        if ($this instanceof PHPUnitTestCase && method_exists($this, 'beforeApplicationDestroyed')) { /* @phpstan-ignore function.alreadyNarrowedType (not every class using this trait has the method) */
+        if ($this instanceof PHPUnitTestCase && method_exists($this, 'beforeApplicationDestroyed')) {
             $this->beforeApplicationDestroyed(static function () use ($attributeCallbacks) {
                 $attributeCallbacks->reverse()->handle();
             });

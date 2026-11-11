@@ -1465,7 +1465,6 @@ trait HasAttributes
             return Hash::make($value);
         }
 
-        /* @phpstan-ignore staticMethod.notFound (HashManager's internal method, which the facade's tags omit) */
         if (! Hash::verifyConfiguration($value)) {
             throw new RuntimeException("Could not verify the hashed value's configuration.");
         }
@@ -1564,7 +1563,6 @@ trait HasAttributes
         // that is returned back out to the developers after we convert it here.
         try {
             $date = Date::createFromFormat($format, $value);
-            // @phpstan-ignore catch.neverThrown (the Date facade's magic dispatch hides Carbon's @throws from analysis)
         } catch (InvalidFormatException) {
             $date = null;
         }
@@ -2700,6 +2698,6 @@ trait HasAttributes
             }
 
             return false;
-        })->map->name->values()->all(); // @phpstan-ignore method.nonObject (HigherOrderProxy: ->map->name returns Collection, not string)
+        })->map->name->values()->all();
     }
 }

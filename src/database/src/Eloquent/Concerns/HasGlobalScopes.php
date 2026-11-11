@@ -38,14 +38,12 @@ trait HasGlobalScopes
             $attributes->push(...$trait->getAttributes(ScopedBy::class, ReflectionAttribute::IS_INSTANCEOF));
         }
 
-        // @phpstan-ignore function.alreadyNarrowedType (defensive: trait may be used outside Model context)
         $isEloquentGrandchild = is_subclass_of(static::class, Model::class)
             && get_parent_class(static::class) !== Model::class;
 
-        // @phpstan-ignore return.type (flatten() produces class-strings from getArguments(), PHPStan can't trace)
         return $attributes->map(fn ($attribute) => $attribute->getArguments())
             ->flatten()
-            ->when($isEloquentGrandchild, function (Collection $attributes) { // @phpstan-ignore argument.type (when() callback type inference)
+            ->when($isEloquentGrandchild, function (Collection $attributes) {
                 // @phpstan-ignore staticMethod.nonObject ($isEloquentGrandchild guarantees parent exists and is Model subclass)
                 return (new Collection(get_parent_class(static::class)::resolveGlobalScopeAttributes()))
                     ->merge($attributes);

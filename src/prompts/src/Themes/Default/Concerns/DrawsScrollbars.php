@@ -33,7 +33,7 @@ trait DrawsScrollbars
             default => $this->replaceLastVisibleGrapheme($this->pad($line, $width), $this->gray('│')),
         }, array_values($lines), range(0, count($lines) - 1));
 
-        return $visible instanceof Collection ? new Collection($result) : $result; // @phpstan-ignore return.type (https://github.com/phpstan/phpstan/issues/11663)
+        return $visible instanceof Collection ? new Collection($result) : $result;
     }
 
     /**

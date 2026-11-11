@@ -27,7 +27,6 @@ trait InteractsWithAuthentication
     {
         $auth = $this->app->make('auth');
 
-        // @phpstan-ignore method.notFound (Requires a guard with forgetUser(), such as one using GuardHelpers.)
         $auth->guard($guard)->forgetUser();
 
         $auth->shouldUse($guard);
@@ -148,7 +147,6 @@ trait InteractsWithAuthentication
      */
     protected function hasCredentials(array $credentials, ?string $guard = null): bool
     {
-        // @phpstan-ignore method.notFound (Requires a guard with a user provider, such as one using GuardHelpers.)
         $provider = $this->app->make('auth')->guard($guard)->getProvider();
 
         $user = $provider->retrieveByCredentials($credentials);
