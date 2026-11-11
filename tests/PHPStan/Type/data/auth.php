@@ -9,6 +9,7 @@ use Hypervel\Auth\SessionGuard;
 use Hypervel\Auth\TokenGuard;
 use Hypervel\Contracts\Auth\Factory;
 use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Support\Facades\Auth;
 use UnitEnum;
 
@@ -42,6 +43,14 @@ class UserAuthManager extends AuthManager
     }
 }
 
+class ApiAuthManager extends AuthManager
+{
+    public function guard(UnitEnum|string|null $name = null): Guard|StatefulGuard
+    {
+        return parent::guard('api');
+    }
+}
+
 class UserAuth extends Auth
 {
     public static function user(): ?User
@@ -59,6 +68,7 @@ function test(
     SessionGuardFactory $sessionGuardFactory,
     AdminGuard $adminGuard,
     UserAuthManager $userAuthManager,
+    ApiAuthManager $apiAuthManager,
 ): void {
     assertType('App\Admin|App\User|null', Auth::user());
     assertType('bool', Auth::check());
@@ -104,4 +114,9 @@ function test(
     assertType('App\Admin|null', $adminGuard->user());
     assertType('App\User|null', $userAuthManager->user());
     assertType('App\User|null', UserAuth::user());
+
+    // A manager the container does not bind selects guards and users in its own way.
+    assertType(Guard::class, $apiAuthManager->guard('web'));
+    assertType('Hypervel\Contracts\Auth\Authenticatable|null', $apiAuthManager->guard('web')->user());
+    assertType('Hypervel\Contracts\Auth\Authenticatable|null', $apiAuthManager->user());
 }

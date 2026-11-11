@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace AuthGuards;
 
+use Hypervel\Auth\AuthManager;
 use Hypervel\Auth\GenericUser;
 use Hypervel\Auth\RequestGuard;
 use Hypervel\Auth\SessionGuard;
 use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Auth\StatefulGuard;
 use App\CustomAuth;
 use Hypervel\Support\Facades\Auth;
+use UnitEnum;
 
 use function PHPStan\Testing\assertType;
 
@@ -18,11 +22,19 @@ enum NumberedGuard: int
     case Zero = 0;
 }
 
+class ApiAuthManager extends AuthManager
+{
+    public function guard(UnitEnum|string|null $name = null): Guard|StatefulGuard
+    {
+        return parent::guard('api');
+    }
+}
+
 /**
  * @param list<string> $names
  * @param non-empty-list<string> $someNames
  */
-function test(string $name, ?string $maybeName, array $names, array $someNames): void
+function test(string $name, ?string $maybeName, array $names, array $someNames, ApiAuthManager $apiAuthManager): void
 {
     // shouldUse() changes the default guard per coroutine, so it may be any configured guard.
     assertType('Hypervel\Auth\RequestGuard|Hypervel\Auth\SessionGuard', Auth::guard());
@@ -68,6 +80,8 @@ function test(string $name, ?string $maybeName, array $names, array $someNames):
     // A guard macro is only callable through AuthManager when every configured guard registers it.
     assertType('int', Auth::guardMacro());
     assertType('int', auth()->guardMacro());
+    // A manager the container does not bind forwards to guards of its own.
+    assertType('*ERROR*', $apiAuthManager->guardMacro());
     assertType('*ERROR*', Auth::sessionGuardMacro());
     assertType('*ERROR*', auth()->sessionGuardMacro());
 

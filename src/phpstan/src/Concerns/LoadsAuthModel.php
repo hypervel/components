@@ -15,7 +15,7 @@ use function is_string;
 
 /**
  * Infers user types from the configured guard providers, assuming a guard returns its
- * provider's users. Requires the HasContainer concern.
+ * provider's users.
  *
  * Upstream's AuthsMethodsExtension, which gives the auth user contracts their models'
  * methods, is omitted so contracts stay honest; user() return types carry the model.
@@ -32,13 +32,12 @@ trait LoadsAuthModel
      * @param ?list<string> $guardNames
      * @return list<class-string>
      */
-    private function getAuthModels(ConfigRepository $config, ?array $guardNames = null): array
+    private function getAuthModels(AuthManager $manager, ConfigRepository $config, ?array $guardNames = null): array
     {
         $guards = $config->get('auth.guards');
         $providers = $config->get('auth.providers');
-        $manager = $this->resolve('auth');
 
-        if (! is_array($guards) || ! is_array($providers) || ! $manager instanceof AuthManager) {
+        if (! is_array($guards) || ! is_array($providers)) {
             return [];
         }
 

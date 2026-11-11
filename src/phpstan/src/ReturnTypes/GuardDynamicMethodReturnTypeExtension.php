@@ -59,6 +59,7 @@ class GuardDynamicMethodReturnTypeExtension implements DynamicMethodReturnTypeEx
             $methodCall->getArgs()[0] ?? null,
             $scope,
             ParametersAcceptorSelector::selectFromArgs($scope, $methodCall->getArgs(), $methodReflection->getVariants())->getReturnType(),
+            receiverClasses: $scope->getType($methodCall->var)->getObjectClassNames(),
         );
     }
 }

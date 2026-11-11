@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\PHPStan\ReturnTypes;
 
 use Hypervel\Contracts\Auth\Guard;
-use Hypervel\PHPStan\Concerns;
-use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Support\Facades\Auth;
 use PhpParser\Node\Expr\StaticCall;
 use PHPStan\Analyser\DependencyTracker;
@@ -25,14 +23,11 @@ use function count;
 #[AutowiredService]
 class AuthExtension implements DynamicStaticMethodReturnTypeExtension
 {
-    use Concerns\HasContainer;
-    use Concerns\LoadsAuthModel;
-
     /**
      * Create a new extension instance.
      */
     public function __construct(
-        private RuntimeInputs $runtimeInputs,
+        private AuthGuardHelper $authGuardHelper,
     ) {
     }
 
@@ -64,9 +59,7 @@ class AuthExtension implements DynamicStaticMethodReturnTypeExtension
         StaticCall $methodCall,
         Scope $scope,
     ): ?Type {
-        $this->runtimeInputs->track($scope);
-
-        $authModels = $this->getAuthModels($this->getContainer()->get('config'));
+        $authModels = $this->authGuardHelper->getUserModels($scope);
 
         if (count($authModels) === 0) {
             return null;

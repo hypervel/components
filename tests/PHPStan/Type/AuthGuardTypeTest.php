@@ -9,9 +9,7 @@ use Hypervel\Auth\AuthManager;
 use Hypervel\Auth\RequestGuard;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
-use Hypervel\PHPStan\ReturnTypes\AuthExtension;
 use Hypervel\PHPStan\ReturnTypes\AuthGuardHelper;
-use Hypervel\PHPStan\ReturnTypes\GuardExtension;
 use LogicException;
 use PHPStan\Testing\TypeInferenceTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -63,11 +61,9 @@ class AuthGuardTypeTest extends TypeInferenceTestCase
         $manager->provider('remote', static fn () => throw new LogicException('Analysis never creates providers.'));
         $app->instance('auth', $manager);
 
-        // This test's own config file gives it its own instances of these services, so the
-        // swapped container and their cached guard types never reach other tests.
-        foreach ([AuthGuardHelper::class, GuardExtension::class, AuthExtension::class] as $service) {
-            self::getContainer()->getByType($service)->setContainer($app);
-        }
+        // This test's own config file gives it its own instance of the helper, so the swapped
+        // container and its cached guard types never reach other tests.
+        self::getContainer()->getByType(AuthGuardHelper::class)->setContainer($app);
 
         yield from self::gatherAssertTypes(__DIR__ . '/data/auth-guards.php');
 

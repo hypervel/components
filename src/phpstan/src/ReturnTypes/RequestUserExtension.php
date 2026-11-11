@@ -5,9 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\PHPStan\ReturnTypes;
 
 use Hypervel\Http\Request;
-use Hypervel\PHPStan\Concerns\HasContainer;
-use Hypervel\PHPStan\Concerns\LoadsAuthModel;
-use Hypervel\PHPStan\Support\RuntimeInputs;
 use PhpParser\Node\Expr\MethodCall;
 use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
@@ -25,15 +22,11 @@ use function count;
 #[AutowiredService]
 class RequestUserExtension implements DynamicMethodReturnTypeExtension
 {
-    use HasContainer;
-    use LoadsAuthModel;
-
     /**
      * Create a new extension instance.
      */
     public function __construct(
         private AuthGuardHelper $authGuardHelper,
-        private RuntimeInputs $runtimeInputs,
     ) {
     }
 
@@ -67,12 +60,10 @@ class RequestUserExtension implements DynamicMethodReturnTypeExtension
             return null;
         }
 
-        $this->runtimeInputs->track($scope);
-
         // Upstream reads one constant guard name, so user('') looked up an empty name
         // instead of the default guard that the request's user resolver uses.
-        $authModels = $this->getAuthModels(
-            $this->getContainer()->get('config'),
+        $authModels = $this->authGuardHelper->getUserModels(
+            $scope,
             $this->authGuardHelper->getGuardNames($methodCall->getArgs()[0] ?? null, $scope, acceptsEnums: false),
         );
 

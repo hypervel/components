@@ -7,8 +7,6 @@ namespace Hypervel\PHPStan\ReturnTypes;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Factory;
 use Hypervel\Contracts\Auth\Guard;
-use Hypervel\PHPStan\Concerns;
-use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Support\Facades\Auth;
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\CallLike;
@@ -35,16 +33,12 @@ use function strtolower;
 #[AutowiredService]
 class GuardExtension implements DynamicMethodReturnTypeExtension
 {
-    use Concerns\HasContainer;
-    use Concerns\LoadsAuthModel;
-
     /**
      * Create a new extension instance.
      */
     public function __construct(
         private AuthGuardHelper $authGuardHelper,
         private ReflectionProvider $reflectionProvider,
-        private RuntimeInputs $runtimeInputs,
     ) {
     }
 
@@ -81,12 +75,8 @@ class GuardExtension implements DynamicMethodReturnTypeExtension
             return null;
         }
 
-        $this->runtimeInputs->track($scope);
-
-        $authModels = $this->getAuthModels(
-            $this->getContainer()->get('config'),
-            $this->getGuardNamesFromMethodCall($scope, $methodCall),
-        );
+        [$guardNames, $receiverClasses] = $this->getGuardSelection($scope, $methodCall);
+        $authModels = $this->authGuardHelper->getUserModels($scope, $guardNames, $receiverClasses);
 
         if (count($authModels) === 0) {
             return null;
@@ -101,15 +91,15 @@ class GuardExtension implements DynamicMethodReturnTypeExtension
     }
 
     /**
-     * Get the names of the guards the call that returned the guard can select.
+     * Get the names of the guards the call that returned the guard can select, and the classes receiving that call.
      *
-     * Returns null for a guard that did not come from the auth factory, the Auth
+     * The names are null for a guard that did not come from the auth factory, the Auth
      * facade or the auth() helper, which may be any configured guard.
      *
      * @param DependencyTracker&Scope $scope
-     * @return ?list<string>
+     * @return array{?list<string>, list<string>}
      */
-    private function getGuardNamesFromMethodCall(Scope $scope, MethodCall $methodCall): ?array
+    private function getGuardSelection(Scope $scope, MethodCall $methodCall): array
     {
         $call = $methodCall->var;
 
@@ -119,7 +109,10 @@ class GuardExtension implements DynamicMethodReturnTypeExtension
             && $call->name->toLowerString() === 'guard'
             && (new ObjectType(Factory::class))->isSuperTypeOf($scope->getType($call->var))->yes()
         ) {
-            return $this->authGuardHelper->getGuardNames($this->getArgument($call, 'name'), $scope, acceptsEnums: true);
+            return [
+                $this->authGuardHelper->getGuardNames($this->getArgument($call, 'name'), $scope, acceptsEnums: true),
+                $scope->getType($call->var)->getObjectClassNames(),
+            ];
         }
 
         if ($call instanceof StaticCall
@@ -128,17 +121,17 @@ class GuardExtension implements DynamicMethodReturnTypeExtension
             && $call->name->toLowerString() === 'guard'
             && (new ObjectType(Auth::class))->isSuperTypeOf(new ObjectType($scope->resolveName($call->class)))->yes()
         ) {
-            return $this->authGuardHelper->getGuardNames($this->getArgument($call, 'name'), $scope, acceptsEnums: true);
+            return [$this->authGuardHelper->getGuardNames($this->getArgument($call, 'name'), $scope, acceptsEnums: true), []];
         }
 
         if ($call instanceof FuncCall
             && $call->name instanceof Name
             && strtolower((string) $this->reflectionProvider->resolveFunctionName($call->name, $scope)) === 'auth'
         ) {
-            return $this->authGuardHelper->getGuardNames($this->getArgument($call, 'guard'), $scope, acceptsEnums: false);
+            return [$this->authGuardHelper->getGuardNames($this->getArgument($call, 'guard'), $scope, acceptsEnums: false), []];
         }
 
-        return null;
+        return [null, []];
     }
 
     /**

@@ -113,8 +113,9 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
             return $this->methods[$cacheKey] === false ? null : $this->methods[$cacheKey];
         }
 
-        $methodReflection = $this->forwardsToGuard($classReflection)
-            ? $this->findGuardMacro($classReflection, $methodName)
+        $manager = $this->getGuardForwarder($classReflection);
+        $methodReflection = $manager !== null
+            ? $this->findGuardMacro($classReflection, $manager, $methodName)
             : $this->findHostMacro($classReflection, $methodName);
 
         $this->methods[$cacheKey] = $methodReflection ?? false;
@@ -221,16 +222,16 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
     }
 
     /**
-     * Determine whether the class's calls reach AuthManager's own __call(), which forwards them to the current guard.
+     * Get the auth manager receiving the class's calls, when AuthManager's own __call() forwards them to the current guard.
      */
-    private function forwardsToGuard(ClassReflection $classReflection): bool
+    private function getGuardForwarder(ClassReflection $classReflection): ?ClassReflection
     {
         // A facade, such as Auth or a custom one over the auth binding, forwards to its booted root, which getMacroSources() resolves.
         if ($classReflection->is(Facade::class)) {
             [$classNames] = $this->getMacroSources($classReflection);
 
             if ($classNames === []) {
-                return false;
+                return null;
             }
 
             $classReflection = $this->reflectionProvider->getClass($classNames[0]);
@@ -238,7 +239,9 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
 
         // A subclass's Macroable or custom __call() keeps its own API.
         return $classReflection->is(AuthManager::class)
-            && $classReflection->getNativeMethod('__call')->getDeclaringClass()->getName() === AuthManager::class;
+            && $classReflection->getNativeMethod('__call')->getDeclaringClass()->getName() === AuthManager::class
+            ? $classReflection
+            : null;
     }
 
     /**
@@ -249,9 +252,9 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
      * method of that name, natively or as a macro. At least one must supply it as a macro; the guards' other
      * methods are not this extension's.
      */
-    private function findGuardMacro(ClassReflection $classReflection, string $methodName): ?MethodReflection
+    private function findGuardMacro(ClassReflection $classReflection, ClassReflection $manager, string $methodName): ?MethodReflection
     {
-        $guardType = $this->authGuardHelper->getDefaultGuardType($classReflection);
+        $guardType = $this->authGuardHelper->getDefaultGuardType($classReflection, [$manager->getName()]);
 
         if ($guardType === null) {
             return null;

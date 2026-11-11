@@ -6,8 +6,10 @@ namespace Hypervel\PHPStan\ReturnTypes;
 
 use Closure;
 use Hypervel\Auth\AuthManager;
+use Hypervel\Contracts\Auth\Factory;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\PHPStan\Concerns\HasContainer;
+use Hypervel\PHPStan\Concerns\LoadsAuthModel;
 use Hypervel\PHPStan\Support\RuntimeInputs;
 use PhpParser\Node\Arg;
 use PHPStan\Analyser\DependencyTracker;
@@ -20,6 +22,7 @@ use PHPStan\Type\ObjectType;
 use PHPStan\Type\Type;
 use PHPStan\Type\TypeCombinator;
 
+use function array_any;
 use function array_key_exists;
 use function array_keys;
 use function in_array;
@@ -28,7 +31,7 @@ use function is_string;
 use function ucfirst;
 
 /**
- * Types the guards that the booted auth manager creates.
+ * Types the guards that the booted auth manager creates, and the users they return.
  *
  * Mirrors AuthManager::resolve(): a registered custom creator wins, then the
  * manager's own create{Driver}Driver() method. Neither is invoked; their
@@ -38,6 +41,21 @@ use function ucfirst;
 class AuthGuardHelper
 {
     use HasContainer;
+    use LoadsAuthModel;
+
+    /**
+     * The AuthManager methods that turn a guard name into a guard.
+     *
+     * @var list<string>
+     */
+    private const array GUARD_SELECTION_METHODS = ['guard', 'resolve', 'getConfig'];
+
+    /**
+     * The AuthManager methods that turn a guard's configured provider into its user provider.
+     *
+     * @var list<string>
+     */
+    private const array PROVIDER_SELECTION_METHODS = ['createUserProvider', 'getProviderConfiguration', 'createEloquentProvider', 'createDatabaseProvider'];
 
     /**
      * The resolved guard types, keyed by driver.
@@ -47,11 +65,11 @@ class AuthGuardHelper
     private array $driverTypes = [];
 
     /**
-     * The class of the bound auth manager, or false when it is not an auth manager.
+     * The bound auth manager and its reflection, or false when it is not an auth manager.
      *
-     * @var null|class-string<AuthManager>|false
+     * @var null|array{AuthManager, ClassReflection}|false
      */
-    private false|string|null $managerClass = null;
+    private false|array|null $manager = null;
 
     /**
      * Create a new helper instance.
@@ -69,12 +87,17 @@ class AuthGuardHelper
      * Returns null when the call's declared return already describes the guard.
      *
      * @param DependencyTracker&Scope $scope
+     * @param list<string> $receiverClasses the receiving classes, empty for a call the bound manager receives
      */
-    public function getGuardType(?Arg $name, Scope $scope, Type $declaredType, bool $acceptsEnums = true): ?Type
+    public function getGuardType(?Arg $name, Scope $scope, Type $declaredType, bool $acceptsEnums = true, array $receiverClasses = []): ?Type
     {
-        $this->track($scope);
+        $manager = $this->getManager($scope, $receiverClasses);
 
-        $guardType = $this->getGuardsType($this->getGuardNames($name, $scope, $acceptsEnums));
+        if ($manager === null || $this->overrides($manager[1], self::GUARD_SELECTION_METHODS)) {
+            return null;
+        }
+
+        $guardType = $this->getGuardsType($manager, $this->getGuardNames($name, $scope, $acceptsEnums));
 
         if ($guardType === null) {
             return null;
@@ -88,44 +111,103 @@ class AuthGuardHelper
      * Get the type of the current default guard, which shouldUse() can set to any configured guard, for what a class declares.
      *
      * Returns null when a configured guard's type is unknown.
+     *
+     * @param list<string> $receiverClasses the receiving classes, empty for calls the bound manager receives
      */
-    public function getDefaultGuardType(ClassReflection $classReflection): ?Type
+    public function getDefaultGuardType(ClassReflection $classReflection, array $receiverClasses = []): ?Type
     {
-        $this->track($classReflection);
+        $manager = $this->getManager($classReflection, $receiverClasses);
 
-        return $this->getGuardsType($this->getConfiguredGuardNames());
+        if ($manager === null || $this->overrides($manager[1], self::GUARD_SELECTION_METHODS)) {
+            return null;
+        }
+
+        return $this->getGuardsType($manager, $this->getConfiguredGuardNames());
     }
 
     /**
-     * Declare the dependent's dependency on the booted guards and the bound auth manager's declaration.
+     * Get the user models the given guards return, or every configured guard returns.
+     *
+     * Returns an empty list when any of those guards' users cannot be established.
      *
      * @param ClassReflection|(DependencyTracker&Scope) $dependent
+     * @param ?list<string> $guardNames
+     * @param list<string> $receiverClasses the classes receiving the call that selects the guards, empty for the bound manager
+     * @return list<class-string>
      */
-    private function track(Scope|ClassReflection $dependent): void
+    public function getUserModels(Scope|ClassReflection $dependent, ?array $guardNames = null, array $receiverClasses = []): array
+    {
+        $manager = $this->getManager($dependent, $receiverClasses);
+
+        // The configured providers name a guard's users only while the manager selects
+        // guards and their providers as AuthManager does.
+        if ($manager === null || $this->overrides($manager[1], [...self::GUARD_SELECTION_METHODS, ...self::PROVIDER_SELECTION_METHODS])) {
+            return [];
+        }
+
+        return $this->getAuthModels($manager[0], $this->getContainer()->get('config'), $guardNames);
+    }
+
+    /**
+     * Get the bound auth manager and its reflection when calls on the receiving classes reach it, declaring the
+     * dependent's dependency on the booted guards and the manager's declaration.
+     *
+     * The container resolves the factory contract to the bound manager. Another implementation or manager
+     * subclass selects guards in its own way, with its own registered creators, even when it overrides nothing.
+     *
+     * @param ClassReflection|(DependencyTracker&Scope) $dependent
+     * @param list<string> $receiverClasses
+     * @return null|array{AuthManager, ClassReflection}
+     */
+    private function getManager(Scope|ClassReflection $dependent, array $receiverClasses): ?array
     {
         $this->runtimeInputs->track($dependent);
 
-        if ($this->managerClass === null) {
+        if ($this->manager === null) {
             $manager = $this->resolve('auth');
-            $this->managerClass = $manager instanceof AuthManager ? $manager::class : false;
+            $this->manager = $manager instanceof AuthManager ? [$manager, $this->reflectionProvider->getClass($manager::class)] : false;
         }
 
-        if ($this->managerClass !== false) {
-            $this->runtimeInputs->trackClass($dependent, $this->managerClass);
+        if ($this->manager === false) {
+            return null;
         }
+
+        $this->runtimeInputs->trackClass($dependent, $this->manager[1]->getName());
+
+        foreach ($receiverClasses as $receiverClass) {
+            if (! in_array($receiverClass, [Factory::class, AuthManager::class, $this->manager[1]->getName()], true)) {
+                return null;
+            }
+        }
+
+        return $this->manager;
+    }
+
+    /**
+     * Determine whether the manager overrides any of the given AuthManager methods.
+     *
+     * @param list<string> $methodNames
+     */
+    private function overrides(ClassReflection $manager, array $methodNames): bool
+    {
+        return array_any(
+            $methodNames,
+            static fn (string $methodName): bool => $manager->getNativeMethod($methodName)->getDeclaringClass()->getName() !== AuthManager::class,
+        );
     }
 
     /**
      * Get the union of the given configured guards' types, or null when one of them is unknown.
      *
+     * @param array{AuthManager, ClassReflection} $manager
      * @param list<string> $names
      */
-    private function getGuardsType(array $names): ?Type
+    private function getGuardsType(array $manager, array $names): ?Type
     {
         $types = [];
 
         foreach ($names as $name) {
-            $type = $this->getConfiguredGuardType($name);
+            $type = $this->getConfiguredGuardType($manager, $name);
 
             if ($type === null) {
                 return null;
@@ -194,8 +276,10 @@ class AuthGuardHelper
 
     /**
      * Get the type of the configured guard with the given name.
+     *
+     * @param array{AuthManager, ClassReflection} $manager
      */
-    private function getConfiguredGuardType(string $name): ?Type
+    private function getConfiguredGuardType(array $manager, string $name): ?Type
     {
         $driver = $this->getContainer()->get('config')->get('auth.guards')[$name]['driver'] ?? null;
 
@@ -204,7 +288,7 @@ class AuthGuardHelper
         }
 
         if (! array_key_exists($driver, $this->driverTypes)) {
-            $this->driverTypes[$driver] = $this->resolveDriverType($driver);
+            $this->driverTypes[$driver] = $this->resolveDriverType($manager, $driver);
         }
 
         return $this->driverTypes[$driver];
@@ -212,29 +296,29 @@ class AuthGuardHelper
 
     /**
      * Resolve the type of the guard the given driver creates.
+     *
+     * @param array{AuthManager, ClassReflection} $manager
      */
-    private function resolveDriverType(string $driver): ?Type
+    private function resolveDriverType(array $manager, string $driver): ?Type
     {
-        $manager = $this->resolve('auth');
-
-        if (! $manager instanceof AuthManager) {
-            return null;
-        }
+        [$manager, $managerReflection] = $manager;
 
         /** @var ?Closure $creator */
         $creator = (fn (): ?Closure => $this->customCreators[$driver] ?? null)->call($manager);
 
         if ($creator !== null) {
-            $type = $this->closureTypeFactory->fromClosureObject($creator)->getReturnType();
+            // An overriding callCustomCreator() creates the guard instead of the creator.
+            $type = $this->overrides($managerReflection, ['callCustomCreator'])
+                ? $managerReflection->getNativeMethod('callCustomCreator')->getOnlyVariant()->getReturnType()
+                : $this->closureTypeFactory->fromClosureObject($creator)->getReturnType();
         } else {
-            $class = $this->reflectionProvider->getClass($manager::class);
             $method = 'create' . ucfirst($driver) . 'Driver';
 
-            if (! $class->hasNativeMethod($method)) {
+            if (! $managerReflection->hasNativeMethod($method)) {
                 return null;
             }
 
-            $type = $class->getNativeMethod($method)->getOnlyVariant()->getReturnType();
+            $type = $managerReflection->getNativeMethod($method)->getOnlyVariant()->getReturnType();
         }
 
         // An untyped creator keeps the declared guard type.
