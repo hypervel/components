@@ -370,7 +370,7 @@ When no monitor slug is given, one is derived from the task's command or descrip
 
 Sentry expects a check-in for every run of the task's schedule. Tasks limited by `between`, `unlessBetween`, `when`, or `skip` do not check in when they are skipped, so their skipped runs are reported as missed. Prefer expressing the schedule with the `cron` method.
 
-A run that fails checks in as an error, including a run that fails before its own completion callbacks run. When a direct coroutine cancellation stops a run, such as during a worker shutdown, no final check-in is sent: Sentry has no canceled status, and a cancellation is not a task failure. Sentry then reports that run as timed out, because its final check-in never arrived. A run that failed before it was canceled, or whose cleanup failed while the cancellation unwound, still checks in as an error.
+Failed runs check in as errors, including failures before completion callbacks run. When coroutine cancellation interrupts a run without a known failure, any unfinished check-in is left open because Sentry has no canceled status. Sentry later reports it as timed out. An earlier task failure, or a cleanup failure before the task's outcome is known, still produces an error check-in.
 
 <a name="opentelemetry"></a>
 ### OpenTelemetry

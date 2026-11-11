@@ -225,7 +225,7 @@ A complete result means the parser understood the schema facts it represents. It
 <a name="changes-to-an-existing-schema"></a>
 ## Changes to an Existing Schema
 
-A result only describes the definitions in its input. When the input is a script that runs against an existing schema, such as raw SQL in a migration, the schema's `impact` property describes how the script affects tables, views and PostgreSQL user types that existed before it:
+A parsed schema describes the definitions in its SQL input. When parsing SQL that modifies an existing database, you may also inspect `impact` to find existing tables, views and PostgreSQL types that the script may change:
 
 ```php
 use Hypervel\SchemaParser\PostgresParser;
@@ -239,15 +239,17 @@ foreach ($impact->relations as $relation) {
 $impact->unknown; // false
 ```
 
-The `relations` list contains each table and view the script alters, drops or renames, including both names of a renamed relation, even when the script also defines it. These relations may no longer exist or have their earlier columns. Unqualified names use the schema the input selected, such as SQLite's `main` database or a database chosen by a MySQL `USE` statement.
+The impact provides three properties:
 
-The `types` list contains each PostgreSQL enum and domain the script alters or drops without renaming it, such as an added enum label or a dropped domain, even when the script also defines it. These types may no longer exist or have their earlier definitions.
+- `relations` lists altered, dropped or renamed tables and views, including both names of a rename.
+- `types` lists altered or dropped PostgreSQL enums and domains. Type renames are represented by `unknown` instead.
+- `unknown` is `true` when the affected definitions cannot all be named, such as with cascading drops, queries that call functions, or procedure calls. It is also set for changes to name resolution, such as `USE` or `SET search_path`, which may affect separately parsed SQL.
 
-The `unknown` property is `true` when a statement may have changed relations or types without naming them, such as a cascading drop, a renamed type or domain, a query that calls functions, or a procedure call. It is also `true` when a statement changes how later statements resolve names, such as a MySQL `USE` statement or a PostgreSQL `search_path` setting, because separately parsed input cannot see that change.
+Listed definitions may no longer exist or retain their original columns or types, even if the script also creates them. Unqualified names use the schema selected by the input, such as SQLite's `main` or a database selected by MySQL's `USE` statement.
 
-Statements that only manage indexes, comments, routines, triggers or sequences, change rows, or change other session settings leave existing relations unchanged. The impact describes only the statements themselves: changing rows can still run triggers or functions on the server, and their effects are not included.
+Index, comment, routine, trigger and sequence changes, row updates and other session settings do not invalidate these definitions. Row changes can still run triggers or functions on the server; their effects are not included.
 
-Tables and views the script creates are available through the schema's usual properties. Since the parser does not know which relations existed before the script, a definition guarded by `IF NOT EXISTS` is included even if the existing schema already has that relation.
+Tables and views the script creates are available through the schema's usual properties. Definitions guarded by `IF NOT EXISTS` are included too; the parser does not know whether they already exist in your database.
 
 <a name="supported-input"></a>
 ## Supported Input

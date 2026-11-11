@@ -518,7 +518,11 @@ Replace `laravel/doctor` with `hypervel/doctor` and the `Laravel\Doctor` namespa
 <a name="static-analysis"></a>
 ### Static Analysis
 
-Replace `larastan/larastan` with `hypervel/phpstan`. If you include Larastan's `extension.neon` manually, include `vendor/hypervel/phpstan/extension.neon` and `vendor/phpstan/phpstan-deprecation-rules/rules.neon` instead. Rename ignored Larastan identifiers from `larastan.*` to `hypervel.*`, and `rules.modelAppends` to `hypervel.modelAppends`; PHPStan's own identifiers stay the same. Larastan's parameters keep their names, though several defaults are stricter. Remove the unsupported `checkOctaneCompatibility`, `generalizeEnvReturnType` and `redisDriver` parameters, along with ignores of the Octane and deferred provider diagnostics. The extension also reports ignores without a reason and uses of deprecated APIs. See [Static Analysis](/docs/{{version}}/static-analysis).
+Replace `larastan/larastan` with `hypervel/phpstan`. For manual configuration, replace Larastan's include with `vendor/hypervel/phpstan/extension.neon` and `vendor/phpstan/phpstan-deprecation-rules/rules.neon`.
+
+Rename ignored identifiers from `larastan.*` to `hypervel.*`, and `rules.modelAppends` to `hypervel.modelAppends`. PHPStan's own identifiers are unchanged. Remove ignores for Octane and deferred provider diagnostics, and remove the unsupported `checkOctaneCompatibility`, `generalizeEnvReturnType` and `redisDriver` parameters.
+
+Supported parameters retain their names, but several defaults are stricter. The extension also reports ignores without reasons and uses of deprecated APIs. See [Static Analysis](/docs/{{version}}/static-analysis) for setup and configuration.
 
 <a name="scheduling"></a>
 ### Scheduling

@@ -4157,11 +4157,13 @@ Queue::whenJobRunsLongerThan(1000, function (Job $job, float $duration) {
 });
 ```
 
-When an attempt ends, the worker dispatches a `JobAttempted` event from the attempt's coroutine with the `connectionName`, `job`, `exception`, and `duration`. Its `canceled` property is `true` when coroutine cancellation stopped the attempt, including a job killed by its timeout. The attempt's other completion steps are skipped, deferred callbacks do not run, and `successful()` returns `false`. An attempt whose coroutine never unwinds, such as one still blocked when its timeout stops the worker, does not dispatch the event.
+You may listen for `JobAttempted` to inspect an attempt's `connectionName`, `job`, `exception` and `duration`. The event is dispatched in the job's coroutine. If coroutine cancellation stops the attempt, including a job killed by its timeout, `canceled` is `true` and `successful()` returns `false`; normal completion steps and deferred callbacks are skipped. The event cannot be dispatched if the coroutine remains blocked until the worker exits.
 
 Hypervel dispatches a `JobQueueing` event immediately before a job is sent to its queue and a `JobQueued` event after the queue accepts it. If the enqueue attempt throws an exception, a `JobQueueingFailed` event is dispatched with the original exception instead. Its `sendAttempted` property is `false` when the attempt failed before the job was handed to the queue backend.
 
-When coroutine cancellation stops the enqueue attempt, or interrupts its `JobQueued` or `JobQueueingFailed` notification, a `JobQueueingCanceled` event is dispatched with the `cancellation` and `sendAttempted` properties. Its `queued` property is `true` when the queue had already accepted the job, and its `exception` property holds the enqueue failure when the failure notification was interrupted. The cancellation still propagates to the caller. Jobs deferred until a database transaction commits do not dispatch these events unless the enqueue attempt actually begins.
+Cancellation while enqueueing a job or notifying its listeners dispatches `JobQueueingCanceled`. Inspect `sendAttempted` to see whether sending began and `queued` to see whether the queue accepted the job before cancellation. The event also exposes the `cancellation` and any earlier enqueue failure as `exception`. Cancellation still propagates to the caller.
+
+Jobs deferred until a database transaction commits dispatch these events only when enqueueing begins.
 
 The `JobPayloadFinalizing` event runs immediately before `JobQueueing` and may replace its encoded `payload`. It also provides the connection, queue, job, and normalized delay in seconds. Use this event for last-mile payload changes that must reach the queue backend. Listening to both events deliberately runs both listeners for each asynchronous job.
 

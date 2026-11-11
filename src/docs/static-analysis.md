@@ -6,6 +6,8 @@
     - [Runtime Requirements](#runtime-requirements)
 - [Configuration](#configuration)
 - [What the Analysis Knows](#what-the-analysis-knows)
+    - [Configuration and Services](#configuration-and-services)
+    - [Helpers and Factories](#helpers-and-factories)
     - [Collection Types](#collection-types)
     - [Model Properties](#model-properties)
     - [Migrations and Schema Dumps](#migrations-and-schema-dumps)
@@ -57,7 +59,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-Hypervel's `hypervel/phpstan` package is a [PHPStan](https://phpstan.org) extension that understands your Hypervel application. It is a port of [Larastan](https://github.com/larastan/larastan): it boots your application so PHPStan knows its container services, configuration, authentication guards, console commands, views and translations, and it adds rules that catch common mistakes in Hypervel code.
+Hypervel's `hypervel/phpstan` package extends [PHPStan](https://phpstan.org) with support for Eloquent models, container services, configuration and other framework features. It combines [Larastan](https://github.com/larastan/larastan)'s framework analysis with additional checks for common Hypervel mistakes, including coroutine and long-running worker issues.
 
 <a name="installation"></a>
 ## Installation
@@ -87,12 +89,12 @@ If your project uses the [PHPStan extension installer](https://github.com/phpsta
 ./vendor/bin/phpstan analyse
 ```
 
-Hypervel's type declarations assume the extension is loaded. For example, the eager loading methods of Eloquent collections and paginators describe their relationship arrays using PHPDoc types only the extension understands, so PHPStan without the extension checks those arguments against the methods' native types only.
+You should load the extension whenever you analyze Hypervel code. Without it, PHPStan cannot resolve some framework PHPDoc types, such as eager loading arrays, and falls back to the native declarations.
 
 <a name="analyzing-packages"></a>
 ### Analyzing Packages
 
-When you analyze a package instead of an application, PHPStan boots the package's Testbench application, so the package should require `hypervel/testbench` as a development dependency. The analysis uses the providers, configuration and package discovery settings from your `testbench.yaml` file, just like your package's tests. Authentication types come from the Testbench application's configuration, where the `AUTH_MODEL` environment variable or the workbench `User` model selects the user model.
+To analyze a package, install `hypervel/testbench` as a development dependency. PHPStan uses the providers, configuration and package discovery settings in your `testbench.yaml` file, just like your package's tests. Authentication types come from the Testbench application, where `AUTH_MODEL` or the workbench `User` model selects the user model.
 
 <a name="runtime-requirements"></a>
 ### Runtime Requirements
@@ -164,6 +166,9 @@ PHPStan's own settings, such as its rule level, paths and baseline, keep working
 <a name="what-the-analysis-knows"></a>
 ## What the Analysis Knows
 
+<a name="configuration-and-services"></a>
+### Configuration and Services
+
 Configuration types come from your configuration files themselves, never from the values on your machine. For example, the following `enabled` option is a `bool` no matter what your `.env` file contains:
 
 ```php
@@ -174,21 +179,28 @@ return ['enabled' => (bool) env('FEATURE_ENABLED', false)];
 $enabled = config('feature.enabled');
 ```
 
-The facts your application registers come from the booted application: container bindings, authentication guards and user models, console commands, views and translations, including the default locale. Your environment can influence these facts. For instance, `app('db.connection')` is typed as the connection class your `DB_CONNECTION` variable selects, and the authentication user model may come from `AUTH_MODEL`. So, you should run the analysis with the same environment locally and in CI. When you analyze a package, the analysis sees the Testbench application's registrations, not those of every application that may install the package.
+PHPStan boots your application to discover its services, authentication guards, commands, views and translations. Run analysis with the same environment locally and in CI, since settings such as `DB_CONNECTION` and `AUTH_MODEL` affect the inferred types. Package analysis uses your Testbench application's registrations.
 
-A value typed as an interface only has the interface's methods, even when the container binds a class with more of them or macros are registered on that class. When your code needs a specific implementation, type it as that implementation. Resolving a service from the container, such as `app(Repository::class)`, is typed as the class the booted application binds. So are the factories that helpers such as `response()`, `view()`, `validator()`, `url()` and `logger()` resolve, which is why `response()` has your response macros and `url()->full()` is available.
+A service resolved using `app(Repository::class)` has the type of its container binding. Helpers such as `response()` and `url()` also return their bound implementations, so those classes' methods and registered macros are available. A value typed as an interface exposes only that interface's methods, even when the bound class has additional methods or macros. Use the concrete type when your code requires them.
 
-Macros and mixins your application registers while it boots are known, typed from the parameters and return type the macro declares, so declare them on macro closures. A `@method` tag on the class takes precedence over the macro's own signature. A macro registered later, such as inside a controller action, is not known.
+Declare parameter and return types on macro closures and register them during application boot so PHPStan can check their calls. A class's `@method` tag takes precedence over a macro's signature. Macros registered later, such as in a controller action, are not discovered.
 
-Calls a manager forwards to its default driver are typed from the return type declared by whatever creates the driver the booted application selects, such as its `create...Driver()` method or an `extend()` callback, unless the manager declares the method or a `@mixin` for its drivers. Analysis never builds the driver, so give `extend()` callbacks a return type. Like container bindings, the selected driver can depend on your environment.
+Calls forwarded to a manager's configured default driver use the return type of its `create...Driver()` method or `extend()` callback, unless the manager declares the method or a `@mixin` for its drivers. Declare these return types so PHPStan can check the calls without creating the driver.
 
-Filesystem disks work the same way. `Storage::disk('s3')` is typed from your `filesystems` configuration as the disk Hypervel builds for it, such as `ClientPooledFilesystem` for a pooled S3 disk or `LocalFilesystemAdapter` for a local one. Calls the `Storage` facade forwards to the default disk are typed from that disk. An unknown or non-constant disk name keeps the `Filesystem` contract type. Concurrency drivers are typed the same way from your `concurrency` configuration, so `Concurrency::driver('sync')` is a `SyncDriver`, while an unknown name or a driver registered using `extend()` keeps the `Driver` contract type.
+Filesystem calls use your configured disk types. With the built-in drivers, S3 disks return a `ClientPooledFilesystem` and local disks return a `LocalFilesystemAdapter`. Calls through the `Storage` facade use the default disk's methods. An unknown disk name keeps the `Filesystem` contract type.
 
-Request input is typed as what the request can hold. A keyed `query()`, `post()` or `cookie()` value may be a string, number, boolean or array from the client, or a `Stringable` your code stored, so check or cast it before relying on one type. Whole input arrays may have integer keys, such as from a JSON list body. By default, typed helpers such as `$request->string()`, `integer()` and `boolean()` return a single type.
+Concurrency drivers use your `concurrency` configuration: `Concurrency::driver('sync')` returns a `SyncDriver`. Unknown names and custom drivers registered with `extend()` keep the `Driver` contract type.
 
-Dates are different: `now()`, `today()` and the `Date` facade return `CarbonInterface`, as they are declared, even when your application configures a specific date class. When your code needs a specific class, convert the value, such as with `toImmutable()`.
+PHPStan reuses cached results for unchanged code. Changes to the environment, service providers or other boot files also invalidate results that depend on the application's registrations.
 
-Model factories are typed as the factory the model's `factory` method selects, and the analysis follows whether the factory makes one model or a collection: `User::factory()->create()` is a `User`, while `User::factory(3)->create()` is a collection. The `createMany`, `createManyQuietly` and `makeMany` methods clear a factory's count. The analysis follows this when the call is a statement or an assigned value, but not when the call is passed straight to another call, so assign the result first if you use the same factory again afterwards. A factory class with its own `@template` types keeps its generic type instead, so its `create` and `make` methods return the model or a collection of it.
+<a name="helpers-and-factories"></a>
+### Helpers and Factories
+
+Use typed request helpers such as `$request->string()`, `integer()` and `boolean()` when you need a specific type. Values read by key using `query()`, `post()` or `cookie()` may be strings, numbers, booleans, arrays or `Stringable` objects. Input arrays may also have integer keys, such as those from a JSON list body.
+
+The `now()` and `today()` helpers and the `Date` facade return `CarbonInterface`, even when you configure a specific date class. Use a conversion method such as `toImmutable()` when you need a more specific type.
+
+Model factories retain their model types: `User::factory()->create()` returns a `User`, while `User::factory(3)->create()` returns a collection. The `createMany`, `createManyQuietly` and `makeMany` methods reset the factory's count. If you reuse that factory, assign these methods' results before passing them to another call so PHPStan can track the reset. Factories with their own `@template` declarations keep their generic types and may return either a model or a collection.
 
 The `Arr::get` and `Arr::pull` methods return the type the array holds under the given key, including keys in "dot" notation. When the key may be missing, the type of the default is added, or `null` without one. `Arr::pull` also removes a top-level key from the type of the array it was given:
 
@@ -206,11 +218,9 @@ function example(array $user): void
 }
 ```
 
-Some facts cannot be known statically. When the analysis cannot tell what a configuration key holds, such as a value that provider code writes in a way the analysis does not recognize and that did not run while your application booted, it uses the declared return type instead of guessing.
+When a value cannot be inferred, such as configuration written by code the analysis cannot follow, PHPStan keeps the method's declared return type.
 
 Calling `str()` without arguments returns an object that passes method calls to `Str`. The analysis does not check those calls.
-
-PHPStan's result cache reanalyzes only the files a change affects. Since many facts come from the booted application, changing your environment or a file the application loads while booting, such as a service provider or route file, reanalyzes every file that uses those facts.
 
 <a name="collection-types"></a>
 ### Collection Types
@@ -262,7 +272,9 @@ When the analysis cannot know whether a table has a column, such as after a migr
 <a name="migrations-and-schema-dumps"></a>
 ### Migrations and Schema Dumps
 
-The analysis finds migrations as the `migrate` command does: the files your service providers register with `loadMigrationsFrom` and the `*_*.php` files directly in the directories they register, then those in your `database/migrations` directory. A migration with the same name as an earlier one replaces it, so a published migration takes the place of its package's, and migrations apply in name order. It also reads the [schema dumps](/docs/{{version}}/migrations#squashing-migrations) in your `database/schema` directory. To read them from other directories, list the directories using the `databaseMigrationsPath` or `squashedMigrationsPath` parameter. Each replaces its defaults and accepts glob patterns, and every `.php` file below a listed migrations directory is read, including those in subdirectories:
+By default, PHPStan reads migrations registered with `loadMigrationsFrom` and those in `database/migrations`, using the same file selection and name order as `migrate`. Published migrations replace package migrations of the same name. [Schema dumps](/docs/{{version}}/migrations#squashing-migrations) are read from `database/schema`.
+
+You may override these directories using `databaseMigrationsPath` and `squashedMigrationsPath`. Both accept glob patterns and replace their default paths. Unlike default migration discovery, custom migration directories are searched recursively for all `.php` files:
 
 ```neon
 parameters:
@@ -275,7 +287,7 @@ parameters:
 
 A schema dump is only read when it has the name the `schema:dump` Artisan command gives it: `{connection}-schema.sql`, or `{connection}-schema.dump`, where `{connection}` is a connection in your `database` configuration. When both exist, the `.dump` file is read, as the `migrate` command does. The schema of a connection with no dump and no migrations is unknown.
 
-Migrations are read as they are written, without running them. Each statement applies to the connection it runs on: the connection given to `Schema::connection()` or `DB::connection()`, otherwise the migration's connection. The analysis follows schema builder calls, `if` and `switch` statements, `Schema::hasTable()` and `Schema::hasColumn()` checks, and literal SQL passed to `DB::statement()` and `DB::unprepared()`. A column that only some branches create reads as `mixed`. Schema builders stored in local variables are followed too:
+PHPStan reads migrations without executing them. It follows schema builder calls, `if` and `switch` statements, `Schema::hasTable()` and `Schema::hasColumn()` checks, and literal SQL passed to `DB::statement()` or `DB::unprepared()`. Each call uses the migration's connection unless it selects another with `Schema::connection()` or `DB::connection()`, including through a builder stored in a variable:
 
 ```php
 $schema = Schema::connection('analytics');
@@ -285,16 +297,16 @@ $schema->create('events', function (Blueprint $table) {
 });
 ```
 
-Code the analysis cannot follow makes what it could change unknown. Blueprint macros, loops and helpers that receive the `$table` blueprint make the table unknown, and a column name held in a variable means the table may have columns the analysis does not know. A table name the analysis cannot work out makes its connection's schema unknown, and a connection name it cannot work out, such as one built at runtime, makes the schema of every connection unknown.
+Dynamic migration code can limit attribute typing. Blueprint macros, loops and helpers that receive a blueprint make its table unknown. Unknown column names leave room for additional columns; unknown table names make the connection's schema unknown, and unknown connection names make every connection's schema unknown. A column created in only some branches reads as `mixed`.
 
-Schema changes made through a connection the migration gets any other way, such as `$this->db` or `app('db')`, are not seen, so make them through the `Schema` and `DB` facades. Each `DB::statement()` call is also read on its own, so a session change that one call makes for later calls, such as `USE` or `SET search_path`, is not tracked. Instead, define a connection for the other database or schema in your `database` configuration and select it.
+Use the `Schema` and `DB` facades for schema changes; connections obtained through properties or helpers such as `app('db')` are not followed. To target another database or schema, configure a connection and select it instead of relying on `USE` or `SET search_path` across separate SQL calls.
 
 Migrations and schema dumps are cached in PHPStan's temporary directory and read again when they, or the classes and configuration they read, change. You may disable the cache using the `enableMigrationCache` parameter, or stop reading migrations or schema dumps using the `disableMigrationScan` or `disableSchemaScan` parameter.
 
 <a name="accessor-types"></a>
 ### Accessor Types
 
-An accessor's `Attribute` declares the type its getter returns and the type its setter accepts. The declared getter type may be wider than what the getter returns, and the declared setter type narrower than what the setter accepts:
+Declare an accessor's read and write types using `Attribute<TGet, TSet>`. Use `never` for the write type when the accessor only has a getter:
 
 ```php
 /**
@@ -308,14 +320,14 @@ protected function fullName(): Attribute
 }
 ```
 
-To keep these declarations sound, the analysis treats an attribute's `get` and `set` callbacks as read-only once the attribute is created, so assigning `$attribute->get` or `$attribute->set` afterwards is reported as `property.readOnlyByPhpDocAssignOutOfClass`. Reading and writing the model attribute itself is not affected. If your code must replace a callback, ignore the diagnostic with a reason.
+Set the `get` and `set` callbacks when you create the `Attribute`. PHPStan treats them as read-only afterwards; this does not restrict reading or writing the model attribute itself. If you need to replace a callback, ignore `property.readOnlyByPhpDocAssignOutOfClass` with a reason.
 
 <a name="cast-types"></a>
 ### Cast Types
 
-The analysis reads a model's `casts` method without running it. It understands a single `return` of an array whose casts are strings, class constants, the `[$cast, ...$arguments]` array form, and helpers such as `AsCollection::of` and `AsEnumCollection::of` given constant arguments.
+PHPStan reads the array returned by your model's `casts` method. Casts may use strings, class constants, `[$cast, ...$arguments]`, or helpers such as `AsCollection::of` and `AsEnumCollection::of` with constant arguments.
 
-An attribute whose cast the analysis cannot work out, such as one built from a variable, reads and writes as `mixed`. When the method does not return such an array, for example because it merges the parent's casts or returns from several places, any attribute of the model may be cast, so all of them read as `mixed`. Declare the casts the method returns with an array shape to type them:
+An attribute with an unknown cast reads and writes as `mixed`. If the method builds its array dynamically or has multiple return statements, its casts cannot be inferred and attributes read as `mixed`. Declare an array shape when composing casts this way:
 
 ```php
 /**
@@ -330,7 +342,7 @@ protected function casts(): array
 }
 ```
 
-The shape must list every cast the method can return, including inherited ones, since an attribute it leaves out is treated as not cast by the method. If you cannot list them all, end the shape with `...`, and the attributes it does not list keep reading as `mixed`.
+Include every returned cast, including inherited casts. An attribute omitted from a closed shape is treated as not cast by that method. If you cannot list them all, end the shape with `...` so unlisted attributes remain `mixed`.
 
 If you set the `parseModelCastsMethod` parameter to `false`, the method's body is not read, and its casts come only from the array shape its `@return` tag declares.
 
@@ -412,7 +424,7 @@ class User extends Model
 $users = User::query()->active()->get();
 ```
 
-A model may also declare its builder's type using the `HasBuilder` trait, which the analysis prefers over the builder the model selects. The trait only declares the type, so the model still selects its builder as shown above. You need it when a trait the model uses defines its own `newEloquentBuilder` method, such as the [nested set](/docs/{{version}}/nested-set#model-setup) `HasNode` trait, since that method's return type would otherwise be used:
+If a model trait overrides `newEloquentBuilder`, as the [nested set](/docs/{{version}}/nested-set#model-setup) `HasNode` trait does, you may declare your builder type using `HasBuilder`. This declaration takes precedence during analysis; keep the runtime builder configuration shown above:
 
 ```php
 /** @use HasBuilder<UserBuilder<static>> */
@@ -436,7 +448,7 @@ class ActiveCollection extends Collection
 }
 ```
 
-A trait's global scope may add macros to the builder of every model using the trait, as `SoftDeletes` adds `withTrashed`. Since those macros are registered when a query is built, a package describes them to the analysis using the `eloquentBuilderMacros` parameter, which maps the trait to an interface declaring the macros. The interface only supplies their signatures; the scope still registers the macros at runtime. A macro that returns `static` keeps the builder it is called on, and an interface with one template type receives the model:
+To describe builder macros registered by a trait's global scope, map the trait to an interface using `eloquentBuilderMacros`. Declare the macro signatures on the interface and continue registering them in the scope at runtime. A `static` return type preserves the calling builder's type; an interface with one template type receives the model:
 
 ```neon
 parameters:
@@ -556,52 +568,52 @@ Whenever possible, fix the code a diagnostic points to. Ignore a diagnostic only
 $token = Env::get('TEST_TOKEN');
 ```
 
-The reason tells the next reader why the diagnostic does not apply, so the extension enables PHPStan's `reportIgnoresWithoutComments` setting: an ignore without a reason is reported, and so are `@phpstan-ignore-line` and `@phpstan-ignore-next-line`, which hide every error on the line. When one comment ignores several identifiers, each needs its own reason:
+The extension enables `reportIgnoresWithoutComments`, so each ignored identifier needs a reason. Blanket `@phpstan-ignore-line` and `@phpstan-ignore-next-line` comments are also reported. To ignore several diagnostics on one line, give each its own reason:
 
 ```php
 // @phpstan-ignore property.notFound (Queueable property), method.notFound (Queueable method)
 ```
 
-Never add a real defect to a baseline.
+Fix confirmed bugs rather than adding them to a baseline.
 
-Some diagnostics include a fix that `phpstan analyse --fix` applies for you: it lists pipe-separated validation rules in an array, removes a `value` or `with` call that does nothing, makes a private scope or accessor protected, and, when you enable the preference, starts a model query with `query()`. Review the changes before committing them.
+You may run `phpstan analyse --fix` to convert pipe-separated validation rules to arrays, remove unnecessary `value` and `with` calls, make private scopes and accessors protected, and start model queries with `query()` when that preference is enabled. Review the changes before committing them.
 
-The following table summarizes the preferred pattern for each of Hypervel's diagnostics:
+The following sections explain the diagnostics and their remedies. Use this table to find a diagnostic by its identifier:
 
-| Topic | Preferred Pattern | Identifiers |
-|---|---|---|
-| [Environment Variables](#environment-variables) | Read the environment in configuration files and use `config()` elsewhere. | `hypervel.noEnvCallsOutsideOfConfig` |
-| [Configuration Values](#configuration-values) | Use the typed getter that matches the configuration value. | `hypervel.configType`, `hypervel.configCollection` |
-| [Array Keys](#array-keys) | Read keys the array has, or pass a default for optional keys. | `offsetAccess.notFound` |
-| [Value and With Helpers](#value-and-with-helpers) | Use the value directly when no closure or callback runs. | `hypervel.uselessConstructs.value`, `hypervel.uselessConstructs.with` |
-| [Converting Collections to Arrays](#converting-collections-to-arrays) | Use `all()` when no items need converting. | `hypervel.unnecessaryEnumerableToArrayCall` |
-| [Translations](#translations) | Use translation keys that exist. | `hypervel.missingTranslations` |
-| [Views](#views) | Use view names the application can find. | `hypervel.unusedViews`, `argument.type` for view names |
-| [Console Input](#console-input) | Read the arguments and options the command defines. | `hypervel.console.undefinedArgument`, `hypervel.console.undefinedOption` |
-| [Authentication in Requests](#authentication-in-requests) | Use `$request->user()` where a request is available. | `hypervel.noAuthFacadeInRequestScope`, `hypervel.noAuthHelperInRequestScope` |
-| [Redis Connections](#redis-connections) | Call connection-bound methods on a held connection. | `hypervel.redisConnectionBoundMethod` |
-| [Cancellation](#cancellation) | Recognize cancellation with `Coroutine::causedByCancellation()` and keep it with `Coroutine::preferCancellation()`. | `hypervel.cancellation.exactType`, `hypervel.cancellation.precedence` |
-| [Coroutines in Transactions](#coroutines-in-transactions) | Start coroutines once the transaction commits. | `hypervel.coroutineInTransaction` |
-| [Sleeping](#sleeping) | Pause with the `Sleep` class. | `hypervel.rawSleep` |
-| [Worker State](#worker-state) | Keep per-request values in method arguments or `CoroutineContext`, not on shared services or static properties. | `hypervel.workerSharedState`, `hypervel.staticStateMutation`, `hypervel.unboundedWorkerCache` |
-| [Runtime Configuration](#runtime-configuration) | Set configuration while the application boots. | `hypervel.runtimeConfigMutation` |
-| [Model Relations](#model-relations) | Load and query relations the model defines. | `hypervel.relationExistence` |
-| [Model Columns](#model-columns) | Name columns the model's table has. | `argument.type` for column names, `method.notFound` and `staticMethod.notFound` for dynamic wheres |
-| [Model Scopes and Accessors](#model-scopes-and-accessors) | Declare local scopes as protected `#[Scope]` methods and accessors as protected methods. | `hypervel.legacyModelScope`, `hypervel.noPublicModelScopeMethod`, `hypervel.noPublicModelAccessorMethod` |
-| [Model Configuration](#model-configuration) | Configure models with attributes such as `Table` and `Fillable`. | `hypervel.legacyModelProperty` |
-| [Appended Attributes](#appended-attributes) | Append attributes that a get accessor or class cast computes. | `hypervel.modelAppends` |
-| [Creating Models](#creating-models) | Create models using `new` rather than `make`. | `hypervel.noModelMake` |
-| [Query Results](#query-results) | Let the query count, test or pluck rows instead of fetching every model. | `hypervel.noUnnecessaryCollectionCall` |
-| [Starting Queries](#starting-queries) | Start model queries with `query()`, when you enable the preference. | `hypervel.noImplicitQueryBuilderCall` |
-| [Schema Dumps](#schema-dumps) | Keep schema dumps in the plain SQL `schema:dump` writes. | `hypervel.schemaDump` |
-| [Dispatching Jobs and Events](#dispatching-jobs-and-events) | Dispatch with the arguments the constructor accepts. | `hypervel.jobs.noConstructor`, `hypervel.events.noConstructor`, `argument.type` and the other argument identifiers |
-| [Dispatching Jobs in Transactions](#dispatching-jobs-in-transactions) | Queue jobs dispatched in a transaction once it commits. | `hypervel.dispatchInTransactionAfterCommit` |
-| [Models in Queued Jobs](#models-in-queued-jobs) | Use `SerializesModels` in queued jobs that hold models. | `hypervel.jobSerializesModels` |
-| [Batched Jobs](#batched-jobs) | Use `Batchable` in batched jobs, and dispatch unique jobs individually. | `hypervel.batchedJobIsBatchable`, `hypervel.noBatchedUniqueJob`, `hypervel.batchableJobChecksCancellation` |
-| [Unique Jobs](#unique-jobs) | Declare what makes each unique job distinct. | `hypervel.uniqueJobUniqueId`, `hypervel.uniqueJobUniqueFor` |
-| [Queue Configuration](#queue-configuration) | Configure queued classes with attributes such as `Tries` and `Backoff`. | `hypervel.legacyQueueProperty` |
-| [Validation Rules](#validation-rules) | List validation rules in arrays. | `hypervel.pipeSeparatedValidationRules` |
-| [Deprecations](#deprecations) | Use the replacement the deprecation names. | `method.deprecated` and the other deprecation identifiers |
+| Topic | Identifiers |
+|---|---|
+| [Environment Variables](#environment-variables) | `hypervel.noEnvCallsOutsideOfConfig` |
+| [Configuration Values](#configuration-values) | `hypervel.configType`, `hypervel.configCollection` |
+| [Array Keys](#array-keys) | `offsetAccess.notFound` |
+| [Value and With Helpers](#value-and-with-helpers) | `hypervel.uselessConstructs.value`, `hypervel.uselessConstructs.with` |
+| [Converting Collections to Arrays](#converting-collections-to-arrays) | `hypervel.unnecessaryEnumerableToArrayCall` |
+| [Translations](#translations) | `hypervel.missingTranslations` |
+| [Views](#views) | `hypervel.unusedViews`, `argument.type` for view names |
+| [Console Input](#console-input) | `hypervel.console.undefinedArgument`, `hypervel.console.undefinedOption` |
+| [Authentication in Requests](#authentication-in-requests) | `hypervel.noAuthFacadeInRequestScope`, `hypervel.noAuthHelperInRequestScope` |
+| [Redis Connections](#redis-connections) | `hypervel.redisConnectionBoundMethod` |
+| [Cancellation](#cancellation) | `hypervel.cancellation.exactType`, `hypervel.cancellation.precedence` |
+| [Coroutines in Transactions](#coroutines-in-transactions) | `hypervel.coroutineInTransaction` |
+| [Sleeping](#sleeping) | `hypervel.rawSleep` |
+| [Worker State](#worker-state) | `hypervel.workerSharedState`, `hypervel.staticStateMutation`, `hypervel.unboundedWorkerCache` |
+| [Runtime Configuration](#runtime-configuration) | `hypervel.runtimeConfigMutation` |
+| [Model Relations](#model-relations) | `hypervel.relationExistence` |
+| [Model Columns](#model-columns) | `argument.type` for column names, `method.notFound` and `staticMethod.notFound` for dynamic wheres |
+| [Model Scopes and Accessors](#model-scopes-and-accessors) | `hypervel.legacyModelScope`, `hypervel.noPublicModelScopeMethod`, `hypervel.noPublicModelAccessorMethod` |
+| [Model Configuration](#model-configuration) | `hypervel.legacyModelProperty` |
+| [Appended Attributes](#appended-attributes) | `hypervel.modelAppends` |
+| [Creating Models](#creating-models) | `hypervel.noModelMake` |
+| [Query Results](#query-results) | `hypervel.noUnnecessaryCollectionCall` |
+| [Starting Queries](#starting-queries) | `hypervel.noImplicitQueryBuilderCall` |
+| [Schema Dumps](#schema-dumps) | `hypervel.schemaDump` |
+| [Dispatching Jobs and Events](#dispatching-jobs-and-events) | `hypervel.jobs.noConstructor`, `hypervel.events.noConstructor`, `argument.type` and the other argument identifiers |
+| [Dispatching Jobs in Transactions](#dispatching-jobs-in-transactions) | `hypervel.dispatchInTransactionAfterCommit` |
+| [Models in Queued Jobs](#models-in-queued-jobs) | `hypervel.jobSerializesModels` |
+| [Batched Jobs](#batched-jobs) | `hypervel.batchedJobIsBatchable`, `hypervel.noBatchedUniqueJob`, `hypervel.batchableJobChecksCancellation` |
+| [Unique Jobs](#unique-jobs) | `hypervel.uniqueJobUniqueId`, `hypervel.uniqueJobUniqueFor` |
+| [Queue Configuration](#queue-configuration) | `hypervel.legacyQueueProperty` |
+| [Validation Rules](#validation-rules) | `hypervel.pipeSeparatedValidationRules` |
+| [Deprecations](#deprecations) | `method.deprecated` and the other deprecation identifiers |
 
 <a name="environment-variables"></a>
 ### Environment Variables
@@ -618,7 +630,7 @@ You should only read environment variables in your configuration files. Once you
 $key = config('services.billing.key');
 ```
 
-The rule checks calls to the `env`, `env_array`, `env_or_fail` and `app_id` helpers and to the `Env::get`, `Env::getArray` and `Env::getOrFail` methods. Calls within your configuration directories, the framework's configuration files and the configuration files that service providers merge or publish are allowed. Only direct calls are checked: callables, dynamic class names, `getenv()` and `$_ENV` are not.
+The check covers direct calls to `env`, `env_array`, `env_or_fail`, `app_id`, `Env::get`, `Env::getArray` and `Env::getOrFail`. Configuration files, including those merged or published by packages, are allowed. Dynamic calls, `getenv()` and `$_ENV` are not checked.
 
 Some infrastructure code genuinely needs the process environment, such as code that runs before configuration loads, values passed to child processes, or settings provided by a test runner. Ignore those calls individually, with a reason. You may disable the rule using the `noEnvCallsOutsideOfConfig` parameter.
 
@@ -708,7 +720,7 @@ Keep `toArray()` when the items are, or may be, `Arrayable`, such as models. Col
 <a name="translations"></a>
 ### Translations
 
-The `__`, `trans` and `trans_choice` helpers, the `Lang` facade and the translator are checked for keys that are missing from a translation file the application can load. Only literal `group.item` and `namespace::group.item` keys are checked, and only when the group's file exists for the requested locale or its fallback. When a lookup does not specify a locale, the application's default locale is used. JSON translations, dynamic keys and custom translators or loaders are not checked.
+PHPStan checks literal `group.item` and `namespace::group.item` translation keys used by the translation helpers, `Lang` facade and translator. It uses the requested locale and fallback, or your application's default locale. Checks require the group's translation file to exist; JSON translations, dynamic keys and custom translators or loaders are not checked.
 
 To fix the diagnostic, add the missing line or correct the key. Keys are checked against the translations your application loads. To check them against other directories instead, list the directories using the `translationDirectories` parameter. You may disable the rule using the `checkMissingTranslations` parameter.
 
@@ -719,7 +731,7 @@ Methods that accept a view name, such as `view()` and `View::make()`, require a 
 
 You may also enable the `checkUnusedViews` parameter to report views that no code refers to by a literal name. Views rendered by computed names or used by other packages may still be in use, so treat these diagnostics as a list to review rather than proof that a view can be deleted.
 
-A view counts as used when its literal name is passed to the `view` helper, `View::make` or `Route::view`, to a mailable's or mail notification's `view`, `text` or `markdown` method, to a mail `Content` definition or `Mail::send`, or when another view refers to it using `@extends`, `@include`, `@includeIf`, `@includeWhen`, `@includeUnless`, `@includeFirst` or an anonymous component tag such as `<x-alert>`. By default, the views in your application's view paths are checked. To check other directories instead, list them using the `viewDirectories` parameter:
+View usage is recognized in view helpers, view routes, mail definitions, Blade layouts and includes, and anonymous component tags such as `<x-alert>`. By default, your application's view paths are checked. To check other directories instead, use the `viewDirectories` parameter:
 
 ```neon
 parameters:
@@ -793,7 +805,7 @@ try {
 }
 ```
 
-A `CanceledException` catch that keeps the exception in a variable for later is reported the same way. A `Throwable` catch that only rethrows is not reported, and neither is a `try` block that only waits on channels, wait groups, a `Waiter` or `Coroutine::join`, which throw cancellation directly. An `instanceof CanceledException` check is reported too, unless the value is already known to be a cancellation. Since `causedByCancellation` accepts only a `Throwable`, check `instanceof Throwable` first for a value that may be `null`, such as `getPrevious()`.
+Use the same approach instead of `instanceof CanceledException` or storing a directly caught cancellation for later. If the value may be `null`, such as `getPrevious()`, check `instanceof Throwable` first. A `Throwable` catch that only rethrows is not reported. Neither is a `try` block containing only waits that throw cancellation directly, such as channel waits or `Coroutine::join`.
 
 When you keep the first of several failures using `??=`, a later failure carrying cancellation is lost. Use `Coroutine::preferCancellation`, which keeps the first failure unless a later one carries this coroutine's cancellation:
 
@@ -801,7 +813,7 @@ When you keep the first of several failures using `??=`, a later failure carryin
 $failure = Coroutine::preferCancellation($failure, $exception);
 ```
 
-A `??=` is not reported in a branch that only runs for ordinary failures, or when nothing can have been kept before it. You may disable these checks using the `checkCancellationHandling` and `checkCancellationPrecedence` parameters.
+The check allows `??=` when no earlier failure can exist or the branch excludes cancellation. You may disable these checks using the `checkCancellationHandling` and `checkCancellationPrecedence` parameters.
 
 <a name="coroutines-in-transactions"></a>
 ### Coroutines in Transactions
@@ -817,7 +829,7 @@ DB::transaction(function () use ($order) {
 });
 ```
 
-Start the coroutine once the transaction commits, such as from a `DB::afterCommit` callback, or do the work in the transaction's own coroutine. The analysis checks `go`, `co`, `parallel`, `wait`, `Coroutine::create` and `Coroutine::fork`, `Parallel`, `Concurrent`, `WaitConcurrent` and `Waiter`, as well as `Concurrency::run` when your configuration uses the `coroutine` driver, or when called on a driver known to be the `coroutine` driver, such as `Concurrency::driver('coroutine')`. Code inside a coroutine that is already reported is not checked again, and neither is a task list known to be empty. You may disable this check using the `noCoroutinesInTransactions` parameter.
+Start the coroutine from a `DB::afterCommit` callback, or do the work in the transaction's own coroutine. The check covers `go`, `co`, `parallel`, `wait`, `Coroutine::create`, `Coroutine::createOwned`, `Coroutine::fork`, `Coroutine::forkOwned`, `Parallel`, `Concurrent`, `WaitConcurrent` and `Waiter`. It also covers `Concurrency::run` when the selected driver is known to be `coroutine`. You may disable it using the `noCoroutinesInTransactions` parameter.
 
 <a name="sleeping"></a>
 ### Sleeping
@@ -860,9 +872,9 @@ Pass request values to the methods that use them, or keep them in [CoroutineCont
 - A static property written while handling a request or running a job, or one that keeps any of the values above. (`hypervel.staticStateMutation`)
 - An array on a static property or shared service whose keys come from the request or user, such as `$this->visits[$request->ip()]`, since it can grow for as long as the worker runs. Use a cache store with an expiry instead. Keys limited to a small set of values, such as booleans or constants, are not reported, and neither is an array the same method has just reset. When the array is bounded in a way the analysis cannot see, ignore the diagnostic with a reason. (`hypervel.unboundedWorkerCache`)
 
-Code runs "while handling a request" in route middleware and global middleware, controller actions, closures and arrow functions passed as a route's action to a route method such as `Route::get`, and form request methods. Code runs "while running a job" in the `handle`, `__invoke` and `failed` methods of queued classes. Closures nested inside these are not checked, since they may run later.
+Request and job checks cover middleware, controller actions, route closures, form requests, and queued classes' `handle`, `__invoke` and `failed` methods. Nested closures are not checked because they may run later.
 
-To decide which classes are shared, the analysis follows the container's own rules using your booted application. It starts from your container bindings and instances, routes and middleware, event listeners, command bus handlers, `#[Singleton]` classes, classes resolved by name without parameters using `app`, `resolve` or the container's `make`, `get` or `factory` methods, and queued jobs, then follows each class's constructor dependencies. Registrations and `#[Singleton]` come first: a class registered with `singleton` or `instance`, or marked `#[Singleton]`, is shared even when it is [transient](/docs/{{version}}/container#transient-classes) or [self-building](/docs/{{version}}/container#self-building-classes). A class registered with `scoped` or marked `#[Scoped]` is not shared, and neither is one registered with `bind`, unless it is bound to a shared class. Other transient and self-building classes, and classes whose constructor takes an execution-scoped value such as `#[CurrentUser]`, are not shared. Classes created by a binding's closure are not followed, since the analysis does not run the closure. A constructor parameter the container always fills with a new object, such as a model a repository uses as a prototype, is not reported unless the constructor replaces it. The `handle` dependencies of a queued job are only followed when the job uses the `Dispatchable` trait.
+Shared services are identified from your application's container registrations, resolved classes, handlers and constructor dependencies, following the container's [resolution lifecycles](/docs/{{version}}/container#resolution-lifecycles). A constructor-injected model used as a fresh prototype is allowed. Objects created inside binding closures are not inspected, and job `handle` dependencies are followed only for jobs using `Dispatchable`.
 
 Methods that only run while the application boots or in tests may say so with a docblock line starting with "Boot-only", "Tests only" or "Boot or tests only". Writes in these methods, and in `flushState` methods, are not reported:
 
@@ -895,7 +907,9 @@ public function handle(Request $request, Closure $next): Response
 }
 ```
 
-Set configuration while your application boots, and keep per-request values in [CoroutineContext](/docs/{{version}}/coroutine-context). The analysis reports `config` calls with an array, `set`, `push`, `prepend`, `offsetSet` and `offsetUnset` calls on the configuration repository, and statements that set or unset one of its keys, such as `config()['app.locale'] = 'fr'`, while handling a request or running a job as described in [Worker State](#worker-state). The repository may come from the `config` helper, the `Config` facade, the container by any name that resolves to `config`, or a parameter the container injects into a controller action, a route closure, or a job's `handle` or `__invoke` method. A parameter with a default or a contextual attribute is not checked, and neither is a job parameter that a contextual binding gives another repository. Once a method gives a parameter a new value, later writes through it are not checked. Neither is a repository you create or keep in a property. You may disable this check using the `noRuntimeConfigMutation` parameter.
+Set configuration during application boot and keep per-request values in [CoroutineContext](/docs/{{version}}/coroutine-context). The check reports writes through the `config` helper, `Config` facade, container-resolved repository and supported method-injected parameters in the [request and job methods](#worker-state) described above.
+
+Only writes known to target the shared configuration are reported. Repositories you construct yourself or store in properties are not checked. You may disable the rule using the `noRuntimeConfigMutation` parameter.
 
 <a name="model-relations"></a>
 ### Model Relations
@@ -952,7 +966,7 @@ protected function firstName(): Attribute
 
 The analysis reports a legacy `scopePopular` method, naming the attributed scope that replaces it, and a scope or accessor that is not protected. Legacy scopes and public methods keep working, while a private scope or accessor is never called by Eloquent.
 
-A scope call can be chained when the scope declares no return type, `void`, `null` or the query builder, since it returns the query. A broader return type, such as `mixed` or `object`, is kept, because the scope may return something else. In a union containing the builder, such as `Builder|int`, the builder becomes the query the scope was called on.
+A scope declaring no return type, `void`, `null` or a builder remains chainable. Other return types are preserved; for example, `Builder|int` returns either the calling query or an integer.
 
 When the model already has a method with the scope's name, such as a notification's `read` method beside its `scopeRead` scope, the legacy scope is the only way to keep the scope's name, so it is not reported. A scope defined in a reusable trait should also keep its legacy name, since a model's own method with the same name would silently replace an attributed scope; ignore it with a reason. Likewise, ignore a public scope or accessor that other code calls directly as part of a public API. You may disable these checks using the `noLegacyModelScopes` and `checkModelMethodVisibility` parameters.
 
@@ -974,9 +988,11 @@ class Flight extends Model
 }
 ```
 
-The analysis reports a model's own `$table`, `$connection`, `$primaryKey`, `$keyType`, `$incrementing`, `$timestamps`, `$dateFormat`, `$fillable`, `$guarded`, `$hidden`, `$visible`, `$appends`, `$touches` and `$refreshes` declarations. It names the attribute that gives the model the same settings, or says the declaration can be removed when the model resolves the same value without it. A single `Table` attribute holds the table, key and key type. The properties keep working. A declaration the constructor assigns, or changes through a model setter such as `setTable` or `mergeFillable`, is not reported; changes made inside other methods the constructor calls, including trait initializers, are not detected.
+The check recommends attributes for model settings such as the table, connection, keys, timestamps, mass assignment and serialization. It also identifies declarations that repeat an inherited or default value. Existing properties remain supported. Settings assigned directly by the constructor or through setters such as `setTable` are not reported; assignments inside helper methods or trait initializers are not detected.
 
-Attributes and properties take precedence differently through inheritance, so a suggestion holds for the model itself, not necessarily its subclasses. A subclass's own attribute replaces an inherited attribute entirely: a subclass declaring `#[Hidden(['token'])]` adds to a parent's `$hidden = ['password']`, but replaces a parent's `#[Hidden(['password'])]`, so it must repeat `password`. An attribute can also win over a subclass's property, such as a parent's `#[WithoutTimestamps]` over a subclass's `$timestamps = true`. Review a model's subclasses before converting it, and keep the property when attributes cannot express the hierarchy, such as on a model that applications extend and customize through properties; ignore it with a reason. You may disable this check using the `noLegacyModelProperties` parameter.
+Review subclasses before converting a model. Attributes and properties have different inheritance behavior: a child's `Hidden` attribute replaces the parent's `Hidden` attribute, but adds to a parent's `$hidden` property. An inherited `WithoutTimestamps` attribute also overrides a child's `$timestamps = true` property.
+
+Keep properties when consumers rely on this behavior, especially on models that applications extend, and ignore the diagnostic with a reason. You may disable the check using `noLegacyModelProperties`.
 
 <a name="appended-attributes"></a>
 ### Appended Attributes
@@ -1011,7 +1027,7 @@ $user = User::make(['name' => 'Taylor']);
 $user = new User(['name' => 'Taylor']);
 ```
 
-Since `make` creates the model through its query, a global scope can change the model it creates, and the model takes the query's connection. So the analysis only reports models with a fixed connection and no global scopes, boot methods or customized construction. Models using the default connection, or a trait such as `SoftDeletes` that adds a global scope, are not reported, and neither are calls through `static` in a class that may be extended. You may disable this check using the `noModelMake` parameter.
+This suggestion applies only when direct construction preserves the behavior of `make`. Models using the default connection, global scopes such as `SoftDeletes`, boot methods or custom construction are excluded, as are calls through `static` in extensible classes. You may disable the check using `noModelMake`.
 
 <a name="query-results"></a>
 ### Query Results
@@ -1025,7 +1041,9 @@ $active = Flight::where('active', 1)->get()->count();
 $active = Flight::where('active', 1)->count();
 ```
 
-The `first`, `count`, `isEmpty`, `isNotEmpty`, `take`, `pluck` and `modelKeys` methods are checked, with `isEmpty` and `isNotEmpty` replaced by the query's `doesntExist` and `exists` methods. A call is only reported when the whole query is visible: a model's static query methods or `DB::table`, followed by `where` clauses, ordering, eager loading, joins and limits, then `get` or `all`. Queries held in variables, relationship queries, and queries that select columns or call scopes or macros are not checked, and neither are models with global scopes, such as those using `SoftDeletes`, or with a custom collection that overrides the method or a method it calls. A call whose result a limit, join, accessor or class cast would change, such as plucking an attribute that has an accessor, is not reported, and neither is `pluck` or `modelKeys` on a model with an observer or `retrieved` listener, or one that customizes how it reads attributes.
+The check covers `first`, `count`, `isEmpty`, `isNotEmpty`, `take`, `pluck` and `modelKeys`. For `isEmpty` and `isNotEmpty`, the diagnostic suggests the query's `doesntExist` and `exists` methods.
+
+Only direct query chains with equivalent results are reported. Queries stored in variables, relationship queries, selected columns, scopes, macros and custom collection behavior are excluded. Accessors, casts, observers and other model customizations can also prevent a suggestion. Keep the collection call when moving it to the database would change its behavior.
 
 You may choose the checked methods using the `noUnnecessaryCollectionCallOnly` and `noUnnecessaryCollectionCallExcept` parameters, or disable the rule using the `noUnnecessaryCollectionCall` parameter.
 
@@ -1150,9 +1168,11 @@ class ProcessPodcast implements ShouldQueue
 }
 ```
 
-The analysis reports public `$connection`, `$queue`, `$delay`, `$tries`, `$timeout`, `$maxExceptions`, `$backoff`, `$uniqueFor`, `$debounceFor`, `$failOnTimeout`, `$countCrashesAsExceptions` and `$deleteWhenMissingModels` declarations where the class's queue path reads the matching attribute. It names the attribute that keeps the same setting, or says the declaration can be removed. A declaration in a trait the class uses is reported with the attribute to place on the trait, unless its value depends on the class, such as `self::TRIES`. The properties keep working.
+The check recommends attributes for public queue settings, including the connection, queue, delay, retries and timeouts, wherever that class supports the attribute. It also identifies declarations that can be removed without changing the setting. Settings declared by a trait may be moved to an attribute on that trait unless their value depends on the consuming class. Existing properties remain supported.
 
-A setting computed by a method, such as `tries` or a listener's `viaQueue`, is not reported. Neither is a `false` flag, which can turn off an inherited attribute, nor a declaration the constructor assigns or changes through `onConnection`, `onQueue`, `delay` and the other `Queueable` setters, such as a wrapper job copying the settings of the object it wraps; changes made inside other methods the constructor calls are not detected. A subclass's non-null public property still wins over an inherited attribute, but a subclass's own attribute replaces it entirely: a subclass's `#[DebounceFor(10)]` drops the parent's `maxWait`. Keep a declared property that other code reads or assigns when no parent declares it, since an attribute does not provide that storage; ignore it with a reason. You may disable this check using the `noLegacyQueueProperties` parameter.
+Computed settings, `false` flags, and settings assigned directly by the constructor or through `Queueable` setters are not reported. A `false` flag can disable an inherited attribute. Assignments inside other constructor-called methods are not detected.
+
+Review inheritance and other callers before converting a property. A subclass's non-null public property overrides an inherited attribute, while its own attribute replaces the parent's entire attribute; for example, `#[DebounceFor(10)]` does not inherit a parent's `maxWait`. Keep a property that other code reads or assigns if no parent provides it, and ignore the diagnostic with a reason. You may disable this check using `noLegacyQueueProperties`.
 
 <a name="validation-rules"></a>
 ### Validation Rules
@@ -1166,19 +1186,19 @@ $request->validate([
 ]);
 ```
 
-The analysis reports the pipe-separated strings the validator splits where you write them: the rules you pass to `Validator::make`, `validator`, `$request->validate`, the controller `validate` methods, `Rule::when`, `Rule::anyOf` and a prompt's `validate` argument, the arrays a form request's or data class's `rules` method returns, and data `#[Rule]` attributes. Strings built with concatenation or interpolation are reported too. Running `phpstan analyse --fix` replaces a plain string whose split is unambiguous with the array of its rules; a string with an empty rule or with whitespace around a rule is reported without a fix.
+The check covers rules passed to validation helpers and methods, form requests, data objects, conditional rules and prompts. Concatenated and interpolated strings are checked too. Run `phpstan analyse --fix` to convert unambiguous strings to arrays; rules with empty segments or surrounding whitespace require a manual change.
 
 A string holding a `regex` or `not_regex` rule is reported without a fix, because the validator also splits the pattern at its own `|`. Give the regex its own array element, where the validator keeps it whole. Data rules differ: a data rule string that starts with a regex rule is kept whole, so it is not reported.
 
-The analysis reads the rules array where you write it. A constant or conditional value inside that array is checked, but a rules array built in a variable, helper or closure is not followed. You may disable this check using the `noPipeSeparatedValidationRules` parameter.
+Rule arrays built in variables, helpers or closures are not followed. Constants and conditional values inside a directly supplied array are checked. You may disable the rule using `noPipeSeparatedValidationRules`.
 
 <a name="deprecations"></a>
 ### Deprecations
 
 The bundled deprecation rules report uses of deprecated APIs from any of your dependencies, including PHP, Symfony and Carbon as well as Hypervel. Use the replacement the deprecation names. When you still need the deprecated API, such as to keep a public API compatible, ignore it with the reported identifier and a reason.
 
-Code that is itself deprecated, such as a method marked `@deprecated` or any method of a deprecated class or trait, may use other deprecated APIs without being reported. A PHPStan extension may mark other code as deprecated by registering a `DeprecatedScopeResolver` service with the `phpstan.deprecations.deprecatedScopeResolver` tag.
+Code inside a deprecated method, class or trait may use other deprecated APIs without being reported.
 
-Deprecated methods and properties reached through a proxy, such as `$users->each->notify()`, `optional($user)->notify()` or `$user->when($active)->notify()`, are not reported, since PHPStan's deprecation checks only look at the proxy class itself.
+Deprecation checks do not cover methods and properties reached through proxies such as `$users->each`, `optional($user)` or `$user->when($active)`.
 
 To disable deprecation reporting, remove the `rules.neon` include. If you use the extension installer, add `phpstan/phpstan-deprecation-rules` to the `extra.phpstan/extension-installer.ignore` list in your `composer.json` file instead.
