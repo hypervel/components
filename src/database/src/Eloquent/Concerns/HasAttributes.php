@@ -1756,7 +1756,9 @@ trait HasAttributes
 
         $castType = $this->parseCasterClass($casts[$key]);
 
-        if (in_array($castType, static::$primitiveCastTypes)) {
+        // Unlike Laravel, a primitive cast in another case, such as BOOLEAN, is primitive here too, as getCastType()
+        // normalizes it for reads, so writes do not throw.
+        if (in_array($castType, static::$primitiveCastTypes) || in_array($this->getCastType($key), static::$primitiveCastTypes)) {
             return $this->castMetadataCache['classCastable'][$key] = false;
         }
 

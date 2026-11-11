@@ -4212,6 +4212,29 @@ class DatabaseEloquentModelTest extends TestCase
         $invoker->isClassCastable('foo');
     }
 
+    public function testPrimitiveCastsInAnotherCaseReadAndWrite(): void
+    {
+        Crypt::swap(new ConcreteEncrypter(str_repeat('a', 32), 'AES-256-CBC'));
+
+        $model = new class extends Model {
+            protected array $casts = [
+                'flag' => 'BOOLEAN',
+                'secrets' => 'ENCRYPTED:ARRAY',
+            ];
+        };
+
+        $model->flag = false;
+        $model->secrets = ['key' => 'value'];
+
+        $this->assertFalse($model->flag);
+        $this->assertSame(['key' => 'value'], json_decode(Crypt::decrypt($model->getAttributes()['secrets'], false), true));
+        $this->assertSame(['key' => 'value'], $model->secrets);
+
+        $model->setRawAttributes(['flag' => 1]);
+
+        $this->assertTrue($model->flag);
+    }
+
     public function testCastCacheIsIsolatedPerInstance(): void
     {
         $a = new ModelStub;
