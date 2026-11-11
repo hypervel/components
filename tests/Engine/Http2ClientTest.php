@@ -231,6 +231,34 @@ class Http2ClientTest extends TestCase
         }
     }
 
+    public function testReceiveAcknowledgesServerPingsWithTheirPayload(): void
+    {
+        // @TODO: Remove this skip once Swoole's HTTP/2 client echoes the server's PING payload in its ACK.
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped("Swoole's HTTP/2 client answers server PINGs with the wrong payload.");
+        }
+
+        $server = new Socket(AF_INET, SOCK_STREAM, 0);
+        $this->assertTrue($server->bind('127.0.0.1', 0));
+        $this->assertTrue($server->listen());
+        $client = new Client('127.0.0.1', $server->getsockname()['port']);
+        $connection = $server->accept(1);
+        $this->assertInstanceOf(Socket::class, $connection);
+
+        try {
+            // An empty SETTINGS frame, then a PING carrying "ABCDEFGH".
+            $connection->sendAll("\0\0\0\x04\0\0\0\0\0\0\0\x08\x06\0\0\0\0\0ABCDEFGH");
+
+            $this->assertNull($client->recv(0.1));
+            $client->close();
+            $this->assertStringContainsString("\0\0\x08\x06\x01\0\0\0\0ABCDEFGH", $connection->recvAll(65535, 1));
+        } finally {
+            $client->close();
+            $connection->close();
+            $server->close();
+        }
+    }
+
     public function testExposesNormalizedStreamExistence(): void
     {
         $native = new Http2ClientTestNativeClient;
