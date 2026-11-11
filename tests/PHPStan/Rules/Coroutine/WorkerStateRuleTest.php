@@ -265,6 +265,8 @@ class WorkerStateRuleTest extends RuleTestCase
                 [sprintf(self::CONFIG, self::JOB), 610, self::CONFIG_TIP],
                 [sprintf(self::CONFIG, self::REQUEST), 737, self::CONFIG_TIP],
                 [sprintf(self::CONFIG, self::JOB), 844, self::CONFIG_TIP],
+                [sprintf(self::CONFIG, self::JOB), 855, self::CONFIG_TIP],
+                [sprintf(self::CONFIG, self::JOB), 857, self::CONFIG_TIP],
             ],
         ];
     }

@@ -844,3 +844,17 @@ class RebuildReport implements ShouldQueue
         config(['app.rebuilt' => true]);
     }
 }
+
+// config() reads its key by name, so named arguments may come in any order.
+class NamedConfigJob implements ShouldQueue
+{
+    use Dispatchable;
+
+    public function handle(): void
+    {
+        config(default: null, key: ['app.named' => true]);
+        config(default: [], key: 'app.name');
+        app(parameters: [], abstract: 'config')->set('app.named', true);
+        app('config', ['option' => true])->set('app.named', true);
+    }
+}

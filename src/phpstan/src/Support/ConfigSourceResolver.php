@@ -63,6 +63,7 @@ use PHPStan\Reflection\ReflectionProvider;
 use ReflectionClassConstant;
 use ReflectionProperty;
 
+use function array_any;
 use function array_fill_keys;
 use function array_keys;
 use function array_map;
@@ -1107,7 +1108,14 @@ class ConfigSourceResolver
             }
 
             if ($expr instanceof FuncCall && $expr->name instanceof Name && $this->isGlobalFunction($expr->name, 'dirname')) {
-                return dirname(...array_map(static fn (Node\Arg $argument): mixed => $evaluator->evaluateDirectly($argument->value), $expr->getArgs()));
+                $path = $expr->getArg('path', 0);
+                $levels = $expr->getArg('levels', 1);
+
+                if ($path === null || array_any($expr->getArgs(), static fn (Node\Arg $argument): bool => $argument->unpack)) {
+                    throw new ConstExprEvaluationException('Unpacked arguments are not constant.');
+                }
+
+                return dirname($evaluator->evaluateDirectly($path->value), $levels === null ? 1 : $evaluator->evaluateDirectly($levels->value));
             }
 
             if ($expr instanceof ClassConstFetch && $expr->class instanceof Name && $expr->name instanceof Identifier) {

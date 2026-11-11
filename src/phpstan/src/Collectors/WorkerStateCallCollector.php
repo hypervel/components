@@ -234,9 +234,11 @@ class WorkerStateCallCollector implements Collector
     private function isConfigWrite(CallLike $call, Scope $scope): bool
     {
         if ($call instanceof FuncCall) {
+            $key = $call->getArg('key', 0);
+
             return $this->helper->isConfigFunction($call, $scope)
-                && isset($call->getArgs()[0])
-                && $scope->getType($call->getArgs()[0]->value)->isArray()->yes();
+                && $key !== null
+                && $scope->getType($key->value)->isArray()->yes();
         }
 
         if (! $call instanceof MethodCall && ! $call instanceof StaticCall

@@ -92,11 +92,11 @@ class ConfigFixtureServiceProvider extends ServiceProvider
     }
 
     /**
-     * Merge the config file keyed by the static property.
+     * Merge the config file keyed by the static property, from a path built with named arguments out of order.
      */
     protected function registerPropertyConfig(): void
     {
-        $this->mergeConfigFrom(dirname(__DIR__) . '/Config/config/property.php', static::$propertyKey);
+        $this->mergeConfigFrom(dirname(levels: 1, path: __DIR__) . '/Config/config/property.php', static::$propertyKey);
     }
 
     /**

@@ -14,6 +14,7 @@ use Hypervel\Support\Facades\App;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Request as RequestFacade;
 use PhpParser\Node;
+use PhpParser\Node\Arg;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\CallLike;
 use PhpParser\Node\Expr\FuncCall;
@@ -38,9 +39,9 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+use function array_any;
 use function array_find;
 use function array_map;
-use function count;
 use function in_array;
 use function is_string;
 use function preg_match;
@@ -73,6 +74,16 @@ class WorkerStateHelper
         'file' => [UploadedFile::class],
         'model' => [Model::class],
     ];
+
+    /**
+     * The resolving helpers, each with its abstract's parameter name and whether parameters follow.
+     */
+    private const array RESOLVING_FUNCTIONS = ['app' => ['abstract', true], 'resolve' => ['name', true]];
+
+    /**
+     * The resolving container methods, each with its abstract's parameter name and whether parameters follow.
+     */
+    private const array RESOLVING_METHODS = ['make' => ['abstract', true], 'get' => ['id', false], 'factory' => ['abstract', false]];
 
     /**
      * The documented warning tags of boot-time and test-only mutators.
@@ -224,27 +235,36 @@ class WorkerStateHelper
             return null;
         }
 
-        $arguments = $call->getArgs();
-
-        $resolves = match (true) {
+        $signature = match (true) {
             $call instanceof FuncCall => $call->name instanceof Name
-                && in_array(strtolower($this->reflectionProvider->resolveFunctionName($call->name, $scope) ?? ''), ['app', 'resolve'], true),
+                ? self::RESOLVING_FUNCTIONS[strtolower($this->reflectionProvider->resolveFunctionName($call->name, $scope) ?? '')] ?? null
+                : null,
             $call instanceof MethodCall => $call->name instanceof Identifier
-                && in_array($call->name->toLowerString(), ['make', 'get', 'factory'], true)
-                && (new ObjectType(Container::class))->isSuperTypeOf($scope->getType($call->var))->yes(),
+                && (new ObjectType(Container::class))->isSuperTypeOf($scope->getType($call->var))->yes()
+                ? self::RESOLVING_METHODS[$call->name->toLowerString()] ?? null
+                : null,
             $call instanceof StaticCall => $call->class instanceof Name
                 && $call->name instanceof Identifier
-                && in_array($call->name->toLowerString(), ['make', 'get', 'factory'], true)
-                && (new ObjectType(App::class))->isSuperTypeOf(new ObjectType($scope->resolveName($call->class)))->yes(),
-            default => false,
+                && (new ObjectType(App::class))->isSuperTypeOf(new ObjectType($scope->resolveName($call->class)))->yes()
+                ? self::RESOLVING_METHODS[$call->name->toLowerString()] ?? null
+                : null,
+            default => null,
         };
 
-        // Parameters bypass the shared caches, so such a resolution makes nothing worker-shared.
-        if (! $resolves || count($arguments) !== 1 || $arguments[0]->unpack) {
+        if ($signature === null || array_any($call->getArgs(), static fn (Arg $argument): bool => $argument->unpack)) {
             return null;
         }
 
-        $abstracts = $scope->getType($arguments[0]->value)->getConstantStrings();
+        // Arguments are read by name, as named arguments may come in any order.
+        $abstract = $call->getArg($signature[0], 0);
+        $parameters = $signature[1] ? $call->getArg('parameters', 1) : null;
+
+        // Parameters bypass the shared caches, so such a resolution makes nothing worker-shared. An empty array does not.
+        if ($abstract === null || ($parameters !== null && ! $scope->getType($parameters->value)->isIterableAtLeastOnce()->no())) {
+            return null;
+        }
+
+        $abstracts = $scope->getType($abstract->value)->getConstantStrings();
 
         return $abstracts === [] ? null : array_map(static fn ($abstract): string => $abstract->getValue(), $abstracts);
     }
