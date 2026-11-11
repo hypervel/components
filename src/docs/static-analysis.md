@@ -299,7 +299,7 @@ $schema->create('events', function (Blueprint $table) {
 });
 ```
 
-Dynamic migration code can limit attribute typing. Blueprint macros, loops and helpers that receive a blueprint make its table unknown. Unknown column names leave room for additional columns; unknown table names make the connection's schema unknown, and unknown connection names make every connection's schema unknown. A column created in only some branches reads as `mixed`.
+Dynamic migration code can limit attribute typing. Blueprint macros, loops and helpers that receive a blueprint make its table unknown. A `switch` statement whose case can end early, such as through a `break` inside an `if`, makes the tables it changes unknown. When a migration assigns its `$connection` property outside its `down` method, such as in its constructor, the connection its calls use by default is unknown. Unknown column names leave room for additional columns; unknown table names make the connection's schema unknown, and unknown connection names make every connection's schema unknown. A column created in only some branches reads as `mixed`.
 
 Use the `Schema` and `DB` facades for schema changes; connections obtained through properties or helpers such as `app('db')` are not followed. To target another database or schema, configure a connection and select it instead of relying on `USE` or `SET search_path` across separate SQL calls.
 
@@ -1114,9 +1114,9 @@ Properties of any visibility are checked, including inherited ones. A job that d
 <a name="batched-jobs"></a>
 ### Batched Jobs
 
-Every job you add to a batch must use the `Hypervel\Bus\Batchable` trait, or adding it fails. The analysis reports a job that does not use it when you pass it to `Bus::batch()` or to a batch's `add` method, including jobs held in variables and the jobs of a chain within the batch. You may disable this check using the `checkBatchedJobIsBatchable` parameter.
+Every job you add to a batch must use the `Hypervel\Bus\Batchable` trait, or adding it fails. The analysis reports a job that does not use it when you pass it to `Bus::batch()` or to a batch's `add` method, including jobs held in variables and the jobs of a chain within the batch. A value that may hold different jobs, such as a job or a chain, or one of several lists of jobs, is reported only when every possibility includes a job without the trait. You may disable this check using the `checkBatchedJobIsBatchable` parameter.
 
-Jobs that implement `ShouldBeUnique` should be dispatched individually, since only an individual dispatch acquires the job's unique lock. `Bus::batch()`, `Bus::bulk()`, `Queue::bulk()` and a batch's `add` method queue jobs without it, so duplicates are queued. A later job of a chain within a batch acquires its lock when the chain reaches it, but when the lock is already held, the job is skipped and the batch never finishes. You may disable this check using the `noBatchedUniqueJob` parameter.
+Jobs that implement `ShouldBeUnique` should be dispatched individually, since only an individual dispatch acquires the job's unique lock. `Bus::batch()`, `Bus::bulk()`, `Queue::bulk()` and a batch's `add` method queue jobs without it, so duplicates are queued. A later job of a chain within a batch acquires its lock when the chain reaches it, but when the lock is already held, the job is skipped and the batch never finishes. A value that may hold different jobs is reported when any possibility includes a unique job. You may disable this check using the `noBatchedUniqueJob` parameter.
 
 When the `checkBatchableJobChecksCancellation` parameter is enabled, the analysis also reports batchable jobs that do not check whether their batch has been canceled. Canceling a batch does not stop jobs that are already queued, so a job should return early when its batch has been canceled, or use the `SkipIfBatchCancelled` middleware:
 
