@@ -40,11 +40,7 @@ class ValidateOrigin
                 return $next($request);
             }
 
-            // Published configuration may list more origins; the default lists none.
-            /** @var list<string> $allowedOrigins */
-            $allowedOrigins = $this->config->array('mcp.allowed_origins');
-
-            foreach ($allowedOrigins as $allowedOrigin) {
+            foreach ($this->config->array('mcp.allowed_origins') as $allowedOrigin) {
                 if ($origin === $this->origin($allowedOrigin)) {
                     return $next($request);
                 }

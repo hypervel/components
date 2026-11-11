@@ -43,7 +43,7 @@ try {
 
     $app->make(Kernel::class)->bootstrap();
 
-    RuntimeInputs::captureBoot($app, $environmentFile);
+    RuntimeInputs::captureBoot($app, $environmentFile, $packageApplication);
 } catch (Throwable $throwable) {
     $argv = $_SERVER['argv'] ?? [];
     $decorated = null;

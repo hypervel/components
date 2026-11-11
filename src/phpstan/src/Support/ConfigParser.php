@@ -73,9 +73,11 @@ use const SORT_NATURAL;
 /**
  * Types config values from the sources Hypervel loads: the application's config files,
  * the framework's config files beneath them, and the package files providers merge.
- * The merges and writes the analysis finds widen the composed types. A write it cannot
- * follow, such as one through a local variable in a branch the analysis boot does not
- * run, is not modeled.
+ * A package's analysis leaves merged package values unknown, since the applications
+ * using the package replace them, and keeps its Testbench application's files and the
+ * framework's. The merges and writes the analysis finds widen the composed types. A
+ * write it cannot follow, such as one through a local variable in a branch the analysis
+ * boot does not run, is not modeled.
  *
  * Upstream types only the application's files and treats a key no file declares as
  * holding its default.
@@ -440,8 +442,12 @@ class ConfigParser
             static fn (array $merge): bool => explode('.', $merge['key'])[0] === $name,
         );
 
+        // The applications using a package replace the values packages merge, so a package's
+        // analysis widens for them as for a merge that may not run.
+        $packageApplication = $this->runtimeInputs->isPackageApplication();
+
         foreach ($merges as $merge) {
-            if ($merge['definite'] && $merge['path'] !== null) {
+            if ($merge['definite'] && $merge['path'] !== null && ! $packageApplication) {
                 $path = $merge['path'];
                 $this->trackDependencies($scope, [$path => false]);
 
@@ -466,7 +472,7 @@ class ConfigParser
                 $root = $this->openRegistry($root, [...explode('.', $merge['key']), $option], $scope);
             }
 
-            if (! $merge['definite']) {
+            if (! $merge['definite'] || $packageApplication) {
                 $root = $this->widenForMerge($root, explode('.', $merge['key']), $merge['options'], $merge['recursive'], $scope);
             }
         }
@@ -553,7 +559,7 @@ class ConfigParser
                 return $this->openRecursively($current, $scope);
             }
 
-            if (array_any(array_keys($current->entries), is_int(...))) {
+            if (array_any($current->entries, static fn (mixed $entry, int|string $key): bool => is_int($key))) {
                 return null;
             }
 
@@ -563,7 +569,7 @@ class ConfigParser
                 if (array_key_exists($option, $entries)) {
                     $optionArray = $this->toConfigArray($entries[$option], $scope);
 
-                    $entries[$option] = $optionArray === null || array_any(array_keys($optionArray->entries), is_int(...))
+                    $entries[$option] = $optionArray === null || array_any($optionArray->entries, static fn (mixed $entry, int|string $key): bool => is_int($key))
                         ? null
                         : new ConfigArray($optionArray->entries, $optionArray->optionalKeys, true);
                 }

@@ -36,11 +36,7 @@ enum EnvironmentMode: string
     {
         $configured = [];
 
-        // Published configuration may group environments under any keys, which the loop validates.
-        /** @var array<array-key, mixed> $modes */
-        $modes = config()->array('doctor.environments');
-
-        foreach ($modes as $mode => $environments) {
+        foreach (config()->array('doctor.environments') as $mode => $environments) {
             $resolved = is_string($mode) ? self::tryFrom($mode) : null;
 
             if ($resolved === null) {

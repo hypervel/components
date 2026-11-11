@@ -19,8 +19,8 @@ use function sort;
 use function str_replace;
 
 /**
- * Analyses a copy of a fixture application before and after an edit, to check that the edit
- * reanalyses the files depending on it on a warm result cache.
+ * Analyses a copy of a fixture application in its own PHPStan process, such as before and after
+ * an edit to check that the edit reanalyses the files depending on it on a warm result cache.
  */
 abstract class ResultCacheTestCase extends TestCase
 {

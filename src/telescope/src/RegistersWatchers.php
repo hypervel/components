@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Telescope;
 
 use Hypervel\Contracts\Foundation\Application;
-use Hypervel\Telescope\Watchers\Watcher;
 
 trait RegistersWatchers
 {
@@ -39,11 +38,7 @@ trait RegistersWatchers
      */
     protected static function registerWatchers(Application $app): void
     {
-        // Published configuration may enable watchers with booleans, omit enabled, or list classes.
-        /** @var array<class-string<Watcher>|int, array<string, mixed>|bool|class-string<Watcher>> $watchers */
-        $watchers = config()->array('telescope.watchers');
-
-        foreach ($watchers as $key => $watcher) {
+        foreach (config()->array('telescope.watchers') as $key => $watcher) {
             if (is_string($key) && $watcher === false) {
                 continue;
             }

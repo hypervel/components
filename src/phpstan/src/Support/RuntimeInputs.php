@@ -94,6 +94,11 @@ class RuntimeInputs
     protected static ?string $environmentFile = null;
 
     /**
+     * Whether the analyzer booted a Testbench application for a package rather than an application's own.
+     */
+    protected static bool $packageApplication = false;
+
+    /**
      * The value-dependency key, built on first use.
      */
     private ?string $key = null;
@@ -136,11 +141,12 @@ class RuntimeInputs
      * Called by the analyzer's bootstrap file once the application has booted, before
      * analysis loads anything else.
      */
-    public static function captureBoot(Application $app, ?string $environmentFile): void
+    public static function captureBoot(Application $app, ?string $environmentFile, bool $packageApplication): void
     {
         static::$application = $app;
         static::$includedFiles = get_included_files();
         static::$environmentFile = $environmentFile;
+        static::$packageApplication = $packageApplication;
 
         foreach ([...get_declared_classes(), ...get_declared_interfaces(), ...get_declared_traits()] as $class) {
             static::$classes[strtolower($class)] = true;
@@ -150,6 +156,14 @@ class RuntimeInputs
                 static::$classFiles[$file] = true;
             }
         }
+    }
+
+    /**
+     * Determine whether the analyzer booted a Testbench application for a package.
+     */
+    public function isPackageApplication(): bool
+    {
+        return static::$packageApplication;
     }
 
     /**
@@ -496,7 +510,7 @@ class RuntimeInputs
      */
     private function testbenchConfigurationFiles(): array
     {
-        if (static::$environmentFile !== null || ! class_exists(Bootstrapper::class)) {
+        if (! static::$packageApplication) {
             return [];
         }
 

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\PHPStan\Type;
 
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
+use Hypervel\PHPStan\RuntimeInputsResultCacheValueExtension;
 use Hypervel\PHPStan\Support\ConfigSourceResolver;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use PHPStan\Analyser\ResultCache\DirectoryResultCacheValueExtension;
 use PHPStan\Analyser\ResultCache\FileResultCacheValueExtension;
 use PHPStan\Analyser\ValueDependencyCollector;
@@ -43,8 +45,10 @@ class ConfigDynamicReturnTypeExtensionTest extends TypeInferenceTestCase
         $collector = self::getContainer()->getByType(ValueDependencyCollector::class);
         $file = __DIR__ . '/data/config-file-dependency.php';
         $fileHelper = self::getContainer()->getByType(FileHelper::class);
+        $runtimeInputs = self::getContainer()->getByType(RuntimeInputs::class);
 
-        // Every config directory's candidate files and the directory below each key, and the framework files merged beneath them.
+        // Every config directory's candidate files and the directory below each key, and the framework files
+        // merged beneath them. A path in Testbench's runtime copy is tracked through its unchanged skeleton source.
         $expected = [];
 
         foreach (['auth', 'test', 'missing'] as $name) {
@@ -53,13 +57,13 @@ class ConfigDynamicReturnTypeExtensionTest extends TypeInferenceTestCase
 
         foreach (self::getContainer()->getByType(ConfigSourceResolver::class)->getConfigDirectories() as $configPath) {
             foreach (['auth', 'auth/defaults', 'test', 'test/foo', 'missing', 'missing/foo'] as $name) {
-                $expected[] = [FileResultCacheValueExtension::class, $fileHelper->normalizePath($configPath . '/' . $name . '.php')];
+                $expected[] = [FileResultCacheValueExtension::class, $runtimeInputs->sourcePath($fileHelper->normalizePath($configPath . '/' . $name . '.php'))];
             }
 
             foreach (['auth/defaults', 'test/foo', 'missing/foo'] as $name) {
                 $expected[] = [
                     DirectoryResultCacheValueExtension::class,
-                    DirectoryResultCacheValueExtension::createKey($fileHelper->normalizePath($configPath . '/' . $name), '*.php'),
+                    DirectoryResultCacheValueExtension::createKey($runtimeInputs->sourceDirectory($fileHelper->normalizePath($configPath . '/' . $name), '*.php'), '*.php'),
                 ];
             }
         }
@@ -72,14 +76,23 @@ class ConfigDynamicReturnTypeExtensionTest extends TypeInferenceTestCase
             self::processFile($file, static function (): void {
             });
             $dependencies = [];
+            $bootDependencies = 0;
 
             foreach ($collector->finishFile()['values'] as [$extensionClass, $key]) {
+                // The booted providers decide the config directories, merges and writes.
+                if ($extensionClass === RuntimeInputsResultCacheValueExtension::class) {
+                    ++$bootDependencies;
+
+                    continue;
+                }
+
                 $dependencies[] = [$extensionClass, $key];
             }
 
             sort($dependencies);
 
             $this->assertSame($expected, $dependencies, sprintf('Run %d', $run));
+            $this->assertSame(1, $bootDependencies, sprintf('Run %d', $run));
         }
     }
 

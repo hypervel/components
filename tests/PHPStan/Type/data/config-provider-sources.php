@@ -7,50 +7,32 @@ use Hypervel\Support\Facades\Config;
 
 use function PHPStan\Testing\assertType;
 
+/**
+ * This suite boots a package, whose analysis leaves the values packages merge unknown, since
+ * the applications using the package replace them. ConfigCompositionTest checks how an
+ * application's analysis composes the same sources.
+ */
 function test(Repository $config): void
 {
-    // Definite merges, including keys resolved from a class constant and a static property.
-    assertType("'package'", config('package.key'));
-    assertType('bool|string|null', config('package.env'));
-    assertType("'property'", config('property.key'));
+    assertType('mixed', config('package.key'));
+    assertType('mixed', config('package.env'));
+    assertType('mixed', config('property.key'));
+    assertType('string', $config->string('package.key'));
 
-    // The application file's values replace the package file's; a dynamic name writes below merged.disks.
-    assertType("array{shared: 'app', package: 'package', app: 'app', disks?: mixed}", config('merged'));
-    assertType("array{shared: 'app', package: 'package', app: 'app'}", config('recursive.nested'));
-
-    // array_merge() appends and renumbers integer keys; array_replace_recursive() replaces by key.
-    assertType("array{'package-a', 'package-b', 'app-a'}", config('listed'));
-    assertType("array{'app-a', 'package-b'}", config('replaced'));
-
-    // An application shape with unknown keys may replace any package value it does not list.
-    assertType('string', config('open.shared'));
-    assertType('mixed', config('open.enabled'));
-    assertType('string', config('open-recursive.shared'));
-    assertType('mixed', config('open-recursive.enabled'));
-
-    // Providers merge package files in an order the analysis does not follow, so their reads are unknown.
-    assertType('mixed', config('package.url'));
-
-    // Mergeable options take named entries that no file declares.
-    assertType("array{driver: 'array'}", config('package.stores.declared'));
-    assertType('mixed', config('package.stores.undeclared'));
-    assertType('mixed', config('logging.channels.undeclared'));
-
-    // Written keys, and merges that may not run or whose order is unknown.
-    assertType('mixed', config('package.written'));
-    assertType('mixed', config('package.helper'));
-    assertType('mixed', config('package.direct'));
-    assertType('mixed', config('package.web'));
-    assertType('mixed', config('package.parameter'));
-    assertType('mixed', config('overlap.key'));
-    assertType('mixed', config('conditional.key'));
-    assertType('mixed', config('after-return.key'));
-
-    // A dynamic key is bounded by its complete constant segments, so a partly constant
-    // segment leaves its whole parent unknown.
-    assertType('mixed', config('merged.disks.local'));
-    assertType('mixed', config('partial.other'));
-
-    assertType("'package'", $config->string('package.key'));
+    // The Testbench application's files stay known, and a key only a package file sets is unknown rather than absent.
+    assertType("array{shared: 'app', app: 'app', ...<int|string, mixed>}", config('merged'));
     assertType("'app'", Config::get('merged.shared'));
+    assertType('mixed', config('merged.package'));
+    assertType("array{shared: 'app', app: 'app', ...<int|string, mixed>}", config('recursive.nested'));
+
+    // A merge into a framework namespace keeps the framework's entries.
+    assertType('bool|string|null', config('hashing.driver'));
+    assertType('mixed', config('hashing.package'));
+
+    // array_merge() renumbers integer keys a package may add; array_replace_recursive() keeps the application's.
+    assertType('mixed', config('listed'));
+    assertType("array{'app-a', ...<int|string, mixed>}", config('replaced'));
+
+    // A package's named entries are unknown too.
+    assertType('mixed', config('package.stores.declared'));
 }

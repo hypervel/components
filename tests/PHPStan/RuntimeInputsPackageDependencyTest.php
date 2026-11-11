@@ -30,7 +30,9 @@ class RuntimeInputsPackageDependencyTest extends ResultCacheTestCase
     {
         $packagePath = $this->createPackage();
         $skeletonPath = $packagePath . '/skeleton';
-        $unset = ['PACKAGE_GREETER' => false, 'MYSQL_DATABASE' => false];
+        // The test models a standalone analysis, so it drops ParaTest's worker token, which
+        // would make Testbench give the SQLite connection a per-worker file.
+        $unset = ['PACKAGE_GREETER' => false, 'MYSQL_DATABASE' => false, 'TEST_TOKEN' => false];
 
         $this->assertSame([self::ENGLISH], $this->diagnostics($this->analysePackage($packagePath, $unset), 1));
 
