@@ -175,9 +175,13 @@ class Parallel
                     throw new CanceledException('Waiting for parallel child coroutines was canceled.');
                 }
             }
-        } catch (CanceledException $exception) {
-            $this->cancelChildren($children);
-            throw $exception;
+        } catch (Throwable $throwable) {
+            // Context copying can wrap the cancellation after earlier children started.
+            if (Coroutine::causedByCancellation($throwable)) {
+                $this->cancelChildren($children);
+            }
+
+            throw $throwable;
         }
 
         $this->results = $results;
