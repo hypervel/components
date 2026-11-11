@@ -6,6 +6,7 @@ namespace Hypervel\PHPStan\Rules;
 
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\PHPStan\Properties\ModelHelper;
+use Hypervel\PHPStan\Properties\ModelRelationsExtension;
 use Hypervel\PHPStan\Support\RuntimeInputs;
 use PhpParser\Node;
 use PhpParser\Node\Expr\MethodCall;
@@ -14,6 +15,7 @@ use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Node\Expr\TypeExpr;
 use PHPStan\Reflection\ClassReflection;
+use PHPStan\Reflection\ParameterReflection;
 use PHPStan\Reflection\ParametersAcceptorSelector;
 use PHPStan\Rules\IdentifierRuleError;
 use PHPStan\Rules\RuleErrorBuilder;
@@ -22,6 +24,7 @@ use PHPStan\Type\Type;
 use PHPStan\Type\TypeCombinator;
 use ReflectionException;
 
+use function array_all;
 use function array_merge;
 use function array_unique;
 use function array_values;
@@ -42,6 +45,7 @@ class RelationExistenceHelper
     public function __construct(
         private ModelRuleHelper $modelRuleHelper,
         private ModelHelper $modelHelper,
+        private ModelRelationsExtension $modelRelations,
         private RuntimeInputs $runtimeInputs,
     ) {
     }
@@ -78,12 +82,15 @@ class RelationExistenceHelper
                 }
 
                 $modelReflection = $concreteModel->getObjectClassReflections()[0];
+                $variant = $modelReflection->hasMethod($relationName)
+                    ? ParametersAcceptorSelector::selectFromArgs($scope, [], $modelReflection->getMethod($relationName, $scope)->getVariants())
+                    : null;
 
+                // The model calls a relation method without arguments, so one that requires them is not a relation.
                 if (
-                    $modelReflection->hasMethod($relationName)
-                    && (new ObjectType(Relation::class))->isSuperTypeOf(
-                        ParametersAcceptorSelector::selectFromArgs($scope, [], $modelReflection->getMethod($relationName, $scope)->getVariants())->getReturnType(),
-                    )->yes()
+                    $variant !== null
+                    && array_all($variant->getParameters(), static fn (ParameterReflection $parameter): bool => $parameter->isOptional())
+                    && (new ObjectType(Relation::class))->isSuperTypeOf($variant->getReturnType())->yes()
                 ) {
                     // Simulate a call so dynamic return type extensions can resolve the related model. Unlike upstream,
                     // the call is on the model's type, keeping a generic model's type arguments.
@@ -92,9 +99,15 @@ class RelationExistenceHelper
                     continue;
                 }
 
+                // Unlike upstream, a method without a declared relation return may be a relation of unknown type, which ends the path.
+                if ($this->modelRelations->isRelationMethod($modelReflection, $relationName)->maybe()) {
+                    break;
+                }
+
                 $this->runtimeInputs->track($scope);
 
-                // Unlike upstream, a relation resolveRelationUsing() registers exists, though its related model is unknown.
+                // Unlike upstream, a relation resolveRelationUsing() registers exists. A typed one continues the path
+                // above; one without a declared relation return ends it here.
                 if (! $this->hasDynamicRelation($modelReflection, $relationName)) {
                     $errors[$modelReflection->getName() . '::' . $relationName] = RuleErrorBuilder::message(sprintf(
                         "Relation '%s' is not found in %s model.",
@@ -140,13 +153,11 @@ class RelationExistenceHelper
     private function hasDynamicRelation(ClassReflection $modelReflection, string $relationName): bool
     {
         try {
-            $model = $this->modelHelper->getInstance($modelReflection);
+            return $this->modelHelper->getRelationResolver($modelReflection, $relationName) !== null;
         } catch (ReflectionException) {
             // A model that cannot be instantiated has unknown relations.
             return true;
         }
-
-        return $model->relationResolver($modelReflection->getName(), $relationName) !== null;
     }
 
     /**

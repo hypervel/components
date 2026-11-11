@@ -90,9 +90,8 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
      */
     private function resolveMethod(ClassReflection $classReflection, string $methodName): ?MethodReflection
     {
-        $isEloquentHost = $this->isClassOrSubclassOf($classReflection, EloquentBuilder::class);
-        $isRelationHost = ! $isEloquentHost
-            && $this->isClassOrSubclassOf($classReflection, Relation::class);
+        $isEloquentHost = $classReflection->is(EloquentBuilder::class);
+        $isRelationHost = ! $isEloquentHost && $classReflection->is(Relation::class);
 
         if (! $isEloquentHost && ! $isRelationHost) {
             return null;
@@ -109,7 +108,7 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
 
         $method = null;
 
-        if (! $this->hasNativeOrDocumentedMethod($classReflection, $methodName)) {
+        if (! $this->builderHelper->hasNativeOrDocumentedMethod($classReflection, $methodName)) {
             if ($isEloquentHost) {
                 $this->builderDependencies->track($classReflection, $classReflection);
                 $method = $this->resolveEloquentBuilderMethod(
@@ -143,7 +142,7 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
             );
         }
 
-        $modelType = $this->templateType($classReflection, EloquentBuilder::class, 'TModel');
+        $modelType = $this->builderHelper->templateType($classReflection, EloquentBuilder::class, 'TModel');
 
         // Local macros run before named scopes in Builder::__call().
         $macro = $this->builderMacros->resolve($classReflection, $modelType, $signatureModelType, $methodName);
@@ -209,7 +208,7 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
     private function resolveRelationMethod(ClassReflection $classReflection, string $methodName): ?MethodReflection
     {
         $normalizedMethodName = strtolower($methodName);
-        $relatedType = $this->templateType($classReflection, Relation::class, 'TRelatedModel');
+        $relatedType = $this->builderHelper->templateType($classReflection, Relation::class, 'TRelatedModel');
         $builderClasses = $this->eloquentBuilderType($relatedType, $relatedType)->getObjectClassReflections();
 
         if (count($builderClasses) !== 1) {
@@ -258,57 +257,6 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
     }
 
     /**
-     * Determine whether a class owns a native or documented method.
-     */
-    private function hasNativeOrDocumentedMethod(ClassReflection $classReflection, string $methodName): bool
-    {
-        if ($classReflection->hasNativeMethod($methodName)) {
-            return true;
-        }
-
-        foreach (array_keys($classReflection->getMethodTags()) as $documentedMethod) {
-            if (strcasecmp($documentedMethod, $methodName) === 0) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Determine whether the class is or extends the target class.
-     *
-     * @param class-string $targetClass
-     */
-    private function isClassOrSubclassOf(ClassReflection $classReflection, string $targetClass): bool
-    {
-        return $classReflection->getName() === $targetClass
-            || $classReflection->isSubclassOfClass($this->reflectionProvider->getClass($targetClass));
-    }
-
-    /**
-     * Return an active template type from a class ancestor.
-     *
-     * @param class-string $ancestorClass
-     */
-    private function templateType(
-        ClassReflection $classReflection,
-        string $ancestorClass,
-        string $templateName,
-    ): Type {
-        $type = $classReflection
-            ->getAncestorWithClassName($ancestorClass)
-            ?->getActiveTemplateTypeMap()
-            ->getType($templateName);
-
-        return $type ?? throw new LogicException(sprintf(
-            'Template type [%s] is not available for [%s].',
-            $templateName,
-            $classReflection->getName(),
-        ));
-    }
-
-    /**
      * Return a class's ancestor template type as the class's own template types declare it.
      *
      * Forwarded signatures name the receiver's model this way. PHPStan binds the receiver's template types
@@ -318,7 +266,7 @@ class ForwardedBuilderMethodExtension implements MethodsClassReflectionExtension
      */
     private function signatureModelType(ClassReflection $classReflection, string $ancestorClass, string $templateName): Type
     {
-        return $this->templateType($this->reflectionProvider->getClass($classReflection->getName()), $ancestorClass, $templateName);
+        return $this->builderHelper->templateType($this->reflectionProvider->getClass($classReflection->getName()), $ancestorClass, $templateName);
     }
 
     /**

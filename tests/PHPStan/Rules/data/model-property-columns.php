@@ -116,3 +116,9 @@ function dynamicWheres(User $user, WhereBuilder $custom, Builder $unknown, ?Buil
     $user->accounts()->whereIn('id', [1]);
     $unknown->whereAnything(1);
 }
+
+function qualifiedColumns(): void
+{
+    User::query()->paginate(15, ['users.*', 'users.id as user_id']);
+    User::query()->paginate(15, ['users.nonexistent']);
+}

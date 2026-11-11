@@ -59,8 +59,9 @@ $_SERVER['AUTH_MODEL'] = $_ENV['AUTH_MODEL'] = 'App\User';
 // stay out of PHPUnit's per-test handler checks.
 require_once __DIR__ . '/../../src/phpstan/bootstrap.php';
 
-// A dynamic relation, registered at boot as a provider would.
+// Dynamic relations, registered at boot as a provider would.
 User::resolveRelationUsing('dynamicAccounts', static fn (User $user): HasMany => $user->hasMany(Account::class));
+User::resolveRelationUsing('untypedAccounts', static fn (User $user) => $user->hasMany(Account::class));
 
 // Morph aliases, registered at boot as a provider would. Group's class name is also Role's alias, which
 // loadMorph() reads by class first and MorphTo by alias first.

@@ -13,7 +13,6 @@ use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\ClassReflection;
 use PHPStan\Reflection\MethodReflection;
 use PHPStan\Reflection\MethodsClassReflectionExtension;
-use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Type\StaticType;
 use PHPStan\Type\Type;
 
@@ -44,12 +43,12 @@ class ForwardedModelMethodExtension implements MethodsClassReflectionExtension
      * Create a forwarded model method extension.
      */
     public function __construct(
-        private readonly ReflectionProvider $reflectionProvider,
         private readonly ModelScopeMethodResolver $scopeMethods,
         private readonly BuilderMacroResolver $builderMacros,
         private readonly BuilderDependencies $builderDependencies,
         private readonly BuilderHelper $builderHelper,
         private readonly MacroMethodsClassReflectionExtension $macroMethods,
+        private readonly DynamicRelationMethodExtension $dynamicRelations,
     ) {
         $this->scope = new OutOfClassScope;
     }
@@ -80,7 +79,7 @@ class ForwardedModelMethodExtension implements MethodsClassReflectionExtension
      */
     private function resolveMethod(ClassReflection $classReflection, string $methodName): ?MethodReflection
     {
-        if (! $this->isModel($classReflection)) {
+        if (! $classReflection->is(Model::class)) {
             return null;
         }
 
@@ -98,7 +97,9 @@ class ForwardedModelMethodExtension implements MethodsClassReflectionExtension
         // Unlike upstream, these are static too: __callStatic() calls them on a new model from the model's scope.
         if (in_array($methodName, self::MODEL_CALL_FORWARDED_METHODS, true) && $classReflection->hasNativeMethod($methodName)) {
             $method = new ForwardedModelMethodReflection($classReflection, $classReflection->getNativeMethod($methodName));
-        } elseif (! $this->hasNativeOrDocumentedMethod($classReflection, $methodName)) {
+        } elseif (! $this->builderHelper->hasNativeOrDocumentedMethod($classReflection, $methodName)
+            // Model::__call() runs dynamic relations and through{Relation}() before forwarding to the builder.
+            && ! $this->dynamicRelations->hasMethod($classReflection, $methodName)) {
             // Keep static, so PHPStan binds it to the called model.
             $builderType = $this->builderHelper->determineBuilderClass($classReflection->getName(), new StaticType($classReflection));
 
@@ -143,32 +144,5 @@ class ForwardedModelMethodExtension implements MethodsClassReflectionExtension
         }
 
         return false;
-    }
-
-    /**
-     * Determine whether a class owns a native or documented method.
-     */
-    private function hasNativeOrDocumentedMethod(ClassReflection $classReflection, string $methodName): bool
-    {
-        if ($classReflection->hasNativeMethod($methodName)) {
-            return true;
-        }
-
-        foreach (array_keys($classReflection->getMethodTags()) as $documentedMethod) {
-            if (strcasecmp($documentedMethod, $methodName) === 0) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Determine whether the class is an Eloquent model.
-     */
-    private function isModel(ClassReflection $classReflection): bool
-    {
-        return $classReflection->getName() === Model::class
-            || $classReflection->isSubclassOfClass($this->reflectionProvider->getClass(Model::class));
     }
 }

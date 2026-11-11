@@ -128,6 +128,44 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
         $this->assertDiagnostics(['Usage.php:23 return.type', 'Usage.php:46 argument.type'], $this->analyse($applicationPath, parameters: self::PARAMETERS));
     }
 
+    public function testDynamicRelationRegistrationsReanalyzeTheirConsumers(): void
+    {
+        $applicationPath = $this->copyApplication();
+        file_put_contents($applicationPath . '/app/RelationUsage.php', <<<'PHP'
+            <?php
+
+            declare(strict_types=1);
+
+            namespace RuntimeInputs;
+
+            use Hypervel\Database\Eloquent\Relations\HasMany;
+            use RuntimeInputs\Models\Post;
+
+            class RelationUsage
+            {
+                public function replies(Post $post): HasMany
+                {
+                    return $post->replies();
+                }
+            }
+            PHP);
+
+        $this->edit(
+            $applicationPath . '/app/Providers/FixtureServiceProvider.php',
+            "Relation::morphMap(['post' => Post::class]);",
+            "Relation::morphMap(['post' => Post::class]);\n        Post::resolveRelationUsing('replies', static fn (Post \$post): \\Hypervel\\Database\\Eloquent\\Relations\\HasMany => \$post->hasMany(\\RuntimeInputs\\Models\\Comment::class));",
+        );
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: self::PARAMETERS));
+
+        // The call resolves to the registered relation alone, so only the registration's tracking notices the change.
+        $this->edit(
+            $applicationPath . '/app/Providers/FixtureServiceProvider.php',
+            '\Hypervel\Database\Eloquent\Relations\HasMany => $post->hasMany(',
+            '\Hypervel\Database\Eloquent\Relations\BelongsTo => $post->belongsTo(',
+        );
+        $this->assertDiagnostics([...self::BOOT_DIAGNOSTICS, 'RelationUsage.php:14 return.type'], $this->analyse($applicationPath, parameters: self::PARAMETERS));
+    }
+
     public function testBootInputEditsSkipLookupsOnClassesWithoutMacros(): void
     {
         $applicationPath = $this->copyApplication();
@@ -231,10 +269,10 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
         );
     }
 
-    public function testConfigDirectoriesAGlobStartsOrStopsMatchingReanalyzeEverything(): void
+    public function testConfigDirectoriesThatStartOrStopExistingAreNoticed(): void
     {
         $applicationPath = $this->copyApplication();
-        $parameters = self::PARAMETERS . "\nconfigDirectories:\n    - '{$applicationPath}/config'\n    - '{$applicationPath}/modules/*/config'";
+        $parameters = self::PARAMETERS . "\nconfigDirectories:\n    - '{$applicationPath}/config'\n    - '{$applicationPath}/modules/*/config'\n    - '{$applicationPath}/extra/config'";
         file_put_contents($applicationPath . '/app/ConfigUsage.php', <<<'PHP'
             <?php
 
@@ -259,6 +297,11 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
 
         (new Filesystem)->deleteDirectory($applicationPath . '/modules/billing');
         $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: $parameters));
+
+        // A configured literal directory is watched before it exists.
+        mkdir($applicationPath . '/extra/config', 0777, true);
+        file_put_contents($applicationPath . '/extra/config/module.php', "<?php\n\nreturn ['limit' => 'none'];\n");
+        $this->assertDiagnostics([...self::BOOT_DIAGNOSTICS, 'ConfigUsage.php:11 return.type'], $this->analyse($applicationPath, parameters: $parameters));
     }
 
     public function testViewNameChangesReanalyzeOnlyViewConsumers(): void

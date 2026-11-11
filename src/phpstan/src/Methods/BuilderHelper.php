@@ -10,6 +10,7 @@ use Hypervel\Database\Eloquent\HasBuilder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\PHPStan\Reflection\AttributeClassNameResolver;
 use Hypervel\PHPStan\Reflection\SourceFiles;
+use LogicException;
 use PHPStan\Analyser\DeclarationDependencyTracker;
 use PHPStan\Analyser\OutOfClassScope;
 use PHPStan\DependencyInjection\AutowiredService;
@@ -24,9 +25,12 @@ use PHPStan\Type\TypeCombinator;
 use PHPStan\Type\VerbosityLevel;
 use ReflectionNamedType;
 
+use function array_keys;
 use function count;
 use function in_array;
 use function is_string;
+use function sprintf;
+use function strcasecmp;
 use function strtolower;
 
 /**
@@ -256,5 +260,42 @@ class BuilderHelper
         $builder = $this->builders[$modelClassName] ??= $this->determineBuilder($modelReflection);
 
         return $this->getBuilderType(is_string($builder) ? new ObjectType($builder) : $builder, $modelType);
+    }
+
+    /**
+     * Return an active template type from a class ancestor.
+     *
+     * @param class-string $ancestorClass
+     */
+    public function templateType(ClassReflection $classReflection, string $ancestorClass, string $templateName): Type
+    {
+        $type = $classReflection
+            ->getAncestorWithClassName($ancestorClass)
+            ?->getActiveTemplateTypeMap()
+            ->getType($templateName);
+
+        return $type ?? throw new LogicException(sprintf(
+            'Template type [%s] is not available for [%s].',
+            $templateName,
+            $classReflection->getName(),
+        ));
+    }
+
+    /**
+     * Determine whether a class owns a native or documented method, which a forwarded method would not replace.
+     */
+    public function hasNativeOrDocumentedMethod(ClassReflection $classReflection, string $methodName): bool
+    {
+        if ($classReflection->hasNativeMethod($methodName)) {
+            return true;
+        }
+
+        foreach (array_keys($classReflection->getMethodTags()) as $documentedMethod) {
+            if (strcasecmp($documentedMethod, $methodName) === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

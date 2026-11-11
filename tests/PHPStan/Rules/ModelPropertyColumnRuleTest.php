@@ -114,6 +114,11 @@ class ModelPropertyColumnRuleTest extends RuleTestCase
                 110,
                 $userTip,
             ],
+            [
+                "Parameter #2 \$columns of method Hypervel\\Database\\Eloquent\\Builder<App\\User>::paginate() expects {$builderColumns}, array{'users.nonexistent'} given.",
+                123,
+                'Type #2 from the union: Type #3 from the union: Database table "users" does not have column "nonexistent"',
+            ],
         ]);
     }
 

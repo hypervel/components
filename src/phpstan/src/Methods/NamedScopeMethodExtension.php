@@ -13,7 +13,6 @@ use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\ClassReflection;
 use PHPStan\Reflection\MethodReflection;
 use PHPStan\Reflection\MethodsClassReflectionExtension;
-use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Type\StaticType;
 use PHPStan\Type\ThisType;
 use PHPStan\Type\Type;
@@ -31,11 +30,11 @@ class NamedScopeMethodExtension implements MethodsClassReflectionExtension
      * Create a named scope method extension.
      */
     public function __construct(
-        private readonly ReflectionProvider $reflectionProvider,
         private readonly ModelScopeMethodResolver $scopeMethods,
         private readonly BuilderMacroResolver $builderMacros,
         private readonly BuilderHelper $builderHelper,
         private readonly MacroMethodsClassReflectionExtension $macroMethods,
+        private readonly DynamicRelationMethodExtension $dynamicRelations,
     ) {
     }
 
@@ -65,11 +64,9 @@ class NamedScopeMethodExtension implements MethodsClassReflectionExtension
      */
     private function resolveMethod(ClassReflection $classReflection, string $methodName): ?MethodReflection
     {
-        $isModelHost = $this->isClassOrSubclassOf($classReflection, Model::class);
-        $isBuilderHost = ! $isModelHost
-            && $this->isClassOrSubclassOf($classReflection, Builder::class);
-        $isRelationHost = ! $isModelHost && ! $isBuilderHost
-            && $this->isClassOrSubclassOf($classReflection, Relation::class);
+        $isModelHost = $classReflection->is(Model::class);
+        $isBuilderHost = ! $isModelHost && $classReflection->is(Builder::class);
+        $isRelationHost = ! $isModelHost && ! $isBuilderHost && $classReflection->is(Relation::class);
 
         if (! $isModelHost && ! $isBuilderHost && ! $isRelationHost) {
             return null;
@@ -135,7 +132,7 @@ class NamedScopeMethodExtension implements MethodsClassReflectionExtension
             ];
         }
 
-        $modelType = $this->templateType(
+        $modelType = $this->builderHelper->templateType(
             $classReflection,
             $isBuilderHost ? Builder::class : Relation::class,
             $isBuilderHost ? 'TModel' : 'TRelatedModel',
@@ -171,6 +168,11 @@ class NamedScopeMethodExtension implements MethodsClassReflectionExtension
             return true;
         }
 
+        // A model's __call() runs dynamic relations and through{Relation}() before forwarding to its builder.
+        if ($static && $this->dynamicRelations->hasMethod($classReflection, $methodName)) {
+            return true;
+        }
+
         // Every host also yields to its active builder's methods, and Builder::__call() runs global macros first.
         foreach ($queryType->getObjectClassReflections() as $builderClass) {
             if ($builderClass->hasNativeMethod($methodName) || $this->macroMethods->hasMethod($builderClass, $methodName)) {
@@ -189,38 +191,5 @@ class NamedScopeMethodExtension implements MethodsClassReflectionExtension
     private function activeBuilderType(ClassReflection $modelClass): Type
     {
         return $this->builderHelper->determineBuilderClass($modelClass->getName(), (new StaticType($modelClass))->getStaticObjectType());
-    }
-
-    /**
-     * Return an active template type from a class ancestor.
-     *
-     * @param class-string $ancestorClass
-     */
-    private function templateType(
-        ClassReflection $classReflection,
-        string $ancestorClass,
-        string $templateName,
-    ): Type {
-        $type = $classReflection
-            ->getAncestorWithClassName($ancestorClass)
-            ?->getActiveTemplateTypeMap()
-            ->getType($templateName);
-
-        return $type ?? throw new LogicException(sprintf(
-            'Template type [%s] is not available for [%s].',
-            $templateName,
-            $classReflection->getName(),
-        ));
-    }
-
-    /**
-     * Determine whether a class is or extends the target class.
-     *
-     * @param class-string $targetClass
-     */
-    private function isClassOrSubclassOf(ClassReflection $classReflection, string $targetClass): bool
-    {
-        return $classReflection->getName() === $targetClass
-            || $classReflection->isSubclassOfClass($this->reflectionProvider->getClass($targetClass));
     }
 }

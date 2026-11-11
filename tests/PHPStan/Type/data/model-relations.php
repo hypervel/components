@@ -4,6 +4,7 @@ namespace ModelRelations;
 
 use App\Account;
 use App\Address;
+use App\BareRelations\Shelf;
 use App\ChildUser;
 use App\Comment;
 use App\Group;
@@ -207,6 +208,16 @@ function test(
     assertType('Hypervel\Support\LazyCollection<int, App\Car>', $user->car()->cursor());
     // Unlike upstream, through() with a relation name also names the local relationship.
     assertType('Hypervel\Database\Eloquent\PendingHasThroughRelationship<Hypervel\Database\Eloquent\Model, App\User, Hypervel\Database\Eloquent\Relations\HasOneOrMany<Hypervel\Database\Eloquent\Model, App\User, *>>', $user->through('mechanic'));
+    // Hypervel: __call() turns through{Relation}() into through('relation'), and has{Relation}() into has('relation').
+    assertType('Hypervel\Database\Eloquent\PendingHasThroughRelationship<Hypervel\Database\Eloquent\Model, App\User, Hypervel\Database\Eloquent\Relations\HasOneOrMany<Hypervel\Database\Eloquent\Model, App\User, *>>', $user->throughMechanic());
+    assertType('Hypervel\Database\Eloquent\Relations\HasManyThrough<Hypervel\Database\Eloquent\Model, Hypervel\Database\Eloquent\Model, App\User>|Hypervel\Database\Eloquent\Relations\HasOneThrough<Hypervel\Database\Eloquent\Model, Hypervel\Database\Eloquent\Model, App\User>', $user->throughMechanic()->hasParts());
+
+    // Hypervel: a relation resolveRelationUsing() registers is typed by its resolver's declared return.
+    assertType('Hypervel\Database\Eloquent\Relations\HasMany', $user->dynamicAccounts());
+    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Database\Eloquent\Model>', $user->dynamicAccounts);
+    assertType('int<0, max>', $user->dynamicAccounts_count);
+    assertType('mixed', $user->untypedAccounts());
+    assertType('mixed', $user->untypedAccounts);
 
     assertType('Hypervel\Database\Eloquent\Relations\HasManyThrough<App\Part, App\Mechanic, App\User>', $user->parts());
     assertType('Hypervel\Database\Eloquent\Collection<int, App\Part>', $user->parts()->getResults());
@@ -277,6 +288,13 @@ class RelationCreateExample extends Model
     public function addRelation(): User
     {
         return $this->relation()->create([]);
+    }
+
+    public function dynamicThroughForms(): void
+    {
+        // Hypervel: inside the model, the dynamic forms keep $this as the string forms do.
+        assertType('Hypervel\Database\Eloquent\PendingHasThroughRelationship<Hypervel\Database\Eloquent\Model, $this(ModelRelations\RelationCreateExample), Hypervel\Database\Eloquent\Relations\HasOneOrMany<Hypervel\Database\Eloquent\Model, $this(ModelRelations\RelationCreateExample), *>>', $this->throughRelation());
+        assertType('Hypervel\Database\Eloquent\Relations\HasManyThrough<Hypervel\Database\Eloquent\Model, Hypervel\Database\Eloquent\Model, $this(ModelRelations\RelationCreateExample)>|Hypervel\Database\Eloquent\Relations\HasOneThrough<Hypervel\Database\Eloquent\Model, Hypervel\Database\Eloquent\Model, $this(ModelRelations\RelationCreateExample)>', $this->throughRelation()->hasPosts());
     }
 }
 
@@ -435,4 +453,13 @@ function chunkCallbacks(User $user): void
     $user->car()->chunk(10, function ($cars) {
         assertType('Hypervel\Database\Eloquent\Collection<int, App\Car>', $cars);
     });
+}
+
+function untypedRelation(Shelf $shelf): void
+{
+    // Hypervel: a method without a declared return type may be a relation of unknown type.
+    assertType('mixed', $shelf->labels);
+    assertType('int<0, max>', $shelf->labels_count);
+    // The relation object is not what the property loads: a belongs-to relation can load null.
+    assertType('mixed', $shelf->owner);
 }

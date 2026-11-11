@@ -21,6 +21,7 @@ use PHPStan\Reflection\MethodReflection;
 use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Type\DynamicStaticMethodReturnTypeExtension;
 use PHPStan\Type\ObjectType;
+use PHPStan\Type\StaticType;
 use PHPStan\Type\ThisType;
 use PHPStan\Type\Type;
 use PHPStan\Type\TypeCombinator;
@@ -90,23 +91,35 @@ class ModelDynamicStaticMethodReturnTypeExtension implements DynamicStaticMethod
             ->getVariants()[0]
             ->getReturnType();
 
-        if ((new ObjectType(EloquentBuilder::class))->isSuperTypeOf($returnType)->yes()) {
-            $modelType = $methodCall->class instanceof Name
-                ? $scope->resolveTypeByName($methodCall->class)
-                : $scope->getType($methodCall->class)->getObjectTypeOrClassStringObjectType();
+        // Unlike upstream, which typed self::query() as the enclosing model, self::, parent:: and $this:: keep the called
+        // model, as PHP forwards it and PHPStan's own static calls do; the call returns another instance, so not $this.
+        // A class name in the hierarchy names that class.
+        $modelType = match (true) {
+            ! $methodCall->class instanceof Name => $scope->getType($methodCall->class)->getObjectTypeOrClassStringObjectType(),
+            $scope->isInClass() && in_array($methodCall->class->toLowerString(), ['self', 'static', 'parent'], true) => $scope->resolveTypeByName(new Name('static')),
+            default => $scope->resolveTypeByName($methodCall->class),
+        };
 
+        if ($modelType instanceof ThisType) {
+            $modelType = $methodCall->class instanceof Name
+                ? $modelType->getStaticObjectType()
+                : new StaticType($modelType->getClassReflection());
+        }
+
+        // A final class has no subclass to call it, so its static is the class itself, as PHPStan resolves it.
+        if ($modelType instanceof StaticType && $modelType->getClassReflection()->isFinal()) {
+            $modelType = $modelType->getStaticObjectType();
+        }
+
+        if ((new ObjectType(EloquentBuilder::class))->isSuperTypeOf($returnType)->yes()) {
             if (! (new ObjectType(Model::class))->isSuperTypeOf($modelType)->yes()) {
                 return null;
             }
 
-            return new BuilderOfType($modelType instanceof ThisType ? $modelType->getStaticObjectType() : $modelType, $this->builderHelper);
+            return new BuilderOfType($modelType, $this->builderHelper);
         }
 
         if (in_array(Collection::class, $returnType->getReferencedClasses(), true)) {
-            $modelType = $methodCall->class instanceof Name
-                ? new ObjectType($scope->resolveName($methodCall->class))
-                : $scope->getType($methodCall->class)->getObjectTypeOrClassStringObjectType();
-
             $types = [];
 
             foreach ($modelType->getObjectClassNames() as $modelName) {

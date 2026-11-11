@@ -110,6 +110,11 @@ class GenericModelPropertyType extends StringType
 
                 [$tableName, $propertyName] = $parts;
 
+                // Unlike upstream, "table.*" selects every column, as "*" does.
+                if ($propertyName === '*') {
+                    return AcceptsResult::createYes();
+                }
+
                 foreach ($genericType->getObjectClassReflections() as $classReflection) {
                     if ($this->modelPropertyHelper->hasTableColumn($classReflection, $tableName, $propertyName)) {
                         return AcceptsResult::createYes();

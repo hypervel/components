@@ -48,7 +48,8 @@ class Scopes extends Model
         assertType('App\User|null', $this->user->where('name', 'bar')->active()->first());
         assertType('Hypervel\Database\Eloquent\Builder<ModelScope\Scopes>', $this->withVoidReturn());
         assertType('ModelScope\Scopes|null', $this->withVoidReturn()->first());
-        assertType('Hypervel\Database\Eloquent\Builder<ModelScope\Scopes>', self::query()->count());
+        // Unlike upstream, self:: keeps the called model, as PHP forwards it.
+        assertType('Hypervel\Database\Eloquent\Builder<static(ModelScope\Scopes)>', self::query()->count());
         assertType('Hypervel\Database\Eloquent\Builder<App\User>', User::query()->whereActive());
 
         // Unlike upstream, User's @method scopeSomeScope tag creates no scope: Model::hasNamedScope() needs a real method.

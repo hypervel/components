@@ -20,6 +20,7 @@ use PHPStan\Type\TypeCombinator;
 
 use function count;
 use function in_array;
+use function strtolower;
 
 /**
  * Gives the callbacks of a relation's when() and unless() their builder as a "this" type.

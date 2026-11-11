@@ -9,6 +9,7 @@ use App\PostBuilder;
 use App\Thread;
 use App\User;
 use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\Relation;
@@ -25,6 +26,22 @@ class AbstractModel extends Model
         return static::query()->create();
     }
 
+    /** @return Collection<int, static> */
+    public static function everything(): Collection
+    {
+        // self:: forwards the called model as static:: does; a class name names that class.
+        assertType('Hypervel\Database\Eloquent\Collection<int, static(Model\AbstractModel)>', static::all());
+        assertType('Hypervel\Database\Eloquent\Collection<int, static(Model\AbstractModel)>', self::all());
+        assertType('Hypervel\Database\Eloquent\Collection<int, Model\AbstractModel>', AbstractModel::all());
+
+        return self::all();
+    }
+
+    public function allThroughThis(): void
+    {
+        assertType('Hypervel\Database\Eloquent\Collection<int, static(Model\AbstractModel)>', $this::all());
+    }
+
     public function newQueryKeepsStatic(): void
     {
         assertType('Hypervel\Database\Eloquent\Builder<static(Model\AbstractModel)>', $this->newQuery());
@@ -36,7 +53,16 @@ class AbstractModel extends Model
     }
 }
 
-class Child extends AbstractModel {}
+class Child extends AbstractModel
+{
+    /** @return Collection<int, static> */
+    public static function everythingThroughParent(): Collection
+    {
+        assertType('Hypervel\Database\Eloquent\Collection<int, static(Model\Child)>', parent::all());
+
+        return parent::all();
+    }
+}
 
 class TreeNode extends Model
 {
@@ -97,10 +123,12 @@ class Bar extends Model
 
     public function test(): void
     {
-        assertType('Hypervel\Database\Eloquent\Builder<Model\Bar>', self::query());
+        // Unlike upstream, self:: keeps the called model, as PHP forwards it.
+        assertType('Hypervel\Database\Eloquent\Builder<static(Model\Bar)>', self::query());
         assertType('Hypervel\Database\Eloquent\Builder<static(Model\Bar)>', static::query());
+        assertType('Hypervel\Database\Eloquent\Builder<Model\Bar>', Bar::query());
 
-        assertType('Model\Bar|null', self::query()->first());
+        assertType('static(Model\Bar)|null', self::query()->first());
         assertType('static(Model\Bar)|null', static::query()->first());
         assertType('Hypervel\Database\Eloquent\Builder<static(Model\Bar)>', static::query()->orWhere('foo', 'bar'));
         assertType('Hypervel\Database\Eloquent\Builder<static(Model\Bar)>', static::query()->select('foo'));
@@ -138,6 +166,7 @@ function test(
     $requestData = $request->validated();
 
     assertType('Model\Child', Child::new());
+    assertType('Hypervel\Database\Eloquent\Collection<int, Model\Child>', Child::everything());
 
     assertType('App\User|null', User::find(1));
     assertType('Model\Bar|null', Bar::findByHashId('1'));

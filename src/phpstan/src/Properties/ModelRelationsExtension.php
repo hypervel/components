@@ -14,13 +14,18 @@ use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\ClassReflection;
 use PHPStan\Reflection\PropertiesClassReflectionExtension;
 use PHPStan\Reflection\PropertyReflection;
+use PHPStan\Reflection\ReflectionProvider;
+use PHPStan\TrinaryLogic;
+use PHPStan\Type\ClosureTypeFactory;
 use PHPStan\Type\IntegerRangeType;
 use PHPStan\Type\IntersectionType;
+use PHPStan\Type\MixedType;
 use PHPStan\Type\NeverType;
 use PHPStan\Type\ObjectType;
 use PHPStan\Type\Type;
 use PHPStan\Type\TypeTraverser;
 use PHPStan\Type\UnionType;
+use ReflectionException;
 
 use function array_key_exists;
 use function str_ends_with;
@@ -33,8 +38,12 @@ class ModelRelationsExtension implements PropertiesClassReflectionExtension
     /**
      * Create a new model relations extension instance.
      */
-    public function __construct(private CollectionHelper $collectionHelper)
-    {
+    public function __construct(
+        private CollectionHelper $collectionHelper,
+        private ReflectionProvider $reflectionProvider,
+        private ModelHelper $modelHelper,
+        private ClosureTypeFactory $closureTypeFactory,
+    ) {
     }
 
     /** @var array<string, bool> */
@@ -67,8 +76,8 @@ class ModelRelationsExtension implements PropertiesClassReflectionExtension
             return false;
         }
 
-        // Unlike upstream, a relation method named like a count is a relation, as the model reads it.
-        if ($this->isRelationMethod($classReflection, $propertyName)) {
+        // Unlike upstream, a relation named like a count is a relation, as the model reads it.
+        if ($this->relationReturnType($classReflection, $propertyName) !== null) {
             return true;
         }
 
@@ -79,17 +88,59 @@ class ModelRelationsExtension implements PropertiesClassReflectionExtension
         // Unlike upstream's Str::before(), only the suffix is removed, so stock_count_items_count names stock_count_items().
         $relationName = substr($propertyName, 0, -6);
 
-        return $this->isRelationMethod($classReflection, Str::camel($relationName))
-            || $this->isRelationMethod($classReflection, $relationName);
+        return $this->relationReturnType($classReflection, Str::camel($relationName)) !== null
+            || $this->relationReturnType($classReflection, $relationName) !== null;
     }
 
     /**
-     * Determine whether the model declares a method of the name that returns a relation.
+     * Get the declared return of the relation the model loads by the name, or null when the name is no relation.
+     *
+     * A relation method declares it. Unlike upstream, so does the resolver of a relation that
+     * resolveRelationUsing() registers, unless a native method takes the name.
      */
-    private function isRelationMethod(ClassReflection $classReflection, string $methodName): bool
+    private function relationReturnType(ClassReflection $classReflection, string $name): ?Type
     {
-        return $classReflection->hasNativeMethod($methodName)
-            && (new ObjectType(Relation::class))->isSuperTypeOf($classReflection->getNativeMethod($methodName)->getVariants()[0]->getReturnType())->yes();
+        if (! $this->isRelationMethod($classReflection, $name)->no()) {
+            return $classReflection->getMethod($name, new OutOfClassScope)->getVariants()[0]->getReturnType();
+        }
+
+        if ($classReflection->hasNativeMethod($name)) {
+            return null;
+        }
+
+        try {
+            $resolver = $this->modelHelper->getRelationResolver($classReflection, $name);
+        } catch (ReflectionException) {
+            return null;
+        }
+
+        // The resolver is never run.
+        return $resolver === null ? null : $this->closureTypeFactory->fromClosureObject($resolver)->getReturnType();
+    }
+
+    /**
+     * Determine whether a model method is a relation the model can load: a native method that the base model
+     * does not declare, callable without arguments, returning a relation.
+     *
+     * Unlike upstream, a method without a declared relation return may be a relation of unknown type.
+     */
+    public function isRelationMethod(ClassReflection $classReflection, string $methodName): TrinaryLogic
+    {
+        // Model::getAttribute() never treats the base model's own methods as relations.
+        if (! $classReflection->hasNativeMethod($methodName)
+            || $this->reflectionProvider->getClass(Model::class)->hasNativeMethod($methodName)) {
+            return TrinaryLogic::createNo();
+        }
+
+        $variant = $classReflection->getNativeMethod($methodName)->getVariants()[0];
+
+        foreach ($variant->getParameters() as $parameter) {
+            if (! $parameter->isOptional()) {
+                return TrinaryLogic::createNo();
+            }
+        }
+
+        return (new ObjectType(Relation::class))->isSuperTypeOf($variant->getReturnType())->result;
     }
 
     /**
@@ -97,13 +148,16 @@ class ModelRelationsExtension implements PropertiesClassReflectionExtension
      */
     public function getProperty(ClassReflection $classReflection, string $propertyName): PropertyReflection
     {
-        if (str_ends_with($propertyName, '_count') && ! $this->isRelationMethod($classReflection, $propertyName)) {
+        $returnType = $this->relationReturnType($classReflection, $propertyName);
+
+        if ($returnType === null) {
             return new ModelProperty($classReflection, IntegerRangeType::createAllGreaterThanOrEqualTo(0), new NeverType, false);
         }
 
-        $returnType = $classReflection->getMethod($propertyName, new OutOfClassScope)
-            ->getVariants()[0]
-            ->getReturnType();
+        // A relation whose declared return may not be a relation, such as an untyped one, loads an unknown result.
+        if (! (new ObjectType(Relation::class))->isSuperTypeOf($returnType)->yes()) {
+            return new ModelProperty($classReflection, new MixedType, new NeverType, false);
+        }
 
         $relationType = TypeTraverser::map($returnType, static function (Type $type, callable $traverse): Type {
             // A relation intersected with an interface yields its result, which the interface does not describe.

@@ -237,7 +237,12 @@ class RelationExistenceRuleTest extends RuleTestCase
     public function testBareRelationPaths(): void
     {
         $this->analyse([__DIR__ . '/data/relation-existence-bare-relations.php'], [
-            ["Relation 'missing' is not found in App\\Comment model.", 22],
+            ["Relation 'missing' is not found in App\\Comment model.", 23],
+            ["Relation 'labelsOfType' is not found in App\\BareRelations\\Shelf model.", 28],
+            ["Relation 'labelsOfKind' is not found in App\\BareRelations\\Shelf model.", 28],
+            ["Relation 'title' is not found in App\\BareRelations\\Shelf model.", 28],
+            ["Relation 'getKey' is not found in App\\BareRelations\\Shelf model.", 28],
+            ["Relation 'where' is not found in App\\BareRelations\\Shelf model.", 28],
         ]);
     }
 

@@ -8,6 +8,9 @@ use DateTimeInterface;
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsInboundAttributes;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\Eloquent\Attributes\Appends;
+use Hypervel\Database\Eloquent\Attributes\Hidden;
+use Hypervel\Database\Eloquent\Attributes\Visible;
 use Hypervel\Database\Eloquent\Casts\AsArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsCollection;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedArrayObject;
@@ -41,6 +44,7 @@ use function array_filter;
 use function array_merge;
 use function array_unique;
 use function array_values;
+use function class_basename;
 use function explode;
 use function in_array;
 use function is_array;
@@ -108,9 +112,9 @@ class ModelSerializationDynamicMethodReturnTypeExtension implements DynamicMetho
                 return null;
             }
 
-            $appends = $this->configuredNames($class, 'Appends');
-            $hidden = $this->configuredNames($class, 'Hidden');
-            $visible = $this->configuredNames($class, 'Visible');
+            $appends = $this->configuredNames($class, Appends::class);
+            $hidden = $this->configuredNames($class, Hidden::class);
+            $visible = $this->configuredNames($class, Visible::class);
             $names = array_unique(array_merge($databaseNames, $appends));
 
             if ($names === []) {
@@ -138,20 +142,19 @@ class ModelSerializationDynamicMethodReturnTypeExtension implements DynamicMetho
     /**
      * Get the names a model configures through its property and the class attribute that Model::resolveClassAttribute() finds.
      *
+     * @param class-string<Appends|Hidden|Visible> $attributeClass
      * @return array<string>
      */
-    private function configuredNames(ClassReflection $class, string $attribute): array
+    private function configuredNames(ClassReflection $class, string $attributeClass): array
     {
-        $defaults = $class->getNativeReflection()->getProperty(lcfirst($attribute))->getDefaultValue();
+        $defaults = $class->getNativeReflection()->getProperty(lcfirst(class_basename($attributeClass)))->getDefaultValue();
         $defaults = is_array($defaults) ? array_filter($defaults, is_string(...)) : [];
 
         do {
             foreach ([$class, ...$class->getTraits()] as $source) {
-                foreach ($source->getNativeReflection()->getAttributes() as $config) {
-                    if ($config->getName() !== 'Hypervel\Database\Eloquent\Attributes\\' . $attribute) {
-                        continue;
-                    }
+                $config = $source->getNativeReflection()->getAttributes($attributeClass)[0] ?? null;
 
+                if ($config !== null) {
                     $arguments = array_values($config->getArguments());
                     $columns = is_array($arguments[0] ?? null) ? $arguments[0] : $arguments;
 

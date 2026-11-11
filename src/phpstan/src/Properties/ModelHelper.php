@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\Properties;
 
+use Closure;
 use Error;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\PHPStan\Reflection\SourceFiles;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use PHPStan\Analyser\DeclarationDependencyTracker;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\ClassReflection;
@@ -28,6 +30,7 @@ class ModelHelper
     public function __construct(
         private DeclarationDependencyTracker $declarationDependencyTracker,
         private ReflectionProvider $reflectionProvider,
+        private RuntimeInputs $runtimeInputs,
     ) {
     }
 
@@ -56,6 +59,18 @@ class ModelHelper
         }
 
         return $this->instances[$className] = $model;
+    }
+
+    /**
+     * Get the resolver that resolveRelationUsing() registered at boot for the model's relation, without running it.
+     *
+     * @throws ReflectionException when the model cannot be instantiated, so its relations are unknown
+     */
+    public function getRelationResolver(ClassReflection $classReflection, string $name): ?Closure
+    {
+        $this->runtimeInputs->track($classReflection);
+
+        return $this->getInstance($classReflection)->relationResolver($classReflection->getName(), $name);
     }
 
     /**
