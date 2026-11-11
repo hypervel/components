@@ -74,8 +74,40 @@ class UniqueJobDeclaresUniqueIdRule implements Rule
             return [];
         }
 
-        if ($classReflection->hasNativeMethod('uniqueId') || $classReflection->hasNativeProperty('uniqueId')) {
-            return [];
+        // The lock key calls any uniqueId() method from outside the job, so the method wins over
+        // the property, and must be public. It cannot read a hidden property.
+        if ($classReflection->hasNativeMethod('uniqueId')) {
+            if ($classReflection->getNativeMethod('uniqueId')->isPublic()) {
+                return [];
+            }
+
+            return [
+                RuleErrorBuilder::message(sprintf(
+                    'Unique job %s declares uniqueId() but does not make it public.',
+                    $classReflection->getDisplayName(),
+                ))
+                    ->tip('Make uniqueId() public so the unique lock can call it.')
+                    ->identifier('hypervel.uniqueJobUniqueId')
+                    ->line($node->getStartLine())
+                    ->build(),
+            ];
+        }
+
+        if ($classReflection->hasNativeProperty('uniqueId')) {
+            if ($classReflection->getNativeProperty('uniqueId')->isPublic()) {
+                return [];
+            }
+
+            return [
+                RuleErrorBuilder::message(sprintf(
+                    'Unique job %s declares $uniqueId but does not make it public.',
+                    $classReflection->getDisplayName(),
+                ))
+                    ->tip('Make $uniqueId public so the unique lock can read it.')
+                    ->identifier('hypervel.uniqueJobUniqueId')
+                    ->line($node->getStartLine())
+                    ->build(),
+            ];
         }
 
         return [
@@ -83,7 +115,7 @@ class UniqueJobDeclaresUniqueIdRule implements Rule
                 'Unique job %s has constructor parameters but does not declare uniqueId.',
                 $classReflection->getDisplayName(),
             ))
-                ->tip('Declare a uniqueId() method or a $uniqueId property to identify distinct jobs.')
+                ->tip('Declare a public uniqueId() method or a public $uniqueId property to identify distinct jobs.')
                 ->identifier('hypervel.uniqueJobUniqueId')
                 ->line($node->getStartLine())
                 ->build(),

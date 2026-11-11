@@ -60,3 +60,10 @@ function batchAndBulkUniqueJobs(): void
     Queue::bulk(data: new UniqueJobWithUniqueForProperty(), jobs: [new RegularJob(1)]);
     Queue::bulk(data: '', jobs: [new UniqueJobWithUniqueForProperty()]);
 }
+
+// Hypervel: an entry that may be a job or a chain is reported when any job it may hold is unique.
+/** @param RegularJob|list<UniqueJobWithUniqueForProperty> $entry */
+function batchUniqueJobOrChainEntry(RegularJob|array $entry): void
+{
+    Bus::batch([$entry]);
+}

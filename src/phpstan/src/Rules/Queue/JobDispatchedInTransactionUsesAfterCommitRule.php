@@ -104,9 +104,10 @@ use function strtolower;
  *   - Only the transaction callback's closure or arrow function form is inspected.
  *     The manual `DB::beginTransaction()` ... `DB::commit()` form has no closure
  *     to bound the analysis and is not covered.
- *   - `Job::dispatch(...)`, the `dispatch()` helper and `Bus::dispatch()` are checked,
- *     for a job named in the call. Synchronous dispatch (`dispatchSync`,
- *     `dispatch_sync`) runs inline within the transaction by design.
+ *   - `Job::dispatch(...)`, `Job::dispatchIf(...)`, `Job::dispatchUnless(...)`, the
+ *     `dispatch()` helper and `Bus::dispatch()` are checked, for a job named in the
+ *     call. A literal condition that fails dispatches nothing. Synchronous dispatch
+ *     (`dispatchSync`, `dispatch_sync`) runs inline within the transaction by design.
  *   - A dispatch's own settings only count when they are syntactically chained on it.
  *   - Unlike upstream, the walk does not enter nested closures, functions or
  *     classes: they run later, never or at an unknown time (a `DB::afterCommit()`
@@ -245,6 +246,13 @@ class JobDispatchedInTransactionUsesAfterCommitRule implements Rule
             $job = $this->getDispatchedJob($dispatch, $scope);
 
             if ($job === null) {
+                continue;
+            }
+
+            $method = $dispatch instanceof StaticCall && $dispatch->name instanceof Identifier ? $dispatch->name->toLowerString() : 'dispatch';
+            $condition = $method === 'dispatch' ? null : $dispatch->getArg('boolean', 0);
+
+            if ($condition !== null && $this->getLiteralBoolean($condition, $scope) === [$method === 'dispatchunless']) {
                 continue;
             }
 
@@ -418,8 +426,8 @@ class JobDispatchedInTransactionUsesAfterCommitRule implements Rule
     }
 
     /**
-     * Determine whether the node dispatches a job through Dispatchable's dispatch(), the
-     * dispatch() helper or the Bus facade.
+     * Determine whether the node dispatches a job through Dispatchable's dispatch(), dispatchIf()
+     * or dispatchUnless(), the dispatch() helper or the Bus facade.
      */
     private function isDispatchCall(Node $node, Scope $scope): bool
     {
@@ -436,14 +444,14 @@ class JobDispatchedInTransactionUsesAfterCommitRule implements Rule
             ! $node->class instanceof Name
             || $node->class->isSpecialClassName()
             || ! $node->name instanceof Identifier
-            || $node->name->toLowerString() !== 'dispatch'
+            || ! in_array($node->name->toLowerString(), ['dispatch', 'dispatchif', 'dispatchunless'], true)
         ) {
             return false;
         }
 
         // Unlike upstream, Bus::dispatch() is checked too: it queues the job the same way.
         if ($this->isFacade($node->class, Bus::class, 'Bus')) {
-            return true;
+            return $node->name->toLowerString() === 'dispatch';
         }
 
         $className = $scope->resolveName($node->class);
@@ -453,10 +461,11 @@ class JobDispatchedInTransactionUsesAfterCommitRule implements Rule
         }
 
         $class = $this->reflectionProvider->getClass($className);
+        $method = $node->name->toString();
 
-        // A class's own dispatch() decides how it dispatches.
-        return $class->hasNativeMethod('dispatch')
-            && $class->getNativeReflection()->getMethod('dispatch')->getFileName() === $this->reflectionProvider->getClass(Dispatchable::class)->getFileName();
+        // A class's own dispatch method decides how it dispatches.
+        return $class->hasNativeMethod($method)
+            && $class->getNativeReflection()->getMethod($method)->getFileName() === $this->reflectionProvider->getClass(Dispatchable::class)->getFileName();
     }
 
     /**

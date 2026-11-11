@@ -63,6 +63,10 @@ class BatchedJobIsBatchableRuleTest extends RuleTestCase
                 "Job Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\RegularJob is batched but does not use Batchable.\n    💡 Use the Hypervel\\Bus\\Batchable trait.",
                 88,
             ],
+            [
+                "Job Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\RegularJob is batched but does not use Batchable.\n    💡 Use the Hypervel\\Bus\\Batchable trait.",
+                98,
+            ],
         ]);
     }
 

@@ -31,6 +31,7 @@ use Hypervel\Routing\Route;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Str;
 use PHPStan\Reflection\ClassReflection;
+use PHPStan\Reflection\ExtendedMethodReflection;
 use PHPStan\Reflection\ReflectionProvider;
 use ReflectionAttribute;
 use ReflectionFunction;
@@ -43,6 +44,7 @@ use function array_intersect;
 use function array_key_exists;
 use function array_keys;
 use function array_merge;
+use function array_pop;
 use function array_unique;
 use function array_values;
 use function explode;
@@ -56,12 +58,14 @@ use function strtolower;
 
 /**
  * The worker lifetimes of one analysis: which classes the booted container shares across requests,
- * which methods handle a request, and which constructor parameters it fills with fresh values.
+ * which methods handle a request or run a job, and which constructor parameters it fills with fresh values.
  *
  * Roots come from the booted routes, middleware, listeners and Bus handlers, and from the collected
  * resolutions, singletons and jobs. Each class they build is walked the way the container resolves it.
  * Classes are read through PHPStan reflection and factories are never called: resolving or loading an
  * analyzed class at runtime would run its code.
+ *
+ * @phpstan-import-type HelperCall from WorkerStateHelper
  */
 class WorkerLifetimes
 {
@@ -108,6 +112,9 @@ class WorkerLifetimes
     /** @var array<string, array{string, bool}> lowercase "class::method" => the operation it handles and whether a shared instance handles it */
     private array $contexts = [];
 
+    /** @var list<array{string, string, string, string, bool}> the receiver, declaring class, method, operation and whether the receiver is shared, of each context still to propagate */
+    private array $pendingContexts = [];
+
     /** @var array<string, true> lowercase "class::method::parameter" => the global configuration repository is injected */
     private array $configParameters = [];
 
@@ -123,6 +130,7 @@ class WorkerLifetimes
      * @param list<string> $abstracts the abstracts resolved without parameters
      * @param list<string> $singletons the classes declaring #[Singleton]
      * @param list<string> $queued the concrete queued classes
+     * @param list<HelperCall> $helperCalls the direct calls methods make on their own instance
      */
     public function __construct(
         private ReflectionProvider $reflectionProvider,
@@ -130,6 +138,7 @@ class WorkerLifetimes
         array $abstracts,
         array $singletons,
         array $queued,
+        array $helperCalls,
     ) {
         $this->bindings = $container->getBindings();
         [$this->instances, $this->scopedInstances, $this->contextual, $this->abstractAliases] = (fn (): array => [
@@ -150,6 +159,24 @@ class WorkerLifetimes
         foreach ($queued as $class) {
             $this->discoverJob($class);
         }
+
+        // After every build, so whether a job instance is shared reflects every registration.
+        foreach ($queued as $class) {
+            $job = $this->getClass($class);
+
+            if ($job === null) {
+                continue;
+            }
+
+            foreach (WorkerStateHelper::JOB_METHODS as $method) {
+                if ($job->hasNativeMethod($method)) {
+                    $declaringClass = $job->getNativeMethod($method)->getDeclaringClass()->getName();
+                    $this->addContext($job->getName(), $declaringClass, $method, 'job', isset($this->receivers[$job->getName()]));
+                }
+            }
+        }
+
+        $this->propagateContexts($helperCalls);
     }
 
     /**
@@ -315,11 +342,11 @@ class WorkerLifetimes
                 continue;
             }
 
-            $shared = $this->make($class, null) === self::SHARED;
+            [$shared, $receiver] = $this->makeHandler($reflection);
 
             foreach (['handle', 'terminate'] as $method) {
-                if ($reflection->hasNativeMethod($method)) {
-                    $this->addContext($reflection->getNativeMethod($method)->getDeclaringClass()->getName(), $method, 'middleware', $shared);
+                if ($receiver->hasNativeMethod($method)) {
+                    $this->addContext($receiver->getName(), $receiver->getNativeMethod($method)->getDeclaringClass()->getName(), $method, 'middleware', $shared);
                 }
             }
         }
@@ -340,13 +367,19 @@ class WorkerLifetimes
             [$class, $method] = str_contains($uses, '@') ? explode('@', $uses, 2) : [$uses, '__invoke'];
             $reflection = $this->getClass($class);
 
-            if ($reflection === null || ! $reflection->hasNativeMethod($method)) {
+            if ($reflection === null) {
                 return;
             }
 
-            $actionClass = $reflection->getNativeMethod($method)->getDeclaringClass()->getName();
-            $this->addContext($actionClass, $method, 'action', $this->make($class, null) === self::SHARED);
-            $parameters = $reflection->getNativeReflection()->getMethod($method)->getParameters();
+            [$shared, $receiver] = $this->makeHandler($reflection);
+
+            if (! $receiver->hasNativeMethod($method)) {
+                return;
+            }
+
+            $actionClass = $receiver->getNativeMethod($method)->getDeclaringClass()->getName();
+            $this->addContext($receiver->getName(), $actionClass, $method, 'action', $shared);
+            $parameters = $receiver->getNativeReflection()->getMethod($method)->getParameters();
         } else {
             return;
         }
@@ -380,13 +413,96 @@ class WorkerLifetimes
     }
 
     /**
-     * Record the operation a booted method handles, and whether a worker-shared instance handles it.
+     * Resolve a middleware or controller class as the container builds it to handle a request, and
+     * return whether the instance is shared and its class, which may be a bound subclass.
+     *
+     * @return array{bool, ClassReflection}
      */
-    private function addContext(string $class, string $method, string $context, bool $shared): void
+    private function makeHandler(ClassReflection $class): array
     {
-        $key = strtolower($class . '::' . $method);
+        [$lifetime, $built] = $this->make($class->getName(), null);
+
+        return [$lifetime === self::SHARED, ($built === null ? null : $this->getClass($built)) ?? $class];
+    }
+
+    /**
+     * Record the operation a method handles for a receiver, and whether a worker-shared instance
+     * handles it, then queue it so the helpers it calls on the receiver handle the operation too.
+     */
+    private function addContext(string $receiver, string $declaringClass, string $method, string $context, bool $shared): void
+    {
+        $key = strtolower($declaringClass . '::' . $method);
 
         $this->contexts[$key] = [$context, $shared || ($this->contexts[$key][1] ?? false)];
+        $this->pendingContexts[] = [$receiver, $declaringClass, $method, $context, $shared];
+    }
+
+    /**
+     * Give each helper a context method calls on its receiver that context, along every chain of
+     * direct calls.
+     *
+     * @param list<HelperCall> $helperCalls
+     */
+    private function propagateContexts(array $helperCalls): void
+    {
+        $callees = [];
+
+        foreach ($helperCalls as $call) {
+            $callees[strtolower($call['class'] . '::' . $call['method'])][strtolower($call['callee'])] = $call['callee'];
+        }
+
+        // Whether each receiver's method was visited as shared: a shared visit covers a later
+        // unshared one, but not the other way round.
+        $visited = [];
+
+        while (($pending = array_pop($this->pendingContexts)) !== null) {
+            [$receiver, $declaringClass, $method, $context, $shared] = $pending;
+            $key = strtolower($receiver . "\0" . $declaringClass . '::' . $method);
+
+            if (array_key_exists($key, $visited) && ($visited[$key] || ! $shared)) {
+                continue;
+            }
+
+            $visited[$key] = $shared;
+
+            foreach ($callees[strtolower($declaringClass . '::' . $method)] ?? [] as $callee) {
+                $helper = $this->resolveHelper($receiver, $declaringClass, $callee);
+
+                if ($helper !== null) {
+                    $this->addContext($receiver, $helper->getDeclaringClass()->getName(), $helper->getName(), $context, $shared);
+                }
+            }
+        }
+    }
+
+    /**
+     * Get the instance method that a call on $this in the caller's class runs for the receiver, or
+     * null when the call does not reach one.
+     *
+     * The caller's own private method runs whatever the receiver's class, as PHP binds private calls
+     * to the calling scope; any other call runs the receiver's implementation.
+     */
+    private function resolveHelper(string $receiver, string $callerClass, string $name): ?ExtendedMethodReflection
+    {
+        $caller = $this->getClass($callerClass);
+        $method = null;
+
+        if ($caller !== null && $caller->hasNativeMethod($name)) {
+            $own = $caller->getNativeMethod($name);
+            $method = $own->isPrivate() && $own->getDeclaringClass()->getName() === $caller->getName() ? $own : null;
+        }
+
+        if ($method === null) {
+            $class = $this->getClass($receiver);
+            $method = $class !== null && $class->hasNativeMethod($name) ? $class->getNativeMethod($name) : null;
+
+            // Another class's private method is out of the caller's reach.
+            if ($method === null || $method->isPrivate()) {
+                return null;
+            }
+        }
+
+        return $method->isStatic() || strtolower($method->getName()) === '__construct' ? null : $method;
     }
 
     /**
@@ -460,15 +576,17 @@ class WorkerLifetimes
 
     /**
      * Resolve the abstract as make() does while building the consumer, walking the classes it
-     * builds, and return the lifetime of the result.
+     * builds, and return the lifetime of the result and the class it builds.
+     *
+     * @return array{string, null|string}
      */
-    private function make(string $abstract, ?string $consumer): string
+    private function make(string $abstract, ?string $consumer): array
     {
         $abstract = $this->container->getAlias($abstract);
 
         if ($consumer !== null && ($concrete = $this->getContextualConcrete($consumer, $abstract)) !== null) {
             // A contextual build is never cached; a class name is resolved on its own, a closure is unknown.
-            return is_string($concrete) ? $this->make($concrete, null) : self::UNKNOWN;
+            return is_string($concrete) ? $this->make($concrete, null) : [self::UNKNOWN, null];
         }
 
         [$lifetime, $class, $knownArguments] = $this->getLifetime($abstract, true);
@@ -477,7 +595,7 @@ class WorkerLifetimes
             $this->build($class, $lifetime, $knownArguments);
         }
 
-        return $lifetime;
+        return [$lifetime, $class];
     }
 
     /**
@@ -646,7 +764,7 @@ class WorkerLifetimes
             }
         }
 
-        return $this->make($class, $consumer);
+        return $this->make($class, $consumer)[0];
     }
 
     /**

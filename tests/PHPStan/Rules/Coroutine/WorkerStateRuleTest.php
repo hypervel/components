@@ -22,6 +22,7 @@ use Hypervel\PHPStan\Rules\Coroutine\WorkerStateHelper;
 use Hypervel\PHPStan\Rules\Coroutine\WorkerStateRule;
 use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Routing\Router;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\BaseRecordingController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\BinderController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\BoundFreshService;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ClosureService;
@@ -32,14 +33,18 @@ use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ContextualImplementation;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ContractImplementation;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\CountingMiddleware;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\FactoryBoundService;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\HelperController;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\LexicalChildController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\LocalConfig;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\MappedCommand;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\MappedHandler;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\OtherConsumer;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\OverridingRecordingController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ReportController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ReportEvent;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ScopedBoundService;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ScopedController;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ScopedHelperController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\SendReportListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ServiceContract;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\SingletonBoundService;
@@ -225,12 +230,16 @@ class WorkerStateRuleTest extends RuleTestCase
                 $sharedState('JobService', 'request', 'the current request', 630),
                 $sharedState('SendReportListener', 'request', 'the current request', 647),
                 $sharedState('MappedHandler', 'request', 'the current request', 697),
+                $sharedWrite('HelperController', 'track', 'tracked', 736),
+                $sharedWrite('OverridingRecordingController', 'record', 'overridden', 798),
+                $sharedWrite('LexicalParentController', 'resolve', 'resolved', 816),
             ],
             'static' => [
                 [sprintf(self::STATIC_STATE, self::NAMESPACE . 'SharedService', 'current', 'the current request'), 85, self::STATIC_TIP],
                 $staticWrite('CountingMiddleware', 'seen', self::REQUEST, 435),
                 $staticWrite('StoreReportRequest', 'validated', self::REQUEST, 575),
                 $staticWrite('ProcessReport', 'runs', self::JOB, 590),
+                $staticWrite('RebuildReport', 'rebuilt', self::JOB, 843),
             ],
             'cache' => [
                 $cache('Property', 'SharedService', 'visits', 86),
@@ -254,6 +263,8 @@ class WorkerStateRuleTest extends RuleTestCase
                 [sprintf(self::CONFIG, self::JOB), 605, self::CONFIG_TIP],
                 [sprintf(self::CONFIG, self::JOB), 609, self::CONFIG_TIP],
                 [sprintf(self::CONFIG, self::JOB), 610, self::CONFIG_TIP],
+                [sprintf(self::CONFIG, self::REQUEST), 737, self::CONFIG_TIP],
+                [sprintf(self::CONFIG, self::JOB), 844, self::CONFIG_TIP],
             ],
         ];
     }
@@ -294,6 +305,10 @@ class WorkerStateRuleTest extends RuleTestCase
         $router->get('/binders/{thing}', [BinderController::class, 'show']);
         $router->bind('thing', static fn (string $value): string => $value);
         $router->get('/closure', static fn (ClosureService $service): string => '');
+        $router->get('/helpers', [HelperController::class, 'index']);
+        $router->get('/scoped-helpers', [ScopedHelperController::class, 'index']);
+        $router->get('/records', [BaseRecordingController::class, 'index']);
+        $router->get('/lexical', [LexicalChildController::class, 'index']);
 
         $events->listen(ReportEvent::class, SendReportListener::class);
         $bus->map([MappedCommand::class => MappedHandler::class]);
@@ -303,6 +318,7 @@ class WorkerStateRuleTest extends RuleTestCase
         $container->scoped(ScopedBoundService::class);
         $container->singleton(FactoryBoundService::class, static fn (): FactoryBoundService => new FactoryBoundService);
         $container->singleton(ServiceContract::class, ContractImplementation::class);
+        $container->singleton(BaseRecordingController::class, OverridingRecordingController::class);
         $container->bind(Authenticatable::class, User::class);
         $container->when(ConsumerService::class)->needs(ContextualDependency::class)->give(ContextualImplementation::class);
         $container->when(OtherConsumer::class)->needs(User::class)->give(static fn (): User => new User);

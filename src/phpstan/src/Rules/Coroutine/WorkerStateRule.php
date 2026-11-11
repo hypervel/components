@@ -112,6 +112,7 @@ class WorkerStateRule implements Rule
         $singletons = [];
         $queued = [];
         $actions = [];
+        $helperCalls = [];
 
         foreach ($node->get(WorkerStateCallCollector::class) as $file => $calls) {
             foreach ($calls as $call) {
@@ -119,6 +120,8 @@ class WorkerStateRule implements Rule
                     $abstracts += array_fill_keys($call['abstracts'], true);
                 } elseif ($call['type'] === 'action') {
                     $actions[$file][] = $call;
+                } elseif ($call['type'] === 'call') {
+                    $helperCalls[] = $call;
                 } else {
                     $configWrites[$file][] = $call;
                 }
@@ -154,7 +157,7 @@ class WorkerStateRule implements Rule
         // The analysis always runs on the framework container: the booted application or a test's own.
         /** @var Container $container */
         $container = $this->getContainer();
-        $lifetimes = new WorkerLifetimes($this->reflectionProvider, $container, array_keys($abstracts), $singletons, $queued);
+        $lifetimes = new WorkerLifetimes($this->reflectionProvider, $container, array_keys($abstracts), $singletons, $queued, $helperCalls);
         $errors = [];
 
         foreach ($node->get(WorkerStateWriteCollector::class) as $file => $writes) {
@@ -329,7 +332,7 @@ class WorkerStateRule implements Rule
 
     /**
      * Get the operation the function always handles: its collected context, the route action it is,
-     * or a booted middleware or controller action method.
+     * a booted middleware or controller action method, or a helper such a method or a job calls.
      *
      * @param FunctionFacts $function
      * @param list<RouteAction> $actions the file's route actions

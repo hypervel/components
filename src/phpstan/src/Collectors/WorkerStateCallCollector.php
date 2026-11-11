@@ -40,12 +40,14 @@ use function is_string;
 
 /**
  * Collects the constant container resolutions that make a class worker-shared, the route closures
- * that handle requests, and the config writes through the global repository.
+ * that handle requests, the helpers a method calls on its own instance, and the config writes
+ * through the global repository.
  *
  * @phpstan-import-type ConfigWrite from WorkerStateHelper
+ * @phpstan-import-type HelperCall from WorkerStateHelper
  * @phpstan-import-type RouteAction from WorkerStateHelper
  *
- * @implements Collector<CallLike, array{type: 'resolution', abstracts: list<string>}|ConfigWrite|RouteAction>
+ * @implements Collector<CallLike, array{type: 'resolution', abstracts: list<string>}|ConfigWrite|HelperCall|RouteAction>
  */
 #[AutowiredService]
 class WorkerStateCallCollector implements Collector
@@ -78,11 +80,11 @@ class WorkerStateCallCollector implements Collector
     }
 
     /**
-     * Collect the call's resolved abstracts, route closure or config write.
+     * Collect the call's resolved abstracts, route closure, helper or config write.
      *
      * @param CallLike $node
      *
-     * @return null|array{type: 'resolution', abstracts: list<string>}|ConfigWrite|RouteAction
+     * @return null|array{type: 'resolution', abstracts: list<string>}|ConfigWrite|HelperCall|RouteAction
      */
     public function processNode(Node $node, Scope $scope): ?array
     {
@@ -112,6 +114,22 @@ class WorkerStateCallCollector implements Collector
                 'nested' => array_map(static fn (Node $node): array => [$node->getStartFilePos(), $node->getEndFilePos()], $nested),
                 'configParameters' => $this->getConfigParameters($action->params),
             ];
+        }
+
+        // A direct call on $this runs the helper for the same instance, in the same operation. A
+        // nested function may run later, and creating a callable runs nothing.
+        if (
+            $node instanceof MethodCall
+            && $node->var instanceof Variable
+            && $node->var->name === 'this'
+            && $node->name instanceof Identifier
+            && ! $scope->isInAnonymousFunction()
+        ) {
+            $function = $this->helper->getFunctionFacts($scope, $node);
+
+            return $function === null || $function['class'] === null || $function['method'] === null
+                ? null
+                : ['type' => 'call', 'class' => $function['class'], 'method' => $function['method'], 'callee' => $node->name->name];
         }
 
         if (! $this->isConfigWrite($node, $scope)) {

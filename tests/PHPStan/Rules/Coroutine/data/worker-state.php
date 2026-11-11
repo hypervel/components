@@ -697,3 +697,150 @@ class MappedHandler
         $this->request = $request;
     }
 }
+
+// Helpers a request or job method calls on its own instance handle the same operation.
+class HelperController
+{
+    private int $tracked = 0;
+
+    private bool $primed = false;
+
+    private bool $configured = false;
+
+    private int $deferred = 0;
+
+    public function __construct()
+    {
+        $this->prime();
+    }
+
+    public function index(): string
+    {
+        $this->track();
+        $later = $this->defer(...);
+        collect([1])->each(fn (): mixed => $this->defer());
+
+        return '';
+    }
+
+    /**
+     * Boot-only: the provider configures the controller once.
+     */
+    public function configure(): void
+    {
+        $this->apply();
+    }
+
+    private function track(): void
+    {
+        $this->tracked++;
+        config(['app.tracked' => true]);
+    }
+
+    private function prime(): void
+    {
+        $this->primed = true;
+    }
+
+    private function apply(): void
+    {
+        $this->configured = true;
+    }
+
+    private function defer(): void
+    {
+        $this->deferred++;
+    }
+}
+
+#[Scoped]
+class ScopedHelperController
+{
+    private int $tracked = 0;
+
+    public function index(): string
+    {
+        $this->track();
+
+        return '';
+    }
+
+    private function track(): void
+    {
+        $this->tracked++;
+    }
+}
+
+// The container binds the routed class to a subclass, whose override the inherited action calls.
+abstract class BaseRecordingController
+{
+    protected int $recorded = 0;
+
+    public function index(): string
+    {
+        $this->record();
+
+        return '';
+    }
+
+    protected function record(): void
+    {
+        $this->recorded++;
+    }
+}
+
+class OverridingRecordingController extends BaseRecordingController
+{
+    protected int $overridden = 0;
+
+    protected function record(): void
+    {
+        $this->overridden++;
+    }
+}
+
+// A private method runs in the class whose code calls it, whatever the receiver declares.
+class LexicalParentController
+{
+    protected int $resolved = 0;
+
+    public function index(): string
+    {
+        $this->resolve();
+
+        return '';
+    }
+
+    private function resolve(): void
+    {
+        $this->resolved++;
+    }
+}
+
+class LexicalChildController extends LexicalParentController
+{
+    protected int $childResolved = 0;
+
+    public function resolve(): void
+    {
+        $this->childResolved++;
+    }
+}
+
+class RebuildReport implements ShouldQueue
+{
+    use Dispatchable;
+
+    public static int $rebuilt = 0;
+
+    public function handle(): void
+    {
+        $this->count();
+    }
+
+    private function count(): void
+    {
+        static::$rebuilt++;
+        config(['app.rebuilt' => true]);
+    }
+}

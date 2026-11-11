@@ -134,13 +134,12 @@ class WorkerStateWriteCollector implements Collector
                 static fn (ParameterReflection $parameter): bool => $parameter->getName() === $value->name,
             ) ? $value->name : null;
 
-        // A write in a closure may run in a route action, and one in a public method in a booted
-        // middleware or controller action.
+        // A write in a closure may run in a route action, and one in an instance method in a booted
+        // middleware or controller action, or in a helper such a method or a job calls.
         $method = $scope->getFunction();
         $candidate = $function['context'] !== null
             || $function['closure']
             || ($method instanceof MethodReflection
-                && $method->isPublic()
                 && ! $method->isStatic()
                 && $method->getName() !== '__construct');
 

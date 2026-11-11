@@ -87,3 +87,14 @@ function batchVariables(): void
     Bus::batch([$chain]);
     Bus::batch($jobs);
 }
+
+// Hypervel: an entry that may be a job or a chain is reported when every job it may hold lacks the trait.
+/**
+ * @param RegularJob|list<RegularJob> $regularEntry
+ * @param BatchableJobWithCancellationCheck|list<RegularJob> $mixedEntry
+ */
+function batchJobOrChainEntries(RegularJob|array $regularEntry, BatchableJobWithCancellationCheck|array $mixedEntry): void
+{
+    Bus::batch([$regularEntry]);
+    Bus::batch([$mixedEntry]);
+}

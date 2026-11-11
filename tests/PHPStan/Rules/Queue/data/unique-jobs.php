@@ -132,3 +132,46 @@ class UniqueJobUsingUniqueForTrait implements ShouldQueue, ShouldBeUnique
 {
     use UniqueForAnHour;
 }
+
+// Hypervel: the unique lock calls a uniqueFor() or uniqueId() method from outside the job, so the
+// method wins and must be public. It reads only a public property.
+#[UniqueFor(3600)]
+class UniqueJobWithProtectedUniqueForMethod implements ShouldQueue, ShouldBeUnique
+{
+    protected function uniqueFor(): int
+    {
+        return 3600;
+    }
+}
+
+class UniqueJobWithProtectedUniqueForProperty implements ShouldQueue, ShouldBeUnique
+{
+    protected int $uniqueFor = 3600;
+}
+
+class ParameterizedUniqueJobWithPrivateUniqueIdMethod implements ShouldQueue, ShouldBeUnique
+{
+    public int $uniqueFor = 3600;
+
+    public string $uniqueId = 'fixed';
+
+    public function __construct(public int $companyId)
+    {
+    }
+
+    private function uniqueId(): string
+    {
+        return 'fixed';
+    }
+}
+
+class ParameterizedUniqueJobWithProtectedUniqueIdProperty implements ShouldQueue, ShouldBeUnique
+{
+    public int $uniqueFor = 3600;
+
+    protected string $uniqueId = 'fixed';
+
+    public function __construct(public int $companyId)
+    {
+    }
+}

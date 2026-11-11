@@ -17,6 +17,7 @@ use PHPStan\Reflection\ClassReflection;
 use PHPStan\Type\ObjectType;
 use PHPStan\Type\Type;
 use PHPStan\Type\TypeCombinator;
+use PHPStan\Type\UnionType;
 use PHPStan\Type\VerbosityLevel;
 
 use function array_values;
@@ -192,6 +193,22 @@ trait InspectsQueuedJobs
      */
     private function getEntryJobTypes(Type $entry): array
     {
-        return $entry->isArray()->yes() ? $this->getIterableJobTypes($entry) : [$entry];
+        if ($entry->isArray()->yes()) {
+            return $this->getIterableJobTypes($entry);
+        }
+
+        // A job-or-chain entry stays one value whose classes include the chain's jobs, so each rule
+        // still decides from every class the entry may hold.
+        if ($entry instanceof UnionType && $entry->isArray()->maybe()) {
+            $alternatives = [];
+
+            foreach ($entry->getTypes() as $member) {
+                $alternatives = [...$alternatives, ...$this->getEntryJobTypes($member)];
+            }
+
+            return [TypeCombinator::union(...$alternatives)];
+        }
+
+        return [$entry];
     }
 }

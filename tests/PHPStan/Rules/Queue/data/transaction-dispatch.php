@@ -347,3 +347,13 @@ DB::connection('pgsql')->transaction(static function () use ($order): void {
         DatabaseQueuedJob::dispatch();
     });
 });
+
+// Hypervel: conditional dispatches are flagged too, unless a literal condition never dispatches.
+DB::transaction(static function () use ($order): void {
+    NotifyOwner::dispatchIf(true, 1);
+    NotifyOwner::dispatchUnless(false, 1);
+    NotifyOwner::dispatchIf(boolean: $order->status === 'paid', productId: 1);
+    NotifyOwner::dispatchIf(false, 1);
+    NotifyOwner::dispatchUnless(true, 1);
+    NotifyOwner::dispatchIf(true, 1)->afterCommit();
+});

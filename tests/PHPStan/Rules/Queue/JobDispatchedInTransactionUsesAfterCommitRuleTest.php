@@ -53,6 +53,9 @@ class JobDispatchedInTransactionUsesAfterCommitRuleTest extends RuleTestCase
             [str_replace('NotifyOwner', 'SyncAttributeJob', $message), 225],
             [str_replace('NotifyOwner', 'RedisPropertyJob', $message), 226],
             [str_replace('NotifyOwner', 'ConstructorQueueJob', $message), 314],
+            [$message, 353],
+            [$message, 354],
+            [$message, 355],
         ]);
     }
 

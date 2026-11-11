@@ -53,10 +53,16 @@ use function strtolower;
  * @phpstan-type FunctionFacts array{class: null|string, method: null|string, closure: bool, context: null|string, position: int}
  * @phpstan-type ConfigWrite array{type: 'config', line: int, abstracts: null|list<string>, parameter: null|string, function: FunctionFacts}
  * @phpstan-type RouteAction array{type: 'action', start: int, end: int, nested: list<array{int, int}>, configParameters: array<string, string>}
+ * @phpstan-type HelperCall array{type: 'call', class: string, method: string, callee: string}
  */
 #[AutowiredService]
 class WorkerStateHelper
 {
+    /**
+     * The lowercase names of the methods that run a queued class as a job.
+     */
+    public const array JOB_METHODS = ['handle', '__invoke', 'failed'];
+
     /**
      * The values that belong to one request or operation, keyed by the label diagnostics use.
      */
@@ -107,7 +113,8 @@ class WorkerStateHelper
      *
      * The context is the operation the code always runs in when the class alone decides it: a queued
      * class's handle(), __invoke() or failed(), or a form request's method. The rule adds booted
-     * middleware and controller actions, and route closures by the node's position.
+     * middleware and controller actions, the helpers those methods call on their own instance, and
+     * route closures by the node's position.
      *
      * @return null|FunctionFacts
      */
@@ -125,7 +132,7 @@ class WorkerStateHelper
 
         $context = match (true) {
             $closure, $class === null, $method === null, $method->isStatic() => null,
-            $class->is(ShouldQueue::class) && in_array(strtolower($method->getName()), ['handle', '__invoke', 'failed'], true) => 'job',
+            $class->is(ShouldQueue::class) && in_array(strtolower($method->getName()), self::JOB_METHODS, true) => 'job',
             $class->is(FormRequest::class) => 'request',
             default => null,
         };

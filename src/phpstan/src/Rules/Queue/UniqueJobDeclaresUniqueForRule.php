@@ -21,8 +21,8 @@ use function sprintf;
 
 /**
  * Every job implementing `ShouldBeUnique` must declare how long it stays unique,
- * with a `#[UniqueFor]` attribute, a `uniqueFor()` method or a `$uniqueFor`
- * property.
+ * with a `#[UniqueFor]` attribute, a public `uniqueFor()` method or a public
+ * `$uniqueFor` property.
  *
  * Without one, the lock is acquired with a zero duration, whose meaning depends
  * on the cache store. Normal completion and final failure release the lock, but
@@ -62,12 +62,44 @@ class UniqueJobDeclaresUniqueForRule implements Rule
             return [];
         }
 
-        if (
-            $classReflection->hasNativeProperty('uniqueFor')
-            || $classReflection->hasNativeMethod('uniqueFor')
-            || ReflectionHelper::findClassAttribute($classReflection, UniqueFor::class) !== null
-        ) {
+        // The unique lock calls any uniqueFor() method from outside the job, so the method wins
+        // over the attribute and property, and must be public. It cannot read a hidden property.
+        if ($classReflection->hasNativeMethod('uniqueFor')) {
+            if ($classReflection->getNativeMethod('uniqueFor')->isPublic()) {
+                return [];
+            }
+
+            return [
+                RuleErrorBuilder::message(sprintf(
+                    'Job %s declares uniqueFor() but does not make it public.',
+                    $classReflection->getDisplayName(),
+                ))
+                    ->tip('Make uniqueFor() public so the unique lock can call it.')
+                    ->identifier('hypervel.uniqueJobUniqueFor')
+                    ->line($node->getStartLine())
+                    ->build(),
+            ];
+        }
+
+        if (ReflectionHelper::findClassAttribute($classReflection, UniqueFor::class) !== null) {
             return [];
+        }
+
+        if ($classReflection->hasNativeProperty('uniqueFor')) {
+            if ($classReflection->getNativeProperty('uniqueFor')->isPublic()) {
+                return [];
+            }
+
+            return [
+                RuleErrorBuilder::message(sprintf(
+                    'Job %s declares $uniqueFor but does not make it public.',
+                    $classReflection->getDisplayName(),
+                ))
+                    ->tip('Make $uniqueFor public so the unique lock can read it, or use a #[UniqueFor] attribute.')
+                    ->identifier('hypervel.uniqueJobUniqueFor')
+                    ->line($node->getStartLine())
+                    ->build(),
+            ];
         }
 
         return [
@@ -75,7 +107,7 @@ class UniqueJobDeclaresUniqueForRule implements Rule
                 'Job %s implements ShouldBeUnique but does not declare uniqueFor.',
                 $classReflection->getDisplayName(),
             ))
-                ->tip('Add a #[UniqueFor] attribute, or a uniqueFor() method for a computed duration.')
+                ->tip('Add a #[UniqueFor] attribute, or a public uniqueFor() method for a computed duration.')
                 ->identifier('hypervel.uniqueJobUniqueFor')
                 ->line($node->getStartLine())
                 ->build(),

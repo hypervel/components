@@ -55,6 +55,10 @@ class NoBatchedUniqueJobRuleTest extends RuleTestCase
                 "Unique job Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForProperty is dispatched via bulk().\n    💡 Dispatch unique jobs individually.",
                 61,
             ],
+            [
+                "Unique job Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\RegularJob|Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForProperty is dispatched via batch().\n    💡 Dispatch unique jobs individually.",
+                68,
+            ],
         ]);
     }
 
