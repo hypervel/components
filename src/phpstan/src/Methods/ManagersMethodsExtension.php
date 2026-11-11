@@ -141,10 +141,13 @@ class ManagersMethodsExtension implements MethodsClassReflectionExtension
         // that does not resolve still types an overriding driver() from its declaration.
         $managerReflection = $classReflection;
 
-        if ($manager instanceof Manager && $manager::class !== $classReflection->getName()) {
-            $this->runtimeInputs->trackClass($classReflection, $manager::class);
+        if ($manager instanceof Manager) {
+            // The booted manager's own methods, such as getDefaultDriver(), select the driver.
+            $this->runtimeInputs->trackSources($classReflection, $manager::class, Manager::class);
 
-            $managerReflection = $this->reflectionProvider->getClass($manager::class);
+            if ($manager::class !== $classReflection->getName()) {
+                $managerReflection = $this->reflectionProvider->getClass($manager::class);
+            }
         }
 
         // A Macroable or custom __call() keeps its own API instead of forwarding to the driver.

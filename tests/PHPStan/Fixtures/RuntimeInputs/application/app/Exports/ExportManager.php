@@ -17,6 +17,14 @@ class ExportManager extends Manager
     }
 
     /**
+     * Create the JSON driver.
+     */
+    protected function createJsonDriver(): JsonDriver
+    {
+        return new JsonDriver;
+    }
+
+    /**
      * Get the default driver name.
      */
     public function getDefaultDriver(): string

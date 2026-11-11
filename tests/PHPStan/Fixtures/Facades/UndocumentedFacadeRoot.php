@@ -13,4 +13,12 @@ class UndocumentedFacadeRoot
     {
         return 'Hello';
     }
+
+    /**
+     * Return a greeting the facade cannot reach.
+     */
+    protected function whisper(): string
+    {
+        return 'hello';
+    }
 }

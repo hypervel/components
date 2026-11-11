@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\PHPStan;
 
+use Hypervel\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 
 use function dirname;
@@ -92,6 +93,12 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
 
         // A facade root that lacked the method, which loads only when analysis resolves it.
         $this->edit($applicationPath . '/app/FacadeRoot.php', "{\n}", "{\n    public function shout(): string\n    {\n        return '';\n    }\n}");
+        $this->assertDiagnostics(['Usage.php:23 return.type', 'Usage.php:38 return.type'], $this->analyse($applicationPath, parameters: self::PARAMETERS));
+
+        // The body of the manager's getDefaultDriver(), which loads only when analysis resolves the manager.
+        $this->edit($applicationPath . '/app/Exports/ExportManager.php', "return 'csv';", "return 'json';");
+        $this->assertDiagnostics(['Usage.php:23 return.type'], $this->analyse($applicationPath, parameters: self::PARAMETERS));
+        $this->edit($applicationPath . '/app/Exports/ExportManager.php', "return 'json';", "return 'csv';");
         $this->assertDiagnostics(['Usage.php:23 return.type', 'Usage.php:38 return.type'], $this->analyse($applicationPath, parameters: self::PARAMETERS));
 
         // The method of a driver the manager forwards to, typed from the manager's declaration.
@@ -213,6 +220,36 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
             ['Usage.php:33 staticMethod.notFound', 'Usage.php:38 return.type'],
             $this->analyse($applicationPath, parameters: self::PARAMETERS, environment: $unset),
         );
+    }
+
+    public function testConfigDirectoriesAGlobStartsOrStopsMatchingReanalyzeEverything(): void
+    {
+        $applicationPath = $this->copyApplication();
+        $parameters = self::PARAMETERS . "\nconfigDirectories:\n    - '{$applicationPath}/config'\n    - '{$applicationPath}/modules/*/config'";
+        file_put_contents($applicationPath . '/app/ConfigUsage.php', <<<'PHP'
+            <?php
+
+            declare(strict_types=1);
+
+            namespace RuntimeInputs;
+
+            class ConfigUsage
+            {
+                public function limit(): int
+                {
+                    return config('module.limit', 0);
+                }
+            }
+            PHP);
+
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: $parameters));
+
+        mkdir($applicationPath . '/modules/billing/config', 0777, true);
+        file_put_contents($applicationPath . '/modules/billing/config/module.php', "<?php\n\nreturn ['limit' => 'none'];\n");
+        $this->assertDiagnostics([...self::BOOT_DIAGNOSTICS, 'ConfigUsage.php:11 return.type'], $this->analyse($applicationPath, parameters: $parameters));
+
+        (new Filesystem)->deleteDirectory($applicationPath . '/modules/billing');
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: $parameters));
     }
 
     public function testViewNameChangesReanalyzeOnlyViewConsumers(): void

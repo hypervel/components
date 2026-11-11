@@ -250,8 +250,9 @@ class FilesystemDiskHelper
             }
         }
 
+        // The bound manager's own methods, such as getDefaultDriver(), select the disk.
         if ($this->managerClass !== null) {
-            $this->runtimeInputs->trackClass($dependent, $this->managerClass);
+            $this->runtimeInputs->trackSources($dependent, $this->managerClass, FilesystemManager::class);
         }
 
         return $this->manager === false ? null : $this->manager;

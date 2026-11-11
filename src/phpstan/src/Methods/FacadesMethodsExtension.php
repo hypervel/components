@@ -61,6 +61,8 @@ class FacadesMethodsExtension implements MethodsClassReflectionExtension
             $facadeClass = $classReflection->getName();
 
             $this->runtimeInputs->track($classReflection);
+            // The facade's own accessor selects its root.
+            $this->runtimeInputs->trackSources($classReflection, $facadeClass, Facade::class);
 
             $concrete = $this->getFacadeRoot($facadeClass);
 
@@ -75,7 +77,11 @@ class FacadesMethodsExtension implements MethodsClassReflectionExtension
                     // Use hasNativeMethod() instead of hasMethod() to avoid
                     // re-entering registered MethodsClassReflectionExtensions
                     // (including this one), which would cause infinite recursion.
-                    if ($concreteReflection->hasNativeMethod($methodName)) {
+                    // The facade calls the root from outside, so only a public method is reachable.
+                    if (
+                        $concreteReflection->hasNativeMethod($methodName)
+                        && $concreteReflection->getNativeMethod($methodName)->isPublic()
+                    ) {
                         $this->cache[$key] = new StaticMethodReflection(
                             $concreteReflection->getNativeMethod($methodName),
                         );

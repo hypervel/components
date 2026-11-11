@@ -9,6 +9,7 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use Hypervel\Foundation\PackageManifest;
+use Hypervel\PHPStan\Reflection\SourceFiles;
 use Hypervel\PHPStan\RuntimeInputsResultCacheValueExtension;
 use Hypervel\Support\Composer;
 use Hypervel\Testbench\Bootstrap\LoadConfiguration as TestbenchLoadConfiguration;
@@ -22,9 +23,11 @@ use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredParameter;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\ClassReflection;
+use PHPStan\Reflection\ReflectionProvider;
 use ReflectionClass;
 
 use function array_keys;
+use function array_map;
 use function array_merge;
 use function array_pop;
 use function class_exists;
@@ -123,9 +126,17 @@ class RuntimeInputs
     private array $sourcePaths = [];
 
     /**
+     * The tracked source files of each class below a base class.
+     *
+     * @var array<string, list<string>>
+     */
+    private array $classSources = [];
+
+    /**
      * Create a new runtime inputs instance.
      */
     public function __construct(
+        private ReflectionProvider $reflectionProvider,
         private DeclarationDependencyTracker $declarationDependencyTracker,
         private EnvironmentVariableScanner $environmentVariableScanner,
         private ConfigSourceResolver $configSourceResolver,
@@ -194,6 +205,32 @@ class RuntimeInputs
             $this->declarationDependencyTracker->trackClassDependency($dependent, $className);
         } else {
             $dependent->trackClassDependency($className);
+        }
+    }
+
+    /**
+     * Declare that the dependent depends on the declarations and code of a class the booted application selected and the analysis runs.
+     *
+     * Method bodies and property defaults are not declarations, so the files declaring the class and its
+     * parents below the base class, with their traits and the constants their defaults read, are tracked too.
+     *
+     * @param ClassReflection|(DependencyTracker&Scope) $dependent
+     */
+    public function trackSources(Scope|ClassReflection $dependent, string $className, string $baseClass): void
+    {
+        $this->trackClass($dependent, $className);
+
+        $files = $this->classSources[$className . "\0" . $baseClass] ??= array_map(
+            $this->sourcePath(...),
+            SourceFiles::forInstance($this->reflectionProvider, $this->reflectionProvider->getClass($className), $baseClass),
+        );
+
+        foreach ($files as $file) {
+            if ($dependent instanceof ClassReflection) {
+                $this->declarationDependencyTracker->trackFileDependency($dependent, $file);
+            } else {
+                $dependent->trackFileDependency($file);
+            }
         }
     }
 

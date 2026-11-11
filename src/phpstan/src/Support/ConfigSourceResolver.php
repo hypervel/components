@@ -183,22 +183,34 @@ class ConfigSourceResolver
             return $this->configDirectories;
         }
 
-        if ($this->configuredDirectories === []) {
-            return $this->configDirectories = $this->getBootedConfigDirectories();
-        }
+        return $this->configDirectories = $this->configuredDirectories === []
+            ? $this->getBootedConfigDirectories()
+            : self::expandConfiguredDirectories($this->fileHelper, $this->configuredDirectories);
+    }
 
+    /**
+     * Get the directories the configured config paths name, in their order.
+     *
+     * A path that is not an existing directory is a glob pattern. This needs no booted
+     * application, so the result cache can hash it before anything boots.
+     *
+     * @param list<non-empty-string> $configuredDirectories
+     * @return list<string>
+     */
+    public static function expandConfiguredDirectories(FileHelper $fileHelper, array $configuredDirectories): array
+    {
         $directories = [];
 
-        foreach ($this->configuredDirectories as $configuredDirectory) {
-            $configuredDirectory = $this->fileHelper->absolutizePath($configuredDirectory);
+        foreach ($configuredDirectories as $configuredDirectory) {
+            $configuredDirectory = $fileHelper->absolutizePath($configuredDirectory);
 
             // An existing directory is taken literally, so glob characters in its path are not expanded
             foreach ((is_dir($configuredDirectory) ? [$configuredDirectory] : (glob($configuredDirectory) ?: [])) as $directory) {
-                $directories[] = $directory;
+                $directories[] = $fileHelper->normalizePath($directory);
             }
         }
 
-        return $this->configDirectories = array_map($this->fileHelper->normalizePath(...), $directories);
+        return $directories;
     }
 
     /**
@@ -235,7 +247,7 @@ class ConfigSourceResolver
      * In each config directory, these are the file of every prefix of the key, existing or
      * not, and the directory below the key, whose files make its value a merged one. Then
      * the framework's file for the key and the package files merged into an overlapping
-     * key. New directories matching a glob config path are not covered.
+     * key.
      *
      * @param list<string> $directories the config directories the value loads from
      * @return array<string, bool>

@@ -358,6 +358,9 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
 
             $facadeClass = $classReflection->getName();
 
+            // The facade's own accessor selects its root.
+            $this->runtimeInputs->trackSources($classReflection, $facadeClass, Facade::class);
+
             $concrete = null;
 
             try {

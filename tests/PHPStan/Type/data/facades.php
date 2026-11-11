@@ -54,6 +54,8 @@ function test(): void
     assertType('int', DummyFacade::bar());
     // Hypervel: a facade without @method annotations takes its root's method from the booted application.
     assertType('string', UndocumentedFacade::greet());
+    // Hypervel: the facade calls its root from outside, so a non-public method is not one of its methods.
+    assertType('*ERROR*', UndocumentedFacade::whisper());
 
     assertType('Hypervel\Http\Client\Response', Http::get('https://example.test'));
     assertType('Hypervel\Http\Client\Response', Http::post('https://example.test'));
