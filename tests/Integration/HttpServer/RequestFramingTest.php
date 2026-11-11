@@ -66,7 +66,7 @@ class RequestFramingTest extends HttpServerIntegrationTestCase
 
     public function testOversizedHttpTwoRequestBodyLeavesOtherStreamsUsable(): void
     {
-        // @TODO: Remove this skip once Swoole resets only the HTTP/2 stream whose request body exceeds package_max_length.
+        // @TODO: Remove this skip once https://github.com/swoole/swoole-src/pull/6389 is released.
         if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
             $this->markTestSkipped('Swoole closes the whole HTTP/2 connection when one request body exceeds package_max_length.');
         }
