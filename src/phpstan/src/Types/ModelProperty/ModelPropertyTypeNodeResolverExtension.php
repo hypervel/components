@@ -23,7 +23,7 @@ use PHPStan\Type\Type;
 use function count;
 
 /**
- * Ensures a 'model-property' type in PHPDoc is recognised to be of type ModelPropertyType.
+ * Ensures a 'model-property' type in PHPDoc is recognized to be of type ModelPropertyType.
  */
 #[AutowiredService]
 class ModelPropertyTypeNodeResolverExtension implements TypeNodeResolverExtension

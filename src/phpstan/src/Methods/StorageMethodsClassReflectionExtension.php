@@ -74,7 +74,7 @@ class StorageMethodsClassReflectionExtension implements MethodsClassReflectionEx
             return new ObjectType(FilesystemManager::class);
         }
 
-        // The facade declares the disk's methods.
+        // The disk classes supply the facade's forwarded methods, so its callers depend on them.
         foreach ($diskType->getObjectClassNames() as $diskClass) {
             $this->runtimeInputs->trackClass($classReflection, $diskClass);
         }

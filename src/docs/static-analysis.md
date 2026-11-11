@@ -87,6 +87,8 @@ If your project uses the [PHPStan extension installer](https://github.com/phpsta
 ./vendor/bin/phpstan analyse
 ```
 
+Hypervel's type declarations assume the extension is loaded. For example, the eager loading methods of Eloquent collections and paginators describe their relationship arrays using PHPDoc types only the extension understands, so PHPStan without the extension checks those arguments against the methods' native types only.
+
 <a name="analyzing-packages"></a>
 ### Analyzing Packages
 
@@ -208,7 +210,7 @@ Some facts cannot be known statically. When the analysis cannot tell what a conf
 
 Calling `str()` without arguments returns an object that passes method calls to `Str`. The analysis does not check those calls.
 
-PHPStan's result cache reanalyses only the files a change affects. Since many facts come from the booted application, changing your environment or a file the application loads while booting, such as a service provider or route file, reanalyses every file that uses those facts.
+PHPStan's result cache reanalyzes only the files a change affects. Since many facts come from the booted application, changing your environment or a file the application loads while booting, such as a service provider or route file, reanalyzes every file that uses those facts.
 
 <a name="collection-types"></a>
 ### Collection Types
@@ -260,7 +262,7 @@ When the analysis cannot know whether a table has a column, such as after a migr
 <a name="migrations-and-schema-dumps"></a>
 ### Migrations and Schema Dumps
 
-The analysis finds migrations as the `migrate` command does: the `*_*.php` files directly in the directories, and the files, your service providers register with `loadMigrationsFrom`, then in your `database/migrations` directory. A migration with the same name as an earlier one replaces it, so a published migration takes the place of its package's, and migrations apply in name order. It also reads the [schema dumps](/docs/{{version}}/migrations#squashing-migrations) in your `database/schema` directory. To read them from other directories, list the directories using the `databaseMigrationsPath` or `squashedMigrationsPath` parameter. Each replaces its defaults and accepts glob patterns, and every `.php` file below a listed migrations directory is read, including those in subdirectories:
+The analysis finds migrations as the `migrate` command does: the files your service providers register with `loadMigrationsFrom` and the `*_*.php` files directly in the directories they register, then those in your `database/migrations` directory. A migration with the same name as an earlier one replaces it, so a published migration takes the place of its package's, and migrations apply in name order. It also reads the [schema dumps](/docs/{{version}}/migrations#squashing-migrations) in your `database/schema` directory. To read them from other directories, list the directories using the `databaseMigrationsPath` or `squashedMigrationsPath` parameter. Each replaces its defaults and accepts glob patterns, and every `.php` file below a listed migrations directory is read, including those in subdirectories:
 
 ```neon
 parameters:
@@ -641,7 +643,7 @@ Correct the configuration value, casting environment variables within the config
 
 Only values the analysis knows are checked. A key the analysis cannot follow keeps the getter's declared type.
 
-Configuration types include the defaults of any package whose configuration your application has not published. When you analyse a package, values merged from package configuration files keep the getter's declared type instead, since the applications using the package replace them. The framework's defaults and your workbench configuration files are still typed. These checks may be disabled using the `checkConfigTypes` parameter.
+Configuration types include the defaults of any package whose configuration your application has not published. When you analyze a package, values merged from package configuration files keep the getter's declared type instead, since the applications using the package replace them. The framework's defaults and your workbench configuration files are still typed. These checks may be disabled using the `checkConfigTypes` parameter.
 
 Your application's configuration files are read from its configuration directory. If they live elsewhere, list the directories using the `configDirectories` parameter, which replaces the default directory and accepts glob patterns:
 
@@ -1050,7 +1052,7 @@ When a schema dump your models use cannot be read, such as a PostgreSQL dump in 
 database/schema/pgsql-schema.dump:1: Model property types cannot use this schema dump: PostgreSQL archives must be exported as plain SQL before parsing.
 ```
 
-Until the dump is fixed, the tables it defines are unknown, so their attributes read as `mixed`. Regenerate the dump using the `schema:dump` Artisan command, which writes plain SQL. A dump is only reported when the analysed code reads a model attribute on its connection. You may stop reading schema dumps using the `disableSchemaScan` parameter.
+Until the dump is fixed, the tables it defines are unknown, so their attributes read as `mixed`. Regenerate the dump using the `schema:dump` Artisan command, which writes plain SQL. A dump is only reported when the analyzed code reads a model attribute on its connection. You may stop reading schema dumps using the `disableSchemaScan` parameter.
 
 <a name="dispatching-jobs-and-events"></a>
 ### Dispatching Jobs and Events
@@ -1174,6 +1176,8 @@ The analysis reads the rules array where you write it. A constant or conditional
 ### Deprecations
 
 The bundled deprecation rules report uses of deprecated APIs from any of your dependencies, including PHP, Symfony and Carbon as well as Hypervel. Use the replacement the deprecation names. When you still need the deprecated API, such as to keep a public API compatible, ignore it with the reported identifier and a reason.
+
+Code that is itself deprecated, such as a method marked `@deprecated` or any method of a deprecated class or trait, may use other deprecated APIs without being reported. A PHPStan extension may mark other code as deprecated by registering a `DeprecatedScopeResolver` service with the `phpstan.deprecations.deprecatedScopeResolver` tag.
 
 Deprecated methods and properties reached through a proxy, such as `$users->each->notify()`, `optional($user)->notify()` or `$user->when($active)->notify()`, are not reported, since PHPStan's deprecation checks only look at the proxy class itself.
 

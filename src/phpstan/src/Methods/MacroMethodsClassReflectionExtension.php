@@ -258,7 +258,7 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
             return null;
         }
 
-        // The class declares the guards' methods.
+        // The guard classes supply this class's forwarded methods, so its callers depend on them.
         foreach ($guardType->getObjectClassNames() as $guardClass) {
             $this->runtimeInputs->trackClass($classReflection, $guardClass);
         }

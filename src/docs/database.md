@@ -727,7 +727,7 @@ The pool retains modified sessions when the standard host, port and write settin
 <a name="static-analysis"></a>
 ### Static Analysis
 
-The `hypervel/phpstan` extension understands named scopes, soft deleting query methods such as `withTrashed` and `restore`, custom Eloquent builders, and query methods forwarded through Eloquent models, builders, and relationships. See the [static analysis documentation](/docs/{{version}}/static-analysis) to enable it in your application.
+The `hypervel/phpstan` extension understands local scopes, soft deleting query methods such as `withTrashed` and `restore`, custom Eloquent builders, and query methods forwarded through Eloquent models, builders, and relationships. See the [static analysis documentation](/docs/{{version}}/static-analysis) to enable it in your application.
 
 <a name="running-queries"></a>
 ## Running SQL Queries
