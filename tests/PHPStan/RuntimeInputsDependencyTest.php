@@ -168,13 +168,20 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
 
     public function testBootInputEditsSkipLookupsOnClassesWithoutMacros(): void
     {
+        // PHPStan gives a file the dependencies recorded on the declarations of classes it depends on, as far as its
+        // process has recorded them when the file finishes. One process keeps that order the same between runs, and
+        // the first edit's reanalysis drops what the cold run gave files that never read those facts (Comment.php,
+        // through Model), so the count is taken on the second edit.
         $applicationPath = $this->copyApplication();
+        $parameters = "typeAliases:\n    RenderView: 'Closure(view-string): void'\nparallel:\n    maximumNumberOfProcesses: 1";
 
-        $this->analyse($applicationPath, parameters: self::PARAMETERS);
-        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: self::PARAMETERS));
+        $this->analyse($applicationPath, parameters: $parameters);
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: $parameters));
 
         $this->edit($applicationPath . '/app/Providers/FixtureServiceProvider.php', 'fn (): int => 1', 'fn (): int => 2');
-        $process = $this->analyse($applicationPath, parameters: self::PARAMETERS);
+        $this->analyse($applicationPath, parameters: $parameters);
+        $this->edit($applicationPath . '/app/Providers/FixtureServiceProvider.php', 'fn (): int => 2', 'fn (): int => 3');
+        $process = $this->analyse($applicationPath, parameters: $parameters);
         $this->assertSame(1, preg_match('/Result cache restored\. (\d+) files? will be reanalysed\./', $process->getErrorOutput(), $matches));
 
         // The lookup reaches the macro extension, but a class that is not Macroable can gain no macro from the boot.
@@ -193,10 +200,10 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
                 }
             }
             PHP);
-        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: self::PARAMETERS));
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: $parameters));
 
-        $this->edit($applicationPath . '/app/Providers/FixtureServiceProvider.php', 'fn (): int => 2', 'fn (): int => 3');
-        $this->assertReanalyzed((int) $matches[1], $this->analyse($applicationPath, parameters: self::PARAMETERS));
+        $this->edit($applicationPath . '/app/Providers/FixtureServiceProvider.php', 'fn (): int => 3', 'fn (): int => 4');
+        $this->assertReanalyzed((int) $matches[1], $this->analyse($applicationPath, parameters: $parameters));
     }
 
     public function testEnvironmentChangesReanalyzeTheirConsumers(): void
