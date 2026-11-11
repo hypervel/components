@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\PHPStan\Properties;
+namespace Hypervel\PHPStan\Support;
 
 use PHPStan\File\FileHelper;
 
@@ -15,7 +15,9 @@ use function strpbrk;
 use const GLOB_ONLYDIR;
 
 /**
- * Turns the configured migration and schema paths into the directories to scan and watch.
+ * Turns the configured config, migration and schema paths into the directories to scan and watch.
+ *
+ * It needs no booted application, so the result cache can hash its directories before anything boots.
  *
  * @internal
  */

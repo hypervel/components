@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\PHPStan\Unit;
+namespace Hypervel\Tests\PHPStan\Unit\Support;
 
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\PHPStan\Properties\DirectoryResolver;
+use Hypervel\PHPStan\Support\DirectoryResolver;
 use Hypervel\Testing\ParallelTesting;
 use PHPStan\File\FileHelper;
 use PHPStan\Testing\PHPStanTestCase;

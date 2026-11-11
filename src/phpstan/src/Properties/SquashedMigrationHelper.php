@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\Properties;
 
+use Hypervel\PHPStan\Support\DirectoryResolver;
 use Hypervel\SchemaParser\ParseException;
 use PHPStan\DependencyInjection\AutowiredParameter;
 use PHPStan\DependencyInjection\AutowiredService;

@@ -6,10 +6,10 @@ namespace Hypervel\PHPStan;
 
 use FilesystemIterator;
 use Hypervel\PHPStan\Support\EnvironmentSnapshot;
+use Hypervel\PHPStan\Support\RecursiveDirectoryIterator;
 use PHPStan\Analyser\ResultCache\ResultCacheValueExtension;
 use PHPStan\DependencyInjection\AutowiredParameter;
 use PHPStan\DependencyInjection\AutowiredService;
-use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\PHPStan\Properties;
 
 use Hypervel\PHPStan\Concerns\HasContainer;
+use Hypervel\PHPStan\Support\DirectoryResolver;
 use Hypervel\PHPStan\Support\RecursiveDirectoryIterator;
 use PHPStan\DependencyInjection\AutowiredParameter;
 use PHPStan\DependencyInjection\AutowiredService;
@@ -80,6 +81,7 @@ class MigrationHelper
             $this->reflectionProvider,
             $this->initializerExprTypeResolver,
             $this->connectionConfigResolver,
+            $this->parser,
             $connections,
         );
 

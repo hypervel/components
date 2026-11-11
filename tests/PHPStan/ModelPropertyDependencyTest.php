@@ -6,6 +6,7 @@ namespace Hypervel\Tests\PHPStan;
 
 use function file_get_contents;
 use function file_put_contents;
+use function mkdir;
 use function str_replace;
 
 class ModelPropertyDependencyTest extends ResultCacheTestCase
@@ -25,6 +26,64 @@ class ModelPropertyDependencyTest extends ResultCacheTestCase
         file_put_contents($applicationPath . '/config/schema.php', "<?php\n\nreturn ['connection' => 'pgsql'];\n");
 
         $this->assertSame([], $this->diagnostics($this->analyse($applicationPath), 0));
+    }
+
+    /**
+     * A migration directory that a configured glob starts matching has no tracked path, so its schema
+     * changes invalidate the result cache.
+     */
+    public function testMigrationDirectoryAGlobStartsMatchingReanalyzesModelUsage(): void
+    {
+        $applicationPath = $this->copyApplication();
+        $parameters = "databaseMigrationsPath:\n    - '{$applicationPath}/database/migrations'\n    - '{$applicationPath}/modules/*/migrations'";
+
+        $this->assertSame(['Usage.php:14 property.notFound'], $this->diagnostics($this->analyse($applicationPath, parameters: $parameters), 1));
+
+        mkdir($applicationPath . '/modules/profile/migrations', 0777, true);
+        file_put_contents($applicationPath . '/modules/profile/migrations/2026_01_03_000000_add_nickname_to_users_table.php', <<<'PHP'
+            <?php
+
+            declare(strict_types=1);
+
+            use Hypervel\Database\Migrations\Migration;
+            use Hypervel\Database\Schema\Blueprint;
+            use Hypervel\Support\Facades\Schema;
+
+            return new class extends Migration {
+                public function getConnection(): ?string
+                {
+                    return config('schema.connection');
+                }
+
+                public function up(): void
+                {
+                    Schema::table('users', function (Blueprint $table) {
+                        $table->string('nickname');
+                    });
+                }
+            };
+            PHP);
+
+        $this->assertSame([], $this->diagnostics($this->analyse($applicationPath, parameters: $parameters), 0));
+    }
+
+    /**
+     * A schema dump directory that a configured glob starts matching has no tracked path either.
+     */
+    public function testSchemaDumpDirectoryAGlobStartsMatchingReanalyzesModelUsage(): void
+    {
+        $applicationPath = $this->copyApplication();
+        $parameters = "disableMigrationScan: true\nsquashedMigrationsPath:\n    - '{$applicationPath}/modules/*/schema'";
+
+        $this->assertSame([], $this->diagnostics($this->analyse($applicationPath, parameters: $parameters), 0));
+
+        mkdir($applicationPath . '/modules/profile/schema', 0777, true);
+        file_put_contents(
+            $applicationPath . '/modules/profile/schema/sqlite-schema.sql',
+            'CREATE TABLE IF NOT EXISTS "users" ("id" integer primary key autoincrement not null, "name" varchar not null);' . "\n",
+        );
+
+        $this->assertSame(['Usage.php:14 property.notFound'], $this->diagnostics($this->analyse($applicationPath, parameters: $parameters), 1));
     }
 
     /**
@@ -125,6 +184,75 @@ class ModelPropertyDependencyTest extends ResultCacheTestCase
         file_put_contents($constantsPath, str_replace("NAME = 'name'", "NAME = 'nickname'", file_get_contents($constantsPath)));
 
         $this->assertSame([], $this->diagnostics($this->analyse($applicationPath), 0));
+    }
+
+    /**
+     * A migration's parent can override the inherited method the migration calls, changing the schema
+     * while the file of the method that ran does not change. The migration's own getConnection() reads
+     * nothing from its parents, so no connection lookup tracks them either.
+     */
+    public function testChangedMigrationParentReanalyzesModelUsage(): void
+    {
+        $applicationPath = $this->copyApplication();
+        $parentPath = $applicationPath . '/app/Models/UsersMigration.php';
+
+        file_put_contents($applicationPath . '/app/Models/NicknameMigration.php', <<<'PHP'
+            <?php
+
+            declare(strict_types=1);
+
+            namespace ModelPropertyDependency\Models;
+
+            use Hypervel\Database\Migrations\Migration;
+            use Hypervel\Database\Schema\Blueprint;
+            use Hypervel\Support\Facades\Schema;
+
+            abstract class NicknameMigration extends Migration
+            {
+                protected function addNickname(): void
+                {
+                    Schema::table('users', function (Blueprint $table) {
+                        $table->string('nickname');
+                    });
+                }
+            }
+            PHP);
+        file_put_contents($parentPath, <<<'PHP'
+            <?php
+
+            declare(strict_types=1);
+
+            namespace ModelPropertyDependency\Models;
+
+            abstract class UsersMigration extends NicknameMigration
+            {
+            }
+            PHP);
+        file_put_contents($applicationPath . '/database/migrations/2026_01_03_000000_add_nickname_to_users_table.php', <<<'PHP'
+            <?php
+
+            declare(strict_types=1);
+
+            use ModelPropertyDependency\Models\UsersMigration;
+
+            return new class extends UsersMigration {
+                public function getConnection(): ?string
+                {
+                    return config('schema.connection');
+                }
+
+                public function up(): void
+                {
+                    $this->addNickname();
+                }
+            };
+            PHP);
+
+        $this->assertSame([], $this->diagnostics($this->analyse($applicationPath), 0));
+
+        file_put_contents($parentPath, str_replace("{\n}", "{\n    protected function addNickname(): void\n    {\n    }\n}", file_get_contents($parentPath)));
+
+        $this->assertSame(['Usage.php:14 property.notFound'], $this->diagnostics($this->analyse($applicationPath), 1));
     }
 
     /**

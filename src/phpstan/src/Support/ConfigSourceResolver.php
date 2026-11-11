@@ -74,7 +74,6 @@ use function count;
 use function dirname;
 use function explode;
 use function function_exists;
-use function glob;
 use function Hypervel\Testbench\workbench_path;
 use function implode;
 use function in_array;
@@ -186,32 +185,7 @@ class ConfigSourceResolver
 
         return $this->configDirectories = $this->configuredDirectories === []
             ? $this->getBootedConfigDirectories()
-            : self::expandConfiguredDirectories($this->fileHelper, $this->configuredDirectories);
-    }
-
-    /**
-     * Get the directories the configured config paths name, in their order.
-     *
-     * A path that is not an existing directory is a glob pattern. This needs no booted
-     * application, so the result cache can hash it before anything boots.
-     *
-     * @param list<non-empty-string> $configuredDirectories
-     * @return list<string>
-     */
-    public static function expandConfiguredDirectories(FileHelper $fileHelper, array $configuredDirectories): array
-    {
-        $directories = [];
-
-        foreach ($configuredDirectories as $configuredDirectory) {
-            $configuredDirectory = $fileHelper->absolutizePath($configuredDirectory);
-
-            // An existing directory is taken literally, so glob characters in its path are not expanded
-            foreach ((is_dir($configuredDirectory) ? [$configuredDirectory] : (glob($configuredDirectory) ?: [])) as $directory) {
-                $directories[] = $fileHelper->normalizePath($directory);
-            }
-        }
-
-        return $directories;
+            : DirectoryResolver::resolve($this->configuredDirectories, $this->fileHelper);
     }
 
     /**

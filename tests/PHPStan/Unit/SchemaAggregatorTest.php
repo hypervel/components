@@ -181,6 +181,25 @@ class SchemaAggregatorTest extends PHPStanTestCase
         yield 'rawIndex' => ["\$table->rawIndex('lower(body)', 'posts_body_lower_index');"];
     }
 
+    /**
+     * The engine, charset and collation properties choose table options, so setting them changes no column.
+     */
+    #[Test]
+    public function itKeepsColumnsUnchangedByTableOptionProperties(): void
+    {
+        $aggregator = $this->aggregate(<<<'PHP'
+            Schema::create('users', function (Blueprint $table) {
+                $table->engine = 'InnoDB';
+                $table->charset = 'utf8mb4';
+                $table->collation = 'utf8mb4_unicode_ci';
+                $table->string('name');
+            });
+        PHP);
+
+        $this->assertSame(['name' => ['string', false]], $this->columns($aggregator, 'users'));
+        $this->assertTrue($this->table($aggregator, 'users')->complete);
+    }
+
     #[Test]
     public function itResolvesColumnNameConstants(): void
     {
@@ -753,6 +772,194 @@ class SchemaAggregatorTest extends PHPStanTestCase
     }
 
     /**
+     * The migrator runs inherited code too: self:: names the declaring class, while static:: and $this name the migration.
+     */
+    #[Test]
+    public function itAppliesInheritedMigrationCode(): void
+    {
+        $aggregator = $this->apply(<<<'PHP'
+            return new class extends LayeredMigration
+            {
+                protected $connection = 'mysql';
+
+                protected function createLayer(): void
+                {
+                    Schema::create('child_layers', fn (Blueprint $table) => $table->string('name'));
+                }
+            };
+            PHP);
+
+        foreach (['base_layers', 'child_layers', 'parts'] as $table) {
+            $this->assertSame(['name' => ['string', false]], $this->columns($aggregator, $table));
+        }
+    }
+
+    /**
+     * A method calling the parent method it overrides is not recursion.
+     */
+    #[Test]
+    public function itAppliesParentMethodsTheMigrationOverrides(): void
+    {
+        $aggregator = $this->apply(<<<'PHP'
+            return new class extends LayeredMigration
+            {
+                protected $connection = 'mysql';
+
+                public function up(): void
+                {
+                    $this->createWidgets();
+                }
+
+                protected function createWidgets(): void
+                {
+                    parent::createWidgets();
+
+                    Schema::table('widgets', fn (Blueprint $table) => $table->string('color'));
+                }
+            };
+            PHP);
+
+        $this->assertSame(['name' => ['string', false], 'color' => ['string', false]], $this->columns($aggregator, 'widgets'));
+    }
+
+    /**
+     * PHP runs the private method of the class whose code calls it, not the migration's own.
+     */
+    #[Test]
+    public function itAppliesThePrivateMethodOfTheCallingClass(): void
+    {
+        $aggregator = $this->apply(<<<'PHP'
+            return new class extends LayeredMigration
+            {
+                protected $connection = 'mysql';
+
+                private function createLedgers(): void
+                {
+                    Schema::create('child_ledgers', fn (Blueprint $table) => $table->string('name'));
+                }
+            };
+            PHP);
+
+        $this->assertSame(['name' => ['string', false]], $this->columns($aggregator, 'ledgers'));
+        $this->assertNull($this->columns($aggregator, 'child_ledgers'));
+    }
+
+    /**
+     * A recursive call is detected by the method's declaration, whatever parsing returns for its file.
+     */
+    #[Test]
+    public function itStopsAtRecursiveInheritedHelpers(): void
+    {
+        $aggregator = $this->apply(<<<'PHP'
+            return new class extends LayeredMigration
+            {
+                protected $connection = 'mysql';
+
+                public function up(): void
+                {
+                    Schema::create('posts', fn (Blueprint $table) => $table->string('title'));
+
+                    $this->createGadgets();
+                }
+            };
+            PHP);
+
+        $this->assertSame(['title' => ['string', false]], $this->columns($aggregator, 'posts'));
+    }
+
+    /**
+     * An inherited helper's builder variables select each calling migration's connection.
+     */
+    #[Test]
+    public function itAppliesInheritedBuilderVariablesOnEachMigrationsConnection(): void
+    {
+        $aggregator = null;
+
+        foreach (['mysql', 'sqlite'] as $connection) {
+            $aggregator = $this->apply(<<<PHP
+                return new class extends LayeredMigration
+                {
+                    protected \$connection = '{$connection}';
+
+                    public function up(): void
+                    {
+                        \$this->createGizmos();
+                    }
+                };
+                PHP, $aggregator);
+        }
+
+        $this->assertSame(['name' => ['string', false]], $this->columns($aggregator, 'gizmos'));
+        $this->assertSame(['name' => ['string', false]], $this->columns($aggregator, 'gizmos', 'sqlite'));
+    }
+
+    #[Test]
+    public function itForgetsTablesInheritedHelpersChangeWhereTheyCannotBeFollowed(): void
+    {
+        $aggregator = $this->apply(<<<'PHP'
+            return new class extends LayeredMigration
+            {
+                protected $connection = 'mysql';
+
+                public function up(): void
+                {
+                    Schema::create('widgets', fn (Blueprint $table) => $table->string('label'));
+                    Schema::create('posts', fn (Blueprint $table) => $table->string('title'));
+
+                    DB::transaction(fn () => $this->createWidgets());
+                }
+            };
+            PHP);
+
+        $this->assertFalse($this->table($aggregator, 'widgets')->complete);
+        $this->assertTrue($this->table($aggregator, 'posts')->complete);
+    }
+
+    #[Test]
+    public function itForgetsEveryConnectionWhenInheritedCodeCannotBeRead(): void
+    {
+        $aggregator = $this->aggregate("Schema::create('users', fn (Blueprint \$table) => \$table->string('name'));");
+
+        $this->apply(<<<'PHP'
+            return new class extends MissingMigration
+            {
+                public function up(): void
+                {
+                    $this->createWidgets();
+                }
+            };
+            PHP, $aggregator);
+
+        $this->assertFalse($this->schema($aggregator)->complete);
+    }
+
+    /**
+     * A trait alias supplies up() or a helper from a method of another name, which is not followed.
+     */
+    #[Test]
+    #[DataProvider('aliasedTraitMethods')]
+    public function itForgetsEveryConnectionWhenATraitAliasSuppliesTheMethod(string $members): void
+    {
+        $aggregator = $this->aggregate("Schema::create('users', fn (Blueprint \$table) => \$table->string('name'));");
+
+        $this->apply(<<<PHP
+            return new class extends Migration
+            {
+                {$members}
+            };
+            PHP, $aggregator);
+
+        $this->assertFalse($this->schema($aggregator)->complete);
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function aliasedTraitMethods(): iterable
+    {
+        yield 'up' => ['use CreatesParts { createParts as public up; }'];
+        yield 'helper' => ['use CreatesParts { createParts as makeParts; } public function up(): void { $this->makeParts(); }'];
+    }
+
+    /**
      * Closures run where the analysis cannot follow, so what they change is unknown.
      */
     #[Test]
@@ -916,6 +1123,7 @@ class SchemaAggregatorTest extends PHPStanTestCase
             'constructor' => ['protected $connection = null; public function __construct() { $this->connection = config("schema_aggregator.connection"); }', ''],
             'up' => ['protected $connection = null;', '$this->connection ??= "sqlite";'],
             'promoted' => ['public function __construct(protected ?string $connection = null) {}', ''],
+            'trait' => ['use SelectsConnection;', ''],
             'down only' => ['protected $connection = null; public function down(): void { $this->connection = "sqlite"; }', ''],
         ];
 
@@ -946,7 +1154,7 @@ class SchemaAggregatorTest extends PHPStanTestCase
     #[Test]
     public function itReadsOnlyTheConnectionInheritedFromMigration(): void
     {
-        foreach (['Migration' => true, 'ConnectionPropertyMigration' => false, 'ConnectionMethodMigration' => false] as $parent => $known) {
+        foreach (['Migration' => true, 'ConnectionPropertyMigration' => false, 'ConnectionMethodMigration' => false, 'ConnectionWritingMigration' => false] as $parent => $known) {
             $aggregator = $this->apply(<<<PHP
                 return new class extends {$parent}
                 {
@@ -1270,14 +1478,15 @@ class SchemaAggregatorTest extends PHPStanTestCase
      */
     private function apply(string $statements, ?SchemaAggregator $aggregator = null): SchemaAggregator
     {
+        /** @var Parser $parser */
+        $parser = self::getContainer()->getService('currentPhpVersionSimpleDirectParser');
+
         $aggregator ??= new SchemaAggregator(
             $this->createReflectionProvider(),
             self::getContainer()->getByType(InitializerExprTypeResolver::class),
             self::getContainer()->getByType(ConnectionConfigResolver::class),
+            $parser,
         );
-
-        /** @var Parser $parser */
-        $parser = self::getContainer()->getService('currentPhpVersionSimpleDirectParser');
 
         $aggregator->addStatements($parser->parseString(<<<PHP
             <?php

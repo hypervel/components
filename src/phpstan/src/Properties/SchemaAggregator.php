@@ -18,6 +18,8 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use PhpParser;
 use PhpParser\NodeFinder;
+use PHPStan\Parser\Parser;
+use PHPStan\Parser\ParserErrorsException;
 use PHPStan\Reflection\InitializerExprContext;
 use PHPStan\Reflection\InitializerExprTypeResolver;
 use PHPStan\Reflection\ReflectionProvider;
@@ -36,6 +38,7 @@ use function class_basename;
 use function class_uses_recursive;
 use function count;
 use function in_array;
+use function is_array;
 use function is_string;
 use function mb_strtolower;
 use function spl_object_id;
@@ -50,15 +53,16 @@ use function strtolower;
  * could affect unknown, so that inference never claims a column is missing without proof.
  *
  * A state is a copy of the facts: the connections, whether an earlier migration could have changed
- * any connection, and the morph key type. A scope holds the migration class, the connection its
- * statements default to (null when it is unknown), inside a Blueprint callback the table it changes
- * and the Blueprint's variable, and the local variables holding Schema builders: those whose calls
- * are followed, and those that escape, whose uses make the connections they select unknown.
+ * any connection, and the morph key type. A scope holds the migration class, the class declaring the
+ * body being applied (null for the migration class itself), the connection its statements default to
+ * (null when it is unknown), inside a Blueprint callback the table it changes and the Blueprint's
+ * variable, and the local variables holding Schema builders: those whose calls are followed, and those
+ * that escape, whose uses make the connections they select unknown.
  *
  * @phpstan-type State array{array<string, SchemaConnection>, bool, ?string}
  * @phpstan-type TableScope array{connection: ConnectionConfig, key: string, variable: string}
  * @phpstan-type BuilderVariables array{builders: array<string, ?ConnectionConfig>, escaped: array<string, list<?ConnectionConfig>>}
- * @phpstan-type Scope array{class: PhpParser\Node\Stmt\Class_, connection: ?ConnectionConfig, table: ?TableScope, builders: array<string, ?ConnectionConfig>, escaped: array<string, list<?ConnectionConfig>>}
+ * @phpstan-type Scope array{class: PhpParser\Node\Stmt\Class_, declaring: ?string, connection: ?ConnectionConfig, table: ?TableScope, builders: array<string, ?ConnectionConfig>, escaped: array<string, list<?ConnectionConfig>>}
  *
  * @see https://github.com/psalm/laravel-psalm-plugin/blob/master/src/SchemaAggregator.php
  */
@@ -181,10 +185,17 @@ class SchemaAggregator
     /** The type of the key columns morphs() adds, or null when a migration changed it to an unknown value. */
     private ?string $morphKeyType;
 
-    /** @var array<string, true> the helper methods being applied, to stop recursion */
+    /** @var array<string, true> the declarations of the helper methods being applied, to stop recursion */
     private array $appliedMethods = [];
 
-    /** @var WeakMap<PhpParser\Node\FunctionLike, BuilderVariables> the builder variables of each function applied */
+    /** @var array<string, bool> whether each class or trait migrations use code from sets the connection property */
+    private array $connectionWriters = [];
+
+    /**
+     * @var WeakMap<PhpParser\Node\FunctionLike, array<string, BuilderVariables>> the builder variables of each
+     *                                                                            function the current migration
+     *                                                                            applies, by the connection it runs for
+     */
     private WeakMap $builderVariables;
 
     /**
@@ -202,10 +213,10 @@ class SchemaAggregator
         private ReflectionProvider $reflectionProvider,
         private InitializerExprTypeResolver $initializerExprTypeResolver,
         private ConnectionConfigResolver $connectionConfigResolver,
+        private Parser $parser,
         public array $connections = [],
     ) {
         $this->morphKeyType = Builder::$defaultMorphKeyType;
-        $this->builderVariables = new WeakMap;
     }
 
     /**
@@ -238,22 +249,45 @@ class SchemaAggregator
     }
 
     /**
-     * Apply a migration class's up() method.
+     * Apply a migration class's up() method, which it may inherit.
      *
      * Unlike upstream, which applied every method but down() in declaration order, helper methods
      * are applied where up() calls them.
      */
     private function addClassStatements(PhpParser\Node\Stmt\Class_ $class): void
     {
-        $up = $class->getMethod('up');
+        // An inherited method's builder variables can depend on the migration that runs it, such as
+        // its $connection, so each migration starts without the previous one's.
+        $this->builderVariables = new WeakMap;
 
-        if ($up === null || $up->stmts === null) {
+        // The migration's parents and traits decide which method a call runs and whether inherited code sets the
+        // connection, so an edit to any of them can change the facts while the file of the method that runs does not.
+        $uses = $class->extends === null ? [] : [$class->extends];
+
+        foreach ($class->getTraitUses() as $traitUse) {
+            $uses = [...$uses, ...$traitUse->traits];
+        }
+
+        foreach ($uses as $use) {
+            if ($this->reflectionProvider->hasClass($use->toString())) {
+                $this->addSources(SourceFiles::forClass($this->reflectionProvider->getClass($use->toString()), Migration::class), null);
+            }
+        }
+
+        $scope = ['class' => $class, 'declaring' => null, 'connection' => $this->getMigrationConnection($class), 'table' => null, 'builders' => [], 'escaped' => []];
+        $up = $this->findMethod($scope, null, 'up');
+
+        if ($up === false) {
+            $this->invalidate();
+
             return;
         }
 
-        $scope = ['class' => $class, 'connection' => $this->getMigrationConnection($class), 'table' => null, 'builders' => [], 'escaped' => []];
+        if ($up === null || $up[0]->stmts === null) {
+            return;
+        }
 
-        $this->applyBody($up->stmts, $this->getFunctionScope($up, $scope));
+        $this->applyBody($up[0]->stmts, $this->getFunctionScope($up[0], ['declaring' => $up[1]] + $scope));
     }
 
     /**
@@ -354,12 +388,81 @@ class SchemaAggregator
     }
 
     /**
-     * Determine whether a migration sets its connection property at runtime: in a method other than down(), which
-     * runs on its own, or from a promoted constructor parameter. A write in a nested class only makes this cautious.
+     * Determine whether a migration sets its connection property at runtime, in its own code or code it uses
+     * from its traits and the classes between it and Migration.
      */
     private function writesConnectionProperty(PhpParser\Node\Stmt\Class_ $class): bool
     {
-        foreach ($class->getMethods() as $method) {
+        if ($this->methodsWriteConnection($class->getMethods())) {
+            return true;
+        }
+
+        foreach ($class->getTraitUses() as $traitUse) {
+            foreach ($traitUse->traits as $trait) {
+                if ($this->inheritedCodeWritesConnection($trait->toString())) {
+                    return true;
+                }
+            }
+        }
+
+        return $class->extends !== null && $this->inheritedCodeWritesConnection($class->extends->toString());
+    }
+
+    /**
+     * Determine whether a class or trait a migration uses code from sets the connection property at runtime, in
+     * its own methods, its traits' or those of its parents up to Migration.
+     */
+    private function inheritedCodeWritesConnection(string $className): bool
+    {
+        if (isset($this->connectionWriters[$className])) {
+            return $this->connectionWriters[$className];
+        }
+
+        // A class that cannot be read could set it.
+        if (! $this->reflectionProvider->hasClass($className)) {
+            return $this->connectionWriters[$className] = true;
+        }
+
+        $classReflection = $this->reflectionProvider->getClass($className);
+
+        if ($classReflection->getName() === Migration::class) {
+            return $this->connectionWriters[$className] = false;
+        }
+
+        $methods = [];
+
+        foreach ($classReflection->getNativeReflection()->getMethods() as $method) {
+            // A trait's methods belong to the class using it.
+            if ($method->getDeclaringClass()->getName() !== $classReflection->getName()) {
+                continue;
+            }
+
+            $declaredMethod = $this->findDeclaredMethod($className, $method->getName());
+
+            if ($declaredMethod === false) {
+                return $this->connectionWriters[$className] = true;
+            }
+
+            if ($declaredMethod !== null) {
+                $methods[] = $declaredMethod[0];
+            }
+        }
+
+        $parent = $classReflection->getParentClass();
+
+        return $this->connectionWriters[$className] = $this->methodsWriteConnection($methods)
+            || ($parent !== null && $this->inheritedCodeWritesConnection($parent->getName()));
+    }
+
+    /**
+     * Determine whether any of the given methods sets the connection property: a method other than down(), which
+     * runs on its own, or a promoted constructor parameter. A write in a nested class only makes this cautious.
+     *
+     * @param list<PhpParser\Node\Stmt\ClassMethod> $methods
+     */
+    private function methodsWriteConnection(array $methods): bool
+    {
+        foreach ($methods as $method) {
             if ($method->name->toLowerString() === 'down') {
                 continue;
             }
@@ -397,9 +500,6 @@ class SchemaAggregator
         }
 
         $parent = $this->reflectionProvider->getClass($class->extends->toString());
-
-        $this->addSources(SourceFiles::forClass($parent, Migration::class), null);
-
         $declaringClass = $member === 'connection'
             ? ($parent->hasNativeProperty($member) ? $parent->getNativeProperty($member)->getDeclaringClass() : null)
             : ($parent->hasNativeMethod($member) ? $parent->getNativeMethod($member)->getDeclaringClass() : null);
@@ -856,19 +956,29 @@ class SchemaAggregator
             return;
         }
 
-        $method = $expr instanceof PhpParser\Node\Expr\MethodCall || $expr instanceof PhpParser\Node\Expr\StaticCall
-            ? $this->getHelperMethod($expr, $scope['class'])
+        $helper = $expr instanceof PhpParser\Node\Expr\MethodCall || $expr instanceof PhpParser\Node\Expr\StaticCall
+            ? $this->getHelperMethod($expr, $scope)
             : null;
 
-        if ($method !== null && ! isset($this->appliedMethods[$method->name->toLowerString()])) {
-            // The arguments run before the helper, which receives them in parameters it does not follow.
-            $this->forgetAffectedBy($expr->getRawArgs(), $scope);
-
-            $this->appliedMethods[$method->name->toLowerString()] = true;
-            $this->applyBody($method->stmts ?? [], $this->getFunctionScope($method, $scope));
-            unset($this->appliedMethods[$method->name->toLowerString()]);
+        if ($helper === false) {
+            $this->invalidate();
 
             return;
+        }
+
+        if ($helper !== null) {
+            $declaration = $this->getDeclaration($helper);
+
+            if (! isset($this->appliedMethods[$declaration])) {
+                // The arguments run before the helper, which receives them in parameters it does not follow.
+                $this->forgetAffectedBy($expr->getRawArgs(), $scope);
+
+                $this->appliedMethods[$declaration] = true;
+                $this->applyBody($helper[0]->stmts ?? [], $this->getFunctionScope($helper[0], ['declaring' => $helper[1]] + $scope));
+                unset($this->appliedMethods[$declaration]);
+
+                return;
+            }
         }
 
         $this->forgetAffectedBy($expr, $scope);
@@ -905,15 +1015,175 @@ class SchemaAggregator
     }
 
     /**
-     * Get the migration's own method a call on $this, self or static runs, which up() runs inline.
+     * Get the method a call on $this, self, static or parent runs, which up() runs inline, with the class
+     * self:: names in it.
+     *
+     * $this and static:: dispatch on the migration, except that $this reaches a private method of the class
+     * declaring the calling body first; self:: dispatches on that class, and parent:: on its parent.
+     *
+     * @param Scope $scope
+     * @return null|array{PhpParser\Node\Stmt\ClassMethod, ?string}|false null for another call, false for a
+     *                                                                    method whose body cannot be read
      */
-    private function getHelperMethod(PhpParser\Node\Expr\MethodCall|PhpParser\Node\Expr\StaticCall $call, PhpParser\Node\Stmt\Class_ $class): ?PhpParser\Node\Stmt\ClassMethod
+    private function getHelperMethod(PhpParser\Node\Expr\MethodCall|PhpParser\Node\Expr\StaticCall $call, array $scope): false|array|null
     {
-        $own = $call instanceof PhpParser\Node\Expr\MethodCall
-            ? $this->isThis($call->var)
-            : $call->class instanceof PhpParser\Node\Name && in_array($call->class->toLowerString(), ['self', 'static'], true);
+        if (! $call->name instanceof PhpParser\Node\Identifier) {
+            return null;
+        }
 
-        return $own && $call->name instanceof PhpParser\Node\Identifier ? $class->getMethod($call->name->toString()) : null;
+        $name = $call->name->toString();
+
+        if ($call instanceof PhpParser\Node\Expr\MethodCall) {
+            if (! $this->isThis($call->var)) {
+                return null;
+            }
+
+            // PHP runs a private method of the class whose code calls it, even when the migration declares its own.
+            if ($scope['declaring'] !== null) {
+                $declaring = $this->reflectionProvider->getClass($scope['declaring']);
+
+                if ($declaring->hasNativeMethod($name)
+                    && $declaring->getNativeMethod($name)->isPrivate()
+                    && $declaring->getNativeMethod($name)->getDeclaringClass()->getName() === $scope['declaring']) {
+                    return $this->findDeclaredMethod($scope['declaring'], $name);
+                }
+            }
+
+            return $this->findMethod($scope, null, $name);
+        }
+
+        $class = $call->class instanceof PhpParser\Node\Name ? $call->class->toLowerString() : null;
+
+        if ($class === 'parent') {
+            // A declaring class came from reflection, so it is known.
+            $parent = $scope['declaring'] === null
+                ? $scope['class']->extends?->toString()
+                : $this->reflectionProvider->getClass($scope['declaring'])->getParentClass()?->getName();
+
+            return $parent === null ? null : $this->findDeclaredMethod($parent, $name);
+        }
+
+        return match ($class) {
+            'static' => $this->findMethod($scope, null, $name),
+            'self' => $this->findMethod($scope, $scope['declaring'], $name),
+            default => null,
+        };
+    }
+
+    /**
+     * Get the declaration a helper method found for a call names, to recognize a recursive call.
+     *
+     * Parsing a file again can give new nodes, so the node itself does not identify the method.
+     * A method without a declaring class belongs to the migration being applied.
+     *
+     * @param array{PhpParser\Node\Stmt\ClassMethod, ?string} $helper
+     */
+    private function getDeclaration(array $helper): string
+    {
+        return strtolower(($helper[1] ?? '') . '::' . $helper[0]->name->toString());
+    }
+
+    /**
+     * Find a method on the migration, or on a class it inherits from, with the class self:: names in it.
+     *
+     * Migration's own methods are not returned, since they change no schema. The migration's traits are
+     * followed only without conflict resolution or aliases.
+     *
+     * @param Scope $scope
+     * @param null|string $className the class to look the method up on, or null for the migration
+     * @return null|array{PhpParser\Node\Stmt\ClassMethod, ?string}|false null when there is none, false when its
+     *                                                                    body cannot be read
+     */
+    private function findMethod(array $scope, ?string $className, string $name): false|array|null
+    {
+        if ($className !== null) {
+            return $this->findDeclaredMethod($className, $name);
+        }
+
+        $class = $scope['class'];
+        $method = $class->getMethod($name);
+
+        if ($method !== null) {
+            return [$method, null];
+        }
+
+        foreach ($class->getTraitUses() as $traitUse) {
+            foreach ($traitUse->adaptations as $adaptation) {
+                // An alias supplies the name from a method of another name, which is not followed.
+                if ($adaptation instanceof PhpParser\Node\Stmt\TraitUseAdaptation\Alias
+                    && $adaptation->newName?->toLowerString() === strtolower($name)) {
+                    return false;
+                }
+            }
+
+            foreach ($traitUse->traits as $trait) {
+                if (! $this->reflectionProvider->hasClass($trait->toString())) {
+                    return false;
+                }
+
+                if ($this->reflectionProvider->getClass($trait->toString())->hasNativeMethod($name)) {
+                    $found = $traitUse->adaptations === [] ? $this->findDeclaredMethod($trait->toString(), $name) : false;
+
+                    // A trait's method belongs to the migration, which self:: names in it.
+                    return is_array($found) ? [$found[0], null] : $found;
+                }
+            }
+        }
+
+        return $class->extends === null ? null : $this->findDeclaredMethod($class->extends->toString(), $name);
+    }
+
+    /**
+     * Find a method a named class or trait declares or inherits, parsed from its file, with the class self:: names in it.
+     *
+     * @return null|array{PhpParser\Node\Stmt\ClassMethod, string}|false null when there is none or it is Migration's own,
+     *                                                                   false when its body cannot be read
+     */
+    private function findDeclaredMethod(string $className, string $name): false|array|null
+    {
+        if (! $this->reflectionProvider->hasClass($className)) {
+            return false;
+        }
+
+        $classReflection = $this->reflectionProvider->getClass($className);
+
+        if (! $classReflection->hasNativeMethod($name)) {
+            return null;
+        }
+
+        // The class using a trait declares its methods, which is also what self:: names in them.
+        $declaringClass = $classReflection->getNativeMethod($name)->getDeclaringClass();
+
+        if ($declaringClass->getName() === Migration::class) {
+            return null;
+        }
+
+        // The native method carries the file and line of a trait's method.
+        $nativeMethod = $declaringClass->getNativeReflection()->getMethod($name);
+        $fileName = $nativeMethod->getFileName();
+
+        if ($fileName === false) {
+            return false;
+        }
+
+        try {
+            $stmts = $this->parser->parseFile($fileName);
+        } catch (ParserErrorsException) {
+            return false;
+        }
+
+        $method = (new NodeFinder)->findFirst(
+            $stmts,
+            static fn (PhpParser\Node $node): bool => $node instanceof PhpParser\Node\Stmt\ClassMethod
+                && $node->name->toLowerString() === strtolower($name)
+                && $node->getStartLine() === $nativeMethod->getStartLine(),
+        );
+
+        if (! $method instanceof PhpParser\Node\Stmt\ClassMethod) {
+            return false;
+        }
+
+        return [$method, $declaringClass->getName()];
     }
 
     /**
@@ -1022,8 +1292,11 @@ class SchemaAggregator
      */
     private function getFunctionScope(PhpParser\Node\Stmt\ClassMethod|PhpParser\Node\Expr\Closure $function, array $scope): array
     {
-        $this->builderVariables[$function] ??= $this->getBuilderVariables($function, $scope);
-        $variables = $this->builderVariables[$function];
+        // A method can run on more than one connection. The resolver keeps each connection for the process, so its id is not reused.
+        $context = $scope['connection'] === null ? 'unknown' : 'connection ' . spl_object_id($scope['connection']);
+        $cached = $this->builderVariables[$function] ?? [];
+        $variables = $cached[$context] ??= $this->getBuilderVariables($function, $scope);
+        $this->builderVariables[$function] = $cached;
 
         // A captured variable holds what it held in the enclosing function, unless the closure selects a builder into it.
         if ($function instanceof PhpParser\Node\Expr\Closure) {
@@ -1131,8 +1404,8 @@ class SchemaAggregator
      * Make the facts that uninterpretable code could change unknown.
      *
      * Schema changes to a named table make that table unknown; other changes make their connection
-     * unknown, and changes on an unknown connection make every connection unknown. The migration's
-     * own methods are searched too. Inside a Blueprint callback, any use of the Blueprint makes its
+     * unknown, and changes on an unknown connection make every connection unknown. The methods the
+     * migration calls on itself are searched too. Inside a Blueprint callback, any use of the Blueprint makes its
      * table unknown. A selector whose builder or connection escapes, and any use of a variable holding
      * one, make the connection it selects unknown. Only query chains on a DB connection are kept.
      *
@@ -1174,13 +1447,24 @@ class SchemaAggregator
         }
 
         foreach ($calls as $call) {
-            $helper = $this->getHelperMethod($call, $scope['class']);
+            $helper = $this->getHelperMethod($call, $scope);
+
+            if ($helper === false) {
+                $this->invalidate();
+
+                continue;
+            }
 
             if ($helper !== null) {
-                if (! isset($this->appliedMethods[$helper->name->toLowerString()])) {
-                    $this->appliedMethods[$helper->name->toLowerString()] = true;
-                    $this->forgetAffectedBy($helper->stmts ?? [], ['table' => null] + $this->getFunctionScope($helper, $scope));
-                    unset($this->appliedMethods[$helper->name->toLowerString()]);
+                $declaration = $this->getDeclaration($helper);
+
+                if (! isset($this->appliedMethods[$declaration])) {
+                    $this->appliedMethods[$declaration] = true;
+                    $this->forgetAffectedBy(
+                        $helper[0]->stmts ?? [],
+                        ['table' => null] + $this->getFunctionScope($helper[0], ['declaring' => $helper[1]] + $scope),
+                    );
+                    unset($this->appliedMethods[$declaration]);
                 }
 
                 continue;
@@ -1514,6 +1798,19 @@ class SchemaAggregator
     {
         /** @var TableScope $tableScope */
         $tableScope = $scope['table'];
+
+        // The engine, charset and collation properties choose table options; only the assigned value can change the schema.
+        if ($expr instanceof PhpParser\Node\Expr\Assign
+            && $expr->var instanceof PhpParser\Node\Expr\PropertyFetch
+            && $expr->var->var instanceof PhpParser\Node\Expr\Variable
+            && $expr->var->var->name === $tableScope['variable']
+            && $expr->var->name instanceof PhpParser\Node\Identifier
+            && in_array($expr->var->name->toString(), ['engine', 'charset', 'collation'], true)) {
+            $this->forgetAffectedBy($expr->expr, $scope);
+
+            return;
+        }
+
         $call = $expr;
         $chain = [];
 

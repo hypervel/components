@@ -44,7 +44,7 @@ class MigrationCache
     private const string CACHE_PREFIX = 'hypervel_migrations_';
 
     /** Bump when the serialized entry, SchemaConnection/SchemaTable/SchemaColumn or the aggregation logic changes. */
-    private const string CACHE_FORMAT_VERSION = '4';
+    private const string CACHE_FORMAT_VERSION = '5';
 
     /**
      * Create a new migration cache instance.
