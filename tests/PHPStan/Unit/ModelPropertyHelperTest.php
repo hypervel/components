@@ -6,6 +6,7 @@ namespace Hypervel\Tests\PHPStan\Unit;
 
 use App\Member;
 use App\MemberWithCustomKey;
+use App\MemberWithJsonCasts;
 use App\MemberWithNonIncrementingStringKey;
 use App\MemberWithoutTimestampsAttribute;
 use App\MemberWithoutTimestampsTable;
@@ -145,18 +146,33 @@ class ModelPropertyHelperTest extends PHPStanTestCase
 
     /**
      * A read can be null when a fetch option turns an empty string into null, even from a NOT NULL column,
-     * and cannot be when a fetch option turns null into an empty string.
+     * and cannot be when a fetch option turns null into an empty string, except through a JSON cast,
+     * which reads the empty string as null.
      */
     #[Test]
     public function itReadsNullAsTheConnectionsFetchOptionsProduceIt(): void
     {
         $cases = [
-            PDO::NULL_NATURAL => ['Carbon\CarbonInterface', 'mixed~null', 'mixed'],
-            PDO::NULL_EMPTY_STRING => ['Carbon\CarbonInterface|null', 'mixed', 'mixed'],
-            PDO::NULL_TO_STRING => ['Carbon\CarbonInterface', 'mixed~null', 'mixed~null'],
+            PDO::NULL_NATURAL => ['Carbon\CarbonInterface', 'mixed~null', 'mixed', 'array', 'array|null'],
+            PDO::NULL_EMPTY_STRING => ['Carbon\CarbonInterface|null', 'mixed', 'mixed', 'array|null', 'array|null'],
+            PDO::NULL_TO_STRING => ['Carbon\CarbonInterface', 'mixed~null', 'mixed~null', 'array', 'array|null'],
         ];
 
-        foreach ($cases as $nulls => [$createdAt, $payload, $extra]) {
+        foreach ($cases as $nulls => [$createdAt, $payload, $extra, $castPayload, $castExtra]) {
+            // The cast's nullability follows the column the connection fetches, also under another name.
+            foreach ([PDO::CASE_NATURAL => ['payload', 'extra'], PDO::CASE_UPPER => ['PAYLOAD', 'EXTRA']] as $case => [$payloadName, $extraName]) {
+                $this->withConfig(['database.connections.' . config('database.default') . '.options' => [PDO::ATTR_ORACLE_NULLS => $nulls, PDO::ATTR_CASE => $case]], function () use ($castPayload, $castExtra, $payloadName, $extraName): void {
+                    $modelPropertyHelper = $this->buildModelPropertyHelper(
+                        [__DIR__ . '/data/fetch_options_migration'],
+                        connectionConfigResolver: new ConnectionConfigResolver,
+                    );
+                    $member = $this->reflectionProvider->getClass(MemberWithJsonCasts::class);
+
+                    self::assertSame($castPayload, $modelPropertyHelper->getDatabaseProperty($member, $payloadName)->getReadableType()->describe(VerbosityLevel::precise()));
+                    self::assertSame($castExtra, $modelPropertyHelper->getDatabaseProperty($member, $extraName)->getReadableType()->describe(VerbosityLevel::precise()));
+                });
+            }
+
             $this->withConfig(['database.connections.' . config('database.default') . '.options' => [PDO::ATTR_ORACLE_NULLS => $nulls]], function () use ($createdAt, $payload, $extra): void {
                 $modelPropertyHelper = $this->buildModelPropertyHelper(
                     [__DIR__ . '/data/fetch_options_migration'],

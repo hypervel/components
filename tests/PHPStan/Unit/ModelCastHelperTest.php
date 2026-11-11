@@ -73,6 +73,38 @@ class ModelCastHelperTest extends PHPStanTestCase
         self::assertSame('iterable<App\Casts\BackedEnumeration|int|string>|null', $writeableType->describe(VerbosityLevel::precise()));
     }
 
+    /**
+     * The casts castAttribute() reads through fromJson(), matched as getCastType() normalizes them. An encrypted
+     * cast decrypts the empty string first, which throws.
+     */
+    #[Test]
+    public function itRecognizesTheCastsThatReadAnEmptyStringAsNull(): void
+    {
+        $modelCastHelper = new ModelCastHelper(
+            $this->reflectionProvider,
+            $this->parser,
+            false,
+            self::getContainer()->getByType(ScopeFactory::class),
+            self::getContainer()->getByType(DeclarationDependencyTracker::class),
+            self::getContainer()->getByType(ModelHelper::class),
+        );
+
+        $casts = [
+            'array' => true,
+            'json' => true,
+            'json:unicode' => true,
+            'object' => true,
+            ' JSON:Unicode ' => true,
+            'collection' => false,
+            'encrypted:array' => false,
+            'string' => false,
+        ];
+
+        foreach ($casts as $cast => $expected) {
+            self::assertSame($expected, $modelCastHelper->readsEmptyStringAsNull($cast), $cast);
+        }
+    }
+
     /** @return string[] */
     public static function getAdditionalConfigFiles(): array
     {

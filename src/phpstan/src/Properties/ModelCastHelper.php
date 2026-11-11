@@ -432,6 +432,14 @@ class ModelCastHelper
     }
 
     /**
+     * Determine whether a cast reads an empty string as null, as the JSON casts do through HasAttributes::fromJson().
+     */
+    public function readsEmptyStringAsNull(string $cast): bool
+    {
+        return in_array(strtolower(trim($cast)), ['array', 'json', 'json:unicode', 'object'], true);
+    }
+
+    /**
      * Get the model's casts, including those its casts() method returns.
      *
      * A null cast is present but cannot be determined. Unless the casts are complete, any other

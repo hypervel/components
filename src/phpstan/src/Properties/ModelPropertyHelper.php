@@ -225,6 +225,8 @@ class ModelPropertyHelper
 
         $lookup = $this->findTable($classReflection, $modelInstance);
         $table = $lookup['table'] ?? null;
+        $hasCast = $this->modelCastHelper->hasCastForProperty($classReflection, $propertyName);
+        $cast = $this->modelCastHelper->getCastForProperty($classReflection, $propertyName);
 
         if ($propertyName === $modelInstance->getKeyName() && ! isset($table->columns[$propertyName])) {
             $keyType = $this->stringResolver->resolve($modelInstance->getKeyType());
@@ -234,11 +236,9 @@ class ModelPropertyHelper
             // or null when nothing was.
             [$readableType, $writableType, $readNullable, $writeNullable] = $lookup === null || $table === null || $this->hasColumn($lookup, $propertyName)->no()
                 ? [new MixedType, new MixedType, true, true]
-                : $this->getColumnTypes($lookup, $table, $propertyName);
+                : $this->getColumnTypes($lookup, $table, $propertyName, $cast !== null && $this->modelCastHelper->readsEmptyStringAsNull($cast));
         }
 
-        $hasCast = $this->modelCastHelper->hasCastForProperty($classReflection, $propertyName);
-        $cast = $this->modelCastHelper->getCastForProperty($classReflection, $propertyName);
         $date = $this->hasDate($classReflection, $modelInstance, $propertyName);
 
         if ($hasCast && $cast === null) {
@@ -288,7 +288,7 @@ class ModelPropertyHelper
      *
      * @return array{Type, Type, bool, bool}
      */
-    private function getColumnTypes(array $lookup, SchemaTable $table, string $propertyName): array
+    private function getColumnTypes(array $lookup, SchemaTable $table, string $propertyName, bool $castReadsEmptyStringAsNull): array
     {
         $config = $lookup['config'];
 
@@ -320,7 +320,8 @@ class ModelPropertyHelper
             $readableType = $column->nullable ? TypeCombinator::addNull($readableType) : TypeCombinator::remove($readableType, new NullType);
             $readableType = $this->converter->applyFetchOptions($readableType, $schema->driver, [$options]);
             $readableTypes[] = $readableType;
-            $readNullable = $readNullable || ! $readableType->isNull()->no();
+            // NULL_TO_STRING fetches a null column as an empty string, which such a cast still reads as null.
+            $readNullable = $readNullable || ! $readableType->isNull()->no() || ($castReadsEmptyStringAsNull && $column->nullable);
         }
 
         if ($writeColumn?->type === null) {
