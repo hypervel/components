@@ -37,6 +37,9 @@ class ConfigFixtureServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__ . '/config/listed.php', 'listed');
         $this->replaceConfigRecursivelyFrom(__DIR__ . '/config/replaced.php', 'replaced');
         $this->mergeConfigFrom(__DIR__ . '/config/hashing.php', 'hashing');
+        $this->mergeConfigFrom(__DIR__ . '/config/child.php', 'optional-child.child');
+        $this->mergeConfigFrom(__DIR__ . '/config/child.php', 'open-parent.child');
+        $this->mergeConfigFrom(__DIR__ . '/config/child.php', 'open-parent.missing.child');
         $this->registerPropertyConfig();
 
         // Only the tracker sees this write: the static pass does not follow locals.

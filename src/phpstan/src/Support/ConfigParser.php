@@ -451,9 +451,14 @@ class ConfigParser
                 $path = $merge['path'];
                 $this->trackDependencies($scope, [$path => false]);
 
-                $root = $this->setPath($root, explode('.', $merge['key']), function (ConfigArray|Expr|Type|null $current, bool $exists) use ($merge, $path, $scope): ?ConfigArray {
+                $root = $this->setPath($root, explode('.', $merge['key']), function (ConfigArray|Expr|Type|null $current, TrinaryLogic $exists) use ($merge, $path, $scope): ?ConfigArray {
+                    // The result is the merge or the package's values alone, depending on whether the application set the key.
+                    if ($exists->maybe()) {
+                        return null;
+                    }
+
                     $package = $this->getFileValue($path);
-                    $current = $exists ? $current : new ConfigArray;
+                    $current = $exists->yes() ? $current : new ConfigArray;
 
                     return $merge['recursive']
                         ? $this->replaceRecursive($package, $current, $scope)
@@ -493,7 +498,7 @@ class ConfigParser
      * intermediate becomes an empty array.
      *
      * @param list<string> $segments
-     * @param callable(null|ConfigArray|Expr|Type, bool): (null|ConfigArray|Expr|Type) $update receives the current value and whether it exists
+     * @param callable(null|ConfigArray|Expr|Type, TrinaryLogic): (null|ConfigArray|Expr|Type) $update receives the current value and whether it exists
      * @param DependencyTracker&Scope $scope
      */
     private function setPath(ConfigArray $array, array $segments, callable $update, Scope $scope): ConfigArray
@@ -503,9 +508,15 @@ class ConfigParser
         $current = $exists ? $array->entries[$key] : null;
 
         if (count($segments) === 1) {
-            $value = $update($current, $exists && ! isset($array->optionalKeys[$key]));
+            // An open array may hold a key it does not list.
+            $value = $update($current, match (true) {
+                $exists && ! isset($array->optionalKeys[$key]) => TrinaryLogic::createYes(),
+                $exists || $array->open => TrinaryLogic::createMaybe(),
+                default => TrinaryLogic::createNo(),
+            });
         } else {
-            $child = $exists ? $this->toConfigArray($current, $scope) : new ConfigArray;
+            // A key an open array does not list may hold an array with other keys.
+            $child = $exists ? $this->toConfigArray($current, $scope) : new ConfigArray(open: $array->open);
 
             if ($child === null || isset($array->optionalKeys[$key])) {
                 // An intermediate that may not be an array keeps its other keys only if it is one.

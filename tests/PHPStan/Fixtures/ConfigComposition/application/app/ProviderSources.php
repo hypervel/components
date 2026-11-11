@@ -30,6 +30,11 @@ function test(Repository $config): void
     assertType('string', config('open-recursive.shared'));
     assertType('mixed', config('open-recursive.enabled'));
 
+    // The application may already set a key a package file merges into, so the merged values are unknown.
+    assertType('mixed', config('optional-child.child.key'));
+    assertType('mixed', config('open-parent.child.key'));
+    assertType('mixed', config('open-parent.missing.child.key'));
+
     // Providers merge package files in an order the analysis does not follow, so their reads are unknown.
     assertType('mixed', config('package.url'));
 
