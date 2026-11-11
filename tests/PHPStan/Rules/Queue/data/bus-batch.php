@@ -98,3 +98,31 @@ function batchJobOrChainEntries(RegularJob|array $regularEntry, BatchableJobWith
     Bus::batch([$regularEntry]);
     Bus::batch([$mixedEntry]);
 }
+
+// Hypervel: each path an entry may take is followed, and an entry is reported once.
+/**
+ * @param RegularJob|array{BatchableJobWithCancellationCheck, RegularJob} $chainedEntry
+ * @param array{RegularJob}|array{BatchableJobWithCancellationCheck} $chainChoice
+ * @param array{SyncReport}|array{BatchableJobWithCancellationCheck, RegularJob} $nonBatchableChains
+ * @param RegularJob|array{BatchableJobWithCancellationCheck, RegularJob} $jobOrJobs
+ */
+function batchEntryPaths(RegularJob|array $chainedEntry, array $chainChoice, array $nonBatchableChains, RegularJob|array $jobOrJobs): void
+{
+    Bus::batch([$chainedEntry]);
+    Bus::batch([$chainChoice]);
+    Bus::batch([$nonBatchableChains]);
+    Bus::batch($jobOrJobs);
+}
+
+// Hypervel: a batch that may be one of several lists is reported only when every list holds a job without the trait.
+/**
+ * @param array{RegularJob, RegularJob}|array{BatchableJobWithCancellationCheck} $choices
+ * @param array{RegularJob}|array{SyncReport} $nonBatchableChoices
+ */
+function batchListChoices(array $choices, array $nonBatchableChoices): void
+{
+    Bus::batch($choices);
+    Bus::batch([...$choices]);
+    Bus::batch($nonBatchableChoices);
+    Bus::batch([...$nonBatchableChoices]);
+}

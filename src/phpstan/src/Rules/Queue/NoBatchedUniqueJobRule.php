@@ -23,7 +23,6 @@ use PHPStan\Rules\RuleErrorBuilder;
 use PHPStan\Type\ObjectType;
 use PHPStan\Type\Type;
 
-use function implode;
 use function sprintf;
 
 /**
@@ -99,11 +98,14 @@ class NoBatchedUniqueJobRule implements Rule
 
         // Unlike upstream, a single job is checked too: the entry points wrap it.
         foreach ($this->getQueuedJobTypes($jobsArg->value, $node, $scope) as [$type, $reportNode]) {
-            if (! $this->isUniqueJobType($type)) {
+            // A unique job on any path the entry may take bypasses the lock.
+            $jobs = $this->getMatchingJobs($type, $this->isUniqueJobType(...), false);
+
+            if ($jobs === []) {
                 continue;
             }
 
-            $errors[] = RuleErrorBuilder::message($this->buildMessage($type, $method))
+            $errors[] = RuleErrorBuilder::message($this->buildMessage($jobs, $method))
                 ->tip('Dispatch unique jobs individually.')
                 ->identifier('hypervel.noBatchedUniqueJob')
                 ->line($reportNode->getStartLine())
@@ -129,13 +131,15 @@ class NoBatchedUniqueJobRule implements Rule
     }
 
     /**
-     * Build the message naming the unique job and the entry point.
+     * Build the message naming the unique jobs and the entry point.
+     *
+     * @param list<Type> $jobs
      */
-    private function buildMessage(Type $type, string $method): string
+    private function buildMessage(array $jobs, string $method): string
     {
         return sprintf(
             'Unique job %s is dispatched via %s().',
-            implode('|', $type->getObjectClassNames()),
+            $this->describeJobClasses($jobs),
             $method,
         );
     }

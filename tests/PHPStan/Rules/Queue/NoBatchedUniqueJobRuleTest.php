@@ -56,8 +56,20 @@ class NoBatchedUniqueJobRuleTest extends RuleTestCase
                 61,
             ],
             [
-                "Unique job Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\RegularJob|Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForProperty is dispatched via batch().\n    💡 Dispatch unique jobs individually.",
+                "Unique job Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForProperty is dispatched via batch().\n    💡 Dispatch unique jobs individually.",
                 68,
+            ],
+            [
+                "Unique job Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForMethod|Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForProperty is dispatched via batch().\n    💡 Dispatch unique jobs individually.",
+                75,
+            ],
+            [
+                "Unique job Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForMethod|Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForProperty is dispatched via batch().\n    💡 Dispatch unique jobs individually.",
+                76,
+            ],
+            [
+                "Unique job Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForMethod|Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForProperty is dispatched via batch().\n    💡 Dispatch unique jobs individually.",
+                77,
             ],
         ]);
     }

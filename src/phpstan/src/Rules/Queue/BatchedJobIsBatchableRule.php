@@ -21,7 +21,6 @@ use PHPStan\Rules\Rule;
 use PHPStan\Rules\RuleErrorBuilder;
 use PHPStan\Type\Type;
 
-use function implode;
 use function sprintf;
 
 /**
@@ -95,13 +94,16 @@ class BatchedJobIsBatchableRule implements Rule
 
         // Unlike upstream, which checks only array literals, a variable's job type and a single job count too.
         foreach ($this->getQueuedJobTypes($jobsArg->value, $node, $scope) as [$type, $reportNode]) {
-            if (! $this->isNonBatchableJob($type)) {
+            // Every path the entry may take must hold a job without the trait.
+            $jobs = $this->getMatchingJobs($type, $this->isNonBatchableJob(...), true);
+
+            if ($jobs === []) {
                 continue;
             }
 
             $errors[] = RuleErrorBuilder::message(sprintf(
                 'Job %s is batched but does not use Batchable.',
-                implode('|', $type->getObjectClassNames()),
+                $this->describeJobClasses($jobs),
             ))
                 ->tip('Use the Hypervel\Bus\Batchable trait.')
                 ->identifier('hypervel.batchedJobIsBatchable')

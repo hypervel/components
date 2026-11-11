@@ -67,3 +67,12 @@ function batchUniqueJobOrChainEntry(RegularJob|array $entry): void
 {
     Bus::batch([$entry]);
 }
+
+// Hypervel: a choice between chains or batch lists is reported once, naming the unique jobs it may hold.
+/** @param array{RegularJob}|array{UniqueJobWithUniqueForMethod, UniqueJobWithUniqueForProperty} $chains */
+function batchUniqueChainChoice(array $chains): void
+{
+    Bus::batch([$chains]);
+    Bus::batch($chains);
+    Bus::batch([...$chains]);
+}
