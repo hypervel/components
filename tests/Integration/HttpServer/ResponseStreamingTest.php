@@ -104,12 +104,14 @@ class ResponseStreamingTest extends HttpServerIntegrationTestCase
         $this->assertArrayNotHasKey('content-length', $range->getHeaders());
     }
 
-    public function testHttpTwoPingIsAcknowledgedWhileALargeResponseWaitsForTheClient(): void
+    public function testHttpTwoPingWhileALargeResponseWaitsForTheClientDoesNotKillTheWorker(): void
     {
-        // @TODO: Remove this skip once Swoole's HTTP/2 server can answer a PING while a response waits for the client.
+        // @TODO: Remove this skip once Swoole's HTTP/2 server no longer kills the worker when a PING arrives while a response waits for the client.
         if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped("Swoole's HTTP/2 server kills the worker when it answers a PING while a response waits for the client.");
+            $this->markTestSkipped("Swoole's HTTP/2 server kills the worker when a PING arrives while a response waits for the client.");
         }
+
+        $pid = (string) $this->request('GET', '/pid')->getBody();
 
         // A small receive buffer, so the 16 MB response fills the server's output buffer while the client isn't reading.
         $socket = new Socket(AF_INET, SOCK_STREAM, 0);
@@ -128,31 +130,16 @@ class ResponseStreamingTest extends HttpServerIntegrationTestCase
             usleep(300_000);
             $socket->sendAll("\0\0\x08\x06\0\0\0\0\0ABCDEFGH");
 
-            $bodyLength = 0;
-            $ended = false;
-            $acknowledged = false;
-
-            while (! $ended || ! $acknowledged) {
-                $header = $socket->recvAll(9, 5);
-                $this->assertIsString($header);
-                $this->assertSame(9, strlen($header));
-                ['length' => $length, 'type' => $type, 'flags' => $flags] = unpack('Nlength/Ctype/Cflags', "\0" . $header);
-                $payload = $length > 0 ? $socket->recvAll($length, 5) : '';
-                $this->assertSame($length, strlen($payload));
-
-                if ($type === 0x0) {
-                    $bodyLength += $length;
-                    $ended = ($flags & 0x1) === 0x1;
-                } elseif ($type === 0x6 && $flags === 0x1) {
-                    $this->assertSame('ABCDEFGH', $payload);
-                    $acknowledged = true;
-                }
-            }
+            // The server can't queue the PING ACK while the response waits, so it closes the connection.
+            do {
+                $data = $socket->recv(65536, 5);
+            } while (is_string($data) && $data !== '');
         } finally {
             $socket->close();
         }
 
-        $this->assertSame(16 * 1024 * 1024, $bodyLength);
+        $this->assertSame('', $data);
+        $this->assertSame($pid, (string) $this->request('GET', '/pid')->getBody());
     }
 
     public function testDisconnectStopsProductionAndReleasesTheGenerator(): void

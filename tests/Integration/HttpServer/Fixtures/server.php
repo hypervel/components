@@ -237,6 +237,7 @@ $router->get('/delete-state', fn (): JsonResponse => new JsonResponse([
     'exists' => $state->deletePath !== null && file_exists($state->deletePath),
 ]));
 $router->get('/large-response', fn (): string => str_repeat('a', 16 * 1024 * 1024));
+$router->get('/pid', fn (): string => (string) getmypid());
 $router->get('/disconnect-stream', function () use ($state): Response {
     $state->streamReleased = false;
 
