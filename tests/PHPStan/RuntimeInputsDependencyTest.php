@@ -15,7 +15,7 @@ use function unlink;
 
 /**
  * Everything the booted application decides depends on the inputs it was built from, which no
- * analysed file references: provider and helper code, configuration, the environment, routes,
+ * analyzed file references: provider and helper code, configuration, the environment, routes,
  * and the classes and views the boot selected.
  */
 class RuntimeInputsDependencyTest extends ResultCacheTestCase
@@ -47,7 +47,7 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
 
     protected string $fixture = 'RuntimeInputs';
 
-    public function testUnchangedRunsReanalyseNothing(): void
+    public function testUnchangedRunsReanalyzeNothing(): void
     {
         // Each run rewrites phpstan.neon, so PHPStan recompiles its container, which embeds the run's environment.
         $applicationPath = $this->copyApplication();
@@ -59,14 +59,14 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
 
         $secondWarm = $this->analyse($applicationPath, parameters: self::PARAMETERS);
         $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $secondWarm);
-        $this->assertReanalysed(0, $secondWarm);
+        $this->assertReanalyzed(0, $secondWarm);
 
         // Asserted last: PHPStan's class values can differ between the run that first reflected a
         // built-in ancestor's stub and later runs reading it from its cache.
-        $this->assertReanalysed(0, $firstWarm);
+        $this->assertReanalyzed(0, $firstWarm);
     }
 
-    public function testBootInputEditsReanalyseTheirConsumers(): void
+    public function testBootInputEditsReanalyzeTheirConsumers(): void
     {
         $applicationPath = $this->copyApplication();
         $base = self::BOOT_DIAGNOSTICS;
@@ -142,10 +142,10 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
         $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: self::PARAMETERS));
 
         $this->edit($applicationPath . '/app/Providers/FixtureServiceProvider.php', 'fn (): int => 2', 'fn (): int => 3');
-        $this->assertReanalysed((int) $matches[1], $this->analyse($applicationPath, parameters: self::PARAMETERS));
+        $this->assertReanalyzed((int) $matches[1], $this->analyse($applicationPath, parameters: self::PARAMETERS));
     }
 
-    public function testEnvironmentChangesReanalyseTheirConsumers(): void
+    public function testEnvironmentChangesReanalyzeTheirConsumers(): void
     {
         $applicationPath = $this->copyApplication();
         file_put_contents($applicationPath . '/.env', "FIXTURE_GREETER=\${DEPLOY_GREETER}\n");
@@ -166,7 +166,7 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
 
         $process = $this->analyse($applicationPath, parameters: self::PARAMETERS, environment: $interpolated);
         $this->assertNotContains('Usage.php:28 method.notFound', $this->diagnostics($process, 1));
-        $this->assertReanalysed(0, $process);
+        $this->assertReanalyzed(0, $process);
 
         // Reading every variable would make results depend on unrelated ones, such as a session's.
         $this->assertStringNotContainsString("env-pattern\t*", (string) file_get_contents($applicationPath . '/cache/resultCache.php'));
@@ -178,7 +178,7 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
 
         $process = $this->analyse($applicationPath, parameters: self::PARAMETERS, environment: $interpolated);
         $this->assertNotContains('Usage.php:28 method.notFound', $this->diagnostics($process, 1));
-        $this->assertReanalysed(0, $process);
+        $this->assertReanalyzed(0, $process);
 
         $unrelatedValue = 'runtime-inputs-unrelated-value';
         $process = $this->analyse($applicationPath, parameters: self::PARAMETERS, environment: [...$interpolated, 'RUNTIME_INPUTS_UNRELATED' => $unrelatedValue]);
@@ -205,7 +205,7 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
         file_put_contents($applicationPath . '/config/unused.php', "<?php\n\nreturn [];\n");
         $process = $this->analyse($applicationPath, parameters: self::PARAMETERS, environment: $unset);
         $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $process);
-        $this->assertReanalysed(0, $process);
+        $this->assertReanalyzed(0, $process);
 
         // Clearing the cache loads them again.
         unlink($applicationPath . '/bootstrap/cache/config.php');
@@ -215,7 +215,7 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
         );
     }
 
-    public function testViewNameChangesReanalyseOnlyViewConsumers(): void
+    public function testViewNameChangesReanalyzeOnlyViewConsumers(): void
     {
         $applicationPath = $this->copyApplication();
         $viewsPath = $applicationPath . '/resources/views';
@@ -231,7 +231,7 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
 
         $process = $this->analyse($applicationPath, parameters: self::PARAMETERS);
         $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $process, []);
-        $this->assertReanalysed(4, $process);
+        $this->assertReanalyzed(4, $process);
 
         unlink($viewsPath . '/fixture-page.blade.php');
         $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: self::PARAMETERS), ['ViewUsage.php:11 argument.type']);
@@ -243,7 +243,7 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
         file_put_contents($viewsPath . '/welcome.blade.php', '<p>Welcome back</p>');
         $process = $this->analyse($applicationPath, parameters: self::PARAMETERS);
         $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $process, []);
-        $this->assertReanalysed(0, $process);
+        $this->assertReanalyzed(0, $process);
     }
 
     /**

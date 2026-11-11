@@ -47,7 +47,7 @@ trait WorksWithSpans
      * Get the status of an operation that cancellation stopped.
      *
      * A direct cancellation with no earlier failure leaves the status unset: it is
-     * control flow, and the SDK has no cancelled status. A known failure, or a
+     * control flow, and the SDK has no canceled status. A known failure, or a
      * cleanup failure carrying the cancellation, is an error.
      */
     protected function cancellationStatus(Throwable $cancellation, ?Throwable $exception = null): ?SpanStatus

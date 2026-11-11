@@ -186,7 +186,7 @@ class ConsoleInstrumentation extends AbstractInstrumentation
         $failed = false;
         $outcome = [];
 
-        // A directly cancelled command produced no result or exit code.
+        // A directly canceled command produced no result or exit code.
         if (! $this->isDirectCancellation($event->throwable)) {
             $exception = $event->throwable;
             $failed = $exception !== null || $event->exitCode !== 0;

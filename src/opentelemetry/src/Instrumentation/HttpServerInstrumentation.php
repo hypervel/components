@@ -358,7 +358,7 @@ class HttpServerInstrumentation extends AbstractInstrumentation
                 );
             }
 
-            // Resolved last: an application user resolver may fail or be cancelled
+            // Resolved last: an application user resolver may fail or be canceled
             // and must not drop the outcome recorded above.
             if ($recordingSpan && $this->userContext) {
                 $state->span->setAttributes($this->userContexts->resolve($state));

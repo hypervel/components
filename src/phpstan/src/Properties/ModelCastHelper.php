@@ -530,7 +530,7 @@ class ModelCastHelper
     /**
      * Track the files declaring the constants and static methods the returned casts use.
      *
-     * Dependents of the model are otherwise analysed again only when the model's own declarations change.
+     * Dependents of the model are otherwise analyzed again only when the model's own declarations change.
      */
     private function trackReferencedSources(ClassReflection $modelClassReflection, Array_ $casts, Scope $scope): void
     {

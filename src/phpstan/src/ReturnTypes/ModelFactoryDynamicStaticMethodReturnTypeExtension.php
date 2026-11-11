@@ -234,7 +234,7 @@ class ModelFactoryDynamicStaticMethodReturnTypeExtension implements DynamicStati
      */
     private function findFactory(string $className): ?ClassReflection
     {
-        // Unlike upstream's class_exists(), this does not load the analysed factory file.
+        // Unlike upstream's class_exists(), this does not load the analyzed factory file.
         if (! $this->reflectionProvider->hasClass($className)) {
             return null;
         }

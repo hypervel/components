@@ -149,7 +149,7 @@ class ViewInstrumentation extends AbstractInstrumentation
         $failure = null;
         $outcome = [];
 
-        // A directly cancelled render produced no result.
+        // A directly canceled render produced no result.
         if (! $this->isDirectCancellation($exception)) {
             $failure = $exception;
             $outcome['result'] = $failure === null ? 'success' : 'failure';

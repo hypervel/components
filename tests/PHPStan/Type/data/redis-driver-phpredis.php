@@ -68,7 +68,7 @@ function commandCasing(PhpRedisConnection $held): void
 }
 
 /**
- * Hypervel: connections that only analysed files declare, which the booted application never loaded.
+ * Hypervel: connections that only analyzed files declare, which the booted application never loaded.
  */
 class OwnRegistryConnection extends PhpRedisConnection
 {

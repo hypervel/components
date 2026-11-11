@@ -556,7 +556,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                 continue;
             }
 
-            // A rejection stays the outcome of the messages it left unsent. A cancelled
+            // A rejection stays the outcome of the messages it left unsent. A canceled
             // notification or report must not hide the failures still to be reported.
             try {
                 $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $attemptedMessageIds, $queue, $failure);

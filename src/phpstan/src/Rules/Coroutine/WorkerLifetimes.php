@@ -61,7 +61,7 @@ use function strtolower;
  * Roots come from the booted routes, middleware, listeners and Bus handlers, and from the collected
  * resolutions, singletons and jobs. Each class they build is walked the way the container resolves it.
  * Classes are read through PHPStan reflection and factories are never called: resolving or loading an
- * analysed class at runtime would run its code.
+ * analyzed class at runtime would run its code.
  */
 class WorkerLifetimes
 {

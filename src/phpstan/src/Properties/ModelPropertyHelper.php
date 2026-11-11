@@ -605,7 +605,7 @@ class ModelPropertyHelper
      * What the class declares depends on the database schema, which comes from
      * the migrations, the schema dumps, the config they read and the PHP files
      * naming their tables and connections. Each file depending on the class is
-     * analysed again when one of them is created, changed or deleted. The files
+     * analyzed again when one of them is created, changed or deleted. The files
      * a table's columns were read from are tracked on the models reading it.
      */
     public function trackSchemaDependency(ClassReflection $classReflection): void

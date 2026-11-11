@@ -246,7 +246,7 @@ class OpenTelemetryManagerTest extends TestCase
         $cancellation = new CanceledException;
 
         try {
-            $manager->trace('cancelled', static function () use ($cancellation): never {
+            $manager->trace('canceled', static function () use ($cancellation): never {
                 throw $cancellation;
             });
 
@@ -259,7 +259,7 @@ class OpenTelemetryManagerTest extends TestCase
         $this->assertTrue($manager->flush());
         $spans = $exporters->spanExporter->getSpans();
         $this->assertCount(1, $spans);
-        $this->assertSame('cancelled', $spans[0]->getName());
+        $this->assertSame('canceled', $spans[0]->getName());
         $this->assertSame(StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode());
         $this->assertSame([], $spans[0]->getEvents());
 

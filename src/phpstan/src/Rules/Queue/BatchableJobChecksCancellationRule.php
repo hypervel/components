@@ -62,7 +62,7 @@ use function sprintf;
  * Unlike upstream, which accepts any method named `cancelled()`, a check is
  * recognized by type: the batch's `cancelled()` or `canceled()`, the job's
  * `batching()`, or the middleware class. The rule reports a missing recognized
- * check, not proof that a cancelled batch does no work.
+ * check, not proof that a canceled batch does no work.
  *
  * @implements Rule<InClassNode>
  */
@@ -169,7 +169,7 @@ class BatchableJobChecksCancellationRule implements Rule
                 continue;
             }
 
-            // A method body is not part of the declarations whose changes reanalyse the job.
+            // A method body is not part of the declarations whose changes reanalyze the job.
             if ($fileName !== $scope->getFile()) {
                 $scope->trackFileDependency($fileName);
             }
@@ -206,7 +206,7 @@ class BatchableJobChecksCancellationRule implements Rule
     /**
      * Determine whether the method calls the batch's cancellation check or the job's batching().
      *
-     * The method is analysed in its declaring class, and in its trait, as PHPStan analyses it.
+     * The method is analyzed in its declaring class, and in its trait, as PHPStan analyzes it.
      */
     private function callsCancellationCheck(ClassLike $classLike, ClassMethod $methodNode, string $declaringClass, string $fileName): bool
     {
@@ -220,7 +220,7 @@ class BatchableJobChecksCancellationRule implements Rule
         $methodScope = $methodScope->enterClass($this->reflectionProvider->getClass($declaringClass));
 
         if ($classLike instanceof Trait_ && $classLike->namespacedName !== null) {
-            // @phpstan-ignore phpstanApi.method (PHPStan enters a trait the same way when it analyses the trait's methods.)
+            // @phpstan-ignore phpstanApi.method (PHPStan enters a trait the same way when it analyzes the trait's methods.)
             $methodScope = $methodScope->enterTrait($this->reflectionProvider->getClass($classLike->namespacedName->toString()));
         }
 

@@ -597,7 +597,7 @@ abstract class Queue
         $this->acceptDispatchLocks($job);
         $exception = null;
 
-        // The job is stored, so a cancelled post-storage step must not skip its queued notification.
+        // The job is stored, so a canceled post-storage step must not skip its queued notification.
         try {
             $this->handlePayloadPushed($storedPayload, $queue);
         } catch (Throwable $throwable) {
@@ -635,7 +635,7 @@ abstract class Queue
     /**
      * Notify every batch member and return the first ordinary notification failure.
      *
-     * A cancelled notification does not skip the remaining members; the first
+     * A canceled notification does not skip the remaining members; the first
      * cancellation is rethrown once every member has been notified, and the
      * ordinary failure it displaces is reported.
      *

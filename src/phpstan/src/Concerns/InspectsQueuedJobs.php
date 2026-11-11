@@ -92,7 +92,7 @@ trait InspectsQueuedJobs
             return null;
         }
 
-        // PHPStan also analyses a nullsafe call as a MethodCall on the non-null receiver.
+        // PHPStan also analyzes a nullsafe call as a MethodCall on the non-null receiver.
         if ($node instanceof MethodCall && $node->name instanceof Identifier) {
             $method = $node->name->toLowerString();
             $receiverType = TypeCombinator::removeNull($scope->getType($node->var));

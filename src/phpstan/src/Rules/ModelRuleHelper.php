@@ -322,7 +322,7 @@ class ModelRuleHelper
     /**
      * Track the files a model's property defaults and method bodies come from, for a rule checking the model's class.
      *
-     * They are not declarations, whose changes alone reanalyse the model's file.
+     * They are not declarations, whose changes alone reanalyze the model's file.
      *
      * @param DependencyTracker&Scope $scope
      */

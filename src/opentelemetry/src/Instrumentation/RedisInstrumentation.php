@@ -200,7 +200,7 @@ class RedisInstrumentation extends AbstractInstrumentation
                 );
             }
 
-            // Resolved last: an application resolver may be cancelled and must not drop the outcome recorded above.
+            // Resolved last: an application resolver may be canceled and must not drop the outcome recorded above.
             if ($this->queryText && $span?->isRecording()) {
                 $queryText = $this->queryText(
                     $command,

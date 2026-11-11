@@ -276,7 +276,7 @@ class GrpcInstrumentation extends AbstractInstrumentation implements GrpcOperati
         $statusName = null;
         $errorType = null;
         $metricAttributes = $state->metricAttributes;
-        // A directly cancelled call did not fail; any real final status still applies.
+        // A directly canceled call did not fail; any real final status still applies.
         $exception = $this->isDirectCancellation($result->exception) ? null : $result->exception;
 
         if ($spanRecording || $duration !== null) {

@@ -1098,7 +1098,7 @@ Every job you add to a batch must use the `Hypervel\Bus\Batchable` trait, or add
 
 Jobs that implement `ShouldBeUnique` should be dispatched individually, since only an individual dispatch acquires the job's unique lock. `Bus::batch()`, `Bus::bulk()`, `Queue::bulk()` and a batch's `add` method queue jobs without it, so duplicates are queued. A later job of a chain within a batch acquires its lock when the chain reaches it, but when the lock is already held, the job is skipped and the batch never finishes. You may disable this check using the `noBatchedUniqueJob` parameter.
 
-When the `checkBatchableJobChecksCancellation` parameter is enabled, the analysis also reports batchable jobs that do not check whether their batch has been cancelled. Cancelling a batch does not stop jobs that are already queued, so a job should return early when its batch has been cancelled, or use the `SkipIfBatchCancelled` middleware:
+When the `checkBatchableJobChecksCancellation` parameter is enabled, the analysis also reports batchable jobs that do not check whether their batch has been canceled. Canceling a batch does not stop jobs that are already queued, so a job should return early when its batch has been canceled, or use the `SkipIfBatchCancelled` middleware:
 
 ```php
 public function handle(): void

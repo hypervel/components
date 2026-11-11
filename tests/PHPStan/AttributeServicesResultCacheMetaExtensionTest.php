@@ -13,9 +13,9 @@ class AttributeServicesResultCacheMetaExtensionTest extends ResultCacheTestCase
 
     /**
      * PHPStan hashes the files of known extensions but not the list of attribute services, so a newly
-     * added extension reanalyses unchanged files only through the metadata extension.
+     * added extension reanalyzes unchanged files only through the metadata extension.
      */
-    public function testAddedAttributeServiceReanalysesUnchangedFiles(): void
+    public function testAddedAttributeServiceReanalyzesUnchangedFiles(): void
     {
         $applicationPath = $this->copyApplication();
         $extensionsPath = $applicationPath . '/extensions';
@@ -31,6 +31,6 @@ class AttributeServicesResultCacheMetaExtensionTest extends ResultCacheTestCase
         $process = $this->analyse($applicationPath, $configuration);
 
         $this->assertSame(['Usage.php:14 return.type'], $this->diagnostics($process, 1));
-        $this->assertReanalysed(0, $process);
+        $this->assertReanalyzed(0, $process);
     }
 }

@@ -19,7 +19,7 @@ use function array_values;
 /**
  * Finds the files that values read through reflection come from, for result cache dependencies.
  *
- * PHPStan analyses the dependents of a class again only when its declarations change. Property defaults
+ * PHPStan analyzes the dependents of a class again only when its declarations change. Property defaults
  * and method bodies are not part of them, and a changed constant reaches only the files naming its class.
  *
  * @internal

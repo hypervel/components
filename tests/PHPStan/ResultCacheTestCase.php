@@ -19,8 +19,8 @@ use function sort;
 use function str_replace;
 
 /**
- * Analyses a copy of a fixture application in its own PHPStan process, such as before and after
- * an edit to check that the edit reanalyses the files depending on it on a warm result cache.
+ * Analyzes a copy of a fixture application in its own PHPStan process, such as before and after
+ * an edit to check that the edit reanalyzes the files depending on it on a warm result cache.
  */
 abstract class ResultCacheTestCase extends TestCase
 {
@@ -63,7 +63,7 @@ abstract class ResultCacheTestCase extends TestCase
      * Run PHPStan from the application over its app directory, with the result and migration caches
      * and the opt-in rules the fixtures exercise on, plus any extra top-level configuration and parameters.
      *
-     * PHPStan uses its result cache only when it analyses a directory, and reports whether it reused
+     * PHPStan uses its result cache only when it analyzes a directory, and reports whether it reused
      * the cache on standard error at the very verbose level. The application's autoloader is the
      * autoload file, so classes PHPStan registers as services load before it builds its container.
      * Reusing collected-data rule errors is the bleeding-edge toggle that skips those rules on a warm
@@ -148,9 +148,9 @@ abstract class ResultCacheTestCase extends TestCase
     }
 
     /**
-     * Assert how many files a warm run reanalysed.
+     * Assert how many files a warm run reanalyzed.
      */
-    protected function assertReanalysed(int $count, Process $process): void
+    protected function assertReanalyzed(int $count, Process $process): void
     {
         $this->assertStringContainsString(
             "Result cache restored. {$count} " . ($count === 1 ? 'file' : 'files') . ' will be reanalysed.',

@@ -234,7 +234,7 @@ class ConfigParser
         // The booted providers decide the config directories, merges and writes.
         $this->runtimeInputs->track($scope);
 
-        // Every analysed file reading the key depends on its sources, parsed or served from the cache.
+        // Every analyzed file reading the key depends on its sources, parsed or served from the cache.
         $this->trackDependencies($scope, $this->keySources[$key] ??= $this->configSourceResolver->getKeySources(
             $key,
             $this->configSourceResolver->getConfigDirectories(),

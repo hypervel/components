@@ -16,7 +16,7 @@ class QueueJobDependencyTest extends ResultCacheTestCase
      * A queued job's dispatch settings come from its constructor body, its property defaults and the
      * constants its attributes read, none of which are part of the declarations PHPStan compares.
      */
-    public function testChangedJobSettingsReanalyseTransactionDispatches(): void
+    public function testChangedJobSettingsReanalyzeTransactionDispatches(): void
     {
         $applicationPath = $this->copyApplication();
         $jobsPath = $applicationPath . '/app/Jobs';
@@ -69,7 +69,7 @@ class QueueJobDependencyTest extends ResultCacheTestCase
      * A batchable job can inherit the method that checks for cancellation, and a method body is not
      * part of the declarations PHPStan compares.
      */
-    public function testChangedInheritedHandleReanalysesBatchableJob(): void
+    public function testChangedInheritedHandleReanalyzesBatchableJob(): void
     {
         $applicationPath = $this->copyApplication();
         $batchJobPath = $applicationPath . '/app/Jobs/BatchJob.php';

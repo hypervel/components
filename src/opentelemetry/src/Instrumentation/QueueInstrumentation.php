@@ -660,7 +660,7 @@ class QueueInstrumentation extends AbstractInstrumentation
         $state->completed = true;
         unset($this->consumerStates[$event->job]);
 
-        // A directly cancelled attempt did not fail.
+        // A directly canceled attempt did not fail.
         if ($state->errorType === null && $event->exception !== null && ! $this->isDirectCancellation($event->exception)) {
             $state->exception = $event->exception;
             $state->errorType = $event->exception::class;

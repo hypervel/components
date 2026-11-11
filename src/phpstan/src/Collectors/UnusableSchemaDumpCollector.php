@@ -16,7 +16,7 @@ use PHPStan\DependencyInjection\AutowiredService;
  * Collects the unusable schema dumps of the connections whose models have undeclared properties
  * read, so they are reported at the dumps themselves once the analysis has finished.
  *
- * PHPStan analyses a nullsafe property fetch as a property fetch, so both are collected.
+ * PHPStan analyzes a nullsafe property fetch as a property fetch, so both are collected.
  *
  * @implements Collector<PropertyFetch, list<array{path: string, line: int, message: string}>>
  */

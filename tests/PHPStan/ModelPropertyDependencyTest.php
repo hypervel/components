@@ -13,10 +13,10 @@ class ModelPropertyDependencyTest extends ResultCacheTestCase
     protected string $fixture = 'ModelPropertyDependency';
 
     /**
-     * A config change can move a migration to another connection with no analysed file changing,
-     * so the files using models are analysed again, and the cached schema is aggregated again.
+     * A config change can move a migration to another connection with no analyzed file changing,
+     * so the files using models are analyzed again, and the cached schema is aggregated again.
      */
-    public function testChangedConfigTheMigrationsReadReanalysesModelUsage(): void
+    public function testChangedConfigTheMigrationsReadReanalyzesModelUsage(): void
     {
         $applicationPath = $this->copyApplication();
 
@@ -28,10 +28,10 @@ class ModelPropertyDependencyTest extends ResultCacheTestCase
     }
 
     /**
-     * PHPStan analyses the dependents of a changed file again only when its declarations change, but
+     * PHPStan analyzes the dependents of a changed file again only when its declarations change, but
      * a model's casts also follow the body of its casts() method.
      */
-    public function testChangedCastsMethodBodyReanalysesModelUsage(): void
+    public function testChangedCastsMethodBodyReanalyzesModelUsage(): void
     {
         $applicationPath = $this->copyApplication();
         $modelPath = $applicationPath . '/app/Models/User.php';
@@ -50,7 +50,7 @@ class ModelPropertyDependencyTest extends ResultCacheTestCase
      * A model's connection can come from a property default in a parent, which is not part of the
      * declarations PHPStan compares.
      */
-    public function testChangedModelParentReanalysesModelUsage(): void
+    public function testChangedModelParentReanalyzesModelUsage(): void
     {
         $applicationPath = $this->copyApplication();
         $parentPath = $applicationPath . '/app/Models/BaseModel.php';
@@ -65,7 +65,7 @@ class ModelPropertyDependencyTest extends ResultCacheTestCase
     /**
      * An overriding getConnectionName() can read any config value.
      */
-    public function testChangedConfigTheModelConnectionReadsReanalysesModelUsage(): void
+    public function testChangedConfigTheModelConnectionReadsReanalyzesModelUsage(): void
     {
         $applicationPath = $this->copyApplication();
 
@@ -79,7 +79,7 @@ class ModelPropertyDependencyTest extends ResultCacheTestCase
     /**
      * A constant a migration reads is declared outside the migrations, so its file is checked like them.
      */
-    public function testChangedConstantTheMigrationsReadReanalysesModelUsage(): void
+    public function testChangedConstantTheMigrationsReadReanalyzesModelUsage(): void
     {
         $applicationPath = $this->copyApplication();
         $constantsPath = $applicationPath . '/app/Models/Columns.php';
@@ -95,7 +95,7 @@ class ModelPropertyDependencyTest extends ResultCacheTestCase
     /**
      * A builder attribute can name its builder by another class's constant, which the model's file does not declare.
      */
-    public function testChangedConstantABuilderAttributeReadsReanalysesModelUsage(): void
+    public function testChangedConstantABuilderAttributeReadsReanalyzesModelUsage(): void
     {
         $applicationPath = $this->copyApplication();
         $constantsPath = $applicationPath . '/app/Models/BuilderNames.php';
@@ -115,7 +115,7 @@ class ModelPropertyDependencyTest extends ResultCacheTestCase
      * A guard reads one table's facts to decide what happens to another, so the files those facts were
      * read from are checked for every table.
      */
-    public function testChangedConstantAGuardReadsReanalysesModelUsage(): void
+    public function testChangedConstantAGuardReadsReanalyzesModelUsage(): void
     {
         $applicationPath = $this->copyApplication();
         $constantsPath = $applicationPath . '/app/Models/FlagColumns.php';
@@ -134,7 +134,7 @@ class ModelPropertyDependencyTest extends ResultCacheTestCase
      * PHPStan gives a class's tracked inputs to every file depending on it, so each route's calls name
      * their own classes, and one route's inputs cannot cover a gap in another's.
      */
-    public function testChangedBuilderReanalysesForwardedCalls(): void
+    public function testChangedBuilderReanalyzesForwardedCalls(): void
     {
         $applicationPath = $this->copyApplication();
         $builderPath = $applicationPath . '/app/Models/UserBuilder.php';
@@ -142,7 +142,7 @@ class ModelPropertyDependencyTest extends ResultCacheTestCase
 
         $this->assertSame(['Usage.php:14 property.notFound'], $this->diagnostics($this->analyse($applicationPath), 1));
 
-        // A passthru edit alone, since a declaration change reanalyses the builder's direct callers anyway.
+        // A passthru edit alone, since a declaration change reanalyzes the builder's direct callers anyway.
         file_put_contents($builderPath, str_replace("['exists']", '[]', $builder));
 
         $this->assertSame(
@@ -170,7 +170,7 @@ class ModelPropertyDependencyTest extends ResultCacheTestCase
     /**
      * Only the builder's getQuery() signature names its query class.
      */
-    public function testChangedQueryClassReanalysesBuilderUsage(): void
+    public function testChangedQueryClassReanalyzesBuilderUsage(): void
     {
         $applicationPath = $this->copyApplication();
         $queryPath = $applicationPath . '/app/Models/UserQuery.php';

@@ -147,7 +147,7 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
                 $refProperty = $macroClassReflection->getNativeReflection()->getProperty($macroTraitProperty);
 
                 // Hypervel: macros are registered at runtime, so the registry of an owner the booted application
-                // never loaded, such as a class that only analysed files declare, is unavailable.
+                // never loaded, such as a class that only analyzed files declare, is unavailable.
                 if (! class_exists($refProperty->getDeclaringClass()->getName(), false)) {
                     continue;
                 }

@@ -15,7 +15,7 @@ use PHPUnit\Framework\Attributes\Test;
 class SourceFilesTest extends PHPStanTestCase
 {
     /**
-     * Constants referring to each other fail only once they run, as when an analysed casts() method reads them.
+     * Constants referring to each other fail only once they run, as when an analyzed casts() method reads them.
      */
     #[Test]
     public function itFindsTheFilesOfSelfReferencingConstants(): void

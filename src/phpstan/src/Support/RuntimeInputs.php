@@ -50,7 +50,7 @@ use function substr;
  * that reads the booted application.
  *
  * Bindings, macros, drivers, commands and registrations come from code the boot ran, which no
- * analysed file references, so the files the boot loaded and the environment variables it can
+ * analyzed file references, so the files the boot loaded and the environment variables it can
  * read are tracked instead. A Testbench package boots from a disposable runtime copy, so copied
  * paths are tracked through their skeleton source.
  *
@@ -223,7 +223,7 @@ class RuntimeInputs
      *
      * A file in the runtime copy is tracked through its skeleton source while the two are
      * identical. A file the copy changed or added has no known source and keeps its runtime
-     * path, which disappears with the copy, so it is analysed again on every run.
+     * path, which disappears with the copy, so it is analyzed again on every run.
      */
     public function sourcePath(string $path): string
     {

@@ -183,7 +183,7 @@ class Server implements OnRequestInterface, BootstrapsForServer
             if ($operationHandle !== null && $cancellation === null) {
                 $operationHandle->finish($this->operationResult($response, $terminalException, $emissionFailure));
             } elseif ($operationHandle !== null) {
-                // A cancelled call sent no final status; a handler failure that preceded it stays the outcome.
+                // A canceled call sent no final status; a handler failure that preceded it stays the outcome.
                 try {
                     $operationHandle->finish(new GrpcOperationResult(null, $terminalException ?? $cancellation, 1));
                 } catch (Throwable $throwable) {

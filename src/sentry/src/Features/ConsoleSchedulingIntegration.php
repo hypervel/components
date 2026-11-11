@@ -199,7 +199,7 @@ class ConsoleSchedulingIntegration extends Feature
      * Finish tracing the scheduled task that cancellation stopped before its outcome was published.
      *
      * A direct cancellation leaves an unfinished check-in without a terminal status: the SDK has no
-     * cancelled status, and the cancellation is not a task failure.
+     * canceled status, and the cancellation is not a task failure.
      */
     public function handleScheduledTaskCanceled(ScheduledTaskCanceled $event): void
     {

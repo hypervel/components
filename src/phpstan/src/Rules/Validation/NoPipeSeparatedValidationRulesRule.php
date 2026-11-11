@@ -134,7 +134,7 @@ class NoPipeSeparatedValidationRulesRule implements Rule
         $entry = match (true) {
             $node instanceof FuncCall => $this->matchFunction($node, $scope),
             $node instanceof New_ => $this->matchConstructor($node, $scope),
-            // PHPStan also analyses a nullsafe call as a method call.
+            // PHPStan also analyzes a nullsafe call as a method call.
             $node instanceof MethodCall, $node instanceof StaticCall => $this->matchMethod($node, $scope),
             default => null,
         };

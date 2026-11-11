@@ -96,7 +96,7 @@ class ModelPropertyColumnRule implements Rule
      */
     public function processNode(Node $node, Scope $scope): array
     {
-        // PHPStan also analyses a nullsafe call as a method call on the non-null object, so it is checked there once.
+        // PHPStan also analyzes a nullsafe call as a method call on the non-null object, so it is checked there once.
         if (! ($node instanceof MethodCall || $node instanceof StaticCall) || ! $node->name instanceof Identifier) {
             return [];
         }

@@ -272,8 +272,8 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertNull($failed[0]->runtime);
     }
 
-    #[TestWith([false], 'starting listener cancelled')]
-    #[TestWith([true], 'failure listener cancelled')]
+    #[TestWith([false], 'starting listener canceled')]
+    #[TestWith([true], 'failure listener canceled')]
     public function testPreRunCancellationIsPublishedWithAnyEarlierFailure(bool $afterFailure): void
     {
         $cancellation = new CanceledException;

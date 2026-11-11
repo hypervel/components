@@ -190,7 +190,7 @@ class WebSocketInstrumentationTest extends TestCase
         );
     }
 
-    public function testCancelledMessageEndsItsSpanWithoutAResult(): void
+    public function testCanceledMessageEndsItsSpanWithoutAResult(): void
     {
         $this->instrumentation()->register($this->options(activeConnections: false));
         $frame = $this->frame();

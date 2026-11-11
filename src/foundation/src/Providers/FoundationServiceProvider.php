@@ -302,7 +302,7 @@ class FoundationServiceProvider extends ServiceProvider
 
         // Deferred jobs use coroutine-exit callbacks, not this collection, so their
         // JobAttempted events can drain it without recursively running the same job.
-        // A canceled attempt skips deferred work, as every other cancelled boundary does.
+        // A canceled attempt skips deferred work, as every other canceled boundary does.
         $events->listen(function (JobAttempted $event) {
             if ($event->connectionName === 'sync'
                 || $event->canceled

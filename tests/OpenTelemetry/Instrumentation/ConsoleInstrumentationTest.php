@@ -235,7 +235,7 @@ class ConsoleInstrumentationTest extends TestCase
         );
     }
 
-    public function testCancelledCommandEndsItsSpanWithoutAnOutcome(): void
+    public function testCanceledCommandEndsItsSpanWithoutAnOutcome(): void
     {
         $this->instrumentation()->register($this->options());
         $command = new ConsoleInstrumentationCommand('reports:daily');

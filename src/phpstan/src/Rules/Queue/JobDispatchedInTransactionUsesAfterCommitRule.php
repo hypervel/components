@@ -525,7 +525,7 @@ class JobDispatchedInTransactionUsesAfterCommitRule implements Rule
         }
 
         // Property defaults, constructor bodies and the constants attribute arguments read are not
-        // declarations, whose changes alone reanalyse the dispatching file.
+        // declarations, whose changes alone reanalyze the dispatching file.
         $files = SourceFiles::forInstance($this->reflectionProvider, $job, null);
         $attribute = ReflectionHelper::findClassAttribute($job, Connection::class);
 

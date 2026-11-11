@@ -223,7 +223,7 @@ class LegacyPropertyHelper
     /**
      * Track the files a class's property defaults, constructors and read attribute arguments come from.
      *
-     * They are not declarations, whose changes alone reanalyse the class's file.
+     * They are not declarations, whose changes alone reanalyze the class's file.
      *
      * @param list<class-string> $attributeClasses
      * @param DependencyTracker&Scope $scope

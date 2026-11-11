@@ -198,16 +198,16 @@ class WebSocketInstrumentation extends AbstractInstrumentation
         $finishedAt = $state === null ? 0 : $this->clock->now();
         $spanRecording = $state?->span?->isRecording() === true;
         $attributes = $state->attributes ?? [];
-        // A directly cancelled message produced no result.
-        $cancelled = $this->isDirectCancellation($event->exception);
-        $exception = $cancelled ? null : $event->exception;
+        // A directly canceled message produced no result.
+        $canceled = $this->isDirectCancellation($event->exception);
+        $exception = $canceled ? null : $event->exception;
 
         if ($spanRecording || ($state !== null && $this->duration !== null) || $this->messages !== null) {
             if ($attributes === []) {
                 $attributes = $this->messageAttributes($event->frame, $event->server);
             }
 
-            if (! $cancelled) {
+            if (! $canceled) {
                 $attributes['result'] = $exception === null ? 'success' : 'failure';
             }
 
@@ -218,7 +218,7 @@ class WebSocketInstrumentation extends AbstractInstrumentation
 
         try {
             if ($spanRecording) {
-                if (! $cancelled) {
+                if (! $canceled) {
                     $state->span?->setAttribute('result', $attributes['result']);
                 }
 

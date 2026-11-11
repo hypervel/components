@@ -132,7 +132,7 @@ class ScoutInstrumentation extends AbstractInstrumentation implements EngineOper
         /** @var ScoutTelemetryState $state */
         $state = $token;
 
-        // A directly cancelled operation did not fail.
+        // A directly canceled operation did not fail.
         if ($this->isDirectCancellation($exception)) {
             $exception = null;
         }

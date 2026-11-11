@@ -304,7 +304,7 @@ class ConsoleSchedulingIntegrationTest extends TestCase
 
         try {
             $scheduledEvent->run($this->app);
-            $this->fail('Expected the scheduled callback to be cancelled.');
+            $this->fail('Expected the scheduled callback to be canceled.');
         } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }

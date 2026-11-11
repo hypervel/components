@@ -26,7 +26,7 @@ class RuntimeInputsPackageDependencyTest extends ResultCacheTestCase
      */
     private const string ENGLISH = 'Usage.php:11 method.notFound';
 
-    public function testPackageInputChangesReanalyseTheirConsumers(): void
+    public function testPackageInputChangesReanalyzeTheirConsumers(): void
     {
         $packagePath = $this->createPackage();
         $skeletonPath = $packagePath . '/skeleton';
@@ -39,7 +39,7 @@ class RuntimeInputsPackageDependencyTest extends ResultCacheTestCase
         // The second run boots another runtime copy.
         $process = $this->analysePackage($packagePath, $unset);
         $this->assertSame([self::ENGLISH], $this->diagnostics($process, 1));
-        $this->assertReanalysed(0, $process);
+        $this->assertReanalyzed(0, $process);
 
         // A skeleton configuration file.
         $this->edit($skeletonPath . '/config/package.php', "'english'", "'french'");

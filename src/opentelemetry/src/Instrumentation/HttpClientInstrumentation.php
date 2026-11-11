@@ -415,7 +415,7 @@ class HttpClientInstrumentation extends AbstractInstrumentation
     }
 
     /**
-     * Complete a failed or cancelled physical request.
+     * Complete a failed or canceled physical request.
      *
      * @param array<string, int|string> $requestAttributes
      */
@@ -426,7 +426,7 @@ class HttpClientInstrumentation extends AbstractInstrumentation
         int $startedAt,
         array $requestAttributes,
     ): void {
-        // HTTP client semantic conventions leave a cancelled request's status unset and omit error.type.
+        // HTTP client semantic conventions leave a canceled request's status unset and omit error.type.
         if ($this->isDirectCancellation($exception)) {
             $this->complete($span, $context, $startedAt, $requestAttributes);
 
