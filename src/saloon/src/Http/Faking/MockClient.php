@@ -246,7 +246,7 @@ class MockClient
      */
     public function lastResponse(): ?Response
     {
-        return $this->recordedResponses[array_key_last($this->recordedResponses)] ?? null;
+        return array_last($this->recordedResponses);
     }
 
     /**

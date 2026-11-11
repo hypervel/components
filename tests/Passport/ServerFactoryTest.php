@@ -209,6 +209,18 @@ class ServerFactoryTest extends TestCase
         $servers->authorizationServer();
     }
 
+    public function testSettingsWithoutKeysCannotVerifyTokens(): void
+    {
+        $resolver = m::mock(ServerSettingsResolver::class);
+        $resolver->shouldReceive('current')->andReturn('empty');
+        $resolver->shouldReceive('resolve')->once()->with('empty')->andReturn(new ServerSettings([]));
+        $this->app->instance(ServerSettingsResolver::class, $resolver);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('No Passport verification keys are available. Generate or import signing keys first.');
+        $this->app->make(ServerFactory::class)->resourceServer();
+    }
+
     public function testDatabaseRefreshReadsOncePerIntervalAndRebuildsOnlyWhenKeysChange(): void
     {
         (require __DIR__ . '/../../src/passport/database/migrations/2016_06_01_000007_create_oauth_signing_keys_table.php')->up();

@@ -132,6 +132,6 @@ readonly class Schema
             throw new InvalidArgumentException("The name '{$name}' is ambiguous across schemas: " . implode(', ', $schemas) . '.');
         }
 
-        return $matches[array_key_first($matches)] ?? null;
+        return $matches === [] ? null : $matches[array_key_first($matches)];
     }
 }

@@ -10,7 +10,7 @@ use Hypervel\Support\Testing\Fakes\EventFake;
 /**
  * @method static \Closure createClassListener(array|string $listener, bool $wildcard = false)
  * @method static mixed defer(callable $callback, null|string[] $events = null)
- * @method static mixed dispatch(object|string $event, mixed $payload = [], bool $halt = false)
+ * @method static ($halt is true ? mixed : null|array<int, mixed>) dispatch(object|string $event, mixed $payload = [], bool $halt = false)
  * @method static void flush(string $event)
  * @method static void flushMacros()
  * @method static void flushState()

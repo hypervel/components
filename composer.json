@@ -382,6 +382,9 @@
             "tests/PHPStan/Type/data",
             "tests/PHPStan/Unit/data"
         ],
+        "exclude-from-classmap": [
+            "tests/PHPStan/**/*-fixed.php"
+        ],
         "files": [
             "tests/Database/Fixtures/MigrationCreatorFakeMigration.php"
         ]
