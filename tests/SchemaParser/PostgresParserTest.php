@@ -960,8 +960,20 @@ class PostgresParserTest extends TestCase
             ['DROP TYPE public.composite CASCADE;'],
             ['DROP SCHEMA public CASCADE;'],
             ['DROP SEQUENCE public.counter CASCADE;'],
-            ['ALTER TABLE public.records DROP COLUMN id CASCADE;'],
         ];
+    }
+
+    public function testCascadingColumnDropInvalidatesTheSchemaAndItsTable(): void
+    {
+        $schema = (new PostgresParser)->parse(<<<'SQL'
+            CREATE TABLE public.records (id integer, obsolete text);
+            CREATE TABLE public.others (id integer);
+            ALTER TABLE public.records DROP COLUMN obsolete CASCADE;
+            SQL);
+
+        $this->assertCount(1, $schema->issues);
+        $this->assertFalse($schema->table('records', 'public')->isComplete());
+        $this->assertSame([], $schema->table('others', 'public')->issues);
     }
 
     public function testQuotedDefaultsAndLocalRenamesDoNotInvalidateTableNames(): void

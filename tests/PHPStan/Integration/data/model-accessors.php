@@ -85,8 +85,8 @@ function accessors(AccessorModel $model, ChildAccessorModel $child): void
     $model->email = 1;
     $model->email = 'email';
 
-    // A virtual attribute without a getter reads its raw value through its cast.
-    assertType('int', $model->virtual);
+    // A virtual attribute without a getter reads its raw value through its cast, or null when it was never set.
+    assertType('int|null', $model->virtual);
     $model->virtual = 'value';
     $model->virtual = 1;
 

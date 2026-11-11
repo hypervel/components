@@ -3,6 +3,7 @@
 namespace ModelCastsParsing;
 
 use App\Casts\BackedEnumeration;
+use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Database\Eloquent\Casts\AsArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsCollection;
@@ -66,7 +67,7 @@ function testRegressions(
     // The selected collection class is kept, unless a mapper may return another.
     assertType('(ModelCastsParsing\OptionCollection<(int|string), mixed>|null)', $helpers->object);
     assertType('(Hypervel\Support\Collection<(int|string), mixed>|null)', $helpers->bool);
-    assertType('Hypervel\Database\Eloquent\Casts\ArrayObject', $helpers->json);
+    assertType('(Hypervel\Database\Eloquent\Casts\ArrayObject|null)', $helpers->json);
     assertType('Hypervel\Support\Collection<(int|string), App\Casts\BackedEnumeration>|null', $helpers->array);
     assertType('mixed', $helpers->string);
     assertType('float', $helpers->float);
@@ -94,11 +95,23 @@ function testRegressions(
     assertType('string', $missingTable->id);
 
     // Array definitions in the $casts property are normalized as initializeHasAttributes() does.
-    assertType('Hypervel\Database\Eloquent\Casts\ArrayObject', $propertyArrays->json);
+    assertType('(Hypervel\Database\Eloquent\Casts\ArrayObject|null)', $propertyArrays->json);
     assertType('numeric-string', $propertyArrays->decimal);
 
     // A cast key is an attribute without a column of its own.
     assertType('ModelCastsParsing\Dimensions', $virtual->dimensions);
+}
+
+function testCasters(CastableModel $castable, MissingTableModel $missingTable, VirtualCastModel $virtual): void
+{
+    // castUsing() selects one caster by class name.
+    assertType('ModelCastsParsing\Dimensions', $castable->real);
+    // A castUsing() that may return several casters leaves the type unknown.
+    assertType('mixed', $castable->float);
+
+    // An attribute without a known column may be null.
+    assertType('int|null', $missingTable->count);
+    assertType('int|null', $virtual->quantity);
 }
 
 function testHelpers(): void
@@ -279,6 +292,7 @@ class MissingTableModel extends Model
     {
         return [
             'id' => 'string',
+            'count' => 'int',
         ];
     }
 }
@@ -299,7 +313,56 @@ class VirtualCastModel extends Model
 
     protected array $casts = [
         'dimensions' => DimensionsCast::class,
+        'quantity' => 'int',
     ];
+}
+
+class CastableModel extends Model
+{
+    protected ?string $table = 'model_with_casts';
+
+    protected array $casts = [
+        'real' => DimensionsCastable::class,
+        'float' => AmbiguousCastable::class,
+    ];
+}
+
+class DimensionsCastable implements Castable
+{
+    /**
+     * @return class-string<DimensionsCast>
+     */
+    public static function castUsing(array $arguments): string
+    {
+        return DimensionsCast::class;
+    }
+}
+
+class AmbiguousCastable implements Castable
+{
+    /**
+     * @return DimensionsCast|StringableCast
+     */
+    public static function castUsing(array $arguments): CastsAttributes
+    {
+        return $arguments === [] ? new DimensionsCast : new StringableCast;
+    }
+}
+
+/**
+ * @implements CastsAttributes<Stringable, string>
+ */
+class StringableCast implements CastsAttributes
+{
+    public function get(Model $model, string $key, mixed $value, array $attributes): Stringable
+    {
+        return new Stringable((string) $value);
+    }
+
+    public function set(Model $model, string $key, mixed $value, array $attributes): string
+    {
+        return (string) $value;
+    }
 }
 
 /**

@@ -92,7 +92,8 @@ function test(
     assertType('int', $group->id);
     assertType('string', $guardedModel->name);
     assertType('string', $thread->custom_property);
-    assertType('Hypervel\Database\Eloquent\Casts\ArrayObject', $user->options);
+    // Hypervel: the caster reads a missing or non-array value as null.
+    assertType('(Hypervel\Database\Eloquent\Casts\ArrayObject|null)', $user->options);
     assertType('int<0, max>', count($user->options));
     assertType('(Hypervel\Support\Collection<(int|string), mixed>|null)', $user->properties);
     assertType('int<0, max>', count($user->properties));
@@ -126,6 +127,10 @@ function testUnknownSchema(UnknownSchemaUser $user): void
     assertType('Hypervel\Database\Eloquent\Collection<int, App\Post&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->posts);
     assertType('int<0, max>', $user->stock_count_items_count);
     assertType('mixed', $user->name);
+
+    // Hypervel: a relation method named like a count is a relation, as the model reads it.
+    assertType('App\AccountCollection<int, App\Account>', $user->item_count);
+    assertType('App\AccountCollection<int, App\Account>', $user->lone_count);
 }
 
 class UnknownSchemaUser extends User
@@ -136,6 +141,30 @@ class UnknownSchemaUser extends User
      * @return HasMany<Account, $this>
      */
     public function stock_count_items(): HasMany
+    {
+        return $this->hasMany(Account::class);
+    }
+
+    /**
+     * @return HasMany<Account, $this>
+     */
+    public function item(): HasMany
+    {
+        return $this->hasMany(Account::class);
+    }
+
+    /**
+     * @return HasMany<Account, $this>
+     */
+    public function item_count(): HasMany
+    {
+        return $this->hasMany(Account::class);
+    }
+
+    /**
+     * @return HasMany<Account, $this>
+     */
+    public function lone_count(): HasMany
     {
         return $this->hasMany(Account::class);
     }

@@ -522,6 +522,24 @@ class SchemaAggregatorTest extends PHPStanTestCase
         $this->assertTrue($this->table($aggregator, 'users')->complete);
     }
 
+    /**
+     * removeColumn() returns the Blueprint, so a call chained after it changes the table.
+     */
+    #[Test]
+    public function itForgetsATableChangedAfterRemoveColumn(): void
+    {
+        $aggregator = $this->aggregate(<<<'PHP'
+            Schema::create('users', fn (Blueprint $table) => $table->string('name'));
+
+            Schema::table('users', function (Blueprint $table) {
+                $table->removeColumn('nickname')->string('email');
+            });
+        PHP);
+
+        $this->assertSame([], $this->columns($aggregator, 'users'));
+        $this->assertFalse($this->table($aggregator, 'users')->complete);
+    }
+
     #[Test]
     public function itDecidesColumnGuardsAndFollowsBothOutcomesOtherwise(): void
     {
@@ -583,6 +601,38 @@ class SchemaAggregatorTest extends PHPStanTestCase
         // A table one outcome created may not exist.
         $this->assertSame(['title' => ['string', false]], $this->columns($aggregator, 'posts'));
         $this->assertFalse($this->table($aggregator, 'posts')->complete);
+    }
+
+    /**
+     * Elseif and case conditions run on the way to later outcomes, but not after a condition that is certainly true.
+     */
+    #[Test]
+    public function itAppliesTheConditionsEachOutcomeRuns(): void
+    {
+        $create = "Schema::create('users', fn (Blueprint \$table) => \$table->string('name'));";
+
+        // The first outcome does not run the elseif condition; the case condition runs before any outcome.
+        foreach ([
+            'elseif' => ["if (\$this->flag) {\n} elseif (Schema::dropIfExists('users') === null) {\n}", ['name' => [null, true]]],
+            'switch case' => ["switch (\$this->flag) {\n    case Schema::dropIfExists('users') === null:\n        break;\n}", []],
+        ] as $case => [$statements, $columns]) {
+            $aggregator = $this->aggregate("{$create}\n{$statements}", members: 'public bool $flag = true;');
+
+            $this->assertSame($columns, $this->columns($aggregator, 'users'), $case);
+            $this->assertFalse($this->table($aggregator, 'users')->complete, $case);
+        }
+
+        $aggregator = $this->aggregate(<<<PHP
+            {$create}
+
+            if (Schema::hasTable('users')) {
+                Schema::table('users', fn (Blueprint \$table) => \$table->string('email'));
+            } elseif (Schema::dropIfExists('users') === null) {
+            }
+        PHP);
+
+        $this->assertSame(['name' => ['string', false], 'email' => ['string', false]], $this->columns($aggregator, 'users'));
+        $this->assertTrue($this->table($aggregator, 'users')->complete);
     }
 
     #[Test]
@@ -849,6 +899,18 @@ class SchemaAggregatorTest extends PHPStanTestCase
 
             $this->assertNull($this->columns($aggregator, 'posts', 'pgsql'), $use);
         }
+
+        // A closure that captures the variable uses it too.
+        $aggregator = $this->aggregate(<<<'PHP'
+            $schema = Schema::connection('pgsql');
+
+            Schema::connection('pgsql')->create('users', fn (Blueprint $table) => $table->string('name'));
+            Schema::withoutForeignKeyConstraints(function () use ($schema) {
+                $schema->drop('users');
+            });
+        PHP);
+
+        $this->assertNull($this->columns($aggregator, 'users', 'pgsql'));
     }
 
     #[Test]

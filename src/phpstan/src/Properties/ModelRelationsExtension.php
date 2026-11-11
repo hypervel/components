@@ -67,28 +67,29 @@ class ModelRelationsExtension implements PropertiesClassReflectionExtension
             return false;
         }
 
-        if (str_ends_with($propertyName, '_count')) {
-            // Unlike upstream's Str::before(), only the suffix is removed, so stock_count_items_count names stock_count_items().
-            $propertyName = substr($propertyName, 0, -6);
-
-            $methodNames = [Str::camel($propertyName), $propertyName];
-        } else {
-            $methodNames = [$propertyName];
+        // Unlike upstream, a relation method named like a count is a relation, as the model reads it.
+        if ($this->isRelationMethod($classReflection, $propertyName)) {
+            return true;
         }
 
-        foreach ($methodNames as $methodName) {
-            if (! $classReflection->hasNativeMethod($methodName)) {
-                continue;
-            }
-
-            $returnType = $classReflection->getNativeMethod($methodName)->getVariants()[0]->getReturnType();
-
-            if ((new ObjectType(Relation::class))->isSuperTypeOf($returnType)->yes()) {
-                return true;
-            }
+        if (! str_ends_with($propertyName, '_count')) {
+            return false;
         }
 
-        return false;
+        // Unlike upstream's Str::before(), only the suffix is removed, so stock_count_items_count names stock_count_items().
+        $relationName = substr($propertyName, 0, -6);
+
+        return $this->isRelationMethod($classReflection, Str::camel($relationName))
+            || $this->isRelationMethod($classReflection, $relationName);
+    }
+
+    /**
+     * Determine whether the model declares a method of the name that returns a relation.
+     */
+    private function isRelationMethod(ClassReflection $classReflection, string $methodName): bool
+    {
+        return $classReflection->hasNativeMethod($methodName)
+            && (new ObjectType(Relation::class))->isSuperTypeOf($classReflection->getNativeMethod($methodName)->getVariants()[0]->getReturnType())->yes();
     }
 
     /**
@@ -96,7 +97,7 @@ class ModelRelationsExtension implements PropertiesClassReflectionExtension
      */
     public function getProperty(ClassReflection $classReflection, string $propertyName): PropertyReflection
     {
-        if (str_ends_with($propertyName, '_count')) {
+        if (str_ends_with($propertyName, '_count') && ! $this->isRelationMethod($classReflection, $propertyName)) {
             return new ModelProperty($classReflection, IntegerRangeType::createAllGreaterThanOrEqualTo(0), new NeverType, false);
         }
 

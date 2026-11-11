@@ -1445,9 +1445,12 @@ class PostgresParser extends Parser
             // A clean dump drops constraints before it creates their tables.
             $constraint = $tokens->keyword(1) === 'CONSTRAINT';
 
+            // A cascade affects other definitions; the dropped target is still not applied.
             if ($this->endsWithCascade($tokens)) {
                 $this->reportCascade($state);
-            } elseif ($key !== null) {
+            }
+
+            if ($key !== null) {
                 $state->tables[$key]->issues[] = $state->issue('An ALTER TABLE action could not be represented.');
             } elseif (! $view && ! $constraint) {
                 $state->issues[] = $state->issue("The altered table [{$reference->name}] could not be resolved.");

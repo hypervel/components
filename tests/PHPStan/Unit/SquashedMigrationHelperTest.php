@@ -166,6 +166,17 @@ class SquashedMigrationHelperTest extends PHPStanTestCase
     }
 
     #[Test]
+    public function itForgetsATableWithACascadingAlteration(): void
+    {
+        $connections = $this->createHelper([__DIR__ . '/data/schema/pgsql_cascading_alteration'])->initializeConnections();
+
+        $this->assertFalse($connections['pgsql']->complete);
+        $this->assertSame([], $this->describeColumns($connections, 'users', 'pgsql'));
+        $this->assertFalse($this->findTable($connections, 'users', 'pgsql')?->complete);
+        $this->assertSame(['id' => ['int', false]], $this->describeColumns($connections, 'posts', 'pgsql'));
+    }
+
+    #[Test]
     public function itResolvesUserTypesAndKeepsViewsUnknown(): void
     {
         $connections = $this->createHelper([__DIR__ . '/data/schema/pgsql_types_and_views'])->initializeConnections();

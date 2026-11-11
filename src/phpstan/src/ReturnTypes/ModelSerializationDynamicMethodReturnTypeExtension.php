@@ -213,7 +213,9 @@ class ModelSerializationDynamicMethodReturnTypeExtension implements DynamicMetho
             }
 
             if ($castReflection->hasNativeMethod('serialize')) {
-                $type = $castReflection->getNativeMethod('serialize')->getVariants()[0]->getReturnType();
+                $serialized = $castReflection->getNativeMethod('serialize')->getVariants()[0]->getReturnType();
+                // addCastAttributesToArray() serializes only a value that is set, so null stays null.
+                $type = $type->isNull()->no() ? $serialized : TypeCombinator::addNull($serialized);
                 $date = false;
             }
         }

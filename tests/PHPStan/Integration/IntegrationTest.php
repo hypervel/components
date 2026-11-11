@@ -201,6 +201,17 @@ class IntegrationTest extends PHPStanTestCase
             ],
         ];
 
+        // Hypervel: enum casts accept the values Eloquent resolves to a case, a caster's set() decides whether
+        // it accepts null, and an attribute without a known column may be set to null.
+        yield 'model-cast-writes' => [
+            __DIR__ . '/data/model-cast-writes.php',
+            [
+                16 => ['Property ModelCastWrites\EnumCastModel::$int (int|ModelCastWrites\IntStatus|numeric-string) does not accept \'one\'.'],
+                22 => ['Property ModelCastWrites\EnumCastModel::$integer (ModelCastWrites\PureStatus|string) does not accept int.'],
+                29 => ['Property ModelCastWrites\CasterModel::$nullable_collection (ModelCastWrites\Label) does not accept null.'],
+            ],
+        ];
+
         // Hypervel: also covers the has* sequence and trashed() value forms, trashed() on a model that does not
         // soft delete, and a has* name whose method returns no relation.
         yield [

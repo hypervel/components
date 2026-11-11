@@ -29,7 +29,6 @@ use function is_array;
 use function is_file;
 use function rename;
 use function serialize;
-use function sort;
 use function sprintf;
 use function str_ends_with;
 use function unlink;
@@ -200,13 +199,12 @@ class MigrationCache
     private function generateFingerprint(array $migrationFiles, array $schemaFiles, array $configuration): string
     {
         // The modification time has whole-second resolution, so two edits within one second
-        // would reuse a stale schema without the content digest.
+        // would reuse a stale schema without the content digest. The files keep the order
+        // they are applied in, which decides the schema too.
         $metadata = array_merge(
             array_map(static fn (SplFileInfo $file): string => sprintf('M:%s:%d:%s', $file->getPathname(), $file->getMTime(), hash_file('xxh128', $file->getPathname())), $migrationFiles),
             array_map(static fn (SplFileInfo $file): string => sprintf('S:%s:%d:%s', $file->getPathname(), $file->getMTime(), hash_file('xxh128', $file->getPathname())), $schemaFiles),
         );
-
-        sort($metadata);
 
         return hash('xxh128', implode('|', [
             self::CACHE_FORMAT_VERSION,

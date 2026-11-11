@@ -139,6 +139,26 @@ class MigrationCacheTest extends TestCase
         $this->assertTrue($called, 'Callback should be called when the content changed within the same second');
     }
 
+    /**
+     * Files are applied in order, so a reordered list can build a different schema.
+     */
+    public function testFingerprintChangesWhenTheFileOrderChanges(): void
+    {
+        $first = new SplFileInfo($this->createTempFile('first.php'));
+        $second = new SplFileInfo($this->createTempFile('second.php'));
+
+        $this->cache->remember([$first, $second], [], [], static fn () => self::schema(['users' => new SchemaConnection('users', 'mysql')]));
+
+        $called = false;
+        $this->cache->remember([$second, $first], [], [], static function () use (&$called) {
+            $called = true;
+
+            return self::schema([]);
+        });
+
+        $this->assertTrue($called, 'Callback should be called when the files are applied in another order');
+    }
+
     public function testDisabledCacheAlwaysExecutesCallback(): void
     {
         $cache = new MigrationCache($this->resolver, $this->cacheDirectory, false);

@@ -129,7 +129,11 @@ class ModelCastHelper
             'collection' => new ObjectType(Collection::class),
             'date', 'datetime' => $this->getDateType(),
             'immutable_date', 'immutable_datetime' => new ObjectType(CarbonImmutable::class),
-            AsArrayObject::class, AsEncryptedArrayObject::class => new ObjectType(ArrayObject::class),
+            // The caster reads a missing or non-array value as null.
+            AsArrayObject::class, AsEncryptedArrayObject::class => new BenevolentUnionType([
+                new ObjectType(ArrayObject::class),
+                new NullType,
+            ]),
             AsCollection::class, AsEncryptedCollection::class => new BenevolentUnionType([
                 $this->getCollectionCastType($arguments),
                 new NullType,
@@ -152,26 +156,13 @@ class ModelCastHelper
             return new ObjectType($cast);
         }
 
-        if ($classReflection->is(Castable::class)) {
-            $methodReflection = $classReflection->getNativeMethod('castUsing');
-            $castUsingReturn = ParametersAcceptorSelector::selectFromTypes(
-                [ConstantTypeHelper::getTypeFromValue($arguments)],
-                $methodReflection->getVariants(),
-                false,
-            )->getReturnType();
+        $caster = $this->resolveCaster($classReflection, $arguments);
 
-            if ($castUsingReturn->getObjectClassReflections() !== []) {
-                $classReflection = $castUsingReturn->getObjectClassReflections()[0];
-            }
+        if ($caster?->is(CastsAttributes::class)) {
+            return $caster->getNativeMethod('get')->getVariants()[0]->getReturnType();
         }
 
-        if ($classReflection->is(CastsAttributes::class)) {
-            $methodReflection = $classReflection->getNativeMethod('get');
-
-            return $methodReflection->getVariants()[0]->getReturnType();
-        }
-
-        if ($classReflection->is(CastsInboundAttributes::class)) {
+        if ($caster?->is(CastsInboundAttributes::class)) {
             return $originalType;
         }
 
@@ -213,27 +204,16 @@ class ModelCastHelper
         $classReflection = $this->reflectionProvider->getClass($cast);
 
         if ($classReflection->isEnum()) {
-            return new ObjectType($cast);
+            return $this->getEnumWriteableType($classReflection);
         }
 
-        if ($classReflection->is(Castable::class)) {
-            $methodReflection = $classReflection->getNativeMethod('castUsing');
-            $castUsingReturn = ParametersAcceptorSelector::selectFromTypes(
-                [ConstantTypeHelper::getTypeFromValue($arguments)],
-                $methodReflection->getVariants(),
-                false,
-            )->getReturnType();
-
-            if ($castUsingReturn->getObjectClassReflections() !== []) {
-                $classReflection = $castUsingReturn->getObjectClassReflections()[0];
-            }
-        }
+        $caster = $this->resolveCaster($classReflection, $arguments);
 
         if (
-            $classReflection->is(CastsAttributes::class)
-            || $classReflection->is(CastsInboundAttributes::class)
+            $caster !== null
+            && ($caster->is(CastsAttributes::class) || $caster->is(CastsInboundAttributes::class))
         ) {
-            $methodReflection = $classReflection->getNativeMethod('set');
+            $methodReflection = $caster->getNativeMethod('set');
             $parameters = $methodReflection->getVariants()[0]->getParameters();
 
             $valueParameter = Arr::first($parameters, static fn (ParameterReflection $parameterReflection) => $parameterReflection->getName() === 'value');
@@ -244,6 +224,54 @@ class ModelCastHelper
         }
 
         return new MixedType;
+    }
+
+    /**
+     * Get the type an enum cast attribute accepts: a case, or a value HasAttributes::getEnumCaseFromValue() resolves to one.
+     */
+    private function getEnumWriteableType(ClassReflection $enum): Type
+    {
+        $enumType = new ObjectType($enum->getName());
+        $backingType = $enum->getBackedEnumType();
+
+        return match (true) {
+            // A pure enum's case is looked up by name.
+            $backingType === null => TypeCombinator::union($enumType, new StringType),
+            // enum_from() reads a numeric string as an integer value.
+            $backingType->isInteger()->yes() => TypeCombinator::union(
+                $enumType,
+                new IntegerType,
+                TypeCombinator::intersect(new StringType, new AccessoryNumericStringType),
+            ),
+            // enum_from() reads an integer as its string value.
+            default => TypeCombinator::union($enumType, new StringType, new IntegerType),
+        };
+    }
+
+    /**
+     * Get the class that casts the attribute: the cast class itself, or the one caster its castUsing() returns.
+     *
+     * castUsing() is never called. A return that may name several classes, or one that is not known, leaves the
+     * caster undetermined.
+     *
+     * @param list<string> $arguments
+     */
+    private function resolveCaster(ClassReflection $classReflection, array $arguments): ?ClassReflection
+    {
+        if (! $classReflection->is(Castable::class)) {
+            return $classReflection;
+        }
+
+        $casterType = ParametersAcceptorSelector::selectFromTypes(
+            [ConstantTypeHelper::getTypeFromValue($arguments)],
+            $classReflection->getNativeMethod('castUsing')->getVariants(),
+            false,
+        )->getReturnType()->getObjectTypeOrClassStringObjectType();
+        $casters = $casterType->getObjectClassReflections();
+
+        return count($casters) === 1 && (new ObjectType($casters[0]->getName()))->isSuperTypeOf($casterType)->yes()
+            ? $casters[0]
+            : null;
     }
 
     /**
@@ -358,6 +386,36 @@ class ModelCastHelper
 
         return ! in_array($castType, $this->primitiveCastTypes, true) && $this->reflectionProvider->hasClass($castType)
             ? $this->reflectionProvider->getClass($castType)
+            : null;
+    }
+
+    /**
+     * Get the caster whose get() and set() methods type a class cast, which run even for null values.
+     *
+     * Returns null for primitive, enum and built-in object casts, which are typed here directly, and for a
+     * Castable whose caster cannot be determined.
+     */
+    public function getCaster(string $cast): ?ClassReflection
+    {
+        $castType = $this->parseCast($cast);
+
+        if (
+            in_array($castType, [AsArrayObject::class, AsCollection::class, AsEncryptedArrayObject::class, AsEncryptedCollection::class, AsStringable::class], true)
+            || ! $this->reflectionProvider->hasClass($castType)
+        ) {
+            return null;
+        }
+
+        $classReflection = $this->reflectionProvider->getClass($castType);
+
+        if ($classReflection->isEnum()) {
+            return null;
+        }
+
+        $caster = $this->resolveCaster($classReflection, $this->parseCastArguments($cast));
+
+        return $caster !== null && ($caster->is(CastsAttributes::class) || $caster->is(CastsInboundAttributes::class))
+            ? $caster
             : null;
     }
 

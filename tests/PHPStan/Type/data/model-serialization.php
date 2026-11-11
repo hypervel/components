@@ -309,6 +309,37 @@ function customCastAccessor(CustomCastAccessorSerializationModel $model): void
     assertType('array{value: int}', $model->attributesToArray()['name']);
 }
 
+/** @implements CastsAttributes<SerializationValue, SerializationValue> */
+class NullableSerializationValueCast implements CastsAttributes
+{
+    public function get(Model $model, string $key, mixed $value, array $attributes): ?SerializationValue
+    {
+        return $value === null ? null : new SerializationValue();
+    }
+
+    public function set(Model $model, string $key, mixed $value, array $attributes): ?string
+    {
+        return $value === null ? null : 'value';
+    }
+
+    /** @return array{serialized: true} */
+    public function serialize(Model $model, string $key, mixed $value, array $attributes): array
+    {
+        return ['serialized' => true];
+    }
+}
+
+class NullableCustomCastSerializationModel extends SerializationModel
+{
+    protected array $casts = ['name' => NullableSerializationValueCast::class];
+}
+
+// A null cast value is not serialized.
+function nullableCustomCast(NullableCustomCastSerializationModel $model): void
+{
+    assertType('array{serialized: true}|null', $model->attributesToArray()['name']);
+}
+
 /** @implements CastsAttributes<SerializedStatus, SerializedStatus> */
 class SerializationEnumCast implements CastsAttributes
 {

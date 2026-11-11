@@ -515,7 +515,17 @@ class SchemaAggregator
     {
         $this->forgetAffectedBy($stmt->cond, $scope);
 
-        $initial = $this->snapshot();
+        if ($stmt instanceof PhpParser\Node\Stmt\Switch_) {
+            // Case expressions run until one matches, so their effects may reach any outcome.
+            foreach ($stmt->cases as $case) {
+                if ($case->cond !== null) {
+                    $this->forgetAffectedBy($case->cond, $scope);
+                }
+            }
+        }
+
+        // The facts when every condition so far was false.
+        $falsePath = $this->snapshot();
         $continuing = $returned = null;
         $fallthrough = true;
 
@@ -556,8 +566,15 @@ class SchemaAggregator
             }
         }
 
-        foreach ($branches as [$condition, $body]) {
-            $this->restore($initial);
+        foreach ($branches as $index => [$condition, $body]) {
+            $this->restore($falsePath);
+
+            // An elseif condition runs only after the earlier conditions were false.
+            if ($condition !== null && $index > 0) {
+                $this->forgetAffectedBy($condition, $scope);
+                $falsePath = $this->snapshot();
+            }
+
             $decision = $condition === null ? null : $this->decide($condition, $scope);
 
             if ($decision === false) {
@@ -577,7 +594,7 @@ class SchemaAggregator
         }
 
         if ($fallthrough) {
-            $continuing = $this->mergeStates($continuing, $initial);
+            $continuing = $this->mergeStates($continuing, $falsePath);
         }
 
         return [$continuing, $returned];
@@ -905,8 +922,26 @@ class SchemaAggregator
     private function getFunctionScope(PhpParser\Node\Stmt\ClassMethod|PhpParser\Node\Expr\Closure $function, array $scope): array
     {
         $this->builderVariables[$function] ??= $this->getBuilderVariables($function, $scope);
+        $variables = $this->builderVariables[$function];
 
-        return $this->builderVariables[$function] + $scope;
+        // A captured variable holds what it held in the enclosing function, unless the closure selects a builder into it.
+        if ($function instanceof PhpParser\Node\Expr\Closure) {
+            foreach ($function->uses as $use) {
+                $name = $use->var->name;
+
+                if (! is_string($name) || array_key_exists($name, $variables['builders']) || array_key_exists($name, $variables['escaped'])) {
+                    continue;
+                }
+
+                if (array_key_exists($name, $scope['builders'])) {
+                    $variables['builders'][$name] = $scope['builders'][$name];
+                } elseif (array_key_exists($name, $scope['escaped'])) {
+                    $variables['escaped'][$name] = $scope['escaped'][$name];
+                }
+            }
+        }
+
+        return $variables + $scope;
     }
 
     /**
@@ -1403,6 +1438,13 @@ class SchemaAggregator
 
         // An earlier drop() or rename() removed the table, so later changes would fail.
         if ($table === null || $call->isFirstClassCallable() || in_array($method, self::IGNORED_BLUEPRINT_METHODS, true)) {
+            return;
+        }
+
+        // removeColumn() returns the Blueprint, so the calls chained after it change the table too.
+        if ($method === 'removecolumn' && $call !== $expr) {
+            $this->forgetTableByKey($tableScope['connection'], $tableScope['key']);
+
             return;
         }
 

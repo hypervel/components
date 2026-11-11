@@ -45,7 +45,7 @@ class SchemaTable
         // An unknown column of an incomplete table keeps an unknown type under its new name.
         if (! isset($this->columns[$oldName])) {
             if (! $this->complete) {
-                $this->setColumn(new SchemaColumn($newName, null));
+                $this->setColumn(new SchemaColumn($newName, null, true));
             }
 
             return;

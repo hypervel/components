@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\Properties;
 
+use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Database\Eloquent\Casts\Attribute;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\PHPStan\Properties\Schema\DataTypeToPhpTypeConverter;
@@ -229,9 +230,10 @@ class ModelPropertyHelper
             $keyType = $this->stringResolver->resolve($modelInstance->getKeyType());
             [$readableType, $writableType, $nullable] = [$keyType, $keyType, false];
         } else {
-            // A virtual attribute behind an accessor has no column, so its raw value is whatever was assigned.
+            // A virtual attribute behind an accessor has no column, so its raw value is whatever was assigned,
+            // or null when nothing was.
             [$readableType, $writableType, $nullable] = $lookup === null || $table === null || $this->hasColumn($lookup, $propertyName)->no()
-                ? [new MixedType, new MixedType, false]
+                ? [new MixedType, new MixedType, true]
                 : $this->getColumnTypes($lookup, $table, $propertyName);
         }
 
@@ -256,8 +258,16 @@ class ModelPropertyHelper
         }
 
         if (($date || $cast !== null) && $nullable) {
-            $readableType = TypeCombinator::addNull($readableType);
-            $writableType = TypeCombinator::addNull($writableType);
+            // A caster's get() and set() also handle null, so their declarations decide it.
+            $caster = $cast === null ? null : $this->modelCastHelper->getCaster($cast);
+
+            if (! $caster?->is(CastsAttributes::class)) {
+                $readableType = TypeCombinator::addNull($readableType);
+            }
+
+            if ($date || $caster === null) {
+                $writableType = TypeCombinator::addNull($writableType);
+            }
         }
 
         return new ModelProperty(
@@ -283,26 +293,34 @@ class ModelPropertyHelper
         $config = $lookup['config'];
 
         if ($config->customized) {
-            return [new MixedType, new MixedType, false];
+            return [new MixedType, new MixedType, true];
         }
 
         $schema = $lookup['schema'];
         $searchPath = $table->searchPath ?? $config->searchPath;
         $writeColumn = $table->columns[$propertyName] ?? null;
-        $nullable = $writeColumn !== null && $writeColumn->nullable;
+        // Without a known column, the attribute may hold null.
+        $nullable = $writeColumn->nullable ?? true;
         $readableTypes = [];
 
         foreach ($config->fetchOptions as $options) {
             $name = $this->getFetchedNames($table, $options)[$propertyName] ?? null;
             $column = $name === null ? null : $table->columns[$name];
 
-            if ($column === null || $column->type === null) {
-                $readableTypes[] = $column === null && $table->complete ? new NullType : new MixedType;
+            if ($column === null) {
+                $readableTypes[] = $table->complete ? new NullType : new MixedType;
+                $nullable = true;
 
                 continue;
             }
 
             $nullable = $nullable || $column->nullable;
+
+            if ($column->type === null) {
+                $readableTypes[] = new MixedType;
+
+                continue;
+            }
             $readableType = $this->converter->convert($schema->driver, $column->type, $column->options, $schema, $searchPath)['readable'];
             $readableType = $column->nullable ? TypeCombinator::addNull($readableType) : $readableType;
             $readableTypes[] = $this->converter->applyFetchOptions($readableType, $schema->driver, [$options]);
