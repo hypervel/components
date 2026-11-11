@@ -19,6 +19,7 @@
         "fakerphp/faker": "^1.24",
         "friendsofphp/php-cs-fixer": "^3.57.2",
         "hypervel/doctor": "^0.4",
+        "hypervel/phpstan": "^0.4",
         "hypervel/watcher": "^0.4",
         "mockery/mockery": "^1.6.15",
         "nunomaduro/collision": "^8.9",
