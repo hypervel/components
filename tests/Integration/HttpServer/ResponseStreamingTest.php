@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\HttpServer;
 
 use Hypervel\Engine\Http\V2\Client as Http2Client;
 use Hypervel\Engine\Http\V2\Request as Http2Request;
+use Swoole\Coroutine\Socket;
 
 class ResponseStreamingTest extends HttpServerIntegrationTestCase
 {
@@ -101,6 +102,57 @@ class ResponseStreamingTest extends HttpServerIntegrationTestCase
         $this->assertSame('abcde', $range->getBody());
         $this->assertSame('bytes 10-14/36', $range->getHeaders()['content-range']);
         $this->assertArrayNotHasKey('content-length', $range->getHeaders());
+    }
+
+    public function testHttpTwoPingIsAcknowledgedWhileALargeResponseWaitsForTheClient(): void
+    {
+        // @TODO: Remove this skip once Swoole's HTTP/2 server can answer a PING while a response waits for the client.
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped("Swoole's HTTP/2 server kills the worker when it answers a PING while a response waits for the client.");
+        }
+
+        // A small receive buffer, so the 16 MB response fills the server's output buffer while the client isn't reading.
+        $socket = new Socket(AF_INET, SOCK_STREAM, 0);
+        $this->assertTrue($socket->setOption(SOL_SOCKET, SO_RCVBUF, 64 * 1024));
+        $this->assertTrue($socket->connect($this->getServerHost(), $this->getServerPort(), 2));
+
+        try {
+            // The connection preface, SETTINGS and WINDOW_UPDATE frames that open the flow-control windows,
+            // and GET /large-response on stream 1.
+            $socket->sendAll(
+                "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
+                . "\0\0\x06\x04\0\0\0\0\0\0\x04\x7f\xff\xff\xff"
+                . "\0\0\x04\x08\0\0\0\0\0\x7f\xff\0\0"
+                . "\0\0\x1e\x01\x05\0\0\0\x01\x82\x86\x01\x09localhost\x04\x0f/large-response"
+            );
+            usleep(300_000);
+            $socket->sendAll("\0\0\x08\x06\0\0\0\0\0ABCDEFGH");
+
+            $bodyLength = 0;
+            $ended = false;
+            $acknowledged = false;
+
+            while (! $ended || ! $acknowledged) {
+                $header = $socket->recvAll(9, 5);
+                $this->assertIsString($header);
+                $this->assertSame(9, strlen($header));
+                ['length' => $length, 'type' => $type, 'flags' => $flags] = unpack('Nlength/Ctype/Cflags', "\0" . $header);
+                $payload = $length > 0 ? $socket->recvAll($length, 5) : '';
+                $this->assertSame($length, strlen($payload));
+
+                if ($type === 0x0) {
+                    $bodyLength += $length;
+                    $ended = ($flags & 0x1) === 0x1;
+                } elseif ($type === 0x6 && $flags === 0x1) {
+                    $this->assertSame('ABCDEFGH', $payload);
+                    $acknowledged = true;
+                }
+            }
+        } finally {
+            $socket->close();
+        }
+
+        $this->assertSame(16 * 1024 * 1024, $bodyLength);
     }
 
     public function testDisconnectStopsProductionAndReleasesTheGenerator(): void
