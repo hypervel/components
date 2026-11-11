@@ -202,6 +202,35 @@ class Http2ClientTest extends TestCase
         $client->write(1, 'frame');
     }
 
+    public function testFailedSendDisconnectsTheClient(): void
+    {
+        // @TODO: Remove this skip once Swoole's HTTP/2 client closes the connection when a write fails.
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+            $this->markTestSkipped('Swoole keeps the HTTP/2 client connected after a failed write leaves part of a frame unsent.');
+        }
+
+        // Nothing accepts or reads the connection, so the request body fills both socket buffers.
+        $server = new Socket(AF_INET, SOCK_STREAM, 0);
+        $this->assertTrue($server->setOption(SOL_SOCKET, SO_RCVBUF, 64 * 1024));
+        $this->assertTrue($server->bind('127.0.0.1', 0));
+        $this->assertTrue($server->listen());
+        $client = new Client('127.0.0.1', $server->getsockname()['port'], settings: ['socket_buffer_size' => 64 * 1024]);
+
+        try {
+            try {
+                $client->send(new Request(method: 'POST', body: str_repeat('a', 1024 * 1024)), 0.1);
+                $this->fail('Expected the stalled send to time out.');
+            } catch (HttpClientException $exception) {
+                $this->assertSame(SOCKET_ETIMEDOUT, $exception->getCode());
+            }
+
+            $this->assertFalse($client->isConnected());
+        } finally {
+            $client->close();
+            $server->close();
+        }
+    }
+
     public function testExposesNormalizedStreamExistence(): void
     {
         $native = new Http2ClientTestNativeClient;
