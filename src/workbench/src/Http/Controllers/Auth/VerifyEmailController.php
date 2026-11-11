@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Workbench\Http\Controllers\Auth;
 
 use Hypervel\Auth\Events\Verified;
-use Hypervel\Contracts\Auth\MustVerifyEmail;
 use Hypervel\Foundation\Auth\EmailVerificationRequest;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Support\Facades\Event;
@@ -23,10 +22,7 @@ class VerifyEmailController extends Controller
         }
 
         if ($request->user()->markEmailAsVerified() && Event::hasListeners(Verified::class)) {
-            /** @var MustVerifyEmail $user */
-            $user = $request->user();
-
-            event(new Verified($user));
+            event(new Verified($request->user()));
         }
 
         return redirect()->intended(route('dashboard', absolute: false) . '?verified=1');

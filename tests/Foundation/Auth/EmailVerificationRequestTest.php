@@ -9,6 +9,7 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\MustVerifyEmail;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Foundation\Auth\EmailVerificationRequest;
+use Hypervel\Foundation\Auth\User;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
@@ -69,6 +70,26 @@ class EmailVerificationRequestTest extends TestCase
             ->assertOk();
 
         Event::assertDispatched(Verified::class);
+    }
+
+    public function testFulfillDispatchesEventForUserUsingOnlyTheVerificationTrait(): void
+    {
+        Event::fake([Verified::class]);
+
+        $user = m::mock(User::class);
+        $user->shouldReceive('getKey')->andReturn(123);
+        $user->shouldReceive('getAuthIdentifier')->andReturn(123);
+        $user->shouldReceive('getEmailForVerification')->andReturn('user@example.com');
+        $user->shouldReceive('hasVerifiedEmail')->once()->andReturn(false);
+        $user->shouldReceive('markEmailAsVerified')->once()->andReturn(true);
+
+        $this->assertNotInstanceOf(MustVerifyEmail::class, $user);
+
+        $this->actingAs($user)
+            ->get('/email/verify/123/' . sha1('user@example.com'))
+            ->assertOk();
+
+        Event::assertDispatched(Verified::class, static fn (Verified $event): bool => $event->user === $user);
     }
 
     public function testPassiveObserverDoesNotCauseVerifiedEventToDispatch(): void

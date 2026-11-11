@@ -32,6 +32,8 @@ class VerifyEmailControllerTest extends TestCase
 
     protected function assertEmailCanBeVerified(): void
     {
+        Event::fake([Verified::class]);
+
         $user = $this->createUnverifiedUser([
             'email' => 'taylor@laravel.com',
         ]);
@@ -51,6 +53,7 @@ class VerifyEmailControllerTest extends TestCase
 
         $response->assertRedirect('http://foo.com/bar');
         $this->assertTrue($user->fresh()->hasVerifiedEmail());
+        Event::assertDispatched(Verified::class, static fn (Verified $event): bool => $user->is($event->user));
     }
 
     public function testRedirectedIfEmailIsAlreadyVerified(): void
