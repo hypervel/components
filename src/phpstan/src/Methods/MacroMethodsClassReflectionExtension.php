@@ -114,8 +114,6 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
             return $this->methods[$cacheKey] === false ? null : $this->methods[$cacheKey];
         }
 
-        $this->runtimeInputs->track($classReflection);
-
         $methodReflection = $this->forwardsToGuard($classReflection)
             ? $this->findGuardMacro($classReflection, $methodName)
             : $this->findHostMacro($classReflection, $methodName);
@@ -317,6 +315,11 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
      * scans and facade root lookups involved are too expensive to repeat
      * for every method lookup.
      *
+     * Only a macro registry or a facade root comes from the boot, so only those
+     * classes depend on it; any other class has no macros whatever the boot
+     * registers. A class's dependency holds for the whole process, so declaring
+     * it here, once, covers every lookup.
+     *
      * @return array{class-string[], null|string}
      */
     private function getMacroSources(ClassReflection $classReflection): array
@@ -339,6 +342,8 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
             || $classReflection->is(Builder::class)
             || $classReflection->is(QueryBuilder::class)
         ) {
+            $this->runtimeInputs->track($classReflection);
+
             $classNames = [$classReflection->getName()];
             $macroTraitProperty = 'macros';
 
@@ -349,6 +354,8 @@ class MacroMethodsClassReflectionExtension implements MethodsClassReflectionExte
             // REMOVED: upstream's fixed hosts for the Auth and Cache facades. findGuardMacro() handles Auth. The
             // Cache facade's root, CacheManager, is not Macroable, and the facade's mixins already reach the
             // store Repository's macros.
+            $this->runtimeInputs->track($classReflection);
+
             $facadeClass = $classReflection->getName();
 
             $concrete = null;

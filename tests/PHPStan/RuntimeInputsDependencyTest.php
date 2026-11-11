@@ -10,6 +10,7 @@ use function dirname;
 use function file_get_contents;
 use function file_put_contents;
 use function mkdir;
+use function preg_match;
 use function unlink;
 
 /**
@@ -109,6 +110,39 @@ class RuntimeInputsDependencyTest extends ResultCacheTestCase
         );
         $this->edit($applicationPath . '/app/Providers/FixtureServiceProvider.php', 'Registrar::register($this->app);', "Registrar::register(\$this->app);\n        \$this->app->scoped(\\RuntimeInputs\\CounterController::class);");
         $this->assertDiagnostics(['Usage.php:23 return.type', 'Usage.php:46 argument.type'], $this->analyse($applicationPath, parameters: self::PARAMETERS));
+    }
+
+    public function testBootInputEditsSkipLookupsOnClassesWithoutMacros(): void
+    {
+        $applicationPath = $this->copyApplication();
+
+        $this->analyse($applicationPath, parameters: self::PARAMETERS);
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: self::PARAMETERS));
+
+        $this->edit($applicationPath . '/app/Providers/FixtureServiceProvider.php', 'fn (): int => 1', 'fn (): int => 2');
+        $process = $this->analyse($applicationPath, parameters: self::PARAMETERS);
+        $this->assertSame(1, preg_match('/Result cache restored\. (\d+) files? will be reanalysed\./', $process->getErrorOutput(), $matches));
+
+        // The lookup reaches the macro extension, but a class that is not Macroable can gain no macro from the boot.
+        file_put_contents($applicationPath . '/app/PlainUsage.php', <<<'PHP'
+            <?php
+
+            declare(strict_types=1);
+
+            namespace RuntimeInputs;
+
+            class PlainUsage
+            {
+                public function lookup(Registrar $registrar): bool
+                {
+                    return method_exists($registrar, 'missing');
+                }
+            }
+            PHP);
+        $this->assertDiagnostics(self::BOOT_DIAGNOSTICS, $this->analyse($applicationPath, parameters: self::PARAMETERS));
+
+        $this->edit($applicationPath . '/app/Providers/FixtureServiceProvider.php', 'fn (): int => 2', 'fn (): int => 3');
+        $this->assertReanalysed((int) $matches[1], $this->analyse($applicationPath, parameters: self::PARAMETERS));
     }
 
     public function testEnvironmentChangesReanalyseTheirConsumers(): void
