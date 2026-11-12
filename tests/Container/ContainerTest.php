@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Container\ContainerTest;
 
 use Attribute;
+use Closure;
 use Hypervel\Container\Attributes\Bind;
 use Hypervel\Container\Attributes\Scoped;
 use Hypervel\Container\Attributes\Singleton;
 use Hypervel\Container\Container;
 use Hypervel\Container\EntryNotFoundException;
-use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\CircularDependencyException;
 use Hypervel\Contracts\Container\ContextualAttribute;
@@ -41,9 +41,9 @@ use Hypervel\Tests\Container\Fixtures\MultipleWildcardBindInterface;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use LogicException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use Psr\Container\ContainerExceptionInterface;
-use ReflectionClass;
 use ReflectionProperty;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
@@ -803,6 +803,95 @@ class ContainerTest extends TestCase
 
         $this->assertTrue($resolver);
         $this->assertFalse($observer, 'A scoped instance resolved in one coroutine leaked into another.');
+    }
+
+    public function testScopedInstancesAreIsolatedBetweenContainers(): void
+    {
+        $first = new Container;
+        $second = new Container;
+        $first->scoped(ContainerConcreteStub::class);
+        $second->scoped(ContainerConcreteStub::class);
+
+        $instance = $first->make(ContainerConcreteStub::class);
+
+        $this->assertFalse($second->resolvedScoped(ContainerConcreteStub::class));
+        $this->assertFalse($second->isScopedInstance($instance));
+        $this->assertNotSame($instance, $second->make(ContainerConcreteStub::class));
+    }
+
+    /**
+     * @param Closure(Container): void $invalidate
+     */
+    #[DataProvider('scopedInstanceInvalidationProvider')]
+    public function testInvalidatingScopedInstancesLeavesOtherContainersIntact(Closure $invalidate): void
+    {
+        $first = new Container;
+        $second = new Container;
+        $first->scoped(ContainerConcreteStub::class);
+        $second->scoped(ContainerConcreteStub::class);
+
+        $instance = $first->make(ContainerConcreteStub::class);
+        $second->make(ContainerConcreteStub::class);
+
+        $invalidate($second);
+
+        $this->assertSame($instance, $first->make(ContainerConcreteStub::class));
+    }
+
+    public static function scopedInstanceInvalidationProvider(): array
+    {
+        return [
+            'forgetInstance' => [static fn (Container $container) => $container->forgetInstance(ContainerConcreteStub::class)],
+            'forgetInstances' => [static fn (Container $container) => $container->forgetInstances()],
+            'forgetScopedInstances' => [static fn (Container $container) => $container->forgetScopedInstances()],
+            'bind' => [static fn (Container $container) => $container->bind(ContainerConcreteStub::class)],
+            'instance' => [static fn (Container $container) => $container->instance(ContainerConcreteStub::class, new ContainerConcreteStub)],
+            'extend' => [static fn (Container $container) => $container->extend(ContainerConcreteStub::class, static fn (): ContainerConcreteStub => new ContainerConcreteStub)],
+        ];
+    }
+
+    public function testResolvingThroughAnotherContainerIsNotCircular(): void
+    {
+        $inner = new Container;
+        $outer = new Container;
+        $outer->bind(ContainerConcreteStub::class, static fn (): ContainerConcreteStub => $inner->make(ContainerConcreteStub::class));
+
+        $this->assertInstanceOf(ContainerConcreteStub::class, $outer->make(ContainerConcreteStub::class));
+    }
+
+    public function testClonedContainerStartsWithTheCurrentScopedInstances(): void
+    {
+        $container = new Container;
+        $container->scoped(ContainerConcreteStub::class);
+        $instance = $container->make(ContainerConcreteStub::class);
+
+        $clone = clone $container;
+
+        $this->assertTrue($clone->isScopedInstance($instance));
+        $this->assertSame($instance, $clone->make(ContainerConcreteStub::class));
+    }
+
+    public function testInvalidatingAClonedContainersScopedInstancesLeavesTheOriginalIntact(): void
+    {
+        $container = new Container;
+        $container->scoped(ContainerConcreteStub::class);
+        $instance = $container->make(ContainerConcreteStub::class);
+
+        $clone = clone $container;
+        $clone->forgetScopedInstances();
+
+        $this->assertNotSame($instance, $clone->make(ContainerConcreteStub::class));
+        $this->assertSame($instance, $container->make(ContainerConcreteStub::class));
+    }
+
+    public function testContainerClonedBeforeResolvingScopedInstancesResolvesItsOwn(): void
+    {
+        $container = new Container;
+        $container->scoped(ContainerConcreteStub::class);
+
+        $clone = clone $container;
+
+        $this->assertNotSame($container->make(ContainerConcreteStub::class), $clone->make(ContainerConcreteStub::class));
     }
 
     public function testExplicitTransientBindingOverridesScopedAttribute(): void
@@ -1777,11 +1866,7 @@ class ContainerTest extends TestCase
             (new ReflectionProperty($container, 'autoSingletons'))->getValue($container),
         );
 
-        $scopedContextPrefix = (new ReflectionClass(Container::class))
-            ->getReflectionConstant('SCOPED_CONTEXT_PREFIX')
-            ->getValue();
-
-        $this->assertFalse(CoroutineContext::has($scopedContextPrefix . ContainerBoundExecutionScopedConsumer::class));
+        $this->assertFalse($container->resolvedScoped(ContainerBoundExecutionScopedConsumer::class));
     }
 
     public function testTransientBindingDoesNotAdoptAPriorImplicitConcreteLifetime(): void
@@ -2933,7 +3018,7 @@ class ContainerStateInspectionStub extends Container
 {
     public function hasResolutionState(): bool
     {
-        return CoroutineContext::has(self::RESOLUTION_STATE_CONTEXT_KEY);
+        return $this->getResolutionState() !== null;
     }
 
     public function resolutionLimit(): int
