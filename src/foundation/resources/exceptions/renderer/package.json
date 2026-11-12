@@ -9,7 +9,7 @@
     },
     "dependencies": {
         "@shikijs/langs": "^3.23.0",
-        "@shikijs/themes": "^3.23.0",
+        "@shikijs/themes": "^4.5.0",
         "alpinejs": "catalog:",
         "shiki": "^3.23.0",
         "tailwindcss": "catalog:",
