@@ -6,6 +6,7 @@ namespace Hypervel\Head;
 
 use Closure;
 use Hypervel\Head\Routing\RouteAttributeParser;
+use Hypervel\Support\Attributes\BootOnly;
 
 class ErrorPages
 {
@@ -30,8 +31,9 @@ class ErrorPages
      * Define head metadata for every error page, using either named
      * route-attribute values or a single head builder callback.
      *
-     * Boot-only. These defaults are shared by every request in the worker.
+     * On the shared manager's error pages, these defaults apply to every request in the worker.
      */
+    #[BootOnly(whenShared: true)]
     public function defaults(mixed ...$head): static
     {
         $this->defaults = $this->apply($this->defaults, $head);
@@ -43,8 +45,9 @@ class ErrorPages
      * Define head metadata for a specific error status, using either named
      * route-attribute values or a single head builder callback.
      *
-     * Boot-only. These definitions are shared by every request in the worker.
+     * On the shared manager's error pages, these definitions apply to every request in the worker.
      */
+    #[BootOnly(whenShared: true)]
     public function status(int $status, mixed ...$head): static
     {
         $this->statuses[$status] = $this->apply(new HeadData, $head);

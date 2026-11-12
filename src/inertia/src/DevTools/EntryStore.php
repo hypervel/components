@@ -6,6 +6,7 @@ namespace Hypervel\Inertia\DevTools;
 
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Inertia\DevTools\Data\IncomingEntry;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Facades\Log;
 use Throwable;
 
@@ -106,9 +107,10 @@ class EntryStore
     /**
      * Reset the circuit breaker so recording resumes immediately.
      *
-     * Tests only. The breaker is shared by every request in the worker, so a reset during a
-     * request resumes writes for all of them while storage may still be failing.
+     * The breaker is shared by every request in the worker, so a reset during a request
+     * resumes writes for all of them while storage may still be failing.
      */
+    #[TestsOnly]
     public static function resetCircuitBreaker(): void
     {
         static::$suppressedUntil = null;

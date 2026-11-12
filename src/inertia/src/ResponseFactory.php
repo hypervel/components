@@ -22,6 +22,7 @@ use Hypervel\Inertia\Support\Header;
 use Hypervel\Inertia\Support\SessionKey;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Facades\App;
 use Hypervel\Support\Facades\Redirect;
 use Hypervel\Support\Facades\Request;
@@ -403,9 +404,10 @@ class ResponseFactory
     /**
      * Register a callback to handle HTTP exceptions for Inertia requests.
      *
-     * Boot-only. The callback is stored on the exception handler singleton
-     * and applies to all requests for the worker lifetime.
+     * The callback is stored on the exception handler singleton and
+     * applies to all requests for the worker lifetime.
      */
+    #[BootOnly]
     public function handleExceptionsUsing(callable $callback): void
     {
         /** @var mixed $handler */

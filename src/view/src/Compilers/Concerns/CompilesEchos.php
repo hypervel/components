@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\View\Compilers\Concerns;
 
 use Closure;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Stringable;
 
 trait CompilesEchos
@@ -19,9 +20,10 @@ trait CompilesEchos
     /**
      * Add a handler to be executed before echoing a given class.
      *
-     * Boot-only. The handler persists on the singleton BladeCompiler for the
-     * worker lifetime and applies to every subsequent rendered echo.
+     * The handler persists on the singleton BladeCompiler for the worker
+     * lifetime and applies to every subsequent rendered echo.
      */
+    #[BootOnly(whenShared: true)]
     public function stringable(Closure|string $class, ?callable $handler = null): void
     {
         if ($class instanceof Closure) {

@@ -11,6 +11,7 @@ use Hypervel\Routing\PendingSingletonResourceRegistration;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\Router;
 use Hypervel\Routing\RouteRegistrar;
+use Hypervel\Support\Attributes\BootOnly;
 
 /**
  * Registers the withHead() route macros.
@@ -27,8 +28,9 @@ class HeadRouteMacros
     /**
      * Register the withHead() macro on every routing surface.
      *
-     * Boot-only. These static macros affect every request in the worker.
+     * These static macros affect every request in the worker.
      */
+    #[BootOnly]
     public function register(): void
     {
         Router::macro('withHead', $this->routerMacro());

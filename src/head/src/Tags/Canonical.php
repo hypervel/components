@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Head\Rendering\ResolvedHead;
 use Hypervel\Head\Rendering\TagRenderer;
 use Hypervel\Http\Request;
+use Hypervel\Support\Attributes\BootOnly;
 
 /**
  * @phpstan-consistent-constructor
@@ -163,10 +164,11 @@ class Canonical extends TagBuilder
     /**
      * Register a resolver for automatic and relative canonical origins.
      *
-     * Boot-only. The callback persists in a static property and affects every request in the worker.
+     * The callback persists in a static property and affects every request in the worker.
      *
      * @param null|(Closure(): ?string) $resolver
      */
+    #[BootOnly]
     public static function resolveOriginUsing(?Closure $resolver): void
     {
         static::$originResolver = $resolver;

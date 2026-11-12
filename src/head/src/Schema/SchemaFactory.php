@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Head\Schema;
 
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Str;
 use ReflectionClass;
 
@@ -50,10 +51,11 @@ class SchemaFactory
     /**
      * Register a first-class schema object type.
      *
-     * Boot-only. Registered types affect every request using this shared factory.
+     * Registered types affect every request using this shared factory.
      *
      * @param class-string<SchemaObject> $class
      */
+    #[BootOnly(whenShared: true)]
     public function register(string $class): static
     {
         $this->types[Str::camel((new ReflectionClass($class))->getShortName())] = $class;
