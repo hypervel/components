@@ -6,6 +6,7 @@ namespace Hypervel\Http\Resources;
 
 use Exception;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\Macroable;
 
@@ -36,6 +37,7 @@ trait DelegatesToResource
      *
      * @throws Exception
      */
+    #[Unsupported]
     public function resolveRouteBinding(mixed $value, ?string $field = null): never
     {
         throw new Exception('Resources may not be implicitly resolved from route bindings.');
@@ -46,6 +48,7 @@ trait DelegatesToResource
      *
      * @throws Exception
      */
+    #[Unsupported]
     public function resolveChildRouteBinding(string $childType, mixed $value, ?string $field = null): ?Model
     {
         throw new Exception('Resources may not be implicitly resolved from child route bindings.');

@@ -12,6 +12,8 @@ use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Routing\Route;
 use Hypervel\Session\SymfonySessionDecorator;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -306,6 +308,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      *
      * @throws RuntimeException always — superglobals don't exist in Swoole workers
      */
+    #[Unsupported]
     public static function createFromGlobals(): never
     {
         throw new RuntimeException('Request::createFromGlobals() is not supported in Hypervel. Requests are created from Swoole request objects.');
@@ -1322,9 +1325,10 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     /**
      * Set the default user resolver callback.
      *
-     * Boot-only. The callback persists for the worker lifetime and applies to
-     * every request without an instance-specific user resolver.
+     * The callback persists for the worker lifetime and applies to every
+     * request without an instance-specific user resolver.
      */
+    #[BootOnly]
     public static function setDefaultUserResolver(Closure $callback): void
     {
         static::$defaultUserResolver = $callback;

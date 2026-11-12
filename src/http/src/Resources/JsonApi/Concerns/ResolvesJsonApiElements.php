@@ -18,6 +18,7 @@ use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 use Hypervel\Http\Resources\JsonApi\RelationResolver;
 use Hypervel\Http\Resources\MissingValue;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Str;
@@ -78,11 +79,12 @@ trait ResolvesJsonApiElements
     /**
      * Specify the maximum relationship depth.
      *
-     * Boot-only. The depth limit persists in a static property for the worker
-     * lifetime and affects every subsequent JSON:API resource resolution.
+     * The depth limit persists in a static property for the worker lifetime
+     * and affects every subsequent JSON:API resource resolution.
      *
      * @param non-negative-int $depth
      */
+    #[BootOnly]
     public static function maxRelationshipDepth(int $depth): void
     {
         static::$maxRelationshipDepth = max(0, $depth);

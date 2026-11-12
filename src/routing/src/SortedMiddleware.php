@@ -20,8 +20,8 @@ class SortedMiddleware extends Collection
     /**
      * Flush the static middleware names cache.
      *
-     * Boot or tests only. Clears the process-wide middleware-sort cache shared
-     * by every coroutine; next dispatch re-sorts.
+     * Clears the process-wide middleware-sort cache shared by every coroutine;
+     * next dispatch re-sorts.
      */
     public static function flushCache(): void
     {

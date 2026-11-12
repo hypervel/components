@@ -8,6 +8,7 @@ use Closure;
 use Fruitcake\Cors\CorsService;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Http\Request;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -115,12 +116,13 @@ class HandleCors
     /**
      * Register a closure that resolves CORS configuration for the current request.
      *
-     * Boot-only. The closure receives the current request and returns the CORS
-     * options array; useful for multi-tenant CORS where the config varies by
-     * host or other request data. Persists for the worker lifetime.
+     * The closure receives the current request and returns the CORS options
+     * array; useful for multi-tenant CORS where the config varies by host or
+     * other request data. Persists for the worker lifetime.
      *
      * @param null|Closure(Request): array<string, mixed> $callback
      */
+    #[BootOnly]
     public static function resolveConfigUsing(?Closure $callback): void
     {
         static::$configResolver = $callback;
@@ -129,9 +131,10 @@ class HandleCors
     /**
      * Register a callback that instructs the middleware to be skipped.
      *
-     * Boot-only. Skip callbacks persist for the worker lifetime and run on
-     * every subsequent request.
+     * Skip callbacks persist for the worker lifetime and run on every
+     * subsequent request.
      */
+    #[BootOnly]
     public static function skipWhen(Closure $callback): void
     {
         static::$skipCallbacks[] = $callback;

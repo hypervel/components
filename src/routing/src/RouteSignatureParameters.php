@@ -80,8 +80,8 @@ class RouteSignatureParameters
     /**
      * Flush the static parameter cache.
      *
-     * Boot or tests only. Clears the process-wide signature caches shared by
-     * every coroutine; next signature lookup re-reflects.
+     * Clears the process-wide signature caches shared by every coroutine;
+     * next signature lookup re-reflects.
      */
     public static function flushCache(): void
     {

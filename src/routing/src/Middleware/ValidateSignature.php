@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Exceptions\InvalidSignatureException;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Symfony\Component\HttpFoundation\Response;
 
 class ValidateSignature
@@ -84,9 +85,10 @@ class ValidateSignature
     /**
      * Indicate that the given parameters should be ignored during signature validation.
      *
-     * Boot-only. The list persists in a static property for the worker lifetime
-     * and applies to every subsequent request.
+     * The list persists in a static property for the worker lifetime and
+     * applies to every subsequent request.
      */
+    #[BootOnly]
     public static function except(array|string $parameters): void
     {
         static::$neverValidate = array_values(array_unique(

@@ -71,8 +71,8 @@ class Response implements ArrayAccess, Stringable
     /**
      * The flags passed to `json_decode` by default.
      *
-     * Boot-only. Changing this value during request handling affects JSON decoding in every concurrent
-     * and subsequent request on that worker.
+     * Setting this during request handling affects JSON decoding in every concurrent and subsequent
+     * request on that worker.
      *
      * @var int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR>
      */

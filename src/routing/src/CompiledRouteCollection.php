@@ -6,6 +6,7 @@ namespace Hypervel\Routing;
 
 use Hypervel\Container\Container;
 use Hypervel\Http\Request;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use LogicException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
@@ -632,11 +633,12 @@ class CompiledRouteCollection extends AbstractRouteCollection
     /**
      * Set the container instance on the route.
      *
-     * Tests only. Swaps the container reference on the route collection used
-     * by the singleton Router; per-request use races across coroutines.
+     * Swaps the container reference on the route collection used by the
+     * singleton Router; per-request use races across coroutines.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setContainer(Container $container): static
     {
         $this->container = $container;

@@ -22,6 +22,9 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Http\Client\Guzzle\HandlerFactory;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
@@ -110,11 +113,12 @@ class Factory
     /**
      * Add middleware to apply to every request.
      *
-     * Boot-only. The middleware persists on the factory for the worker lifetime
-     * and affects every subsequently created pending request.
+     * The middleware persists on the factory for the worker lifetime and
+     * affects every subsequently created pending request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function globalMiddleware(callable $middleware): static
     {
         $this->globalMiddleware[] = $middleware;
@@ -125,11 +129,12 @@ class Factory
     /**
      * Add request middleware to apply to every request.
      *
-     * Boot-only. The middleware persists on the factory for the worker lifetime
-     * and affects every subsequently created pending request.
+     * The middleware persists on the factory for the worker lifetime and
+     * affects every subsequently created pending request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function globalRequestMiddleware(callable $middleware): static
     {
         $this->globalMiddleware[] = Middleware::mapRequest($middleware);
@@ -140,11 +145,12 @@ class Factory
     /**
      * Add response middleware to apply to every request.
      *
-     * Boot-only. The middleware persists on the factory for the worker lifetime
-     * and affects every subsequently created pending request.
+     * The middleware persists on the factory for the worker lifetime and
+     * affects every subsequently created pending request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function globalResponseMiddleware(callable $middleware): static
     {
         $this->globalMiddleware[] = Middleware::mapResponse($middleware);
@@ -155,11 +161,12 @@ class Factory
     /**
      * Set the options to apply to every request.
      *
-     * Boot-only. The options persist on the factory for the worker lifetime
-     * and affect every subsequently created pending request.
+     * The options persist on the factory for the worker lifetime and affect
+     * every subsequently created pending request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function globalOptions(array|Closure $options): static
     {
         $this->globalOptions = $options;
@@ -326,8 +333,9 @@ class Factory
     /**
      * Get an invokable object that returns a sequence of responses in order for use during stubbing.
      *
-     * Tests only. The sequence is retained by the factory for the worker lifetime.
+     * The sequence is retained by the factory for the worker lifetime.
      */
+    #[TestsOnly(whenShared: true)]
     public function sequence(array $responses = []): ResponseSequence
     {
         return $this->responseSequences[] = new ResponseSequence($responses);
@@ -336,11 +344,12 @@ class Factory
     /**
      * Register a stub callable that will intercept requests and be able to return stub responses.
      *
-     * Tests only. Stubs persist on the factory for the worker lifetime
-     * and affect every subsequently created pending request.
+     * Stubs persist on the factory for the worker lifetime and affect
+     * every subsequently created pending request.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function fake(array|callable|null $callback = null): static
     {
         $this->record();
@@ -389,8 +398,9 @@ class Factory
     /**
      * Register a response sequence for the given URL pattern.
      *
-     * Tests only. The sequence and stub persist on the factory for the worker lifetime.
+     * The sequence and stub persist on the factory for the worker lifetime.
      */
+    #[TestsOnly(whenShared: true)]
     public function fakeSequence(string $url = '*'): ResponseSequence
     {
         return tap($this->sequence(), function ($sequence) use ($url) {
@@ -401,13 +411,14 @@ class Factory
     /**
      * Stub the given URL using the given callback.
      *
-     * Tests only. The stub persists on the factory for the worker lifetime
-     * and affects every subsequently created pending request.
+     * The stub persists on the factory for the worker lifetime and affects
+     * every subsequently created pending request.
      *
      * @return $this
      *
      * @throws InvalidArgumentException
      */
+    #[TestsOnly(whenShared: true)]
     public function stubUrl(string $url, array|callable|int|PromiseInterface|Response|string $callback): static
     {
         return $this->fake(function ($request, $options) use ($url, $callback) {
@@ -441,11 +452,12 @@ class Factory
     /**
      * Indicate that an exception should be thrown if any request is not faked.
      *
-     * Boot or tests only. The policy persists on the factory for the worker lifetime
-     * and affects every subsequently created pending request.
+     * The policy persists on the factory for the worker lifetime and affects every
+     * subsequently created pending request.
      *
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function preventStrayRequests(bool $prevent = true): static
     {
         $this->preventStrayRequests = $prevent;
@@ -464,11 +476,12 @@ class Factory
     /**
      * Indicate that an exception should not be thrown if any request is not faked.
      *
-     * Boot or tests only. The policy persists on the factory for the worker lifetime
-     * and affects every subsequently created pending request.
+     * The policy persists on the factory for the worker lifetime and affects every
+     * subsequently created pending request.
      *
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function allowStrayRequests(?array $only = null): static
     {
         if (is_null($only)) {
@@ -484,11 +497,12 @@ class Factory
     /**
      * Begin recording request / response pairs.
      *
-     * Tests only. Recording persists on the factory for the worker lifetime
-     * and retains every subsequently completed request attempt.
+     * Recording persists on the factory for the worker lifetime and retains
+     * every subsequently completed request attempt.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function record(): static
     {
         $this->recording = true;
@@ -648,9 +662,10 @@ class Factory
     /**
      * Set the event dispatcher implementation.
      *
-     * Boot or tests only. The dispatcher persists on the factory for the
-     * worker lifetime and receives every subsequent HTTP client event.
+     * The dispatcher persists on the factory for the worker lifetime and
+     * receives every subsequent HTTP client event.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setDispatcher(?Dispatcher $dispatcher): void
     {
         $this->dispatcher = $dispatcher;
@@ -669,11 +684,12 @@ class Factory
     /**
      * Register a connection with the given name and configuration.
      *
-     * Boot-only. The connection preset and shared transport handler registry
-     * persist on the factory for the worker lifetime.
+     * The connection preset and shared transport handler registry persist on
+     * the factory for the worker lifetime.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function registerConnection(string $name, array $config = []): static
     {
         return $this->setConnectionConfig($name, $config);
@@ -796,11 +812,12 @@ class Factory
     /**
      * Set the configuration for a specific connection.
      *
-     * Boot-only. Reconfiguration replaces the worker-lifetime preset and
+     * Reconfiguration replaces the worker-lifetime preset and
      * invalidates its shared transport handler for subsequent requests.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setConnectionConfig(string $name, array $config): static
     {
         $this->validateConnectionConfig($config);
@@ -814,11 +831,12 @@ class Factory
     /**
      * Forget the resolved default and connection handlers.
      *
-     * Boot or tests only. Request-time use forces subsequent requests to
-     * rebuild warmed keep-alive, DNS, and TLS session state.
+     * Request-time use forces subsequent requests to rebuild warmed
+     * keep-alive, DNS, and TLS session state.
      *
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetConnectionHandlers(): static
     {
         $this->connectionHandlers = [];

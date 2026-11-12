@@ -9,6 +9,7 @@ use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Contracts\Support\Renderable;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use JsonSerializable;
@@ -156,6 +157,7 @@ class Response extends SymfonyResponse implements Transient
      * @throws RuntimeException always — Swoole manages headers via its own API
      */
     #[Override]
+    #[Unsupported]
     public function sendHeaders(?int $statusCode = null): never
     {
         throw new RuntimeException('Response::sendHeaders() is not supported in Hypervel. Responses are emitted through Swoole\'s response API.');
@@ -167,6 +169,7 @@ class Response extends SymfonyResponse implements Transient
      * @throws RuntimeException always — Swoole has no SAPI output stream
      */
     #[Override]
+    #[Unsupported]
     public function sendContent(): never
     {
         throw new RuntimeException('Response::sendContent() is not supported in Hypervel. Responses are emitted through Swoole\'s response API.');
@@ -178,6 +181,7 @@ class Response extends SymfonyResponse implements Transient
      * @throws RuntimeException always — Swoole manages response emission
      */
     #[Override]
+    #[Unsupported]
     public function send(bool $flush = true): never
     {
         throw new RuntimeException('Response::send() is not supported in Hypervel. Responses are emitted through Swoole\'s response API.');

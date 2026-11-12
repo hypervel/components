@@ -18,6 +18,7 @@ use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\RequestTerminated;
 use Hypervel\HttpServer\Events\ResponseSent;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\FailureReporter;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Request as SwooleRequest;
@@ -257,12 +258,13 @@ class Server implements OnRequestInterface, BootstrapsForServer
     /**
      * Set the server name.
      *
-     * Boot-only. Mutates the worker-lifetime request handler before Swoole
-     * starts; runtime use races across requests and changes emitted server
+     * Mutates the worker-lifetime request handler before Swoole starts;
+     * runtime use races across requests and changes emitted server
      * context.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setServerName(string $serverName): static
     {
         $this->serverName = $serverName;
