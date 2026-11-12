@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Schema;
 
 use Hypervel\Contracts\Database\Query\Expression;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Support\Fluent;
 use LogicException;
 
@@ -44,6 +45,7 @@ class ColumnDefinition extends Fluent
     /**
      * Reject partial index modifiers on column definitions.
      */
+    #[Unsupported]
     public function whereNotNull(string $column): never
     {
         throw new LogicException(

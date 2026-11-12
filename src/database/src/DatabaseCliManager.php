@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
+use Hypervel\Support\Attributes\BootOnly;
+
 class DatabaseCliManager
 {
     /**
@@ -16,11 +18,12 @@ class DatabaseCliManager
     /**
      * Register a database client resolver.
      *
-     * Boot-only. The resolver persists on the auto-singleton manager for the
-     * worker lifetime and applies to every subsequent database CLI session.
+     * The resolver persists on the auto-singleton manager for the worker
+     * lifetime and applies to every subsequent database CLI session.
      *
      * @param callable(array): DatabaseCliConfiguration $resolver
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $driver, callable $resolver): void
     {
         $this->extensions[$driver] = $resolver;

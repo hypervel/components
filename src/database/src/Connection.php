@@ -28,6 +28,8 @@ use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
 use LogicException;
@@ -1269,11 +1271,12 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Register a database query listener with the connection.
      *
-     * Boot-only. Registers a listener on the worker-global event dispatcher;
+     * Registers a listener on the worker-global event dispatcher;
      * per-request registration persists and affects subsequent requests.
      *
      * @param Closure(QueryExecuted): mixed $callback
      */
+    #[BootOnly]
     public function listen(Closure $callback): void
     {
         $this->events?->listen(QueryExecuted::class, $callback);
@@ -1681,8 +1684,13 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Set the event dispatcher instance on the connection.
      *
+     * A reusable physical connection keeps the dispatcher after release, so
+     * every later coroutine that borrows it dispatches query and transaction
+     * events to it.
+     *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setEventDispatcher(Dispatcher $events): static
     {
         $this->events = $events;
@@ -1692,7 +1700,12 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Unset the event dispatcher for this connection.
+     *
+     * A reusable physical connection keeps the null dispatcher after release,
+     * so every later coroutine that borrows it fires no query or transaction
+     * events.
      */
+    #[TestsOnly(whenShared: true)]
     public function unsetEventDispatcher(): void
     {
         $this->events = null;
@@ -1763,8 +1776,13 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Set the transaction manager instance on the connection.
      *
+     * A reusable physical connection keeps the manager after release, so
+     * every later coroutine that borrows it schedules after-commit callbacks
+     * on it.
+     *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setTransactionManager(DatabaseTransactionsManager $manager): static
     {
         $this->transactionsManager = $manager;
@@ -1783,9 +1801,11 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Unset the transaction manager for this connection.
      *
-     * Tests only. A pooled connection keeps the null manager after release, so every
-     * later coroutine that borrows it fails when scheduling after-commit callbacks.
+     * A reusable physical connection keeps the null manager after release, so
+     * every later coroutine that borrows it fails when scheduling after-commit
+     * callbacks.
      */
+    #[TestsOnly(whenShared: true)]
     public function unsetTransactionManager(): void
     {
         $this->transactionsManager = null;
@@ -1986,10 +2006,11 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Register a connection resolver.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every subsequent Connection construction for the
-     * given driver across all coroutines.
+     * The resolver persists in a static property for the worker lifetime
+     * and runs on every subsequent Connection construction for the given
+     * driver across all coroutines.
      */
+    #[BootOnly]
     public static function resolverFor(string $driver, Closure $callback): void
     {
         static::$resolvers[$driver] = $callback;

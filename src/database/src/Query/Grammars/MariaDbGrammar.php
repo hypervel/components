@@ -7,6 +7,7 @@ namespace Hypervel\Database\Query\Grammars;
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\JoinLateralClause;
+use Hypervel\Support\Attributes\Unsupported;
 use Override;
 use RuntimeException;
 
@@ -26,6 +27,7 @@ class MariaDbGrammar extends MySqlGrammar
     /**
      * Compile a "lateral join" clause.
      */
+    #[Unsupported]
     public function compileJoinLateral(JoinLateralClause $join, string $expression): string
     {
         throw new RuntimeException('This database engine does not support lateral joins.');

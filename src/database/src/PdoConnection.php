@@ -10,6 +10,7 @@ use Exception;
 use Generator;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Events\StatementPrepared;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Str;
 use PDO;
 use PDOException;
@@ -1026,10 +1027,10 @@ class PdoConnection extends Connection
     /**
      * Register a database session configurator.
      *
-     * Boot-only. The configurator persists in a static property for the worker
-     * lifetime and runs on every subsequent synchronized PDO hand-out across all
-     * coroutines.
+     * The configurator persists in a static property for the worker lifetime and
+     * runs on every subsequent synchronized PDO hand-out across all coroutines.
      */
+    #[BootOnly]
     public static function configureSessionUsing(SessionConfigurator $configurator): void
     {
         static::$sessionConfigurators[] = $configurator;

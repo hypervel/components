@@ -34,6 +34,7 @@ class PackageMetadataTest extends TestCase
             'symfony/finder',
             'symfony/polyfill-php86',
             'symfony/process',
+            'hypervel/attributes',
             'hypervel/broadcasting',
             'hypervel/collections',
             'hypervel/conditionable',

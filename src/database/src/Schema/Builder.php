@@ -11,6 +11,7 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\MultipleColumnsSelectedException;
 use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\Schema\Grammars\Grammar;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
@@ -75,11 +76,12 @@ class Builder
     /**
      * Set the default string length for migrations.
      *
-     * Boot-only. The length persists in a static property for the worker
-     * lifetime and applies to every Blueprint::string() across all coroutines.
+     * The length persists in a static property for the worker lifetime and
+     * applies to every Blueprint::string() across all coroutines.
      *
      * @param non-negative-int $length
      */
+    #[BootOnly]
     public static function defaultStringLength(int $length): void
     {
         static::$defaultStringLength = $length;
@@ -88,9 +90,10 @@ class Builder
     /**
      * Set the default time precision for migrations.
      *
-     * Boot-only. The precision persists in a static property for the worker
-     * lifetime and applies to every time/datetime column across all coroutines.
+     * The precision persists in a static property for the worker lifetime and
+     * applies to every time/datetime column across all coroutines.
      */
+    #[BootOnly]
     public static function defaultTimePrecision(?int $precision): void
     {
         static::$defaultTimePrecision = $precision;
@@ -99,11 +102,12 @@ class Builder
     /**
      * Set the default morph key type for migrations.
      *
-     * Boot-only. The type persists in a static property for the worker lifetime
-     * and applies to every morph() column across all coroutines.
+     * The type persists in a static property for the worker lifetime and
+     * applies to every morph() column across all coroutines.
      *
      * @throws InvalidArgumentException
      */
+    #[BootOnly]
     public static function defaultMorphKeyType(string $type): void
     {
         if (! in_array($type, ['int', 'uuid', 'ulid'])) {
@@ -116,8 +120,9 @@ class Builder
     /**
      * Set the default morph key type for migrations to UUIDs.
      *
-     * Boot-only. Sets the worker-wide morph type via defaultMorphKeyType().
+     * Sets the worker-wide morph type via defaultMorphKeyType().
      */
+    #[BootOnly]
     public static function morphUsingUuids(): void
     {
         static::defaultMorphKeyType('uuid');
@@ -126,8 +131,9 @@ class Builder
     /**
      * Set the default morph key type for migrations to ULIDs.
      *
-     * Boot-only. Sets the worker-wide morph type via defaultMorphKeyType().
+     * Sets the worker-wide morph type via defaultMorphKeyType().
      */
+    #[BootOnly]
     public static function morphUsingUlids(): void
     {
         static::defaultMorphKeyType('ulid');

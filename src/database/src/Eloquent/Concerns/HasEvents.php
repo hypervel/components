@@ -11,6 +11,9 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Events\NullDispatcher;
 use Hypervel\Events\QueuedClosure;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use InvalidArgumentException;
 use ReflectionClass;
@@ -75,14 +78,15 @@ trait HasEvents
     /**
      * Register observers with the model.
      *
-     * Boot-only. Observer listeners are registered on the worker-wide event
-     * dispatcher and persist for the worker lifetime; runtime use leaks
-     * listeners across every subsequent request.
+     * Observer listeners are registered on the worker-wide event dispatcher
+     * and persist for the worker lifetime; runtime use leaks listeners
+     * across every subsequent request.
      *
      * @param array<class-string>|class-string|object $classes
      *
      * @throws InvalidArgumentException
      */
+    #[BootOnly]
     public static function observe(object|array|string $classes): void
     {
         $instance = new static;
@@ -95,10 +99,15 @@ trait HasEvents
     /**
      * Register a single observer with the model.
      *
+     * Observer listeners persist on the worker-wide event dispatcher for the
+     * worker lifetime; runtime use leaks listeners across every subsequent
+     * request.
+     *
      * @param class-string|object $class
      *
      * @throws InvalidArgumentException
      */
+    #[BootOnly]
     protected function registerObserver(object|string $class): void
     {
         $className = $this->resolveObserverClassName($class);
@@ -193,8 +202,12 @@ trait HasEvents
     /**
      * Register a model event with the dispatcher.
      *
+     * Listener persists on the worker-wide event dispatcher for the worker
+     * lifetime; runtime use leaks listeners across every subsequent request.
+     *
      * @param array|callable|class-string|QueuedClosure $callback
      */
+    #[BootOnly]
     protected static function registerModelEvent(string $event, mixed $callback): void
     {
         if (isset(static::$dispatcher)) {
@@ -267,12 +280,12 @@ trait HasEvents
     /**
      * Register a retrieved model event with the dispatcher.
      *
-     * Boot-only. Listener persists on the worker-wide event dispatcher for the
-     * worker lifetime; runtime use leaks listeners across every subsequent
-     * request.
+     * Listener persists on the worker-wide event dispatcher for the worker
+     * lifetime; runtime use leaks listeners across every subsequent request.
      *
      * @param array|callable|class-string|QueuedClosure $callback
      */
+    #[BootOnly]
     public static function retrieved(mixed $callback): void
     {
         static::registerModelEvent('retrieved', $callback);
@@ -281,12 +294,12 @@ trait HasEvents
     /**
      * Register a saving model event with the dispatcher.
      *
-     * Boot-only. Listener persists on the worker-wide event dispatcher for the
-     * worker lifetime; runtime use leaks listeners across every subsequent
-     * request.
+     * Listener persists on the worker-wide event dispatcher for the worker
+     * lifetime; runtime use leaks listeners across every subsequent request.
      *
      * @param array|callable|class-string|QueuedClosure $callback
      */
+    #[BootOnly]
     public static function saving(mixed $callback): void
     {
         static::registerModelEvent('saving', $callback);
@@ -295,12 +308,12 @@ trait HasEvents
     /**
      * Register a saved model event with the dispatcher.
      *
-     * Boot-only. Listener persists on the worker-wide event dispatcher for the
-     * worker lifetime; runtime use leaks listeners across every subsequent
-     * request.
+     * Listener persists on the worker-wide event dispatcher for the worker
+     * lifetime; runtime use leaks listeners across every subsequent request.
      *
      * @param array|callable|class-string|QueuedClosure $callback
      */
+    #[BootOnly]
     public static function saved(mixed $callback): void
     {
         static::registerModelEvent('saved', $callback);
@@ -309,12 +322,12 @@ trait HasEvents
     /**
      * Register an updating model event with the dispatcher.
      *
-     * Boot-only. Listener persists on the worker-wide event dispatcher for the
-     * worker lifetime; runtime use leaks listeners across every subsequent
-     * request.
+     * Listener persists on the worker-wide event dispatcher for the worker
+     * lifetime; runtime use leaks listeners across every subsequent request.
      *
      * @param array|callable|class-string|QueuedClosure $callback
      */
+    #[BootOnly]
     public static function updating(mixed $callback): void
     {
         static::registerModelEvent('updating', $callback);
@@ -323,12 +336,12 @@ trait HasEvents
     /**
      * Register an updated model event with the dispatcher.
      *
-     * Boot-only. Listener persists on the worker-wide event dispatcher for the
-     * worker lifetime; runtime use leaks listeners across every subsequent
-     * request.
+     * Listener persists on the worker-wide event dispatcher for the worker
+     * lifetime; runtime use leaks listeners across every subsequent request.
      *
      * @param array|callable|class-string|QueuedClosure $callback
      */
+    #[BootOnly]
     public static function updated(mixed $callback): void
     {
         static::registerModelEvent('updated', $callback);
@@ -337,12 +350,12 @@ trait HasEvents
     /**
      * Register a creating model event with the dispatcher.
      *
-     * Boot-only. Listener persists on the worker-wide event dispatcher for the
-     * worker lifetime; runtime use leaks listeners across every subsequent
-     * request.
+     * Listener persists on the worker-wide event dispatcher for the worker
+     * lifetime; runtime use leaks listeners across every subsequent request.
      *
      * @param array|callable|class-string|QueuedClosure $callback
      */
+    #[BootOnly]
     public static function creating(mixed $callback): void
     {
         static::registerModelEvent('creating', $callback);
@@ -351,12 +364,12 @@ trait HasEvents
     /**
      * Register a created model event with the dispatcher.
      *
-     * Boot-only. Listener persists on the worker-wide event dispatcher for the
-     * worker lifetime; runtime use leaks listeners across every subsequent
-     * request.
+     * Listener persists on the worker-wide event dispatcher for the worker
+     * lifetime; runtime use leaks listeners across every subsequent request.
      *
      * @param array|callable|class-string|QueuedClosure $callback
      */
+    #[BootOnly]
     public static function created(mixed $callback): void
     {
         static::registerModelEvent('created', $callback);
@@ -365,12 +378,12 @@ trait HasEvents
     /**
      * Register a replicating model event with the dispatcher.
      *
-     * Boot-only. Listener persists on the worker-wide event dispatcher for the
-     * worker lifetime; runtime use leaks listeners across every subsequent
-     * request.
+     * Listener persists on the worker-wide event dispatcher for the worker
+     * lifetime; runtime use leaks listeners across every subsequent request.
      *
      * @param array|callable|class-string|QueuedClosure $callback
      */
+    #[BootOnly]
     public static function replicating(mixed $callback): void
     {
         static::registerModelEvent('replicating', $callback);
@@ -379,12 +392,12 @@ trait HasEvents
     /**
      * Register a deleting model event with the dispatcher.
      *
-     * Boot-only. Listener persists on the worker-wide event dispatcher for the
-     * worker lifetime; runtime use leaks listeners across every subsequent
-     * request.
+     * Listener persists on the worker-wide event dispatcher for the worker
+     * lifetime; runtime use leaks listeners across every subsequent request.
      *
      * @param array|callable|class-string|QueuedClosure $callback
      */
+    #[BootOnly]
     public static function deleting(mixed $callback): void
     {
         static::registerModelEvent('deleting', $callback);
@@ -393,12 +406,12 @@ trait HasEvents
     /**
      * Register a deleted model event with the dispatcher.
      *
-     * Boot-only. Listener persists on the worker-wide event dispatcher for the
-     * worker lifetime; runtime use leaks listeners across every subsequent
-     * request.
+     * Listener persists on the worker-wide event dispatcher for the worker
+     * lifetime; runtime use leaks listeners across every subsequent request.
      *
      * @param array|callable|class-string|QueuedClosure $callback
      */
+    #[BootOnly]
     public static function deleted(mixed $callback): void
     {
         static::registerModelEvent('deleted', $callback);
@@ -407,9 +420,10 @@ trait HasEvents
     /**
      * Remove all the event listeners for the model.
      *
-     * Boot or tests only. Removes listeners from the worker-wide event
-     * dispatcher; concurrent coroutines lose model events mid-request.
+     * Removes listeners from the worker-wide event dispatcher;
+     * concurrent coroutines lose model events mid-request.
      */
+    #[BootOrTestsOnly]
     public static function flushEventListeners(): void
     {
         if (! isset(static::$dispatcher)) {
@@ -455,9 +469,10 @@ trait HasEvents
     /**
      * Set the event dispatcher instance.
      *
-     * Boot-only. The dispatcher persists in a static property for the worker
-     * lifetime and is used by every model event firing across all coroutines.
+     * The dispatcher persists in a static property for the worker lifetime
+     * and is used by every model event firing across all coroutines.
      */
+    #[BootOnly]
     public static function setEventDispatcher(Dispatcher $dispatcher): void
     {
         static::$dispatcher = $dispatcher;
@@ -466,9 +481,10 @@ trait HasEvents
     /**
      * Unset the event dispatcher for models.
      *
-     * Tests only. Clears the worker-wide event dispatcher shared by every
-     * coroutine; concurrent model operations will not fire events.
+     * Clears the worker-wide event dispatcher shared by every coroutine;
+     * concurrent model operations will not fire events.
      */
+    #[TestsOnly]
     public static function unsetEventDispatcher(): void
     {
         static::$dispatcher = null;
