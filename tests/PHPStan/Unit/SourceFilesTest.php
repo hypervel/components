@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\PHPStan\Unit;
 
 use Hypervel\PHPStan\Reflection\SourceFiles;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Tests\PHPStan\Fixtures\SourceFiles\EnumCaseDefault;
+use Hypervel\Tests\PHPStan\Fixtures\SourceFiles\MarkedMethod;
 use Hypervel\Tests\PHPStan\Fixtures\SourceFiles\SelfReferencingConstants;
 use Hypervel\Tests\PHPStan\Fixtures\SourceFiles\UntypedWithoutDefault;
 use Hypervel\Tests\PHPStan\Fixtures\SourceFiles\Visibility;
@@ -35,6 +37,18 @@ class SourceFilesTest extends PHPStanTestCase
         $this->assertSame(
             [(string) $class->getFileName(), (string) $reflectionProvider->getClass(Visibility::class)->getFileName()],
             SourceFiles::forInstance($reflectionProvider, $class, null),
+        );
+    }
+
+    #[Test]
+    public function itFindsTheFilesOfAMethodAttributesArguments(): void
+    {
+        $reflectionProvider = $this->createReflectionProvider();
+        $class = $reflectionProvider->getClass(MarkedMethod::class);
+
+        $this->assertSame(
+            [(string) $reflectionProvider->getClass(Visibility::class)->getFileName()],
+            SourceFiles::forAttributeArguments($reflectionProvider, $class, Unsupported::class, 'handle'),
         );
     }
 
