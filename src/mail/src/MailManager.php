@@ -24,6 +24,9 @@ use Hypervel\Mail\Transport\ResendTransport;
 use Hypervel\Mail\Transport\SesV2Transport;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Aws\SerializedCredentialProvider;
 use Hypervel\Support\ConfigurationUrlParser;
 use Hypervel\Support\Str;
@@ -702,8 +705,9 @@ class MailManager implements FactoryContract
     /**
      * Set the default mail driver name.
      *
-     * Boot-only. Mutates process-global config; per-request use races across coroutines.
+     * Mutates process-global config; per-request use races across coroutines.
      */
+    #[BootOnly]
     public function setDefaultDriver(UnitEnum|string $name): void
     {
         $name = $name instanceof UnitEnum ? (string) enum_value($name) : $name;
@@ -714,9 +718,8 @@ class MailManager implements FactoryContract
     /**
      * Disconnect the given mailer and close its shared transport pool.
      *
-     * Boot or tests only, plus operational recovery of broken pooled
-     * resources. Other mailers sharing the pool transparently acquire a fresh
-     * pool on their next operation.
+     * Use this to recover broken pooled resources. Other mailers sharing the
+     * pool transparently acquire a fresh pool on their next operation.
      */
     public function purge(UnitEnum|string|null $name = null): void
     {
@@ -764,12 +767,13 @@ class MailManager implements FactoryContract
     /**
      * Register a custom driver creator Closure.
      *
-     * Boot-only. The callback persists in the singleton's customCreators array
-     * (and the poolable list if $poolable is true) for the worker lifetime and
-     * applies to every subsequent transport resolution.
+     * The callback persists in the singleton's customCreators array (and the
+     * poolable list if $poolable is true) for the worker lifetime and applies
+     * to every subsequent transport resolution.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $driver, Closure $callback, bool $poolable = false): static
     {
         if ($poolable) {
@@ -792,12 +796,13 @@ class MailManager implements FactoryContract
     /**
      * Set the application instance used by the manager.
      *
-     * Tests only. Swaps the singleton's container and configuration references
-     * without rebuilding resolved mailers; per-request use races across
-     * coroutines and breaks every concurrent mail send.
+     * Swaps the singleton's container and configuration references without
+     * rebuilding resolved mailers; per-request use races across coroutines and
+     * breaks every concurrent mail send.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setApplication(Container $app): static
     {
         $this->app = $app;
@@ -809,11 +814,12 @@ class MailManager implements FactoryContract
     /**
      * Forget all of the resolved mailer instances.
      *
-     * Boot or tests only. This is cache-only: pooled transports remain shared
-     * resources until purged or reclaimed by their idle TTL.
+     * This is cache-only: pooled transports remain shared resources until
+     * purged or reclaimed by their idle TTL.
      *
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetMailers(): static
     {
         $this->mailers = [];

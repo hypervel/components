@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue;
 
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Traits\ReadsClassAttributes;
 use UnitEnum;
 
@@ -135,11 +136,12 @@ class QueueRoutes
     /**
      * Register the queue route for the given class.
      *
-     * Boot-only. The route persists on the singleton registry for the worker
-     * lifetime and affects every subsequent dispatch of that class.
+     * The route persists on the singleton registry for the worker lifetime
+     * and affects every subsequent dispatch of that class.
      *
      * @param array<class-string, array{null|string|UnitEnum, null|string|UnitEnum}|string|UnitEnum>|class-string $class
      */
+    #[BootOnly(whenShared: true)]
     public function set(array|string $class, UnitEnum|string|null $queue = null, UnitEnum|string|null $connection = null): void
     {
         $routes = is_array($class) ? $class : [$class => [$connection, $queue]];
@@ -157,11 +159,12 @@ class QueueRoutes
     /**
      * Register a forward for the given queue.
      *
-     * Boot-only. Forwards persist on the singleton registry for the worker
-     * lifetime and affect every subsequent dispatch and queue operation.
+     * Forwards persist on the singleton registry for the worker lifetime
+     * and affect every subsequent dispatch and queue operation.
      *
      * @param array<array-key, string|UnitEnum>|string|UnitEnum $queue
      */
+    #[BootOnly(whenShared: true)]
     public function forward(UnitEnum|array|string $queue, UnitEnum|string|null $to = null, UnitEnum|string|null $connection = null): void
     {
         $forwards = is_array($queue) ? $queue : [enum_value($queue) => $to];

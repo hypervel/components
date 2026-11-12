@@ -7,6 +7,8 @@ namespace Hypervel\Pipeline;
 use Closure;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Pipeline\Hub as HubContract;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use InvalidArgumentException;
 
 class Hub implements HubContract
@@ -32,11 +34,11 @@ class Hub implements HubContract
     /**
      * Define the default named pipeline.
      *
-     * Boot-only. The callback persists on the singleton Hub for the worker
-     * lifetime and is executed on every subsequent Hub::pipe() call that does
-     * not specify a pipeline name. Per-request registration races across
-     * coroutines.
+     * The callback persists on the singleton Hub for the worker lifetime and
+     * is executed on every subsequent Hub::pipe() call that does not specify
+     * a pipeline name. Per-request registration races across coroutines.
      */
+    #[BootOnly(whenShared: true)]
     public function defaults(Closure $callback): void
     {
         $this->pipeline('default', $callback);
@@ -45,10 +47,11 @@ class Hub implements HubContract
     /**
      * Define a new named pipeline.
      *
-     * Boot-only. The callback persists on the singleton Hub for the worker
-     * lifetime and is executed on every subsequent Hub::pipe() call for this
-     * name. Per-request registration races across coroutines.
+     * The callback persists on the singleton Hub for the worker lifetime and
+     * is executed on every subsequent Hub::pipe() call for this name.
+     * Per-request registration races across coroutines.
      */
+    #[BootOnly(whenShared: true)]
     public function pipeline(string $name, Closure $callback): void
     {
         $this->pipelines[$name] = $callback;
@@ -83,12 +86,13 @@ class Hub implements HubContract
     /**
      * Set the container instance used by the hub.
      *
-     * Tests only. Swaps the container on the singleton Hub used by every
-     * coroutine; per-request use races across coroutines and breaks every
-     * concurrent pipeline dispatch.
+     * Swaps the container on the singleton Hub used by every coroutine;
+     * per-request use races across coroutines and breaks every concurrent
+     * pipeline dispatch.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setContainer(Container $container): static
     {
         $this->container = $container;

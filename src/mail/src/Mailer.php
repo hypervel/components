@@ -19,6 +19,7 @@ use Hypervel\Database\ConnectionResolver;
 use Hypervel\Mail\Events\MessageSending;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\Mailables\Address;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
@@ -78,10 +79,11 @@ class Mailer implements MailerContract, MailQueueContract
     /**
      * Set the global from address and name.
      *
-     * Boot-only. Mutates the shared Mailer's global from; per-request use
-     * races across coroutines and applies the change to every subsequent
+     * Mutates the shared Mailer's global from; per-request use races
+     * across coroutines and applies the change to every subsequent
      * message.
      */
+    #[BootOnly(whenShared: true)]
     public function alwaysFrom(string $address, ?string $name = null): void
     {
         $this->from = ['address' => $address, 'name' => $name];
@@ -90,10 +92,10 @@ class Mailer implements MailerContract, MailQueueContract
     /**
      * Set the global reply-to address and name.
      *
-     * Boot-only. Mutates the shared Mailer's global reply-to; per-request use
-     * races across coroutines and applies the change to every subsequent
-     * message.
+     * Mutates the shared Mailer's global reply-to; per-request use races
+     * across coroutines and applies the change to every subsequent message.
      */
+    #[BootOnly(whenShared: true)]
     public function alwaysReplyTo(string $address, ?string $name = null): void
     {
         $this->replyTo = ['address' => $address, 'name' => $name];
@@ -102,10 +104,10 @@ class Mailer implements MailerContract, MailQueueContract
     /**
      * Set the global return path address.
      *
-     * Boot-only. Mutates the shared Mailer's global return path; per-request
-     * use races across coroutines and applies the change to every subsequent
-     * message.
+     * Mutates the shared Mailer's global return path; per-request use races
+     * across coroutines and applies the change to every subsequent message.
      */
+    #[BootOnly(whenShared: true)]
     public function alwaysReturnPath(string $address): void
     {
         $this->returnPath = ['address' => $address];
@@ -114,10 +116,11 @@ class Mailer implements MailerContract, MailQueueContract
     /**
      * Set the global to address and name.
      *
-     * Boot-only. Mutates the shared Mailer's global to; once set, Mailer::send()
-     * silently redirects every subsequent email across all coroutines to this
-     * address. Per-request use is never safe.
+     * Mutates the shared Mailer's global to; once set, Mailer::send() silently
+     * redirects every subsequent email across all coroutines to this address.
+     * Per-request use is never safe.
      */
+    #[BootOnly(whenShared: true)]
     public function alwaysTo(string $address, ?string $name = null): void
     {
         $this->to = ['address' => $address, 'name' => $name];
@@ -526,10 +529,11 @@ class Mailer implements MailerContract, MailQueueContract
     /**
      * Set the Symfony Transport instance.
      *
-     * Boot-only. Replaces the transport on the shared Mailer; per-request use
-     * races across coroutines and routes every other coroutine's mail through
-     * the swapped transport.
+     * Replaces the transport on the shared Mailer; per-request use races
+     * across coroutines and routes every other coroutine's mail through the
+     * swapped transport.
      */
+    #[BootOnly(whenShared: true)]
     public function setSymfonyTransport(TransportInterface $transport): void
     {
         $this->transport = $transport;
@@ -538,11 +542,12 @@ class Mailer implements MailerContract, MailQueueContract
     /**
      * Set the queue manager instance.
      *
-     * Boot-only. Replaces the queue factory on the shared Mailer; per-request
-     * use races across coroutines.
+     * Replaces the queue factory on the shared Mailer; per-request use races
+     * across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setQueue(QueueFactory $queue): static
     {
         $this->queue = $queue;

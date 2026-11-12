@@ -34,6 +34,8 @@ use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\Events\JobQueueingCanceled;
 use Hypervel\Queue\Events\JobQueueingFailed;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Context;
@@ -397,10 +399,11 @@ abstract class Queue
     /**
      * Register a callback to be executed when creating job payloads.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every subsequent payload creation across all
-     * coroutines. Passing null clears the registry.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every subsequent payload creation across all coroutines.
+     * Passing null clears the registry.
      */
+    #[BootOnly]
     public static function createPayloadUsing(?callable $callback): void
     {
         if (is_null($callback)) {
@@ -427,9 +430,14 @@ abstract class Queue
     /**
      * Set the dispatcher for after-commit queue operations.
      *
+     * Queue connection instances are cached on QueueManager; replacing the
+     * dispatcher on a shared connection changes every subsequent after-commit
+     * enqueue through it.
+     *
      * @param null|Closure(Closure(Queue): mixed): mixed $dispatcher
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setAfterCommitDispatcher(?Closure $dispatcher): static
     {
         $this->afterCommitDispatcher = $dispatcher;
@@ -999,12 +1007,13 @@ abstract class Queue
     /**
      * Set the connection name for the queue.
      *
-     * Boot or tests only. Queue connection instances are cached on
-     * QueueManager; runtime use races across coroutines and changes every
-     * concurrent dispatch through this connection.
+     * Queue connection instances are cached on QueueManager; runtime use
+     * races across coroutines and changes every concurrent dispatch
+     * through this connection.
      *
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setConnectionName(string $name): static
     {
         $this->connectionName = $name;
@@ -1023,12 +1032,13 @@ abstract class Queue
     /**
      * Set the queue configuration array.
      *
-     * Boot or tests only. Queue connection instances are cached on
-     * QueueManager; runtime use races across coroutines and changes every
-     * concurrent dispatch through this connection.
+     * Queue connection instances are cached on QueueManager; runtime use
+     * races across coroutines and changes every concurrent dispatch
+     * through this connection.
      *
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setConfig(array $config): static
     {
         $this->config = $config;
@@ -1048,10 +1058,11 @@ abstract class Queue
     /**
      * Set the IoC container instance.
      *
-     * Boot or tests only. Queue connection instances are cached on
-     * QueueManager; runtime use races across coroutines and changes every
-     * concurrent dispatch through this connection.
+     * Queue connection instances are cached on QueueManager; runtime use
+     * races across coroutines and changes every concurrent dispatch
+     * through this connection.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setContainer(Container $container): static
     {
         $this->container = $container;

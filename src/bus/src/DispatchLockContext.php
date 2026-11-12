@@ -7,6 +7,7 @@ namespace Hypervel\Bus;
 use Closure;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\BootOnly;
 use Throwable;
 use WeakMap;
 
@@ -51,13 +52,14 @@ class DispatchLockContext
     /**
      * Register a callback that captures the context needed for deferred lock release.
      *
-     * Boot-only. Callbacks persist for the worker lifetime and affect subsequent dispatches.
-     * Return a wrapper that invokes the release operation once and restores the previous
-     * context in finally, or null when no context is needed. The first wrapper is outermost.
-     * Passing null clears registrations; capture runs before acquiring a lock.
+     * Callbacks persist for the worker lifetime and affect subsequent dispatches. Return a
+     * wrapper that invokes the release operation once and restores the previous context in
+     * finally, or null when no context is needed. The first wrapper is outermost. Passing
+     * null clears registrations; capture runs before acquiring a lock.
      *
      * @param null|callable(): (null|Closure(Closure(): void): void) $callback
      */
+    #[BootOnly]
     public static function captureReleaseContextUsing(?callable $callback): void
     {
         if ($callback === null) {

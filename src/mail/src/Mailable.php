@@ -22,6 +22,7 @@ use Hypervel\Mail\Mailer as ConcreteMailer;
 use Hypervel\Queue\Attributes\Connection;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\EncodedHtmlString;
 use Hypervel\Support\HtmlString;
@@ -1717,9 +1718,10 @@ class Mailable implements MailableContract, Renderable
     /**
      * Register a callback to be called while building the view data.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every Mailable render across all coroutines.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every Mailable render across all coroutines.
      */
+    #[BootOnly]
     public static function buildViewDataUsing(callable $callback): void
     {
         static::$viewDataCallback = $callback;

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Mail;
 
 use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\EncodedHtmlString;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Str;
@@ -238,9 +239,10 @@ class Markdown
     /**
      * Register new mail component paths.
      *
-     * Boot-only. Mutates the shared Markdown renderer's component paths; use
-     * scoped view namespaces for per-render component path changes.
+     * Mutates the shared Markdown renderer's component paths; use scoped
+     * view namespaces for per-render component path changes.
      */
+    #[BootOnly(whenShared: true)]
     public function loadComponentsFrom(array $paths = []): void
     {
         $this->componentPaths = $paths;
@@ -249,11 +251,12 @@ class Markdown
     /**
      * Set the default theme to be used.
      *
-     * Boot-only. Mutates the shared Markdown renderer's default theme; pass a
-     * per-render theme to render() for message-specific themes.
+     * Mutates the shared Markdown renderer's default theme; pass a per-render
+     * theme to render() for message-specific themes.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function theme(string $theme): static
     {
         $this->theme = $theme;
@@ -272,9 +275,10 @@ class Markdown
     /**
      * Enable secured encoding when parsing Markdown.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every subsequent Markdown render across all coroutines.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every subsequent Markdown render across all coroutines.
      */
+    #[BootOnly]
     public static function withSecuredEncoding(): void
     {
         static::$withSecuredEncoding = true;
@@ -283,9 +287,10 @@ class Markdown
     /**
      * Disable secured encoding when parsing Markdown.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every subsequent Markdown render across all coroutines.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every subsequent Markdown render across all coroutines.
      */
+    #[BootOnly]
     public static function withoutSecuredEncoding(): void
     {
         static::$withSecuredEncoding = false;

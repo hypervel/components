@@ -46,6 +46,9 @@ use Hypervel\Queue\Events\UniqueJobSkipped;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use Hypervel\Support\RebindsCallbacksToSelf;
 use InvalidArgumentException;
@@ -576,8 +579,9 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Set the default broadcast driver name.
      *
-     * Boot-only. Mutates process-global config; per-request use races across coroutines.
+     * Mutates process-global config; per-request use races across coroutines.
      */
+    #[BootOnly]
     public function setDefaultDriver(UnitEnum|string $name): void
     {
         $name = $name instanceof UnitEnum ? (string) enum_value($name) : $name;
@@ -588,9 +592,9 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Disconnect the given driver and remove it from the local cache.
      *
-     * Boot or tests only, plus operational recovery for pooled drivers.
-     * Mercure and explicitly pooled drivers also close their shared pools.
-     * Other connections sharing a pool acquire a fresh one on their next operation.
+     * Use this to recover broken pooled resources. Mercure and explicitly
+     * pooled drivers also close their shared pools. Other connections sharing
+     * a pool acquire a fresh one on their next operation.
      */
     public function purge(UnitEnum|string|null $name = null): void
     {
@@ -640,12 +644,12 @@ class BroadcastManager implements BroadcastingFactoryContract
      * Anonymous closures run in this manager's class scope; non-static closures
      * also receive the manager as $this.
      *
-     * Boot-only. The callback persists in the singleton's customCreators array
-     * for the worker lifetime and applies to every subsequent broadcaster
-     * resolution.
+     * The callback persists in the singleton's customCreators array for the
+     * worker lifetime and applies to every subsequent broadcaster resolution.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $driver, Closure $callback): static
     {
         try {
@@ -679,12 +683,13 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Set the application instance used by the manager.
      *
-     * Tests only. Swaps the singleton's container reference; per-request use
-     * races across coroutines and breaks every concurrent request resolving
+     * Swaps the singleton's container reference; per-request use races
+     * across coroutines and breaks every concurrent request resolving
      * broadcasters through this manager.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setApplication(Container $app): static
     {
         $this->app = $app;
@@ -695,11 +700,12 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Forget all of the resolved driver instances.
      *
-     * Boot or tests only. This is cache-only: pooled broadcasters remain
-     * shared resources until purged or reclaimed by their idle TTL.
+     * This is cache-only: pooled broadcasters remain shared resources
+     * until purged or reclaimed by their idle TTL.
      *
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetDrivers(): static
     {
         $this->drivers = [];
