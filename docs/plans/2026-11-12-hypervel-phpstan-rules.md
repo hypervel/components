@@ -6,6 +6,8 @@ Branch: `feature/phpstan-hypervel-rules`. This PR builds on PR 1 (`docs/plans/20
 Owner-approved:
 - `Container::resolvedShared()` on the container contract, with facade roots from non-shared bindings becoming coroutine-local;
 - binding `date` in `FoundationServiceProvider`, so a `Date` facade subclass overriding `DEFAULT_FACADE` needs an explicit `date` binding;
+- narrowing the connection resolver contract to `Connection` (section 1.5);
+- config value types only for the application's repository (section 3.9);
 - the `AGENTS.md` edits in section 6.
 
 After implementation and signoff, show the owner each section 6 `AGENTS.md` change before and after in chat.
@@ -159,6 +161,22 @@ How the lookup behaves:
 - `Connection::withPinnedSession()` is already typed.
 - Run `composer analyse` and fix newly exposed caller types at their source.
 
+### 1.5 Connection resolver contract
+
+**Why.** `ConnectionResolverInterface::connection()` declared `ConnectionInterface`, but `Model::resolveConnection()`, `Migrator::resolveConnection()` and `DatabaseManager::reconnect()` return `Connection` and carried ignores for it. Built-in and `DB::extend()` connections all come from `makeConnection(): Connection`, so a resolver returning anything else already breaks Eloquent. Laravel's contract documents `ConnectionInterface`, so this is a documented difference.
+
+- Narrow to the driver-neutral `Connection`, never `PdoConnection`:
+  - `ConnectionResolverInterface::connection()` and `CachedConnectionResolver::getResolvedConnection()`;
+  - `ConnectionResolver`'s `connection()`, `getHeldConnection()`, private context reader and stored-instance checks;
+  - `SimpleConnectionResolver::connection()`, and `DatabaseManager`'s `connection()`, `getHeldConnection()` and `resolveConnectionDirectly()`;
+  - Capsule `connection()`/`getConnection()`, and the testing `DatabaseConnectionResolver`, including its retained connections;
+  - the `DB` facade's `connection`/`getHeldConnection` tags. Its `@mixin ConnectionInterface` stays, since it supplies `transactionLevel()`'s impurity.
+- Remove what the types make redundant: the `Model`, `Migrator` and `reconnect()` ignores, the manager's `@var Connection` casts, and `instanceof Connection` checks on values already typed `Connection`, including the `forgetRecordModificationState()` guards in the `RefreshDatabase` and `DatabaseTransactions` testing traits.
+- Narrow the queue accessors that return a resolver connection, `DatabaseQueue::getDatabase()` (Laravel documents `Connection`) and `DatabaseOutboxRepository::getConnection()`, to `Connection`, and remove their `instanceof Connection` guards before `supportsSkipLocked()`. Independently supplied `ConnectionInterface` inputs, such as outbox `insert()`, stay. `testLockForPoppingUsesTheConnectionCapability()` covers both `supportsSkipLocked()` results; the interface-only fallback test goes, since a resolver can't return such a connection.
+- Test doubles crossing the narrowed boundary mock `Connection`; ones passed straight to a `ConnectionInterface` parameter stay. Non-PDO cases keep a base `Connection` double.
+- Docs: a `src/database/README.md` "Differences From Laravel" bullet and a porting-guide database paragraph. Custom resolvers return a `Connection`, and test doubles returned from `connection()` mock `Connection`.
+- It's a runtime change, so it gets its own commit, including the queue accessors and their tests.
+
 ## 2. Shared analysis infrastructure
 
 ### 2.1 Facade roots
@@ -244,8 +262,8 @@ New `src/phpstan/src/Support/FacadeHelper.php`, an `@internal` `#[AutowiredServi
 - Each `static-analysis.md` section states the pattern, a short example, the fix and the legitimate exception (ignore with a reason), in Laravel-docs prose.
 
 **Rules that identify calls** share these requirements:
-- Creating a first-class callable (`$factory->globalOptions(...)`) isn't a call and is never reported.
-- A call is matched by its resolved declaration, through nullsafe calls too, with PHP's case-insensitive names. A user override or custom implementation is judged by its own declaration; config, container and facade methods are recognized by declaring class, not by name.
+- Creating a first-class callable (`$factory->globalOptions(...)`) isn't a call and is never reported. PHPStan passes rules a `*CallableNode` instead of the call node, so only code reading nested raw nodes (a statement's expression, a walked callback) checks `isFirstClassCallable()`.
+- A call is matched by its resolved declaration, through nullsafe calls too, with PHP's case-insensitive names. A user override or custom implementation is judged by its own declaration, so its body is unknown; config, container and facade methods are recognized by exact declaring class, not by name or ancestry. A facade subclass's own native method is such an override.
 - Arguments bind to parameters by name or position (`CallLike::getArg($name, $position)`). An unpacked argument at or before the parameter's position makes the binding unknown; it's never guessed positionally.
 
 **Cache dependencies** use the existing `RuntimeInputs` and scope tracking, never a new mechanism:
@@ -267,7 +285,7 @@ Warm-cache tests go in `tests/PHPStan/WorkerStateDependencyTest.php`, one per me
 | 3.1 | `Rules/Coroutine/RestrictedAttributeRule` | `hypervel.restrictedAttribute` | `checkRestrictedCalls` (true) |
 | 3.2 | `Rules/UnsupportedCallRule` | `hypervel.unsupportedCall` | none |
 | 3.3 | `Rules/Coroutine/BorrowedResourceEscapeRule` | `hypervel.borrowedResourceEscape` | `checkBorrowedResources` (true) |
-| 3.4 | `Rules/Coroutine/ManagedTransactionRule` | `hypervel.transactionEndedEarly` | `checkManagedTransactions` (true) |
+| 3.4 | `Rules/ManagedTransactionRule` | `hypervel.transactionEndedEarly` | `checkManagedTransactions` (true) |
 | 3.5 | `Rules/NoNativeRequestApisRule` | `hypervel.nativeRequestApi` | `noNativeRequestApis` (true) |
 | 3.6 | `Rules/DiscardedDateRule` | `hypervel.discardedDate` | `checkDiscardedDates` (true) |
 | 3.7 | `Rules/NoMutableDatesRule` | `hypervel.mutableDate` | `noMutableDates` (true) |
@@ -330,54 +348,63 @@ Warm-cache tests go in `tests/PHPStan/WorkerStateDependencyTest.php`, one per me
 
 ### 3.3 Borrowed resource escape
 
-**Applies** inside the callback of:
-- `RedisProxy::withConnection()` and `StoreContext::withConnection()` (raw handle `RedisConnection::client()`);
-- `QueuePoolProxy::withConnection()` (`SqsQueue::getSqs()`);
-- pooled-disk `withDriver()`/`withAdapter()`/`withClient()` (`InteractsWithPooledFilesystem`; plain `FilesystemAdapter` is skipped by its type);
-- inside `Connection::withPinnedSession()`, `getPdo()`/`getReadPdo()` called on the same connection.
+A per-node rule on the lending call: it reads the callback literal (closure or arrow function) as written, since PHPStan's scope doesn't track aliases.
 
-Raw-handle methods are matched on their owning classes.
+**Applies** inside the callback of these methods, matched by resolved declaring class (a user override or same-named method is skipped):
+- `RedisProxy::withConnection()` (and the `Redis` facade's) and `StoreContext::withConnection()`: raw handle `client()`;
+- `QueuePoolProxy::withConnection()`: `getSqs()`;
+- `withDriver()`/`withAdapter()`/`withClient()` declared by `FilesystemPoolProxy` or `ClientPooledFilesystem` (the `InteractsWithPooledFilesystem` users); a plain `FilesystemAdapter` lends its own driver;
+- `Connection::withPinnedSession()` (and the `DB` facade's): `getPdo()`/`getReadPdo()` on the same connection, which is a variable the callback receives and never reassigns, `$this`, or `DB::` statics for a `DB::` pin. Other owner forms are unknown, so silent. A `DB::connection('x')` pin isn't followed: the callback receives nothing, and `connection()`'s driver-neutral `Connection` has no PDO getters, so code taking a PDO narrows the connection into a variable first, which the variable form covers.
 
-**Reports** when the borrowed parameter, or a direct local alias or raw handle taken from it, is:
-- returned;
-- assigned to a `$this`/static property (including array dimensions) or to a by-reference `use` variable;
-- captured by a closure passed to a spawn that can outlive the callback:
-  - `go()`, `co()`, `Coroutine::create()`, `fork()`, `createOwned()`, `forkOwned()`, `defer()`, and the Engine and Swoole create;
-  - `parallel()`, `Parallel::add()` and `Concurrency::run()`. When the owner is canceled, `Parallel` cancels its children synchronously but doesn't join them, so a child whose cleanup yields can still be running after the callback returns. The `Concurrency` coroutine driver uses `Parallel`, and the driver is configuration, so every `Concurrency::run()` counts;
-  - `wait()`/`Waiter::wait()` unless `waitForChildTermination` is the constant `true`. By default a timed-out or canceled wait stops waiting after the cleanup allowance while the child runs on.
+Raw handles are recognized only on the lent parameter or its aliases, whose class the lending method fixes. A pinned session's PDO getters count only through the framework's declarations (`runsConnectionMethod()`, which includes `PdoConnection`), so a facade subclass's or connection subclass's own `getPdo()` is unknown.
+
+**Tracked values:** the lent parameter, the raw handles taken from it, and local variables assigned only tracked values (order-independent; a variable with any other write isn't tracked). Nested non-spawn closures are walked too, receiving tracked variables through `use` or arrow-function capture; their returns stay inside the callback.
+
+**Reports** when a tracked value is:
+- returned from the callback (including an arrow function's body);
+- assigned to a `$this`/static property (including array dimensions and nested properties) or to the callback's by-reference `use` variable;
+- captured by a closure passed to a spawn that can outlive the callback. A closure counts when passed directly, in an array literal, or through a local variable or array assigned it (`$tasks[] = fn () => …; parallel($tasks)`):
+  - `go()`, `co()`, `Coroutine::create()`/`fork()`/`createOwned()`/`forkOwned()`/`defer()`, the Engine and Swoole `create()`/`defer()`, Swoole's `go()`/`defer()` functions, the `defer()` helpers, `Concurrent`/`WaitConcurrent` `create()`/`fork()`, and coordinator `Timer::after()`/`tick()`/`until()`;
+  - `parallel()`, `Parallel::add()`, and `run()`/`defer()` on the `Concurrency` facade, the `Driver` contract, `CoroutineDriver` and `ProcessDriver`, plus `SyncDriver::defer()`. When the owner is canceled, `Parallel` cancels its children synchronously but doesn't join them, so a child whose cleanup yields can still be running after the callback returns. The `Concurrency` coroutine driver uses `Parallel`, and the driver is configuration, so every facade `run()` counts;
+  - `wait()`/`Waiter::wait()` unless `waitForChildTermination` is a constant true expression. By default a timed-out or canceled wait stops waiting after the cleanup allowance while the child runs on. An expression with variables is unknown, since the lending call's scope doesn't know the callback's own variables.
+- Spawning methods match by exact declaring class: an override, such as a `Parallel` subclass's own `add()`, runs its own body.
+- An instance spawn's receiver class comes from a local assigned only `new X`, or from the lending call's scope for an expression using only `$this` and variables the callback receives unchanged.
 
 **Not reported:**
 - local holders used inside the callback;
-- `wait()`/`Waiter::wait()` with `waitForChildTermination: true`, which waits for the child to terminate on every exit, including the owner's cancellation;
+- `wait()`/`Waiter::wait()` with a constant true `waitForChildTermination`, which waits for the child to terminate on every exit, including the owner's cancellation;
 - results, proxies and streams.
 
-**Tests:** each source and escape kind, including `parallel()`; the non-escapes, with `wait(..., waitForChildTermination: true)` against the default `wait()`; and a same-named user method.
+**Tests:** each source and escape kind, including `parallel()` directly and through `$tasks[]`, `Parallel::add()` on a local, a property and an inheriting subclass, `Timer::after()`, `Concurrent::create()`, `Storage::disk('s3')`, and a nested closure's spawn; the non-escapes, with `wait(..., waitForChildTermination: true)` and a true class constant against the default `wait()` and a callback-local variable, `SyncDriver::run()`, a `Parallel` subclass overriding `add()`, a reassigned alias and owner, a nested closure's return, and a same-named user method; a facade subclass's and a connection subclass's own `getPdo()` (silent).
 
 ### 3.4 Managed transaction ended early
 
-**Applies** inside a closure passed to `transaction()`, recognized as `JobDispatchedInTransactionUsesAfterCommitRule::isTransactionCall()` does. Both rules share it:
-- move `isTransactionCall()` into a new `Concerns/InspectsTransactions` trait used by both rules;
+**Applies** inside a closure passed to the framework's `transaction()`. Both this rule and `JobDispatchedInTransactionUsesAfterCommitRule` recognize it the same way:
+- a new `Concerns/InspectsConnections` trait holds:
+  - `getTransactionReceiverType()` (replacing the queue rule's `isTransactionCall()`), which gives the connection or `DB` facade type when its `transaction()` resolves to `ConnectionInterface`, `Connection` (the `ManagesTransactions` trait) or the `DB` facade;
+  - `runsConnectionMethod()`, the same declaration check for any method. The framework declarations are `ConnectionInterface`, `Connection`, `DatabaseManager` and `DB`: PHPStan's facade stub resolves `DB::connection()` through its `@mixin DatabaseManager`. An override, including a `DB` facade subclass's own static method, is unknown;
+  - `isFacadeConnectionCall()`, a `DB::connection()` call running the framework's `connection()`, and `getConnectionName()`, the key of a literal `DB::connection('x')` call. The queue rule's `getTransactionConnection()` uses `isFacadeConnectionCall()` too, and `BorrowedResourceEscapeRule` uses `runsConnectionMethod()` for its PDO getters;
 - move the `isFacade()` it calls from `InspectsQueuedJobs` to a public static `ReflectionHelper::isFacade()`, since it's a pure name check; its callers in `InspectsQueuedJobs` and the queue rule call it there.
 
-**Owner identity.** A transaction-control call (`beginTransaction()`, `commit()`, `rollBack()` declared by `ConnectionInterface`, or the `DB` facade equivalents) belongs to the managed transaction when its receiver has the same identity as the `transaction()` call's:
+**Owner identity.** A transaction-control call (`beginTransaction()`, `commit()`, `rollBack()`) belongs to the managed transaction when its receiver has the same identity as the `transaction()` call's. It counts only through the framework declarations, resolved on the transaction's receiver type for the callback's owner variables; an overriding control method makes the rest uncertain. Identity:
 - the closure's first parameter, which `ManagesTransactions::transaction()` passes as the connection itself (`$callback($this)`), matches any form;
 - a captured variable matches the same variable when the closure doesn't reassign it before the call;
 - `DB::` static calls match `DB::` static calls (both the default connection);
 - `DB::connection('x')` matches the same literal name.
 
-Anything else is unknown, and unknown owners never match each other. A call on an unknown or different-form owner that may be the same connection (`DB::connection('mysql')->commit()` inside `DB::transaction()`) makes the rest uncertain rather than resolving configured names.
+Anything else is unknown, and unknown owners never match each other. A call on an unknown or different-form owner that may be the same connection (`DB::connection('mysql')->commit()` inside `DB::transaction()`) makes the rest uncertain rather than resolving configured names. A receiver whose classes are all known and none is a `ConnectionInterface` isn't a control call; PHPStan's "maybe" for a non-final class isn't enough to make it uncertain. A variable's identity ends at the first top-level statement that assigns it.
 
-**Walk.** The rule walks the closure's top-level statements in order, with a depth counter starting at 0:
+**Walk.** The rule (a per-node rule on the `transaction()` call; the walk reads the callback literal) walks the closure's top-level statements in order (an arrow function's body is one returned statement), with a depth counter starting at 0:
 - `beginTransaction()` adds one; `commit()`, `rollBack()` and `rollBack(null)` remove one.
 - A nested function-like is skipped without clearing the facts.
-- An `if`, loop, `switch`, `match` or `try`, an unpacked argument, or a `rollBack()` level other than a constant `null` or `0` makes the rest uncertain, so it goes silent. The rule doesn't model what `rollBack(N)` does, since the entry level is unknown.
+- An `if`, loop, `switch` or `try` containing a control call, a control call under a conditional expression (`match`, `?:`, `&&`, `||`, `??`), an unpacked argument, or a `rollBack()` level other than a constant `null` or `0` makes the rest uncertain, so it goes silent. Branches without control calls don't. The rule doesn't model what `rollBack(N)` does, since the entry level is unknown.
 - It stops after a top-level `return` or `throw`.
 
 **Reports:**
 - `commit()`, `rollBack()` or `rollBack(null)` at depth 0;
 - `rollBack(0)` (positional or `toLevel: 0`) anywhere before the walk goes silent.
 
-**Tests:** balanced nested begin/commit; the closure parameter, a captured connection, a reassigned capture (silent) and the `DB` facade; a branch going silent; a statement after `return` (silent); `rollBack(0)` and `rollBack(toLevel: 0)`; `rollBack(2)` (silent); another connection (silent).
+**Tests:** balanced nested begin/commit; the closure parameter, a captured connection, a reassigned capture (silent), the `DB` facade and a `DB::connection('mysql')` pair; a non-connection `commit()` before a reported one; a branch and a ternary going silent; a statement after `return` (silent); `rollBack(0)` and `rollBack(toLevel: 0)`; `rollBack(2)` (silent); another connection (silent); a nested `afterCommit()` closure (silent); an inherited `PdoConnection` (reported), and a connection overriding `transaction()`, one overriding `commit()` and a `DB` facade subclass with its own `transaction()` or `connection()` (silent).
 
 ### 3.5 Native request APIs
 
@@ -398,75 +425,110 @@ Anything else is unknown, and unknown owners never match each other. A call on a
 - `LoadEnvironmentVariables::writeErrorAndDie()` calls `http_response_code(500)`, an FPM leftover from Laravel. It does nothing in Hypervel, which bootstraps from the CLI before any response exists, so remove the line.
 - Horizon `WorkCommand::handle()` calls `ignore_user_abort(true)` for `fast_termination`, as upstream does. In the CLI it stops the worker dying on its next output after its terminal goes away (it doesn't affect signals), so it takes an ignore with that reason.
 
-**Porting guide:** replace the `connection_aborted()` paragraph (`porting-from-laravel.md:555`) with one concise paragraph covering the native header, cookie, status, session, superglobal and connection functions. Keep its streaming replacement sentence and link, and link the static-analysis section.
+**Porting guide:** the "Streamed Responses" section becomes "Native Request Functions" (`#native-request-functions`), one concise paragraph covering the native header, cookie, status, session, superglobal and connection functions. It keeps the streaming replacement sentence and link, and links `static-analysis#native-request-apis`, which section 4 creates.
 
 ### 3.6 Discarded dates
 
-**Reports** a statement-level method call (result unused) on a date receiver, when all of these hold:
-- the method is declared by Carbon (`Carbon\CarbonInterface`, `Carbon\CarbonImmutable`, `Carbon\Carbon`, their traits, or the Hypervel subclasses), natively or by `@method`;
-- it isn't a macro or a user override;
-- its name is on the verified date-value modifier list:
+A per-node rule on `Stmt\Expression`. It **reports** a statement-level method call (result unused, including nullsafe calls and the last call of a chain) on a date receiver, when all of these hold:
+- for every class the receiver may be, Carbon declares the method natively (declaring class `CarbonInterface`, `CarbonImmutable`, `Carbon` or a Hypervel subclass; their traits count) or by an `@method` tag on one of those classes. A native override is judged by its own declaring class. Carbon's `__call()` runs its tagged methods before any macro, so a tagged name is never a macro, and a name only a macro or a user's tag declares is skipped;
+- its name is on the verified date-value modifier list (matched case-insensitively, as PHP calls native methods):
   - prefixes `add*`, `sub*`, `startOf*`, `endOf*`, `next*`, `previous*`, `nth*`, `firstOf*`, `lastOf*`, `round*`, `floor*`, `ceil*`;
-  - exact names `modify`, `change`, `set`, `setUnit`, `setUnitNoOverflow`, `setDate`, `setTime`, `setDateTime`, `setTimestamp`, `setTimezone`, `setISODate`, `setDateFrom`, `setTimeFrom`, `setDateTimeFrom`, `setTimeFromTimeString`, `tz`, `timezone`, `utc`, `shiftTimezone`;
-  - the unit setters `year`, `month`, `day`, `hour`, `minute`, `second`, `millisecond`, `microsecond`, each in its plain, plural, `set` and `set`-plural form (e.g. `years`, `setYear`, `setYears`).
+  - exact names `modify`, `change`, `set`, `setUnit`, `setUnitNoOverflow`, `setDate`, `setTime`, `setDateTime`, `setTimestamp`, `timestamp`, `setTimezone`, `timezone`, `setISODate`, `setDateFrom`, `setTimeFrom`, `setDateTimeFrom`, `setTimeFromTimeString`, `setDaysFromStartOfWeek`, `setAnchorDay`, `utc`, `shiftTimezone`, `midDay`, `average`, `plus`, `minus` (Carbon's tags and `DateHelpers`), `rawAdd`, `rawSub`;
+  - the unit setters of Carbon's `$units` (`year`, `month`, `day`, `hour`, `minute`, `second`, `milli`, `millisecond`, `micro`, `microsecond`), each in its plain, plural, `set` and `set`-plural form (e.g. `years`, `setYear`, `setYears`). They always set: `setUnit()` has no getter form.
 
-**Getter/setters** (`dayOfYear`, `weekday`, `isoWeekday`, `week`, `isoWeek`, `weekYear`, `isoWeekYear`, `dayOfWeek`, `weekOfYear`): reported only when the value argument is supplied and isn't definitely null. A possibly-null value gets the may-message.
+**Getter/setters** act as getters when their first argument is omitted or null: `dayOfYear`, `weekday`, `isoWeekday`, `week`, `isoWeek`, `weekYear`, `isoWeekYear`, `tz`, `utcOffset`, and Carbon's 77 tagged unit-of-unit methods (`dayOfWeek`, `weekOfYear`, …), matched by `/^[a-z]+Of[A-Z][a-z]+$/` after the modifier prefixes, case-sensitively as Carbon dispatches them. Reported only when the value argument is supplied and isn't definitely null; a possibly-null or unpacked value gets the may-message. The value binds by the native parameter name when the method is native: PHPStan merges the `Week` trait's `@method static dayOfYear(int $dayOfYear)` tag into the native `dayOfYear(?int $value)`, but a named argument binds to `$value`.
 
-Option setters (`locale`, `settings`, `setLocalTranslator`, …) never match, because they mutate and return `$this`. No Carbon method is marked pure.
+Option setters (`locale`, `settings`, `setLocalTranslator`) never match, because they mutate and return `$this`. No Carbon method is marked pure.
 
-**Messages:**
-- a definite `DateTimeImmutable`/`CarbonImmutable` receiver: "The result of `addDay()` is discarded; the immutable date is unchanged."
-- a `CarbonInterface` that isn't definitely mutable: "may be immutable; capture the result."
-- Mutable `Carbon` is silent.
+**Receivers:** every class is a `DateTimeImmutable` → definite; every class is a `DateTime` (mutable `Carbon`) → silent; otherwise (`CarbonInterface`, a union) → may.
+
+**Messages** (tip: "Immutable date methods return a new date, so assign the result where it's needed."):
+- definite: "The result of addDay() is discarded, so the immutable date is unchanged."
+- may: "The result of addDay() is discarded, so any change it makes to an immutable date is lost."
 
 Native `DateTimeImmutable` methods are skipped, since PHPStan reports those.
 
-**Tests:** each family on `CarbonImmutable` and `CarbonInterface`, the getter/setter argument cases, option setters, a macro and an override.
+**Tests:** each family on `CarbonImmutable`, plus the Hypervel subclass's tags and `plus()`, a nullsafe call and a chain; `CarbonInterface` and a mutable/immutable union (may); the getter/setter cases (positional, named, possibly null, unpacked, omitted, null, a tagged unit-of-unit method); option setters, a used result and first-class callables (silent); mutable `Carbon` and native `DateTimeImmutable::modify()` (silent); a native override and a macro documented by a user `@method` tag (silent).
 
 ### 3.7 Mutable date creation
 
-**Reports:**
+A per-node rule on `CallLike`. **Reports:**
 - `new Carbon\Carbon`/`new Hypervel\Support\Carbon`;
-- a static call on exactly those classes whose return type is an instance of them (`now()`, `parse()`, `create*()`, `instance()`, …).
+- a static call on exactly those classes, named (not `self`/`static`/`parent`, not a subclass), whose resolved result apart from null and false is a mutable `Carbon` (`now()`, `parse()`, `create*()`, `instance()`, `make()`, …). A void method such as `setTestNow()` leaves no class and is silent, as is `getTestNow()` (`Closure|CarbonInterface|null`).
 
-**Tip:** use `Date::`/`now()`/`CarbonImmutable` (AGENTS "Use immutable dates by default"). Intentional mutable interop or conversion takes an ignore. For example, `HasAttributes`'s `Carbon::instance()` gets an inline ignore with its reason.
+**Message:** "Hypervel\Support\Carbon::now() creates a mutable date." (or "new Carbon\Carbon …"). **Tip:** "Create dates with the Date facade, the now() and today() helpers, or CarbonImmutable." (AGENTS "Use immutable dates by default"). Intentional mutable interop or conversion takes an ignore.
+
+**Framework hits** (checked):
+- `HasAttributes::serializeDate()`'s `Carbon::instance()` takes an inline ignore. The branch isn't dead: `instance()` clones a date that's already a `Hypervel\Support\Carbon`, so a mutable subclass's `toJSON()` applies, which `CarbonImmutable::instance()` would lose.
+- The `types/Database/Eloquent/Casts/Attribute.php` fixture uses `new CarbonImmutable` for its narrower getter.
+
+**Tests:** `new` and static calls on both classes, a finder returning null (`make()`, `createFromFormat()`); `hasTestNow()`, `getTestNow()` and `setTestNow()`, a subclass and its `static::` call, `CarbonImmutable::now()`, `Date::now()`, `now()` and a first-class callable (silent). `IntegrationTest`'s expectations gain the reports for the ported fixtures' deliberate `Carbon::now()` calls (`bug-1744`, `model-properties`).
 
 ### 3.8 Uncast env values
 
-**Reports**, in config files (the `NoEnvCallsOutsideOfConfig` detection of config files), an `env()`/`Env::get()` call with a constant bool, int or float default whose config item's resulting expression type still includes `string`. Checking the resulting type recognizes casts, `filter_var()`, `intval()` and equivalent normalization.
+A rule on PHPStan's `LiteralArrayNode`, using each item's scope. **Reports**, in config files, an `env()`/`Env::get()` read (including an `Env` subclass that inherits `get()`; one overriding it is unknown) whose default is definitely a bool, int or float and whose value reaches an array item's value unchanged: as the item value itself, through an assignment's value, `?:`, `??` and ternary branches (not the condition), or as another read's default (`env('A', env('B', 60))` reports the inner read). A read in a condition or cast is converted, so `(int)` and the `($x = env(...)) === null ? null : (int) $x` form are silent. Values passed through other calls (`filter_var()`) or held in variables aren't followed. Checking the item's resulting type instead would misreport `env('REDIS_TLS', false) ? 'tls' : 'tcp'`, whose string result is intended. The config-file check runs only once a read is found.
 
-**Tip:** cast in the config file (AGENTS Configuration). Legitimate unions take an ignore; `src/sentry/config/sentry.php:35` `spotlight` (bool or URL, consumed at `SentryConfig.php:143`) gets one with its reason.
+**Config files:** `NoEnvCallsOutsideOfConfigRule`'s detection, including its editor-mode file mapping, moves to `ConfigSourceResolver::isConfigFile()` (beside `isPackageConfigFile()`), which both rules call. The resolver takes the autowired `singleReflectionFile`/`singleReflectionInsteadOfFile` parameters; the env rule's test builds a resolver with them.
+
+**Message:** "env('DB_PORT') can return a string, but its default is an int." **Tip:** "Cast it in the config file to its default's type, such as (int) env('DB_PORT', 3306). When the variable holds a name or other text, use a string default instead."
+
+**Framework hits** (checked):
+- `logging.php` `syslog.facility` (framework config and both skeletons): Monolog maps only facility names from strings and rejects numeric strings, so the variable always holds a name. The default becomes `'user'`, which Monolog maps to `LOG_USER`; `LogManager`'s `?? LOG_USER` fallback stays. It's a runtime change, so it gets its own commit. Skeleton configs carry no ignores (the sync tool strips `class.notFound` ones), since an app without this check would report an unmatched ignore.
+- `src/sentry/config/sentry.php` `spotlight` (true, false or a URL, read at `SentryConfig::configHasSpotlightEnabled()`) takes an inline ignore with that reason.
+
+**Tests:** in a config directory: `env()` and `Env::get()` with int, bool and float defaults, `?:`, `??` and ternary branches, an assignment, a list item, a nested default, a typed non-constant default and Testbench's inheriting `Env` (reported); a cast, `filter_var()`, a ternary condition, the null-check form, a variable, a string default, no default and an `Env` subclass overriding `get()` (silent). The same read outside a config directory is silent. `NoEnvCallsOutsideOfConfigRule` applies the same exact-declaration check to its `Env` readers, with the overriding subclass in its readers fixture.
 
 ### 3.9 Typed config getters
 
-Application mode only (`! RuntimeInputs::isPackageApplication()`).
+Application mode only (`! RuntimeInputs::isPackageApplication()`, after `RuntimeInputs::track()`): an application using a package can give the keys it reads other values. The components analysis and the analyzer tests boot a package application, so the rule is silent there; the skeleton analysis runs it.
 
-**Reports** `config('key')`, `Config::get('key')` or a repository `get('key')` with a constant key whose value is definitely present and has exactly one non-null type among `string`, `int`, `float`, `bool`, `array`.
+**Reports** `config('key')` (the resolved `config` function), or `Config::get('key')`/a repository `get('key')` as `ConfigHelper::getMethodName()` recognizes them, with a constant key (a union of constant keys counts) where `ConfigParser::getValue()` says every key is definitely present and the union of their values is definitely one of `string`, `int`, `float`, `bool`, `array`. An absent key's default doesn't count. Unpacked arguments are skipped.
 
-**Tip:** the matching `config()->string()`/`integer()`/`float()`/`boolean()`/`array()` getter, or the `Config` facade equivalent. There's no check for unneeded defaults.
+**Application repository only.** The application's config values say nothing about another repository, which may hold other values. So `ConfigHelper::getMethodName()` recognizes a repository method only on:
+- `config()` without arguments;
+- a literal application-container resolution whose abstracts all alias to `'config'` (`WorkerStateHelper::getApplicationResolvedAbstracts()`, after `RuntimeInputs::track()`);
+- the `Config` facade.
+
+A repository received as a parameter or property, or built with `new`, gets its declared return types, and the config rules skip it. This covers the return-type extension, `ConfigTypeRule`, `ConfigCollectionRule` and this rule. Typed getters keep their declared types, and the existing override checks are unchanged. The type tests cover a parameter and a `new Repository` with values that differ from the application's config.
+
+**Message:** "Config key 'app.name' always holds a string, so read it with string()." **Tip:** "Use config()->string(), Config::string() or the repository's string(), which return the value's type and throw if the configuration changes it." There's no check for unneeded defaults.
+
+Keys are described with `VerbosityLevel::precise()`: `value()` truncates long keys. `ConfigTypeRule` and `ConfigCollectionRule` switch to it too.
+
+**Tests:** a `tests/PHPStan/application/config/typed.php` fixture config. In application mode (the test flips `RuntimeInputs::$packageApplication` and restores it): each type, spread across the helper, the facade and a repository, a present key with a default, a union of keys (reported); a union value, null, an absent key with a default, typed getters and a write (silent). The same file in package mode is silent. `ResultCacheTestCase` turns the switch off, since its fixtures read config through `get()` to exercise its types.
 
 ### 3.10 `#[ObservedBy]` convention
 
-**Reports** an unconditional top-level `Model::observe(<constant class-string list>)` statement in a service provider's `register()`/`boot()`, where the model is declared in analyzed files.
+A rule on `InClassMethodNode`. **Reports** an unconditional top-level `X::observe(...)` statement (directly in the method body, not under a condition or closure) in a service provider's `register()`/`boot()`, where:
+- `X` is a named `Model` subclass whose native `observe()` is `Model`'s own (an override is skipped);
+- the argument is a constant class-string or constant list of them (`Observer::class`, an array of them, a class constant); objects and runtime values are dynamic and silent;
+- the application declares the model: a model whose real file path is under an installed Composer package's real directory (`InstalledVersions::getAllRawData()`, excluding the root package) is a dependency, where the application can't add an attribute. Real directories cover path repositories, whose source can be outside the vendor directory. The decision tracks `RuntimeInputs::track()`, which covers Composer's installed metadata. PHPStan's `analysedPaths` isn't used: it narrows to the edited file in editor mode, so results would differ between editor and CLI runs; Composer's metadata doesn't depend on the analysed file.
 
-**Tip:** `#[ObservedBy]` on the model, the Laravel convention (AGENTS "Use Laravel observer conventions"). The rule is labeled a convention. The tip notes that subclasses inherit attribute observers (`resolveObserveAttributes()`), so registration intended for exactly one class, or dynamic registration, keeps `observe()` with an ignore.
+**Message:** "App\Models\Invoice registers its observers with observe() in a service provider." **Tip:** "By convention, list them in #[ObservedBy] on the model. Subclasses inherit attribute observers, so keep observe() with an ignore when they are meant for this class only." (AGENTS "Use Laravel observer conventions"; `resolveObserveAttributes()` merges ancestors' attributes.)
+
+**Tests:** a class-string, a literal list and a class-constant list in `register()` and `boot()` (reported); an observer object, a method's result, a model overriding `observe()`, dependency models (a fixture Composer vendor directory whose `installed.php` lists a vendor package and a linked package outside it), a conditional, a closure and a non-provider class (silent).
 
 ### 3.11 Migration column types (default off)
 
-**Reports**, in migrations:
-- `enum()` → a string column plus a PHP enum cast;
-- `set()` → multiple-value storage (a `jsonb` column cast with `AsEnumCollection`, or a related table), not a single enum;
-- `json()` → `jsonb()` for JSON the database queries, indexes or validates, or `text()` for opaque values (AGENTS "Use semantic column types").
+A per-node rule on `MethodCall`. **Reports** these `Blueprint` methods, matched by resolved declaring class (a subclass override is skipped). `Blueprint` is the schema builder, so no migration-path check is needed:
+- `enum()`: "enum() creates a database enum, so adding a value needs a migration." Tip: "Use a string column with a PHP enum cast."
+- `set()`: "set() creates a database set, so adding a value needs a migration." Tip: "Store the values in a jsonb() column cast with AsEnumCollection, or in a related table."
+- `json()`: "json() creates a PostgreSQL json column, which can't be indexed or compared like jsonb." Tip: "Use jsonb() for JSON the database queries, indexes or validates, or text() for a value only read back whole." (AGENTS "Use semantic column types".)
 
-There's no `*Tz` check. Off by default because existing migrations shouldn't be edited.
+There's no `*Tz` check. Off by default because existing migrations shouldn't be edited; the neon comment says so.
+
+**Tests** (a neon turning the switch on): each method on a closure's `Blueprint` (reported); `string()`, `jsonb()`, `text()` and a subclass's `json()` override (silent).
 
 ### 3.12 Binding cycles
 
-**Reports** `bind`/`singleton`/`scoped` on the application container (`$this->app`, `app()`, `App` facade, the `Application` contract), with a constant abstract and a constant class-string concrete that differ, where the booted final alias map resolves `getAlias(concrete)` back to the abstract. `Container::getClosure()` builds directly only when abstract === concrete.
+A per-node rule. **Reports** `bind`/`singleton`/`scoped` on the application container, with exactly one constant string each for `abstract` and `concrete` (bound by name or position), which differ, where the booted container's `getAlias(concrete)` is the abstract (after `RuntimeInputs::track()`). `Container::getClosure()` builds directly only when abstract === concrete, and `resolve()` applies `getAlias()` first, so the binding resolves itself.
 
-`bindIf`/`singletonIf`/`scopedIf` aren't reported: they skip an abstract that's already bound, and the booted state can't show whether the call installed the binding or was skipped.
+- **Application container:** the framework container's method on an application instance or `Container::getInstance()`, through `WorkerStateHelper::isApplicationContainerCall()` (extracted from `getApplicationResolvedAbstracts()`), or the `App` facade when the method's declaring class is exactly `App`. A facade subclass's own method and `(new Container)` are silent.
+- `bindIf`/`singletonIf`/`scopedIf` aren't reported: they skip an abstract that's already bound, and the booted state can't show whether the call installed the binding or was skipped.
 
-**Tip:** use a closure with `new` (AGENTS binding pattern 1).
+**Message:** "singleton() binds 'auth' to Hypervel\Auth\AuthManager, which is an alias of 'auth', so resolving it never ends." **Tip:** "Bind a closure that creates AuthManager with new instead of its class name." (AGENTS binding pattern 1).
+
+**Tests:** `$this->app->singleton()`, `app()->bind()`, `App::scoped()`, `Container::getInstance()->singleton()` and an `Application` parameter's `bind()` (reported); `singletonIf()`, a closure, the same class, a concrete that isn't an alias, `(new Container)` and a facade subclass overriding `singleton()` (silent).
 
 ### 3.13 Raw coroutines
 
@@ -581,7 +643,7 @@ Run sequentially from the components root:
 5. `COMPOSER_PROCESS_TIMEOUT=0 composer lint:fix`.
 6. Once stable, measure cold and warm `composer analyse` time against `0.4`, after the owner confirms the machine is idle.
 
-Monorepo consumers: there's nothing to change. No class in `packages/hypervel/src` or `apps` implements the container contract or subclasses the `Date` facade (checked by grep). The monorepo's hypervel/phpstan adoption remains owner-gated.
+Monorepo consumers: no class in `packages/hypervel/src` or `apps` implements the container contract, implements or extends a connection resolver, or subclasses the `Date` facade (checked by grep). Section 1.5 changes two package tests' connection doubles to `Connection`, reviewed with this checkpoint and committed on monorepo `main`. The monorepo's hypervel/phpstan adoption remains owner-gated.
 
 ## 6. `AGENTS.md` (agreed wording; PR 1's edits already applied)
 
@@ -596,4 +658,4 @@ Monorepo consumers: there's nothing to change. No class in `packages/hypervel/sr
 
 ## Status
 
-Done: sections 1 and 2, 3.1 and 3.2, with the warm-cache tests for a booted registration, a facade accessor body and a declared default. Next step: section 3.3.
+Done: sections 1 and 2, 3.1 to 3.12, with the warm-cache tests for a booted registration, a facade accessor body and a declared default. Section 1.5's source, docs and test doubles are done. Next step: after the 3.3–3.12 checkpoint review, section 3.13.
