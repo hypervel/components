@@ -784,6 +784,46 @@ class SchemaAggregatorTest extends PHPStanTestCase
 
         $this->assertSame(['alias' => [null, true]], $this->columns($aggregator, 'users'));
         $this->assertFalse($this->table($aggregator, 'users')->complete);
+
+        // Connections whose migrations run on one connection can resolve the same name to different tables.
+        $mysql = config('database.connections.mysql');
+
+        $aggregator = $this->withConfig(
+            ['database.connections.mysql_other' => [...$mysql, 'database' => 'other', 'migrations_connection' => 'mysql']],
+            fn (): SchemaAggregator => $this->aggregate(<<<'PHP'
+                Schema::create('users', fn (Blueprint $table) => $table->string('name'));
+                Schema::connection('mysql_other')->create('users', fn (Blueprint $table) => $table->string('email'));
+
+                Schema::table('users', function (Blueprint $table) {
+                    if (Schema::connection('mysql_other')->hasColumn('users', 'email')) {
+                        $table->string('alias');
+                    }
+                });
+            PHP),
+        );
+
+        $this->assertSame(['name' => ['string', false], 'alias' => ['string', false]], $this->columns($aggregator, 'users'));
+        $this->assertTrue($this->table($aggregator, 'users')->complete);
+
+        $aggregator = $this->withConfig(
+            [
+                'database.connections.pgsql_a' => ['driver' => 'pgsql', 'search_path' => 'a'],
+                'database.connections.pgsql_b' => ['driver' => 'pgsql', 'search_path' => 'b', 'migrations_connection' => 'pgsql_a'],
+            ],
+            fn (): SchemaAggregator => $this->aggregate(<<<'PHP'
+                Schema::create('a.users', fn (Blueprint $table) => $table->string('name'));
+                Schema::create('b.users', fn (Blueprint $table) => $table->string('email'));
+
+                Schema::table('users', function (Blueprint $table) {
+                    if (Schema::connection('pgsql_b')->hasColumn('users', 'email')) {
+                        $table->string('alias');
+                    }
+                });
+            PHP, 'pgsql_a'),
+        );
+
+        $this->assertSame(['name' => ['string', false], 'alias' => ['string', false]], $this->columns($aggregator, 'a.users', 'pgsql_a'));
+        $this->assertTrue($this->table($aggregator, 'a.users', 'pgsql_a')->complete);
     }
 
     #[Test]

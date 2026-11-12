@@ -908,10 +908,14 @@ class SchemaAggregator
 
         // Blueprint commands run once the callback returns, so a guard on the callback's own table reads the
         // table as it was before them. An immediate change to it, such as another Schema::table() call, makes
-        // that unknown, as does a queued drop or rename, which the facts already apply.
+        // that unknown, as does a queued drop or rename, which the facts already apply. An unqualified name is
+        // the callback's own only when the guard's connection resolves it through the same database or search path.
         if ($pending !== null
             && $pending['connection']->owner === $connection->owner
-            && ([$schema, $name] === $pending['name'] || $key === $pending['key'])) {
+            && ($key === $pending['key']
+                || ([$schema, $name] === $pending['name']
+                    && ($schema !== null
+                        || [$connection->defaultSchema, $connection->searchPath] === [$pending['connection']->defaultSchema, $pending['connection']->searchPath])))) {
             $current = $owner->tables[$pending['key']] ?? null;
 
             if ($current !== null) {
