@@ -1271,12 +1271,11 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Register a database query listener with the connection.
      *
-     * Registers a listener on the worker-global event dispatcher;
+     * When the dispatcher is the application's worker-shared dispatcher,
      * per-request registration persists and affects subsequent requests.
      *
      * @param Closure(QueryExecuted): mixed $callback
      */
-    #[BootOnly]
     public function listen(Closure $callback): void
     {
         $this->events?->listen(QueryExecuted::class, $callback);

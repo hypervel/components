@@ -6,6 +6,7 @@ namespace Hypervel\Saloon\Pagination;
 
 use Hypervel\Saloon\Http\Request;
 use Hypervel\Saloon\Http\Response;
+use Hypervel\Support\Attributes\Unsupported;
 use LogicException;
 use Throwable;
 
@@ -82,6 +83,7 @@ abstract class CursorPaginator extends Paginator
      * @param null|callable(Throwable, int): void $exceptionHandler
      * @return array<int, Response<mixed>>
      */
+    #[Unsupported('Iterate over the paginator sequentially; each cursor depends on the previous response.')]
     public function pool(
         int $concurrency = 5,
         ?callable $responseHandler = null,

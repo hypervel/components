@@ -38,6 +38,9 @@ use Hypervel\Saloon\Http\Request;
 use Hypervel\Saloon\Http\Response;
 use Hypervel\Saloon\Http\Sender;
 use Hypervel\Saloon\RateLimit\Exceptions\RateLimitReachedException;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Sleep;
 use InvalidArgumentException;
 use UnitEnum;
@@ -294,9 +297,10 @@ class SaloonManager
     /**
      * Set the event dispatcher.
      *
-     * Boot or tests only. The dispatcher persists on the manager for the
-     * worker lifetime and receives every subsequent Saloon request event.
+     * On the shared manager, the dispatcher persists for the worker lifetime
+     * and receives every subsequent Saloon request event.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setEventDispatcher(Dispatcher $events): void
     {
         $this->events = $events;
@@ -305,7 +309,7 @@ class SaloonManager
     /**
      * Get the global middleware pipeline.
      *
-     * Boot-only. Middleware added to this pipeline persists on the manager for
+     * On the shared manager, middleware added to this pipeline persists for
      * the worker lifetime and affects every subsequent Saloon request.
      */
     public function middleware(): MiddlewarePipeline
@@ -316,11 +320,12 @@ class SaloonManager
     /**
      * Add responses to the global mock client, or replace it with the given client.
      *
-     * Tests only. The client persists on the manager until the test
-     * application is destroyed or `clearFake()` is called.
+     * The client persists on the manager until the test application
+     * is destroyed or `clearFake()` is called.
      *
      * @param array<array-key, callable(PendingRequest): (Fixture|MockResponse)|Fixture|MockResponse>|MockClient $responses
      */
+    #[TestsOnly(whenShared: true)]
     public function fake(array|MockClient $responses = []): MockClient
     {
         if ($responses instanceof MockClient) {
@@ -343,11 +348,12 @@ class SaloonManager
     /**
      * Clear the global mock client.
      *
-     * Tests only. This immediately removes the recorder for every subsequent
-     * Saloon request in the worker.
+     * On the shared manager, this immediately removes the recorder for every
+     * subsequent Saloon request in the worker.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function clearFake(): static
     {
         $this->mockClient = null;
@@ -406,11 +412,12 @@ class SaloonManager
     /**
      * Register the cache scope resolver.
      *
-     * Boot-only. The callback persists on the manager for the worker lifetime
+     * On the shared manager, the callback persists for the worker lifetime
      * and affects every subsequently cached Saloon request.
      *
      * @param null|Closure(PendingRequest): ?string $resolver
      */
+    #[BootOnly(whenShared: true)]
     public function resolveCacheScopeUsing(?Closure $resolver): static
     {
         $this->cacheScopeResolver = $resolver;
@@ -449,9 +456,10 @@ class SaloonManager
     /**
      * Set the fixture storage path.
      *
-     * Tests only. The override persists on the manager until the test
-     * application is destroyed.
+     * The override persists on the manager until the test application
+     * is destroyed.
      */
+    #[TestsOnly(whenShared: true)]
     public function fixturePath(string $path): static
     {
         $this->fixturePath = $path;
@@ -474,9 +482,10 @@ class SaloonManager
     /**
      * Configure missing fixture behavior.
      *
-     * Tests only. The override persists on the manager until the test
-     * application is destroyed.
+     * The override persists on the manager until the test application
+     * is destroyed.
      */
+    #[TestsOnly(whenShared: true)]
     public function throwOnMissingFixtures(bool $throw = true): static
     {
         $this->throwOnMissingFixtures = $throw;

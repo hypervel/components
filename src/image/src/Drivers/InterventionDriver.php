@@ -22,6 +22,7 @@ use Hypervel\Image\Transformations\Resize;
 use Hypervel\Image\Transformations\Rotate;
 use Hypervel\Image\Transformations\Scale;
 use Hypervel\Image\Transformations\Sharpen;
+use Hypervel\Support\Attributes\BootOnly;
 use Intervention\Image\Direction;
 use Intervention\Image\Encoders\AvifEncoder;
 use Intervention\Image\Encoders\BmpEncoder;
@@ -208,10 +209,11 @@ abstract class InterventionDriver implements Driver
     /**
      * Register a transformation handler.
      *
-     * Boot-only. The handler persists on this cached driver for the worker lifetime and affects every subsequent image processed by it.
+     * On a cached driver, the handler persists for the worker lifetime and affects every subsequent image processed by it.
      *
      * @param class-string<Transformation> $transformation
      */
+    #[BootOnly(whenShared: true)]
     public function transformUsing(string $transformation, callable $callback): static
     {
         $this->transformationHandlers[$transformation] = $callback;

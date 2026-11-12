@@ -27,6 +27,7 @@ use Hypervel\Saloon\Exceptions\Request\FatalRequestException;
 use Hypervel\Saloon\Http\Auth\TokenAcquisition;
 use Hypervel\Saloon\Http\Auth\TokenExpiry;
 use Hypervel\Saloon\Http\RetryAfter;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
@@ -80,10 +81,11 @@ class OAuthAccounts
     /**
      * Select the account model.
      *
-     * Boot-only. The model persists for the worker lifetime and affects every account operation.
+     * The model persists for the worker lifetime and affects every account operation.
      *
      * @param class-string<OAuthAccount> $model
      */
+    #[BootOnly]
     public static function useAccountModel(string $model): void
     {
         if (static::$initialized) {
@@ -110,10 +112,11 @@ class OAuthAccounts
     /**
      * Configure the account partition resolver.
      *
-     * Boot-only. The column and callback persist for the worker lifetime and affect every account operation.
+     * The column and callback persist for the worker lifetime and affect every account operation.
      *
      * @param Closure(): (null|int|string) $resolver
      */
+    #[BootOnly]
     public static function resolvePartitionUsing(string $column, Closure $resolver): void
     {
         if (static::$initialized || static::$partitionResolver !== null) {
