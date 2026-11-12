@@ -7,6 +7,7 @@ namespace Hypervel\Ai\Concerns;
 use Closure;
 use Hypervel\Ai\Gateway\FakeRerankingGateway;
 use Hypervel\Ai\Prompts\RerankingPrompt;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use PHPUnit\Framework\Assert as PHPUnit;
 
@@ -25,8 +26,9 @@ trait InteractsWithFakeReranking
     /**
      * Fake reranking operations.
      *
-     * Tests only. The fake gateway is shared by all requests in the worker.
+     * On the shared manager, the fake gateway affects every request.
      */
+    #[TestsOnly(whenShared: true)]
     public function fakeReranking(Closure|array $responses = []): FakeRerankingGateway
     {
         return $this->fakeRerankingGateway = new FakeRerankingGateway($responses);
@@ -35,8 +37,9 @@ trait InteractsWithFakeReranking
     /**
      * Record a reranking.
      *
-     * Tests only. Recorded prompts remain on the worker-shared manager.
+     * Recorded prompts remain on the worker-shared manager.
      */
+    #[TestsOnly(whenShared: true)]
     public function recordReranking(RerankingPrompt $prompt): self
     {
         $this->recordedRerankings[] = $prompt;

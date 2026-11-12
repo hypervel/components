@@ -8,6 +8,7 @@ use Hypervel\Ai\Contracts\Files\StorableFile;
 use Hypervel\Ai\Contracts\Gateway\FileGateway;
 use Hypervel\Ai\Responses\FileResponse;
 use Hypervel\Ai\Responses\StoredFileResponse;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 interface FileProvider extends Provider
 {
@@ -34,5 +35,6 @@ interface FileProvider extends Provider
     /**
      * Set the provider's file gateway.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function useFileGateway(FileGateway $gateway): self;
 }

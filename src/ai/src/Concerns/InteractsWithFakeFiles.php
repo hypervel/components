@@ -7,6 +7,7 @@ namespace Hypervel\Ai\Concerns;
 use Closure;
 use Hypervel\Ai\Contracts\Files\StorableFile;
 use Hypervel\Ai\Gateway\FakeFileGateway;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use PHPUnit\Framework\Assert as PHPUnit;
 
@@ -30,8 +31,9 @@ trait InteractsWithFakeFiles
     /**
      * Fake file operations.
      *
-     * Tests only. The fake gateway is shared by all requests in the worker.
+     * On the shared manager, the fake gateway affects every request.
      */
+    #[TestsOnly(whenShared: true)]
     public function fakeFiles(Closure|array $responses = []): FakeFileGateway
     {
         return $this->fakeFileGateway = new FakeFileGateway($responses);
@@ -40,8 +42,9 @@ trait InteractsWithFakeFiles
     /**
      * Record a file upload.
      *
-     * Tests only. Recorded uploads remain on the worker-shared manager.
+     * Recorded uploads remain on the worker-shared manager.
      */
+    #[TestsOnly(whenShared: true)]
     public function recordFileUpload(StorableFile $file): self
     {
         $this->recordedFileUploads[] = [
@@ -54,8 +57,9 @@ trait InteractsWithFakeFiles
     /**
      * Record a file deletion.
      *
-     * Tests only. Recorded deletions remain on the worker-shared manager.
+     * Recorded deletions remain on the worker-shared manager.
      */
+    #[TestsOnly(whenShared: true)]
     public function recordFileDeletion(string $fileId): self
     {
         $this->recordedFileDeletions[] = $fileId;

@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Ai\Gateway\FakeEmbeddingGateway;
 use Hypervel\Ai\Prompts\EmbeddingsPrompt;
 use Hypervel\Ai\Prompts\QueuedEmbeddingsPrompt;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use PHPUnit\Framework\Assert as PHPUnit;
 
@@ -31,8 +32,9 @@ trait InteractsWithFakeEmbeddings
     /**
      * Fake embeddings generation.
      *
-     * Tests only. The fake gateway is shared by all requests in the worker.
+     * On the shared manager, the fake gateway affects every request.
      */
+    #[TestsOnly(whenShared: true)]
     public function fakeEmbeddings(Closure|array $responses = []): FakeEmbeddingGateway
     {
         return $this->fakeEmbeddingGateway = new FakeEmbeddingGateway($responses);
@@ -41,8 +43,9 @@ trait InteractsWithFakeEmbeddings
     /**
      * Record an embeddings generation.
      *
-     * Tests only. Recorded prompts remain on the worker-shared manager.
+     * Recorded prompts remain on the worker-shared manager.
      */
+    #[TestsOnly(whenShared: true)]
     public function recordEmbeddingsGeneration(EmbeddingsPrompt|QueuedEmbeddingsPrompt $prompt): self
     {
         if ($prompt instanceof QueuedEmbeddingsPrompt) {

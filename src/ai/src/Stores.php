@@ -9,6 +9,7 @@ use DateInterval;
 use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\Gateway\FakeStoreGateway;
 use Hypervel\Ai\Providers\Provider;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 
 class Stores
@@ -50,8 +51,9 @@ class Stores
     /**
      * Fake store operations.
      *
-     * Tests only. The fake gateway is shared across requests in the worker.
+     * The fake gateway is shared across requests in the worker.
      */
+    #[TestsOnly]
     public static function fake(Closure|array $responses = [], bool $files = true): FakeStoreGateway
     {
         if ($files) {

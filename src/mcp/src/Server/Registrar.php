@@ -25,6 +25,7 @@ use Hypervel\Mcp\Server\Transport\StdioTransport;
 use Hypervel\Passport\Passport;
 use Hypervel\Passport\ServerFactory;
 use Hypervel\Routing\Route;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Facades\Route as Router;
 use Hypervel\Support\Traits\Macroable;
 use LogicException;
@@ -44,10 +45,11 @@ class Registrar
     /**
      * Register an HTTP server.
      *
-     * Boot-only. Routes and server registrations persist for the worker lifetime.
+     * Routes and server registrations persist for the worker lifetime.
      *
      * @param class-string<Server> $serverClass
      */
+    #[BootOnly]
     public function web(string $route, string $serverClass): Route
     {
         // https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#listening-for-messages-from-the-server
@@ -73,10 +75,11 @@ class Registrar
     /**
      * Register a local server.
      *
-     * Boot-only. Server factories persist for the worker lifetime.
+     * On the shared registrar, server factories persist across requests.
      *
      * @param class-string<Server> $serverClass
      */
+    #[BootOnly(whenShared: true)]
     public function local(string $handle, string $serverClass): void
     {
         $this->localServers[$handle] = fn (): mixed => static::startServer($serverClass, fn (): StdioTransport => new StdioTransport);
@@ -85,10 +88,11 @@ class Registrar
     /**
      * Register a named client factory.
      *
-     * Boot-only. Client factories persist for the worker lifetime.
+     * Client factories persist for the worker lifetime.
      *
      * @param Closure(): Client $factory
      */
+    #[BootOnly]
     public function registerClient(string $name, Closure $factory): void
     {
         $this->clientManager()->registerClient($name, $factory);
@@ -105,12 +109,13 @@ class Registrar
     /**
      * Register OAuth routes for a named client.
      *
-     * Boot-only. The routes persist for the worker lifetime.
+     * The routes persist for the worker lifetime.
      *
      * @param array{0: class-string, 1: string}|Closure(string, TokenSet): mixed $handler receives provider or client, token, and optional returnTo by parameter name
      * @param array<int, string>|string $middleware
      * @param array<string, mixed> $clientMetadata
      */
+    #[BootOnly]
     public function oAuthRoutesFor(
         string $client,
         Closure|array $handler,
@@ -155,8 +160,9 @@ class Registrar
     /**
      * Register server-side OAuth discovery and registration routes.
      *
-     * Boot-only. Routes and Passport's challenge resolver persist for the worker lifetime.
+     * Routes and Passport's challenge resolver persist for the worker lifetime.
      */
+    #[BootOnly]
     public function oauthRoutes(string $oauthPrefix = 'oauth', bool $registration = true): void
     {
         static::ensureMcpScope();
@@ -243,10 +249,11 @@ class Registrar
     /**
      * Add the MCP scope when Passport is installed.
      *
-     * Boot-only. Passport scopes persist for the worker lifetime.
+     * Passport scopes persist for the worker lifetime.
      *
      * @return array<string, string>
      */
+    #[BootOnly]
     public static function ensureMcpScope(): array
     {
         if (class_exists(Passport::class) === false) {

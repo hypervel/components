@@ -12,6 +12,7 @@ use Hypervel\Ai\Files\StoredAudio;
 use Hypervel\Ai\Gateway\FakeTranscriptionGateway;
 use Hypervel\Ai\PendingResponses\PendingTranscriptionGeneration;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Support\Attributes\TestsOnly;
 use InvalidArgumentException;
 
 class Transcription
@@ -69,8 +70,9 @@ class Transcription
     /**
      * Fake transcription generation.
      *
-     * Tests only. The fake gateway is shared across requests in the worker.
+     * The fake gateway is shared across requests in the worker.
      */
+    #[TestsOnly]
     public static function fake(Closure|array $responses = []): FakeTranscriptionGateway
     {
         return Ai::fakeTranscriptions($responses);
