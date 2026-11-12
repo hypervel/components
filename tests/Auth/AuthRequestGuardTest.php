@@ -156,6 +156,25 @@ class AuthRequestGuardTest extends TestCase
         $this->assertSame($user2, $guard2->user());
     }
 
+    public function testNewGuardWithTheSameNameStartsWithoutThePreviousGuardsUsers(): void
+    {
+        RequestContext::set(Request::create('/'));
+        $previousGuard = new RequestGuard('custom', fn () => m::mock(Authenticatable::class), $this->app);
+        $previousGuard->user();
+        $previousGuard->setUser(m::mock(Authenticatable::class));
+        $callCount = 0;
+
+        $guard = new RequestGuard('custom', function () use (&$callCount) {
+            ++$callCount;
+
+            return null;
+        }, $this->app);
+
+        $this->assertFalse($guard->hasUser());
+        $this->assertNull($guard->user());
+        $this->assertSame(1, $callCount);
+    }
+
     public function testReplacingRequestInContextChangesWhatGuardSees(): void
     {
         $request1 = Request::create('/one');
@@ -189,7 +208,7 @@ class AuthRequestGuardTest extends TestCase
         $guard = new RequestGuard('custom', fn () => null, $this->app);
 
         $this->assertSame([
-            '__auth.guards.custom.user.explicit',
+            (fn (): string => $this->getExplicitUserContextKey())->call($guard),
         ], $guard->getAuthContextKeys());
     }
 

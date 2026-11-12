@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent;
 
 use Hypervel\Events\QueuedClosure;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection as BaseCollection;
 
 /**
@@ -209,7 +210,11 @@ trait SoftDeletes
 
     /**
      * Register a "softDeleted" model event callback with the dispatcher.
+     *
+     * Listener persists on the worker-wide event dispatcher for the worker
+     * lifetime; runtime use leaks listeners across every subsequent request.
      */
+    #[BootOnly]
     public static function softDeleted(QueuedClosure|callable|string $callback): void
     {
         static::registerModelEvent('trashed', $callback);
@@ -217,7 +222,11 @@ trait SoftDeletes
 
     /**
      * Register a "restoring" model event callback with the dispatcher.
+     *
+     * Listener persists on the worker-wide event dispatcher for the worker
+     * lifetime; runtime use leaks listeners across every subsequent request.
      */
+    #[BootOnly]
     public static function restoring(QueuedClosure|callable|string $callback): void
     {
         static::registerModelEvent('restoring', $callback);
@@ -225,7 +234,11 @@ trait SoftDeletes
 
     /**
      * Register a "restored" model event callback with the dispatcher.
+     *
+     * Listener persists on the worker-wide event dispatcher for the worker
+     * lifetime; runtime use leaks listeners across every subsequent request.
      */
+    #[BootOnly]
     public static function restored(QueuedClosure|callable|string $callback): void
     {
         static::registerModelEvent('restored', $callback);
@@ -233,7 +246,11 @@ trait SoftDeletes
 
     /**
      * Register a "forceDeleting" model event callback with the dispatcher.
+     *
+     * Listener persists on the worker-wide event dispatcher for the worker
+     * lifetime; runtime use leaks listeners across every subsequent request.
      */
+    #[BootOnly]
     public static function forceDeleting(QueuedClosure|callable|string $callback): void
     {
         static::registerModelEvent('forceDeleting', $callback);
@@ -241,7 +258,11 @@ trait SoftDeletes
 
     /**
      * Register a "forceDeleted" model event callback with the dispatcher.
+     *
+     * Listener persists on the worker-wide event dispatcher for the worker
+     * lifetime; runtime use leaks listeners across every subsequent request.
      */
+    #[BootOnly]
     public static function forceDeleted(QueuedClosure|callable|string $callback): void
     {
         static::registerModelEvent('forceDeleted', $callback);

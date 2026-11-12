@@ -27,6 +27,7 @@ use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Support\Attributes\BootOnly;
 use RuntimeException;
 
 class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
@@ -329,11 +330,12 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
      * PhpRedis 6.3.0 or later. These additional requirements do not apply
      * to all mode.
      *
-     * Boot-only. Mutates state on a per-worker singleton; runtime mutation
-     * races across coroutines.
+     * Mutates state on a per-worker singleton; runtime mutation races
+     * across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setTagMode(TagMode|string $mode): static
     {
         $this->tagMode = $mode instanceof TagMode
@@ -391,10 +393,11 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
     /**
      * Specify the name of the connection that should be used to store data.
      *
-     * Boot-only. Persists on the cached store for the worker lifetime and
-     * triggers cache invalidation of resolved operations; per-request use
-     * races across coroutines.
+     * Persists on the cached store for the worker lifetime and triggers
+     * cache invalidation of resolved operations; per-request use races
+     * across coroutines.
      */
+    #[BootOnly(whenShared: true)]
     public function setConnection(?string $connection): void
     {
         $this->connection = $connection ?? 'default';
@@ -404,11 +407,12 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
     /**
      * Specify the name of the connection that should be used to manage locks.
      *
-     * Boot-only. Persists on the cached store for the worker lifetime;
+     * Persists on the cached store for the worker lifetime;
      * per-request use races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setLockConnection(string $connection): static
     {
         $this->lockConnection = $connection;
@@ -435,10 +439,11 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
     /**
      * Set the cache key prefix.
      *
-     * Boot-only. Persists on the cached store for the worker lifetime and
-     * triggers cache invalidation of resolved operations; per-request use
-     * races across coroutines.
+     * Persists on the cached store for the worker lifetime and triggers
+     * cache invalidation of resolved operations; per-request use races
+     * across coroutines.
      */
+    #[BootOnly(whenShared: true)]
     public function setPrefix(?string $prefix): void
     {
         $this->prefix = $prefix ?? '';

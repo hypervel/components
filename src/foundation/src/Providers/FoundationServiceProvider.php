@@ -92,6 +92,7 @@ use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Http\Request;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Queue\Events\JobAttempted;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Composer;
 use Hypervel\Support\Defer\DeferredCallback;
@@ -242,9 +243,10 @@ class FoundationServiceProvider extends ServiceProvider
     /**
      * Register the console schedule implementation.
      *
-     * Boot-only. The schedule binding is shared for the worker lifetime, and
-     * calling this again replaces the schedule used by later resolutions.
+     * The schedule binding is shared for the worker lifetime, and calling
+     * this again replaces the schedule used by later resolutions.
      */
+    #[BootOnly]
     public function registerConsoleSchedule(): void
     {
         $this->app->singleton(Schedule::class, function ($app) {
@@ -255,9 +257,10 @@ class FoundationServiceProvider extends ServiceProvider
     /**
      * Register a var dumper (with source) to debug variables.
      *
-     * Boot-only. The dumper handler and casters are process-global and apply to
-     * every later dump in the worker.
+     * The dumper handler and casters are process-global and apply to every
+     * later dump in the worker.
      */
+    #[BootOnly]
     public function registerDumper(): void
     {
         AbstractCloner::$defaultCasters[ConnectionInterface::class] ??= [StubCaster::class, 'cutInternals'];
@@ -319,11 +322,11 @@ class FoundationServiceProvider extends ServiceProvider
     /**
      * Register the "validate" macro on the request.
      *
-     * Boot-only. Request macros are static and shared by every request in the
-     * worker.
+     * Request macros are static and shared by every request in the worker.
      *
      * @throws ValidationException
      */
+    #[BootOnly]
     public function registerRequestValidation(): void
     {
         Request::macro('validate', function (array $rules, ...$params) {
@@ -351,9 +354,9 @@ class FoundationServiceProvider extends ServiceProvider
     /**
      * Register the "hasValidSignature" macro on the request.
      *
-     * Boot-only. Request macros are static and shared by every request in the
-     * worker.
+     * Request macros are static and shared by every request in the worker.
      */
+    #[BootOnly]
     public function registerRequestSignatureValidation(): void
     {
         Request::macro('hasValidSignature', function ($absolute = true) {
@@ -376,9 +379,10 @@ class FoundationServiceProvider extends ServiceProvider
     /**
      * Register the maintenance mode manager and its caching decorator.
      *
-     * Boot-only. The maintenance mode binding is shared for the worker lifetime,
-     * and calling this again replaces the instance used by later resolutions.
+     * The maintenance mode binding is shared for the worker lifetime, and
+     * calling this again replaces the instance used by later resolutions.
      */
+    #[BootOnly]
     public function registerMaintenanceModeManager(): void
     {
         $this->app->singleton(

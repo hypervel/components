@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\ServerProcess;
 
 use Hypervel\Contracts\ServerProcess\ProcessInterface;
+use Hypervel\Support\Attributes\BootOnly;
 use RuntimeException;
 
 class ProcessManager
@@ -17,9 +18,10 @@ class ProcessManager
     /**
      * Register a server process.
      *
-     * Boot-only. Process registrations persist in static state and must be
-     * completed before the server process manager starts running.
+     * Process registrations persist in static state and must be completed
+     * before the server process manager starts running.
      */
+    #[BootOnly]
     public static function register(ProcessInterface $process): void
     {
         if (static::$running) {
@@ -50,9 +52,9 @@ class ProcessManager
     /**
      * Set the running state.
      *
-     * Boot-only. Part of the server lifecycle; also called by the SIGTERM
-     * handler at shutdown. Mutates worker-lifetime static state; per-request
-     * use races across coroutines and disables the register() guard.
+     * Part of the server lifecycle; also called by the SIGTERM handler at
+     * shutdown. Mutates worker-lifetime static state; per-request use races
+     * across coroutines and disables the register() guard.
      */
     public static function setRunning(bool $running): void
     {

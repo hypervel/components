@@ -11,6 +11,7 @@ use Hypervel\Prompts\Support\Logger;
 use Hypervel\Prompts\Support\PromptAnimation;
 use Hypervel\Prompts\Support\TaskFrame;
 use Hypervel\Prompts\Support\Utils;
+use Hypervel\Support\Attributes\Unsupported;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
@@ -825,6 +826,7 @@ class Task extends Prompt
      *
      * @throws RuntimeException
      */
+    #[Unsupported('Use run() instead.')]
     public function prompt(): never
     {
         throw new RuntimeException('Task cannot be prompted.');

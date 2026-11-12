@@ -7,6 +7,7 @@ namespace Hypervel\Ai;
 use Closure;
 use Hypervel\Ai\Gateway\FakeImageGateway;
 use Hypervel\Ai\PendingResponses\PendingImageGeneration;
+use Hypervel\Support\Attributes\TestsOnly;
 use InvalidArgumentException;
 
 class Image
@@ -24,8 +25,9 @@ class Image
     /**
      * Fake image generation.
      *
-     * Tests only. The fake gateway is shared across requests in the worker.
+     * The fake gateway is shared across requests in the worker.
      */
+    #[TestsOnly]
     public static function fake(Closure|array $responses = []): FakeImageGateway
     {
         return Ai::fakeImages($responses);

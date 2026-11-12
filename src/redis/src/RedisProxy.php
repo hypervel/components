@@ -20,6 +20,8 @@ use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\Subscriber\Subscriber;
 use Hypervel\Redis\Traits\MultiExec;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Redis;
 use RedisException;
 use Swoole\Coroutine\CanceledException;
@@ -39,16 +41,6 @@ use Throwable;
 class RedisProxy implements ConnectionContract
 {
     use MultiExec;
-
-    /**
-     * Context key prefix for per-connection pool state.
-     */
-    public const string CONNECTION_CONTEXT_PREFIX = '__redis.connection.';
-
-    /**
-     * Context key prefix for the coroutine owning deferred pool cleanup.
-     */
-    private const string DEFERRED_RELEASE_OWNER_CONTEXT_KEY_PREFIX = '__redis.deferred_release_owner.';
 
     /**
      * Methods that must be called while explicitly holding a pool connection.
@@ -84,6 +76,16 @@ class RedisProxy implements ConnectionContract
     ];
 
     /**
+     * The coroutine context key for this connection's pinned pool connection.
+     */
+    private ?string $contextKey = null;
+
+    /**
+     * The coroutine context key for the coroutine owning deferred pool cleanup.
+     */
+    private ?string $deferredReleaseOwnerContextKey = null;
+
+    /**
      * Create a new Redis proxy instance.
      */
     public function __construct(
@@ -114,8 +116,9 @@ class RedisProxy implements ConnectionContract
     /**
      * Register a custom Redis connection macro.
      *
-     * Boot-only. Macros persist for the worker lifetime and affect every Redis connection.
+     * Macros persist for the worker lifetime and affect every Redis connection.
      */
+    #[BootOnly]
     public function macro(string $name, callable|object $macro): void
     {
         RedisConnection::macro($name, $macro);
@@ -124,8 +127,9 @@ class RedisProxy implements ConnectionContract
     /**
      * Mix another object into the Redis connection.
      *
-     * Boot-only. Registered macros persist for the worker lifetime and affect every Redis connection.
+     * Registered macros persist for the worker lifetime and affect every Redis connection.
      */
+    #[BootOnly]
     public function mixin(object $mixin, bool $replace = true): void
     {
         RedisConnection::mixin($mixin, $replace);
@@ -142,8 +146,9 @@ class RedisProxy implements ConnectionContract
     /**
      * Flush the registered Redis connection macros.
      *
-     * Boot or tests only. Concurrent coroutines may resolve different methods during a flush.
+     * Concurrent coroutines may resolve different methods during a flush.
      */
+    #[BootOrTestsOnly]
     public function flushMacros(): void
     {
         RedisConnection::flushMacros();
@@ -471,7 +476,7 @@ class RedisProxy implements ConnectionContract
      */
     protected function getContextKey(): string
     {
-        return self::CONNECTION_CONTEXT_PREFIX . $this->poolName;
+        return $this->contextKey ??= $this->poolManager->contextKey('connection.' . $this->poolName);
     }
 
     /**
@@ -479,7 +484,7 @@ class RedisProxy implements ConnectionContract
      */
     private function getDeferredReleaseOwnerContextKey(): string
     {
-        return self::DEFERRED_RELEASE_OWNER_CONTEXT_KEY_PREFIX . $this->poolName;
+        return $this->deferredReleaseOwnerContextKey ??= $this->poolManager->contextKey('deferred_release_owner.' . $this->poolName);
     }
 
     /**
@@ -761,9 +766,10 @@ class RedisProxy implements ConnectionContract
     /**
      * Register a Redis command listener with the connection.
      *
-     * Boot-only. The listener persists on the singleton event dispatcher for
-     * the worker lifetime and runs for every subsequent Redis command event.
+     * The listener persists on the singleton event dispatcher for the worker
+     * lifetime and runs for every subsequent Redis command event.
      */
+    #[BootOnly]
     public function listen(Closure $callback): void
     {
         $container = Container::getInstance();
@@ -776,9 +782,10 @@ class RedisProxy implements ConnectionContract
     /**
      * Register a Redis command failure listener with the connection.
      *
-     * Boot-only. The listener persists on the singleton event dispatcher for
-     * the worker lifetime and runs for every subsequent Redis failure event.
+     * The listener persists on the singleton event dispatcher for the worker
+     * lifetime and runs for every subsequent Redis failure event.
      */
+    #[BootOnly]
     public function listenForFailures(Closure $callback): void
     {
         $container = Container::getInstance();

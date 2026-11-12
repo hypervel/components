@@ -12,6 +12,7 @@ use Hypervel\Contracts\Auth\PasswordBroker as PasswordBrokerContract;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Timebox;
 use SensitiveParameter;
 use UnexpectedValueException;
@@ -200,9 +201,10 @@ class PasswordBroker implements PasswordBrokerContract
     /**
      * Set the event dispatcher instance.
      *
-     * Boot or tests only. The dispatcher is stored on the worker-lifetime broker
-     * and affects every subsequent password reset-link event.
+     * The dispatcher is stored on the worker-lifetime broker and affects every
+     * subsequent password reset-link event.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setDispatcher(Dispatcher $events): void
     {
         $this->events = $events;

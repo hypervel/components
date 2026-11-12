@@ -31,6 +31,17 @@ abstract class TagSet
     }
 
     /**
+     * Get a copy of the tag set that uses the given store.
+     */
+    public function withStore(Store $store): static
+    {
+        $tagSet = clone $this;
+        $tagSet->store = $store;
+
+        return $tagSet;
+    }
+
+    /**
      * Reset all tags in the set.
      */
     abstract public function reset(): bool;

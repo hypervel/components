@@ -14,6 +14,7 @@ use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
@@ -445,11 +446,12 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
     /**
      * Set the connection name for the cache store.
      *
-     * Boot-only. Persists on the cached store for the worker lifetime;
+     * Persists on the cached store for the worker lifetime;
      * per-request use races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setConnection(string $connectionName): static
     {
         $this->connectionName = $connectionName;
@@ -468,11 +470,12 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
     /**
      * Specify the connection that should be used to manage locks.
      *
-     * Boot-only. Persists on the cached store for the worker lifetime;
+     * Persists on the cached store for the worker lifetime;
      * per-request use races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setLockConnection(string $connectionName): static
     {
         $this->lockConnectionName = $connectionName;
@@ -491,9 +494,10 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
     /**
      * Set the cache key prefix.
      *
-     * Boot-only. Persists on the cached store for the worker lifetime;
+     * Persists on the cached store for the worker lifetime;
      * per-request use races across coroutines.
      */
+    #[BootOnly(whenShared: true)]
     public function setPrefix(string $prefix): void
     {
         $this->prefix = $prefix;

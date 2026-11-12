@@ -18,6 +18,7 @@ use Hypervel\Scout\Exceptions\NotSupportedException;
 use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Scout\Scout;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use InvalidArgumentException;
@@ -928,6 +929,7 @@ class TypesenseEngine extends Engine implements DeletesByFilter, SupportsSemanti
      *
      * @throws NotSupportedException
      */
+    #[Unsupported('Indexes are created automatically when objects are added.')]
     public function createIndex(string $name, array $options = []): mixed
     {
         throw new NotSupportedException('Typesense indexes are created automatically upon adding objects.');

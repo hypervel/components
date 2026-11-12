@@ -13,6 +13,7 @@ use Hypervel\Pennant\Events\UnknownFeatureResolved;
 use Hypervel\Pennant\Feature;
 use Hypervel\Pennant\FeaturePartition;
 use Hypervel\Pennant\PennantState;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Facades\Event;
 use stdClass;
 
@@ -63,11 +64,12 @@ class ArrayDriver implements CanListStoredFeatures, CanSetManyFeaturesForScopes,
     /**
      * Define an initial feature flag state resolver.
      *
-     * Boot or tests only. The definition persists on the store for the worker
-     * lifetime and applies to every subsequent request.
+     * On a shared store, the definition persists for the worker lifetime and
+     * applies to every subsequent request.
      *
      * @param (callable(mixed $scope): mixed) $resolver
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function define(string $feature, callable $resolver): void
     {
         $this->featureStateResolvers[$feature] = $resolver;

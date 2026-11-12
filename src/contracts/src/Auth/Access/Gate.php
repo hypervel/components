@@ -10,6 +10,7 @@ use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Query\Builder as QueryBuilder;
+use Hypervel\Support\Attributes\BootOnly;
 use InvalidArgumentException;
 use LogicException;
 use RuntimeException;
@@ -29,6 +30,7 @@ interface Gate
      *
      * @throws InvalidArgumentException
      */
+    #[BootOnly(whenShared: true)]
     public function define(UnitEnum|string $ability, array|callable|string $callback): static;
 
     /**
@@ -36,6 +38,7 @@ interface Gate
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function resource(string $name, string $class, ?array $abilities = null): static;
 
     /**
@@ -43,6 +46,7 @@ interface Gate
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function policy(string $class, string $policy): static;
 
     /**
@@ -50,6 +54,7 @@ interface Gate
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function before(callable $callback): static;
 
     /**
@@ -57,6 +62,7 @@ interface Gate
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function after(callable $callback): static;
 
     /**

@@ -6,6 +6,7 @@ namespace Hypervel\Foundation;
 
 use Exception;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Composer;
 use Hypervel\Support\Json;
@@ -407,12 +408,12 @@ class PackageManifest
      * Used by testbench to suppress package discovery at runtime
      * without modifying the project's composer.json.
      *
-     * Boot or tests only. The list persists in a static property used during
-     * package discovery; runtime use has no effect on already-discovered
-     * providers.
+     * The list persists in a static property used during package discovery;
+     * runtime use has no effect on already-discovered providers.
      *
      * @param array<int, string> $packages
      */
+    #[BootOrTestsOnly]
     public static function ignorePackageDiscoveriesFrom(array $packages): void
     {
         static::$packagesToIgnore = $packages;

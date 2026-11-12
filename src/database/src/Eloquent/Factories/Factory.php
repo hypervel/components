@@ -11,6 +11,7 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Factories\Attributes\UseModel;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
@@ -940,11 +941,12 @@ abstract class Factory
     /**
      * Specify the callback that should be invoked to guess model names based on factory names.
      *
-     * Boot or tests only. The callback persists in a static property for the
-     * worker lifetime and runs on every model-name guess across all coroutines.
+     * The callback persists in a static property for the worker lifetime and
+     * runs on every model-name guess across all coroutines.
      *
      * @param callable(self): class-string<TModel> $callback
      */
+    #[BootOrTestsOnly]
     public static function guessModelNamesUsing(callable $callback): void
     {
         static::$modelNameResolvers[static::class] = $callback;
@@ -953,9 +955,10 @@ abstract class Factory
     /**
      * Specify the default namespace that contains the application's model factories.
      *
-     * Boot or tests only. The namespace persists in a static property for the
-     * worker lifetime and applies to every subsequent factory-name lookup.
+     * The namespace persists in a static property for the worker lifetime and
+     * applies to every subsequent factory-name lookup.
      */
+    #[BootOrTestsOnly]
     public static function useNamespace(string $namespace): void
     {
         static::$namespace = $namespace;
@@ -979,12 +982,12 @@ abstract class Factory
     /**
      * Specify the callback that should be invoked to guess factory names based on dynamic relationship names.
      *
-     * Boot or tests only. The callback persists in a static property for the
-     * worker lifetime and runs on every factory-name guess across all
-     * coroutines.
+     * The callback persists in a static property for the worker lifetime and
+     * runs on every factory-name guess across all coroutines.
      *
      * @param callable(class-string<Model>): class-string<Factory> $callback
      */
+    #[BootOrTestsOnly]
     public static function guessFactoryNamesUsing(callable $callback): void
     {
         static::$factoryNameResolver = $callback;
@@ -993,9 +996,10 @@ abstract class Factory
     /**
      * Specify that relationships should create parent relationships by default.
      *
-     * Boot or tests only. The flag persists in a static property for the worker
-     * lifetime and applies to every factory build across all coroutines.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every factory build across all coroutines.
      */
+    #[BootOrTestsOnly]
     public static function expandRelationshipsByDefault(): void
     {
         static::$expandRelationshipsByDefault = true;
@@ -1004,9 +1008,10 @@ abstract class Factory
     /**
      * Specify that relationships should not create parent relationships by default.
      *
-     * Boot or tests only. The flag persists in a static property for the worker
-     * lifetime and applies to every factory build across all coroutines.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every factory build across all coroutines.
      */
+    #[BootOrTestsOnly]
     public static function dontExpandRelationshipsByDefault(): void
     {
         static::$expandRelationshipsByDefault = false;

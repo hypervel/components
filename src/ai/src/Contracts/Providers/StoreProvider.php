@@ -8,6 +8,7 @@ use DateInterval;
 use Hypervel\Ai\Contracts\Files\HasProviderId;
 use Hypervel\Ai\Contracts\Gateway\StoreGateway;
 use Hypervel\Ai\Store;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
 
 interface StoreProvider extends FileProvider
@@ -52,5 +53,6 @@ interface StoreProvider extends FileProvider
     /**
      * Set the provider's store gateway.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function useStoreGateway(StoreGateway $gateway): self;
 }

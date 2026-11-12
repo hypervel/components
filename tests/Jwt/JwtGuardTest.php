@@ -113,6 +113,33 @@ class JwtGuardTest extends TestCase
         $this->assertSame($user, $guard->user()); // Should not call decode again
     }
 
+    public function testNewGuardWithTheSameNameStartsWithoutThePreviousGuardsState(): void
+    {
+        $previousUser = m::mock(Authenticatable::class);
+        $previousProvider = m::mock(UserProvider::class);
+        $previousProvider->expects('retrieveById')->with(42)->andReturn($previousUser);
+        $previousManager = m::mock(ManagerContract::class);
+        $previousManager->expects('decode')->with('request-token')->andReturn(['sub' => 42]);
+        $previousGuard = $this->createGuard(
+            provider: $previousProvider,
+            jwtManager: $previousManager,
+            request: $this->createRequestWithBearer('request-token'),
+        );
+        $this->assertSame($previousUser, $previousGuard->user());
+        $previousGuard->setUser(m::mock(Authenticatable::class));
+        $previousGuard->setToken('previous-token');
+        $provider = m::mock(UserProvider::class);
+        $provider->expects('retrieveById')->with(7)->andReturnNull();
+        $manager = m::mock(ManagerContract::class);
+        $manager->expects('decode')->with('request-token')->andReturn(['sub' => 7]);
+
+        $guard = $this->createGuard(provider: $provider, jwtManager: $manager);
+
+        $this->assertFalse($guard->hasUser());
+        $this->assertNull($guard->user());
+        $this->assertSame(['sub' => 7], $guard->payload());
+    }
+
     public function testCopiedRequestRechecksBlacklistAfterWarmingUserAndPayload(): void
     {
         $user = m::mock(Authenticatable::class);
@@ -984,7 +1011,7 @@ class JwtGuardTest extends TestCase
         );
 
         $this->assertSame([
-            '__auth.guards.jwt.user.explicit',
+            (fn (): string => $this->getExplicitUserContextKey())->call($guard),
         ], $guard->getAuthContextKeys());
     }
 

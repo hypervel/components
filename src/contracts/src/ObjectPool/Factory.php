@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\ObjectPool;
 
 use Hypervel\ObjectPool\PoolDefinition;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 interface Factory
 {
@@ -61,8 +62,9 @@ interface Factory
     /**
      * Remove and close every registered pool.
      *
-     * Boot or tests only. This clears worker-lifetime pools shared by every
-     * coroutine; use targeted removal for runtime resource recovery.
+     * This clears worker-lifetime pools shared by every coroutine; use
+     * targeted removal for runtime resource recovery.
      */
+    #[BootOrTestsOnly]
     public function purgeAll(): void;
 }

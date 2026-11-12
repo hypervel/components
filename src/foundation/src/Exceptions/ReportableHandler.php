@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Exceptions;
 
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Traits\ReflectsClosures;
 use Throwable;
 
@@ -64,11 +65,12 @@ class ReportableHandler
     /**
      * Indicate that report handling should stop after invoking this callback.
      *
-     * Boot-only. The flag persists on the registered callback and stops report
-     * handling for every exception it subsequently handles in the worker.
+     * The flag persists on the registered callback and stops report handling
+     * for every exception it subsequently handles in the worker.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function stop(): static
     {
         $this->shouldStop = true;

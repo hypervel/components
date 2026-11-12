@@ -18,6 +18,7 @@ use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use Hypervel\Database\SimpleConnectionResolver;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Traits\CapsuleManagerTrait;
 use UnitEnum;
 
@@ -129,7 +130,11 @@ class Manager
 
     /**
      * Bootstrap Eloquent so it is ready for usage.
+     *
+     * The resolver and dispatcher persist in Eloquent's static properties for
+     * the worker lifetime and are used by every model across all coroutines.
      */
+    #[BootOnly]
     public function bootEloquent(): void
     {
         Eloquent::setConnectionResolver($this->manager);

@@ -13,6 +13,7 @@ use Hypervel\Coroutine\Exceptions\ForeignCancellationException;
 use Hypervel\Engine\Coroutine as Co;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Engine\Exceptions\RunningInNonCoroutineException;
+use Hypervel\Support\Attributes\BootOnly;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
@@ -40,12 +41,13 @@ class Coroutine
     /**
      * Register a callback to be called after a coroutine is created.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs for every subsequently created coroutine. Callbacks
-     * run synchronously during child startup and must not suspend.
-     * Hooks that inherit parent context must honor DETACHED_CONTEXT_KEY while
-     * preserving values explicitly installed in the child.
+     * The callback persists in a static property for the worker lifetime and
+     * runs for every subsequently created coroutine. Callbacks run
+     * synchronously during child startup and must not suspend. Hooks that
+     * inherit parent context must honor DETACHED_CONTEXT_KEY while preserving
+     * values explicitly installed in the child.
      */
+    #[BootOnly]
     public static function afterCreated(callable $callback): void
     {
         static::$afterCreatedCallbacks[] = $callback;
@@ -283,9 +285,10 @@ class Coroutine
     /**
      * Enable or disable exception reporting in coroutines.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every coroutine spawned across the process.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every coroutine spawned across the process.
      */
+    #[BootOnly]
     public static function reportExceptions(bool $report = true): void
     {
         static::$reportExceptions = $report;

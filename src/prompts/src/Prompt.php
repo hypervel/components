@@ -11,6 +11,7 @@ use Hypervel\Prompts\Exceptions\FormRevertedException;
 use Hypervel\Prompts\Output\ConsoleOutput;
 use Hypervel\Prompts\Support\Result;
 use Hypervel\Prompts\Support\Utils;
+use Hypervel\Support\Attributes\BootOnly;
 use RuntimeException;
 use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -257,9 +258,10 @@ abstract class Prompt
     /**
      * Register a callback to be invoked when a user cancels a prompt.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every subsequent prompt cancellation.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every subsequent prompt cancellation.
      */
+    #[BootOnly]
     public static function cancelUsing(?Closure $callback): void
     {
         static::$cancelUsing = $callback;

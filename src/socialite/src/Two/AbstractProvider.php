@@ -13,6 +13,7 @@ use Hypervel\Socialite\Contracts\Provider as ProviderContract;
 use Hypervel\Socialite\Two\Exceptions\InvalidAudienceException;
 use Hypervel\Socialite\Two\Exceptions\InvalidCodeException;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Str;
 use SensitiveParameter;
 
@@ -421,12 +422,13 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
     /**
      * Set the callback that formats redirect URLs for the provider.
      *
-     * Boot-only. The callback persists on the worker-cached provider and affects
-     * every subsequent request. Use setConfig() for per-request redirect values.
+     * On a worker-cached provider, the callback persists and affects every
+     * subsequent request. Use setConfig() for per-request redirect values.
      *
      * @param Closure(array): string $formatter
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function withRedirectFormatter(Closure $formatter): static
     {
         $this->redirectFormatter = $formatter;

@@ -7,6 +7,7 @@ namespace Hypervel\Ai\Concerns;
 use Closure;
 use Hypervel\Ai\Gateway\FakeClassificationGateway;
 use Hypervel\Ai\Prompts\ClassificationPrompt;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use PHPUnit\Framework\Assert as PHPUnit;
 
@@ -25,8 +26,9 @@ trait InteractsWithFakeClassification
     /**
      * Fake classification operations.
      *
-     * Tests only. The fake gateway is shared by all requests in the worker.
+     * On the shared manager, the fake gateway affects every request.
      */
+    #[TestsOnly(whenShared: true)]
     public function fakeClassification(Closure|array $responses = []): FakeClassificationGateway
     {
         return $this->fakeClassificationGateway = new FakeClassificationGateway($responses);
@@ -35,8 +37,9 @@ trait InteractsWithFakeClassification
     /**
      * Record a classification.
      *
-     * Tests only. Recorded prompts remain on the worker-shared manager.
+     * Recorded prompts remain on the worker-shared manager.
      */
+    #[TestsOnly(whenShared: true)]
     public function recordClassification(ClassificationPrompt $prompt): self
     {
         $this->recordedClassifications[] = $prompt;

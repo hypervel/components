@@ -7,6 +7,8 @@ namespace Hypervel\Sanctum;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Sanctum\Contracts\HasAbilities;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Mockery;
 use Mockery\MockInterface;
 use UnitEnum;
@@ -80,8 +82,8 @@ class Sanctum
     /**
      * Set the current user for the application with the given abilities.
      *
-     * Tests only. This installs a Mockery token double and replaces the current
-     * coroutine's authenticated user and default guard with test state.
+     * This installs a Mockery token double and replaces the current coroutine's
+     * authenticated user and default guard with test state.
      *
      * @template TUser of Authenticatable
      *
@@ -89,6 +91,7 @@ class Sanctum
      * @param array<string|UnitEnum> $abilities
      * @return TUser
      */
+    #[TestsOnly]
     public static function actingAs(Authenticatable $user, array $abilities = [], ?string $guard = 'sanctum'): Authenticatable
     {
         $abilities = array_map(enum_value(...), $abilities);
@@ -122,12 +125,12 @@ class Sanctum
     /**
      * Set the personal access token model name.
      *
-     * Boot-only. The model class name persists in a static property for the
-     * worker lifetime and is used for every token resolution across all
-     * coroutines.
+     * The model class name persists in a static property for the worker
+     * lifetime and is used for every token resolution across all coroutines.
      *
      * @param class-string<PersonalAccessToken> $model
      */
+    #[BootOnly]
     public static function usePersonalAccessTokenModel(string $model): void
     {
         static::$personalAccessTokenModel = $model;
@@ -136,9 +139,10 @@ class Sanctum
     /**
      * Specify a callback that should be used to fetch the access token from the request.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every token retrieval across all coroutines.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every token retrieval across all coroutines.
      */
+    #[BootOnly]
     public static function getAccessTokenFromRequestUsing(?callable $callback): void
     {
         static::$accessTokenRetrievalCallback = $callback;
@@ -147,9 +151,10 @@ class Sanctum
     /**
      * Specify a callback that should be used to authenticate access tokens.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every token authentication across all coroutines.
+     * The callback persists in a static property for the worker lifetime and
+     * runs on every token authentication across all coroutines.
      */
+    #[BootOnly]
     public static function authenticateAccessTokensUsing(callable $callback): void
     {
         static::$accessTokenAuthenticationCallback = $callback;

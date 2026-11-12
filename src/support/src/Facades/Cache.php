@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
+use Hypervel\Support\Attributes\TestsOnly;
 use Mockery;
 use Mockery\MockInterface;
 
@@ -92,8 +93,9 @@ class Cache extends Facade
      * Uses a partial spy on the real instance so that methods like `memo()`
      * execute their real implementation while still recording calls.
      *
-     * Tests only. Swaps the resolved facade instance for the worker lifetime.
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     public static function spy(): ?MockInterface
     {
         if (! static::isMock()) {

@@ -17,6 +17,7 @@ use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\TestsOnly;
 use InvalidArgumentException;
 use LogicException;
 use PDO;
@@ -137,8 +138,9 @@ class DatabasePool extends ConnectionPool
     /**
      * Restore the shared in-memory database retained between tests.
      *
-     * Tests only. Replaces the database used by every subsequent pool borrower.
+     * Replaces the database used by every subsequent pool borrower.
      */
+    #[TestsOnly(whenShared: true)]
     public function restoreSharedInMemorySqlitePdo(PDO $pdo): void
     {
         if ($this->getBorrowedCount() > 0) {

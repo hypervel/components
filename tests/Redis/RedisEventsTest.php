@@ -245,7 +245,7 @@ class RedisEventsTest extends TestCase
         $pool->shouldReceive('borrow')->andReturn($connection);
         $pool->shouldReceive('getOptions')->andReturn(PoolOptions::fromArray([]));
 
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->shouldReceive('pool')->with('default')->andReturn($pool);
 
         return new RedisProxy(

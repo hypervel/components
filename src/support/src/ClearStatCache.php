@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
+use Hypervel\Support\Attributes\BootOnly;
+
 class ClearStatCache
 {
     /**
@@ -56,9 +58,10 @@ class ClearStatCache
     /**
      * Set the clear interval in seconds.
      *
-     * Boot-only. The interval persists in a static property for the worker
-     * lifetime and affects every subsequent stat-cache clear check.
+     * The interval persists in a static property for the worker lifetime
+     * and affects every subsequent stat-cache clear check.
      */
+    #[BootOnly]
     public static function setInterval(int $interval): void
     {
         self::$interval = $interval;

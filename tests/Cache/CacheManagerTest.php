@@ -737,29 +737,53 @@ class CacheManagerTest extends TestCase
         $this->assertNull($cacheManager->store('forget')->get('foo'));
     }
 
-    public function testForgetDriverForgetsTheCallingCoroutinesMemoizedRepository(): void
+    #[DataProvider('memoizedStoresToForget')]
+    public function testForgetDriverForgetsTheCallingCoroutinesMemoizedRepository(string $store, bool $forgetConfiguredStores): void
     {
-        $app = $this->getApp([
-            'cache' => [
-                'stores' => [
-                    'array' => ['driver' => 'array'],
-                ],
-            ],
-        ]);
-        $cacheManager = new CacheManager($app);
-        $firstRepository = $cacheManager->memo('array');
+        $stores = [$store => ['driver' => 'array']];
+        $cacheManager = new CacheManager($this->getApp(['cache' => ['stores' => $stores]]));
+        $firstRepository = $cacheManager->memo($store);
         $firstMemoizedStore = $firstRepository->getStore();
 
         $this->assertInstanceOf(MemoizedStore::class, $firstMemoizedStore);
 
-        $cacheManager->forgetDriver('array');
+        $cacheManager->forgetDriver($forgetConfiguredStores ? array_keys($stores) : $store);
 
-        $secondRepository = $cacheManager->memo('array');
+        $secondRepository = $cacheManager->memo($store);
         $secondMemoizedStore = $secondRepository->getStore();
 
         $this->assertInstanceOf(MemoizedStore::class, $secondMemoizedStore);
         $this->assertNotSame($firstRepository, $secondRepository);
         $this->assertNotSame($firstMemoizedStore->getInnerStore(), $secondMemoizedStore->getInnerStore());
+    }
+
+    /**
+     * Provide store names and whether to forget them through the configured store keys.
+     */
+    public static function memoizedStoresToForget(): array
+    {
+        return [
+            'string name' => ['array', false],
+            'numeric name from the configured store keys' => ['0', true],
+        ];
+    }
+
+    public function testMemoizedRepositoriesBelongToTheirManager(): void
+    {
+        $config = ['cache' => ['stores' => ['array' => ['driver' => 'array']]]];
+        $first = new CacheManager($this->getApp($config));
+        $second = new CacheManager($this->getApp($config));
+
+        $first->memo('array')->put('key', 'first', 60);
+        $second->memo('array')->put('key', 'second', 60);
+        $firstMemo = $first->memo('array');
+
+        $this->assertSame('first', $firstMemo->get('key'));
+        $this->assertSame('second', $second->memo('array')->get('key'));
+
+        $second->forgetDriver('array');
+
+        $this->assertSame($firstMemo, $first->memo('array'));
     }
 
     public function testMemoizedRepositoriesPreserveStoreIdentityAndSuppressDuplicateEvents(): void

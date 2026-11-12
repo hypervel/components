@@ -18,13 +18,6 @@ class RedisProxyNonCoroutineTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;
 
-    protected function tearDown(): void
-    {
-        CoroutineContext::forget(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default');
-
-        parent::tearDown();
-    }
-
     public function testMultiPinsConnectionUntilTerminalCleanup(): void
     {
         $this->assertCommandPinsConnection('multi', [], new stdClass);
@@ -62,24 +55,20 @@ class RedisProxyNonCoroutineTest extends TestCase
 
         $pool = m::mock(RedisPool::class);
         $pool->expects('borrow')->andReturn($connection);
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->expects('pool')->with('default')->andReturn($pool);
         $redis = new RedisProxy(
             $poolManager,
             'default',
             m::mock(RedisSentinelFactory::class),
         );
+        $contextKey = (fn (): string => $this->getContextKey())->call($redis);
 
         $this->assertSame($result, $redis->{$command}(...$arguments));
-        $this->assertSame(
-            $connection,
-            CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default')
-        );
+        $this->assertSame($connection, CoroutineContext::get($contextKey));
 
         $redis->releaseContextConnection();
 
-        $this->assertFalse(
-            CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default')
-        );
+        $this->assertFalse(CoroutineContext::has($contextKey));
     }
 }

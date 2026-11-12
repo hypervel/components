@@ -498,6 +498,19 @@ class CacheTaggedCacheTest extends TestCase
         $this->assertSame('bar', $store->tags($tags)->get('foo'));
     }
 
+    public function testFlushingAClonedTaggedCacheLeavesTheOriginalIntact(): void
+    {
+        $tagged = (new Repository(new ArrayStore))->tags('group');
+        $tagged->put('key', 'value', 60);
+
+        $copy = clone $tagged;
+        $copy->flush();
+
+        $this->assertNull($copy->get('key'));
+        $this->assertNull($copy->tags('group')->get('key'));
+        $this->assertSame('value', $tagged->get('key'));
+    }
+
     public function testIncrementAcceptsStringBackedEnum(): void
     {
         $store = new ArrayStore;

@@ -13,6 +13,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Client\Destinations\DestinationResolutionException;
 use Hypervel\Http\Client\Destinations\DisallowedDestinationException;
 use Hypervel\Http\Client\Response;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Facades\Http;
 use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface;
@@ -121,10 +122,11 @@ class UntrustedUrl
     /**
      * Resolve hostnames with the given callback, or the system resolver when null.
      *
-     * Boot or tests only. The callback persists for the worker lifetime and affects every subsequent fetch.
+     * The callback persists for the worker lifetime and affects every subsequent fetch.
      *
      * @param null|(Closure(string): list<string>) $resolver
      */
+    #[BootOrTestsOnly]
     public static function resolveUsing(?Closure $resolver): void
     {
         static::$resolver = $resolver;

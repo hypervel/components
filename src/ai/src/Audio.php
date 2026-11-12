@@ -7,6 +7,7 @@ namespace Hypervel\Ai;
 use Closure;
 use Hypervel\Ai\Gateway\FakeAudioGateway;
 use Hypervel\Ai\PendingResponses\PendingAudioGeneration;
+use Hypervel\Support\Attributes\TestsOnly;
 use InvalidArgumentException;
 
 class Audio
@@ -24,8 +25,9 @@ class Audio
     /**
      * Fake audio generation.
      *
-     * Tests only. The fake gateway is shared across requests in the worker.
+     * The fake gateway is shared across requests in the worker.
      */
+    #[TestsOnly]
     public static function fake(Closure|array $responses = []): FakeAudioGateway
     {
         return Ai::fakeAudio($responses);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Translation;
 
 use Countable;
+use Hypervel\Support\Attributes\BootOnly;
 
 interface Translator
 {
@@ -48,9 +49,10 @@ interface Translator
     /**
      * Set the fallback locale being used.
      *
-     * Boot-only. The fallback is shared by the worker's Translator instance and
-     * affects every subsequent translation lookup in that worker. Use
-     * setLocale() for a current-request locale override.
+     * The fallback is shared by the worker's Translator instance and affects
+     * every subsequent translation lookup in that worker. Use setLocale() for a
+     * current-request locale override.
      */
+    #[BootOnly(whenShared: true)]
     public function setFallback(string $fallback): void;
 }

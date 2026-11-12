@@ -12,6 +12,7 @@ use Hypervel\Mcp\Enums\ProtocolVersion;
 use Hypervel\Mcp\Exceptions\ClientException;
 use Hypervel\Mcp\WebClient;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Traits\Macroable;
 use Throwable;
 
@@ -43,11 +44,13 @@ class ClientManager
     /**
      * Register a named client factory.
      *
-     * Boot-only. Factories persist across requests. Re-registration disconnects
-     * only the current owner's client; other owners retain theirs until cleanup.
+     * On the shared manager, factories persist across requests. Re-registration
+     * disconnects only the current owner's client; other owners retain theirs
+     * until cleanup.
      *
      * @param Closure(): Client $factory
      */
+    #[BootOnly(whenShared: true)]
     public function registerClient(string $name, Closure $factory): void
     {
         if (isset($this->clients[$name])) {

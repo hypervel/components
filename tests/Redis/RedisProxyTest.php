@@ -50,13 +50,6 @@ use function Hypervel\Coroutine\go;
  */
 class RedisProxyTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-        CoroutineContext::forget(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default');
-        CoroutineContext::forget(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'cache');
-    }
-
     public function testCommandIsProxiedToConnection(): void
     {
         $connection = $this->mockConnection();
@@ -72,7 +65,7 @@ class RedisProxyTest extends TestCase
 
     public function testMacroRegistrationMethodsDoNotCheckoutRedis(): void
     {
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->expects('pool')->never();
         $redis = new RedisProxy($poolManager, 'default', $this->sentinelFactory());
 
@@ -95,7 +88,7 @@ class RedisProxyTest extends TestCase
 
     public function testMixedCaseSubscriptionsUseDedicatedProxyRoute(): void
     {
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->expects('pool')->never();
         $redis = new class($poolManager, 'default', $this->sentinelFactory()) extends RedisProxy {
             public array $subscriptions = [];
@@ -291,7 +284,7 @@ class RedisProxyTest extends TestCase
 
         $this->assertSame($multiInstance, $result);
         // Connection should be stored in context
-        $this->assertTrue(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertTrue(CoroutineContext::has($this->contextKey($redis)));
     }
 
     public function testMixedCasePipelineStoresConnectionInContext(): void
@@ -308,7 +301,7 @@ class RedisProxyTest extends TestCase
         $result = $redis->__call('PIPELINE', []);
 
         $this->assertSame($pipelineInstance, $result);
-        $this->assertTrue(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertTrue(CoroutineContext::has($this->contextKey($redis)));
     }
 
     public function testMixedCaseSelectStoresConnectionInContext(): void
@@ -323,7 +316,7 @@ class RedisProxyTest extends TestCase
         $result = $redis->__call('SELECT', [1]);
 
         $this->assertTrue($result);
-        $this->assertTrue(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertTrue(CoroutineContext::has($this->contextKey($redis)));
     }
 
     public function testConnectionIsStoredInContextForSelectZeroDatabase(): void
@@ -337,7 +330,7 @@ class RedisProxyTest extends TestCase
         $result = $redis->select(0);
 
         $this->assertTrue($result);
-        $this->assertTrue(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertTrue(CoroutineContext::has($this->contextKey($redis)));
     }
 
     public function testMixedCaseWatchStoresConnectionInContext(): void
@@ -351,7 +344,7 @@ class RedisProxyTest extends TestCase
         $this->assertTrue($redis->__call('WATCH', ['key']));
         $this->assertSame(
             $connection,
-            CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default')
+            CoroutineContext::get($this->contextKey($redis))
         );
     }
 
@@ -361,14 +354,13 @@ class RedisProxyTest extends TestCase
         $connection->shouldReceive('discardTransaction')->once()->andReturn(true);
         $connection->shouldReceive('discard')->never();
         $connection->shouldReceive('release')->never();
-        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
-
         $redis = $this->createRedis($connection);
+        CoroutineContext::set($this->contextKey($redis), $connection);
 
         $this->assertTrue($redis->__call('DISCARD', []));
         $this->assertSame(
             $connection,
-            CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default')
+            CoroutineContext::get($this->contextKey($redis))
         );
     }
 
@@ -451,22 +443,19 @@ class RedisProxyTest extends TestCase
             $secondChildConnection,
         );
         $redis->multi();
+        $contextKey = $this->contextKey($redis);
 
         $childrenReady = new Channel(2);
         $releaseChildren = new Channel(2);
         $childCoroutineIds = [
-            go(static function () use ($redis, $childrenReady, $releaseChildren): void {
+            go(static function () use ($redis, $contextKey, $childrenReady, $releaseChildren): void {
                 $redis->multi();
-                $childrenReady->push(CoroutineContext::get(
-                    RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default',
-                ));
+                $childrenReady->push(CoroutineContext::get($contextKey));
                 $releaseChildren->pop();
             }, copyContext: true),
-            go(static function () use ($redis, $childrenReady, $releaseChildren): void {
+            go(static function () use ($redis, $contextKey, $childrenReady, $releaseChildren): void {
                 $redis->multi();
-                $childrenReady->push(CoroutineContext::get(
-                    RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default',
-                ));
+                $childrenReady->push(CoroutineContext::get($contextKey));
                 $releaseChildren->pop();
             }, copyContext: true),
         ];
@@ -475,9 +464,7 @@ class RedisProxyTest extends TestCase
             $firstBorrowedConnection = $childrenReady->pop(1.0);
             $secondBorrowedConnection = $childrenReady->pop(1.0);
 
-            $this->assertSame($parentConnection, CoroutineContext::get(
-                RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default',
-            ));
+            $this->assertSame($parentConnection, CoroutineContext::get($contextKey));
             $this->assertNotSame($parentConnection, $firstBorrowedConnection);
             $this->assertNotSame($parentConnection, $secondBorrowedConnection);
             $this->assertNotSame($firstBorrowedConnection, $secondBorrowedConnection);
@@ -511,18 +498,17 @@ class RedisProxyTest extends TestCase
         });
 
         $redis = $this->createCountingRedis($parentConnection, $childConnection);
+        $contextKey = $this->contextKey($redis);
         $allowChild = new Channel(1);
         $childBorrowed = new Channel(1);
         $childCoroutineId = new Channel(1);
 
-        $parentCoroutineId = go(static function () use ($redis, $allowChild, $childBorrowed, $childCoroutineId): void {
+        $parentCoroutineId = go(static function () use ($redis, $contextKey, $allowChild, $childBorrowed, $childCoroutineId): void {
             $redis->multi();
-            $childCoroutineId->push(go(static function () use ($redis, $allowChild, $childBorrowed): void {
+            $childCoroutineId->push(go(static function () use ($redis, $contextKey, $allowChild, $childBorrowed): void {
                 $allowChild->pop();
                 $redis->multi();
-                $childBorrowed->push(CoroutineContext::get(
-                    RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default',
-                ));
+                $childBorrowed->push(CoroutineContext::get($contextKey));
             }, copyContext: true));
         });
 
@@ -572,7 +558,7 @@ class RedisProxyTest extends TestCase
         );
         $pool->shouldReceive('getOptions')->andReturn(PoolOptions::fromArray([]));
 
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->shouldReceive('pool')->with('default')->andReturn($pool);
 
         $redis = new RedisProxy($poolManager, 'default', $this->sentinelFactory());
@@ -607,7 +593,7 @@ class RedisProxyTest extends TestCase
         $pool->shouldReceive('borrow')->times(2)->andReturn($pinnedConnection, $otherCoroutineConnection);
         $pool->shouldReceive('getOptions')->andReturn(PoolOptions::fromArray([]));
 
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->shouldReceive('pool')->with('default')->andReturn($pool);
 
         $redis = new RedisProxy($poolManager, 'default', $this->sentinelFactory());
@@ -633,10 +619,10 @@ class RedisProxyTest extends TestCase
         // but allow release() call for test cleanup
         $connection->shouldReceive('release')->zeroOrMoreTimes();
 
-        // Pre-set connection in context
-        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
-
         $redis = $this->createRedis($connection);
+
+        // Pre-set connection in context
+        CoroutineContext::set($this->contextKey($redis), $connection);
 
         // Both calls should use the same connection from context
         $result1 = $redis->get('key1');
@@ -687,10 +673,10 @@ class RedisProxyTest extends TestCase
         $mockRedisConnection = $this->createMockRedisConnection('get', null, $expectedException);
         $mockRedisConnection->shouldReceive('release')->never();
 
-        // Pre-set context connection
-        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $mockRedisConnection);
-
         $redis = $this->createRedis($mockRedisConnection);
+
+        // Pre-set context connection
+        CoroutineContext::set($this->contextKey($redis), $mockRedisConnection);
 
         try {
             $redis->get('key');
@@ -718,7 +704,7 @@ class RedisProxyTest extends TestCase
         }
 
         // Connection should NOT be stored in context on error
-        $this->assertNull(CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertNull(CoroutineContext::get($this->contextKey($redis)));
     }
 
     public function testEventDispatchedOnSuccess(): void
@@ -751,41 +737,43 @@ class RedisProxyTest extends TestCase
     {
         $dispatcher = m::mock(Dispatcher::class);
         $connection = $this->createMockRedisConnection('get', 'value', eventDispatcher: $dispatcher);
+        $redis = $this->createRedis($connection);
         $dispatcher->expects('hasListeners')->with(CommandExecuted::class)->andReturnTrue();
         $dispatcher->expects('dispatch')
             ->with(m::type(CommandExecuted::class))
-            ->andReturnUsing(function () use ($connection): void {
+            ->andReturnUsing(function () use ($connection, $redis): void {
                 $this->assertSame(
                     $connection,
-                    CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'),
+                    CoroutineContext::get($this->contextKey($redis)),
                 );
             });
         $connection->expects('release');
 
-        $this->assertSame('value', $this->createRedis($connection)->get('key'));
-        $this->assertFalse(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertSame('value', $redis->get('key'));
+        $this->assertFalse(CoroutineContext::has($this->contextKey($redis)));
     }
 
     public function testSuccessEventPreservesAPreExistingContextConnection(): void
     {
         $dispatcher = m::mock(Dispatcher::class);
         $connection = $this->createMockRedisConnection('get', 'value', eventDispatcher: $dispatcher);
+        $redis = $this->createRedis($connection);
         $dispatcher->expects('hasListeners')->with(CommandExecuted::class)->andReturnTrue();
         $dispatcher->expects('dispatch')
             ->with(m::type(CommandExecuted::class))
-            ->andReturnUsing(function () use ($connection): void {
+            ->andReturnUsing(function () use ($connection, $redis): void {
                 $this->assertSame(
                     $connection,
-                    CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'),
+                    CoroutineContext::get($this->contextKey($redis)),
                 );
             });
         $connection->shouldNotReceive('release');
-        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+        CoroutineContext::set($this->contextKey($redis), $connection);
 
-        $this->assertSame('value', $this->createRedis($connection)->get('key'));
+        $this->assertSame('value', $redis->get('key'));
         $this->assertSame(
             $connection,
-            CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'),
+            CoroutineContext::get($this->contextKey($redis)),
         );
     }
 
@@ -807,7 +795,7 @@ class RedisProxyTest extends TestCase
             });
 
         $this->assertSame('outer', $redis->get('outer'));
-        $this->assertFalse(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertFalse(CoroutineContext::has($this->contextKey($redis)));
     }
 
     public function testEventDispatchedOnErrorWithExceptionInfo(): void
@@ -895,25 +883,26 @@ class RedisProxyTest extends TestCase
         $commandException = new RuntimeException('Command failed.');
         $dispatcher = m::mock(Dispatcher::class);
         $connection = $this->createMockRedisConnection('get', exception: $commandException, eventDispatcher: $dispatcher);
+        $redis = $this->createRedis($connection);
         $dispatcher->expects('hasListeners')->with(CommandFailed::class)->andReturnTrue();
         $dispatcher->expects('dispatch')
             ->with(m::type(CommandFailed::class))
-            ->andReturnUsing(function () use ($connection): void {
+            ->andReturnUsing(function () use ($connection, $redis): void {
                 $this->assertSame(
                     $connection,
-                    CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'),
+                    CoroutineContext::get($this->contextKey($redis)),
                 );
             });
         $connection->expects('release');
 
         try {
-            $this->createRedis($connection)->get('key');
+            $redis->get('key');
             $this->fail('Expected the command failure to propagate.');
         } catch (RuntimeException $throwable) {
             $this->assertSame($commandException, $throwable);
         }
 
-        $this->assertFalse(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertFalse(CoroutineContext::has($this->contextKey($redis)));
     }
 
     public function testFailureEventCanRunANestedCommandOnTheOwnedConnection(): void
@@ -939,7 +928,7 @@ class RedisProxyTest extends TestCase
             $this->assertSame($commandException, $throwable);
         }
 
-        $this->assertFalse(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertFalse(CoroutineContext::has($this->contextKey($redis)));
     }
 
     public function testMultiListenerQueuesNestedCommandsOnTheOwnedTransaction(): void
@@ -963,7 +952,7 @@ class RedisProxyTest extends TestCase
         $this->assertSame($transaction, $redis->multi());
         $this->assertSame(
             $connection,
-            CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'),
+            CoroutineContext::get($this->contextKey($redis)),
         );
     }
 
@@ -975,15 +964,16 @@ class RedisProxyTest extends TestCase
         $dispatcher->expects('dispatch')->andThrow($eventException);
         $connection = $this->createMockRedisConnection('get', 'value', null, $dispatcher);
         $connection->expects('release');
+        $redis = $this->createRedis($connection);
 
         try {
-            $this->createRedis($connection)->get('key');
+            $redis->get('key');
             $this->fail('Expected the event listener failure to propagate.');
         } catch (RuntimeException $throwable) {
             $this->assertSame($eventException, $throwable);
         }
 
-        $this->assertFalse(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertFalse(CoroutineContext::has($this->contextKey($redis)));
     }
 
     public function testThrowingSuccessListenerDoesNotSkipSameConnectionHandoff(): void
@@ -1006,7 +996,7 @@ class RedisProxyTest extends TestCase
 
         $this->assertSame(
             $connection,
-            CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default')
+            CoroutineContext::get($this->contextKey($redis))
         );
     }
 
@@ -1019,15 +1009,16 @@ class RedisProxyTest extends TestCase
         $dispatcher->expects('dispatch')->andThrow($eventException);
         $connection = $this->createMockRedisConnection('get', null, $commandException, $dispatcher);
         $connection->expects('release');
+        $redis = $this->createRedis($connection);
 
         try {
-            $this->createRedis($connection)->get('key');
+            $redis->get('key');
             $this->fail('Expected the event listener failure to propagate.');
         } catch (RuntimeException $throwable) {
             $this->assertSame($eventException, $throwable);
         }
 
-        $this->assertFalse(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertFalse(CoroutineContext::has($this->contextKey($redis)));
     }
 
     public function testCommandFailureRemainsPrimaryOverCleanupFailure(): void
@@ -1114,11 +1105,12 @@ class RedisProxyTest extends TestCase
         $connection->expects('multi')->andReturn($transaction);
         $connection->expects('clearWatchState');
         $connection->shouldNotReceive('release');
-        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+        $redis = $this->createRedis($connection);
+        CoroutineContext::set($this->contextKey($redis), $connection);
 
         $this->assertSame(
             [],
-            $this->createRedis($connection)->transaction(static function (): void {
+            $redis->transaction(static function (): void {
             })
         );
     }
@@ -1131,10 +1123,11 @@ class RedisProxyTest extends TestCase
         $connection->expects('multi')->andReturn($transaction);
         $connection->expects('clearWatchState');
         $connection->shouldNotReceive('release');
-        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+        $redis = $this->createRedis($connection);
+        CoroutineContext::set($this->contextKey($redis), $connection);
 
         $this->assertFalse(
-            $this->createRedis($connection)->transaction(static function (): void {
+            $redis->transaction(static function (): void {
             })
         );
     }
@@ -1148,12 +1141,13 @@ class RedisProxyTest extends TestCase
         $connection->expects('invalidate');
         $connection->shouldNotReceive('clearWatchState');
         $connection->shouldNotReceive('release');
-        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+        $redis = $this->createRedis($connection);
+        CoroutineContext::set($this->contextKey($redis), $connection);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Exec failed.');
 
-        $this->createRedis($connection)->transaction(static function (): void {
+        $redis->transaction(static function (): void {
         });
     }
 
@@ -1242,11 +1236,12 @@ class RedisProxyTest extends TestCase
         $connection->expects('pipeline')->andReturn($pipeline);
         $connection->shouldNotReceive('clearWatchState');
         $connection->shouldNotReceive('release');
-        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+        $redis = $this->createRedis($connection);
+        CoroutineContext::set($this->contextKey($redis), $connection);
 
         $this->assertSame(
             [],
-            $this->createRedis($connection)->pipeline(static function (): void {
+            $redis->pipeline(static function (): void {
             })
         );
     }
@@ -1254,20 +1249,19 @@ class RedisProxyTest extends TestCase
     public function testRegularCommandDoesNotStoreConnectionInContext(): void
     {
         $mockRedisConnection = $this->mockConnection();
+        $mockRedisConnection->shouldReceive('release')->once();
+        $redis = $this->createRedis($mockRedisConnection);
         $mockRedisConnection->expects('get')
             ->with('key')
-            ->andReturnUsing(function (): string {
-                $this->assertFalse(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+            ->andReturnUsing(function () use ($redis): string {
+                $this->assertFalse(CoroutineContext::has($this->contextKey($redis)));
 
                 return 'value';
             });
-        $mockRedisConnection->shouldReceive('release')->once();
-
-        $redis = $this->createRedis($mockRedisConnection);
 
         $redis->get('key');
 
-        $this->assertNull(CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertNull(CoroutineContext::get($this->contextKey($redis)));
     }
 
     public function testWithConnectionExecutesCallbackAndReleasesConnection(): void
@@ -1292,10 +1286,10 @@ class RedisProxyTest extends TestCase
         // Should NOT release since connection was already in context
         $connection->shouldReceive('release')->never();
 
-        // Pre-set connection in context (simulating an active multi/pipeline)
-        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
-
         $redis = $this->createRedis($connection);
+
+        // Pre-set connection in context (simulating an active multi/pipeline)
+        CoroutineContext::set($this->contextKey($redis), $connection);
 
         $result = $redis->withConnection(function (RedisConnection $redisConnection) use ($connection) {
             $this->assertSame($connection, $redisConnection);
@@ -1305,7 +1299,7 @@ class RedisProxyTest extends TestCase
 
         $this->assertSame('reused-connection', $result);
         // Connection should still be in context
-        $this->assertTrue(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertTrue(CoroutineContext::has($this->contextKey($redis)));
     }
 
     public function testWithConnectionReleasesOnException(): void
@@ -1389,9 +1383,9 @@ class RedisProxyTest extends TestCase
         // Should NOT release since connection was in context
         $connection->shouldReceive('release')->never();
 
-        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
-
         $redis = $this->createRedis($connection);
+
+        CoroutineContext::set($this->contextKey($redis), $connection);
 
         try {
             $redis->withConnection(function (RedisConnection $redisConnection) {
@@ -1403,7 +1397,7 @@ class RedisProxyTest extends TestCase
         }
 
         // Connection should still be in context
-        $this->assertTrue(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertTrue(CoroutineContext::has($this->contextKey($redis)));
     }
 
     public function testWithConnectionDefaultsToTransformTrue(): void
@@ -1501,32 +1495,31 @@ class RedisProxyTest extends TestCase
 
         $redis = $this->createRedis($connection);
 
-        $result = $redis->withoutSerializationOrCompression(function () use ($connection) {
+        $result = $redis->withoutSerializationOrCompression(function () use ($connection, $redis) {
             // Connection must be pinned in Context during callback
-            $this->assertSame($connection, CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+            $this->assertSame($connection, CoroutineContext::get($this->contextKey($redis)));
 
             return 'result';
         });
 
         $this->assertSame('result', $result);
         // Connection should be unpinned after completion
-        $this->assertNull(CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertNull(CoroutineContext::get($this->contextKey($redis)));
     }
 
     public function testWithPinnedConnectionPreservesCallbackCancellationAndUnpinsBeforeCleanup(): void
     {
         $cancellation = new CanceledException('Callback canceled.');
         $connection = $this->mockConnection();
-        $connection->expects('release')->andReturnUsing(function (): void {
-            $this->assertFalse(CoroutineContext::has(
-                RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default',
-            ));
+        $redis = $this->createRedis($connection);
+        $connection->expects('release')->andReturnUsing(function () use ($redis): void {
+            $this->assertFalse(CoroutineContext::has($this->contextKey($redis)));
 
             throw new RuntimeException('Cleanup failed.');
         });
 
         try {
-            $this->createRedis($connection)->withPinnedConnection(
+            $redis->withPinnedConnection(
                 static function () use ($cancellation): never {
                     throw $cancellation;
                 },
@@ -1536,9 +1529,7 @@ class RedisProxyTest extends TestCase
             $this->assertSame($cancellation, $throwable);
         }
 
-        $this->assertFalse(CoroutineContext::has(
-            RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default',
-        ));
+        $this->assertFalse(CoroutineContext::has($this->contextKey($redis)));
     }
 
     public function testWithoutSerializationOrCompressionReusesExistingContextConnection(): void
@@ -1550,21 +1541,21 @@ class RedisProxyTest extends TestCase
         // Should NOT release since connection was already in context
         $connection->shouldReceive('release')->never();
 
-        // Pre-set connection in context (simulating an active multi/pipeline)
-        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
-
         $redis = $this->createRedis($connection);
 
-        $result = $redis->withoutSerializationOrCompression(function () use ($connection) {
+        // Pre-set connection in context (simulating an active multi/pipeline)
+        CoroutineContext::set($this->contextKey($redis), $connection);
+
+        $result = $redis->withoutSerializationOrCompression(function () use ($connection, $redis) {
             // Connection should still be the same one that was pre-set
-            $this->assertSame($connection, CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+            $this->assertSame($connection, CoroutineContext::get($this->contextKey($redis)));
 
             return 'reused';
         });
 
         $this->assertSame('reused', $result);
         // Connection should still be in context
-        $this->assertTrue(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertTrue(CoroutineContext::has($this->contextKey($redis)));
     }
 
     public function testWithoutSerializationOrCompressionCleansUpOnException(): void
@@ -1580,9 +1571,9 @@ class RedisProxyTest extends TestCase
         $redis = $this->createRedis($connection);
 
         try {
-            $redis->withoutSerializationOrCompression(function () use ($connection) {
+            $redis->withoutSerializationOrCompression(function () use ($connection, $redis) {
                 // Connection must be pinned even when callback throws
-                $this->assertSame($connection, CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+                $this->assertSame($connection, CoroutineContext::get($this->contextKey($redis)));
 
                 throw new RuntimeException('Callback failed');
             });
@@ -1592,7 +1583,7 @@ class RedisProxyTest extends TestCase
         }
 
         // Connection should be unpinned and released
-        $this->assertNull(CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertNull(CoroutineContext::get($this->contextKey($redis)));
     }
 
     public function testWithoutSerializationOrCompressionDoesNotReleaseContextConnectionOnException(): void
@@ -1606,14 +1597,14 @@ class RedisProxyTest extends TestCase
         // Should NOT release since connection was already in context
         $connection->shouldReceive('release')->never();
 
-        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
-
         $redis = $this->createRedis($connection);
 
+        CoroutineContext::set($this->contextKey($redis), $connection);
+
         try {
-            $redis->withoutSerializationOrCompression(function () use ($connection) {
+            $redis->withoutSerializationOrCompression(function () use ($connection, $redis) {
                 // Connection should still be pinned during callback
-                $this->assertSame($connection, CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+                $this->assertSame($connection, CoroutineContext::get($this->contextKey($redis)));
 
                 throw new RuntimeException('Callback failed');
             });
@@ -1623,7 +1614,7 @@ class RedisProxyTest extends TestCase
         }
 
         // Connection should still be in context
-        $this->assertTrue(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertTrue(CoroutineContext::has($this->contextKey($redis)));
     }
 
     public function testSubscriberUsesTheCompleteStandaloneConfiguration(): void
@@ -1640,7 +1631,7 @@ class RedisProxyTest extends TestCase
             'options' => ['prefix' => 'app:'],
         ]));
         $pool->shouldNotReceive('borrow');
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->expects('pool')->with('default')->andReturn($pool);
         $subscriber = (new RedisProxy(
             $poolManager,
@@ -1682,7 +1673,7 @@ class RedisProxyTest extends TestCase
         $pool = m::mock(RedisPool::class);
         $pool->expects('getConfig')->twice()->andReturn($config);
         $pool->shouldNotReceive('borrow');
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->expects('pool')->twice()->with('default')->andReturn($pool);
         $sentinelFactory = m::mock(RedisSentinelFactory::class);
         $sentinelFactory->expects('resolveMaster')
@@ -1741,7 +1732,7 @@ class RedisProxyTest extends TestCase
         $pool = m::mock(RedisPool::class);
         $pool->expects('getConfig')->andReturn($config);
         $pool->expects('borrow')->andReturn($connection);
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->expects('pool')->with('default')->andReturn($pool);
         $subscriber = (new RedisProxy(
             $poolManager,
@@ -1804,7 +1795,7 @@ class RedisProxyTest extends TestCase
         $pool = m::mock(RedisPool::class);
         $pool->expects('getConfig')->andReturn($config);
         $pool->expects('borrow')->andReturn($connection);
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->expects('pool')->with('default')->andReturn($pool);
         $subscriber = (new RedisProxy(
             $poolManager,
@@ -1841,7 +1832,7 @@ class RedisProxyTest extends TestCase
         $pool = m::mock(RedisPool::class);
         $pool->expects('getConfig')->andReturn($config);
         $pool->expects('borrow')->andReturn($connection);
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->expects('pool')->with('default')->andReturn($pool);
 
         try {
@@ -1872,7 +1863,7 @@ class RedisProxyTest extends TestCase
             ],
         ]);
         $pool->expects('borrow')->andReturn($connection);
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->expects('pool')->with('default')->andReturn($pool);
 
         try {
@@ -1898,7 +1889,7 @@ class RedisProxyTest extends TestCase
         $pool = m::mock(RedisPool::class);
         $pool->expects('getConfig')->andReturn($this->clusterConfig());
         $pool->expects('borrow')->andReturn($connection);
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->allows('pool')->with('default')->andReturn($pool);
         $redis = new RedisProxy($poolManager, 'default', $this->sentinelFactory());
 
@@ -1912,7 +1903,7 @@ class RedisProxyTest extends TestCase
 
             $this->assertSame(
                 $connection,
-                CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'),
+                CoroutineContext::get($this->contextKey($redis)),
             );
         });
     }
@@ -1932,7 +1923,7 @@ class RedisProxyTest extends TestCase
             ],
         ]);
         $pool->expects('borrow')->andReturn($connection);
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->expects('pool')->with('default')->andReturn($pool);
         $redis = new RedisProxy($poolManager, 'default', $this->sentinelFactory());
 
@@ -1964,7 +1955,7 @@ class RedisProxyTest extends TestCase
             ],
         ]);
         $pool->expects('borrow')->andReturn($connection);
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->expects('pool')->with('default')->andReturn($pool);
 
         try {
@@ -2057,7 +2048,7 @@ class RedisProxyTest extends TestCase
         ]);
         $pool->shouldReceive('borrow')->never();
 
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->shouldReceive('pool')->with('default')->andReturn($pool);
 
         $redis = new RedisProxy($poolManager, 'default', $this->sentinelFactory());
@@ -2073,7 +2064,7 @@ class RedisProxyTest extends TestCase
         ]);
         $pool->shouldReceive('borrow')->never();
 
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->shouldReceive('pool')->with('cache')->andReturn($pool);
 
         $proxy = new RedisProxy($poolManager, 'cache', $this->sentinelFactory());
@@ -2090,7 +2081,7 @@ class RedisProxyTest extends TestCase
         $cachePool = m::mock(RedisPool::class);
         $cachePool->shouldReceive('borrow')->andReturn($cacheConnection);
 
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->shouldReceive('pool')->with('cache')->andReturn($cachePool);
 
         $proxy = new RedisProxy($poolManager, 'cache', $this->sentinelFactory());
@@ -2110,16 +2101,76 @@ class RedisProxyTest extends TestCase
         $pool = m::mock(RedisPool::class);
         $pool->shouldReceive('borrow')->andReturn($connection);
 
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->shouldReceive('pool')->with('cache')->andReturn($pool);
 
         $proxy = new RedisProxy($poolManager, 'cache', $this->sentinelFactory());
+        $defaultProxy = new RedisProxy($poolManager, 'default', $this->sentinelFactory());
 
         $proxy->pipeline();
 
         // Context key should use the pool name
-        $this->assertTrue(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'cache'));
-        $this->assertFalse(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertTrue(CoroutineContext::has($this->contextKey($proxy)));
+        $this->assertFalse(CoroutineContext::has($this->contextKey($defaultProxy)));
+    }
+
+    public function testSameNamedConnectionsOnDifferentPoolManagersKeepSeparatePins(): void
+    {
+        $firstConnection = $this->mockConnection();
+        $firstConnection->expects('multi')->andReturn(m::mock(PhpRedis::class));
+        $firstConnection->expects('get')->with('key')->andReturn('first');
+        $firstConnection->expects('release');
+        $secondConnection = $this->mockConnection();
+        $secondConnection->expects('multi')->andReturn(m::mock(PhpRedis::class));
+        $secondConnection->expects('discard');
+        $first = $this->createRedis($firstConnection);
+        $second = $this->createRedis($secondConnection);
+
+        $first->multi();
+        $second->multi();
+        $second->discardContextConnection();
+
+        $this->assertSame('first', $first->get('key'));
+    }
+
+    public function testProxiesForTheSamePoolManagerAndNameSharePins(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->expects('multi')->andReturn(m::mock(PhpRedis::class));
+        $connection->expects('get')->with('key')->andReturn('value');
+        $connection->expects('release');
+        $pool = m::mock(RedisPool::class);
+        $pool->expects('borrow')->andReturn($connection);
+        $pool->shouldReceive('getOptions')->andReturn(PoolOptions::fromArray([]));
+        $poolManager = m::mock(PoolManager::class)->makePartial();
+        $poolManager->shouldReceive('pool')->with('default')->andReturn($pool);
+        $first = new RedisProxy($poolManager, 'default', $this->sentinelFactory());
+        $second = new RedisProxy($poolManager, 'default', $this->sentinelFactory());
+
+        $first->multi();
+
+        $this->assertSame('value', $second->get('key'));
+    }
+
+    public function testDeferredCleanupReleasesEachPoolManagersPinnedConnection(): void
+    {
+        $firstConnection = $this->mockConnection();
+        $firstConnection->expects('multi')->andReturn(m::mock(PhpRedis::class));
+        $firstConnection->expects('release');
+        $secondConnection = $this->mockConnection();
+        $secondConnection->expects('multi')->andReturn(m::mock(PhpRedis::class));
+        $secondConnection->expects('release');
+        $first = $this->createRedis($firstConnection);
+        $second = $this->createRedis($secondConnection);
+
+        $coroutineId = go(static function () use ($first, $second): void {
+            $first->multi();
+            $second->multi();
+        });
+
+        Coroutine::join([$coroutineId], 1.0);
+
+        $this->assertFalse(Coroutine::exists($coroutineId));
     }
 
     /**
@@ -2144,10 +2195,18 @@ class RedisProxyTest extends TestCase
         $pool->shouldReceive('borrow')->andReturn($connection);
         $pool->shouldReceive('getOptions')->andReturn(PoolOptions::fromArray([]));
 
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->shouldReceive('pool')->with('default')->andReturn($pool);
 
         return new RedisProxy($poolManager, 'default', $this->sentinelFactory());
+    }
+
+    /**
+     * Get the coroutine context key of the given proxy's pinned connection.
+     */
+    private function contextKey(RedisProxy $redis): string
+    {
+        return (fn (): string => $this->getContextKey())->call($redis);
     }
 
     /**
@@ -2155,7 +2214,7 @@ class RedisProxyTest extends TestCase
      */
     private function createRedisWithSubscriber(Subscriber $subscriber): RedisProxy
     {
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->shouldNotReceive('pool');
 
         return new class($poolManager, 'default', $this->sentinelFactory(), $subscriber) extends RedisProxy {
@@ -2230,7 +2289,7 @@ class RedisProxyTest extends TestCase
         $pool->shouldReceive('borrow')->andReturn(...$connections);
         $pool->shouldReceive('getOptions')->andReturn(PoolOptions::fromArray([]));
 
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->shouldReceive('pool')->with('default')->andReturn($pool);
 
         return new RedisProxyReleaseCountingStub(
@@ -2371,9 +2430,7 @@ class RedisProxyReleaseCountingStub extends RedisProxy
 
     public function releaseContextConnection(): void
     {
-        $hasContextConnection = CoroutineContext::has(
-            self::CONNECTION_CONTEXT_PREFIX . $this->getName()
-        );
+        $hasContextConnection = CoroutineContext::has($this->getContextKey());
 
         parent::releaseContextConnection();
 

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Container;
 
 use Closure;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use InvalidArgumentException;
 use LogicException;
 use Psr\Container\ContainerInterface;
@@ -29,11 +32,13 @@ interface Container extends ContainerInterface
      *
      * @throws LogicException
      */
+    #[BootOnly(whenShared: true)]
     public function alias(string $abstract, string $alias): void;
 
     /**
      * Assign a set of tags to a given binding.
      */
+    #[BootOnly(whenShared: true)]
     public function tag(array|string $abstracts, array|string $tags): void;
 
     /**
@@ -44,36 +49,43 @@ interface Container extends ContainerInterface
     /**
      * Register a binding with the container.
      */
+    #[BootOnly(whenShared: true)]
     public function bind(Closure|string $abstract, Closure|string|null $concrete = null, bool $shared = false): void;
 
     /**
      * Bind a callback to resolve with Container::call.
      */
+    #[BootOnly(whenShared: true)]
     public function bindMethod(array|string $method, Closure $callback): void;
 
     /**
      * Register a binding if it hasn't already been registered.
      */
+    #[BootOnly(whenShared: true)]
     public function bindIf(Closure|string $abstract, Closure|string|null $concrete = null, bool $shared = false): void;
 
     /**
      * Register a shared binding in the container.
      */
+    #[BootOnly(whenShared: true)]
     public function singleton(Closure|string $abstract, Closure|string|null $concrete = null): void;
 
     /**
      * Register a shared binding if it hasn't already been registered.
      */
+    #[BootOnly(whenShared: true)]
     public function singletonIf(Closure|string $abstract, Closure|string|null $concrete = null): void;
 
     /**
      * Register a scoped binding in the container.
      */
+    #[BootOnly(whenShared: true)]
     public function scoped(Closure|string $abstract, Closure|string|null $concrete = null): void;
 
     /**
      * Register a scoped binding if it hasn't already been registered.
      */
+    #[BootOnly(whenShared: true)]
     public function scopedIf(Closure|string $abstract, Closure|string|null $concrete = null): void;
 
     /**
@@ -91,6 +103,7 @@ interface Container extends ContainerInterface
      *
      * @throws InvalidArgumentException
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $abstract, Closure $closure): void;
 
     /**
@@ -101,16 +114,19 @@ interface Container extends ContainerInterface
      * @param TInstance $instance
      * @return TInstance
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function instance(string $abstract, mixed $instance): mixed;
 
     /**
      * Remove a resolved instance from the instance cache.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetInstance(string $abstract): void;
 
     /**
      * Add a contextual binding to the container.
      */
+    #[BootOnly(whenShared: true)]
     public function addContextualBinding(string $concrete, string $abstract, mixed $implementation): void;
 
     /**
@@ -131,6 +147,7 @@ interface Container extends ContainerInterface
     /**
      * Flush the container of all bindings and resolved instances.
      */
+    #[TestsOnly]
     public function flush(): void;
 
     /**
@@ -207,20 +224,24 @@ interface Container extends ContainerInterface
     /**
      * Register a new rebinding callback for an abstract type.
      */
+    #[BootOnly(whenShared: true)]
     public function rebinding(string $abstract, Closure $callback): mixed;
 
     /**
      * Register a new before resolving callback.
      */
+    #[BootOnly(whenShared: true)]
     public function beforeResolving(Closure|string $abstract, ?Closure $callback = null): void;
 
     /**
      * Register a new resolving callback.
      */
+    #[BootOnly(whenShared: true)]
     public function resolving(Closure|string $abstract, ?Closure $callback = null): void;
 
     /**
      * Register a new after resolving callback.
      */
+    #[BootOnly(whenShared: true)]
     public function afterResolving(Closure|string $abstract, ?Closure $callback = null): void;
 }

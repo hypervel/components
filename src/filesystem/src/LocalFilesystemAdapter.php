@@ -6,6 +6,7 @@ namespace Hypervel\Filesystem;
 
 use Closure;
 use DateTimeInterface;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Traits\Conditionable;
 use RuntimeException;
 
@@ -159,11 +160,12 @@ class LocalFilesystemAdapter extends FilesystemAdapter
     /**
      * Specify the registered route which serves this disk.
      *
-     * Boot-only. The route metadata persists on the cached adapter for the
-     * worker lifetime and affects every subsequent signed URL request.
+     * The route metadata persists on the cached adapter for the worker
+     * lifetime and affects every subsequent signed URL request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function servingRoute(?string $disk, string $prefix = ''): static
     {
         $this->servingRouteConfigured = true;
@@ -176,12 +178,13 @@ class LocalFilesystemAdapter extends FilesystemAdapter
     /**
      * Indicate that signed URLs should serve the corresponding files.
      *
-     * Boot-only. The flag and resolver persist on the cached local disk adapter
-     * for the worker lifetime and apply to every subsequent signed URL request
-     * for that disk.
+     * The flag and resolver persist on the cached local disk adapter for the
+     * worker lifetime and apply to every subsequent signed URL request for that
+     * disk.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function shouldServeSignedUrls(bool $serve = true, ?Closure $urlGeneratorResolver = null): static
     {
         $this->shouldServeSignedUrls = $serve;

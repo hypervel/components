@@ -8,6 +8,7 @@ use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\JoinLateralClause;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Override;
@@ -738,11 +739,12 @@ class PostgresGrammar extends Grammar
     /**
      * Set any Postgres grammar specific custom operators.
      *
-     * Boot-only. The operator list persists in a static property for the worker
-     * lifetime and applies to every Postgres query built across all coroutines.
+     * The operator list persists in a static property for the worker lifetime
+     * and applies to every Postgres query built across all coroutines.
      *
      * @param string[] $operators
      */
+    #[BootOnly]
     public static function customOperators(array $operators): void
     {
         static::$customOperators = array_values(
@@ -753,9 +755,10 @@ class PostgresGrammar extends Grammar
     /**
      * Enable or disable the "cascade" option when compiling the truncate statement.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every truncate() across all coroutines.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every truncate() across all coroutines.
      */
+    #[BootOnly]
     public static function cascadeOnTruncate(bool $value = true): void
     {
         static::$cascadeTruncate = $value;

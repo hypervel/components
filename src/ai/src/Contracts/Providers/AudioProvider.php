@@ -6,6 +6,7 @@ namespace Hypervel\Ai\Contracts\Providers;
 
 use Hypervel\Ai\Contracts\Gateway\AudioGateway;
 use Hypervel\Ai\Responses\AudioResponse;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 interface AudioProvider extends Provider
 {
@@ -31,6 +32,7 @@ interface AudioProvider extends Provider
     /**
      * Set the provider's audio gateway.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function useAudioGateway(AudioGateway $gateway): self;
 
     /**

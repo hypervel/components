@@ -11,6 +11,7 @@ use Exception;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
 use Hypervel\Support\HigherOrderCollectionProxy;
@@ -1016,10 +1017,10 @@ trait EnumeratesValues
     /**
      * Add a method to the list of proxied methods.
      *
-     * Boot or tests only. The method is registered on a worker-wide static and
-     * applies to every subsequent collection access; per-request use races
-     * across coroutines.
+     * The method is registered on a worker-wide static and applies to every
+     * subsequent collection access; per-request use races across coroutines.
      */
+    #[BootOrTestsOnly]
     public static function proxy(string $method): void
     {
         static::$proxies[] = $method;
@@ -1028,9 +1029,10 @@ trait EnumeratesValues
     /**
      * Flush the registered proxies, restoring the default list.
      *
-     * Boot or tests only. Resets the worker-wide proxy registry; concurrent
-     * coroutines may resolve different proxies depending on timing.
+     * Resets the worker-wide proxy registry; concurrent coroutines may
+     * resolve different proxies depending on timing.
      */
+    #[BootOrTestsOnly]
     public static function flushProxies(): void
     {
         static::$proxies = self::DEFAULT_PROXIES;

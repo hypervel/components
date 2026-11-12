@@ -56,7 +56,7 @@ class CacheIntegration extends Feature
     /**
      * Indicates whether to attempt to detect the session key when running in the console.
      *
-     * Tests only. This mutates the feature singleton and should not be used at runtime.
+     * Setting this mutates the shared feature instance for the worker lifetime.
      *
      * @internal this is mainly intended for testing purposes
      */

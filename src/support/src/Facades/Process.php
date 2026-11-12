@@ -6,6 +6,7 @@ namespace Hypervel\Support\Facades;
 
 use Closure;
 use Hypervel\Process\Factory;
+use Hypervel\Support\Attributes\TestsOnly;
 
 /**
  * @method static \Hypervel\Process\PendingProcess command(array|string $command)
@@ -65,8 +66,9 @@ class Process extends Facade
     /**
      * Indicate that the process factory should fake processes.
      *
-     * Tests only. Fake handlers and recordings persist on the container-resolved factory for the worker lifetime and affect later calls.
+     * Fake handlers and recordings persist on the container-resolved factory for the worker lifetime and affect later calls.
      */
+    #[TestsOnly]
     public static function fake(array|Closure|null $callback = null): Factory
     {
         return tap(static::getFacadeRoot(), function ($fake) use ($callback) {

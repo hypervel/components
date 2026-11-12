@@ -6,6 +6,7 @@ namespace Hypervel\Contracts\Foundation;
 
 use Closure;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\ServiceProvider;
 use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -34,6 +35,7 @@ interface Application extends Container
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setBasePath(string $basePath): static;
 
     /**
@@ -121,11 +123,13 @@ interface Application extends Container
     /**
      * Detect the application's current environment.
      */
+    #[BootOnly(whenShared: true)]
     public function detectEnvironment(Closure $callback): string;
 
     /**
      * Set the callback to resolve the application's environment.
      */
+    #[BootOnly(whenShared: true)]
     public function resolveEnvironmentUsing(?callable $callback): void;
 
     /**
@@ -138,6 +142,7 @@ interface Application extends Container
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function useEnvironmentPath(string $path): static;
 
     /**
@@ -145,6 +150,7 @@ interface Application extends Container
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function loadEnvironmentFrom(string $file): static;
 
     /**
@@ -193,11 +199,13 @@ interface Application extends Container
     /**
      * Register all of the configured providers.
      */
+    #[BootOnly(whenShared: true)]
     public function registerConfiguredProviders(): void;
 
     /**
      * Register a service provider with the application.
      */
+    #[BootOnly(whenShared: true)]
     public function register(ServiceProvider|string $provider, bool $force = false): ServiceProvider;
 
     /**
@@ -223,11 +231,13 @@ interface Application extends Container
     /**
      * Register a new boot listener.
      */
+    #[BootOnly(whenShared: true)]
     public function booting(callable $callback): void;
 
     /**
      * Register a new "booted" listener.
      */
+    #[BootOnly(whenShared: true)]
     public function booted(callable $callback): void;
 
     /**
@@ -315,6 +325,7 @@ interface Application extends Container
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function terminating(callable|string $callback): static;
 
     /**

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Di\Aop;
 
 use Hypervel\Di\Exceptions\InvalidDefinitionException;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\ClassMetadataCache;
 use ReflectionProperty;
 
@@ -25,11 +28,12 @@ class AspectCollector
     /**
      * Register an aspect using its public default targeting rules and priority.
      *
-     * Boot or tests only. Register before application proxy generation, or explicitly
-     * reopen registration for focused tests. Loaded classes cannot be rewritten.
+     * Register before application proxy generation, or explicitly reopen registration
+     * for focused tests. Loaded classes cannot be rewritten.
      *
      * @param class-string $aspect
      */
+    #[BootOrTestsOnly]
     public static function register(string $aspect): void
     {
         $reflectionClass = ClassMetadataCache::reflectClass($aspect);
@@ -52,10 +56,11 @@ class AspectCollector
     /**
      * Register an aspect with its class targeting rules.
      *
-     * Boot or tests only. Aspect rules persist in a static property used by the
-     * compile-time proxy generator; runtime use cannot retroactively apply
-     * aspects to already-loaded classes.
+     * Aspect rules persist in a static property used by the compile-time proxy
+     * generator; runtime use cannot retroactively apply aspects to
+     * already-loaded classes.
      */
+    #[BootOrTestsOnly]
     public static function setAround(string $aspect, array $classes, ?int $priority = null): void
     {
         if (static::$sealed) {
@@ -83,8 +88,9 @@ class AspectCollector
     /**
      * Close aspect registration after application proxy generation.
      *
-     * Boot-only. Later registrations in this worker are rejected.
+     * Later registrations in this worker are rejected.
      */
+    #[BootOnly]
     public static function seal(): void
     {
         static::$sealed = true;
@@ -93,9 +99,10 @@ class AspectCollector
     /**
      * Reopen aspect registration while retaining the registered rules.
      *
-     * Boot or tests only. This permits changes to worker-wide rules for a new
-     * application bootstrap or focused tests; it does not rewrite loaded classes.
+     * This permits changes to worker-wide rules for a new application bootstrap
+     * or focused tests; it does not rewrite loaded classes.
      */
+    #[BootOrTestsOnly]
     public static function unseal(): void
     {
         static::$sealed = false;
@@ -112,9 +119,10 @@ class AspectCollector
     /**
      * Remove a specific aspect from the registry.
      *
-     * Tests only. Mutates the worker-wide aspect registry; runtime use cannot
+     * Mutates the worker-wide aspect registry; runtime use cannot
      * retroactively update already-generated proxies.
      */
+    #[TestsOnly]
     public static function forgetAspect(string $aspect): void
     {
         unset(static::$aspectRules[$aspect]);

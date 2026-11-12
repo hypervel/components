@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Providers\Concerns;
 
 use Hypervel\Ai\Contracts\Gateway\FileGateway;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 trait HasFileGateway
 {
@@ -21,8 +22,9 @@ trait HasFileGateway
     /**
      * Set the provider's file gateway.
      *
-     * Boot or tests only for configured providers, which are shared across requests.
+     * Changing a shared provider's gateway affects subsequent operations.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function useFileGateway(FileGateway $gateway): self
     {
         $this->fileGateway = $gateway;

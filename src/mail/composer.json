@@ -25,6 +25,7 @@
     },
     "require": {
         "php": "^8.4",
+        "hypervel/attributes": "^0.4",
         "hypervel/bus": "^0.4",
         "hypervel/collections": "^0.4",
         "hypervel/conditionable": "^0.4",

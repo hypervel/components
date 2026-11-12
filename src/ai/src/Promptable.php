@@ -45,6 +45,7 @@ use Hypervel\Ai\Vercel\Vercel;
 use Hypervel\Broadcasting\Channel;
 use Hypervel\Container\Container;
 use Hypervel\Queue\SerializesModels;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Event;
@@ -645,8 +646,9 @@ trait Promptable
     /**
      * Fake the responses returned by the agent.
      *
-     * Tests only. The fake affects subsequent calls for this agent in the worker.
+     * The fake affects subsequent calls for this agent in the worker.
      */
+    #[TestsOnly]
     public static function fake(Closure|array $responses = []): FakeTextGateway
     {
         return Ai::fakeAgent(static::class, $responses);

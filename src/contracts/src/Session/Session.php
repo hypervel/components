@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Session;
 
 use Hypervel\Http\Request;
+use Hypervel\Support\Attributes\BootOnly;
 use SessionHandlerInterface;
 use UnitEnum;
 
@@ -18,6 +19,7 @@ interface Session
     /**
      * Set the name of the session.
      */
+    #[BootOnly(whenShared: true)]
     public function setName(string $name): void;
 
     /**

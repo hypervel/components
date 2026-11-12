@@ -9,6 +9,7 @@ use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\RateLimiter\Contracts\Store;
 use Hypervel\RateLimiter\Swoole\TableManager;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\MultipleInstanceManager;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
@@ -63,11 +64,12 @@ class RateLimiter extends MultipleInstanceManager
     /**
      * Register a named rate limiter configuration.
      *
-     * Boot-only. The callback and store selection persist on the singleton
-     * manager for the worker lifetime and affect every subsequent request.
+     * On the shared manager, the callback and store selection persist for
+     * the worker lifetime and affect every subsequent request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function for(
         UnitEnum|string $name,
         Closure $callback,
@@ -105,13 +107,14 @@ class RateLimiter extends MultipleInstanceManager
     /**
      * Register a named limiter key scope resolver.
      *
-     * Boot-only. Each non-null callback is appended in registration order,
-     * while passing null clears every registered callback. The callbacks
-     * persist on the singleton manager for the worker lifetime and affect
-     * every subsequent named limiter operation.
+     * Each non-null callback is appended in registration order, while
+     * passing null clears every registered callback. On the shared manager,
+     * the callbacks persist for the worker lifetime and affect every
+     * subsequent named limiter operation.
      *
      * @param null|(Closure(string): ?string) $resolver
      */
+    #[BootOnly(whenShared: true)]
     public function resolveKeyScopeUsing(?Closure $resolver): void
     {
         if ($resolver === null) {
@@ -134,8 +137,9 @@ class RateLimiter extends MultipleInstanceManager
     /**
      * Set the default rate limiter store name.
      *
-     * Boot-only. Mutates process-global config; per-request use races across coroutines.
+     * Mutates process-global config; per-request use races across coroutines.
      */
+    #[BootOnly]
     public function setDefaultInstance(string $name): void
     {
         $this->config->set('rate-limiter.default', $name);

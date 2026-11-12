@@ -7,6 +7,7 @@ namespace Hypervel\Data\Attributes\Validation;
 use Attribute;
 use Hypervel\Data\Exceptions\CannotBuildValidationRule;
 use Hypervel\Data\Support\Validation\ValidationPath;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Validation\Rules\Can as BaseCan;
 
 #[Attribute(Attribute::TARGET_PROPERTY | Attribute::TARGET_PARAMETER)]
@@ -41,6 +42,7 @@ class Can extends ObjectValidationAttribute
     /**
      * Reject string-based can rule construction.
      */
+    #[Unsupported('Construct the validation attribute directly with typed arguments.')]
     public static function create(string ...$parameters): static
     {
         throw CannotBuildValidationRule::create('Cannot create a can rule from string parameters.');

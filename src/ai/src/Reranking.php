@@ -7,6 +7,7 @@ namespace Hypervel\Ai;
 use Closure;
 use Hypervel\Ai\Gateway\FakeRerankingGateway;
 use Hypervel\Ai\PendingResponses\PendingReranking;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use InvalidArgumentException;
 
@@ -31,8 +32,9 @@ class Reranking
     /**
      * Fake reranking operations.
      *
-     * Tests only. The fake gateway is shared across requests in the worker.
+     * The fake gateway is shared across requests in the worker.
      */
+    #[TestsOnly]
     public static function fake(Closure|array $responses = []): FakeRerankingGateway
     {
         return Ai::fakeReranking($responses);

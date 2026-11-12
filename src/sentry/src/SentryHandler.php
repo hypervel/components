@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry;
 
+use Hypervel\Support\Attributes\BootOnly;
 use Monolog\Formatter\FormatterInterface;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\AbstractProcessingHandler;
@@ -219,9 +220,10 @@ class SentryHandler extends AbstractProcessingHandler
     /**
      * Set the release.
      *
-     * Boot-only. Mutates the release on the worker-lifetime log handler; per-request
-     * use races across coroutines and affects every subsequent log event.
+     * On a cached log channel's handler, per-request use races across coroutines
+     * and affects every subsequent log event.
      */
+    #[BootOnly(whenShared: true)]
     public function setRelease(string $value): self
     {
         $this->release = $value;
@@ -232,9 +234,10 @@ class SentryHandler extends AbstractProcessingHandler
     /**
      * Set the current application environment.
      *
-     * Boot-only. Mutates the environment on the worker-lifetime log handler;
-     * per-request use races across coroutines and affects every subsequent log event.
+     * On a cached log channel's handler, per-request use races across coroutines
+     * and affects every subsequent log event.
      */
+    #[BootOnly(whenShared: true)]
     public function setEnvironment(string $value): self
     {
         $this->environment = $value;

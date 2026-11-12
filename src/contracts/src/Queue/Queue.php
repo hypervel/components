@@ -6,6 +6,7 @@ namespace Hypervel\Contracts\Queue;
 
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use UnitEnum;
 
 interface Queue
@@ -80,5 +81,6 @@ interface Queue
      *
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setConnectionName(string $name): static;
 }

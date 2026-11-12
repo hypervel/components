@@ -9,6 +9,7 @@ use DateInterval;
 use DateTimeInterface;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Session\Store as SessionStore;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Traits\Macroable;
 
 class Redirector
@@ -158,9 +159,10 @@ class Redirector
     /**
      * Set the active session store.
      *
-     * Boot-only. Mutates the worker-shared Redirector while concurrent
-     * coroutines may still hold or use the previous session store.
+     * Mutates the worker-shared Redirector while concurrent coroutines
+     * may still hold or use the previous session store.
      */
+    #[BootOnly(whenShared: true)]
     public function setSession(SessionStore $session): void
     {
         $this->session = $session;

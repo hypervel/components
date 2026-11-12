@@ -19,6 +19,7 @@ use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Engine\Coroutine;
 use Hypervel\ObjectPool\PoolErrorReporter;
+use Hypervel\Support\Attributes\Unsupported;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
@@ -511,6 +512,7 @@ class CurlStreamingBody implements StreamInterface
     /**
      * Reject seeking on an incremental response.
      */
+    #[Unsupported]
     public function seek(int $offset, int $whence = SEEK_SET): void
     {
         throw new RuntimeException('Cannot seek a streaming response.');
@@ -519,6 +521,7 @@ class CurlStreamingBody implements StreamInterface
     /**
      * Reject rewinding an incremental response.
      */
+    #[Unsupported]
     public function rewind(): void
     {
         $this->seek(0);
@@ -535,6 +538,7 @@ class CurlStreamingBody implements StreamInterface
     /**
      * Reject writes to the response body.
      */
+    #[Unsupported]
     public function write(string $string): int
     {
         throw new RuntimeException('Cannot write to a streaming response.');

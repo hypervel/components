@@ -8,6 +8,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Connectors\ConnectionFactory;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Throwable;
 
 class PoolManager
@@ -146,9 +147,10 @@ class PoolManager
     /**
      * Remove a pool and close its connections.
      *
-     * Boot or tests only. Closes a worker-shared pool; connections already
-     * checked out by concurrent coroutines are destroyed on release.
+     * Closes a worker-shared pool; connections already checked out by
+     * concurrent coroutines are destroyed on release.
      */
+    #[BootOrTestsOnly]
     public function purge(string $name): void
     {
         $poolName = $this->getExistingPoolName($name);
@@ -173,9 +175,10 @@ class PoolManager
     /**
      * Remove every pool for a configured connection.
      *
-     * Boot or tests only. This closes shared worker pools and affects every
-     * coroutine that later resolves the same configured connection.
+     * This closes shared worker pools and affects every coroutine that
+     * later resolves the same configured connection.
      */
+    #[BootOrTestsOnly]
     public function purgeForConnection(string $name): void
     {
         $base = ConnectionName::parse($name)->base;
@@ -194,9 +197,10 @@ class PoolManager
     /**
      * Remove all pools and close their connections.
      *
-     * Boot or tests only. Closes every worker-shared pool; connections already
-     * checked out by concurrent coroutines are destroyed on release.
+     * Closes every worker-shared pool; connections already checked out by
+     * concurrent coroutines are destroyed on release.
      */
+    #[BootOrTestsOnly]
     public function purgeAll(): void
     {
         $pools = $this->pools;

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Providers\Concerns;
 
 use Hypervel\Ai\Contracts\Gateway\ImageGateway;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 trait HasImageGateway
 {
@@ -21,8 +22,9 @@ trait HasImageGateway
     /**
      * Set the provider's image gateway.
      *
-     * Boot or tests only for configured providers, which are shared across requests.
+     * Changing a shared provider's gateway affects subsequent operations.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function useImageGateway(ImageGateway $gateway): self
     {
         $this->imageGateway = $gateway;

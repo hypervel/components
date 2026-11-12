@@ -36,6 +36,7 @@ class PackageMetadataTest extends TestCase
 
         foreach ([
             'nesbot/carbon',
+            'hypervel/attributes',
             'hypervel/cache',
             'hypervel/collections',
             'hypervel/config',

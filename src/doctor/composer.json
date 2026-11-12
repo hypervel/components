@@ -28,6 +28,7 @@
         "php": "^8.4",
         "composer-runtime-api": "^2.2",
         "composer/semver": "^3.5.1",
+        "hypervel/attributes": "^0.4",
         "hypervel/cache": "^0.4",
         "hypervel/collections": "^0.4",
         "hypervel/conditionable": "^0.4",

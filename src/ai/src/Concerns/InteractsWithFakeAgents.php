@@ -9,6 +9,7 @@ use Hypervel\Ai\Contracts\Agent;
 use Hypervel\Ai\Gateway\FakeTextGateway;
 use Hypervel\Ai\Prompts\AgentPrompt;
 use Hypervel\Ai\QueuedAgentPrompt;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
@@ -34,8 +35,9 @@ trait InteractsWithFakeAgents
     /**
      * Fake the responses returned by the given agent.
      *
-     * Tests only. The fake gateway is shared by all requests in the worker.
+     * On the shared manager, the fake gateway affects every request.
      */
+    #[TestsOnly(whenShared: true)]
     public function fakeAgent(string $agent, Closure|array $responses = []): FakeTextGateway
     {
         return tap(
@@ -68,8 +70,9 @@ trait InteractsWithFakeAgents
     /**
      * Record the given prompt for the faked agent.
      *
-     * Tests only. Recorded prompts remain on the worker-shared manager.
+     * Recorded prompts remain on the worker-shared manager.
      */
+    #[TestsOnly(whenShared: true)]
     public function recordPrompt(AgentPrompt|QueuedAgentPrompt $prompt): self
     {
         if ($prompt instanceof QueuedAgentPrompt) {

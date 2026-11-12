@@ -7,6 +7,7 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\LocalFilesystemAdapter;
+use Hypervel\Support\Attributes\TestsOnly;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -110,9 +111,10 @@ class Storage extends Facade
     /**
      * Replace the given disk with a local testing disk.
      *
-     * Tests only. Swaps a cached filesystem disk on the shared filesystem
-     * manager for the worker lifetime.
+     * Swaps a cached filesystem disk on the shared filesystem manager for
+     * the worker lifetime.
      */
+    #[TestsOnly]
     public static function fake(UnitEnum|string|null $disk = null, array $config = []): LocalFilesystemAdapter
     {
         if ($disk instanceof UnitEnum) {
@@ -151,9 +153,10 @@ class Storage extends Facade
     /**
      * Replace the given disk with a persistent local testing disk.
      *
-     * Tests only. Swaps a cached filesystem disk on the shared filesystem
-     * manager for the worker lifetime.
+     * Swaps a cached filesystem disk on the shared filesystem manager for
+     * the worker lifetime.
      */
+    #[TestsOnly]
     public static function persistentFake(UnitEnum|string|null $disk = null, array $config = []): LocalFilesystemAdapter
     {
         if ($disk instanceof UnitEnum) {

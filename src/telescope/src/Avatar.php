@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope;
 
 use Closure;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Str;
 
 class Avatar
@@ -33,9 +34,10 @@ class Avatar
     /**
      * Register the Telescope user avatar callback.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every Telescope avatar lookup.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every Telescope avatar lookup.
      */
+    #[BootOnly]
     public static function register(Closure $callback): void
     {
         static::$callback = $callback;

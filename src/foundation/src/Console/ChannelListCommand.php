@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Console;
 use Closure;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Broadcasting\Broadcaster;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Terminal;
@@ -122,9 +123,10 @@ class ChannelListCommand extends Command
     /**
      * Set a callback that should be used when resolving the terminal width.
      *
-     * Tests only. The resolver persists in a static property for the worker
-     * lifetime and affects every subsequent channel:list render.
+     * The resolver persists in a static property for the worker lifetime
+     * and affects every subsequent channel:list render.
      */
+    #[TestsOnly]
     public static function resolveTerminalWidthUsing(?Closure $resolver): void
     {
         static::$terminalWidthResolver = $resolver;

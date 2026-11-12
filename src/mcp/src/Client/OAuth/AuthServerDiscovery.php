@@ -17,6 +17,7 @@ use Hypervel\Mcp\Client\Exceptions\OAuthException;
 use Hypervel\Mcp\Client\Middleware\RestrictHeadersToOrigin;
 use Hypervel\Mcp\Client\OAuth\Concerns\InteractsWithOAuthEndpoints;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\TestsOnly;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\UriInterface;
@@ -33,10 +34,11 @@ class AuthServerDiscovery
     /**
      * Resolve OAuth destination hostnames with the given callback instead of DNS.
      *
-     * Tests only. The callback persists in a static property for the worker lifetime and supplies the addresses for every OAuth request.
+     * The callback persists in a static property for the worker lifetime and supplies the addresses for every OAuth request.
      *
      * @param null|Closure(string): array<int, string> $callback
      */
+    #[TestsOnly]
     public static function resolveHostsUsing(?Closure $callback): void
     {
         static::$hostResolver = $callback;

@@ -12,6 +12,7 @@ use Hypervel\Ai\Files;
 use Hypervel\Ai\Gateway\FakeStoreGateway;
 use Hypervel\Ai\Stores;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use PHPUnit\Framework\Assert as PHPUnit;
 
@@ -45,8 +46,9 @@ trait InteractsWithFakeStores
     /**
      * Fake store operations.
      *
-     * Tests only. The fake gateway is shared by all requests in the worker.
+     * On the shared manager, the fake gateway affects every request.
      */
+    #[TestsOnly(whenShared: true)]
     public function fakeStores(Closure|array $responses = []): FakeStoreGateway
     {
         return $this->fakeStoreGateway = new FakeStoreGateway($responses);
@@ -55,8 +57,9 @@ trait InteractsWithFakeStores
     /**
      * Record a store creation.
      *
-     * Tests only. Recorded creations remain on the worker-shared manager.
+     * Recorded creations remain on the worker-shared manager.
      */
+    #[TestsOnly(whenShared: true)]
     public function recordStoreCreation(
         string $name,
         ?string $description = null,
@@ -76,8 +79,9 @@ trait InteractsWithFakeStores
     /**
      * Record a store deletion.
      *
-     * Tests only. Recorded deletions remain on the worker-shared manager.
+     * Recorded deletions remain on the worker-shared manager.
      */
+    #[TestsOnly(whenShared: true)]
     public function recordStoreDeletion(string $storeId): self
     {
         $this->recordedStoreDeletions[] = $storeId;
@@ -88,8 +92,9 @@ trait InteractsWithFakeStores
     /**
      * Record a file addition to a store.
      *
-     * Tests only. Recorded additions remain on the worker-shared manager.
+     * Recorded additions remain on the worker-shared manager.
      */
+    #[TestsOnly(whenShared: true)]
     public function recordFileAddition(
         string $storeId,
         string $fileId,
@@ -107,8 +112,9 @@ trait InteractsWithFakeStores
     /**
      * Record a file removal from a store.
      *
-     * Tests only. Recorded removals remain on the worker-shared manager.
+     * Recorded removals remain on the worker-shared manager.
      */
+    #[TestsOnly(whenShared: true)]
     public function recordFileRemoval(string $storeId, string $fileId): self
     {
         $this->recordedFileRemovals[] = [

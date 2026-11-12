@@ -15,6 +15,7 @@ use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Expression;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\Macroable;
@@ -524,9 +525,10 @@ abstract class Relation implements BuilderContract
     /**
      * Prevent polymorphic relationships from being used without model mappings.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every polymorphic resolution across all coroutines.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every polymorphic resolution across all coroutines.
      */
+    #[BootOnly]
     public static function requireMorphMap(bool $requireMorphMap = true): void
     {
         static::$requireMorphMap = $requireMorphMap;
@@ -543,12 +545,13 @@ abstract class Relation implements BuilderContract
     /**
      * Define the morph map for polymorphic relations and require all morphed models to be explicitly mapped.
      *
-     * Boot-only. Sets both worker-wide morph state (requireMorphMap + morphMap)
-     * shared by every coroutine.
+     * Sets both worker-wide morph state (requireMorphMap + morphMap) shared by
+     * every coroutine.
      *
      * @param array<int|string, class-string<Model>> $map
      * @return array<int|string, class-string<Model>>
      */
+    #[BootOnly]
     public static function enforceMorphMap(array $map, bool $merge = true): array
     {
         static::requireMorphMap();
@@ -559,13 +562,13 @@ abstract class Relation implements BuilderContract
     /**
      * Set or get the morph map for polymorphic relations.
      *
-     * Boot-only when setting. The map persists in a static property for the
-     * worker lifetime and applies to every polymorphic resolution across all
-     * coroutines.
+     * A given map persists in a static property for the worker lifetime and
+     * applies to every polymorphic resolution across all coroutines.
      *
      * @param null|array<int|string, class-string<Model>> $map
      * @return array<int|string, class-string<Model>>
      */
+    #[BootOnly(whenNotDefault: 'map')]
     public static function morphMap(?array $map = null, bool $merge = true): array
     {
         $map = static::buildMorphMapFromModels($map);

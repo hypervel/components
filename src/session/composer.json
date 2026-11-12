@@ -28,6 +28,7 @@
         "ext-ctype": "*",
         "ext-mbstring": "*",
         "ext-session": "*",
+        "hypervel/attributes": "^0.4",
         "hypervel/auth": "^0.4",
         "hypervel/cache": "^0.4",
         "hypervel/collections": "^0.4",

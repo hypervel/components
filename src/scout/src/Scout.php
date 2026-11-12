@@ -11,6 +11,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
+use Hypervel\Support\Attributes\BootOnly;
 
 /**
  * Scout utility class for lifecycle customization and engine access.
@@ -107,11 +108,12 @@ class Scout
     /**
      * Specify the callback that prepares a Builder before terminal execution.
      *
-     * Boot-only. The callback persists for the worker lifetime, so registering
-     * it per request would leak captured request state into later requests.
+     * The callback persists for the worker lifetime, so registering it per
+     * request would leak captured request state into later requests.
      *
      * @param callable(Builder, Engine): void $callback
      */
+    #[BootOnly]
     public static function prepareBuilderUsing(callable $callback): void
     {
         static::$prepareBuilderCallback = Closure::fromCallable($callback);
@@ -130,11 +132,12 @@ class Scout
     /**
      * Specify the callback that prepares a final searchable document.
      *
-     * Boot-only. The callback persists for the worker lifetime, so registering
-     * it per request would leak captured request state into later requests.
+     * The callback persists for the worker lifetime, so registering it per
+     * request would leak captured request state into later requests.
      *
      * @param callable(array<string, mixed>, Model, Engine): array<string, mixed> $callback
      */
+    #[BootOnly]
     public static function prepareSearchableDocumentUsing(callable $callback): void
     {
         static::$prepareSearchableDocumentCallback = Closure::fromCallable($callback);
@@ -157,11 +160,12 @@ class Scout
     /**
      * Specify the callback that prepares final index settings.
      *
-     * Boot-only. The callback persists for the worker lifetime, so registering
-     * it per request would leak captured request state into later requests.
+     * The callback persists for the worker lifetime, so registering it per
+     * request would leak captured request state into later requests.
      *
      * @param callable(array<string, mixed>, null|Model, Engine, string): array<string, mixed> $callback
      */
+    #[BootOnly]
     public static function prepareIndexSettingsUsing(callable $callback): void
     {
         static::$prepareIndexSettingsCallback = Closure::fromCallable($callback);
@@ -184,11 +188,12 @@ class Scout
     /**
      * Specify the callback that guards a whole-model index flush.
      *
-     * Boot-only. The callback persists for the worker lifetime, so registering
-     * it per request would leak captured request state into later requests.
+     * The callback persists for the worker lifetime, so registering it per
+     * request would leak captured request state into later requests.
      *
      * @param callable(Model, Engine, bool): void $callback
      */
+    #[BootOnly]
     public static function guardModelFlushUsing(callable $callback): void
     {
         static::$guardModelFlushCallback = Closure::fromCallable($callback);
@@ -207,11 +212,12 @@ class Scout
     /**
      * Specify the job class that should make models searchable.
      *
-     * Boot-only. The job class persists in a static property for the worker
-     * lifetime and is used by every subsequent searchable import.
+     * The job class persists in a static property for the worker lifetime
+     * and is used by every subsequent searchable import.
      *
      * @param class-string<MakeSearchable> $class
      */
+    #[BootOnly]
     public static function makeSearchableUsing(string $class): void
     {
         static::$makeSearchableJob = $class;
@@ -220,11 +226,12 @@ class Scout
     /**
      * Specify the job class that should remove models from the search index.
      *
-     * Boot-only. The job class persists in a static property for the worker
-     * lifetime and is used by every subsequent searchable removal.
+     * The job class persists in a static property for the worker lifetime
+     * and is used by every subsequent searchable removal.
      *
      * @param class-string<RemoveFromSearch> $class
      */
+    #[BootOnly]
     public static function removeFromSearchUsing(string $class): void
     {
         static::$removeFromSearchJob = $class;

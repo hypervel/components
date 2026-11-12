@@ -12,6 +12,7 @@ use Hypervel\Contracts\Filesystem\LockTimeoutException;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\LockableFile;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\InteractsWithTime;
 use RuntimeException;
 
@@ -425,11 +426,12 @@ class FileStore implements CanFlushLocks, LockProvider, Store
     /**
      * Set the working directory of the cache.
      *
-     * Boot-only. Persists on the cached store for the worker lifetime;
+     * Persists on the cached store for the worker lifetime;
      * per-request use races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setDirectory(string $directory): static
     {
         $this->directory = $directory;
@@ -440,11 +442,12 @@ class FileStore implements CanFlushLocks, LockProvider, Store
     /**
      * Set the cache directory where locks should be stored.
      *
-     * Boot-only. Persists on the cached store for the worker lifetime;
+     * Persists on the cached store for the worker lifetime;
      * per-request use races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setLockDirectory(?string $lockDirectory): static
     {
         $this->lockDirectory = $lockDirectory;

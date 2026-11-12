@@ -27,6 +27,8 @@ use Hypervel\Database\Events\NoPendingMigrations;
 use Hypervel\Database\Schema\Grammars\Grammar as SchemaGrammar;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
@@ -646,8 +648,9 @@ class Migrator
     /**
      * Register a custom migration path.
      *
-     * Boot-only. Paths remain on the shared migrator and affect every subsequent run.
+     * Paths remain on the shared migrator and affect every subsequent run.
      */
+    #[BootOnly(whenShared: true)]
     public function path(string $path): void
     {
         $this->paths = array_unique(array_merge($this->paths, [$path]));
@@ -666,11 +669,12 @@ class Migrator
     /**
      * Set the pending migrations to skip.
      *
-     * Boot or tests only. The list persists in a static property for the worker
-     * lifetime and applies to every subsequent migration run.
+     * The list persists in a static property for the worker lifetime and
+     * applies to every subsequent migration run.
      *
      * @param list<string> $migrations
      */
+    #[BootOrTestsOnly]
     public static function withoutMigrations(array $migrations): void
     {
         static::$withoutMigrations = $migrations;
@@ -844,11 +848,12 @@ class Migrator
     /**
      * Set a connection resolver callback.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every migration's connection resolution.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every migration's connection resolution.
      *
      * @param Closure(Resolver, ?string): Connection $callback
      */
+    #[BootOnly]
     public static function resolveConnectionsUsing(Closure $callback): void
     {
         static::$connectionResolverCallback = $callback;

@@ -11,6 +11,7 @@ use Hypervel\ObjectPool\PoolFingerprint;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\ObjectPool\PoolProxy;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use InvalidArgumentException;
 
 /**
@@ -68,9 +69,10 @@ trait HasPoolProxy
     /**
      * Set the release callback for a pooled driver.
      *
-     * Boot-only. The callback persists on the manager for the worker lifetime
-     * and is captured by every subsequently created proxy for the driver.
+     * The callback persists on the shared manager for the worker lifetime and
+     * is captured by every subsequently created proxy for the driver.
      */
+    #[BootOnly(whenShared: true)]
     public function setReleaseCallback(string $driver, Closure $callback): static
     {
         $this->releaseCallbacks[$driver] = $callback;
@@ -89,10 +91,11 @@ trait HasPoolProxy
     /**
      * Add a driver to the poolable-driver list.
      *
-     * Boot-only. The list persists on the manager for the worker lifetime and
-     * is consulted on subsequent driver creation. Per-request use races across
+     * The list persists on the manager for the worker lifetime and is
+     * consulted on subsequent driver creation. Per-request use races across
      * coroutines and does not affect already-cached drivers.
      */
+    #[BootOnly(whenShared: true)]
     public function addPoolableDriver(string $driver): static
     {
         if (! in_array($driver, $this->poolableDrivers, true)) {
@@ -105,10 +108,11 @@ trait HasPoolProxy
     /**
      * Remove a driver from the poolable-driver list.
      *
-     * Boot-only. The list persists on the manager for the worker lifetime and
-     * is consulted on subsequent driver creation. Per-request use races across
+     * The list persists on the manager for the worker lifetime and is
+     * consulted on subsequent driver creation. Per-request use races across
      * coroutines and does not affect already-cached drivers.
      */
+    #[BootOnly(whenShared: true)]
     public function removePoolableDriver(string $driver): static
     {
         $index = array_search($driver, $this->poolableDrivers, true);
@@ -134,10 +138,11 @@ trait HasPoolProxy
     /**
      * Set the poolable-driver list.
      *
-     * Boot-only. The list persists on the manager for the worker lifetime and
-     * is consulted on subsequent driver creation. Per-request use races across
+     * The list persists on the manager for the worker lifetime and is
+     * consulted on subsequent driver creation. Per-request use races across
      * coroutines and does not affect already-cached drivers.
      */
+    #[BootOnly(whenShared: true)]
     public function setPoolableDrivers(array $poolableDrivers): static
     {
         $this->poolableDrivers = array_values($poolableDrivers);

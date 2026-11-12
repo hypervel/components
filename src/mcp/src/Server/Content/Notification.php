@@ -9,6 +9,7 @@ use Hypervel\Mcp\Server\Contracts\Content;
 use Hypervel\Mcp\Server\Prompt;
 use Hypervel\Mcp\Server\Resource;
 use Hypervel\Mcp\Server\Tool;
+use Hypervel\Support\Attributes\Unsupported;
 use InvalidArgumentException;
 
 class Notification implements Content
@@ -29,6 +30,7 @@ class Notification implements Content
      *
      * @return array<string, mixed>
      */
+    #[Unsupported('Yield notifications separately from the tool result content.')]
     public function toTool(Tool $tool): array
     {
         throw new InvalidArgumentException('Notifications must be yielded separately from tool result content.');
@@ -39,6 +41,7 @@ class Notification implements Content
      *
      * @return array<string, mixed>
      */
+    #[Unsupported('Yield notifications separately from the prompt result content.')]
     public function toPrompt(Prompt $prompt): array
     {
         throw new InvalidArgumentException('Notifications must be yielded separately from prompt result content.');
@@ -49,6 +52,7 @@ class Notification implements Content
      *
      * @return array<string, mixed>
      */
+    #[Unsupported('Yield notifications separately from the resource result content.')]
     public function toResource(Resource $resource): array
     {
         throw new InvalidArgumentException('Notifications must be yielded separately from resource result content.');

@@ -16,6 +16,7 @@
     - [Model Serialization](#model-serialization)
     - [Relationships](#relationships)
     - [Custom Builders and Collections](#custom-builders-and-collections)
+    - [Method Attributes](#method-attributes)
 - [Custom PHPDoc Types](#custom-phpdoc-types)
     - [The `view-string` Type](#view-string)
     - [The `model-property` Type](#model-property)
@@ -464,6 +465,58 @@ parameters:
 
 Your entries are added to the built-in mappings for `SoftDeletes` and Scout's `Searchable` trait.
 
+<a name="method-attributes"></a>
+### Method Attributes
+
+Some public methods change state the whole worker shares and should only run while your application boots or in tests. Mark these methods with `#[BootOnly]`, `#[TestsOnly]` or `#[BootOrTestsOnly]` from `Hypervel\Support\Attributes`, and keep a short docblock explaining what goes wrong if the method runs later. The [worker state](#worker-state) checks do not report writes in these methods:
+
+```php
+use Hypervel\Support\Attributes\TestsOnly;
+
+/**
+ * Set the request used to build URLs.
+ *
+ * The request stays on the shared service until a test replaces it.
+ */
+#[TestsOnly]
+public function setRequestForTesting(Request $request): void
+{
+    $this->request = $request;
+}
+```
+
+When only some calls are restricted, the attribute's arguments say which. `whenNotDefault` restricts calls that pass the named parameter a value other than its default, so calls that only read the current value are still allowed at runtime. `whenProvided` restricts any call that passes the parameter. `whenShared` restricts calls only on a worker-shared instance, one the container keeps for the whole worker rather than a scoped or newly created one, and suits methods that change only their own object. Use either `whenNotDefault` or `whenProvided` for a parameter with a default value; either may be combined with `whenShared`, which then restricts only calls meeting both conditions:
+
+```php
+use Hypervel\Support\Attributes\BootOnly;
+
+#[BootOnly(whenNotDefault: 'map')]
+public static function morphMap(?array $map = null, bool $merge = true): array
+{
+    // ...
+}
+
+#[BootOnly(whenShared: true)]
+public function globalOptions(array|Closure $options): static
+{
+    // ...
+}
+```
+
+A public method that must exist but always throws, such as an interface method your implementation cannot support, may be marked with `#[Unsupported]`. Pass the supported alternative as its message when there is one:
+
+```php
+use Hypervel\Support\Attributes\Unsupported;
+
+#[Unsupported('Use call() instead.')]
+public function callAsync(string $method, array $arguments = []): never
+{
+    throw new LogicException('This client does not support asynchronous calls.');
+}
+```
+
+These attributes describe intended usage. They are not enforced at runtime, and the analysis does not check calls to marked methods.
+
 <a name="custom-phpdoc-types"></a>
 ## Custom PHPDoc Types
 
@@ -882,19 +935,7 @@ Request and job checks cover middleware, controller actions, route closures, for
 
 Shared services are identified from your application's container registrations, resolved classes, handlers and constructor dependencies, following the container's [resolution lifecycles](/docs/{{version}}/container#resolution-lifecycles). A constructor-injected model used as a fresh prototype is allowed. Objects created inside binding closures are not inspected, and job `handle` dependencies are followed only for jobs using `Dispatchable`.
 
-Methods that only run while the application boots or in tests may say so with a docblock line starting with "Boot-only", "Tests only" or "Boot or tests only". Writes in these methods, and in `flushState` methods, are not reported:
-
-```php
-/**
- * Set the request used to build URLs.
- *
- * Tests only. The request stays on the shared service until a test replaces it.
- */
-public function setRequestForTesting(Request $request): void
-{
-    $this->request = $request;
-}
-```
+Writes in methods marked as [boot-time or test-only](#method-attributes), and in `flushState` methods, are not reported.
 
 Other worker state, such as a lazily created connection or a registry filled while the application boots, is not reported. When a reported write is intended, ignore it with a reason. You may disable these checks using the `checkWorkerSharedState`, `checkStaticStateMutation` and `checkUnboundedWorkerCaches` parameters.
 

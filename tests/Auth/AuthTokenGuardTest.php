@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Auth;
 
 use Hypervel\Auth\TokenGuard;
-use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\UserProvider;
@@ -472,6 +471,26 @@ class AuthTokenGuardTest extends TestCase
         $this->assertSame($secondUser, $secondGuard->user());
     }
 
+    public function testNewGuardWithTheSameNameStartsWithoutThePreviousGuardsUsers(): void
+    {
+        $tokenUser = new AuthTokenGuardTestUser;
+        $tokenUser->id = 1;
+        $explicitUser = new AuthTokenGuardTestUser;
+        $explicitUser->id = 2;
+        $previousProvider = m::mock(UserProvider::class);
+        $previousProvider->expects('retrieveByCredentials')->with(['api_token' => 'request-token'])->andReturn($tokenUser);
+        $previousGuard = $this->createGuard($previousProvider, Request::create('/', 'GET', ['api_token' => 'request-token']));
+        $this->assertSame($tokenUser, $previousGuard->user());
+        $previousGuard->setUser($explicitUser);
+        $provider = m::mock(UserProvider::class);
+        $provider->expects('retrieveByCredentials')->with(['api_token' => 'request-token'])->andReturnNull();
+
+        $guard = new TokenGuard('token', $provider, $this->app);
+
+        $this->assertFalse($guard->hasUser());
+        $this->assertNull($guard->user());
+    }
+
     public function testExplicitUsersAreIsolatedBetweenCoroutines(): void
     {
         $provider = m::mock(UserProvider::class);
@@ -498,7 +517,7 @@ class AuthTokenGuardTest extends TestCase
         ]);
 
         $this->assertSame([1, 2], [$first, $second]);
-        $this->assertNull(CoroutineContext::get('__auth.guards.token.user.explicit'));
+        $this->assertFalse($guard->hasUser());
     }
 
     public function testAuthContextKeysIncludeOnlyDurableExplicitState(): void
@@ -510,7 +529,7 @@ class AuthTokenGuardTest extends TestCase
         );
 
         $this->assertSame([
-            '__auth.guards.token.user.explicit',
+            (fn (): string => $this->getExplicitUserContextKey())->call($guard),
         ], $guard->getAuthContextKeys());
     }
 

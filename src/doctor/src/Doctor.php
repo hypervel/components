@@ -13,6 +13,7 @@ use Hypervel\Doctor\Results\DiagnosticOutcome;
 use Hypervel\Doctor\Results\DiagnosticReport;
 use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\FixResult;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use InvalidArgumentException;
 use LogicException;
@@ -40,10 +41,11 @@ class Doctor
     /**
      * Register a diagnostic.
      *
-     * Boot-only. The registry belongs to the shared Doctor service and affects subsequent runs.
+     * On the shared Doctor service, the registration affects subsequent runs.
      *
      * @param class-string $diagnostic
      */
+    #[BootOnly(whenShared: true)]
     public function diagnostic(string $diagnostic): self
     {
         if (! is_subclass_of($diagnostic, Diagnostic::class)) {
@@ -58,10 +60,11 @@ class Doctor
     /**
      * Register multiple diagnostics.
      *
-     * Boot-only. The registry belongs to the shared Doctor service and affects subsequent runs.
+     * On the shared Doctor service, the registration affects subsequent runs.
      *
      * @param iterable<class-string> $diagnostics
      */
+    #[BootOnly(whenShared: true)]
     public function diagnostics(iterable $diagnostics): self
     {
         foreach ($diagnostics as $diagnostic) {

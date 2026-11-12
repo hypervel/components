@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Prompts\Concerns;
 
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+
 trait Cursor
 {
     /**
@@ -106,10 +108,10 @@ trait Cursor
     /**
      * Reset cursor state to defaults.
      *
-     * Boot or tests only. Clears worker-wide cursor visibility tracking;
-     * concurrent prompts may restore cursor state differently depending on
-     * timing.
+     * Clears worker-wide cursor visibility tracking; concurrent prompts
+     * may restore cursor state differently depending on timing.
      */
+    #[BootOrTestsOnly]
     public static function resetCursor(): void
     {
         static::$cursorHidden = false;

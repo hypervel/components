@@ -17,6 +17,7 @@ use Hypervel\ServerProcess\Events\AfterProcessHandle;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\ServerProcess\Events\PipeMessage;
 use Hypervel\ServerProcess\Exceptions\SocketAcceptException;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Sleep;
 use RuntimeException;
 use Swoole\Coroutine\Socket;
@@ -64,7 +65,11 @@ abstract class AbstractProcess implements ProcessInterface
 
     /**
      * Create process objects and bind them to the server.
+     *
+     * Swoole only accepts processes added before the server starts, and
+     * coroutine-enabled processes persist in the process-wide collector.
      */
+    #[BootOnly]
     public function bind(Server $server): void
     {
         for ($i = 0; $i < $this->processCount; ++$i) {

@@ -7,6 +7,7 @@ namespace Hypervel\Prompts;
 use Closure;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Prompts\Themes\Default\Concerns\InteractsWithStrings;
+use Hypervel\Support\Attributes\Unsupported;
 use RuntimeException;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
@@ -139,6 +140,7 @@ class Stream extends Prompt
      *
      * @throws RuntimeException
      */
+    #[Unsupported('Use append() and close() instead.')]
     public function prompt(): mixed
     {
         throw new RuntimeException('Stream cannot be prompted');

@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Foundation\Concerns\ResolvesDumpSource;
+use Hypervel\Support\Attributes\BootOnly;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\VarDumper\Caster\ReflectionCaster;
@@ -47,9 +48,9 @@ class CliDumper extends BaseCliDumper
     /**
      * Create a new CLI dumper instance and register it as the default dumper.
      *
-     * Boot-only. Registers a process-wide VarDumper handler for the worker
-     * lifetime.
+     * Registers a process-wide VarDumper handler for the worker lifetime.
      */
+    #[BootOnly]
     public static function register(string $basePath, string $compiledViewPath): void
     {
         $cloner = tap(new VarCloner)->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO);

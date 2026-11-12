@@ -15,6 +15,7 @@ use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
+use Hypervel\Support\Attributes\Unsupported;
 use Psr\Log\LoggerInterface;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -67,8 +68,11 @@ abstract class KeepaliveConnection implements ConnectionContract
     }
 
     /**
+     * Get the underlying connection.
+     *
      * @throws InvalidArgumentException
      */
+    #[Unsupported('Use call() instead.')]
     public function getConnection(): mixed
     {
         throw new InvalidArgumentException('Please use call instead of getConnection.');

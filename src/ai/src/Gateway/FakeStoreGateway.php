@@ -12,6 +12,7 @@ use Hypervel\Ai\Contracts\Providers\StoreProvider;
 use Hypervel\Ai\Responses\Data\StoreFileCounts;
 use Hypervel\Ai\Store;
 use Hypervel\Ai\Stores;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use RuntimeException;
 
@@ -141,8 +142,10 @@ class FakeStoreGateway implements StoreGateway
     /**
      * Indicate that an exception should be thrown if any store operation is not faked.
      *
-     * Tests only. This setting affects the fake gateway shared by requests in the worker.
+     * When the shared manager holds this fake gateway, the setting affects
+     * every request in the worker.
      */
+    #[TestsOnly(whenShared: true)]
     public function preventStrayOperations(bool $prevent = true): self
     {
         $this->preventStrayOperations = $prevent;

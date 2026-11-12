@@ -23,6 +23,7 @@ use Hypervel\OpenTelemetry\Support\ExceptionContextRegistry;
 use Hypervel\OpenTelemetry\Support\OperationOrigin;
 use Hypervel\OpenTelemetry\Support\ProcessIdentity;
 use Hypervel\OpenTelemetry\Support\ProviderSet;
+use Hypervel\Support\Attributes\BootOnly;
 use InvalidArgumentException;
 use LogicException;
 use OpenTelemetry\API\Logs\LoggerInterface;
@@ -413,8 +414,9 @@ class OpenTelemetryManager
     /**
      * Register a custom exporter driver.
      *
-     * Boot-only. The creator persists for the worker lifetime and must be registered before telemetry binding.
+     * On the shared manager, the creator persists for the worker lifetime and must be registered before telemetry binding.
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $driver, Closure $factory): void
     {
         $this->customCreators[$driver] = $factory;
@@ -424,8 +426,9 @@ class OpenTelemetryManager
     /**
      * Register an exception-record enricher.
      *
-     * Boot-only. The callback persists for the worker lifetime and affects every reported exception.
+     * On the shared manager, the callback persists for the worker lifetime and affects every reported exception.
      */
+    #[BootOnly(whenShared: true)]
     public function enrichExceptionsUsing(Closure $enricher): void
     {
         $this->exceptionEnrichers[] = $enricher;
@@ -445,8 +448,9 @@ class OpenTelemetryManager
     /**
      * Set the outgoing URL-template resolver.
      *
-     * Boot-only. The callback persists for the worker lifetime and affects every traced outgoing request.
+     * On the shared manager, the callback persists for the worker lifetime and affects every traced outgoing request.
      */
+    #[BootOnly(whenShared: true)]
     public function resolveUrlTemplateUsing(Closure $resolver): void
     {
         $this->urlTemplateResolver = $resolver;
@@ -465,8 +469,9 @@ class OpenTelemetryManager
     /**
      * Set the authenticated-user resolver.
      *
-     * Boot-only. The callback persists for the worker lifetime and affects every request that collects user context.
+     * On the shared manager, the callback persists for the worker lifetime and affects every request that collects user context.
      */
+    #[BootOnly(whenShared: true)]
     public function resolveUserUsing(Closure $resolver): void
     {
         $this->userResolver = $resolver;
@@ -485,8 +490,9 @@ class OpenTelemetryManager
     /**
      * Set the cache-key resolver.
      *
-     * Boot-only. The callback persists for the worker lifetime and affects enabled cache-key capture.
+     * On the shared manager, the callback persists for the worker lifetime and affects enabled cache-key capture.
      */
+    #[BootOnly(whenShared: true)]
     public function resolveCacheKeyUsing(Closure $resolver): void
     {
         $this->cacheKeyResolver = $resolver;
@@ -505,8 +511,9 @@ class OpenTelemetryManager
     /**
      * Set the Redis query-text resolver.
      *
-     * Boot-only. The callback persists for the worker lifetime and affects enabled Redis query-text capture.
+     * On the shared manager, the callback persists for the worker lifetime and affects enabled Redis query-text capture.
      */
+    #[BootOnly(whenShared: true)]
     public function resolveRedisQueryTextUsing(Closure $resolver): void
     {
         $this->redisQueryTextResolver = $resolver;

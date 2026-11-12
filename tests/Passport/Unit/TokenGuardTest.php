@@ -14,6 +14,7 @@ use Hypervel\Encryption\Encrypter;
 use Hypervel\Http\Request;
 use Hypervel\Passport\ApiTokenCookieFactory;
 use Hypervel\Passport\Bridge\BearerRequestFactory;
+use Hypervel\Passport\Client;
 use Hypervel\Passport\ClientRepository;
 use Hypervel\Passport\Guards\TokenGuard;
 use Hypervel\Passport\Passport;
@@ -442,6 +443,36 @@ class TokenGuardTest extends TestCase
         $this->expectExceptionObject($failure);
 
         $guard->user();
+    }
+
+    public function testNewGuardWithTheSameNameStartsWithoutThePreviousGuardsUsersAndClients(): void
+    {
+        $encrypter = new Encrypter(str_repeat('a', 32), 'aes-256-cbc');
+        $request = Request::create('/');
+        $request->headers->set('X-CSRF-TOKEN', 'token');
+        $request->cookies->set(Passport::cookie(), $encrypter->encrypt(
+            CookieValuePrefix::create(Passport::cookie(), $encrypter->getKey()) . JWT::encode([
+                'provider' => 'users',
+                'sub' => 1,
+                'csrf' => 'token',
+                'exp' => time() + 600,
+            ], hash_hkdf('sha256', $encrypter->getKey(), 32, 'hypervel-passport-cookie'), 'HS256'),
+            false
+        ));
+        $previousProvider = m::mock(PassportUserProvider::class);
+        $previousProvider->expects('retrieveById')->with(1)->andReturn(new TokenGuardTestUser);
+        $previousGuard = $this->makeGuard($previousProvider, m::mock(ClientRepository::class), $encrypter, $request);
+        $this->assertNotNull($previousGuard->user());
+        $previousGuard->setUser(new TokenGuardTestUser);
+        $previousGuard->setClient(new Client);
+        $provider = m::mock(PassportUserProvider::class);
+        $provider->expects('retrieveById')->with(1)->andReturnNull();
+
+        $guard = $this->makeGuard($provider, m::mock(ClientRepository::class), $encrypter, $request);
+
+        $this->assertFalse($guard->hasUser());
+        $this->assertNull($guard->user());
+        $this->assertNull($guard->client());
     }
 
     /**

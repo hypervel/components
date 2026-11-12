@@ -780,6 +780,8 @@ class BusFake implements Fake, QueueingDispatcher
     /**
      * Set the pipes commands should be piped through before dispatching.
      *
+     * This changes the wrapped dispatcher, which is usually the application's worker-shared dispatcher.
+     *
      * @return $this
      */
     public function pipeThrough(array $pipes): static
@@ -808,6 +810,8 @@ class BusFake implements Fake, QueueingDispatcher
     /**
      * Map a command to a handler.
      *
+     * This changes the wrapped dispatcher, which is usually the application's worker-shared dispatcher.
+     *
      * @return $this
      */
     public function map(array $map): static
@@ -820,7 +824,7 @@ class BusFake implements Fake, QueueingDispatcher
     /**
      * Allow dispatching after responses.
      *
-     * Tests only. Changes the underlying dispatcher for all coroutines until the setting is restored.
+     * This changes the wrapped dispatcher, which is usually the application's worker-shared dispatcher.
      *
      * @return $this
      */
@@ -834,7 +838,7 @@ class BusFake implements Fake, QueueingDispatcher
     /**
      * Disable dispatching after responses.
      *
-     * Tests only. Changes the underlying dispatcher for all coroutines until the setting is restored.
+     * This changes the wrapped dispatcher, which is usually the application's worker-shared dispatcher.
      *
      * @return $this
      */

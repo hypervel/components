@@ -7,6 +7,7 @@ namespace Hypervel\Data\Attributes\Validation;
 use Attribute;
 use Hypervel\Data\Exceptions\CannotBuildValidationRule;
 use Hypervel\Data\Support\Validation\ValidationPath;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Validation\Rules\AnyOf as BaseAnyOf;
 
 #[Attribute(Attribute::TARGET_PROPERTY | Attribute::TARGET_PARAMETER)]
@@ -38,6 +39,7 @@ class AnyOf extends ObjectValidationAttribute
     /**
      * Reject string-based any-of rule construction.
      */
+    #[Unsupported('Construct the validation attribute directly with typed arguments.')]
     public static function create(string ...$parameters): static
     {
         throw CannotBuildValidationRule::create('Cannot create an any-of rule from string parameters.');

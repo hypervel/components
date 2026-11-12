@@ -17,6 +17,7 @@ use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use Hypervel\Support\Traits\ReadsClassAttributes;
@@ -296,12 +297,13 @@ class Dispatcher implements QueueingDispatcher
     /**
      * Set the pipes through which commands should be piped before dispatching.
      *
-     * Boot-only. The pipes persist on the singleton dispatcher for the worker
-     * lifetime and apply to every subsequent dispatch; per-request use races
-     * across coroutines.
+     * The pipes persist on the singleton dispatcher for the worker lifetime
+     * and apply to every subsequent dispatch; per-request use races across
+     * coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function pipeThrough(array $pipes): static
     {
         $this->pipes = $pipes;
@@ -312,11 +314,12 @@ class Dispatcher implements QueueingDispatcher
     /**
      * Map a command to a handler.
      *
-     * Boot-only. The handler map persists on the singleton dispatcher for the
-     * worker lifetime; per-request use races across coroutines.
+     * The handler map persists on the singleton dispatcher for the worker
+     * lifetime; per-request use races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function map(array $map): static
     {
         $this->handlers = array_merge($this->handlers, $map);
@@ -327,11 +330,12 @@ class Dispatcher implements QueueingDispatcher
     /**
      * Allow dispatching after responses.
      *
-     * Boot-only. Toggles a flag on the singleton dispatcher for the worker
-     * lifetime; per-request use races across coroutines.
+     * Toggles a flag on the singleton dispatcher for the worker lifetime;
+     * per-request use races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function withDispatchingAfterResponses(): static
     {
         $this->allowsDispatchingAfterResponses = true;
@@ -342,11 +346,12 @@ class Dispatcher implements QueueingDispatcher
     /**
      * Disable dispatching after responses.
      *
-     * Boot-only. Toggles a flag on the singleton dispatcher for the worker
-     * lifetime; per-request use races across coroutines.
+     * Toggles a flag on the singleton dispatcher for the worker lifetime;
+     * per-request use races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function withoutDispatchingAfterResponses(): static
     {
         $this->allowsDispatchingAfterResponses = false;

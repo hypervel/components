@@ -6,6 +6,7 @@ namespace Hypervel\Mail\Transport;
 
 use Aws\Exception\AwsException;
 use Aws\SesV2\SesV2Client;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Stringable;
 use Symfony\Component\Mailer\Exception\TransportException;
@@ -147,9 +148,10 @@ class SesV2Transport extends AbstractTransport implements Stringable
     /**
      * Set the transmission options being used by the transport.
      *
-     * Boot-only. Mutates the shared transport's SES send options; per-request
-     * use races across coroutines.
+     * Mutates the shared transport's SES send options; per-request use races
+     * across coroutines.
      */
+    #[BootOnly(whenShared: true)]
     public function setOptions(array $options): array
     {
         return $this->options = $options;

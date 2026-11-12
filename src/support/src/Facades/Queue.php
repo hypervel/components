@@ -6,6 +6,8 @@ namespace Hypervel\Support\Facades;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Queue\Worker;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 
 /**
@@ -113,15 +115,22 @@ class Queue extends Facade
 {
     /**
      * Register a callback to be executed to pick jobs.
+     *
+     * The callback persists for the worker lifetime and runs on every job pop
+     * for the named worker. Passing null removes the callback.
      */
-    public static function popUsing(string $workerName, callable $callback): void
+    #[BootOnly]
+    public static function popUsing(string $workerName, ?callable $callback): void
     {
         Worker::popUsing($workerName, $callback);
     }
 
     /**
      * Replace the bound instance with a fake.
+     *
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     public static function fake(array|string $jobsToFake = []): QueueFake
     {
         $actualQueueManager = static::isFake()
@@ -141,7 +150,10 @@ class Queue extends Facade
 
     /**
      * Replace the bound instance with a fake that fakes all jobs except the given jobs.
+     *
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     public static function fakeExcept(array|string $jobsToAllow): QueueFake
     {
         return static::fake()->except($jobsToAllow);
@@ -149,7 +161,10 @@ class Queue extends Facade
 
     /**
      * Replace the bound instance with a fake during the given callable's execution.
+     *
+     * Swaps the resolved facade instance worker-wide until the callable returns.
      */
+    #[TestsOnly]
     public static function fakeFor(callable $callable, array $jobsToFake = []): mixed
     {
         $originalQueueManager = static::getFacadeRoot();
@@ -169,7 +184,10 @@ class Queue extends Facade
 
     /**
      * Replace the bound instance with a fake during the given callable's execution.
+     *
+     * Swaps the resolved facade instance worker-wide until the callable returns.
      */
+    #[TestsOnly]
     public static function fakeExceptFor(callable $callable, array $jobsToAllow = []): mixed
     {
         $originalQueueManager = static::getFacadeRoot();

@@ -24,6 +24,8 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Http\FormRequest;
 use Hypervel\Http\Request;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Facades\App;
 use Hypervel\Support\Facades\Auth;
 use WeakMap;
@@ -102,11 +104,22 @@ class SharedService
     /**
      * Set the request used for testing.
      *
-     * Tests only. The request persists on the shared service.
+     * The request persists on the shared service.
      */
+    #[TestsOnly]
     public function setRequestForTesting(Request $request): void
     {
         $this->request = $request;
+    }
+
+    #[TestsOnly(whenNotDefault: 'request')]
+    public function request(?Request $request = null): ?Request
+    {
+        if ($request !== null) {
+            $this->request = $request;
+        }
+
+        return $this->request;
     }
 
     /**
@@ -202,7 +215,7 @@ class CurrentUserSingleton
 #[Singleton]
 class TestingRequestHolder
 {
-    /** Tests only. */
+    #[TestsOnly]
     public function __construct(public Request $request)
     {
     }
@@ -724,8 +737,9 @@ class HelperController
     }
 
     /**
-     * Boot-only: the provider configures the controller once.
+     * The provider configures the controller once.
      */
+    #[BootOnly]
     public function configure(): void
     {
         $this->apply();

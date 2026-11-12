@@ -16,6 +16,7 @@ use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\ForwardsCalls;
@@ -502,9 +503,10 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Set the current cursor resolver callback.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every subsequent cursor-paginator's cursor lookup.
+     * The resolver persists in a static property for the worker lifetime and
+     * runs on every subsequent cursor-paginator's cursor lookup.
      */
+    #[BootOnly]
     public static function currentCursorResolver(Closure $resolver): void
     {
         static::$currentCursorResolver = $resolver;

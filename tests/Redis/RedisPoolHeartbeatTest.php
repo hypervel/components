@@ -799,7 +799,7 @@ class RedisPoolHeartbeatTest extends TestCase
             $redis = $this->createProxy($pool);
 
             $redis->withPinnedConnection(function () use ($redis, $connection) {
-                $contextConnection = CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'heartbeat_test');
+                $contextConnection = CoroutineContext::get((fn (): string => $this->getContextKey())->call($redis));
 
                 $this->assertSame($connection, $contextConnection);
                 $this->assertSame(2, $connection->reconnectCount);
@@ -883,7 +883,7 @@ class RedisPoolHeartbeatTest extends TestCase
 
     protected function createProxy(RedisPool $pool): RedisProxy
     {
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->shouldReceive('pool')->with('heartbeat_test')->andReturn($pool);
 
         return new RedisProxy(

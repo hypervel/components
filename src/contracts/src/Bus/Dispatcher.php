@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Bus;
 
+use Hypervel\Support\Attributes\BootOnly;
+
 interface Dispatcher
 {
     /**
@@ -48,6 +50,7 @@ interface Dispatcher
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function pipeThrough(array $pipes): static;
 
     /**
@@ -55,5 +58,6 @@ interface Dispatcher
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function map(array $map): static;
 }

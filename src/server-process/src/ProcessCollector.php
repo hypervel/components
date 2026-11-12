@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\ServerProcess;
 
+use Hypervel\Support\Attributes\BootOnly;
 use Swoole\Process;
 
 /**
@@ -19,10 +20,11 @@ class ProcessCollector
     /**
      * Add a process to the collector under the given name.
      *
-     * Boot-only. The collector is process-wide static state populated during
-     * server boot; runtime use mutates state shared across every coroutine in
-     * the worker.
+     * The collector is process-wide static state populated during server
+     * boot; runtime use mutates state shared across every coroutine in the
+     * worker.
      */
+    #[BootOnly]
     public static function add(string $name, Process $process): void
     {
         static::$processes[$name][] = $process;

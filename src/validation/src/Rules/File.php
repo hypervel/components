@@ -9,6 +9,7 @@ use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Facades\Validator;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
@@ -81,15 +82,15 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
      *
      * If no arguments are passed, the default file rule configuration will be returned.
      *
-     * Boot-only when setting. The default callback persists in a static
-     * property for the worker lifetime and is used by every File::default()
-     * call across all coroutines.
+     * A given callback persists in a static property for the worker lifetime
+     * and is used by every File::default() call across all coroutines.
      *
      * @param null|callable|static $callback
      * @return ($callback is null ? static : null)
      *
      * @throws InvalidArgumentException
      */
+    #[BootOnly(whenNotDefault: 'callback')]
     public static function defaults(mixed $callback = null): ?static
     {
         if (is_null($callback)) {
