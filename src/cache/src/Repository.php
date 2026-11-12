@@ -40,6 +40,8 @@ use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
@@ -1004,12 +1006,13 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     /**
      * Set the default cache time in seconds.
      *
-     * Boot-only. Persists on the cached repository for the worker lifetime
-     * and applies to every subsequent write that falls back to the default
+     * Persists on the cached repository for the worker lifetime and
+     * applies to every subsequent write that falls back to the default
      * TTL; per-request use races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setDefaultCacheTime(?int $seconds): static
     {
         $this->default = $seconds;
@@ -1028,12 +1031,13 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     /**
      * Set the cache store implementation.
      *
-     * Boot-only. Replaces the backing store on the cached repository for the
-     * worker lifetime; per-request use races and every concurrent
-     * read/write through this repository would hit the wrong store.
+     * Replaces the backing store on the cached repository for the worker
+     * lifetime; per-request use races and every concurrent read/write
+     * through this repository would hit the wrong store.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setStore(Store $store): static
     {
         $this->store = $store;
@@ -1052,10 +1056,11 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     /**
      * Set the event dispatcher instance.
      *
-     * Boot or tests only. Persists on the cached repository for the worker
-     * lifetime; per-request use races across coroutines. Reached by
+     * Persists on the cached repository for the worker lifetime; per-request
+     * use races across coroutines. Reached by
      * CacheManager::refreshEventDispatcher() from Event::fake() / fakeFor().
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setEventDispatcher(Dispatcher $events): void
     {
         $this->events = $events;
@@ -1064,9 +1069,10 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     /**
      * Register a callback to be invoked when an unserializable class is encountered.
      *
-     * Boot or tests only. The callback persists for the worker lifetime and
-     * affects every subsequent cache read.
+     * The callback persists for the worker lifetime and affects every
+     * subsequent cache read.
      */
+    #[BootOrTestsOnly]
     public static function handleUnserializableClassUsing(?callable $callback): void
     {
         static::$unserializableClassHandler = $callback === null

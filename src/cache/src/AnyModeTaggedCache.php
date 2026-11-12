@@ -15,6 +15,7 @@ use Hypervel\Cache\Events\KeyForgotten;
 use Hypervel\Cache\Events\KeyRetrievalFailed;
 use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\Unsupported;
 use Throwable;
 use UnitEnum;
 
@@ -35,6 +36,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
+    #[Unsupported]
     public function get(array|UnitEnum|string $key, mixed $default = null): mixed
     {
         throw new BadMethodCallException(
@@ -48,6 +50,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
+    #[Unsupported]
     public function getRaw(UnitEnum|string $key): mixed
     {
         throw new BadMethodCallException(
@@ -61,6 +64,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
+    #[Unsupported]
     public function getAuthoritativeRaw(UnitEnum|string $key): mixed
     {
         throw new BadMethodCallException(
@@ -74,6 +78,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
+    #[Unsupported]
     public function many(array $keys): array
     {
         throw new BadMethodCallException(
@@ -87,6 +92,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
+    #[Unsupported]
     public function manyRaw(array $keys): array
     {
         throw new BadMethodCallException(
@@ -100,6 +106,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
+    #[Unsupported]
     public function has(array|UnitEnum|string $key): bool
     {
         throw new BadMethodCallException(
@@ -113,6 +120,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
+    #[Unsupported]
     public function pull(UnitEnum|string $key, mixed $default = null): mixed
     {
         throw new BadMethodCallException(
@@ -126,6 +134,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
+    #[Unsupported]
     public function forget(array|UnitEnum|string $key): bool
     {
         throw new BadMethodCallException(
@@ -139,6 +148,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
+    #[Unsupported]
     public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int $ttl): bool
     {
         throw new BadMethodCallException(

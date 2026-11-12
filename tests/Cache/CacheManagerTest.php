@@ -762,6 +762,24 @@ class CacheManagerTest extends TestCase
         $this->assertNotSame($firstMemoizedStore->getInnerStore(), $secondMemoizedStore->getInnerStore());
     }
 
+    public function testMemoizedRepositoriesBelongToTheirManager(): void
+    {
+        $config = ['cache' => ['stores' => ['array' => ['driver' => 'array']]]];
+        $first = new CacheManager($this->getApp($config));
+        $second = new CacheManager($this->getApp($config));
+
+        $first->memo('array')->put('key', 'first', 60);
+        $second->memo('array')->put('key', 'second', 60);
+        $firstMemo = $first->memo('array');
+
+        $this->assertSame('first', $firstMemo->get('key'));
+        $this->assertSame('second', $second->memo('array')->get('key'));
+
+        $second->forgetDriver('array');
+
+        $this->assertSame($firstMemo, $first->memo('array'));
+    }
+
     public function testMemoizedRepositoriesPreserveStoreIdentityAndSuppressDuplicateEvents(): void
     {
         $app = $this->getApp(['cache' => ['stores' => ['named' => ['driver' => 'worker-array']]]]);
