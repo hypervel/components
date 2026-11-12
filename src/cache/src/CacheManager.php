@@ -551,9 +551,9 @@ class CacheManager implements FactoryContract
         $name ??= $this->getDefaultDriver();
 
         foreach (is_array($name) ? $name : [$name] as $cacheName) {
-            if ($cacheName instanceof UnitEnum) {
-                $cacheName = (string) enum_value($cacheName);
-            }
+            // Numeric store names reach here as integers when taken from the
+            // configured store keys.
+            $cacheName = $cacheName instanceof UnitEnum ? (string) enum_value($cacheName) : (string) $cacheName;
 
             if (isset($this->stores[$cacheName])) {
                 unset($this->stores[$cacheName]);
