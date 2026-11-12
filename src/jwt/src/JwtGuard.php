@@ -26,6 +26,7 @@ use Hypervel\Jwt\Exceptions\TokenExpiredException;
 use Hypervel\Jwt\Exceptions\TokenInvalidException;
 use Hypervel\Jwt\Exceptions\UserNotDefinedException;
 use Hypervel\Jwt\Http\Parser\Parser;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Timebox;
 use Hypervel\Support\Traits\Macroable;
 use SensitiveParameter;
@@ -520,8 +521,8 @@ class JwtGuard implements Guard
     /**
      * Register an authentication attempt event listener.
      *
-     * Boot-only. Listener registrations persist on the worker-lifetime dispatcher
-     * and affect every subsequent request.
+     * When the dispatcher is the application's worker-shared dispatcher,
+     * listener registrations persist and affect every subsequent request.
      */
     public function attempting(callable $callback): void
     {
@@ -539,9 +540,10 @@ class JwtGuard implements Guard
     /**
      * Set the event dispatcher instance.
      *
-     * Boot or tests only. The dispatcher is stored on the worker-lifetime guard
-     * and affects every subsequent request.
+     * The dispatcher is stored on the worker-lifetime guard and affects every
+     * subsequent request.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setDispatcher(Dispatcher $events): void
     {
         $this->events = $events;

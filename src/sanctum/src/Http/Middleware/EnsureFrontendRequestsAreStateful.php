@@ -12,6 +12,7 @@ use Hypervel\Http\Request;
 use Hypervel\Routing\Pipeline;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Session\Middleware\StartSession;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
@@ -147,11 +148,12 @@ class EnsureFrontendRequestsAreStateful
     /**
      * Register a closure that determines whether the current request is stateful.
      *
-     * Boot-only. The closure receives the current request and returns the final
-     * stateful decision. Persists for the worker lifetime.
+     * The closure receives the current request and returns the final stateful
+     * decision. Persists for the worker lifetime.
      *
      * @param null|Closure(Request): bool $callback
      */
+    #[BootOnly]
     public static function resolveStatefulRequestsUsing(?Closure $callback): void
     {
         static::$statefulRequestResolver = $callback;
@@ -160,12 +162,13 @@ class EnsureFrontendRequestsAreStateful
     /**
      * Register a closure that resolves stateful domains for the current request.
      *
-     * Boot-only. The closure receives the current request and returns the
-     * stateful domain list; useful when the list varies by host or other
-     * request data. Persists for the worker lifetime.
+     * The closure receives the current request and returns the stateful
+     * domain list; useful when the list varies by host or other request
+     * data. Persists for the worker lifetime.
      *
      * @param null|Closure(Request): array<int, string> $callback
      */
+    #[BootOnly]
     public static function resolveStatefulDomainsUsing(?Closure $callback): void
     {
         static::$statefulDomainsResolver = $callback;

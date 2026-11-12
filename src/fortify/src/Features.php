@@ -6,6 +6,7 @@ namespace Hypervel\Fortify;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Config\Repository as Config;
+use Hypervel\Support\Attributes\BootOnly;
 
 class Features
 {
@@ -140,12 +141,12 @@ class Features
     /**
      * Enable the two factor authentication feature.
      *
-     * Boot-only when options are supplied. Non-empty options mutate the process-global
-     * configuration repository and affect every subsequent request in the worker;
-     * calling without options performs no mutation and is safe at request time.
+     * Non-empty options mutate the process-global configuration repository and
+     * affect every subsequent request in the worker.
      *
      * @param array<string, mixed> $options
      */
+    #[BootOnly(whenNotDefault: 'options')]
     public static function twoFactorAuthentication(array $options = []): string
     {
         self::setOptions('two-factor-authentication', $options);
@@ -156,12 +157,12 @@ class Features
     /**
      * Enable the passkeys feature.
      *
-     * Boot-only when options are supplied. Non-empty options mutate the process-global
-     * configuration repository and affect every subsequent request in the worker;
-     * calling without options performs no mutation and is safe at request time.
+     * Non-empty options mutate the process-global configuration repository and
+     * affect every subsequent request in the worker.
      *
      * @param array<string, mixed> $options
      */
+    #[BootOnly(whenNotDefault: 'options')]
     public static function passkeys(array $options = []): string
     {
         self::setOptions('passkeys', $options);

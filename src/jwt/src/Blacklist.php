@@ -8,6 +8,7 @@ use Carbon\CarbonInterface;
 use Hypervel\Jwt\Contracts\BlacklistContract;
 use Hypervel\Jwt\Contracts\StorageContract;
 use Hypervel\Jwt\Exceptions\TokenInvalidException;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Facades\Date;
 
 class Blacklist implements BlacklistContract
@@ -147,11 +148,12 @@ class Blacklist implements BlacklistContract
     /**
      * Set the grace period.
      *
-     * Boot-only. Blacklist is a worker-lifetime singleton; runtime mutation
-     * affects every subsequent request and races across coroutines.
+     * On the shared blacklist, runtime mutation affects every subsequent
+     * request and races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setGracePeriod(int $gracePeriod): static
     {
         $this->gracePeriod = $gracePeriod;
@@ -188,11 +190,12 @@ class Blacklist implements BlacklistContract
     /**
      * Set the unique key held within the blacklist.
      *
-     * Boot-only. Blacklist is a worker-lifetime singleton; runtime mutation
-     * affects every subsequent request and races across coroutines.
+     * On the shared blacklist, runtime mutation affects every subsequent
+     * request and races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setKey(string $key): static
     {
         $this->key = $key;
@@ -203,11 +206,12 @@ class Blacklist implements BlacklistContract
     /**
      * Set the refresh time limit.
      *
-     * Boot-only. Blacklist is a worker-lifetime singleton; runtime mutation
-     * affects every subsequent request and races across coroutines.
+     * On the shared blacklist, runtime mutation affects every subsequent
+     * request and races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setRefreshTTL(?int $ttl): static
     {
         $this->refreshTTL = $ttl;

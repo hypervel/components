@@ -707,10 +707,9 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     /**
      * Register an authentication attempt event listener.
      *
-     * Listener registrations persist on the worker-lifetime dispatcher and affect
-     * every subsequent request.
+     * When the dispatcher is the application's worker-shared dispatcher,
+     * listener registrations persist and affect every subsequent request.
      */
-    #[BootOnly]
     public function attempting(callable $callback): void
     {
         $this->events?->listen(Attempting::class, $callback);
