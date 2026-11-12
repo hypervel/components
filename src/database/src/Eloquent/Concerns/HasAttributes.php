@@ -38,7 +38,6 @@ use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\LazyLoadingViolationException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Attributes\BootOnly;
-use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
@@ -1881,7 +1880,6 @@ trait HasAttributes
      * Clears the worker-wide caster instance cache shared by every coroutine;
      * next attribute access rebuilds the casters.
      */
-    #[BootOrTestsOnly]
     public static function flushCasterCache(): void
     {
         static::$casterCache = [];
