@@ -9,13 +9,11 @@ use Hypervel\Contracts\Container\ContextualAttribute;
 use Hypervel\PHPStan\Rules\Coroutine\WorkerStateHelper;
 use Hypervel\Routing\Router;
 use Hypervel\Routing\RouteRegistrar;
-use Hypervel\Support\Facades\Config;
 use Hypervel\Support\Facades\Route;
 use PhpParser\Node;
 use PhpParser\Node\Expr\ArrowFunction;
 use PhpParser\Node\Expr\CallLike;
 use PhpParser\Node\Expr\Closure;
-use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Expr\Variable;
@@ -31,7 +29,6 @@ use PHPStan\Collectors\Collector;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\ParametersAcceptorSelector;
 use PHPStan\Reflection\ReflectionProvider;
-use PHPStan\Type\ObjectType;
 
 use function array_any;
 use function array_map;
@@ -52,11 +49,6 @@ use function is_string;
 #[AutowiredService]
 class WorkerStateCallCollector implements Collector
 {
-    /**
-     * The repository methods that change configuration.
-     */
-    private const array CONFIG_WRITES = ['set', 'push', 'prepend', 'offsetset', 'offsetunset'];
-
     /**
      * The route registration methods whose action parameter takes a route closure.
      */
@@ -132,14 +124,14 @@ class WorkerStateCallCollector implements Collector
                 : ['type' => 'call', 'class' => $function['class'], 'method' => $function['method'], 'callee' => $node->name->name];
         }
 
-        if (! $this->isConfigWrite($node, $scope)) {
+        if (! $this->helper->noRuntimeConfigMutation || ! $this->helper->isConfigWrite($node, $scope)) {
             return null;
         }
 
-        // A repository in a local or a property may be another one.
+        // A repository in a local, or in a property the constructor did not get injected, may be another one.
         $receiver = $node instanceof MethodCall
             ? $this->helper->getConfigReceiver($node->var, $scope)
-            : ['abstracts' => null, 'parameter' => null];
+            : ['abstracts' => null, 'parameter' => null, 'property' => null];
         $function = $this->helper->getFunctionFacts($scope, $node);
 
         if ($receiver === null || $function === null) {
@@ -225,31 +217,5 @@ class WorkerStateCallCollector implements Collector
         }
 
         return false;
-    }
-
-    /**
-     * Determine whether the call changes configuration: config() with an array, a Config facade write,
-     * or a repository write method.
-     */
-    private function isConfigWrite(CallLike $call, Scope $scope): bool
-    {
-        if ($call instanceof FuncCall) {
-            $key = $call->getArg('key', 0);
-
-            return $this->helper->isConfigFunction($call, $scope)
-                && $key !== null
-                && $scope->getType($key->value)->isArray()->yes();
-        }
-
-        if (! $call instanceof MethodCall && ! $call instanceof StaticCall
-            || ! $call->name instanceof Identifier
-            || ! in_array($call->name->toLowerString(), self::CONFIG_WRITES, true)) {
-            return false;
-        }
-
-        // A method call writes configuration when its receiver is the repository, which the caller checks.
-        return ! $call instanceof StaticCall
-            || ($call->class instanceof Name
-                && (new ObjectType(Config::class))->isSuperTypeOf(new ObjectType($scope->resolveName($call->class)))->yes());
     }
 }

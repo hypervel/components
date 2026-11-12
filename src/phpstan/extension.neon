@@ -49,6 +49,7 @@ parameters:
     checkStaticStateMutation: true
     checkUnboundedWorkerCaches: true
     noRuntimeConfigMutation: true
+    checkRestrictedCalls: true
     noCoroutinesInTransactions: true
     noRawSleepCalls: true
     noLegacyModelScopes: true
@@ -99,6 +100,7 @@ parametersSchema:
     checkStaticStateMutation: bool()
     checkUnboundedWorkerCaches: bool()
     noRuntimeConfigMutation: bool()
+    checkRestrictedCalls: bool()
     noCoroutinesInTransactions: bool()
     noRawSleepCalls: bool()
     noLegacyModelScopes: bool()

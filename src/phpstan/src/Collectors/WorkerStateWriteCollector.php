@@ -63,7 +63,7 @@ class WorkerStateWriteCollector implements Collector
      */
     public function processNode(Node $node, Scope $scope): ?array
     {
-        if (! $this->helper->isEnabled()) {
+        if (! $this->helper->hasStateChecks()) {
             return null;
         }
 
@@ -101,6 +101,14 @@ class WorkerStateWriteCollector implements Collector
         $value = $node->getAssignedExpr();
         $cacheKey = false;
         $storage = $scope->getType($fetch);
+
+        // An offset write on a configuration repository changes configuration, as its set() does, which
+        // noRuntimeConfigMutation owns.
+        // @phpstan-ignore phpstanApi.class (The offset chain PHPStan builds inside a property write.), phpstanApi.class (The offset chain PHPStan builds inside a property write.), phpstanApi.class (The offset chain PHPStan builds inside a property write.)
+        if (($value instanceof SetOffsetValueTypeExpr || $value instanceof SetExistingOffsetValueTypeExpr || $value instanceof UnsetOffsetExpr)
+            && $this->helper->isConfigRepositoryType($storage)) {
+            return null;
+        }
 
         // Storage the method just reset holds only what the method itself adds.
         $growingStorage = $storage->isArray()->yes() && ! $storage->isConstantArray()->yes();

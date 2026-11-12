@@ -12,6 +12,8 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Events\Dispatcher;
+use Hypervel\HttpServer\Events\RequestHandled;
+use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\PHPStan\Collectors\WorkerStateCallCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateClassCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateConfigOffsetCollector;
@@ -21,6 +23,7 @@ use Hypervel\PHPStan\Rules\Coroutine\CoroutineRuleHelper;
 use Hypervel\PHPStan\Rules\Coroutine\WorkerStateHelper;
 use Hypervel\PHPStan\Rules\Coroutine\WorkerStateRule;
 use Hypervel\PHPStan\Support\RuntimeInputs;
+use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Routing\Router;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\BaseRecordingController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\BinderController;
@@ -48,6 +51,11 @@ use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ScopedHelperController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\SendReportListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ServiceContract;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\SingletonBoundService;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\JobListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\Post;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\ProviderObserver;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\QueuedListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\RequestListener;
 use PhpParser\Node;
 use PHPStan\Collectors\Collector;
 use PHPStan\Rules\Rule;
@@ -89,6 +97,10 @@ class WorkerStateRuleTest extends RuleTestCase
 
     private const string JOB = 'while running a job';
 
+    private const string OPERATION = 'during an operation';
+
+    private const string LISTENERS_NAMESPACE = 'Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\\';
+
     /**
      * The checkWorkerSharedState, checkStaticStateMutation, checkUnboundedWorkerCaches and
      * noRuntimeConfigMutation switches.
@@ -99,10 +111,10 @@ class WorkerStateRuleTest extends RuleTestCase
 
     protected function getRule(): Rule
     {
-        $rule = new WorkerStateRule($this->createReflectionProvider(), $this->createHelper(), self::getContainer()->getByType(RuntimeInputs::class));
-        $rule->setContainer($this->createApplication());
+        $helper = $this->createHelper();
+        $helper->setContainer($this->createApplication());
 
-        return $rule;
+        return new WorkerStateRule($helper);
     }
 
     /** @return array<Collector<Node, mixed>> */
@@ -113,7 +125,7 @@ class WorkerStateRuleTest extends RuleTestCase
         return [
             new WorkerStateWriteCollector($helper),
             new WorkerStateCallCollector($this->createReflectionProvider(), $helper),
-            new WorkerStateClassCollector($helper),
+            new WorkerStateClassCollector($this->createReflectionProvider(), $helper, self::getContainer()->getByType(RuntimeInputs::class)),
             new WorkerStateParameterCollector($helper),
             new WorkerStateConfigOffsetCollector($helper),
         ];
@@ -161,6 +173,26 @@ class WorkerStateRuleTest extends RuleTestCase
             [$static[0], 41, $static[1]],
             [sprintf(self::CONFIG, self::REQUEST), 47, self::CONFIG_TIP],
             [$static[0], 54, $static[1]],
+        ]);
+    }
+
+    public function testListenerAndObserverContexts(): void
+    {
+        $write = static fn (string $class, string $property, string $context, int $line): array => [
+            sprintf(self::STATIC_WRITE, self::LISTENERS_NAMESPACE . $class, $property, $context),
+            $line,
+            self::STATIC_TIP,
+        ];
+
+        $this->analyse([__DIR__ . '/data/worker-state-listeners.php'], [
+            $write('RequestListener', 'seen', self::REQUEST, 20),
+            $write('JobListener', 'recorded', self::JOB, 33),
+            $write('QueuedListener', 'recorded', self::JOB, 46),
+            $write('ProviderObserver', 'created', self::OPERATION, 59),
+            $write('DirectObserver', 'audited', self::OPERATION, 86),
+            $write('RepeatedObserver', 'updated', self::OPERATION, 107),
+            $write('BaseObserver', 'deleted', self::OPERATION, 130),
+            $write('AuditObserver', 'archived', self::OPERATION, 143),
         ]);
     }
 
@@ -279,7 +311,10 @@ class WorkerStateRuleTest extends RuleTestCase
         return new WorkerStateHelper(
             $this->createReflectionProvider(),
             self::getContainer()->getByType(CoroutineRuleHelper::class),
+            self::getContainer()->getByType(RuntimeInputs::class),
             ...$this->switches,
+            checkRestrictedCalls: false,
+            checkCancellationHandling: false,
         );
     }
 
@@ -313,6 +348,10 @@ class WorkerStateRuleTest extends RuleTestCase
         $router->get('/lexical', [LexicalChildController::class, 'index']);
 
         $events->listen(ReportEvent::class, SendReportListener::class);
+        $events->listen(RequestReceived::class, RequestListener::class);
+        $events->listen(JobProcessed::class, JobListener::class . '@record');
+        $events->listen(RequestHandled::class, [QueuedListener::class, 'record']);
+        $events->listen('eloquent.created: ' . Post::class, ProviderObserver::class . '@created');
         $bus->map([MappedCommand::class => MappedHandler::class]);
 
         $container->bind(BoundFreshService::class);

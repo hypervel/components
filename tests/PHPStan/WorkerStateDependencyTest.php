@@ -39,4 +39,58 @@ class WorkerStateDependencyTest extends ResultCacheTestCase
 
         $this->assertSame([], $this->diagnostics($this->analyse($applicationPath, reuseCollectedDataRuleErrors: $reuseCollectedDataRuleErrors), 0));
     }
+
+    /**
+     * Booted registrations decide lifetimes, which no analyzed file declares.
+     */
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testChangedRegistrationsRecheckUnchangedWrites(bool $reuseCollectedDataRuleErrors): void
+    {
+        $applicationPath = $this->copyApplication();
+
+        $this->edit($applicationPath . '/app/ReportService.php', '__construct()', '__construct(protected RequestCache $cache)');
+
+        $this->assertSame(
+            ['RequestCache.php:15 hypervel.workerSharedState'],
+            $this->diagnostics($this->analyse($applicationPath, reuseCollectedDataRuleErrors: $reuseCollectedDataRuleErrors), 1),
+        );
+
+        $this->edit($applicationPath . '/bootstrap/app.php', '->create()', '->withScopedSingletons([WorkerStateDependency\RequestCache::class])->create()');
+
+        $this->assertSame([], $this->diagnostics($this->analyse($applicationPath, reuseCollectedDataRuleErrors: $reuseCollectedDataRuleErrors), 0));
+    }
+
+    /**
+     * A facade's root comes from its accessor's body, which exported nodes do not hold.
+     */
+    public function testChangedFacadeAccessorsRecheckUnchangedCalls(): void
+    {
+        $applicationPath = $this->copyApplication();
+
+        $this->assertSame([], $this->diagnostics($this->analyse($applicationPath), 0));
+
+        $this->edit($applicationPath . '/app/ReportFacade.php', 'return SupportedReporter::class;', 'return UnsupportedReporter::class;');
+
+        $this->assertSame(['Reporting.php:11 hypervel.unsupportedCall'], $this->diagnostics($this->analyse($applicationPath), 1));
+    }
+
+    /**
+     * Whether a call passes a parameter's default depends on the declared default, which exported
+     * nodes record only as present, and on the constants it reads, which they do not hold at all.
+     */
+    public function testChangedDefaultsRecheckUnchangedCalls(): void
+    {
+        $applicationPath = $this->copyApplication();
+
+        $this->assertSame([], $this->diagnostics($this->analyse($applicationPath, reuseCollectedDataRuleErrors: true), 0));
+
+        $this->edit($applicationPath . '/app/Defaults.php', 'MAP = []', "MAP = ['default']");
+
+        $this->assertSame(['RebuildReport.php:13 hypervel.restrictedCall'], $this->diagnostics($this->analyse($applicationPath, reuseCollectedDataRuleErrors: true), 1));
+
+        $this->edit($applicationPath . '/app/Registry.php', 'array $map = Defaults::MAP', 'array $map = []');
+
+        $this->assertSame([], $this->diagnostics($this->analyse($applicationPath, reuseCollectedDataRuleErrors: true), 0));
+    }
 }

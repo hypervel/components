@@ -4,33 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\Rules\Coroutine;
 
-use Hypervel\Container\Container;
 use Hypervel\PHPStan\Collectors\WorkerStateCallCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateClassCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateConfigOffsetCollector;
-use Hypervel\PHPStan\Collectors\WorkerStateParameterCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateWriteCollector;
-use Hypervel\PHPStan\Concerns\HasContainer;
-use Hypervel\PHPStan\Support\RuntimeInputs;
 use PhpParser\Node;
 use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Node\CollectedDataNode;
-use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Rules\IdentifierRuleError;
 use PHPStan\Rules\Rule;
 use PHPStan\Rules\RuleErrorBuilder;
 
 use function array_all;
-use function array_any;
-use function array_fill_keys;
-use function array_find;
-use function array_keys;
 use function sprintf;
-use function strtolower;
-
-use const PHP_INT_MAX;
 
 /**
  * Reports request and operation state kept in worker-shared objects, static properties and config,
@@ -41,7 +29,6 @@ use const PHP_INT_MAX;
  * state. Lifetimes come from the booted application, so they are applied here rather than collected.
  *
  * @phpstan-import-type FunctionFacts from WorkerStateHelper
- * @phpstan-import-type RouteAction from WorkerStateHelper
  *
  * @phpstan-type Diagnostic array{identifier: string, message: string, tip: string}
  *
@@ -50,8 +37,6 @@ use const PHP_INT_MAX;
 #[AutowiredService]
 class WorkerStateRule implements Rule
 {
-    use HasContainer;
-
     /**
      * How diagnostics describe each kind of request or operation state.
      */
@@ -75,9 +60,7 @@ class WorkerStateRule implements Rule
      * Create a new worker state rule instance.
      */
     public function __construct(
-        private ReflectionProvider $reflectionProvider,
         private WorkerStateHelper $helper,
-        private RuntimeInputs $runtimeInputs,
     ) {
     }
 
@@ -99,75 +82,31 @@ class WorkerStateRule implements Rule
      */
     public function processNode(Node $node, Scope $scope): array
     {
-        if (! $this->helper->isEnabled()) {
+        if (! $this->helper->hasStateChecks()) {
             return [];
         }
 
-        // Lifetimes come from the booted bindings, routes, middleware, listeners and Bus handlers.
-        $this->runtimeInputs->track($scope);
-
-        $classes = $node->get(WorkerStateClassCollector::class);
+        $analysis = $this->helper->analyze($node);
+        $lifetimes = $analysis->lifetimes;
         $configWrites = $node->get(WorkerStateConfigOffsetCollector::class);
-        $abstracts = [];
-        $singletons = [];
-        $queued = [];
-        $actions = [];
-        $helperCalls = [];
+        $errors = [];
 
         foreach ($node->get(WorkerStateCallCollector::class) as $file => $calls) {
             foreach ($calls as $call) {
-                if ($call['type'] === 'resolution') {
-                    $abstracts += array_fill_keys($call['abstracts'], true);
-                } elseif ($call['type'] === 'action') {
-                    $actions[$file][] = $call;
-                } elseif ($call['type'] === 'call') {
-                    $helperCalls[] = $call;
-                } else {
+                if ($call['type'] === 'config') {
                     $configWrites[$file][] = $call;
                 }
             }
         }
 
-        foreach ($classes as $fileClasses) {
-            foreach ($fileClasses as $class) {
-                if ($class['singleton']) {
-                    $singletons[] = $class['class'];
-                }
-
-                if ($class['queued']) {
-                    $queued[] = $class['class'];
-                }
-            }
-        }
-
-        // The first position each method or route action reassigns each parameter at.
-        $reassigned = [];
-
-        foreach ($node->get(WorkerStateParameterCollector::class) as $file => $parameters) {
-            foreach ($parameters as $parameter) {
-                $key = $this->getFunctionKey($parameter['function'], $file, $actions[$file] ?? []);
-                $position = $parameter['function']['position'];
-
-                if ($key !== null && $position < ($reassigned[$key][$parameter['parameter']] ?? PHP_INT_MAX)) {
-                    $reassigned[$key][$parameter['parameter']] = $position;
-                }
-            }
-        }
-
-        // The analysis always runs on the framework container: the booted application or a test's own.
-        /** @var Container $container */
-        $container = $this->getContainer();
-        $lifetimes = new WorkerLifetimes($this->reflectionProvider, $container, array_keys($abstracts), $singletons, $queued, $helperCalls);
-        $errors = [];
-
         foreach ($node->get(WorkerStateWriteCollector::class) as $file => $writes) {
             foreach ($writes as $write) {
-                $context = $this->getContext($write['function'], $actions[$file] ?? [], $lifetimes);
+                $context = $analysis->getContext($write['function'], $file);
 
                 // A constructor parameter keeps no state when every shared build passes a fresh value
                 // and the constructor writes it before giving it another one.
                 $fresh = $write['parameter'] !== null
-                    && ! $this->isReassigned($write['function'], $write['parameter'], $file, $actions[$file] ?? [], $reassigned)
+                    && ! $analysis->isReassigned($write['function'], $write['parameter'], $file)
                     && $lifetimes->isFreshParameter($write['class'], $write['parameter']);
 
                 $diagnostic = $this->checkWrite($write, $context, $fresh ? null : $write['state'], $lifetimes);
@@ -178,7 +117,7 @@ class WorkerStateRule implements Rule
             }
         }
 
-        foreach ($classes as $file => $fileClasses) {
+        foreach ($node->get(WorkerStateClassCollector::class) as $file => $fileClasses) {
             foreach ($fileClasses as $class) {
                 if (! $this->helper->checkWorkerSharedState || ! $lifetimes->isShared($class['class'])) {
                     continue;
@@ -195,29 +134,30 @@ class WorkerStateRule implements Rule
         if ($this->helper->noRuntimeConfigMutation) {
             foreach ($configWrites as $file => $writes) {
                 foreach ($writes as $write) {
-                    $context = $this->getContext($write['function'], $actions[$file] ?? [], $lifetimes);
+                    $context = $analysis->getContext($write['function'], $file);
 
-                    // A resolution is the global repository when the booted aliases say so, and a parameter
-                    // where the container injects it and the function still holds it.
+                    // A resolution is the global repository when the booted aliases say so, a parameter
+                    // where the container injects it and the function still holds it, and a promoted
+                    // property where the container injects it into the constructor of the instance it builds.
                     if ($context === null
                         || ($write['abstracts'] !== null && ! array_all($write['abstracts'], $lifetimes->isGlobalConfig(...)))
-                        || ($write['parameter'] !== null && ! $this->isInjectedConfig($write['function'], $write['parameter'], $file, $actions[$file] ?? [], $reassigned, $lifetimes))) {
+                        || ($write['parameter'] !== null && ! $analysis->isInjectedConfig($write['function'], $write['parameter'], $file))
+                        || ($write['property'] !== null && ! $analysis->isPromotedConfig($write['function'], ...$write['property']))) {
                         continue;
                     }
 
                     $errors[] = $this->buildError([
                         'identifier' => 'hypervel.runtimeConfigMutation',
-                        'message' => sprintf('Configuration is changed %s, which changes it for the whole worker.', $this->describeContext($context)),
+                        'message' => sprintf('Configuration is changed %s, which changes it for the whole worker.', WorkerStateAnalysis::describeContext($context)),
                         'tip' => self::CONFIG_TIP,
                     ], $file, $write['line']);
                 }
             }
         }
 
-        // Reused errors stay valid only while the classes the lifetimes were read from are unchanged.
-        foreach ($lifetimes->getClasses() as $class) {
-            $scope->trackClassDependency($class);
-        }
+        // Reused errors stay valid only while the booted application and the classes the lifetimes
+        // were read from are unchanged.
+        $analysis->track($scope);
 
         return $errors;
     }
@@ -267,7 +207,7 @@ class WorkerStateRule implements Rule
                         $write['class'],
                         $write['function']['method'],
                         $write['property'],
-                        $this->describeContext($context),
+                        WorkerStateAnalysis::describeContext($context),
                         $write['class'],
                     ),
                     'tip' => 'Keep per-request values in local variables or CoroutineContext.',
@@ -291,7 +231,7 @@ class WorkerStateRule implements Rule
                         'Static property %s::$%s is written %s, but static properties are shared by the whole worker.',
                         $write['class'],
                         $write['property'],
-                        $this->describeContext($context),
+                        WorkerStateAnalysis::describeContext($context),
                     ),
                     'tip' => self::STATIC_TIP,
                 ];
@@ -328,106 +268,5 @@ class WorkerStateRule implements Rule
             ->file($file)
             ->line($line)
             ->build();
-    }
-
-    /**
-     * Get the operation the function always handles: its collected context, the route action it is,
-     * a booted middleware or controller action method, or a helper such a method or a job calls.
-     *
-     * @param FunctionFacts $function
-     * @param list<RouteAction> $actions the file's route actions
-     */
-    private function getContext(array $function, array $actions, WorkerLifetimes $lifetimes): ?string
-    {
-        if ($function['closure']) {
-            return $this->findAction($function, $actions) === null ? null : 'action';
-        }
-
-        if ($function['context'] !== null || $function['class'] === null || $function['method'] === null) {
-            return $function['context'];
-        }
-
-        return $lifetimes->getContext($function['class'], $function['method']);
-    }
-
-    /**
-     * Find the route action the closure code runs directly in, outside any function nested in it.
-     *
-     * @param FunctionFacts $function
-     * @param list<RouteAction> $actions the file's route actions
-     *
-     * @return null|RouteAction
-     */
-    private function findAction(array $function, array $actions): ?array
-    {
-        $position = $function['position'];
-
-        return array_find($actions, static fn (array $action): bool => $position >= $action['start']
-            && $position <= $action['end']
-            && ! array_any($action['nested'], static fn (array $range): bool => $position >= $range[0] && $position <= $range[1]));
-    }
-
-    /**
-     * Get the key identifying a method or route action, or null for any other function.
-     *
-     * @param FunctionFacts $function
-     * @param list<RouteAction> $actions the file's route actions
-     */
-    private function getFunctionKey(array $function, string $file, array $actions): ?string
-    {
-        if ($function['closure']) {
-            $action = $this->findAction($function, $actions);
-
-            return $action === null ? null : $file . '#' . $action['start'];
-        }
-
-        return $function['class'] === null || $function['method'] === null ? null : strtolower($function['class'] . '::' . $function['method']);
-    }
-
-    /**
-     * Determine whether the function gives the parameter another value before the code at its position.
-     *
-     * @param FunctionFacts $function
-     * @param list<RouteAction> $actions the file's route actions
-     * @param array<string, array<string, int>> $reassigned
-     */
-    private function isReassigned(array $function, string $parameter, string $file, array $actions, array $reassigned): bool
-    {
-        $key = $this->getFunctionKey($function, $file, $actions);
-
-        return $key !== null && ($reassigned[$key][$parameter] ?? PHP_INT_MAX) < $function['position'];
-    }
-
-    /**
-     * Determine whether the container injects the global configuration repository into the function's
-     * parameter, and the function still holds it: a controller action, a route closure or a job's handler.
-     *
-     * @param FunctionFacts $function
-     * @param list<RouteAction> $actions the file's route actions
-     * @param array<string, array<string, int>> $reassigned
-     */
-    private function isInjectedConfig(array $function, string $parameter, string $file, array $actions, array $reassigned, WorkerLifetimes $lifetimes): bool
-    {
-        if ($this->isReassigned($function, $parameter, $file, $actions, $reassigned)) {
-            return false;
-        }
-
-        if ($function['closure']) {
-            $class = $this->findAction($function, $actions)['configParameters'][$parameter] ?? null;
-
-            return $class !== null && $lifetimes->isGlobalConfig($class);
-        }
-
-        return $function['class'] !== null
-            && $function['method'] !== null
-            && $lifetimes->isConfigParameter($function['class'], $function['method'], $parameter);
-    }
-
-    /**
-     * Describe when code in the context runs.
-     */
-    private function describeContext(string $context): string
-    {
-        return $context === 'job' ? 'while running a job' : 'while handling a request';
     }
 }
