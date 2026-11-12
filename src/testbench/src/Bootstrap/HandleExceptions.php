@@ -29,6 +29,7 @@ final class HandleExceptions extends \Hypervel\Foundation\Bootstrap\HandleExcept
             parent::handleDeprecationError($message, $file, $line, $level);
         }, report: false);
 
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the test runner sets this for the test process)
         $testbenchConvertDeprecationsToExceptions = (bool) Env::get(
             'TESTBENCH_CONVERT_DEPRECATIONS_TO_EXCEPTIONS',
             false
@@ -78,6 +79,7 @@ final class HandleExceptions extends \Hypervel\Foundation\Bootstrap\HandleExcept
         return ! class_exists(LogManager::class)
             || self::$app === null
             || ! self::$app->hasBeenBootstrapped()
+            // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the test runner sets this for the test process)
             || ! (bool) Env::get('LOG_DEPRECATIONS_WHILE_TESTING', true);
     }
 }

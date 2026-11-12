@@ -28,7 +28,6 @@ use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use ReflectionClass;
 use SplFileInfo;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Application as SymfonyApplication;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\ConsoleEvents;
@@ -130,6 +129,7 @@ class Kernel implements KernelContract
      * Re-route the Symfony command events to their Hypervel counterparts.
      *
      * @internal
+     * @return $this
      */
     public function rerouteSymfonyCommandEvents(): static
     {
@@ -183,21 +183,23 @@ class Kernel implements KernelContract
             $this->bootstrap();
 
             return $this->getArtisan()->run($input, $output);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             // Keep the original in flight while it is handled, so a failure in
             // reporting or rendering carries it as that failure's previous. The
             // return suppresses it once the command status is produced.
             try {
-                /* @phpstan-ignore finally.exitPoint */
+                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 throw $e;
             } finally {
                 $this->reportException($e);
 
                 $this->renderException($output, $e);
 
-                /* @phpstan-ignore finally.exitPoint */
+                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 return 1;
             }
         }
@@ -354,6 +356,8 @@ class Kernel implements KernelContract
      * Register a Closure based command with the application.
      *
      * Boot or tests only. Commands remain registered for the kernel's lifetime.
+     *
+     * @param-closure-this ClosureCommand $callback
      */
     public function command(string $signature, Closure $callback): ClosureCommand
     {
@@ -590,6 +594,8 @@ class Kernel implements KernelContract
 
     /**
      * Set the Artisan commands provided by the application.
+     *
+     * @return $this
      */
     public function addCommands(array $commands): static
     {
@@ -604,6 +610,8 @@ class Kernel implements KernelContract
 
     /**
      * Set the paths that should have their Artisan commands automatically discovered.
+     *
+     * @return $this
      */
     public function addCommandPaths(array $paths): static
     {
@@ -614,6 +622,8 @@ class Kernel implements KernelContract
 
     /**
      * Set the paths that should have their Artisan "routes" automatically discovered.
+     *
+     * @return $this
      */
     public function addCommandRoutePaths(array $paths): static
     {

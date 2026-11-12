@@ -102,6 +102,8 @@ abstract class SchemaState
 
     /**
      * Specify the name of the application's migration table.
+     *
+     * @return $this
      */
     public function withMigrationTable(?string $table): static
     {
@@ -112,6 +114,8 @@ abstract class SchemaState
 
     /**
      * Specify the callback that should be used to handle process output.
+     *
+     * @return $this
      */
     public function handleOutputUsing(callable $output): static
     {

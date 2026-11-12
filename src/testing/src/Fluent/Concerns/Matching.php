@@ -15,6 +15,8 @@ trait Matching
 {
     /**
      * Assert that the property matches the expected value.
+     *
+     * @return $this
      */
     public function where(string $key, mixed $expected): static
     {
@@ -49,6 +51,8 @@ trait Matching
 
     /**
      * Assert that the property does not match the expected value.
+     *
+     * @return $this
      */
     public function whereNot(string $key, mixed $expected): static
     {
@@ -88,6 +92,8 @@ trait Matching
 
     /**
      * Assert that the property is null.
+     *
+     * @return $this
      */
     public function whereNull(string $key): static
     {
@@ -108,6 +114,8 @@ trait Matching
 
     /**
      * Assert that the property is not null.
+     *
+     * @return $this
      */
     public function whereNotNull(string $key): static
     {
@@ -128,6 +136,8 @@ trait Matching
 
     /**
      * Assert that all properties match their expected values.
+     *
+     * @return $this
      */
     public function whereAll(array $bindings): static
     {
@@ -140,6 +150,8 @@ trait Matching
 
     /**
      * Assert that the property is of the expected type.
+     *
+     * @return $this
      */
     public function whereType(string $key, array|string $expected): static
     {
@@ -162,6 +174,8 @@ trait Matching
 
     /**
      * Assert that all properties are of their expected types.
+     *
+     * @return $this
      */
     public function whereAllType(array $bindings): static
     {
@@ -174,6 +188,8 @@ trait Matching
 
     /**
      * Assert that the property contains the expected values.
+     *
+     * @return $this
      */
     public function whereContains(string $key, mixed $expected): static
     {
@@ -236,6 +252,8 @@ trait Matching
 
     /**
      * Ensure that the given prop exists.
+     *
+     * @return $this
      */
     abstract public function has(string|int $key, int|Closure|null $value = null, ?Closure $scope = null): static;
 

@@ -217,7 +217,7 @@ class Schedule
                     : $job;
 
                 if ($job instanceof ShouldQueue) {
-                    $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); // @phpstan-ignore property.notFound, property.notFound
+                    $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); // @phpstan-ignore property.notFound (Queueable property), property.notFound (Queueable property)
                 } else {
                     $this->dispatchNow($job);
                 }
@@ -455,6 +455,8 @@ class Schedule
      *
      * Boot-only. Mutates the shared mutex instances used by this worker's
      * schedule; per-request use races across coroutines.
+     *
+     * @return $this
      */
     public function useCache(UnitEnum|string|null $store): static
     {

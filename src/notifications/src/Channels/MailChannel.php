@@ -38,7 +38,7 @@ class MailChannel
      */
     public function send(mixed $notifiable, Notification $notification): ?SentMessage
     {
-        $message = $notification->toMail($notifiable); // @phpstan-ignore method.notFound
+        $message = $notification->toMail($notifiable); // @phpstan-ignore method.notFound (notifications sent through this channel define toMail())
 
         if (! $notifiable->routeNotificationFor('mail', $notification)
             && ! $message instanceof Mailable
@@ -244,6 +244,8 @@ class MailChannel
 
     /**
      * Run the callbacks for the message.
+     *
+     * @return $this
      */
     protected function runCallbacks(Message $mailMessage, MailMessage $message): static
     {

@@ -161,14 +161,14 @@ class CacheInstrumentation extends AbstractInstrumentation
             ErrorAttributes::ERROR_TYPE => $exception === null ? null : $exception::class,
             'hypervel.cache.failed_store' => $failedStore,
         ], static fn (mixed $value): bool => $value !== null);
+
+        // Counted first: the application key resolver may be canceled.
+        $this->operations?->add($count, $attributes);
         $resolvedKey = null;
 
         if ($span !== null && $key !== null && $this->captureKey) {
-            // The application resolver may cancel, and cancellation must emit no completion telemetry.
             $resolvedKey = $this->key($key, $store);
         }
-
-        $this->operations?->add($count, $attributes);
 
         if ($span !== null) {
             if ($resolvedKey !== null) {

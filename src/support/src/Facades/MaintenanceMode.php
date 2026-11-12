@@ -14,6 +14,10 @@ use Hypervel\Foundation\MaintenanceModeManager;
  * @method static string getDefaultDriver()
  * @method static array<array-key, mixed> getDrivers()
  * @method static \Hypervel\Foundation\MaintenanceModeManager setContainer(\Hypervel\Contracts\Container\Container $container)
+ * @method static void activate(array $payload)
+ * @method static bool active()
+ * @method static array data()
+ * @method static void deactivate()
  *
  * @see \Hypervel\Foundation\MaintenanceModeManager
  */

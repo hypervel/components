@@ -311,6 +311,7 @@ class Workbench
     public static function applicationUserModel(): ?string
     {
         if (\is_null(static::$cachedUserModel)) {
+            // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (Workbench detects the user model while configuration loads)
             $authModel = Env::get('AUTH_MODEL');
 
             /** @var class-string<AuthenticatableContract>|false $userModel */

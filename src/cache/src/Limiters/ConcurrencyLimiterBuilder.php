@@ -54,6 +54,8 @@ class ConcurrencyLimiterBuilder
 
     /**
      * Set the maximum number of locks that can be obtained per time window.
+     *
+     * @return $this
      */
     public function limit(int $maxLocks): static
     {
@@ -64,6 +66,8 @@ class ConcurrencyLimiterBuilder
 
     /**
      * Set the number of seconds until the lock will be released.
+     *
+     * @return $this
      */
     public function releaseAfter(DateInterval|DateTimeInterface|int $releaseAfter): static
     {
@@ -74,6 +78,8 @@ class ConcurrencyLimiterBuilder
 
     /**
      * Set the number of seconds to block until a lock is available.
+     *
+     * @return $this
      */
     public function block(int $timeout): static
     {
@@ -84,6 +90,8 @@ class ConcurrencyLimiterBuilder
 
     /**
      * The number of milliseconds to wait between lock acquisition attempts.
+     *
+     * @return $this
      */
     public function sleep(int $sleep): static
     {

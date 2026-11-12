@@ -45,11 +45,15 @@ interface Dispatcher
 
     /**
      * Set the pipes commands should be piped through before dispatching.
+     *
+     * @return $this
      */
     public function pipeThrough(array $pipes): static;
 
     /**
      * Map a command to a handler.
+     *
+     * @return $this
      */
     public function map(array $map): static;
 }

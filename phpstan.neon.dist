@@ -4,10 +4,8 @@
 # limitations.
 
 includes:
-  - src/database/extension.neon
-  - src/foundation/extension.neon
-  - src/head/extension.neon
-  - src/scout/extension.neon
+  - src/phpstan/extension.neon
+  - vendor/phpstan/phpstan-deprecation-rules/rules.neon
 
 parameters:
   tmpDir: .cache/phpstan
@@ -18,7 +16,6 @@ parameters:
     minimumNumberOfJobsPerProcess: 2
   inferPrivatePropertyTypeFromConstructor: true
   treatPhpDocTypesAsCertain: false
-  reportUnmatchedIgnoredErrors: false
   paths:
     - bin/sync-skeleton-config
     - src
@@ -44,6 +41,12 @@ parameters:
       identifier: function.alreadyNarrowedType
       path: src/testbench/src/Concerns/CreatesApplication.php
 
+    # InteractsWithTestCase is imported through several Testbench traits, so PHPStan reports this
+    # WithFixtures call once per import, and an inline ignore covers only one report.
+    - message: '#^Call to an undefined static method .+::setupWithFixturesForTestingEnvironment\(\)\.$#'
+      identifier: staticMethod.notFound
+      path: src/testbench/src/Concerns/InteractsWithTestCase.php
+
     # protoc 35.1 emits a two-argument enum check, while google/protobuf 5.35.1
     # declares the userland method with one argument and relies on PHP ignoring the extra value.
     - identifier: arguments.count
@@ -61,20 +64,12 @@ parameters:
     - '#Access to an undefined property Hypervel\\Database\\Schema\\ForeignIdColumnDefinition::\$#'
     - '#Call to an undefined method Hypervel\\Database\\Schema\\ForeignIdColumnDefinition::#'
 
-    # HasNode methods - mixed in at app level, not on base Model class
-    - message: '#Call to an undefined method Hypervel\\Database\\Eloquent\\Model::new(ScopedQuery|NestedSetQuery)\(\)#'
-      path: src/nested-set/*
-
     # SoftDeletes trait methods - optionally mixed in, can't be statically verified
     - '#Call to an undefined method .*::(getDeletedAtColumn|getQualifiedDeletedAtColumn|withTrashed|withoutTrashed|onlyTrashed|forceDelete|restore|trashed|isForceDeleting)\(\)#'
 
-    # Generic template type limitations - PHPStan can't resolve methods through generic TModel/TRelatedModel
-    - '#Call to an undefined method TModel of Hypervel\\Database\\Eloquent\\Model::#'
-    - '#Call to an undefined method TRelatedModel of Hypervel\\Database\\Eloquent\\Model::#'
-
-    # Covariant template types in invariant/contravariant positions - Laravel uses @template-covariant
-    # for semantic documentation on collection-like classes even though it violates strict variance rules.
-    # The code is functionally correct; this is a PHPStan limitation with PHP's lack of runtime generics.
+    # Collections, paginators and InvokableComponentVariable keep Laravel's covariant TValue, so a
+    # narrower instance can be passed where a wider one is expected. Writes through the wider reference
+    # are checked against the wider type, so they can break the original reference's narrower contract.
     - identifier: generics.variance
 
     # Eloquent Relation subclass method overrides - covariance/contravariance issues with complex generics
@@ -88,10 +83,6 @@ parameters:
     # to document that models get a pivot property attached, but PHPStan can't track dynamic attachment
     - message: '#object\{pivot:#'
       path: src/database/*
-
-    # call_user_func with void callbacks - intentional pattern in Eloquent
-    - '#Result of function call_user_func \(void\) is used\.#'
-    - '#Result of callable passed to call_user_func\(\) \(void\) is used\.#'
 
     # Laravel's fluent factory pattern (Collection::make, Model::create, etc.) relies on new static() throughout
     - '#Unsafe usage of new static#'

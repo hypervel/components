@@ -55,6 +55,8 @@ class Timebox
 
     /**
      * Indicate that the timebox can return early.
+     *
+     * @return $this
      */
     public function returnEarly(): static
     {
@@ -65,6 +67,8 @@ class Timebox
 
     /**
      * Indicate that the timebox cannot return early.
+     *
+     * @return $this
      */
     public function dontReturnEarly(): static
     {

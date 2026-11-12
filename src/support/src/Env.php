@@ -188,6 +188,11 @@ class Env
 
     /**
      * Get the value of an environment variable.
+     *
+     * @template TDefault
+     *
+     * @param (Closure(): TDefault)|TDefault $default
+     * @return null|bool|string|TDefault
      */
     public static function get(string $key, mixed $default = null): mixed
     {
@@ -204,6 +209,7 @@ class Env
      */
     public static function getArray(string $key, array $default = []): array
     {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (getArray() is an Env reader built on get())
         $value = static::get($key);
 
         if (! filled($value)) {

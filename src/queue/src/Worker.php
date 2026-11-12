@@ -44,6 +44,7 @@ use Hypervel\Queue\Events\WorkerStarting;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\QueueManager as ConcreteQueueManager;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\FailureReporter;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use LogicException;
@@ -451,6 +452,7 @@ class Worker
                                 throw $exception;
                             }
 
+                            // @phpstan-ignore hypervel.cancellation.exactType (a direct cancellation ends the job quietly; a failure carrying it is reported)
                             if (! $exception instanceof CanceledException && static::$reportJobExceptions) {
                                 $this->withCoroutineContext($options, fn () => $this->reportException($exception));
                             }
@@ -1200,6 +1202,8 @@ class Worker
         $runningJobId = null;
         $invalidPayloadException = null;
         $canceled = false;
+        // The throwable unwinding a canceled attempt; null when the timeout monitor took over a body that returned.
+        $cancellation = null;
         $processingMarker = null;
 
         try {
@@ -1256,6 +1260,7 @@ class Worker
                             $notification->wait();
                         } catch (CanceledException $exception) {
                             $canceled = true;
+                            $cancellation = $exception;
 
                             throw $exception;
                         }
@@ -1292,15 +1297,18 @@ class Worker
             if ($runningJobId !== null && isset($this->timeoutJobIds[$runningJobId])) {
                 if (static::$killOnTimeout) {
                     $canceled = true;
+                    $cancellation = $e;
 
                     throw $e;
                 }
 
+                // @phpstan-ignore hypervel.cancellation.exactType (the timeout's own cancellation is expected; a failure carrying it is reported)
                 if (! $e instanceof CanceledException && ! $e instanceof TimeoutExceededException && static::$reportJobExceptions) {
                     try {
                         $this->reportException($e);
                     } catch (Throwable $exception) {
                         $canceled = true;
+                        $cancellation = $exception;
 
                         throw $exception;
                     }
@@ -1309,6 +1317,7 @@ class Worker
                 $e = $this->timeoutExceededException($job);
             } elseif (FrameworkCoroutine::causedByCancellation($e)) {
                 $canceled = true;
+                $cancellation = $e;
 
                 throw $e;
             }
@@ -1318,7 +1327,10 @@ class Worker
             try {
                 $this->handleJobException($connectionName, $job, $options, $e);
             } catch (Throwable $exception) {
-                $canceled = FrameworkCoroutine::causedByCancellation($exception);
+                if (FrameworkCoroutine::causedByCancellation($exception)) {
+                    $canceled = true;
+                    $cancellation = $exception;
+                }
 
                 throw $exception;
             }
@@ -1351,6 +1363,25 @@ class Worker
 
                 if ($invalidPayloadException !== null && static::$reportJobExceptions) {
                     $this->reportException($invalidPayloadException);
+                }
+            } elseif ($this->events->hasListeners(JobAttempted::class)) {
+                // Telemetry that JobProcessing began must end in this coroutine. The monitor
+                // or the unwinding cancellation owns the attempt's other completion steps.
+                try {
+                    $this->events->dispatch(new JobAttempted(
+                        $connectionName,
+                        $job,
+                        $exceptionOccurred ?? ($timedOut ? $this->timeoutExceededException($job) : $cancellation),
+                        $duration ?? null,
+                        canceled: true,
+                    ));
+                } catch (Throwable $exception) {
+                    // Nothing else is unwinding once the monitor took over a body that returned.
+                    if ($cancellation === null) {
+                        throw $exception;
+                    }
+
+                    FailureReporter::report($exception);
                 }
             }
         }
@@ -1987,6 +2018,8 @@ class Worker
      *
      * Boot-only. The repository persists on the singleton worker for the
      * worker lifetime and is read by every subsequent pause or restart check.
+     *
+     * @return $this
      */
     public function setCache(CacheContract $cache): static
     {
@@ -2000,6 +2033,8 @@ class Worker
      *
      * Boot-only. The name persists on the singleton worker for the worker
      * lifetime and selects the static pop callback used by every job pop.
+     *
+     * @return $this
      */
     public function setName(string $name): static
     {

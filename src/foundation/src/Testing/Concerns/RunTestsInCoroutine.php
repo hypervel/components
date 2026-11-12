@@ -64,6 +64,7 @@ trait RunTestsInCoroutine
             try {
                 $callback();
             } catch (Throwable $throwable) {
+                // @phpstan-ignore hypervel.cancellation.precedence (the test's own failure stays primary so PHPUnit can match its expected exception)
                 $exception ??= $throwable;
             }
         };

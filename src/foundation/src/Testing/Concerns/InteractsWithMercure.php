@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
+use Hypervel\Support\Env;
 use Hypervel\Testing\ParallelTesting;
 
 /**
@@ -18,7 +19,8 @@ trait InteractsWithMercure
      */
     protected function setUpInteractsWithMercure(): void
     {
-        if (env('MERCURE_URL') === null) {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (integration tests read service settings from the test process environment)
+        if (Env::get('MERCURE_URL') === null) {
             $this->markTestSkipped('Set MERCURE_URL to run Mercure integration tests for ' . static::class);
         }
 

@@ -145,7 +145,7 @@ class Spinner extends Prompt
         try {
             $this->restoreTerminalState();
         } catch (Throwable $exception) {
-            $failure ??= $exception;
+            $failure = Coroutine::preferCancellation($failure, $exception);
         }
 
         return $failure;

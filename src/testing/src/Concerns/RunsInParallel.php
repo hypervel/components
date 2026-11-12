@@ -7,6 +7,7 @@ namespace Hypervel\Testing\Concerns;
 use Closure;
 use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\ParallelTesting;
@@ -110,7 +111,7 @@ trait RunsInParallel
             try {
                 $this->forProcess($token, fn () => ParallelTesting::callTearDownProcessCallbacks());
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
@@ -154,13 +155,13 @@ trait RunsInParallel
         try {
             $application->terminate();
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         try {
             $application->flush();
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {

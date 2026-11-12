@@ -110,6 +110,7 @@ final class LoadMigrationsFromArray
     private function includesDefaultMigrations(Application $app): bool
     {
         return workbench()['install'] === true
+            // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (a Testbench switch set in the test process environment)
             && Env::get('TESTBENCH_WITHOUT_DEFAULT_MIGRATIONS') !== true
             && rescue(static fn (): bool => is_dir(default_migration_path()), false, false);
     }

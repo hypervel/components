@@ -1,0 +1,53 @@
+<?php
+
+namespace Hypervel\Database\Eloquent\Relations;
+
+use Hypervel\Database\Eloquent\Model;
+
+class Pivot extends Model
+{}
+
+/**
+ * @template TRelatedModel of Model
+ * @template TDeclaringModel of Model
+ *
+ * @extends Relation<TRelatedModel, TDeclaringModel, ?TRelatedModel>
+ */
+class BelongsTo extends Relation
+{}
+
+/**
+ * @template TRelatedModel of Model
+ * @template TDeclaringModel of Model
+ *
+ * @extends BelongsTo<TRelatedModel, TDeclaringModel>
+ */
+class MorphTo extends BelongsTo
+{
+    /**
+     * Specify which relations to load for a given morph type.
+     *
+     * @template TWith of array
+     * @param  morph-type-eager-loads<TWith>  $with
+     * @return $this
+     */
+    public function morphWith(array $with): static;
+
+    /**
+     * Specify which relationship counts to load for a given morph type.
+     *
+     * @template TWithCount of array
+     * @param  morph-type-aggregates<TWithCount>  $withCount
+     * @return $this
+     */
+    public function morphWithCount(array $withCount): static;
+
+    /**
+     * Specify constraints on the query for a given morph type.
+     *
+     * @template TCallbacks of array
+     * @param  morph-type-constraints<TCallbacks>  $callbacks
+     * @return $this
+     */
+    public function constrain(array $callbacks): static;
+}

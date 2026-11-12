@@ -19,6 +19,7 @@ use Hypervel\Horizon\Events\JobsMigrated;
 use Hypervel\Horizon\RedisQueue;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\Events\JobQueueingCanceled;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\LuaScripts;
 use Hypervel\Redis\RedisProxy;
@@ -116,13 +117,19 @@ class RedisQueueTest extends UnitTestCase
         $this->assertTrue($cache->lock(UniqueLock::getKey($job))->isLocked());
     }
 
-    public function testPostPushCancellationStopsNotificationsWithoutReplacingCancellation(): void
+    public function testPostPushCancellationStillPublishesTheQueuedOutcome(): void
     {
         $stored = [];
         [$queue, $events] = $this->publishingQueue($stored);
         $cancellation = new CanceledException;
         $events->listen(JobPushed::class, static fn () => throw $cancellation);
-        $events->listen([JobQueued::class, JobQueueingFailed::class], static fn () => throw new RuntimeException('Must not run after cancellation.'));
+        $queued = $unqueued = [];
+        $events->listen(JobQueued::class, static function (JobQueued $event) use (&$queued): void {
+            $queued[] = $event->job;
+        });
+        $events->listen([JobQueueingFailed::class, JobQueueingCanceled::class], static function (object $event) use (&$unqueued): void {
+            $unqueued[] = $event;
+        });
 
         try {
             $queue->push('job');
@@ -132,6 +139,8 @@ class RedisQueueTest extends UnitTestCase
         }
 
         $this->assertCount(1, $stored);
+        $this->assertSame(['job'], $queued);
+        $this->assertSame([], $unqueued);
     }
 
     public function testReadyNowReadsTheClusterSafeQueueKey(): void

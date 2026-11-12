@@ -328,6 +328,8 @@ trait InteractsWithIO
 
     /**
      * Write a blank line.
+     *
+     * @return $this
      */
     public function newLine(int $count = 1): static
     {

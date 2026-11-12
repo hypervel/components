@@ -682,6 +682,8 @@ class BroadcastManager implements BroadcastingFactoryContract
      * Tests only. Swaps the singleton's container reference; per-request use
      * races across coroutines and breaks every concurrent request resolving
      * broadcasters through this manager.
+     *
+     * @return $this
      */
     public function setApplication(Container $app): static
     {
@@ -695,6 +697,8 @@ class BroadcastManager implements BroadcastingFactoryContract
      *
      * Boot or tests only. This is cache-only: pooled broadcasters remain
      * shared resources until purged or reclaimed by their idle TTL.
+     *
+     * @return $this
      */
     public function forgetDrivers(): static
     {

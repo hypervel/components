@@ -12,8 +12,8 @@ use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\View\Engine;
 use Hypervel\Contracts\View\Factory as FactoryContract;
 use Hypervel\Contracts\View\View as ViewContract;
-use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Arr;
+use Hypervel\Support\FailureReporter;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\View\Engines\EngineResolver;
 use InvalidArgumentException;
@@ -348,8 +348,8 @@ class Factory implements FactoryContract
      * Register a post-render observer.
      *
      * Boot-only. The observer is called after each view's engine completes,
-     * receiving the View instance and any ordinary rendering failure. Observers
-     * persist for the worker lifetime on this singleton.
+     * receiving the View instance and any rendering failure or cancellation.
+     * Observers persist for the worker lifetime on this singleton.
      */
     public function observeRendered(callable $observer): void
     {
@@ -366,6 +366,10 @@ class Factory implements FactoryContract
 
     /**
      * Notify post-render observers that a view finished rendering.
+     *
+     * Every observer is notified, so each one that started can finish; a later
+     * observer's cancellation takes precedence over an earlier failure, and a
+     * displaced observer failure is reported.
      */
     public function notifyRendered(ViewContract $view, ?Throwable $exception): void
     {
@@ -375,11 +379,10 @@ class Factory implements FactoryContract
             try {
                 $observer($view, $exception);
             } catch (Throwable $throwable) {
-                if (Coroutine::causedByCancellation($throwable)) {
-                    throw $throwable;
+                // An observer that rethrows the rendering failure adds none; the renderer throws it.
+                if ($throwable !== $exception) {
+                    $observerException = FailureReporter::preferCancellation($observerException, $throwable);
                 }
-
-                $observerException ??= $throwable;
             }
         }
 
@@ -454,6 +457,8 @@ class Factory implements FactoryContract
      *
      * Boot-only. The namespace persists on the singleton view finder for the
      * worker lifetime and affects every subsequent request.
+     *
+     * @return $this
      */
     public function addNamespace(string $namespace, string|array $hints): static
     {
@@ -467,6 +472,8 @@ class Factory implements FactoryContract
      *
      * Boot-only. The namespace persists on the singleton view finder for the
      * worker lifetime and affects every subsequent request.
+     *
+     * @return $this
      */
     public function prependNamespace(string $namespace, string|array $hints): static
     {
@@ -480,6 +487,8 @@ class Factory implements FactoryContract
      *
      * Boot-only. The namespace persists on the singleton view finder for the
      * worker lifetime and affects every subsequent request.
+     *
+     * @return $this
      */
     public function replaceNamespace(string $namespace, string|array $hints): static
     {

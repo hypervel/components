@@ -6,7 +6,7 @@ namespace Hypervel\SchemaParser;
 
 use InvalidArgumentException;
 
-final readonly class Schema
+readonly class Schema
 {
     /** @var array<array-key, array<string, Table>> */
     private array $tablesByName;
@@ -30,6 +30,7 @@ final readonly class Schema
      * @param list<EnumType> $enums
      * @param list<Domain> $domains
      * @param list<Issue> $issues
+     * @param Impact $impact how the input affects relations that existed before it
      */
     public function __construct(
         public array $tables = [],
@@ -37,6 +38,7 @@ final readonly class Schema
         public array $enums = [],
         public array $domains = [],
         public array $issues = [],
+        public Impact $impact = new Impact,
     ) {
         $this->tablesByName = $this->indexDefinitions($tables);
         $this->viewsByName = $this->indexDefinitions($views);
@@ -130,6 +132,6 @@ final readonly class Schema
             throw new InvalidArgumentException("The name '{$name}' is ambiguous across schemas: " . implode(', ', $schemas) . '.');
         }
 
-        return $matches[array_key_first($matches)] ?? null;
+        return $matches === [] ? null : $matches[array_key_first($matches)];
     }
 }

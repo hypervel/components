@@ -32,6 +32,7 @@ use Mockery as m;
 use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Server;
 use Throwable;
 
@@ -181,6 +182,16 @@ class GracefulShutdownTest extends ReverbTestCase
 
             (new Filesystem)->deleteDirectory($directory);
         }
+    }
+
+    public function testShutdownReportingSkipsADirectCancellation(): void
+    {
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->shouldNotReceive('report');
+        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
+        $provider = new GracefulShutdownServiceProviderProbe($this->app);
+
+        $provider->reportShutdownFailureForTest(new CanceledException('Shutdown canceled.'));
     }
 
     // ── Server::close slot flag ───────────────────────────────────────

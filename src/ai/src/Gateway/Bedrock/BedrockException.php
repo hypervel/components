@@ -12,6 +12,7 @@ use Hypervel\Ai\Exceptions\InsufficientCreditsException;
 use Hypervel\Ai\Exceptions\ProviderConnectionException;
 use Hypervel\Ai\Exceptions\ProviderOverloadedException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Str;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -39,7 +40,7 @@ class BedrockException
      */
     public static function toAiException(Throwable $e, string $provider, string $model): AiException
     {
-        if ($e instanceof CanceledException) {
+        if (Coroutine::causedByCancellation($e)) {
             throw $e;
         }
 

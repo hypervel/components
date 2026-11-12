@@ -78,7 +78,6 @@ trait BuildsQueries
                 $remaining = max($remaining - $countResults, 0);
             }
 
-            // @phpstan-ignore argument.type (Eloquent hydrates to TModel, not stdClass)
             if ($callback($results, $page) === false) {
                 return false;
             }
@@ -205,7 +204,6 @@ trait BuildsQueries
             // On each chunk result set, we will pass them to the callback and then let the
             // developer take care of everything within the callback, which allows us to
             // keep the memory low for spinning through large result sets for working.
-            // @phpstan-ignore argument.type (Eloquent hydrates to TModel, not stdClass)
             if ($callback($results, $page) === false) {
                 return false;
             }
@@ -448,7 +446,6 @@ trait BuildsQueries
      */
     public function first(array|string $columns = ['*'])
     {
-        // @phpstan-ignore return.type (Eloquent hydrates to TModel, not stdClass)
         return $this->limit(1)->get($columns)->first();
     }
 
@@ -493,7 +490,6 @@ trait BuildsQueries
             throw new MultipleRecordsFoundException($count);
         }
 
-        // @phpstan-ignore return.type (Eloquent hydrates to TModel, not stdClass)
         return $result->first();
     }
 

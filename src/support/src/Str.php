@@ -1114,10 +1114,12 @@ class Str
     /**
      * Replace the given value in the given string.
      *
+     * @template TKey of array-key
+     *
      * @param iterable<string>|string $search
      * @param iterable<string>|string $replace
-     * @param iterable<string>|string $subject
-     * @return ($subject is string ? string : string[])
+     * @param iterable<TKey, string>|string $subject
+     * @return ($subject is string ? string : array<TKey, string>)
      */
     public static function replace(string|iterable $search, string|iterable $replace, string|iterable $subject, bool $caseSensitive = true): string|array
     {
@@ -1141,10 +1143,12 @@ class Str
     /**
      * Replace the given value in the given string regardless of case.
      *
+     * @template TKey of array-key
+     *
      * @param string|string[] $search
      * @param string|string[] $replace
-     * @param string|string[] $subject
-     * @return ($subject is string ? string : string[])
+     * @param array<TKey, string>|string $subject
+     * @return ($subject is string ? string : array<TKey, string>)
      */
     protected static function replaceWhileIgnoringCase(string|array $search, string|array $replace, string|array $subject): string|array
     {

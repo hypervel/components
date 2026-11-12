@@ -33,6 +33,7 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class QueueManagerTest extends TestCase
 {
@@ -195,6 +196,10 @@ class QueueManagerTest extends TestCase
         });
 
         $app->make('events')->dispatch(new JobAttempted('sync', new FakeJob, null, 500.0));
+
+        $this->assertFalse($called);
+
+        $app->make('events')->dispatch(new JobAttempted('sync', new FakeJob, new CanceledException, 1500.0, canceled: true));
 
         $this->assertFalse($called);
 

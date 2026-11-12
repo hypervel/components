@@ -11,6 +11,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Eloquent\Attributes\CollectedBy;
 use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Hypervel\Database\Eloquent\Attributes\UseFactory;
 use Hypervel\Database\Eloquent\Builder;
@@ -28,6 +29,7 @@ use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Database\Fixtures\Models\Money\Price;
@@ -246,6 +248,62 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertInstanceOf(Collection::class, $users);
         $this->assertCount(1, $users);
         $this->assertCount(0, User::all());
+    }
+
+    public function testCreateManyAndMakeManyReturnTheModelCollection(): void
+    {
+        $users = CollectedUserFactory::new()->createMany(2);
+        $this->assertInstanceOf(CollectedUserCollection::class, $users);
+        $this->assertCount(2, $users);
+
+        $users = CollectedUserFactory::new()->createMany([]);
+        $this->assertInstanceOf(CollectedUserCollection::class, $users);
+        $this->assertCount(0, $users);
+
+        $users = CollectedUserFactory::new()->makeMany(2);
+        $this->assertInstanceOf(CollectedUserCollection::class, $users);
+        $this->assertCount(2, $users);
+
+        $users = CollectedUserFactory::new()->makeMany([]);
+        $this->assertInstanceOf(CollectedUserCollection::class, $users);
+        $this->assertCount(0, $users);
+
+        $this->assertCount(2, CollectedUser::all());
+    }
+
+    public function testCreateManyQuietlyReturnsTheModelCollectionWithoutEvents(): void
+    {
+        Eloquent::setEventDispatcher(new Dispatcher);
+
+        $created = 0;
+        CollectedUser::created(function () use (&$created) {
+            ++$created;
+        });
+
+        $users = CollectedUserFactory::new()->createManyQuietly(2);
+
+        $this->assertInstanceOf(CollectedUserCollection::class, $users);
+        $this->assertCount(2, $users);
+        $this->assertSame(0, $created);
+    }
+
+    public function testCreateManyAndMakeManyDoNotAutomaticallyEagerLoadRelationships(): void
+    {
+        Eloquent::automaticallyEagerLoadRelationships();
+
+        try {
+            foreach ([CollectedUserFactory::new()->createMany(2), CollectedUserFactory::new()->makeMany(2)] as $users) {
+                $this->assertInstanceOf(CollectedUserCollection::class, $users);
+
+                foreach ($users as $user) {
+                    $this->assertFalse($user->hasRelationAutoloadCallback());
+                }
+            }
+
+            $this->assertTrue(Eloquent::isAutomaticallyEagerLoadingRelationships());
+        } finally {
+            Eloquent::automaticallyEagerLoadRelationships(false);
+        }
     }
 
     public function testBasicModelAttributesCanBeCreated(): void
@@ -1788,6 +1846,29 @@ class UserWithArrayFactory extends Factory
         return [
             'name' => 'killer mike',
             'options' => ['rtj'],
+        ];
+    }
+}
+
+#[CollectedBy(CollectedUserCollection::class)]
+class CollectedUser extends Eloquent
+{
+    protected ?string $table = 'users';
+}
+
+/** @extends Collection<int, CollectedUser> */
+class CollectedUserCollection extends Collection
+{
+}
+
+class CollectedUserFactory extends Factory
+{
+    protected ?string $model = CollectedUser::class;
+
+    public function definition(): array
+    {
+        return [
+            'name' => 'Taylor Otwell',
         ];
     }
 }

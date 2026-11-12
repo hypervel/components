@@ -304,6 +304,8 @@ class PendingRequest implements Transient
 
     /**
      * Set the base URL for the pending request.
+     *
+     * @return $this
      */
     public function baseUrl(string $url): static
     {
@@ -316,6 +318,7 @@ class PendingRequest implements Transient
      * Attach a raw body to the request.
      *
      * @param null|resource|StreamInterface|string|Stringable $content
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -338,6 +341,8 @@ class PendingRequest implements Transient
 
     /**
      * Indicate the request contains JSON.
+     *
+     * @return $this
      */
     public function asJson(): static
     {
@@ -346,6 +351,8 @@ class PendingRequest implements Transient
 
     /**
      * Indicate the request contains form parameters.
+     *
+     * @return $this
      */
     public function asForm(): static
     {
@@ -356,6 +363,7 @@ class PendingRequest implements Transient
      * Attach a file to the request.
      *
      * @param resource|string $contents
+     * @return $this
      */
     public function attach(
         array|string $name,
@@ -390,6 +398,8 @@ class PendingRequest implements Transient
 
     /**
      * Indicate the request is a multi-part form request.
+     *
+     * @return $this
      */
     public function asMultipart(): static
     {
@@ -398,6 +408,8 @@ class PendingRequest implements Transient
 
     /**
      * Specify the body format of the request.
+     *
+     * @return $this
      */
     public function bodyFormat(string $format): static
     {
@@ -408,6 +420,8 @@ class PendingRequest implements Transient
 
     /**
      * Set the given query parameters in the request URI.
+     *
+     * @return $this
      */
     public function withQueryParameters(array $parameters): static
     {
@@ -420,6 +434,8 @@ class PendingRequest implements Transient
 
     /**
      * Specify the request's content type.
+     *
+     * @return $this
      */
     public function contentType(string $contentType): static
     {
@@ -430,6 +446,8 @@ class PendingRequest implements Transient
 
     /**
      * Indicate that JSON should be returned by the server.
+     *
+     * @return $this
      */
     public function acceptJson(): static
     {
@@ -438,6 +456,8 @@ class PendingRequest implements Transient
 
     /**
      * Indicate the type of content that should be returned by the server.
+     *
+     * @return $this
      */
     public function accept(string $contentType): static
     {
@@ -446,6 +466,8 @@ class PendingRequest implements Transient
 
     /**
      * Add the given headers to the request.
+     *
+     * @return $this
      */
     public function withHeaders(array $headers): static
     {
@@ -458,6 +480,8 @@ class PendingRequest implements Transient
 
     /**
      * Add the given header to the request.
+     *
+     * @return $this
      */
     public function withHeader(string $name, mixed $value): static
     {
@@ -466,6 +490,8 @@ class PendingRequest implements Transient
 
     /**
      * Replace the given headers on the request.
+     *
+     * @return $this
      */
     public function replaceHeaders(array $headers): static
     {
@@ -476,6 +502,8 @@ class PendingRequest implements Transient
 
     /**
      * Specify the basic authentication username and password for the request.
+     *
+     * @return $this
      */
     public function withBasicAuth(string $username, #[SensitiveParameter] string $password): static
     {
@@ -486,6 +514,8 @@ class PendingRequest implements Transient
 
     /**
      * Specify the digest authentication username and password for the request.
+     *
+     * @return $this
      */
     public function withDigestAuth(string $username, #[SensitiveParameter] string $password): static
     {
@@ -498,6 +528,8 @@ class PendingRequest implements Transient
 
     /**
      * Specify an authorization token for the request.
+     *
+     * @return $this
      */
     public function withToken(#[SensitiveParameter] string $token, string $type = 'Bearer'): static
     {
@@ -508,6 +540,8 @@ class PendingRequest implements Transient
 
     /**
      * Specify the user agent for the request.
+     *
+     * @return $this
      */
     public function withUserAgent(bool|string $userAgent): static
     {
@@ -518,6 +552,8 @@ class PendingRequest implements Transient
 
     /**
      * Specify the URL parameters that can be substituted into the request URL.
+     *
+     * @return $this
      */
     public function withUrlParameters(array $parameters = []): static
     {
@@ -529,6 +565,8 @@ class PendingRequest implements Transient
 
     /**
      * Specify a cookie and its attributes for the request.
+     *
+     * @return $this
      */
     public function withCookie(SetCookie $cookie): static
     {
@@ -547,6 +585,8 @@ class PendingRequest implements Transient
 
     /**
      * Specify the cookies that should be included with the request.
+     *
+     * @return $this
      */
     public function withCookies(array $cookies, string $domain): static
     {
@@ -559,6 +599,8 @@ class PendingRequest implements Transient
 
     /**
      * Specify the maximum number of redirects to allow.
+     *
+     * @return $this
      */
     public function maxRedirects(int $max): static
     {
@@ -575,6 +617,8 @@ class PendingRequest implements Transient
 
     /**
      * Indicate that redirects should not be followed.
+     *
+     * @return $this
      */
     public function withoutRedirecting(): static
     {
@@ -585,6 +629,8 @@ class PendingRequest implements Transient
 
     /**
      * Indicate that TLS certificates should not be verified.
+     *
+     * @return $this
      */
     public function withoutVerifying(): static
     {
@@ -599,6 +645,8 @@ class PendingRequest implements Transient
      * The policy checks and pins every physical request, including each redirect,
      * to the addresses it vetted. Faked requests and clients supplied through
      * setClient() never reach it.
+     *
+     * @return $this
      */
     public function withDestinationPolicy(DestinationPolicy $policy): static
     {
@@ -642,6 +690,7 @@ class PendingRequest implements Transient
      * Specify the path where the body of the response should be stored.
      *
      * @param resource|StreamInterface|string $to
+     * @return $this
      */
     public function sink($to): static
     {
@@ -652,6 +701,8 @@ class PendingRequest implements Transient
 
     /**
      * Specify the timeout (in seconds) for the request.
+     *
+     * @return $this
      */
     public function timeout(float|int $seconds): static
     {
@@ -662,6 +713,8 @@ class PendingRequest implements Transient
 
     /**
      * Specify the connect timeout (in seconds) for the request.
+     *
+     * @return $this
      */
     public function connectTimeout(float|int $seconds): static
     {
@@ -675,6 +728,7 @@ class PendingRequest implements Transient
      *
      * @param (Closure(int, Throwable): int)|int $sleepMilliseconds
      * @param null|(callable(null|Throwable, static, null|string): bool) $when
+     * @return $this
      */
     public function retry(
         array|int $times,
@@ -692,6 +746,8 @@ class PendingRequest implements Transient
 
     /**
      * Replace the specified options on the request.
+     *
+     * @return $this
      */
     public function withOptions(array $options): static
     {
@@ -703,6 +759,8 @@ class PendingRequest implements Transient
 
     /**
      * Add new middleware the client handler stack.
+     *
+     * @return $this
      */
     public function withMiddleware(callable $middleware): static
     {
@@ -713,6 +771,8 @@ class PendingRequest implements Transient
 
     /**
      * Prepend new middleware to the client handler stack.
+     *
+     * @return $this
      */
     public function prependMiddleware(callable $middleware): static
     {
@@ -723,6 +783,8 @@ class PendingRequest implements Transient
 
     /**
      * Add new request middleware the client handler stack.
+     *
+     * @return $this
      */
     public function withRequestMiddleware(callable $middleware): static
     {
@@ -733,6 +795,8 @@ class PendingRequest implements Transient
 
     /**
      * Add new response middleware the client handler stack.
+     *
+     * @return $this
      */
     public function withResponseMiddleware(callable $middleware): static
     {
@@ -743,6 +807,8 @@ class PendingRequest implements Transient
 
     /**
      * Set arbitrary attributes to store with the request.
+     *
+     * @return $this
      */
     public function withAttributes(array $attributes): static
     {
@@ -761,6 +827,8 @@ class PendingRequest implements Transient
 
     /**
      * Indicate that Telescope should not record this request.
+     *
+     * @return $this
      */
     public function withoutTelescope(): static
     {
@@ -771,6 +839,7 @@ class PendingRequest implements Transient
      * Set Telescope tags for this request.
      *
      * @param array<int, string|UnitEnum> $tags
+     * @return $this
      */
     public function withTelescopeTags(array $tags): static
     {
@@ -779,6 +848,8 @@ class PendingRequest implements Transient
 
     /**
      * Indicate that OpenTelemetry should trace this request.
+     *
+     * @return $this
      */
     public function withTrace(): static
     {
@@ -787,6 +858,8 @@ class PendingRequest implements Transient
 
     /**
      * Indicate that OpenTelemetry should not trace this request.
+     *
+     * @return $this
      */
     public function withoutTrace(): static
     {
@@ -797,6 +870,8 @@ class PendingRequest implements Transient
      * Indicate that trace context should not be automatically added to this request.
      *
      * The request may still be traced locally.
+     *
+     * @return $this
      */
     public function withoutTracePropagation(): static
     {
@@ -805,6 +880,8 @@ class PendingRequest implements Transient
 
     /**
      * Add a new "before sending" callback to the request.
+     *
+     * @return $this
      */
     public function beforeSending(callable $callback): static
     {
@@ -817,6 +894,7 @@ class PendingRequest implements Transient
      * Add a new callback to execute after the response is built.
      *
      * @param callable(Response, null|Request): mixed $callback
+     * @return $this
      */
     public function afterResponse(callable $callback): static
     {
@@ -829,6 +907,7 @@ class PendingRequest implements Transient
      * Throw an exception if a server or client error occurs.
      *
      * @param null|(callable(Response, HttpRequestException): mixed) $callback
+     * @return $this
      */
     public function throw(?callable $callback = null): static
     {
@@ -841,6 +920,7 @@ class PendingRequest implements Transient
      * Throw an exception if a server or client error occurred and the given condition evaluates to true.
      *
      * @param null|(callable(Response, HttpRequestException): mixed) $callback
+     * @return $this
      */
     public function throwIf(bool|callable $condition, ?callable $callback = null): static
     {
@@ -855,6 +935,7 @@ class PendingRequest implements Transient
      * Throw an exception if a server or client error occurred and the given condition evaluates to false.
      *
      * @param null|(callable(Response, HttpRequestException): mixed) $callback
+     * @return $this
      */
     public function throwUnless(bool|callable $condition, ?callable $callback = null): static
     {
@@ -867,6 +948,8 @@ class PendingRequest implements Transient
 
     /**
      * Dump the request before sending.
+     *
+     * @return $this
      */
     public function dump(): static
     {
@@ -881,6 +964,8 @@ class PendingRequest implements Transient
 
     /**
      * Dump the request before sending and end the script.
+     *
+     * @return $this
      */
     public function dd(): static
     {
@@ -2364,6 +2449,8 @@ class PendingRequest implements Transient
 
     /**
      * Register a stub callable that will intercept requests and be able to return stub responses.
+     *
+     * @return $this
      */
     public function stub(callable|Collection $callback): static
     {
@@ -2376,6 +2463,8 @@ class PendingRequest implements Transient
 
     /**
      * Indicate that an exception should be thrown if any request is not faked.
+     *
+     * @return $this
      */
     public function preventStrayRequests(bool $prevent = true): static
     {
@@ -2386,6 +2475,8 @@ class PendingRequest implements Transient
 
     /**
      * Allow stray, unfaked requests for specific URL patterns.
+     *
+     * @return $this
      */
     public function allowStrayRequests(array $only): static
     {
@@ -2473,6 +2564,8 @@ class PendingRequest implements Transient
 
     /**
      * Indicate that request exceptions should be truncated to the given length.
+     *
+     * @return $this
      */
     public function truncateExceptionsAt(int $length): static
     {
@@ -2483,6 +2576,8 @@ class PendingRequest implements Transient
 
     /**
      * Indicate that request exceptions should not be truncated.
+     *
+     * @return $this
      */
     public function dontTruncateExceptions(): static
     {
@@ -2542,6 +2637,8 @@ class PendingRequest implements Transient
      * Set the client instance.
      *
      * The client owns its whole handler stack, so destination policies do not apply to it.
+     *
+     * @return $this
      */
     public function setClient(ClientInterface $client): static
     {
@@ -2554,6 +2651,8 @@ class PendingRequest implements Transient
      * Create a new client instance using the given handler.
      *
      * Destination-restricted requests reject custom handlers, since their pins only bind the cURL handler.
+     *
+     * @return $this
      */
     public function setHandler(callable $handler): static
     {
@@ -2576,6 +2675,8 @@ class PendingRequest implements Transient
 
     /**
      * Set the pending request connection.
+     *
+     * @return $this
      */
     public function connection(string $connection, ?array $config = null): static
     {

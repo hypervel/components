@@ -17,6 +17,8 @@ class FakePendingBroadcast extends PendingBroadcast
 
     /**
      * Broadcast the event using a specific broadcaster.
+     *
+     * @return $this
      */
     public function via(UnitEnum|string|null $connection = null): static
     {
@@ -25,6 +27,8 @@ class FakePendingBroadcast extends PendingBroadcast
 
     /**
      * Broadcast the event to everyone except the current user.
+     *
+     * @return $this
      */
     public function toOthers(): static
     {

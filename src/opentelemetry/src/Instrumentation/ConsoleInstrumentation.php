@@ -24,7 +24,6 @@ use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\API\Trace\TracerProviderInterface;
 use OpenTelemetry\Context\Context;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
-use Swoole\Coroutine\CanceledException;
 
 class ConsoleInstrumentation extends AbstractInstrumentation
 {
@@ -176,10 +175,6 @@ class ConsoleInstrumentation extends AbstractInstrumentation
      */
     protected function finish(AfterExecute $event): void
     {
-        if ($event->throwable instanceof CanceledException) {
-            return;
-        }
-
         $state = $this->takeState($event->command);
 
         if ($state === null) {
@@ -187,25 +182,30 @@ class ConsoleInstrumentation extends AbstractInstrumentation
         }
 
         $finishedAt = $this->clock->now();
-        $failed = $event->throwable !== null || $event->exitCode !== 0;
-        $result = $failed ? 'failure' : 'success';
-        $attributes = $state->attributes + [
-            'result' => $result,
-            self::EXIT_CODE_ATTRIBUTE => $event->exitCode,
-        ];
+        $exception = null;
+        $failed = false;
+        $outcome = [];
 
-        if ($event->throwable !== null) {
-            $attributes[ErrorAttributes::ERROR_TYPE] = $event->throwable::class;
+        // A directly canceled command produced no result or exit code.
+        if (! $this->isDirectCancellation($event->throwable)) {
+            $exception = $event->throwable;
+            $failed = $exception !== null || $event->exitCode !== 0;
+            $outcome = [
+                'result' => $failed ? 'failure' : 'success',
+                self::EXIT_CODE_ATTRIBUTE => $event->exitCode,
+            ];
+
+            if ($exception !== null) {
+                $outcome[ErrorAttributes::ERROR_TYPE] = $exception::class;
+            }
         }
 
         try {
             if ($state->span?->isRecording()) {
-                $state->span->setAttribute('result', $result);
-                $state->span->setAttribute(self::EXIT_CODE_ATTRIBUTE, $event->exitCode);
+                $state->span->setAttributes($outcome);
 
-                if ($event->throwable !== null) {
-                    $state->span->recordException($event->throwable);
-                    $state->span->setAttribute(ErrorAttributes::ERROR_TYPE, $event->throwable::class);
+                if ($exception !== null) {
+                    $state->span->recordException($exception);
                 }
 
                 if ($failed) {
@@ -213,9 +213,9 @@ class ConsoleInstrumentation extends AbstractInstrumentation
                 }
             }
 
-            if ($event->throwable !== null && $state->span !== null) {
+            if ($exception !== null && $state->span !== null) {
                 $this->exceptionContexts->associate(
-                    $event->throwable,
+                    $exception,
                     $state->context,
                     $this->origins->resolve($state->context, $this->identity),
                 );
@@ -223,7 +223,7 @@ class ConsoleInstrumentation extends AbstractInstrumentation
 
             $this->duration?->record(
                 ($finishedAt - $state->startedAt) / ClockInterface::NANOS_PER_SECOND,
-                $attributes,
+                $state->attributes + $outcome,
                 $state->context,
             );
         } finally {

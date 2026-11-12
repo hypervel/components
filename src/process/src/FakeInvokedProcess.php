@@ -74,6 +74,8 @@ class FakeInvokedProcess implements InvokedProcessContract
 
     /**
      * Send a signal to the process.
+     *
+     * @return $this
      */
     public function signal(int $signal): static
     {
@@ -324,6 +326,8 @@ class FakeInvokedProcess implements InvokedProcessContract
 
     /**
      * Set the general output handler for the fake invoked process.
+     *
+     * @return $this
      */
     public function withOutputHandler(?callable $outputHandler): static
     {

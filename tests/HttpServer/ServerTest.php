@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\HttpServer;
 
+use Hypervel\Container\Container as BaseContainer;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Http\Kernel as KernelContract;
 use Hypervel\Coordinator\Constants;
@@ -15,6 +17,7 @@ use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\Request;
+use Hypervel\HttpServer\Events\RequestCanceled;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\RequestTerminated;
@@ -24,6 +27,7 @@ use Hypervel\Routing\Router;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
@@ -294,6 +298,11 @@ class ServerTest extends TestCase
         $sendFailure = new RuntimeException('send failed');
         $terminateFailure = new RuntimeException('terminate failed');
 
+        $handler = $this->bindReportingHandler();
+        $handler->expects('report')->with($handledFailure)->ordered();
+        $handler->expects('report')->with($sendFailure)->ordered();
+        $handler->expects('report')->with($terminateFailure)->ordered();
+
         $kernel = m::mock(KernelContract::class);
         $kernel->shouldNotReceive('handle');
         $kernel->shouldReceive('terminate')
@@ -343,6 +352,9 @@ class ServerTest extends TestCase
         $handledFailure = new RuntimeException('handled failed');
         $sendFailure = new RuntimeException('send failed');
         $terminateFailure = new RuntimeException('terminate failed');
+        $handler = $this->bindReportingHandler();
+        $handler->expects('report')->with($sendFailure)->ordered();
+        $handler->expects('report')->with($terminateFailure)->ordered();
         $kernel = m::mock(KernelContract::class);
         $kernel->shouldReceive('handle')->once()->andReturn(new Response('OK'));
         $kernel->shouldReceive('terminate')->once()->andThrow($terminateFailure);
@@ -383,6 +395,7 @@ class ServerTest extends TestCase
         CoordinatorManager::until(Constants::WORKER_START)->resume();
         $sendFailure = new RuntimeException('send failed');
         $terminateFailure = new RuntimeException('terminate failed');
+        $this->bindReportingHandler()->expects('report')->with($terminateFailure);
 
         $kernel = m::mock(KernelContract::class);
         $kernel->shouldReceive('handle')->once()->andReturn(new Response('OK'));
@@ -589,7 +602,7 @@ class ServerTest extends TestCase
 
         $dispatchedEvents = [];
         $events = new Dispatcher;
-        foreach ([RequestHandled::class, ResponseSent::class, RequestTerminated::class] as $eventClass) {
+        foreach ([RequestHandled::class, ResponseSent::class, RequestTerminated::class, RequestCanceled::class] as $eventClass) {
             $events->listen($eventClass, function (object $event) use (&$dispatchedEvents): void {
                 $dispatchedEvents[$event::class] = $event;
             });
@@ -626,7 +639,10 @@ class ServerTest extends TestCase
         try {
             $this->assertTrue($completed->pop(1));
             $this->assertSame($cancellation, $caughtCancellation);
-            $this->assertSame([], $dispatchedEvents);
+            $this->assertSame([RequestCanceled::class], array_keys($dispatchedEvents));
+            $this->assertSame($cancellation, $dispatchedEvents[RequestCanceled::class]->cancellation);
+            $this->assertNull($dispatchedEvents[RequestCanceled::class]->response);
+            $this->assertNull($dispatchedEvents[RequestCanceled::class]->exception);
             $this->assertFalse(RequestContext::has());
         } finally {
             if (EngineCoroutine::exists($requestCoroutine->getId())) {
@@ -680,6 +696,11 @@ class ServerTest extends TestCase
         $events->listen(RequestTerminated::class, function () use (&$order): void {
             $order[] = 'terminated';
         });
+        $canceled = null;
+        $events->listen(RequestCanceled::class, function (RequestCanceled $event) use (&$order, &$canceled): void {
+            $order[] = 'canceled';
+            $canceled = $event;
+        });
 
         $container = m::mock(Container::class);
         $container->shouldReceive('bound')->with('events')->andReturn(true);
@@ -717,7 +738,10 @@ class ServerTest extends TestCase
         }
 
         $this->assertSame($cancellation, $caught);
-        $this->assertSame($expectedOrder, $order);
+        $this->assertSame([...$expectedOrder, 'canceled'], $order);
+        $this->assertSame($cancellation, $canceled->cancellation);
+        $this->assertSame(in_array($stage, ['handled', 'send'], true), $canceled->response === null);
+        $this->assertNull($canceled->exception);
     }
 
     public static function lifecycleCancellationStages(): array
@@ -732,6 +756,54 @@ class ServerTest extends TestCase
             'sent listener cleanup' => ['sent', ['handled', 'sent'], true],
             'termination cleanup' => ['terminate', ['handled', 'sent', 'terminate'], true],
         ];
+    }
+
+    public function testCancellationReportsTheHeldFailureAndCanceledListenerFailures(): void
+    {
+        CoordinatorManager::until(Constants::WORKER_START)->resume();
+        $heldFailure = new RuntimeException('Handled listener failed.');
+        $listenerFailure = new RuntimeException('Canceled listener failed.');
+        $cancellation = new CanceledException;
+        $handler = $this->bindReportingHandler();
+        $handler->expects('report')->with($listenerFailure)->ordered();
+        $handler->expects('report')->with($heldFailure)->ordered();
+
+        $kernel = m::mock(KernelContract::class);
+        $kernel->shouldReceive('handle')->once()->andReturn(new Response('OK'));
+        $kernel->shouldNotReceive('terminate');
+
+        $events = new Dispatcher;
+        $events->listen(RequestHandled::class, static fn () => throw $heldFailure);
+        $events->listen(ResponseSent::class, static fn () => throw $cancellation);
+        $canceled = null;
+        $events->listen(RequestCanceled::class, static function (RequestCanceled $event) use (&$canceled, $listenerFailure): never {
+            $canceled = $event;
+
+            throw $listenerFailure;
+        });
+
+        $container = m::mock(Container::class);
+        $container->shouldReceive('bound')->with('events')->andReturn(true);
+        $container->shouldReceive('make')->with('events')->andReturn($events);
+
+        $server = new Server($container);
+        $this->setKernel($server, $kernel);
+        $this->setServerName($server, 'http');
+
+        $swooleResponse = m::mock(SwooleResponse::class);
+        $swooleResponse->shouldReceive('status')->once()->with(200)->andReturnTrue();
+        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
+        $swooleResponse->shouldReceive('end')->once()->with('OK')->andReturnTrue();
+
+        try {
+            $server->onRequest($this->createSwooleRequest(), $swooleResponse);
+            $this->fail('Expected the cancellation to escape.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame($heldFailure, $canceled->exception);
+        $this->assertNotNull($canceled->response);
     }
 
     public function testOnRequestSkipsLifecycleEventDispatchWhenNoListenersAreRegistered(): void
@@ -863,6 +935,19 @@ class ServerTest extends TestCase
         $swooleRequest->shouldReceive('rawContent')->andReturn(false);
 
         return $swooleRequest;
+    }
+
+    /**
+     * Bind a mocked exception handler for displaced failure reports.
+     */
+    private function bindReportingHandler(): MockInterface
+    {
+        $container = new BaseContainer;
+        BaseContainer::setInstance($container);
+        $handler = m::mock(ExceptionHandler::class);
+        $container->instance(ExceptionHandler::class, $handler);
+
+        return $handler;
     }
 
     /**

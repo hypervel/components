@@ -32,7 +32,7 @@ use PHPUnit\Framework\Assert as PHPUnit;
 use Psr\Http\Message\StreamInterface;
 
 /**
- * @mixin PendingRequest
+ * @mixin PendingRequest<false>
  */
 class Factory
 {
@@ -112,6 +112,8 @@ class Factory
      *
      * Boot-only. The middleware persists on the factory for the worker lifetime
      * and affects every subsequently created pending request.
+     *
+     * @return $this
      */
     public function globalMiddleware(callable $middleware): static
     {
@@ -125,6 +127,8 @@ class Factory
      *
      * Boot-only. The middleware persists on the factory for the worker lifetime
      * and affects every subsequently created pending request.
+     *
+     * @return $this
      */
     public function globalRequestMiddleware(callable $middleware): static
     {
@@ -138,6 +142,8 @@ class Factory
      *
      * Boot-only. The middleware persists on the factory for the worker lifetime
      * and affects every subsequently created pending request.
+     *
+     * @return $this
      */
     public function globalResponseMiddleware(callable $middleware): static
     {
@@ -151,6 +157,8 @@ class Factory
      *
      * Boot-only. The options persist on the factory for the worker lifetime
      * and affect every subsequently created pending request.
+     *
+     * @return $this
      */
     public function globalOptions(array|Closure $options): static
     {
@@ -330,6 +338,8 @@ class Factory
      *
      * Tests only. Stubs persist on the factory for the worker lifetime
      * and affect every subsequently created pending request.
+     *
+     * @return $this
      */
     public function fake(array|callable|null $callback = null): static
     {
@@ -394,6 +404,8 @@ class Factory
      * Tests only. The stub persists on the factory for the worker lifetime
      * and affects every subsequently created pending request.
      *
+     * @return $this
+     *
      * @throws InvalidArgumentException
      */
     public function stubUrl(string $url, array|callable|int|PromiseInterface|Response|string $callback): static
@@ -431,6 +443,8 @@ class Factory
      *
      * Boot or tests only. The policy persists on the factory for the worker lifetime
      * and affects every subsequently created pending request.
+     *
+     * @return $this
      */
     public function preventStrayRequests(bool $prevent = true): static
     {
@@ -452,6 +466,8 @@ class Factory
      *
      * Boot or tests only. The policy persists on the factory for the worker lifetime
      * and affects every subsequently created pending request.
+     *
+     * @return $this
      */
     public function allowStrayRequests(?array $only = null): static
     {
@@ -470,6 +486,8 @@ class Factory
      *
      * Tests only. Recording persists on the factory for the worker lifetime
      * and retains every subsequently completed request attempt.
+     *
+     * @return $this
      */
     public function record(): static
     {
@@ -653,6 +671,8 @@ class Factory
      *
      * Boot-only. The connection preset and shared transport handler registry
      * persist on the factory for the worker lifetime.
+     *
+     * @return $this
      */
     public function registerConnection(string $name, array $config = []): static
     {
@@ -778,6 +798,8 @@ class Factory
      *
      * Boot-only. Reconfiguration replaces the worker-lifetime preset and
      * invalidates its shared transport handler for subsequent requests.
+     *
+     * @return $this
      */
     public function setConnectionConfig(string $name, array $config): static
     {
@@ -794,6 +816,8 @@ class Factory
      *
      * Boot or tests only. Request-time use forces subsequent requests to
      * rebuild warmed keep-alive, DNS, and TLS session state.
+     *
+     * @return $this
      */
     public function forgetConnectionHandlers(): static
     {

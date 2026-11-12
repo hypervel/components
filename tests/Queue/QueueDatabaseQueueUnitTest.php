@@ -39,6 +39,7 @@ use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\Events\JobQueueingCanceled;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Jobs\DatabaseJobRecord;
@@ -728,6 +729,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertSame(['first', 'second', 'first', 'second'], array_column($events, 'job'));
         $this->assertSame($exception, $events[2]->exception);
         $this->assertSame($exception, $events[3]->exception);
+        $this->assertTrue($events[2]->sendAttempted);
+        $this->assertTrue($events[3]->sendAttempted);
     }
 
     #[TestWith(['success'])]
@@ -807,7 +810,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testOutboxSelectionCancellationDoesNotRaiseFailureEvents(bool $cleanupThrows): void
+    public function testOutboxSelectionCancellationRaisesACanceledEventInsteadOfAFailureEvent(bool $cleanupThrows): void
     {
         $queue = new DatabaseQueue(m::mock(ConnectionResolverInterface::class), null, 'jobs', 'default');
         $queue->setConnectionName('database');
@@ -832,6 +835,10 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $events->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$failed): void {
             $failed[] = $event;
         });
+        $canceled = [];
+        $events->listen(JobQueueingCanceled::class, static function (JobQueueingCanceled $event) use (&$canceled): void {
+            $canceled[] = $event;
+        });
 
         try {
             $queue->push((object) ['viaOutbox' => true]);
@@ -845,6 +852,9 @@ class QueueDatabaseQueueUnitTest extends TestCase
             }
 
             $this->assertSame([], $failed);
+            $this->assertCount(1, $canceled);
+            $this->assertSame($exception, $canceled[0]->cancellation);
+            $this->assertFalse($canceled[0]->sendAttempted);
         } finally {
             $gate->close();
         }
@@ -852,7 +862,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testBulkCancellationDoesNotRaiseFailureEvents(bool $cleanupThrows): void
+    public function testBulkCancellationRaisesCanceledEventsInsteadOfFailureEvents(bool $cleanupThrows): void
     {
         $queue = new TestDatabaseQueue(
             resolver: $resolver = m::mock(ConnectionResolverInterface::class),
@@ -890,6 +900,9 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $dispatcher->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$events): void {
             $events[] = $event;
         });
+        $dispatcher->listen(JobQueueingCanceled::class, static function (JobQueueingCanceled $event) use (&$events): void {
+            $events[] = $event;
+        });
 
         try {
             $queue->bulk(['first', 'second'], queue: 'emails');
@@ -904,7 +917,17 @@ class QueueDatabaseQueueUnitTest extends TestCase
             $this->assertSame([
                 JobQueueing::class,
                 JobQueueing::class,
+                JobQueueingCanceled::class,
+                JobQueueingCanceled::class,
             ], array_map(static fn (object $event): string => $event::class, $events));
+            $this->assertSame(['first', 'second'], array_column(array_slice($events, 2), 'job'));
+
+            foreach (array_slice($events, 2) as $event) {
+                $this->assertSame($exception, $event->cancellation);
+                $this->assertTrue($event->sendAttempted);
+                $this->assertFalse($event->queued);
+                $this->assertNull($event->exception);
+            }
         } finally {
             $gate->close();
         }

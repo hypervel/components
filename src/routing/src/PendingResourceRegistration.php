@@ -135,6 +135,8 @@ class PendingResourceRegistration
 
     /**
      * Specify middleware that should be added to the specified resource routes.
+     *
+     * @return $this
      */
     public function middlewareFor(array|string $methods, array|string $middleware): static
     {
@@ -157,6 +159,8 @@ class PendingResourceRegistration
 
     /**
      * Specify middleware that should be removed from the resource routes.
+     *
+     * @return $this
      */
     public function withoutMiddleware(array|string $middleware): static
     {
@@ -170,6 +174,8 @@ class PendingResourceRegistration
 
     /**
      * Specify middleware that should be removed from the specified resource routes.
+     *
+     * @return $this
      */
     public function withoutMiddlewareFor(array|string $methods, array|string $middleware): static
     {
@@ -185,6 +191,8 @@ class PendingResourceRegistration
 
     /**
      * Add "where" constraints to the resource routes.
+     *
+     * @return $this
      */
     public function where(mixed $wheres): static
     {
@@ -195,6 +203,8 @@ class PendingResourceRegistration
 
     /**
      * Add metadata to the registered resource routes.
+     *
+     * @return $this
      */
     public function metadata(array $metadata): static
     {
@@ -218,6 +228,8 @@ class PendingResourceRegistration
 
     /**
      * Define the callable that should be invoked on a missing model exception.
+     *
+     * @return $this
      */
     public function missing(callable $callback): static
     {

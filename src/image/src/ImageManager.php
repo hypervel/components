@@ -13,7 +13,6 @@ use Hypervel\Http\UploadedFile;
 use Hypervel\Image\Drivers\GdDriver;
 use Hypervel\Image\Drivers\ImagickDriver;
 use Hypervel\Support\Manager;
-use Hypervel\Support\Str;
 use InvalidArgumentException;
 use UnitEnum;
 
@@ -114,9 +113,7 @@ class ImageManager extends Manager
      */
     protected function createDriver(string $driver): Driver
     {
-        $method = 'create' . Str::studly($driver) . 'Driver';
-
-        if (! isset($this->customCreators[$driver]) && ! method_exists($this, $method)) {
+        if (! isset($this->customCreators[$driver]) && $this->getCreatorMethod($driver) === null) {
             throw new InvalidArgumentException("Image driver [{$driver}] is not supported.");
         }
 

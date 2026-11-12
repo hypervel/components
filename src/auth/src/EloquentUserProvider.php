@@ -145,7 +145,7 @@ class EloquentUserProvider implements UserProvider
      */
     protected function fetchUserById(mixed $identifier): ?UserContract
     {
-        return $this->newUserByIdQuery($identifier)->first(); // @phpstan-ignore return.type
+        return $this->newUserByIdQuery($identifier)->first();
     }
 
     /**
@@ -153,11 +153,13 @@ class EloquentUserProvider implements UserProvider
      */
     protected function fetchUserByIdForCache(mixed $identifier): ?UserContract
     {
-        return $this->newUserByIdQuery($identifier)->useWritePdo()->first(); // @phpstan-ignore return.type
+        return $this->newUserByIdQuery($identifier)->useWritePdo()->first();
     }
 
     /**
      * Get the query for retrieving a user by ID.
+     *
+     * @return Builder<Model&UserContract>
      */
     protected function newUserByIdQuery(mixed $identifier): Builder
     {
@@ -242,7 +244,7 @@ class EloquentUserProvider implements UserProvider
             }
         }
 
-        return $query->first(); /* @phpstan-ignore return.type */
+        return $query->first();
     }
 
     /**
@@ -296,6 +298,7 @@ class EloquentUserProvider implements UserProvider
      * the provider used by every subsequent authentication lookup.
      *
      * @param null|array<string> $tags optional tag names enabling tag-based bulk flush; requires any-mode tag support
+     * @return $this
      *
      * @throws InvalidArgumentException when the TTL, tags, or resolved store are not supported
      */
@@ -599,7 +602,7 @@ class EloquentUserProvider implements UserProvider
      * @template TModel of Model
      *
      * @param null|TModel $model
-     * @return Builder<TModel>
+     * @return ($model is null ? Builder<Model&UserContract> : Builder<TModel>)
      */
     protected function newModelQuery(?Model $model = null): Builder
     {
@@ -637,6 +640,8 @@ class EloquentUserProvider implements UserProvider
      *
      * Boot or tests only. User providers are held by cached guards; runtime use
      * mutates password verification for every subsequent authentication lookup.
+     *
+     * @return $this
      */
     public function setHasher(HasherContract $hasher): static
     {
@@ -662,6 +667,7 @@ class EloquentUserProvider implements UserProvider
      * changes the model used by every subsequent authentication lookup.
      *
      * @param class-string<Model&UserContract> $model
+     * @return $this
      */
     public function setModel(string $model): static
     {
@@ -691,6 +697,7 @@ class EloquentUserProvider implements UserProvider
      * mutates the query applied to every subsequent authentication lookup.
      *
      * @param null|(Closure(Builder<*>):mixed) $queryCallback
+     * @return $this
      */
     public function withQuery(?Closure $queryCallback = null): static
     {

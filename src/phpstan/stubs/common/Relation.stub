@@ -1,0 +1,92 @@
+<?php
+
+namespace Hypervel\Database\Eloquent\Relations;
+
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\MultipleRecordsFoundException;
+use Hypervel\Contracts\Database\Query\Expression;
+
+/*
+ * A stub's docblock replaces the source's, so the class docblock and each method's docblock repeat
+ * the source and add only analyzer-only types. Keep them in sync with the source. Native signatures
+ * repeat the source too, except return types naming a collection, which stub validation cannot
+ * declare; their docblocks type them.
+ *
+ * Unlike the source, the existence queries return the builder they are given: has() passes the
+ * related model's newQueryWithoutRelationships(), whose builder differs from newQuery()'s when the
+ * model overrides newQuery() with another builder.
+ * Both queries are templates, so a relation whose models are unknown (`*`) accepts any builder,
+ * which a plain Builder<TDeclaringModel> parameter would reject.
+ */
+
+/**
+ * @template TRelatedModel of Model
+ * @template TDeclaringModel of Model
+ * @template TResult
+ *
+ * @mixin Builder<TRelatedModel>
+ */
+abstract class Relation
+{
+    /**
+     * Execute the query as a "select" statement.
+     *
+     * @param  array<int, model-property<TRelatedModel>|Expression|'*'>  $columns
+     * @return collection-of<int, TRelatedModel>
+     */
+    public function get(array $columns = ['*']);
+
+    /**
+     * Execute the query and get the first result if it's the sole matching record.
+     *
+     * @param  array<int, model-property<TRelatedModel>|Expression|'*'>|model-property<TRelatedModel>|'*'  $columns
+     * @return TRelatedModel
+     *
+     * @throws ModelNotFoundException<TRelatedModel>
+     * @throws MultipleRecordsFoundException
+     */
+    public function sole(array|string $columns = ['*']): Model;
+
+    /**
+     * Add the constraints for a relationship count query.
+     *
+     * @template TQuery of Builder<TRelatedModel>
+     * @template TParentQuery of Builder<TDeclaringModel>
+     *
+     * @param  TQuery  $query
+     * @param  TParentQuery  $parentQuery
+     * @return TQuery
+     */
+    public function getRelationExistenceCountQuery(Builder $query, Builder $parentQuery): Builder;
+
+    /**
+     * Add the constraints for an internal relationship existence query.
+     *
+     * Essentially, these queries compare on column names like whereColumn.
+     *
+     * @template TQuery of Builder<TRelatedModel>
+     * @template TParentQuery of Builder<TDeclaringModel>
+     *
+     * @param  TQuery  $query
+     * @param  TParentQuery  $parentQuery
+     * @param  array<int, model-property<TRelatedModel>|Expression|'*'>|model-property<TRelatedModel>|Expression|'*'  $columns
+     * @return TQuery
+     */
+    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder;
+
+    /**
+     * Get the query builder that will contain the relationship constraints.
+     *
+     * @return builder-of<TRelatedModel>
+     */
+    protected function getRelationQuery(): Builder;
+
+    /**
+     * Get the underlying query for the relation.
+     *
+     * @return builder-of<TRelatedModel>
+     */
+    public function getQuery(): Builder;
+}

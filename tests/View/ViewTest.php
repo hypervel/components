@@ -6,6 +6,8 @@ namespace Hypervel\Tests\View;
 
 use ArrayAccess;
 use BadMethodCallException;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Renderable;
@@ -18,6 +20,7 @@ use Hypervel\View\Factory;
 use Hypervel\View\View;
 use Hypervel\View\ViewFinderInterface;
 use Mockery as m;
+use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -421,7 +424,9 @@ class ViewTest extends TestCase
         $this->assertSame(['rendering', 'engine', 'rendered'], $order);
     }
 
-    public function testRenderingFailureRemainsPrimaryAfterEveryRenderedObserverRuns(): void
+    #[TestWith([false])]
+    #[TestWith([true], 'second observer rethrows the rendering failure')]
+    public function testRenderingFailureRemainsPrimaryAfterEveryRenderedObserverRuns(bool $rethrow): void
     {
         $renderingException = new RuntimeException('rendering failed');
         $completionException = new RuntimeException('completion failed');
@@ -431,24 +436,30 @@ class ViewTest extends TestCase
             $events = m::mock(Dispatcher::class),
         );
 
-        $order = [];
+        $observed = [];
         $factory->observeRendering(function () use ($renderingException): never {
             throw $renderingException;
         });
-        $factory->observeRendered(function (View $view, ?Throwable $exception) use ($renderingException, $completionException, &$order): never {
-            $order[] = 'first';
-            $this->assertSame($renderingException, $exception);
+        $factory->observeRendered(function (View $view, ?Throwable $exception) use ($completionException, &$observed): never {
+            $observed['first'] = $exception;
 
             throw $completionException;
         });
-        $factory->observeRendered(function (View $view, ?Throwable $exception) use ($renderingException, &$order): void {
-            $order[] = 'second';
-            $this->assertSame($renderingException, $exception);
+        $factory->observeRendered(function (View $view, ?Throwable $exception) use ($rethrow, &$observed): void {
+            $observed['second'] = $exception;
+
+            if ($rethrow && $exception !== null) {
+                throw $exception;
+            }
         });
 
         $engine = m::mock(Engine::class);
         $engine->shouldNotReceive('get');
         $events->shouldReceive('hasListeners')->andReturnFalse();
+        $reported = [];
+        $this->bindReportingHandler()->shouldReceive('report')->andReturnUsing(function (Throwable $throwable) use (&$reported): void {
+            $reported[] = $throwable;
+        });
 
         try {
             (new View($factory, $engine, 'test', 'path'))->render();
@@ -457,7 +468,8 @@ class ViewTest extends TestCase
             $this->assertSame($renderingException, $exception);
         }
 
-        $this->assertSame(['first', 'second'], $order);
+        $this->assertSame(['first' => $renderingException, 'second' => $renderingException], $observed);
+        $this->assertSame([$completionException], $reported);
         $this->assertTrue($factory->doneRendering());
     }
 
@@ -489,9 +501,10 @@ class ViewTest extends TestCase
         $this->assertSame($renderingException, $observedException);
     }
 
-    public function testFirstRenderedObserverFailureIsThrownAfterEveryObserverRuns(): void
+    public function testFirstRenderedObserverFailureIsThrownAfterEveryObserverRunsAndLaterFailuresAreReported(): void
     {
         $firstException = new RuntimeException('first completion failed');
+        $secondException = new RuntimeException('second completion failed');
         $factory = new Factory(
             m::mock(EngineResolver::class),
             m::mock(ViewFinderInterface::class),
@@ -504,10 +517,10 @@ class ViewTest extends TestCase
 
             throw $firstException;
         });
-        $factory->observeRendered(function () use (&$order): never {
+        $factory->observeRendered(function () use ($secondException, &$order): never {
             $order[] = 'second';
 
-            throw new RuntimeException('second completion failed');
+            throw $secondException;
         });
         $factory->observeRendered(function () use (&$order): void {
             $order[] = 'third';
@@ -516,6 +529,7 @@ class ViewTest extends TestCase
         $engine = m::mock(Engine::class);
         $engine->expects('get')->andReturn('contents');
         $events->shouldReceive('hasListeners')->andReturnFalse();
+        $this->bindReportingHandler()->shouldReceive('report')->once()->with($secondException);
 
         try {
             (new View($factory, $engine, 'test', 'path'))->render();
@@ -529,7 +543,7 @@ class ViewTest extends TestCase
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testPreRenderCancellationSkipsCompletionObserversAndClearsState(bool $wrapped): void
+    public function testPreRenderCancellationIsPassedToCompletionObserversAndClearsState(bool $wrapped): void
     {
         $cancellation = new CanceledException;
         if ($wrapped) {
@@ -546,9 +560,9 @@ class ViewTest extends TestCase
         $factory->observeRendering(function () use ($cancellation): never {
             throw $cancellation;
         });
-        $completionObserved = false;
-        $factory->observeRendered(function () use (&$completionObserved): void {
-            $completionObserved = true;
+        $observed = null;
+        $factory->observeRendered(function (View $view, ?Throwable $exception) use (&$observed): void {
+            $observed = $exception;
         });
 
         $engine = m::mock(Engine::class);
@@ -565,12 +579,12 @@ class ViewTest extends TestCase
         $this->assertFalse($factory->hasSection('content'));
         $this->assertSame('', $factory->yieldPushContent('scripts'));
         $this->assertTrue($factory->doneRendering());
-        $this->assertFalse($completionObserved);
+        $this->assertSame($cancellation, $observed);
     }
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testRenderSectionsEngineCancellationSkipsCompletionObservers(bool $wrapped): void
+    public function testRenderSectionsEngineCancellationIsPassedToCompletionObservers(bool $wrapped): void
     {
         $cancellation = new CanceledException;
         if ($wrapped) {
@@ -582,9 +596,9 @@ class ViewTest extends TestCase
             $events = m::mock(Dispatcher::class),
         );
 
-        $completionObserved = false;
-        $factory->observeRendered(function () use (&$completionObserved): void {
-            $completionObserved = true;
+        $observed = null;
+        $factory->observeRendered(function (View $view, ?Throwable $exception) use (&$observed): void {
+            $observed = $exception;
         });
 
         $engine = m::mock(Engine::class);
@@ -599,12 +613,12 @@ class ViewTest extends TestCase
         }
 
         $this->assertTrue($factory->doneRendering());
-        $this->assertFalse($completionObserved);
+        $this->assertSame($cancellation, $observed);
     }
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testRenderedObserverCancellationStopsRemainingObservers(bool $wrapped): void
+    public function testRenderedObserverCancellationNotifiesRemainingObserversAndReportsTheDisplacedFailure(bool $wrapped): void
     {
         $cancellation = new CanceledException;
         if ($wrapped) {
@@ -617,7 +631,8 @@ class ViewTest extends TestCase
         );
 
         $order = [];
-        $factory->observeRendered(static fn () => throw new RuntimeException('Earlier observer failed.'));
+        $earlierFailure = new RuntimeException('Earlier observer failed.');
+        $factory->observeRendered(static fn () => throw $earlierFailure);
         $factory->observeRendered(function () use ($cancellation, &$order): never {
             $order[] = 'first';
 
@@ -630,6 +645,7 @@ class ViewTest extends TestCase
         $engine = m::mock(Engine::class);
         $engine->expects('get')->andReturn('contents');
         $events->shouldReceive('hasListeners')->andReturnFalse();
+        $this->bindReportingHandler()->shouldReceive('report')->once()->with($earlierFailure);
 
         try {
             (new View($factory, $engine, 'test', 'path'))->render();
@@ -638,12 +654,12 @@ class ViewTest extends TestCase
             $this->assertSame($cancellation, $exception);
         }
 
-        $this->assertSame(['first'], $order);
+        $this->assertSame(['first', 'second'], $order);
     }
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testRenderedObserverCancellationSupersedesRenderingFailure(bool $wrapped): void
+    public function testRenderedObserverCancellationSupersedesAndReportsTheRenderingFailure(bool $wrapped): void
     {
         $renderingException = new RuntimeException('rendering failed');
         $cancellation = new CanceledException;
@@ -668,6 +684,7 @@ class ViewTest extends TestCase
         $engine = m::mock(Engine::class);
         $engine->shouldNotReceive('get');
         $events->shouldReceive('hasListeners')->andReturnFalse();
+        $this->bindReportingHandler()->shouldReceive('report')->once()->with($renderingException);
 
         try {
             (new View($factory, $engine, 'test', 'path'))->render();
@@ -715,6 +732,19 @@ class ViewTest extends TestCase
             'path',
             $data
         );
+    }
+
+    /**
+     * Bind a mocked exception handler for displaced failure reports.
+     */
+    private function bindReportingHandler(): MockInterface
+    {
+        $container = new Container;
+        Container::setInstance($container);
+        $handler = m::mock(ExceptionHandler::class);
+        $container->instance(ExceptionHandler::class, $handler);
+
+        return $handler;
     }
 }
 

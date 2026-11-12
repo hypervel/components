@@ -28,6 +28,7 @@ use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\Events\JobQueueingCanceled;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\Jobs\SqsJob;
 use Hypervel\Queue\QueueRoutes;
@@ -1038,17 +1039,24 @@ class QueueSqsQueueTest extends TestCase
     #[TestWith(['queueing'])]
     #[TestWith(['stored'])]
     #[TestWith(['queued'])]
-    public function testPushCancellationStopsSubsequentLifecycleNotifications(string $phase): void
+    public function testPushCancellationPublishesTheKnownOutcome(string $phase): void
     {
         $container = new Container;
+        Container::setInstance($container);
         $events = new ConcreteEventDispatcher($container);
         $container->instance('events', $events);
         $cancellation = new RuntimeException('Listener cleanup failed.', previous: new CanceledException);
+        $earlierFailure = new RuntimeException('Earlier notification failed.');
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldReceive('report')->times($phase === 'queued' ? 1 : 0)->with($earlierFailure);
+        $container->instance(ExceptionHandler::class, $handler);
         $notified = [];
+        $canceled = null;
 
-        foreach ([JobPayloadFinalizing::class => 'finalizing', JobQueueing::class => 'queueing', JobQueued::class => 'queued', JobQueueingFailed::class => 'failed'] as $eventClass => $name) {
-            $events->listen($eventClass, static function () use ($name, $phase, $cancellation, &$notified): void {
+        foreach ([JobPayloadFinalizing::class => 'finalizing', JobQueueing::class => 'queueing', JobQueued::class => 'queued', JobQueueingFailed::class => 'failed', JobQueueingCanceled::class => 'canceled'] as $eventClass => $name) {
+            $events->listen($eventClass, static function (object $event) use ($name, $phase, $cancellation, &$notified, &$canceled): void {
                 $notified[] = $name;
+                $canceled = $event instanceof JobQueueingCanceled ? $event : $canceled;
                 if ($name === $phase) {
                     throw $cancellation;
                 }
@@ -1062,9 +1070,7 @@ class QueueSqsQueueTest extends TestCase
 
         if (in_array($phase, ['stored', 'queued'], true)) {
             $this->sqs->expects('sendMessage')->andReturn($this->mockedSendMessageResponseModel);
-            $queue->expects('handlePayloadPushed')->andThrow(
-                $phase === 'stored' ? $cancellation : new RuntimeException('Earlier notification failed.'),
-            );
+            $queue->expects('handlePayloadPushed')->andThrow($phase === 'stored' ? $cancellation : $earlierFailure);
         } else {
             $this->sqs->shouldNotReceive('sendMessage');
         }
@@ -1077,10 +1083,17 @@ class QueueSqsQueueTest extends TestCase
         }
 
         $this->assertSame(match ($phase) {
-            'finalizing' => ['finalizing'],
-            'queued' => ['finalizing', 'queueing', 'queued'],
-            default => ['finalizing', 'queueing'],
+            'finalizing' => ['finalizing', 'canceled'],
+            'queueing' => ['finalizing', 'queueing', 'canceled'],
+            'stored' => ['finalizing', 'queueing', 'queued'],
+            'queued' => ['finalizing', 'queueing', 'queued', 'canceled'],
         }, $notified);
+
+        if ($canceled !== null) {
+            $this->assertSame($cancellation, $canceled->cancellation);
+            $this->assertSame($phase === 'queued', $canceled->sendAttempted);
+            $this->assertSame($phase === 'queued', $canceled->queued);
+        }
     }
 
     public function testPushRawStoresPayloadToCacheWhenExceedingThreshold(): void
@@ -2195,6 +2208,7 @@ class QueueSqsQueueTest extends TestCase
         $events->shouldReceive('hasListeners')->with(JobPayloadFinalizing::class)->andReturnFalse();
         $events->shouldReceive('hasListeners')->with(JobQueueing::class)->andReturnTrue();
         $events->shouldReceive('hasListeners')->with(JobQueueingFailed::class)->never();
+        $events->shouldReceive('hasListeners')->with(JobQueueingCanceled::class)->andReturnTrue();
         $dispatched = [];
         $events->shouldReceive('dispatch')->andReturnUsing(
             static function (object $event) use (&$dispatched): object {
@@ -2240,6 +2254,10 @@ class QueueSqsQueueTest extends TestCase
             ['a', 'b'],
             array_column(array_filter($dispatched, static fn (object $event): bool => $event instanceof JobQueueing), 'job'),
         );
+        $canceled = array_values(array_filter($dispatched, static fn (object $event): bool => $event instanceof JobQueueingCanceled));
+        $this->assertSame(['a', 'b'], array_column($canceled, 'job'));
+        $this->assertSame([$cancellation, $cancellation], array_column($canceled, 'cancellation'));
+        $this->assertSame([true, true], array_column($canceled, 'sendAttempted'));
     }
 
     #[TestWith([false])]
@@ -2297,7 +2315,7 @@ class QueueSqsQueueTest extends TestCase
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testBulkRetainsPointersAndSuppressesFailureEventsWhenSqsDeliveryIsCanceled(bool $cleanupThrows): void
+    public function testBulkRetainsPointersAndPublishesCancellationInsteadOfFailureWhenSqsDeliveryIsCanceled(bool $cleanupThrows): void
     {
         $payload = json_encode(['uuid' => 'canceled-batch'], JSON_THROW_ON_ERROR);
         $path = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'canceled-batch';
@@ -2317,6 +2335,7 @@ class QueueSqsQueueTest extends TestCase
         $events->shouldReceive('hasListeners')->with(JobPayloadFinalizing::class)->andReturnFalse();
         $events->shouldReceive('hasListeners')->with(JobQueueing::class)->andReturnTrue();
         $events->shouldReceive('hasListeners')->with(JobQueueingFailed::class)->never();
+        $events->shouldReceive('hasListeners')->with(JobQueueingCanceled::class)->andReturnTrue();
         $dispatched = [];
         $events->shouldReceive('dispatch')->andReturnUsing(
             static function (object $event) use (&$dispatched): object {
@@ -2356,6 +2375,11 @@ class QueueSqsQueueTest extends TestCase
         }
 
         $this->assertCount(1, array_filter($dispatched, static fn (object $event): bool => $event instanceof JobQueueing));
+        $canceled = array_values(array_filter($dispatched, static fn (object $event): bool => $event instanceof JobQueueingCanceled));
+        $this->assertCount(1, $canceled);
+        $this->assertSame($cancellation, $canceled[0]->cancellation);
+        $this->assertTrue($canceled[0]->sendAttempted);
+        $this->assertFalse($canceled[0]->queued);
     }
 
     public function testBulkCleansOnlyTheCurrentChunkWhenItsOverflowWriteIsCanceled(): void
@@ -2427,6 +2451,12 @@ class QueueSqsQueueTest extends TestCase
         $events->expects('hasListeners')->with(JobPayloadFinalizing::class)->andReturnFalse();
         $events->expects('hasListeners')->with(JobQueueing::class)->andReturnTrue();
         $events->expects('dispatch')->with(m::type(JobQueueing::class))->andThrow($cancellation);
+        $events->expects('hasListeners')->with(JobQueueingCanceled::class)->andReturnTrue();
+        $events->expects('dispatch')->with(m::on(
+            static fn (object $event): bool => $event instanceof JobQueueingCanceled
+                && $event->cancellation === $cancellation
+                && ! $event->sendAttempted,
+        ));
 
         $container = new Container;
         $container->instance('cache', $cache);

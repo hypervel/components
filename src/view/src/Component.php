@@ -312,6 +312,8 @@ abstract class Component
 
     /**
      * Set the component alias name.
+     *
+     * @return $this
      */
     public function withName(string $name): static
     {
@@ -322,6 +324,8 @@ abstract class Component
 
     /**
      * Set the extra attributes that the component should make available.
+     *
+     * @return $this
      */
     public function withAttributes(array $attributes): static
     {

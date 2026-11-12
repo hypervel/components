@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Protocols\Pusher;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Protocols\Pusher\Concerns\InteractsWithChannelInformation;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
@@ -256,7 +257,7 @@ class MetricsHandler
                         );
                     }
                 } catch (Throwable $throwable) {
-                    $exception ??= $throwable;
+                    $exception = Coroutine::preferCancellation($exception, $throwable);
                 }
             }
 

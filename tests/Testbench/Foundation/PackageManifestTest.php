@@ -7,11 +7,13 @@ namespace Hypervel\Tests\Testbench\Foundation;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\PackageManifest as FoundationPackageManifest;
 use Hypervel\Testbench\Attributes\WithEnv;
+use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\Foundation\PackageManifest;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Testbench\TestCase;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\TestWith;
 use UnexpectedValueException;
 
 class PackageManifestTest extends TestCase
@@ -24,9 +26,24 @@ class PackageManifestTest extends TestCase
 
     private string $tempDirectory;
 
+    /**
+     * @var array{0: null|string, 1: null|string, 2: false|string}
+     */
+    private array $originalPackageTester = [null, null, false];
+
     protected function setUp(): void
     {
         parent::setUp();
+
+        // The fixture manifests decide root discovery from their Testbench stub, not
+        // from a package:test worker's inherited context.
+        $this->originalPackageTester = [
+            $_SERVER['TESTBENCH_PACKAGE_TESTER'] ?? null,
+            $_ENV['TESTBENCH_PACKAGE_TESTER'] ?? null,
+            getenv('TESTBENCH_PACKAGE_TESTER'),
+        ];
+        unset($_SERVER['TESTBENCH_PACKAGE_TESTER'], $_ENV['TESTBENCH_PACKAGE_TESTER']);
+        putenv('TESTBENCH_PACKAGE_TESTER');
 
         $this->filesystem = new Filesystem;
         $this->basePath = __DIR__ . '/Fixtures/PackageManifest';
@@ -41,6 +58,20 @@ class PackageManifestTest extends TestCase
     protected function tearDown(): void
     {
         $this->filesystem->deleteDirectory($this->tempDirectory);
+
+        [$server, $environment, $process] = $this->originalPackageTester;
+
+        if ($server !== null) {
+            $_SERVER['TESTBENCH_PACKAGE_TESTER'] = $server;
+        }
+
+        if ($environment !== null) {
+            $_ENV['TESTBENCH_PACKAGE_TESTER'] = $environment;
+        }
+
+        if ($process !== false) {
+            putenv("TESTBENCH_PACKAGE_TESTER={$process}");
+        }
 
         FoundationPackageManifest::flushState();
 
@@ -80,18 +111,19 @@ class PackageManifestTest extends TestCase
     }
 
     /**
-     * Create a testbench stub with the given ignore list.
+     * Create a testbench stub with the given ignore list and root discovery setting.
      */
-    private function makeTestbench(array $ignore): object
+    private function makeTestbench(array $ignore, bool $discoversRootPackage = true): object
     {
-        return new class($ignore) {
+        return new class($ignore, $discoversRootPackage) {
             /**
              * Create a new testbench stub.
              *
              * @param array<int, string> $ignore
              */
             public function __construct(
-                private readonly array $ignore
+                private readonly array $ignore,
+                private readonly bool $discoversRootPackage
             ) {
             }
 
@@ -103,6 +135,14 @@ class PackageManifestTest extends TestCase
             public function ignorePackageDiscoveriesFrom(): array
             {
                 return $this->ignore;
+            }
+
+            /**
+             * Determine if package discovery includes the package's own Composer metadata.
+             */
+            public function discoversRootPackage(): bool
+            {
+                return $this->discoversRootPackage;
             }
         };
     }
@@ -181,6 +221,38 @@ class PackageManifestTest extends TestCase
         $manifest = $this->makeManifest(
             testbench: $this->makeTestbench([]),
             rootPackage: ['name' => '']
+        );
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessageIsOrContains('member [name] must be a non-empty string.');
+
+        $manifest->build();
+    }
+
+    #[Test]
+    #[TestWith([false, ['extra' => ['hypervel' => ['providers' => ['Testbench\Example\ServiceProvider']]]]])]
+    #[TestWith([true, ['require' => ['php' => '^8.4']]])]
+    public function itAllowsAnUnnamedRootPackageWithNothingToDiscover(bool $discoversRootPackage, array $rootPackage): void
+    {
+        $manifest = $this->makeManifest(
+            testbench: $this->makeTestbench([], $discoversRootPackage),
+            rootPackage: $rootPackage
+        );
+
+        $manifest->build();
+
+        $cached = require $this->manifestPath;
+
+        $this->assertArrayHasKey('vendor-a/package-a', $cached);
+        $this->assertNotContains('Testbench\Example\ServiceProvider', $manifest->providers());
+    }
+
+    #[Test]
+    public function itRequiresANameToDiscoverRootPackageMetadata(): void
+    {
+        $manifest = $this->makeManifest(
+            testbench: $this->makeTestbench([]),
+            rootPackage: ['extra' => ['hypervel' => ['providers' => ['Testbench\Example\ServiceProvider']]]]
         );
 
         $this->expectException(UnexpectedValueException::class);
@@ -285,6 +357,105 @@ class PackageManifestTest extends TestCase
             ],
             $manifest->aliases()
         );
+    }
+
+    #[Test]
+    public function itIncludesRootMetadataInTheSameInstanceAfterAnExplicitBuild(): void
+    {
+        $manifest = $this->makeManifest(
+            testbench: $this->makeTestbench([]),
+            rootPackage: $this->rootPackageFixture()
+        );
+
+        $manifest->build();
+
+        $this->assertContains('Hypervel\Tests\Testbench\Fixtures\Providers\ParentServiceProvider', $manifest->providers());
+        $this->assertSame('RootClass', $manifest->aliases()['RootAlias'] ?? null);
+    }
+
+    #[Test]
+    #[TestWith([true, true])]
+    #[TestWith([true, false])]
+    #[TestWith([false, true])]
+    #[TestWith([false, false])]
+    public function itKeepsACachedManifestInStepWithTheRootDiscoveryDecision(bool $cachedWithRoot, bool $discoversRootPackage): void
+    {
+        $this->makeManifest(
+            testbench: $this->makeTestbench([], $cachedWithRoot),
+            rootPackage: $this->rootPackageFixture()
+        )->build();
+
+        $manifest = $this->makeManifest(
+            testbench: $this->makeTestbench([], $discoversRootPackage),
+            rootPackage: $this->rootPackageFixture()
+        );
+
+        $this->assertSame($discoversRootPackage, $manifest->hasPackage('testbench/example'));
+
+        // Plain Foundation readers, such as the skeleton artisan run by cache commands,
+        // read the file the Testbench manifest keeps in step.
+        $plainReader = new FoundationPackageManifest($this->filesystem, $this->basePath, $this->manifestPath);
+
+        $this->assertSame($discoversRootPackage, $plainReader->hasPackage('testbench/example'));
+    }
+
+    #[Test]
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function itAppliesTheParentRootDiscoveryDecisionInABorrowedRuntime(bool $parentDiscoversRootPackage): void
+    {
+        $variables = [
+            'TESTBENCH_PACKAGE_REMOTE' => '(true)',
+            'TESTBENCH_BASE_PATH' => $this->basePath,
+            'TESTBENCH_RUNTIME_COPY' => '(true)',
+        ];
+
+        $original = array_map(
+            static fn (string $key): array => [$_SERVER[$key] ?? null, $_ENV[$key] ?? null],
+            array_combine(array_keys($variables), array_keys($variables)),
+        );
+
+        foreach ($variables as $key => $value) {
+            $_SERVER[$key] = $_ENV[$key] = $value;
+        }
+
+        Env::set('TESTBENCH_DISCOVERS_ROOT_PACKAGE', Env::encode($parentDiscoversRootPackage));
+
+        try {
+            // The child's own context would make the opposite decision.
+            $makeChildManifest = fn (): PackageManifest => $this->makeManifest(
+                testbench: $this->makeTestbench([], ! $parentDiscoversRootPackage),
+                rootPackage: $this->rootPackageFixture()
+            );
+            $cachedHasRoot = fn (): bool => str_contains((string) file_get_contents($this->manifestPath), "'testbench/example'");
+
+            // A missing file, as after clear-compiled, is rebuilt with the parent's decision.
+            $makeChildManifest()->providers();
+            $this->assertSame($parentDiscoversRootPackage, $cachedHasRoot());
+
+            // An explicit build, as by package:discover, keeps the parent's decision.
+            $makeChildManifest()->build();
+            $this->assertSame($parentDiscoversRootPackage, $cachedHasRoot());
+
+            // A cached read leaves the parent's file unchanged.
+            $contents = file_get_contents($this->manifestPath);
+            $makeChildManifest()->providers();
+            $this->assertSame($contents, file_get_contents($this->manifestPath));
+        } finally {
+            foreach ($original as $key => [$server, $environment]) {
+                unset($_SERVER[$key], $_ENV[$key]);
+
+                if ($server !== null) {
+                    $_SERVER[$key] = $server;
+                }
+
+                if ($environment !== null) {
+                    $_ENV[$key] = $environment;
+                }
+            }
+
+            Env::forget('TESTBENCH_DISCOVERS_ROOT_PACKAGE');
+        }
     }
 
     #[Test]

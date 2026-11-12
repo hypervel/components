@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\SchemaParser;
 
-final readonly class ForeignKey
+readonly class ForeignKey
 {
     /**
      * Create a foreign key definition.

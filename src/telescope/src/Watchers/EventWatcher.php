@@ -73,7 +73,7 @@ class EventWatcher extends Watcher
                 'class' => get_class($value),
                 'properties' => JsonNormalizer::normalize($value),
             ] : $value;
-        })->toArray();
+        })->all();
     }
 
     /**
@@ -112,7 +112,7 @@ class EventWatcher extends Watcher
                     'name' => $listener,
                     'queued' => $queued ?? false,
                 ];
-            })->values()->toArray();
+            })->values()->all();
     }
 
     /**

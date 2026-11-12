@@ -110,6 +110,8 @@ class Response implements Arrayable, Stringable
 
     /**
      * Set the HTTP response status code.
+     *
+     * @return $this
      */
     public function withStatus(?int $status): static
     {
@@ -120,6 +122,8 @@ class Response implements Arrayable, Stringable
 
     /**
      * Set the HTTP response status code to 404.
+     *
+     * @return $this
      */
     public function asNotFound(): static
     {

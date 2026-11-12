@@ -151,17 +151,14 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Hypervel\Database\Eloquent\Attributes\Fillable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\NestedSet\HasNode;
 
+#[Fillable(['name', 'parent_id'])]
 class Category extends Model
 {
     use HasNode;
-
-    protected array $fillable = [
-        'name',
-        'parent_id',
-    ];
 }
 ```
 
@@ -185,7 +182,7 @@ class CategoryQueryBuilder extends QueryBuilder
 }
 ```
 
-For [static analysis](/docs/{{version}}/database#static-analysis), make the builder generic and add the `HasBuilder` trait with its type. Since `HasNode` already defines `newEloquentBuilder`, keep its version when adding the trait:
+For [static analysis](/docs/{{version}}/static-analysis#custom-builders-and-collections), make the builder generic and add the `HasBuilder` trait with its type. Since `HasNode` already defines `newEloquentBuilder`, keep its version when adding the trait:
 
 ```php
 use Hypervel\Database\Eloquent\HasBuilder;
@@ -994,18 +991,14 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Hypervel\Database\Eloquent\Attributes\Fillable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\NestedSet\HasNode;
 
+#[Fillable(['menu_id', 'title', 'parent_id'])]
 class MenuItem extends Model
 {
     use HasNode;
-
-    protected array $fillable = [
-        'menu_id',
-        'title',
-        'parent_id',
-    ];
 
     protected function getScopeAttributes(): array
     {

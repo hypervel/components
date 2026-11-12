@@ -49,6 +49,7 @@ class HorizonRestartStrategy implements RestartStrategy
             $this->output->write($line);
         });
 
+        // @phpstan-ignore hypervel.rawSleep (gives the started Horizon process real time to fail)
         usleep(100_000);
 
         if ($this->horizonProcess->isTerminated()) {

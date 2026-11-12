@@ -219,23 +219,7 @@ Hypervel's application skeleton includes the `swoole/ide-helper` package in deve
 <a name="static-analysis"></a>
 ### Static Analysis
 
-The application skeleton includes PHPStan and `phpstan/extension-installer`, which loads Hypervel's extensions automatically. Run `composer analyse` to check your application. The database extension understands [Eloquent scopes and forwarded query methods](/docs/{{version}}/database#static-analysis), while the Foundation extension distinguishes factory calls such as `response()` from calls that create a response, such as `response(status: 204)`. If your application uses [Scout](/docs/{{version}}/scout), its extension understands the `searchable` and `unsearchable` query methods.
-
-For an existing application, install the extension installer and allow its Composer plugin when prompted:
-
-```shell
-composer require --dev phpstan/extension-installer
-```
-
-If you prefer to configure extensions manually, add these entries to your `phpstan.neon` file instead:
-
-```neon
-includes:
-    - vendor/hypervel/database/extension.neon
-    - vendor/hypervel/foundation/extension.neon
-```
-
-If your application uses Scout, also include `vendor/hypervel/scout/extension.neon`.
+The application skeleton includes PHPStan with the `hypervel/phpstan` extension, which boots your application so PHPStan understands its models, container services, configuration and other framework features. Run `composer analyse` to check your application. To add the extension to an existing application, or to learn about its checks and configuration, see the [static analysis documentation](/docs/{{version}}/static-analysis).
 
 <a name="next-steps"></a>
 ## Next Steps

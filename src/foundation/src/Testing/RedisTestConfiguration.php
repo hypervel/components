@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Contracts\Config\Repository;
+use Hypervel\Support\Env;
 use RuntimeException;
 
 class RedisTestConfiguration
@@ -14,8 +15,8 @@ class RedisTestConfiguration
      */
     public static function isConfigured(): bool
     {
-        return env('REDIS_CLUSTER_HOSTS_AND_PORTS') !== null
-            || env('REDIS_HOST') !== null;
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (Redis integration tests are configured through the test process environment)
+        return static::usesCluster() || Env::get('REDIS_HOST') !== null;
     }
 
     /**
@@ -23,7 +24,8 @@ class RedisTestConfiguration
      */
     public static function usesCluster(): bool
     {
-        return env('REDIS_CLUSTER_HOSTS_AND_PORTS') !== null;
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (Redis integration tests are configured through the test process environment)
+        return Env::get('REDIS_CLUSTER_HOSTS_AND_PORTS') !== null;
     }
 
     /**
@@ -33,7 +35,8 @@ class RedisTestConfiguration
      */
     public static function clusterSeeds(): array
     {
-        $value = env('REDIS_CLUSTER_HOSTS_AND_PORTS');
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (Redis integration tests are configured through the test process environment)
+        $value = Env::get('REDIS_CLUSTER_HOSTS_AND_PORTS');
 
         if (! is_string($value) || trim($value) === '') {
             throw new RuntimeException('REDIS_CLUSTER_HOSTS_AND_PORTS must be a comma-separated list of non-empty Redis Cluster seeds.');

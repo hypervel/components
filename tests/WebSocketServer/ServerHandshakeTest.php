@@ -15,6 +15,7 @@ use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Request as HttpRequest;
+use Hypervel\HttpServer\Events\RequestCanceled;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\ResponseSent;
@@ -48,14 +49,23 @@ class ServerHandshakeTest extends TestCase
     public function testAcceptedHandshakeTerminatesAfterOpenAndDrainsOnce(string $outcome, array $expected): void
     {
         $calls = [];
-        $exception = $outcome === 'canceled' ? new CanceledException : new RuntimeException('termination failed');
+        $canceled = [];
+        $exception = match ($outcome) {
+            'canceled' => new CanceledException,
+            'wrapped' => new RuntimeException('termination cleanup failed', previous: new CanceledException),
+            default => new RuntimeException('termination failed'),
+        };
         $events = new Dispatcher;
         $events->listen(RequestReceived::class, function () use (&$calls): void {
             defer(function () use (&$calls): void { $calls[] = 'handshake deferred'; });
         });
+        $events->listen(RequestCanceled::class, function (RequestCanceled $event) use (&$calls, &$canceled): void {
+            $canceled[] = $event;
+            $calls[] = 'request canceled';
+        });
         $container = $this->container($events);
         $reporter = m::mock(ExceptionHandler::class);
-        if ($outcome === 'failed') {
+        if ($outcome === 'failed' || $outcome === 'wrapped') {
             $reporter->expects('report')->with($exception);
         } else {
             $reporter->shouldNotReceive('report');
@@ -88,6 +98,11 @@ class ServerHandshakeTest extends TestCase
         (new Waiter(1))->wait(fn () => $server->onHandshake($this->request(), $response));
 
         $this->assertSame(['sent', 'open', WebSocketStub::class, 'terminated', ...$expected], $calls);
+
+        foreach ($canceled as $event) {
+            $this->assertSame($exception, $event->cancellation);
+            $this->assertSame(101, $event->response?->getStatusCode());
+        }
     }
 
     /**
@@ -98,7 +113,8 @@ class ServerHandshakeTest extends TestCase
         return [
             ['success', ['handshake deferred', 'open deferred', 'termination deferred']],
             ['failed', ['termination deferred']],
-            ['canceled', []],
+            ['canceled', ['request canceled']],
+            ['wrapped', ['request canceled']],
         ];
     }
 
@@ -111,6 +127,11 @@ class ServerHandshakeTest extends TestCase
         $events->listen(RequestReceived::class, function () use (&$calls): void {
             defer(function () use (&$calls): void { $calls[] = 'normal'; });
             defer(function () use (&$calls): void { $calls[] = WebSocketContext::get('middleware.value'); })->always();
+        });
+        $cancellations = [];
+        $events->listen(RequestCanceled::class, function (RequestCanceled $event) use (&$calls, &$cancellations): void {
+            $cancellations[] = $event->cancellation;
+            $calls[] = 'request canceled';
         });
         $container = $this->container($events);
         $container->shouldReceive('make')->with(Security::class)->andReturn(new Security);
@@ -140,6 +161,7 @@ class ServerHandshakeTest extends TestCase
 
         $this->assertSame($outcome === 'success' ? null : $exception, $caught);
         $this->assertSame($expected, $calls);
+        $this->assertSame($outcome === 'canceled' ? [$exception] : [], $cancellations);
         $this->assertNull(FdCollector::get(42));
         $this->assertArrayNotHasKey(42, WebSocketContext::getStorage());
     }
@@ -152,7 +174,7 @@ class ServerHandshakeTest extends TestCase
         return [
             [302, 'success', ['first', 'second', 'normal', 'preserved']],
             [302, 'failed', ['first', 'second', 'preserved']],
-            [302, 'canceled', ['first']],
+            [302, 'canceled', ['first', 'request canceled']],
             [403, 'success', ['first', 'second', 'preserved']],
         ];
     }
@@ -380,7 +402,7 @@ class ServerHandshakeTest extends TestCase
     {
         $dispatchedEvents = [];
         $events = new Dispatcher;
-        foreach ([RequestReceived::class, RequestHandled::class, ResponseSent::class] as $eventClass) {
+        foreach ([RequestReceived::class, RequestHandled::class, ResponseSent::class, RequestCanceled::class] as $eventClass) {
             $events->listen($eventClass, function (object $event) use (&$dispatchedEvents): void {
                 $dispatchedEvents[] = $event::class;
             });
@@ -407,10 +429,41 @@ class ServerHandshakeTest extends TestCase
                 ->onHandshake($this->request(), $response);
             $this->fail('Expected handshake cancellation to be rethrown.');
         } catch (CanceledException) {
-            $this->assertSame([RequestReceived::class], $dispatchedEvents);
+            $this->assertSame([RequestReceived::class, RequestCanceled::class], $dispatchedEvents);
             $this->assertNull(FdCollector::get(42));
             $this->assertArrayNotHasKey(42, WebSocketContext::getStorage());
         }
+    }
+
+    public function testHandshakeCancellationReportsTheHeldFailure(): void
+    {
+        $heldFailure = new RuntimeException('Handled listener failed.');
+        $cancellation = new CanceledException;
+        $canceled = null;
+        $events = new Dispatcher;
+        $events->listen(RequestHandled::class, static fn () => throw $heldFailure);
+        $events->listen(ResponseSent::class, static fn () => throw $cancellation);
+        $events->listen(RequestCanceled::class, static function (RequestCanceled $event) use (&$canceled): void {
+            $canceled = $event;
+        });
+        $container = $this->container($events);
+        $container->shouldReceive('make')->with(Security::class)->andReturn(new Security);
+        $reporter = m::mock(ExceptionHandler::class);
+        $reporter->expects('report')->with($heldFailure);
+        $reportingContainer = new BaseContainer;
+        $reportingContainer->instance(ExceptionHandler::class, $reporter);
+        BaseContainer::setInstance($reportingContainer);
+        $server = new HandshakeLifecycleServer($container, $this->router(302), m::mock(SwooleWebSocketServer::class));
+
+        try {
+            $server->onHandshake($this->request(), $this->response(302));
+            $this->fail('Expected handshake cancellation to be rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame($heldFailure, $canceled->exception);
+        $this->assertSame(302, $canceled->response?->getStatusCode());
     }
 
     public function testConnectionOpeningFailureIsRenderedAndReleasesContext(): void

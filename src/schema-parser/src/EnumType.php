@@ -9,7 +9,7 @@ namespace Hypervel\SchemaParser;
  *
  * PostgreSQL enums have an identity independent of the columns using them.
  */
-final readonly class EnumType
+readonly class EnumType
 {
     /**
      * Create an enum type definition.

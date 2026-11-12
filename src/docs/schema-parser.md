@@ -13,6 +13,7 @@
 - [Completeness and Errors](#completeness-and-errors)
     - [Checking Completeness](#checking-completeness)
     - [Handling Parse Errors](#handling-parse-errors)
+- [Changes to an Existing Schema](#changes-to-an-existing-schema)
 - [Supported Input](#supported-input)
 - [Credits](#credits)
 
@@ -220,6 +221,35 @@ When these checks pass, you may treat a missing column as absent. To establish t
 If the parser detects malformed input, it throws a `Hypervel\SchemaParser\ParseException`. You may use the exception's `sqlLine` property to locate the error in the SQL input when that information is available. The exception's normal `getLine` method refers to the PHP source.
 
 A complete result means the parser understood the schema facts it represents. It does not guarantee that a database server would accept every statement in the input.
+
+<a name="changes-to-an-existing-schema"></a>
+## Changes to an Existing Schema
+
+A parsed schema describes the definitions in its SQL input. When parsing SQL that modifies an existing database, you may also inspect `impact` to find existing tables, views and PostgreSQL types that the script may change:
+
+```php
+use Hypervel\SchemaParser\PostgresParser;
+
+$impact = (new PostgresParser)->parse('ALTER TABLE users RENAME TO members')->impact;
+
+foreach ($impact->relations as $relation) {
+    echo $relation->name; // 'users', then 'members'
+}
+
+$impact->unknown; // false
+```
+
+The impact provides three properties:
+
+- `relations` lists altered, dropped or renamed tables and views, including both names of a rename.
+- `types` lists altered or dropped PostgreSQL enums and domains. Type renames are represented by `unknown` instead.
+- `unknown` is `true` when the affected definitions cannot all be named, such as with cascading drops, queries that call functions, or procedure calls. It is also set for changes to name resolution, such as `USE` or `SET search_path`, which may affect separately parsed SQL.
+
+Listed definitions may no longer exist or retain their original columns or types, even if the script also creates them. Unqualified names use the schema selected by the input, such as SQLite's `main` or a database selected by MySQL's `USE` statement.
+
+Index, comment, routine, trigger and sequence changes, row updates and other session settings do not invalidate these definitions. Row changes can still run triggers or functions on the server; their effects are not included.
+
+Tables and views the script creates are available through the schema's usual properties. Definitions guarded by `IF NOT EXISTS` are included too; the parser does not know whether they already exist in your database.
 
 <a name="supported-input"></a>
 ## Supported Input

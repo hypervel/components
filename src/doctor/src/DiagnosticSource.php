@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Doctor;
 
 use Composer\InstalledVersions;
+use Hypervel\Support\Composer;
 use ReflectionClass;
 use Throwable;
 
@@ -197,7 +198,7 @@ class DiagnosticSource
     protected static function rootPackageName(): ?string
     {
         try {
-            return InstalledVersions::getRootPackage()['name'];
+            return Composer::rootPackage()['name'];
         } catch (Throwable) {
             return null;
         }

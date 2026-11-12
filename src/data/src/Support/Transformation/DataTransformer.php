@@ -404,7 +404,7 @@ class DataTransformer
     ): array {
         if ($paginator instanceof LengthAwarePaginator) {
             return [
-                'links' => $paginator->linkCollection()->toArray(),
+                'links' => $paginator->linkCollection()->all(),
                 'meta' => [
                     'current_page' => $paginator->currentPage(),
                     'first_page_url' => $paginator->url(1),

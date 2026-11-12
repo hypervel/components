@@ -17,6 +17,7 @@ $request = Request::create('/', 'GET', [
 
 assertType('TestEnum|null', $request->enum('key', TestEnum::class));
 assertType('TestEnum|TestEnum::Foo', $request->enum('key', TestEnum::class, TestEnum::Foo));
+assertType('TestEnum|TestEnum::Foo', $request->enum('key', TestEnum::class, fn () => TestEnum::Foo));
 
 assertType('int', $request->integer('key'));
 assertType('int', $request->integer('key', 5, true));
@@ -28,7 +29,7 @@ assertType('bool', $request->boolean('key'));
 assertType('bool|null', $request->boolean('key', null, true));
 
 assertType('Hypervel\Routing\Route|null', $request->route());
-assertType('object|string|null', $request->route('key'));
+assertType('mixed', $request->route('key'));
 
 assertType('Symfony\Component\HttpFoundation\InputBag', $request->json());
 assertType('mixed', $request->json('key'));

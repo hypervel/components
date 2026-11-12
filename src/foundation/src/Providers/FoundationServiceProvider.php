@@ -302,8 +302,10 @@ class FoundationServiceProvider extends ServiceProvider
 
         // Deferred jobs use coroutine-exit callbacks, not this collection, so their
         // JobAttempted events can drain it without recursively running the same job.
+        // A canceled attempt skips deferred work, as every other canceled boundary does.
         $events->listen(function (JobAttempted $event) {
             if ($event->connectionName === 'sync'
+                || $event->canceled
                 || ! BaseContainer::getInstance()->resolvedScoped(DeferredCallbackCollection::class)
             ) {
                 return;
@@ -338,7 +340,7 @@ class FoundationServiceProvider extends ServiceProvider
         Request::macro('validateWithBag', function (string $errorBag, array $rules, ...$params) {
             try {
                 return $this->validate($rules, ...$params);
-            } catch (ValidationException $e) { // @phpstan-ignore catch.neverThrown ($this->validate() is a macro that throws ValidationException)
+            } catch (ValidationException $e) {
                 $e->errorBag = $errorBag;
 
                 throw $e;

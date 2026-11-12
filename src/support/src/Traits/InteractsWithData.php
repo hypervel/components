@@ -76,10 +76,10 @@ trait InteractsWithData
     /**
      * Apply the callback if the instance contains the given key.
      *
-     * @template TReturn
+     * @template TReturn = never
      * @template TReturnDefault = never
      *
-     * @param callable(mixed): TReturn $callback
+     * @param callable(mixed): (null|TReturn|void) $callback
      * @param null|(callable(): TReturnDefault) $default
      * @return $this|TReturn|TReturnDefault
      */
@@ -150,10 +150,10 @@ trait InteractsWithData
     /**
      * Apply the callback if the instance contains a non-empty value for the given key.
      *
-     * @template TReturn
+     * @template TReturn = never
      * @template TReturnDefault = never
      *
-     * @param callable(mixed): TReturn $callback
+     * @param callable(mixed): (null|TReturn|void) $callback
      * @param null|(callable(): TReturnDefault) $default
      * @return $this|TReturn|TReturnDefault
      */
@@ -174,11 +174,11 @@ trait InteractsWithData
      * Apply the callback if the instance contains a valid enum value for the given key.
      *
      * @template TEnum of BackedEnum
-     * @template TReturn
+     * @template TReturn = never
      * @template TReturnDefault = never
      *
      * @param class-string<TEnum> $enumClass
-     * @param callable(TEnum): TReturn $callback
+     * @param callable(TEnum): (null|TReturn|void) $callback
      * @param null|(callable(): TReturnDefault) $default
      * @return $this|TReturn|TReturnDefault
      */
@@ -208,10 +208,10 @@ trait InteractsWithData
     /**
      * Apply the callback if the instance is missing the given key.
      *
-     * @template TReturn
+     * @template TReturn = never
      * @template TReturnDefault = never
      *
-     * @param callable(mixed): TReturn $callback
+     * @param callable(mixed): (null|TReturn|void) $callback
      * @param null|(callable(): TReturnDefault) $default
      * @return $this|TReturn|TReturnDefault
      */
@@ -404,7 +404,7 @@ trait InteractsWithData
      * @template TDefault of TEnum|null
      *
      * @param class-string<TEnum> $enumClass
-     * @param TDefault $default
+     * @param (Closure(): TDefault)|TDefault $default
      * @return TDefault|TEnum
      */
     public function enum(string $key, string $enumClass, mixed $default = null): mixed

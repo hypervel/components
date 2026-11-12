@@ -421,7 +421,9 @@ class DataTypeFactory
         return match ($name) {
             'self' => $declaringClass->getName(),
             'static' => $targetClass->getName(),
-            'parent' => $declaringClass->getParentClass()?->getName() ?? $name,
+            'parent' => ($parentClass = $declaringClass->getParentClass()) !== false
+                ? $parentClass->getName()
+                : $name,
             default => $name,
         };
     }
@@ -440,7 +442,9 @@ class DataTypeFactory
         return match ($name) {
             'self' => $declaringClass->getName(),
             'static', '$this' => $targetClass->getName(),
-            'parent' => $declaringClass->getParentClass()?->getName() ?? $name,
+            'parent' => ($parentClass = $declaringClass->getParentClass()) !== false
+                ? $parentClass->getName()
+                : $name,
             default => $this->typeNameResolver->resolve($name, $declaringClass),
         };
     }

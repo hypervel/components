@@ -43,6 +43,7 @@ use Hypervel\Routing\Router;
 use Hypervel\Session\SessionManager;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
+use Hypervel\Support\Env;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\HtmlString;
@@ -161,7 +162,8 @@ if (! function_exists('app_id')) {
      */
     function app_id(): string
     {
-        $id = env('APP_ID');
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (app_id() supplies configuration defaults while configuration loads)
+        $id = Env::get('APP_ID');
 
         if ($id !== null && $id !== '') {
             $id = (string) $id;
@@ -175,7 +177,8 @@ if (! function_exists('app_id')) {
             return $id;
         }
 
-        return Str::slug(Str::snake((string) env('APP_NAME', 'hypervel')), '_') ?: 'hypervel';
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (app_id() supplies configuration defaults while configuration loads)
+        return Str::slug(Str::snake((string) Env::get('APP_NAME', 'hypervel')), '_') ?: 'hypervel';
     }
 }
 
@@ -343,7 +346,9 @@ if (! function_exists('config')) {
         }
 
         if (is_array($key)) {
-            return $config->set($key);
+            $config->set($key);
+
+            return null;
         }
 
         return $config->get($key, $default);
@@ -841,7 +846,7 @@ if (! function_exists('response')) {
      *
      * With no arguments, return the factory. Any argument, including null, creates a response.
      *
-     * @return ($content is null ? ResponseFactory : HypervelResponse)
+     * @return ($content is null ? HypervelResponse|ResponseFactory : HypervelResponse)
      */
     function response(mixed $content = null, int $status = 200, array $headers = []): ResponseFactory|HypervelResponse
     {
@@ -904,7 +909,9 @@ if (! function_exists('session')) {
         }
 
         if (is_array($key)) {
-            return $session->put($key);
+            $session->put($key);
+
+            return null;
         }
 
         return $session->get($key, $default);
@@ -1044,7 +1051,7 @@ if (! function_exists('validator')) {
      *
      * With no arguments, return the factory. Any argument, including null, creates a validator.
      *
-     * @return ($data is null ? ValidatorFactoryContract : ValidatorContract)
+     * @return ($data is null ? ValidatorContract|ValidatorFactoryContract : ValidatorContract)
      */
     function validator(?array $data = null, array $rules = [], array $messages = [], array $attributes = []): ValidatorContract|ValidatorFactoryContract
     {
@@ -1061,6 +1068,9 @@ if (! function_exists('validator')) {
 if (! function_exists('view')) {
     /**
      * Get the evaluated view contents for the given view.
+     *
+     * With no arguments, return the factory. Any argument makes a view, so an explicit
+     * null view name fails in make() rather than returning the factory.
      *
      * @return ($view is null ? ViewFactory : ViewContract)
      */

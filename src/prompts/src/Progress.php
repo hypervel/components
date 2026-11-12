@@ -89,6 +89,7 @@ class Progress extends Prompt
             if ($this->hint !== '') {
                 // Just pause for one moment to show the final hint
                 // so it doesn't look like it was skipped
+                // @phpstan-ignore hypervel.rawSleep (prompts does not depend on hypervel/support)
                 usleep(250_000);
             }
         } catch (Throwable $e) {
@@ -210,7 +211,7 @@ class Progress extends Prompt
         try {
             $this->restoreTerminalState();
         } catch (Throwable $exception) {
-            $failure ??= $exception;
+            $failure = Coroutine::preferCancellation($failure, $exception);
         }
 
         return $failure;

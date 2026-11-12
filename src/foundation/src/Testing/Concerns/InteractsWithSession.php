@@ -8,6 +8,8 @@ trait InteractsWithSession
 {
     /**
      * Set the session to the given array.
+     *
+     * @return $this
      */
     public function withSession(array $data): static
     {
@@ -18,6 +20,8 @@ trait InteractsWithSession
 
     /**
      * Set the session to the given array.
+     *
+     * @return $this
      */
     public function session(array $data): static
     {
@@ -33,6 +37,8 @@ trait InteractsWithSession
 
     /**
      * Start the session for the application.
+     *
+     * @return $this
      */
     protected function startSession(): static
     {
@@ -47,6 +53,8 @@ trait InteractsWithSession
 
     /**
      * Flush all of the current session data.
+     *
+     * @return $this
      */
     public function flushSession(): static
     {

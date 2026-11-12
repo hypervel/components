@@ -42,6 +42,15 @@ class ExtractTagTest extends FeatureTestCase
 
         $this->assertSame($tag, $extractedTag[0]);
     }
+
+    public function testExtractTagFromParentPrivateProperty(): void
+    {
+        $entry = EntryModelFactory::new()->create();
+
+        $extractedTags = ExtractTags::from(new DummyMailableWithInheritedData($entry));
+
+        $this->assertSame([FormatModel::given($entry)], $extractedTags);
+    }
 }
 
 class DummyMailableWithData extends Mailable
@@ -62,4 +71,8 @@ class DummyMailableWithData extends Mailable
                 'mailData' => $this->mailData,
             ]);
     }
+}
+
+class DummyMailableWithInheritedData extends DummyMailableWithData
+{
 }

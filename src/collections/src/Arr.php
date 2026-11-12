@@ -737,7 +737,7 @@ class Arr
     /**
      * Pluck an array of values from an array.
      */
-    public static function pluck(iterable $array, string|array|int|Closure|null $value, string|array|Closure|null $key = null): array
+    public static function pluck(iterable $array, string|array|int|Closure|null $value, string|array|int|Closure|null $key = null): array
     {
         $results = [];
 
@@ -772,21 +772,27 @@ class Arr
     /**
      * Explode the "value" and "key" arguments passed to "pluck".
      *
-     * @param array|Closure|string $value
-     * @param null|array|Closure|string $key
-     * @return array
+     * @return array{null|array<array-key, mixed>|Closure|int, null|array<array-key, mixed>|Closure|int}
      */
-    protected static function explodePluckParameters($value, $key)
+    protected static function explodePluckParameters(string|array|int|Closure|null $value, string|array|int|Closure|null $key): array
     {
         $value = is_string($value) ? explode('.', $value) : $value;
 
-        $key = is_null($key) || is_array($key) || $key instanceof Closure ? $key : explode('.', $key);
+        $key = is_null($key) || is_array($key) || is_int($key) || $key instanceof Closure ? $key : explode('.', $key);
 
         return [$value, $key];
     }
 
     /**
      * Run a map over each of the items in the array.
+     *
+     * @template TKey of array-key
+     * @template TValue
+     * @template TMapValue
+     *
+     * @param array<TKey, TValue> $array
+     * @param callable(TValue, TKey): TMapValue $callback
+     * @return array<TKey, TMapValue>
      */
     public static function map(array $array, callable $callback): array
     {
@@ -795,6 +801,7 @@ class Arr
         try {
             $items = array_map($callback, $array, $keys);
         } catch (ArgumentCountError) {
+            // @phpstan-ignore argument.type (only reached by callbacks that reject the key argument, such as internal functions)
             $items = array_map($callback, $array);
         }
 
@@ -806,13 +813,14 @@ class Arr
      *
      * The callback should return an associative array with a single key/value pair.
      *
-     * @template TKey
+     * @template TKey of array-key
      * @template TValue
      * @template TMapWithKeysKey of array-key
      * @template TMapWithKeysValue
      *
      * @param array<TKey, TValue> $array
      * @param callable(TValue, TKey): array<TMapWithKeysKey, TMapWithKeysValue> $callback
+     * @return array<TMapWithKeysKey, TMapWithKeysValue>
      */
     public static function mapWithKeys(array $array, callable $callback): array
     {

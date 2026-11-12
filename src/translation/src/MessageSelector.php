@@ -400,7 +400,7 @@ class MessageSelector
             case 'ar_SY':
             case 'ar_TN':
             case 'ar_YE':
-                return ((float) $number === 0.0) ? 0 : (((float) $number === 1.0) ? 1 : (((float) $number === 2.0) ? 2 : ((((int) $number % 100 >= 3) && ((int) $number % 100 <= 10)) ? 3 : ((((int) $number % 100 >= 11) && ((int) $number % 100 <= 99)) ? 4 : 5)))); // @phpstan-ignore smallerOrEqual.alwaysTrue
+                return ((float) $number === 0.0) ? 0 : (((float) $number === 1.0) ? 1 : (((float) $number === 2.0) ? 2 : ((((int) $number % 100 >= 3) && ((int) $number % 100 <= 10)) ? 3 : (((int) $number % 100 >= 11) ? 4 : 5)))); // Laravel also checks "<= 99", which a remainder of 100 always satisfies.
             default:
                 return 0;
         }

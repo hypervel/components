@@ -19,6 +19,7 @@ use Hypervel\Passport\Contracts\DeviceAuthorizationViewResponse;
 use Hypervel\Passport\Contracts\DeviceUserCodeViewResponse;
 use Hypervel\Passport\Contracts\OAuthenticatable;
 use Hypervel\Passport\Contracts\ServerSettingsResolver;
+use Hypervel\Passport\Guards\TokenGuard;
 use Hypervel\Passport\Http\Responses\SimpleViewResponse;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
@@ -667,7 +668,10 @@ class Passport
 
         CoroutineContext::set(ServerFactory::RESOURCE_SERVER_CONTEXT_KEY, $mock);
 
-        app('auth')->guard($guard)->setClient($client);
+        /** @var TokenGuard $passportGuard */
+        $passportGuard = app('auth')->guard($guard);
+
+        $passportGuard->setClient($client);
 
         app('auth')->shouldUse($guard);
 

@@ -96,7 +96,9 @@ trait HasAttributes
     /**
      * The attributes that should be cast.
      *
-     * @var array<string, string>
+     * A cast may be declared as [$cast, ...$arguments], which the model normalizes to a string when it is constructed.
+     *
+     * @var array<string, non-empty-list<int|string>|string>
      */
     protected array $casts = [];
 
@@ -179,6 +181,8 @@ trait HasAttributes
 
     /**
      * The accessors to append to the model's array form.
+     *
+     * @var array<string>
      */
     protected array $appends = [];
 
@@ -759,10 +763,12 @@ trait HasAttributes
      */
     protected function mutateAttributeForArray(string $key, mixed $value): mixed
     {
-        if ($this->isClassCastable($key)) {
+        // Unlike Laravel, an enum cast serializes through its get accessor, since instantiating the
+        // enum as a class cast throws. The accessor lookup also fills the read cache for this
+        // spelling, as cacheMutatedAttributes() keeps only snake case keys.
+        if (! $this->isEnumCastable($key) && $this->isClassCastable($key)) {
             $value = $this->getClassCastableAttributeValue($key, $value);
-        } elseif (isset(static::$getAttributeMutatorCache[get_class($this)][$key])
-                  && static::$getAttributeMutatorCache[get_class($this)][$key] === true) {
+        } elseif ($this->hasAttributeGetMutator($key)) {
             $value = $this->mutateAttributeMarkedAttribute($key, $value);
 
             $value = $value instanceof DateTimeInterface
@@ -777,6 +783,8 @@ trait HasAttributes
 
     /**
      * Merge new casts with existing casts on the model.
+     *
+     * @return $this
      */
     public function mergeCasts(array $casts): static
     {
@@ -1219,6 +1227,8 @@ trait HasAttributes
 
     /**
      * Set a given JSON attribute on the model.
+     *
+     * @return $this
      */
     public function fillJsonAttribute(string $key, mixed $value): static
     {
@@ -1396,7 +1406,7 @@ trait HasAttributes
     /**
      * Decode the given JSON back into an array or object.
      */
-    public function fromJson(?string $value, bool $asObject = false): mixed
+    public function fromJson(string|int|float|null $value, bool $asObject = false): mixed
     {
         if ($value === null || $value === '') {
             return null;
@@ -1455,7 +1465,6 @@ trait HasAttributes
             return Hash::make($value);
         }
 
-        /* @phpstan-ignore staticMethod.notFound */
         if (! Hash::verifyConfiguration($value)) {
             throw new RuntimeException("Could not verify the hashed value's configuration.");
         }
@@ -1554,7 +1563,6 @@ trait HasAttributes
         // that is returned back out to the developers after we convert it here.
         try {
             $date = Date::createFromFormat($format, $value);
-            // @phpstan-ignore catch.neverThrown (the Date facade's magic dispatch hides Carbon's @throws from analysis)
         } catch (InvalidFormatException) {
             $date = null;
         }
@@ -1621,6 +1629,8 @@ trait HasAttributes
 
     /**
      * Set the date format used by the model.
+     *
+     * @return $this
      */
     public function setDateFormat(string $format): static
     {
@@ -1661,7 +1671,7 @@ trait HasAttributes
     /**
      * Get the attributes that should be cast.
      *
-     * @return array<string, list<string>|string|Stringable>
+     * @return array<string, non-empty-list<int|string>|string|Stringable>
      */
     protected function casts(): array
     {
@@ -1746,7 +1756,9 @@ trait HasAttributes
 
         $castType = $this->parseCasterClass($casts[$key]);
 
-        if (in_array($castType, static::$primitiveCastTypes)) {
+        // Unlike Laravel, a primitive cast in another case, such as BOOLEAN, is primitive here too, as getCastType()
+        // normalizes it for reads, so writes do not throw.
+        if (in_array($castType, static::$primitiveCastTypes) || in_array($this->getCastType($key), static::$primitiveCastTypes)) {
             return $this->castMetadataCache['classCastable'][$key] = false;
         }
 
@@ -2090,6 +2102,8 @@ trait HasAttributes
 
     /**
      * Set the array of model attributes. No checking is done.
+     *
+     * @return $this
      */
     public function setRawAttributes(array $attributes, bool $sync = false): static
     {
@@ -2189,6 +2203,8 @@ trait HasAttributes
 
     /**
      * Sync the original attributes with the current.
+     *
+     * @return $this
      */
     public function syncOriginal(): static
     {
@@ -2199,6 +2215,8 @@ trait HasAttributes
 
     /**
      * Sync a single original attribute with its current value.
+     *
+     * @return $this
      */
     public function syncOriginalAttribute(string $attribute): static
     {
@@ -2209,6 +2227,7 @@ trait HasAttributes
      * Sync multiple original attribute with their current values.
      *
      * @param array<string>|string $attributes
+     * @return $this
      */
     public function syncOriginalAttributes(array|string $attributes): static
     {
@@ -2225,6 +2244,8 @@ trait HasAttributes
 
     /**
      * Sync the changed attributes.
+     *
+     * @return $this
      */
     public function syncChanges(): static
     {
@@ -2240,6 +2261,7 @@ trait HasAttributes
      * Sync the supplied changed attributes.
      *
      * @param array<string, mixed> $changes
+     * @return $this
      */
     private function syncChangesFrom(array $changes): static
     {
@@ -2279,6 +2301,8 @@ trait HasAttributes
 
     /**
      * Discard attribute changes and reset the attributes to their original state.
+     *
+     * @return $this
      */
     public function discardChanges(): static
     {
@@ -2488,7 +2512,7 @@ trait HasAttributes
     /**
      * Compare JSON values using the structure exposed by their cast.
      */
-    protected function jsonIsEquivalent(?string $attribute, ?string $original, bool $asObject): bool
+    protected function jsonIsEquivalent(string|int|float|null $attribute, string|int|float|null $original, bool $asObject): bool
     {
         $current = $this->fromJson($attribute, $asObject);
 
@@ -2546,6 +2570,7 @@ trait HasAttributes
      * Append attributes to query when building a query.
      *
      * @param array<string>|string $attributes
+     * @return $this
      */
     public function append(array|string $attributes): static
     {
@@ -2558,6 +2583,8 @@ trait HasAttributes
 
     /**
      * Get the accessors that are being appended to model arrays.
+     *
+     * @return array<string>
      */
     public function getAppends(): array
     {
@@ -2566,6 +2593,9 @@ trait HasAttributes
 
     /**
      * Set the accessors to append to model arrays.
+     *
+     * @param array<string> $appends
+     * @return $this
      */
     public function setAppends(array $appends): static
     {
@@ -2578,6 +2608,7 @@ trait HasAttributes
      * Merge new appended attributes with existing appended attributes on the model.
      *
      * @param array<string> $appends
+     * @return $this
      */
     public function mergeAppends(array $appends): static
     {
@@ -2600,6 +2631,8 @@ trait HasAttributes
 
     /**
      * Remove all appended properties from the model.
+     *
+     * @return $this
      */
     public function withoutAppends(): static
     {
@@ -2608,6 +2641,8 @@ trait HasAttributes
 
     /**
      * Get the mutated attributes for a given instance.
+     *
+     * @return list<string>
      */
     public function getMutatedAttributes(): array
     {
@@ -2665,6 +2700,6 @@ trait HasAttributes
             }
 
             return false;
-        })->map->name->values()->all(); // @phpstan-ignore method.nonObject (HigherOrderProxy: ->map->name returns Collection, not string)
+        })->map->name->values()->all();
     }
 }

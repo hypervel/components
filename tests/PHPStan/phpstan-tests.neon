@@ -1,0 +1,7 @@
+includes:
+    - ../../src/phpstan/extension.neon
+parameters:
+    bootstrapFiles:
+        - bootstrap.php
+    checkExplicitMixed: true
+

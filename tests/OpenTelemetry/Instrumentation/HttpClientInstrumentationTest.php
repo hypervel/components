@@ -304,7 +304,7 @@ class HttpClientInstrumentationTest extends TestCase
         $this->assertSame(RuntimeException::class, $point->attributes->get(ErrorAttributes::ERROR_TYPE));
     }
 
-    public function testPromiseCancellationPropagatesWithoutCompletionTelemetry(): void
+    public function testPromiseCancellationEndsTheSpanWithoutAnError(): void
     {
         $cancellation = new CanceledException;
         $this->factory->fake(static fn () => Create::rejectionFor($cancellation));
@@ -317,10 +317,16 @@ class HttpClientInstrumentationTest extends TestCase
             $this->assertSame($cancellation, $exception);
         }
 
-        $this->assertSame([], $this->spanExporter->getSpans());
+        $spans = $this->spanExporter->getSpans();
+        $this->assertCount(1, $spans);
+        $this->assertSame(StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode());
+        $this->assertNull($spans[0]->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
+        $this->assertNull($spans[0]->getAttributes()->get(HttpAttributes::HTTP_RESPONSE_STATUS_CODE));
+        $this->assertSame([], $spans[0]->getEvents());
         $this->metricReader->collect();
-        $this->assertSame([], $this->metric(HttpMetrics::HTTP_CLIENT_REQUEST_DURATION)->data->dataPoints);
-        $this->assertSame(2_000_000_000, $this->clock->timestamp);
+        $points = $this->metric(HttpMetrics::HTTP_CLIENT_REQUEST_DURATION)->data->dataPoints;
+        $this->assertCount(1, $points);
+        $this->assertNull($points[0]->attributes->get(ErrorAttributes::ERROR_TYPE));
     }
 
     #[TestWith([false], 'direct cancellation')]
@@ -350,16 +356,14 @@ class HttpClientInstrumentationTest extends TestCase
         $this->assertSame($cancellation, $caught);
         $this->assertSame(0, $physicalSends);
         $spans = $this->spanExporter->getSpans();
-        $this->assertCount($wrapped ? 1 : 0, $spans);
+        $this->assertCount(1, $spans);
 
-        if ($wrapped) {
-            // Cancellation stops the request, but its real cleanup failure remains observable.
-            $this->assertSame(StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
-            $this->assertSame(RuntimeException::class, $spans[0]->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
-        }
+        // Cancellation stops the request, but a real cleanup failure carrying it remains observable.
+        $this->assertSame($wrapped ? StatusCode::STATUS_ERROR : StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode());
+        $this->assertSame($wrapped ? RuntimeException::class : null, $spans[0]->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
 
         $this->metricReader->collect();
-        $this->assertCount($wrapped ? 1 : 0, $this->metric(HttpMetrics::HTTP_CLIENT_REQUEST_DURATION)->data->dataPoints);
+        $this->assertCount(1, $this->metric(HttpMetrics::HTTP_CLIENT_REQUEST_DURATION)->data->dataPoints);
     }
 
     public function testManualModeTracesOnlyMarkedRequestsWhileMetricsRemainIndependent(): void

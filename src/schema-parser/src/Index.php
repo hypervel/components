@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\SchemaParser;
 
-final readonly class Index
+readonly class Index
 {
     /**
      * Create an index definition.

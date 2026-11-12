@@ -7,6 +7,7 @@ namespace Hypervel\OpenTelemetry;
 use Closure;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\OpenTelemetry\Contracts\ExporterFactory;
 use Hypervel\OpenTelemetry\Contracts\Instrumentation;
@@ -148,13 +149,11 @@ class OpenTelemetryManager
             ->setAttributes($attributes)
             ->startSpan();
         $scope = $span->activate();
-        $cancelled = false;
 
         try {
             return $callback($span);
+            // @phpstan-ignore hypervel.cancellation.exactType (only a direct cancellation is not a failure; a cleanup failure carrying it is recorded as one)
         } catch (CanceledException $exception) {
-            $cancelled = true;
-
             throw $exception;
         } catch (Throwable $exception) {
             $context = Context::getCurrent();
@@ -169,10 +168,7 @@ class OpenTelemetryManager
             throw $exception;
         } finally {
             $scope->detach();
-
-            if (! $cancelled) {
-                $span->end();
-            }
+            $span->end();
         }
     }
 
@@ -362,7 +358,7 @@ class OpenTelemetryManager
                     }
                 } catch (Throwable $throwable) {
                     $success = false;
-                    $exception ??= $throwable;
+                    $exception = Coroutine::preferCancellation($exception, $throwable);
                 }
             }
         } finally {

@@ -20,8 +20,9 @@ use JsonSerializable;
  * @template TKey of array-key
  *
  * @template-covariant TValue
+ * @template-covariant TCollection of Collection = Collection<array-key, mixed>
  *
- * @extends AbstractCursorPaginator<TKey, TValue>
+ * @extends AbstractCursorPaginator<TKey, TValue, TCollection>
  *
  * @implements Arrayable<array<string, mixed>>
  * @implements ArrayAccess<TKey, TValue>
@@ -33,7 +34,9 @@ class CursorPaginator extends AbstractCursorPaginator implements Arrayable, Arra
     /**
      * Create a new paginator instance.
      *
-     * @param null|Arrayable<array<TKey, TValue>>|Collection<TKey, TValue>|iterable<TKey, TValue> $items
+     * The items are renumbered, so their keys do not decide TKey.
+     *
+     * @param null|Arrayable<array<array-key, TValue>>|Collection<array-key, TValue>|iterable<array-key, TValue> $items
      * @param array<string, mixed> $options (path, query, fragment, cursorName, parameters)
      */
     public function __construct(mixed $items, int $perPage, ?Cursor $cursor = null, array $options = [])
@@ -54,7 +57,7 @@ class CursorPaginator extends AbstractCursorPaginator implements Arrayable, Arra
     /**
      * Set the items for the paginator.
      *
-     * @param null|Arrayable<array<TKey, TValue>>|Collection<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param null|Arrayable<array<array-key, TValue>>|Collection<array-key, TValue>|iterable<array-key, TValue> $items
      */
     protected function setItems(mixed $items): void
     {

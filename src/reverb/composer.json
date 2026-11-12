@@ -58,8 +58,8 @@
         "hypervel/validation": "^0.4",
         "hypervel/websocket-server": "^0.4",
         "symfony/console": "^8.1.10",
-        "symfony/http-foundation": "^8.1",
-        "symfony/http-kernel": "^8.1"
+        "symfony/http-foundation": "^8.1.11",
+        "symfony/http-kernel": "^8.1.11"
     },
     "config": {
         "sort-packages": true

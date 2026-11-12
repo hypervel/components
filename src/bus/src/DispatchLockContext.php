@@ -118,7 +118,6 @@ class DispatchLockContext
         ?Closure $releaseContext = null,
     ): void {
         /** @var WeakMap<object, LockRecord> $records */
-        // @phpstan-ignore assign.propertyType (PHPStan rejects an empty WeakMap for this invariant closed-shape value.)
         $records = static::$records ??= new WeakMap;
         $record = $records[$job] ?? static::newRecord();
 
@@ -148,7 +147,6 @@ class DispatchLockContext
         ?Closure $releaseContext = null,
     ): void {
         /** @var WeakMap<object, LockRecord> $records */
-        // @phpstan-ignore assign.propertyType (PHPStan rejects an empty WeakMap for this invariant closed-shape value.)
         $records = static::$records ??= new WeakMap;
         $record = $records[$job] ?? static::newRecord();
         $record['debounce'] = compact('cache', 'key', 'owner');

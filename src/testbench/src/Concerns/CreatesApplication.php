@@ -9,6 +9,7 @@ use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Di\Bootstrap\GenerateProxies;
 use Hypervel\Foundation\Application;
@@ -28,6 +29,7 @@ use Hypervel\Http\Request;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Composer;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\RateLimiter;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
@@ -52,6 +54,7 @@ use Throwable;
 
 use function Hypervel\Testbench\after_resolving;
 use function Hypervel\Testbench\default_skeleton_path;
+use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\refresh_router_lookups;
 
 /**
@@ -268,6 +271,7 @@ trait CreatesApplication
             $this->resolveApplicationBindings($app);
             $this->resolveApplicationExceptionHandler($app);
             $this->resolveApplicationEnvironmentVariables($app);
+            $this->resolveApplicationComposerVendorDirectory();
             $app->make(ConfigureTerminalDimensions::class)->bootstrap($app);
             $this->resolveApplicationConfiguration($app);
 
@@ -394,13 +398,13 @@ trait CreatesApplication
      */
     protected function resolveApplicationEnvironmentVariables(ApplicationContract $app): void
     {
-        if (property_exists($this, 'loadEnvironmentVariables') && $this->loadEnvironmentVariables !== true) { /* @phpstan-ignore function.alreadyNarrowedType */
-            if ($this instanceof PHPUnitTestCase && method_exists($this, 'beforeApplicationDestroyed')) { /* @phpstan-ignore function.alreadyNarrowedType */
+        if (property_exists($this, 'loadEnvironmentVariables') && $this->loadEnvironmentVariables !== true) { /* @phpstan-ignore function.alreadyNarrowedType (not every class using this trait declares the property) */
+            if ($this instanceof PHPUnitTestCase && method_exists($this, 'beforeApplicationDestroyed')) {
                 $this->beforeApplicationDestroyed($this->maskInheritedApplicationEnvironment());
             }
         }
 
-        if (property_exists($this, 'loadEnvironmentVariables') && $this->loadEnvironmentVariables === true) { /* @phpstan-ignore function.alreadyNarrowedType */
+        if (property_exists($this, 'loadEnvironmentVariables') && $this->loadEnvironmentVariables === true) { /* @phpstan-ignore function.alreadyNarrowedType (not every class using this trait declares the property) */
             $app->make(LoadEnvironmentVariables::class)->bootstrap($app);
         }
 
@@ -417,11 +421,36 @@ trait CreatesApplication
             },
         );
 
-        if ($this instanceof PHPUnitTestCase && method_exists($this, 'beforeApplicationDestroyed')) { /* @phpstan-ignore function.alreadyNarrowedType */
+        if ($this instanceof PHPUnitTestCase && method_exists($this, 'beforeApplicationDestroyed')) {
             $this->beforeApplicationDestroyed(static function () use ($attributeCallbacks) {
                 $attributeCallbacks->reverse()->handle();
             });
         }
+    }
+
+    /**
+     * Make a relative COMPOSER_VENDOR_DIR from the application environment absolute.
+     *
+     * Child processes such as the skeleton's artisan resolve a relative value against
+     * their own base path rather than the package root. Bootstrapper already exported
+     * an inherited value; rewriting a loaded one through the repository keeps its
+     * putenv setting and restoration.
+     *
+     * @internal
+     */
+    protected function resolveApplicationComposerVendorDirectory(): void
+    {
+        $repository = Env::getRepository();
+        $vendorPath = $repository->get('COMPOSER_VENDOR_DIR');
+
+        if ($vendorPath === null || $vendorPath === '' || str_starts_with($vendorPath, '/')) {
+            return;
+        }
+
+        $vendorPath = Composer::vendorPath(package_path());
+
+        $repository->clear('COMPOSER_VENDOR_DIR');
+        $repository->set('COMPOSER_VENDOR_DIR', $vendorPath);
     }
 
     /**
@@ -553,8 +582,8 @@ trait CreatesApplication
         TestingFeature::run(
             testCase: $this,
             attribute: function () use ($app) {
-                $this->parseTestMethodAttributes($app, ResolvesHypervel::class); /* @phpstan-ignore method.notFound */
-                $this->parseTestMethodAttributes($app, UsesFrameworkConfiguration::class); /* @phpstan-ignore method.notFound */
+                $this->parseTestMethodAttributes($app, ResolvesHypervel::class); /* @phpstan-ignore method.notFound (provided by HandlesAttributes, which TestingFeature::run() checks) */
+                $this->parseTestMethodAttributes($app, UsesFrameworkConfiguration::class); /* @phpstan-ignore method.notFound (provided by HandlesAttributes, which TestingFeature::run() checks) */
             },
         );
 
@@ -591,7 +620,7 @@ trait CreatesApplication
 
         TestingFeature::run(
             testCase: $this,
-            attribute: fn () => $this->parseTestMethodAttributes($app, WithConfig::class), /* @phpstan-ignore method.notFound */
+            attribute: fn () => $this->parseTestMethodAttributes($app, WithConfig::class), /* @phpstan-ignore method.notFound (provided by HandlesAttributes, which TestingFeature::run() checks) */
         );
     }
 
@@ -689,13 +718,13 @@ trait CreatesApplication
         TestingFeature::run(
             testCase: $this,
             default: fn () => $this->defineEnvironment($app),
-            attribute: fn () => $this->parseTestMethodAttributes($app, DefineEnvironment::class), /* @phpstan-ignore method.notFound */
+            attribute: fn () => $this->parseTestMethodAttributes($app, DefineEnvironment::class), /* @phpstan-ignore method.notFound (provided by HandlesAttributes, which TestingFeature::run() checks) */
         );
 
         $this->resolveApplicationRateLimiting($app);
 
         if (static::usesTestingConcern(WithWorkbench::class)) {
-            $this->bootDiscoverRoutesForWorkbench($app); /* @phpstan-ignore method.notFound */
+            $this->bootDiscoverRoutesForWorkbench($app); /* @phpstan-ignore method.notFound (provided by WithWorkbench, checked above) */
         }
 
         // Keep this after proxy generation because resolving db loads classes an aspect
@@ -794,7 +823,7 @@ trait CreatesApplication
     }
 
     /**
-     * Terminate and flush an application, preserving the first cleanup failure.
+     * Terminate and flush an application, returning any cleanup failure.
      */
     protected static function terminateAndFlushApplication(ApplicationContract $app): ?Throwable
     {
@@ -811,7 +840,7 @@ trait CreatesApplication
         try {
             $app->flush();
         } catch (Throwable $throwable) {
-            $failure ??= $throwable;
+            $failure = Coroutine::preferCancellation($failure, $throwable);
         }
 
         return $failure;

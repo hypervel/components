@@ -26,7 +26,6 @@ use Hypervel\Grpc\Protocol\ServiceMethod;
 use Hypervel\Grpc\StatusCode;
 use InvalidArgumentException;
 use LogicException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 abstract class BaseClient
@@ -241,20 +240,13 @@ abstract class BaseClient
         $this->connections = [];
         $this->retiringConnections = [];
         $failure = null;
-        $cancellation = null;
 
         foreach ($connections as $connection) {
             try {
                 $connection->close();
-            } catch (CanceledException $exception) {
-                $cancellation ??= $exception;
             } catch (Throwable $throwable) {
-                $failure ??= $throwable;
+                $failure = Coroutine::preferCancellation($failure, $throwable);
             }
-        }
-
-        if ($cancellation !== null) {
-            throw $cancellation;
         }
 
         if ($failure !== null) {
@@ -503,10 +495,6 @@ abstract class BaseClient
 
             return [$state, $connection];
         } catch (Throwable $throwable) {
-            if (Coroutine::causedByCancellation($throwable)) {
-                throw $throwable;
-            }
-
             $operationHandle?->finish(new GrpcOperationResult(
                 $throwable instanceof RpcException ? $throwable->status() : null,
                 $throwable,

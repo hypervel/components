@@ -92,7 +92,7 @@ class WorkCommand extends Command
     public function handle(): ?int
     {
         if ($this->downForMaintenance() && $this->option('once')) {
-            return $this->worker->sleep((float) $this->option('sleep')); // @phpstan-ignore method.void
+            return $this->worker->sleep((float) $this->option('sleep')); // @phpstan-ignore method.void (returns the void call's null, as upstream)
         }
 
         // We'll listen to the processed and failed events so we can write information

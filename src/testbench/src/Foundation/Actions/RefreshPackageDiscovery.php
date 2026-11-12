@@ -21,12 +21,13 @@ final class RefreshPackageDiscovery
     {
         $filesystem = new Filesystem;
 
-        $cachedPath = $app->bootstrapPath('cache/packages.php');
+        $manifest = $app->make(PackageManifest::class);
+        $cachedPath = $manifest->manifestPath;
 
-        if ($filesystem->exists($cachedPath) && ! $filesystem->delete($cachedPath)) {
+        if ($cachedPath !== null && $filesystem->exists($cachedPath) && ! $filesystem->delete($cachedPath)) {
             throw new RuntimeException("Unable to delete package manifest [{$cachedPath}].");
         }
 
-        $app->make(PackageManifest::class)->build();
+        $manifest->build();
     }
 }

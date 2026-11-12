@@ -62,6 +62,7 @@ class PurgeSkeletonCommand extends Command
 
         ['files' => $files, 'directories' => $directories] = $config->getPurgeAttributes();
 
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (selects the environment file to delete)
         $environmentFile = Env::get('TESTBENCH_ENVIRONMENT_FILENAME', '.env');
 
         $run(fn () => (new Actions\DeleteFiles(

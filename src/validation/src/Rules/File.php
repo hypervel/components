@@ -17,6 +17,7 @@ use Hypervel\Validation\Rules\Concerns\ClonesCustomRules;
 use InvalidArgumentException;
 use Stringable;
 
+// @phpstan-ignore class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
 class File implements Rule, DataAwareRule, ValidatorAwareRule
 {
     use Conditionable;
@@ -144,6 +145,8 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Limit the uploaded file to the given file extensions.
+     *
+     * @return $this
      */
     public function extensions(array|string $extensions): static
     {
@@ -154,6 +157,8 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Indicate that the uploaded file should be exactly a certain size in kilobytes.
+     *
+     * @return $this
      */
     public function size(int|string $size): static
     {
@@ -165,6 +170,8 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Indicate that the uploaded file should be between a minimum and maximum size in kilobytes.
+     *
+     * @return $this
      */
     public function between(int|string $minSize, int|string $maxSize): static
     {
@@ -176,6 +183,8 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Indicate that the uploaded file should be no less than the given number of kilobytes.
+     *
+     * @return $this
      */
     public function min(int|string $size): static
     {
@@ -186,6 +195,8 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Indicate that the uploaded file should be no more than the given number of kilobytes.
+     *
+     * @return $this
      */
     public function max(int|string $size): static
     {
@@ -196,6 +207,8 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Indicate that the uploaded file should be in the given encoding.
+     *
+     * @return $this
      */
     public function encoding(string $encoding): static
     {
@@ -232,6 +245,8 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Specify additional validation rules that should be merged with the default rules during validation.
+     *
+     * @return $this
      */
     public function rules(array|string|Stringable $rules): static
     {
@@ -250,8 +265,8 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
         $validator = Validator::make(
             $this->data,
             [$attribute => $this->buildValidationRules()],
-            $this->validator->customMessages, // @phpstan-ignore property.notFound
-            $this->validator->customAttributes // @phpstan-ignore property.notFound
+            $this->validator->customMessages, // @phpstan-ignore property.notFound (public property of the framework Validator)
+            $this->validator->customAttributes // @phpstan-ignore property.notFound (public property of the framework Validator)
         );
 
         if ($validator->fails()) {
@@ -338,6 +353,8 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Set the current validator.
+     *
+     * @return $this
      */
     public function setValidator(ValidatorContract $validator): static
     {
@@ -348,6 +365,8 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Set the current data under validation.
+     *
+     * @return $this
      */
     public function setData(array $data): static
     {

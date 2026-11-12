@@ -1,0 +1,106 @@
+<?php
+
+namespace Hypervel\Database\Eloquent\Factories;
+
+use Hypervel\Database\Eloquent\Model;
+
+/*
+ * A stub's docblock replaces the source's, so each method's docblock repeats the source and adds only
+ * analyzer-only types. Keep them in sync with the source. Native signatures repeat the source too, except
+ * return types naming a collection, which stub validation cannot declare; their docblocks type them.
+ *
+ * Unlike the source, the class docblock omits `@method $this trashed()`: __call() supports trashed() only
+ * for a soft-deleting model, and ModelFactoryMethodsClassReflectionExtension declares it for those.
+ */
+
+/**
+ * @template TModel of Model
+ */
+abstract class Factory
+{
+    /**
+     * Define the model's default state.
+     *
+     * @return array<model-property<TModel>, mixed>
+     */
+    abstract public function definition(): array;
+
+    /**
+     * Get a new factory instance for the given attributes.
+     *
+     * @param array<model-property<TModel>, mixed>|(callable(array<string, mixed>): array<string, mixed>) $attributes
+     */
+    public static function new(callable|array $attributes = []): static;
+
+    /**
+     * Create a single model and persist it to the database.
+     *
+     * @param array<model-property<TModel>, mixed>|(callable(array<string, mixed>): array<string, mixed>) $attributes
+     * @return TModel
+     */
+    public function createOne(callable|array $attributes = []): Model;
+
+    /**
+     * Create a single model and persist it to the database without dispatching any model events.
+     *
+     * @param array<model-property<TModel>, mixed>|(callable(array<string, mixed>): array<string, mixed>) $attributes
+     * @return TModel
+     */
+    public function createOneQuietly(callable|array $attributes = []): Model;
+
+    /**
+     * Create a collection of models and persist them to the database.
+     *
+     * @param null|int|iterable<int, array<model-property<TModel>, mixed>> $records
+     * @return collection-of<int, TModel>
+     */
+    public function createMany(int|iterable|null $records = null);
+
+    /**
+     * Create a collection of models and persist them to the database without dispatching any model events.
+     *
+     * @param null|int|iterable<int, array<model-property<TModel>, mixed>> $records
+     * @return collection-of<int, TModel>
+     */
+    public function createManyQuietly(int|iterable|null $records = null);
+
+    /**
+     * Create a collection of models and persist them to the database.
+     *
+     * @param array<model-property<TModel>, mixed>|(callable(array<string, mixed>): array<string, mixed>) $attributes
+     * @return collection-of<int, TModel>|TModel
+     */
+    public function create(callable|array $attributes = [], ?Model $parent = null);
+
+    /**
+     * Create a collection of models and persist them to the database without dispatching any model events.
+     *
+     * @param array<model-property<TModel>, mixed>|(callable(array<string, mixed>): array<string, mixed>) $attributes
+     * @return collection-of<int, TModel>|TModel
+     */
+    public function createQuietly(callable|array $attributes = [], ?Model $parent = null);
+
+    /**
+     * Make a single instance of the model.
+     *
+     * @param array<model-property<TModel>, mixed>|(callable(array<string, mixed>): array<string, mixed>) $attributes
+     * @return TModel
+     */
+    public function makeOne(callable|array $attributes = []): Model;
+
+    /**
+     * Create a collection of models.
+     *
+     * @param array<model-property<TModel>, mixed>|(callable(array<string, mixed>): array<string, mixed>) $attributes
+     * @return collection-of<int, TModel>|TModel
+     */
+    public function make(callable|array $attributes = [], ?Model $parent = null);
+
+    /**
+     * Create a collection of models.
+     *
+     * @param null|int|iterable<int, array<model-property<TModel>, mixed>> $records
+     * @return collection-of<int, TModel>
+     */
+    public function makeMany(iterable|int|null $records = null);
+}

@@ -106,7 +106,7 @@ class ResendTransport extends AbstractTransport
         }
 
         try {
-            $result = $this->resend->emails->send([ // @phpstan-ignore property.notFound
+            $result = $this->resend->emails->send([ // @phpstan-ignore property.notFound (Resend's client resolves services through __get)
                 'from' => $envelope->getSender()->toString(),
                 'to' => $this->stringifyAddresses($this->getRecipients($email, $envelope)),
                 'cc' => $this->stringifyAddresses($email->getCc()),

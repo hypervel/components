@@ -146,20 +146,7 @@ class Parallel
                     } else {
                         $coroutineIds[] = Coroutine::forkOwned($childCallable, $wrapper, is_array($this->copyContext) ? $this->copyContext : []);
                     }
-                } catch (CanceledException $exception) {
-                    if (! $started) {
-                        if ($slotAcquired) {
-                            $this->concurrentChannel?->pop();
-                        }
-
-                        $waitGroup->done();
-                    }
-
-                    throw $exception;
                 } catch (Throwable $throwable) {
-                    $throwables[$key] = $throwable;
-                    unset($results[$key]);
-
                     // Once the child starts, its finally block exclusively owns both releases.
                     if (! $started) {
                         if ($slotAcquired) {
@@ -168,6 +155,13 @@ class Parallel
 
                         $waitGroup->done();
                     }
+
+                    if (Coroutine::causedByCancellation($throwable)) {
+                        throw $throwable;
+                    }
+
+                    $throwables[$key] = $throwable;
+                    unset($results[$key]);
                 }
             }
 
@@ -181,9 +175,13 @@ class Parallel
                     throw new CanceledException('Waiting for parallel child coroutines was canceled.');
                 }
             }
-        } catch (CanceledException $exception) {
-            $this->cancelChildren($children);
-            throw $exception;
+        } catch (Throwable $throwable) {
+            // Context copying can wrap the cancellation after earlier children started.
+            if (Coroutine::causedByCancellation($throwable)) {
+                $this->cancelChildren($children);
+            }
+
+            throw $throwable;
         }
 
         $this->results = $results;

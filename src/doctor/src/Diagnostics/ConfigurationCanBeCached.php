@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Doctor\Diagnostics;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Doctor\Diagnostic;
 use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
 use Hypervel\Support\Arr;
 use LogicException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class ConfigurationCanBeCached extends Diagnostic
@@ -42,9 +42,11 @@ class ConfigurationCanBeCached extends Diagnostic
     {
         try {
             $this->cacheConfiguration();
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             return $this->fail('cannot-cache')
                 ->withDetails($e->getMessage());
         }
@@ -59,9 +61,11 @@ class ConfigurationCanBeCached extends Diagnostic
     {
         try {
             eval('return ' . var_export(config()->all(), true) . ';');
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             throw $this->serializationException($e);
         }
     }
@@ -74,9 +78,11 @@ class ConfigurationCanBeCached extends Diagnostic
         foreach (Arr::dot(config()->all()) as $key => $value) {
             try {
                 eval('return ' . var_export($value, true) . ';');
-            } catch (CanceledException $exception) {
-                throw $exception;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 return new LogicException(
                     sprintf('The configuration value at [%s] is not serializable: %s', $key, $exception->getMessage()),
                     0,

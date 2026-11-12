@@ -21,7 +21,6 @@ use Hypervel\Routing\Router;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 use InvalidArgumentException;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -177,19 +176,21 @@ class Kernel implements KernelContract
             }
 
             return $response;
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             // Keep the original in flight while it is handled, so a failure in
             // reporting or rendering carries it as that failure's previous. The
             // return suppresses it once a response exists.
             try {
-                /* @phpstan-ignore finally.exitPoint */
+                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 throw $e;
             } finally {
                 $this->reportException($e);
 
-                /* @phpstan-ignore finally.exitPoint */
+                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 return $this->renderException($request, $e);
             }
         }

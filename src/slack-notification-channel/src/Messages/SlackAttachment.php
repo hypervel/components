@@ -105,6 +105,8 @@ class SlackAttachment
 
     /**
      * Set the title of the attachment.
+     *
+     * @return $this
      */
     public function title(string $title, ?string $url = null): static
     {
@@ -116,6 +118,8 @@ class SlackAttachment
 
     /**
      * Set the pretext of the attachment.
+     *
+     * @return $this
      */
     public function pretext(string $pretext): static
     {
@@ -126,6 +130,8 @@ class SlackAttachment
 
     /**
      * Set the content (text) of the attachment.
+     *
+     * @return $this
      */
     public function content(string $content): static
     {
@@ -136,6 +142,8 @@ class SlackAttachment
 
     /**
      * A plain-text summary of the attachment.
+     *
+     * @return $this
      */
     public function fallback(string $fallback): static
     {
@@ -146,6 +154,8 @@ class SlackAttachment
 
     /**
      * Set the color of the attachment.
+     *
+     * @return $this
      */
     public function color(string $color): static
     {
@@ -156,6 +166,8 @@ class SlackAttachment
 
     /**
      * Add a field to the attachment.
+     *
+     * @return $this
      */
     public function field(Closure|string $title, string $content = ''): static
     {
@@ -177,6 +189,8 @@ class SlackAttachment
 
     /**
      * Set the fields of the attachment.
+     *
+     * @return $this
      */
     public function fields(array $fields): static
     {
@@ -187,6 +201,8 @@ class SlackAttachment
 
     /**
      * Set the fields containing markdown.
+     *
+     * @return $this
      */
     public function markdown(array $fields): static
     {
@@ -197,6 +213,8 @@ class SlackAttachment
 
     /**
      * Set the image URL.
+     *
+     * @return $this
      */
     public function image(string $url): static
     {
@@ -207,6 +225,8 @@ class SlackAttachment
 
     /**
      * Set the URL to the attachment thumbnail.
+     *
+     * @return $this
      */
     public function thumb(string $url): static
     {
@@ -217,6 +237,8 @@ class SlackAttachment
 
     /**
      * Add an action (button) under the attachment.
+     *
+     * @return $this
      */
     public function action(string $title, string $url, string $style = ''): static
     {
@@ -232,6 +254,8 @@ class SlackAttachment
 
     /**
      * Set the author of the attachment.
+     *
+     * @return $this
      */
     public function author(string $name, ?string $link = null, ?string $icon = null): static
     {
@@ -244,6 +268,8 @@ class SlackAttachment
 
     /**
      * Set the footer content.
+     *
+     * @return $this
      */
     public function footer(string $footer): static
     {
@@ -254,6 +280,8 @@ class SlackAttachment
 
     /**
      * Set the footer icon.
+     *
+     * @return $this
      */
     public function footerIcon(string $icon): static
     {
@@ -264,6 +292,8 @@ class SlackAttachment
 
     /**
      * Set the timestamp a DateTimeInterface, DateInterval, or the number of seconds that should be added to the current time.
+     *
+     * @return $this
      */
     public function timestamp(DateInterval|DateTimeInterface|int $timestamp): static
     {
@@ -274,6 +304,8 @@ class SlackAttachment
 
     /**
      * Set the callback ID.
+     *
+     * @return $this
      */
     public function callbackId(string $callbackId): static
     {

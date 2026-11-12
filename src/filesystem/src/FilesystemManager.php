@@ -371,6 +371,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Create an instance of the local driver.
+     *
+     * @return LocalFilesystemAdapter
      */
     public function createLocalDriver(array $config, string $name = 'local'): Filesystem
     {
@@ -405,6 +407,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Create an instance of the ftp driver.
+     *
+     * @return FilesystemAdapter
      */
     public function createFtpDriver(array $config): Filesystem
     {
@@ -422,6 +426,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Create an instance of the sftp driver.
+     *
+     * @return FilesystemAdapter
      */
     public function createSftpDriver(array $config): Filesystem
     {
@@ -445,6 +451,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Create an instance of the Amazon S3 driver.
+     *
+     * @return AwsS3V3Adapter
      */
     public function createS3Driver(array $config): Cloud
     {
@@ -456,6 +464,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Create an instance of the read-through driver.
+     *
+     * @return ReadThroughFilesystem
      */
     public function createReadThroughDriver(array $config, string $name = 'read-through'): Filesystem
     {
@@ -669,6 +679,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Create an instance of the Google Cloud Storage driver.
+     *
+     * @return GoogleCloudStorageAdapter
      */
     public function createGcsDriver(array $config): Cloud
     {
@@ -978,6 +990,8 @@ class FilesystemManager implements FactoryContract
      * coroutines may already hold a reference to the prior disk and next
      * resolution will return the replacement. Any shared pool remains
      * available until its idle TTL expires or purge() invalidates it.
+     *
+     * @return $this
      */
     public function set(UnitEnum|string $name, mixed $disk): static
     {
@@ -1025,6 +1039,7 @@ class FilesystemManager implements FactoryContract
      * TTL expires or purge() deliberately invalidates them.
      *
      * @param array<string|UnitEnum>|string|UnitEnum $disk
+     * @return $this
      */
     public function forgetDisk(UnitEnum|array|string $disk): static
     {
@@ -1097,6 +1112,8 @@ class FilesystemManager implements FactoryContract
      *
      * Tests only. Swaps the singleton's container reference; per-request use
      * races across coroutines and breaks every concurrent filesystem operation.
+     *
+     * @return $this
      */
     public function setApplication(Container $app): static
     {

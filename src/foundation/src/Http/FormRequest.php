@@ -184,6 +184,7 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
                 }
             }
 
+            // @phpstan-ignore hypervel.staticStateMutation (per-class attribute metadata, the same for every request and bounded by the form request classes)
             static::$attributeConfiguration[$class] = $config;
         }
 
@@ -332,7 +333,7 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
      * Get a validated input container for the validated input.
      *
      * @param null|array<int, string> $keys
-     * @return ($keys is array ? array<string, mixed> : ValidatedInput)
+     * @return ($keys is array ? array<array-key, mixed> : ValidatedInput)
      *
      * @throws ValidationException
      */
@@ -347,6 +348,8 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
 
     /**
      * Get the validated data from the request.
+     *
+     * @return ($key is null ? array<array-key, mixed> : mixed)
      */
     public function validated(array|int|string|null $key = null, mixed $default = null): mixed
     {
@@ -415,6 +418,8 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
 
     /**
      * Set the Validator instance.
+     *
+     * @return $this
      */
     public function setValidator(Validator $validator): static
     {
@@ -425,6 +430,8 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
 
     /**
      * Set the Redirector instance.
+     *
+     * @return $this
      */
     public function setRedirector(Redirector $redirector): static
     {
@@ -435,6 +442,8 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
 
     /**
      * Set the container implementation.
+     *
+     * @return $this
      */
     public function setContainer(Container $container): static
     {

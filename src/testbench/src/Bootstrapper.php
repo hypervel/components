@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench;
 
-use Composer\InstalledVersions;
 use FilesystemIterator;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Composer;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Env;
@@ -33,9 +33,16 @@ class Bootstrapper
     protected static ?string $runtimePath = null;
 
     /**
-     * Bootstrap the testbench environment.
+     * The skeleton directory the runtime copy was made from.
      */
-    public static function bootstrap(): void
+    protected static ?string $runtimeSourcePath = null;
+
+    /**
+     * Bootstrap the testbench environment.
+     *
+     * @param null|string $configurationPath the directory to load testbench.yaml from, instead of resolveConfigurationPath()
+     */
+    public static function bootstrap(?string $configurationPath = null): void
     {
         $workingPath = defined('TESTBENCH_WORKING_PATH') ? TESTBENCH_WORKING_PATH : package_path();
 
@@ -43,7 +50,9 @@ class Bootstrapper
             define('TESTBENCH_WORKING_PATH', $workingPath);
         }
 
-        static::loadConfigFromYaml(static::resolveConfigurationPath($workingPath));
+        static::exportAbsoluteComposerVendorDirectory($workingPath);
+
+        static::loadConfigFromYaml($configurationPath ?? static::resolveConfigurationPath($workingPath));
 
         if (defined('BASE_PATH')) {
             return;
@@ -108,6 +117,17 @@ class Bootstrapper
     }
 
     /**
+     * Get the skeleton directory the runtime copy created by this process was made from.
+     *
+     * Static analysis tracks a copied file through its skeleton source, because the copy is
+     * deleted when the process exits.
+     */
+    public static function runtimeSourcePath(): ?string
+    {
+        return static::$runtimeSourcePath;
+    }
+
+    /**
      * Determine if the given path is a disposable runtime copy.
      *
      * A remote child may borrow its parent's copy; the parent reports that when it
@@ -139,6 +159,7 @@ class Bootstrapper
      */
     public static function explicitApplicationBasePath(): ?string
     {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the base path is needed before the application exists)
         $basePath = $_ENV['APP_BASE_PATH'] ?? $_SERVER['APP_BASE_PATH'] ?? Env::get('APP_BASE_PATH');
 
         return is_string($basePath) && $basePath !== '' ? $basePath : null;
@@ -187,7 +208,7 @@ class Bootstrapper
             return $workingPath;
         }
 
-        return InstalledVersions::getRootPackage()['name'] === 'hypervel/components'
+        return Composer::rootPackage()['name'] === 'hypervel/components'
             ? testbench_path()
             : $workingPath;
     }
@@ -204,6 +225,29 @@ class Bootstrapper
         }
 
         return false;
+    }
+
+    /**
+     * Make a relative COMPOSER_VENDOR_DIR absolute against the package root.
+     *
+     * Applications run from a runtime copy or skeleton, including child processes that
+     * inherit this environment such as the skeleton's artisan, resolve a relative value
+     * against their own base path rather than the package root.
+     */
+    protected static function exportAbsoluteComposerVendorDirectory(string $workingPath): void
+    {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (Composer sets this in the process environment)
+        $vendorPath = Env::get('COMPOSER_VENDOR_DIR');
+
+        if (! is_string($vendorPath) || $vendorPath === '' || str_starts_with($vendorPath, '/')) {
+            return;
+        }
+
+        $vendorPath = Composer::vendorPath($workingPath);
+
+        putenv("COMPOSER_VENDOR_DIR={$vendorPath}");
+        $_ENV['COMPOSER_VENDOR_DIR'] = $vendorPath;
+        $_SERVER['COMPOSER_VENDOR_DIR'] = $vendorPath;
     }
 
     /**
@@ -242,7 +286,7 @@ class Bootstrapper
                 throw new RuntimeException("Unable to create runtime path [{$runtimePath}].");
             }
 
-            if (! static::copySkeleton($filesystem, $sourcePath, $runtimePath, join_paths($workingPath, 'vendor'))) {
+            if (! static::copySkeleton($filesystem, $sourcePath, $runtimePath, Composer::vendorPath($workingPath))) {
                 throw new RuntimeException("Unable to create the Testbench runtime copy at [{$runtimePath}].");
             }
 
@@ -275,6 +319,7 @@ class Bootstrapper
         }
 
         static::$runtimePath = $runtimePath;
+        static::$runtimeSourcePath = $sourcePath;
 
         register_shutdown_function(static function () use ($pid): void {
             // A forked child inherits this callback but owns no runtime copy.
@@ -412,6 +457,7 @@ class Bootstrapper
      */
     protected static function testbenchEnvironmentFile(): string
     {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (selects the environment file before it loads)
         $environmentFile = Env::get('TESTBENCH_ENVIRONMENT_FILENAME', '.env');
 
         return is_string($environmentFile) && $environmentFile !== ''
@@ -452,6 +498,7 @@ class Bootstrapper
         static::deleteRuntimeDirectory(static::$runtimePath);
 
         static::$runtimePath = null;
+        static::$runtimeSourcePath = null;
     }
 
     /**
@@ -689,7 +736,7 @@ class Bootstrapper
     public static function flushState(): void
     {
         static::$configuration = null;
-        // The runtime path and filesystem are process-wide infrastructure:
+        // The runtime paths and filesystem are process-wide infrastructure:
         // runtimePath must survive until shutdown cleanup, and Filesystem is reusable.
     }
 }

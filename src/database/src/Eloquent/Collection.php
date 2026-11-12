@@ -14,6 +14,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
 use LogicException;
 use Override;
+use Stringable;
 
 /**
  * @template TKey of array-key
@@ -107,7 +108,11 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationships onto the collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string  $relations
+     * @phpstan-param  eager-loads<TModel, TRelations>|string  $relations
+     * @return $this
      */
     public function load(array|string $relations): static
     {
@@ -127,7 +132,11 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of aggregations over relationship's column onto the collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @phpstan-param  relation-aggregates<TModel, TRelations>|string  $relations
+     * @return $this
      *
      * @throws MissingAttributeException
      */
@@ -155,7 +164,7 @@ class Collection extends BaseCollection implements QueueableCollection
         $models = $model->newModelQuery()
             ->whereKey(array_values($modelKeys))
             ->select($keyName)
-            ->withAggregate($relations, $column, $function) // @phpstan-ignore method.notFound (withAggregate is on Eloquent\Builder; PHPStan loses type through chain)
+            ->withAggregate($relations, $column, $function)
             ->get();
 
         if ($models->isEmpty()) {
@@ -189,7 +198,11 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship counts onto the collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @phpstan-param  relation-aggregates<TModel, TRelations>|string  $relations
+     * @return $this
      */
     public function loadCount(array|string $relations): static
     {
@@ -199,7 +212,11 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship's max column values onto the collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @phpstan-param  relation-aggregates<TModel, TRelations>|string  $relations
+     * @return $this
      */
     public function loadMax(array|string $relations, Expression|string $column): static
     {
@@ -209,7 +226,11 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship's min column values onto the collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @phpstan-param  relation-aggregates<TModel, TRelations>|string  $relations
+     * @return $this
      */
     public function loadMin(array|string $relations, Expression|string $column): static
     {
@@ -219,7 +240,11 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship's column summations onto the collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @phpstan-param  relation-aggregates<TModel, TRelations>|string  $relations
+     * @return $this
      */
     public function loadSum(array|string $relations, Expression|string $column): static
     {
@@ -229,7 +254,11 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship's average column values onto the collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @phpstan-param  relation-aggregates<TModel, TRelations>|string  $relations
+     * @return $this
      */
     public function loadAvg(array|string $relations, Expression|string $column): static
     {
@@ -239,7 +268,11 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of related existences onto the collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string  $relations
+     * @phpstan-param  relation-aggregates<TModel, TRelations>|string  $relations
+     * @return $this
      */
     public function loadExists(array|string $relations): static
     {
@@ -249,7 +282,11 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationships onto the collection if they are not already eager loaded.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string  $relations
+     * @phpstan-param  eager-loads<TModel, TRelations>|string  $relations
+     * @return $this
      */
     public function loadMissing(array|string $relations): static
     {
@@ -351,7 +388,11 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationships onto the mixed relationship collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string>  $relations
+     * @phpstan-param  morph-eager-loads<TRelations>  $relations
+     * @return $this
      */
     public function loadMorph(string $relation, array $relations): static
     {
@@ -368,7 +409,11 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship counts onto the mixed relationship collection.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param  array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string>  $relations
+     * @phpstan-param  morph-aggregates<TRelations>  $relations
+     * @return $this
      */
     public function loadMorphCount(string $relation, array $relations): static
     {
@@ -462,7 +507,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @template TMapValue
      *
      * @param callable(TModel, TKey): TMapValue $callback
-     * @return BaseCollection<TKey, TMapValue>|static<TKey, TMapValue>
+     * @return (array{TMapValue} is array{Model} ? static<TKey, Model&TMapValue> : BaseCollection<TKey, TMapValue>)
      */
     #[Override]
     public function map(callable $callback): BaseCollection
@@ -482,7 +527,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @template TMapWithKeysValue
      *
      * @param callable(TModel, TKey): array<TMapWithKeysKey, TMapWithKeysValue> $callback
-     * @return BaseCollection<TMapWithKeysKey, TMapWithKeysValue>|static<TMapWithKeysKey, TMapWithKeysValue>
+     * @return (array{TMapWithKeysValue} is array{Model} ? static<TMapWithKeysKey, Model&TMapWithKeysValue> : BaseCollection<TMapWithKeysKey, TMapWithKeysValue>)
      */
     #[Override]
     public function mapWithKeys(callable $callback): BaseCollection
@@ -496,7 +541,10 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Reload a fresh model instance from the database for all the entities.
      *
+     * @phpstan-template TRelations of array
+     *
      * @param array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string $with
+     * @phpstan-param eager-loads<TModel, TRelations>|string $with
      *
      * @throws MissingAttributeException
      */
@@ -532,7 +580,7 @@ class Collection extends BaseCollection implements QueueableCollection
             ->with(is_string($with) ? func_get_args() : $with)
             ->whereIn($model->getKeyName(), array_values($modelKeys))
             ->get()
-            ->getDictionary(); // @phpstan-ignore method.notFound (getDictionary is on Eloquent\Collection; PHPStan loses type through chain)
+            ->getDictionary();
 
         $freshItems = [];
 
@@ -656,6 +704,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Make the given, typically visible, attributes hidden across the entire collection.
      *
      * @param array<array-key, string>|string $attributes
+     * @return $this
      */
     public function makeHidden(array|string $attributes): static
     {
@@ -667,6 +716,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Merge the given, typically visible, attributes hidden across the entire collection.
      *
      * @param array<array-key, string>|string $attributes
+     * @return $this
      */
     public function mergeHidden(array|string $attributes): static
     {
@@ -678,6 +728,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Set the hidden attributes across the entire collection.
      *
      * @param array<int, string> $hidden
+     * @return $this
      */
     public function setHidden(array $hidden): static
     {
@@ -689,6 +740,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Make the given, typically hidden, attributes visible across the entire collection.
      *
      * @param array<array-key, string>|string $attributes
+     * @return $this
      */
     public function makeVisible(array|string $attributes): static
     {
@@ -700,6 +752,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Merge the given, typically hidden, attributes visible across the entire collection.
      *
      * @param array<array-key, string>|string $attributes
+     * @return $this
      */
     public function mergeVisible(array|string $attributes): static
     {
@@ -711,6 +764,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Set the visible attributes across the entire collection.
      *
      * @param array<int, string> $visible
+     * @return $this
      */
     public function setVisible(array $visible): static
     {
@@ -722,6 +776,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Append an attribute across the entire collection.
      *
      * @param array<array-key, string>|string $attributes
+     * @return $this
      */
     public function append(array|string $attributes): static
     {
@@ -733,6 +788,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Sets the appends on every element of the collection, overwriting the existing appends for each.
      *
      * @param array<array-key, mixed> $appends
+     * @return $this
      */
     public function setAppends(array $appends): static
     {
@@ -742,6 +798,8 @@ class Collection extends BaseCollection implements QueueableCollection
 
     /**
      * Remove appended properties from every element in the collection.
+     *
+     * @return $this
      */
     public function withoutAppends(): static
     {
@@ -854,14 +912,18 @@ class Collection extends BaseCollection implements QueueableCollection
     #[Override]
     public function partition(mixed $key, mixed $operator = null, mixed $value = null): BaseCollection
     {
-        // @phpstan-ignore return.type (parent returns base Collection, we convert to Support Collection)
         return parent::partition(...func_get_args())->toBase();
     }
 
     /**
      * Get the values of a given key.
      *
-     * @return BaseCollection<array-key, mixed>
+     * @template TPluckValue
+     * @template TPluckKey of array-key|Stringable
+     *
+     * @param null|array<array-key, string>|(Closure(TModel): TPluckValue)|int|string $value
+     * @param null|array<array-key, string>|(Closure(TModel): TPluckKey)|int|string $key
+     * @return BaseCollection<($key is Closure ? (TPluckKey is int ? int : string) : array-key), ($value is Closure ? TPluckValue : mixed)>
      */
     #[Override]
     public function pluck(Closure|string|int|array|null $value, Closure|string|int|array|null $key = null): BaseCollection
@@ -927,6 +989,8 @@ class Collection extends BaseCollection implements QueueableCollection
 
     /**
      * Enable relationship autoloading for all models in this collection.
+     *
+     * @return $this
      */
     public function withRelationshipAutoloading(): static
     {
@@ -1012,7 +1076,6 @@ class Collection extends BaseCollection implements QueueableCollection
             return [];
         }
 
-        // @phpstan-ignore method.nonObject (HigherOrderProxy returns Collection, not array)
         $relations = $this->map->getQueueableRelations()->all();
 
         if (count($relations) === 0 || $relations === [[]]) {

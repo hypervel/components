@@ -9,9 +9,11 @@ use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernel;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application as HypervelApplication;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
+use Hypervel\Support\Composer;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Foundation\Application as Testbench;
@@ -148,7 +150,7 @@ class Commander
     {
         if (! $this->app instanceof HypervelApplication) {
             $appBasePath = $this->getApplicationBasePath();
-            $vendorPath = package_path('vendor');
+            $vendorPath = Composer::vendorPath(package_path());
 
             TerminatingConsole::beforeWhen(
                 ! is_symlink(join_paths($appBasePath, 'vendor')),
@@ -219,7 +221,7 @@ class Commander
         try {
             $app->flush();
         } catch (Throwable $throwable) {
-            $failure ??= $throwable;
+            $failure = Coroutine::preferCancellation($failure, $throwable);
         }
 
         return $failure;
@@ -243,13 +245,13 @@ class Commander
         try {
             Workbench::flush();
         } catch (Throwable $throwable) {
-            $failure ??= $throwable;
+            $failure = Coroutine::preferCancellation($failure, $throwable);
         }
 
         try {
             $this->unregisterSignals();
         } catch (Throwable $throwable) {
-            $failure ??= $throwable;
+            $failure = Coroutine::preferCancellation($failure, $throwable);
         }
 
         return $failure;
@@ -325,14 +327,14 @@ class Commander
             // resolution, reporting, or rendering carries it as that failure's
             // previous. The return suppresses it once the status is produced.
             try {
-                /* @phpstan-ignore finally.exitPoint */
+                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 throw $error;
             } finally {
                 $handler = $this->app->make(ExceptionHandler::class);
                 $handler->report($error);
                 $handler->renderForConsole($output, $error);
 
-                /* @phpstan-ignore finally.exitPoint */
+                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 return 1;
             }
         }

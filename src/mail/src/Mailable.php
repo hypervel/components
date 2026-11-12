@@ -409,6 +409,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Add the sender to the message.
+     *
+     * @return $this
      */
     protected function buildFrom(Message $message): static
     {
@@ -421,6 +423,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Add all of the recipients to the message.
+     *
+     * @return $this
      */
     protected function buildRecipients(Message $message): static
     {
@@ -435,6 +439,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Set the subject for the message.
+     *
+     * @return $this
      */
     protected function buildSubject(Message $message): static
     {
@@ -449,6 +455,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Add all of the attachments to the message.
+     *
+     * @return $this
      */
     protected function buildAttachments(Message $message): static
     {
@@ -482,8 +490,7 @@ class Mailable implements MailableContract, Renderable
             $options = $attachment['options'];
 
             if (! isset($options['mime'])) {
-                // The contract omits adapter metadata methods, which every shipped disk provides.
-                // @phpstan-ignore method.notFound
+                // @phpstan-ignore method.notFound (the contract omits adapter metadata methods, which every shipped disk provides)
                 $mime = $storage->mimeType($attachment['path']);
 
                 if ($mime !== false) {
@@ -501,6 +508,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Add all defined tags to the message.
+     *
+     * @return $this
      */
     protected function buildTags(Message $message): static
     {
@@ -515,6 +524,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Add all defined metadata to the message.
+     *
+     * @return $this
      */
     protected function buildMetadata(Message $message): static
     {
@@ -529,6 +540,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Run the callbacks for the message.
+     *
+     * @return $this
      */
     protected function runCallbacks(Message $message): static
     {
@@ -569,6 +582,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Set the sender of the message.
+     *
+     * @return $this
      */
     public function from(array|object|string $address, ?string $name = null): static
     {
@@ -643,6 +658,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Set the "reply to" address of the message.
+     *
+     * @return $this
      */
     public function replyTo(array|object|string $address, ?string $name = null): static
     {
@@ -783,6 +800,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Set the subject of the message.
+     *
+     * @return $this
      */
     public function subject(string $subject): static
     {
@@ -802,6 +821,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Set the Markdown template for the message.
+     *
+     * @return $this
      */
     public function markdown(string $view, array $data = []): static
     {
@@ -813,6 +834,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Set the view and view data for the message.
+     *
+     * @return $this
      */
     public function view(string $view, array $data = []): static
     {
@@ -824,6 +847,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Set the rendered HTML content for the message.
+     *
+     * @return $this
      */
     public function html(string $html): static
     {
@@ -834,6 +859,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Set the plain text view for the message.
+     *
+     * @return $this
      */
     public function text(string $textView, array $data = []): static
     {
@@ -845,6 +872,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Set the view data for the message.
+     *
+     * @return $this
      */
     public function with(array|string $key, mixed $value = null): static
     {
@@ -859,6 +888,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Attach a file to the message.
+     *
+     * @return $this
      */
     public function attach(Attachable|Attachment|string $file, array $options = []): static
     {
@@ -880,6 +911,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Attach multiple files to the message.
+     *
+     * @return $this
      */
     public function attachMany(array $files): static
     {
@@ -948,6 +981,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Attach a file to the message from storage.
+     *
+     * @return $this
      */
     public function attachFromStorage(string $path, ?string $name = null, array $options = []): static
     {
@@ -956,6 +991,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Attach a file to the message from storage.
+     *
+     * @return $this
      */
     public function attachFromStorageDisk(?string $disk, string $path, ?string $name = null, array $options = []): static
     {
@@ -994,6 +1031,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Attach in-memory data as an attachment.
+     *
+     * @return $this
      */
     public function attachData(string $data, string $name, array $options = []): static
     {
@@ -1019,6 +1058,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Add a tag header to the message when supported by the underlying transport.
+     *
+     * @return $this
      */
     public function tag(string $value): static
     {
@@ -1038,6 +1079,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Add a metadata header to the message when supported by the underlying transport.
+     *
+     * @return $this
      */
     public function metadata(array|string $key, int|string|null $value = null): static
     {
@@ -1061,6 +1104,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Assert that the mailable is from the given address.
+     *
+     * @return $this
      */
     public function assertFrom(array|object|string $address, ?string $name = null): static
     {
@@ -1079,6 +1124,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Assert that the mailable has the given recipient.
+     *
+     * @return $this
      */
     public function assertTo(array|object|string $address, ?string $name = null): static
     {
@@ -1097,6 +1144,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Assert that the mailable has the given recipient.
+     *
+     * @return $this
      */
     public function assertHasTo(array|object|string $address, ?string $name = null): static
     {
@@ -1105,6 +1154,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Assert that the mailable has the given recipient.
+     *
+     * @return $this
      */
     public function assertHasCc(array|object|string $address, ?string $name = null): static
     {
@@ -1123,6 +1174,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Assert that the mailable has the given recipient.
+     *
+     * @return $this
      */
     public function assertHasBcc(array|object|string $address, ?string $name = null): static
     {
@@ -1141,6 +1194,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Assert that the mailable has the given "reply to" address.
+     *
+     * @return $this
      */
     public function assertHasReplyTo(array|object|string $address, ?string $name = null): static
     {
@@ -1194,6 +1249,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Assert that the mailable has the given subject.
+     *
+     * @return $this
      */
     public function assertHasSubject(string $subject): static
     {
@@ -1212,6 +1269,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Assert that the given text is present in the HTML email body.
+     *
+     * @return $this
      */
     public function assertSeeInHtml(string $string, bool $escape = true): static
     {
@@ -1230,6 +1289,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Assert that the given text is not present in the HTML email body.
+     *
+     * @return $this
      */
     public function assertDontSeeInHtml(string $string, bool $escape = true): static
     {
@@ -1250,6 +1311,7 @@ class Mailable implements MailableContract, Renderable
      * Assert that the given text strings are present in order in the HTML email body.
      *
      * @param list<string> $strings
+     * @return $this
      */
     public function assertSeeInOrderInHtml(array $strings, bool $escape = true): static
     {
@@ -1266,6 +1328,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Assert that the given text is present in the plain-text email body.
+     *
+     * @return $this
      */
     public function assertSeeInText(string $string): static
     {
@@ -1282,6 +1346,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Assert that the given text is not present in the plain-text email body.
+     *
+     * @return $this
      */
     public function assertDontSeeInText(string $string): static
     {
@@ -1300,6 +1366,7 @@ class Mailable implements MailableContract, Renderable
      * Assert that the given text strings are present in order in the plain-text email body.
      *
      * @param list<string> $strings
+     * @return $this
      */
     public function assertSeeInOrderInText(array $strings): static
     {
@@ -1312,6 +1379,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Assert the mailable has no attachments.
+     *
+     * @return $this
      */
     public function assertHasNoAttachments(): static
     {
@@ -1352,6 +1421,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Assert the mailable has the given data as an attachment.
+     *
+     * @return $this
      */
     public function assertHasAttachedData(string $data, string $name, array $options = []): static
     {
@@ -1367,6 +1438,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Assert the mailable has the given attachment from storage.
+     *
+     * @return $this
      */
     public function assertHasAttachmentFromStorage(string $path, ?string $name = null, array $options = []): static
     {
@@ -1382,6 +1455,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Assert the mailable has the given attachment from a specific storage disk.
+     *
+     * @return $this
      */
     public function assertHasAttachmentFromStorageDisk(string $disk, string $path, ?string $name = null, array $options = []): static
     {
@@ -1397,6 +1472,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Assert that the mailable has the given tag.
+     *
+     * @return $this
      */
     public function assertHasTag(string $tag): static
     {
@@ -1414,6 +1491,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Assert that the mailable has the given metadata.
+     *
+     * @return $this
      */
     public function assertHasMetadata(string $key, int|string $value): static
     {
@@ -1625,6 +1704,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Register a callback to be called with the Symfony message instance.
+     *
+     * @return $this
      */
     public function withSymfonyMessage(callable $callback): static
     {

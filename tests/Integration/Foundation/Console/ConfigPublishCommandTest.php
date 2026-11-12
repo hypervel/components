@@ -6,10 +6,10 @@ namespace Hypervel\Tests\Integration\Foundation\Console;
 
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use Hypervel\Foundation\Console\ConfigPublishCommand;
 use Hypervel\Testbench\Concerns\InteractsWithPublishedFiles;
 use Mockery as m;
-use ReflectionClass;
 use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -37,7 +37,7 @@ class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
     {
         parent::setUp();
 
-        $this->baseConfigPath = dirname((new ReflectionClass(ConfigPublishCommand::class))->getFileName(), 3) . '/config';
+        $this->baseConfigPath = LoadConfiguration::frameworkConfigPath();
     }
 
     protected function tearDown(): void
@@ -171,7 +171,7 @@ class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
     public function testSourceReadFailurePreservesExistingDestinationAndReportsNoSuccess(): void
     {
         $name = 'hashing';
-        $source = dirname((new ReflectionClass(ConfigPublishCommand::class))->getFileName()) . "/../../config/{$name}.php";
+        $source = "{$this->baseConfigPath}/{$name}.php";
         $sourceContents = file_get_contents($source);
         $destination = $this->app->configPath("{$name}.php");
         $this->preserveConfigFile($name);

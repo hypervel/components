@@ -26,7 +26,7 @@ trait InteractsWithPest
      */
     protected static function isRunningViaPestPrinter(object|string $object): bool
     {
-        // @phpstan-ignore class.notFound
+        // @phpstan-ignore class.notFound (Pest is optional and only named here)
         return isset(class_implements($object, false)[HasPrintableTestCaseName::class]);
     }
 }

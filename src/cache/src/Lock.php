@@ -192,6 +192,8 @@ abstract class Lock implements LockContract
 
     /**
      * Specify the number of milliseconds to sleep in between blocked lock acquisition attempts.
+     *
+     * @return $this
      */
     public function betweenBlockedAttemptsSleepFor(int $milliseconds): static
     {

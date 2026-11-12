@@ -44,7 +44,7 @@ class SentMessage
      */
     public function __serialize(): array
     {
-        $hasAttachments = (new Collection($this->sentMessage->getOriginalMessage()->getAttachments()))->isNotEmpty(); // @phpstan-ignore method.notFound
+        $hasAttachments = (new Collection($this->sentMessage->getOriginalMessage()->getAttachments()))->isNotEmpty(); // @phpstan-ignore method.notFound (the mailer always sends a Symfony Email)
 
         return [
             'hasAttachments' => $hasAttachments,

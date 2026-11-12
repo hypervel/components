@@ -248,6 +248,8 @@ trait EnumeratesValues
 
     /**
      * Dump the items.
+     *
+     * @return $this
      */
     public function dump(mixed ...$args): static
     {
@@ -260,6 +262,7 @@ trait EnumeratesValues
      * Execute a callback over each item.
      *
      * @param callable(TValue, TKey): mixed $callback
+     * @return $this
      */
     public function each(callable $callback): static
     {
@@ -430,7 +433,7 @@ trait EnumeratesValues
      * @template TFlatMapValue
      *
      * @param callable(TValue, TKey): (array<TFlatMapKey, TFlatMapValue>|Enumerable<TFlatMapKey, TFlatMapValue>) $callback
-     * @return Collection<TFlatMapKey, TFlatMapValue>|static<TFlatMapKey, TFlatMapValue>
+     * @return Collection<(array<TFlatMapKey, mixed> is array<int, mixed> ? int : TFlatMapKey), TFlatMapValue>|static<(array<TFlatMapKey, mixed> is array<int, mixed> ? int : TFlatMapKey), TFlatMapValue>
      */
     public function flatMap(callable $callback): Collection|static
     {
@@ -555,10 +558,10 @@ trait EnumeratesValues
     /**
      * Apply the callback if the collection is empty.
      *
-     * @template TWhenEmptyReturnType
+     * @template TWhenEmptyReturnType = never
      *
-     * @param (callable($this): TWhenEmptyReturnType) $callback
-     * @param null|(callable($this): TWhenEmptyReturnType) $default
+     * @param (callable($this): (null|TWhenEmptyReturnType|void)) $callback
+     * @param null|(callable($this): (null|TWhenEmptyReturnType|void)) $default
      * @return $this|TWhenEmptyReturnType
      */
     public function whenEmpty(callable $callback, ?callable $default = null): mixed
@@ -569,10 +572,10 @@ trait EnumeratesValues
     /**
      * Apply the callback if the collection is not empty.
      *
-     * @template TWhenNotEmptyReturnType
+     * @template TWhenNotEmptyReturnType = never
      *
-     * @param callable($this): TWhenNotEmptyReturnType $callback
-     * @param null|(callable($this): TWhenNotEmptyReturnType) $default
+     * @param callable($this): (null|TWhenNotEmptyReturnType|void) $callback
+     * @param null|(callable($this): (null|TWhenNotEmptyReturnType|void)) $default
      * @return $this|TWhenNotEmptyReturnType
      */
     public function whenNotEmpty(callable $callback, ?callable $default = null): mixed
@@ -583,10 +586,10 @@ trait EnumeratesValues
     /**
      * Apply the callback unless the collection is empty.
      *
-     * @template TUnlessEmptyReturnType
+     * @template TUnlessEmptyReturnType = never
      *
-     * @param callable($this): TUnlessEmptyReturnType $callback
-     * @param null|(callable($this): TUnlessEmptyReturnType) $default
+     * @param callable($this): (null|TUnlessEmptyReturnType|void) $callback
+     * @param null|(callable($this): (null|TUnlessEmptyReturnType|void)) $default
      * @return $this|TUnlessEmptyReturnType
      */
     public function unlessEmpty(callable $callback, ?callable $default = null): mixed
@@ -597,10 +600,10 @@ trait EnumeratesValues
     /**
      * Apply the callback unless the collection is not empty.
      *
-     * @template TUnlessNotEmptyReturnType
+     * @template TUnlessNotEmptyReturnType = never
      *
-     * @param callable($this): TUnlessNotEmptyReturnType $callback
-     * @param null|(callable($this): TUnlessNotEmptyReturnType) $default
+     * @param callable($this): (null|TUnlessNotEmptyReturnType|void) $callback
+     * @param null|(callable($this): (null|TUnlessNotEmptyReturnType|void)) $default
      * @return $this|TUnlessNotEmptyReturnType
      */
     public function unlessNotEmpty(callable $callback, ?callable $default = null): mixed
@@ -882,6 +885,7 @@ trait EnumeratesValues
      * Pass the collection to the given callback and then return it.
      *
      * @param callable($this): mixed $callback
+     * @return $this
      */
     public function tap(callable $callback): static
     {
@@ -999,6 +1003,8 @@ trait EnumeratesValues
 
     /**
      * Indicate that the model's string representation should be escaped when __toString is invoked.
+     *
+     * @return $this
      */
     public function escapeWhenCastingToString(bool $escape = true): static
     {

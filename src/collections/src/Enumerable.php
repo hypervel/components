@@ -168,6 +168,8 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
 
     /**
      * Dump the collection.
+     *
+     * @return $this
      */
     public function dump(mixed ...$args): static;
 
@@ -240,6 +242,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * Execute a callback over each item.
      *
      * @param callable(TValue, TKey): mixed $callback
+     * @return $this
      */
     public function each(callable $callback): static;
 
@@ -272,10 +275,10 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Apply the callback if the given "value" is (or resolves to) truthy.
      *
-     * @template TWhenReturnType as null
+     * @template TWhenReturnType = never
      *
-     * @param null|(callable($this): TWhenReturnType) $callback
-     * @param null|(callable($this): TWhenReturnType) $default
+     * @param null|(callable($this): (null|TWhenReturnType|void)) $callback
+     * @param null|(callable($this): (null|TWhenReturnType|void)) $default
      * @return $this|TWhenReturnType
      */
     public function when(mixed $value, ?callable $callback = null, ?callable $default = null): mixed;
@@ -283,10 +286,10 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Apply the callback if the collection is empty.
      *
-     * @template TWhenEmptyReturnType
+     * @template TWhenEmptyReturnType = never
      *
-     * @param (callable($this): TWhenEmptyReturnType) $callback
-     * @param null|(callable($this): TWhenEmptyReturnType) $default
+     * @param (callable($this): (null|TWhenEmptyReturnType|void)) $callback
+     * @param null|(callable($this): (null|TWhenEmptyReturnType|void)) $default
      * @return $this|TWhenEmptyReturnType
      */
     public function whenEmpty(callable $callback, ?callable $default = null): mixed;
@@ -294,10 +297,10 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Apply the callback if the collection is not empty.
      *
-     * @template TWhenNotEmptyReturnType
+     * @template TWhenNotEmptyReturnType = never
      *
-     * @param callable($this): TWhenNotEmptyReturnType $callback
-     * @param null|(callable($this): TWhenNotEmptyReturnType) $default
+     * @param callable($this): (null|TWhenNotEmptyReturnType|void) $callback
+     * @param null|(callable($this): (null|TWhenNotEmptyReturnType|void)) $default
      * @return $this|TWhenNotEmptyReturnType
      */
     public function whenNotEmpty(callable $callback, ?callable $default = null): mixed;
@@ -305,10 +308,10 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Apply the callback if the given "value" is (or resolves to) falsy.
      *
-     * @template TUnlessReturnType
+     * @template TUnlessReturnType = never
      *
-     * @param (callable($this): TUnlessReturnType) $callback
-     * @param null|(callable($this): TUnlessReturnType) $default
+     * @param (callable($this): (null|TUnlessReturnType|void)) $callback
+     * @param null|(callable($this): (null|TUnlessReturnType|void)) $default
      * @return $this|TUnlessReturnType
      */
     public function unless(mixed $value, callable $callback, ?callable $default = null): mixed;
@@ -316,10 +319,10 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Apply the callback unless the collection is empty.
      *
-     * @template TUnlessEmptyReturnType
+     * @template TUnlessEmptyReturnType = never
      *
-     * @param callable($this): TUnlessEmptyReturnType $callback
-     * @param null|(callable($this): TUnlessEmptyReturnType) $default
+     * @param callable($this): (null|TUnlessEmptyReturnType|void) $callback
+     * @param null|(callable($this): (null|TUnlessEmptyReturnType|void)) $default
      * @return $this|TUnlessEmptyReturnType
      */
     public function unlessEmpty(callable $callback, ?callable $default = null): mixed;
@@ -327,10 +330,10 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Apply the callback unless the collection is not empty.
      *
-     * @template TUnlessNotEmptyReturnType
+     * @template TUnlessNotEmptyReturnType = never
      *
-     * @param callable($this): TUnlessNotEmptyReturnType $callback
-     * @param null|(callable($this): TUnlessNotEmptyReturnType) $default
+     * @param callable($this): (null|TUnlessNotEmptyReturnType|void) $callback
+     * @param null|(callable($this): (null|TUnlessNotEmptyReturnType|void)) $default
      * @return $this|TUnlessNotEmptyReturnType
      */
     public function unlessNotEmpty(callable $callback, ?callable $default = null): mixed;
@@ -458,10 +461,10 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Key an associative array by a field or using a callback.
      *
-     * @template TNewKey of array-key|UnitEnum|BaseStringable
+     * @template TNewKey of array-key|null|UnitEnum|BaseStringable
      *
      * @param array|(callable(TValue, TKey): TNewKey)|string $keyBy
-     * @return static<($keyBy is (array|string) ? array-key : (TNewKey is array-key ? TNewKey : (TNewKey is BaseStringable ? string : array-key))), TValue>
+     * @return static<($keyBy is (array|string) ? array-key : (TNewKey is array-key ? TNewKey : (TNewKey is (null|BaseStringable) ? string : array-key))), TValue>
      */
     public function keyBy(callable|array|string $keyBy): static;
 
@@ -633,7 +636,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TFlatMapValue
      *
      * @param callable(TValue, TKey): (array<TFlatMapKey, TFlatMapValue>|Enumerable<TFlatMapKey, TFlatMapValue>) $callback
-     * @return static<TFlatMapKey, TFlatMapValue>
+     * @return static<int|TFlatMapKey, TFlatMapValue>
      */
     public function flatMap(callable $callback): Collection|static;
 
@@ -653,7 +656,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TMergeValue
      *
      * @param Arrayable<array<TKey, TMergeValue>>|iterable<TKey, TMergeValue> $items
-     * @return static<TKey, TMergeValue|TValue>
+     * @return static<(array<TKey, mixed> is array<int, mixed> ? int : TKey), TMergeValue|TValue>
      */
     public function merge(mixed $items): static;
 
@@ -663,7 +666,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TMergeRecursiveValue
      *
      * @param Arrayable<array<TKey, TMergeRecursiveValue>>|iterable<TKey, TMergeRecursiveValue> $items
-     * @return static<TKey, (TKey is int ? TMergeRecursiveValue|TValue : array<array-key, mixed>|TMergeRecursiveValue|TValue)>
+     * @return static<(array<TKey, mixed> is array<int, mixed> ? int : TKey), (TKey is int ? TMergeRecursiveValue|TValue : array<array-key, mixed>|TMergeRecursiveValue|TValue)>
      */
     public function mergeRecursive(mixed $items): static;
 
@@ -673,8 +676,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TCombineValue
      *
      * @param Arrayable<array<array-key, TCombineValue>>|iterable<array-key, TCombineValue> $values
-     * @return static<TValue, TCombineValue>
-     * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
+     * @return static<(TValue is array-key ? TValue : array-key), TCombineValue>
      */
     public function combine(Arrayable|iterable $values): static;
 
@@ -733,11 +735,10 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Push all of the given items onto the collection.
      *
-     * @template TConcatKey of array-key
      * @template TConcatValue
      *
-     * @param iterable<TConcatKey, TConcatValue> $source
-     * @return static<TConcatKey|TKey, TConcatValue|TValue>
+     * @param iterable<array-key, TConcatValue> $source
+     * @return static<int|TKey, TConcatValue|TValue>
      */
     public function concat(iterable $source): static;
 
@@ -825,6 +826,8 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
 
     /**
      * Shuffle the items in the collection.
+     *
+     * @return static<int, TValue>
      */
     public function shuffle(): static;
 
@@ -862,7 +865,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Split a collection into a certain number of groups.
      *
-     * @return static<int, static>
+     * @return static<int, Collection<(array<TKey, mixed> is array<int, mixed> ? int : TKey), TValue>>
      */
     public function split(int $numberOfGroups): static;
 
@@ -1001,6 +1004,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * Pass the collection to the given callback and then return it.
      *
      * @param callable($this): mixed $callback
+     * @return $this
      */
     public function tap(callable $callback): static;
 
@@ -1034,9 +1038,12 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Get the values of a given key.
      *
-     * @param null|array<array-key, string>|Closure|int|string $value
-     * @param null|array<array-key, string>|Closure|int|string $key
-     * @return static<array-key, mixed>
+     * @template TPluckValue
+     * @template TPluckKey of array-key|BaseStringable
+     *
+     * @param null|array<array-key, string>|(Closure(TValue): TPluckValue)|int|string $value
+     * @param null|array<array-key, string>|(Closure(TValue): TPluckKey)|int|string $key
+     * @return static<($key is Closure ? (TPluckKey is int ? int : string) : array-key), ($value is Closure ? TPluckValue : mixed)>
      */
     public function pluck(Closure|string|int|array|null $value, Closure|string|int|array|null $key = null): Collection|static;
 
@@ -1166,6 +1173,8 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
 
     /**
      * Indicate that the model's string representation should be escaped when __toString is invoked.
+     *
+     * @return $this
      */
     public function escapeWhenCastingToString(bool $escape = true): static;
 

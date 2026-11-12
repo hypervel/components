@@ -47,6 +47,8 @@ class InvokedProcess implements InvokedProcessContract
 
     /**
      * Send a signal to the process.
+     *
+     * @return $this
      */
     public function signal(int $signal): static
     {

@@ -124,6 +124,8 @@ return (new Config)
             ->notPath('src/data/src/Support/Creation/NativeScalar.php')
             ->notPath('tests/Data/Fixtures/PhpDocTypeContext.php')
             ->notPath('tests/Foundation/Fixtures/fake-compiled-view.php')
+            // Analyzer data and the fixture application mirror upstream Larastan fixtures, whose syntax and line numbers are deliberate.
+            ->notPath('#^tests/PHPStan/((.+/)?data|application)/#')
             ->name('hypervel-test-profile')
             ->in(__DIR__)
     )

@@ -34,7 +34,7 @@ class RequestBridge
         $content = $swooleRequest->rawContent();
         $headers = static::transformHeaders($swooleRequest->header ?? [], $server);
 
-        return new Request(
+        $request = new Request(
             query: $swooleRequest->get ?? [],
             request: $swooleRequest->post ?? [],
             attributes: [],
@@ -45,6 +45,15 @@ class RequestBridge
             headers: $headers,
             pathInfo: static::extractPathInfo($server),
         );
+
+        // As in Request::createFromBase() and Laravel's capture(), a JSON payload fills the
+        // request bag, which then doubles as the JSON cache, so post() reads it too.
+        if ($request->isJson()) {
+            $request->request->replace($request->json()->all());
+            $request->setJson($request->request);
+        }
+
+        return $request;
     }
 
     /**

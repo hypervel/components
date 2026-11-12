@@ -77,6 +77,8 @@ class Factory
      * Indicate that the process factory should fake processes.
      *
      * Tests only. Fake handlers and recordings persist on the container-resolved factory for the worker lifetime and affect later calls.
+     *
+     * @return $this
      */
     public function fake(array|Closure|null $callback = null): static
     {
@@ -113,6 +115,8 @@ class Factory
 
     /**
      * Record the given process if processes should be recorded.
+     *
+     * @return $this
      */
     public function recordIfRecording(PendingProcess $process, ProcessResultContract $result): static
     {
@@ -127,6 +131,8 @@ class Factory
      * Record the given process.
      *
      * Tests only. Recorded processes are retained on the worker factory and affect later assertions and memory retention.
+     *
+     * @return $this
      */
     public function record(PendingProcess $process, ProcessResultContract $result): static
     {
@@ -139,6 +145,8 @@ class Factory
      * Indicate that an exception should be thrown if any process is not faked.
      *
      * Tests only. This setting persists on the worker factory and can reject every later unmatched process.
+     *
+     * @return $this
      */
     public function preventStrayProcesses(bool $prevent = true): static
     {
@@ -159,6 +167,7 @@ class Factory
      * Assert that a process was recorded matching a given truth test.
      *
      * @param array<array-key, string>|Closure|string $callback
+     * @return $this
      */
     public function assertRan(Closure|array|string $callback): static
     {
@@ -178,6 +187,7 @@ class Factory
      * Assert that a process was recorded a given number of times matching a given truth test.
      *
      * @param array<array-key, string>|Closure|string $callback
+     * @return $this
      */
     public function assertRanTimes(Closure|array|string $callback, int $times = 1): static
     {
@@ -200,6 +210,7 @@ class Factory
      * Assert that the given processes were run in the given order.
      *
      * @param list<array<array-key, string>|Closure|string> $callbacks
+     * @return $this
      */
     public function assertRanInOrder(array $callbacks): static
     {
@@ -221,6 +232,8 @@ class Factory
 
     /**
      * Assert how many processes have been recorded.
+     *
+     * @return $this
      */
     protected function assertRanCount(int $count): static
     {
@@ -233,6 +246,7 @@ class Factory
      * Assert that a process was not recorded matching a given truth test.
      *
      * @param array<array-key, string>|Closure|string $callback
+     * @return $this
      */
     public function assertNotRan(Closure|array|string $callback): static
     {
@@ -252,6 +266,7 @@ class Factory
      * Assert that a process was not recorded matching a given truth test.
      *
      * @param array<array-key, string>|Closure|string $callback
+     * @return $this
      */
     public function assertDidntRun(Closure|array|string $callback): static
     {
@@ -260,6 +275,8 @@ class Factory
 
     /**
      * Assert that no processes were recorded.
+     *
+     * @return $this
      */
     public function assertNothingRan(): static
     {

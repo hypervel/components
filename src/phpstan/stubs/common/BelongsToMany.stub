@@ -1,0 +1,273 @@
+<?php
+
+namespace Hypervel\Database\Eloquent\Relations;
+
+use Closure;
+use Hypervel\Contracts\Database\Query\Expression;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\Query\Builder as QueryBuilder;
+use Hypervel\Database\UniqueConstraintViolationException;
+use SortDirection;
+
+/*
+ * A stub's docblock replaces the source's, so the class docblock and each method's docblock repeat
+ * the source and add only analyzer-only types. Keep them in sync with the source. Native signatures
+ * repeat the source too, except return types naming a collection, which stub validation cannot
+ * declare; their docblocks type them.
+ *
+ * Unlike the source, TResult is the related model's own collection class, which getResults()
+ * returns through the related query. Stub validation also cannot declare the Eloquent collection:
+ * its covariant TValue fails the variance check that source analysis ignores.
+ *
+ * Upstream types firstOrNew(), save(), create() and the like as returning the related model with
+ * its pivot. Those models can be new or loaded through the related model's own query, so a pivot
+ * is not guaranteed.
+ */
+
+/**
+ * @template TRelatedModel of Model
+ * @template TDeclaringModel of Model
+ * @template TPivotModel of Pivot = Pivot
+ * @template TAccessor of string = 'pivot'
+ *
+ * @extends Relation<TRelatedModel, TDeclaringModel, collection-of<int, object{pivot: TPivotModel}&TRelatedModel>>
+ *
+ * @todo use TAccessor when PHPStan bug is fixed: https://github.com/phpstan/phpstan/issues/12756
+ */
+class BelongsToMany extends Relation
+{
+    /**
+     * Prepare the query builder for query execution.
+     *
+     * @return builder-of<TRelatedModel>
+     */
+    protected function prepareQueryBuilder(): Builder;
+
+    /**
+     * Find a related model by its primary key or return a new instance of the related model.
+     *
+     * @param  array<int, model-property<TRelatedModel>|Expression|'*'>  $columns
+     * @return (
+     *     $id is Model ? TRelatedModel : (
+     *         $id is (Arrayable<array<array-key, mixed>>|array<mixed>)
+     *         ? collection-of<int, TRelatedModel&object{pivot: TPivotModel}>
+     *         : TRelatedModel
+     *     )
+     * )
+     */
+    public function findOrNew(mixed $id, array $columns = ['*']);
+
+    /**
+     * Get the first related model record matching the attributes or instantiate it.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @param  array<model-property<TRelatedModel>, mixed>|(Closure(): array<model-property<TRelatedModel>, mixed>)  $values
+     * @return TRelatedModel
+     */
+    public function firstOrNew(array $attributes = [], Closure|array $values = []): Model;
+
+    /**
+     * Get the first record matching the attributes. If the record is not found, create it.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @param  array<model-property<TRelatedModel>, mixed>|(Closure(): array<model-property<TRelatedModel>, mixed>)  $values
+     * @param  array<mixed>  $joining
+     * @return TRelatedModel
+     */
+    public function firstOrCreate(array $attributes = [], Closure|array $values = [], array $joining = [], bool $touch = true): Model;
+
+    /**
+     * Attempt to create the record. If a unique constraint violation occurs, attempt to find the matching record.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @param  array<model-property<TRelatedModel>, mixed>|(Closure(): array<model-property<TRelatedModel>, mixed>)  $values
+     * @param  array<mixed>  $joining
+     * @return TRelatedModel
+     *
+     * @throws UniqueConstraintViolationException
+     */
+    public function createOrFirst(array $attributes = [], Closure|array $values = [], array $joining = [], bool $touch = true): Model;
+
+    /**
+     * Get the first record matching the attributes, including trashed records, and restore it. If the record is not found, create it.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @param  array<model-property<TRelatedModel>, mixed>|(Closure(): array<model-property<TRelatedModel>, mixed>)  $values
+     * @param  array<mixed>  $joining
+     * @return TRelatedModel
+     */
+    public function restoreOrCreate(array $attributes = [], Closure|array $values = [], array $joining = [], bool $touch = true): Model;
+
+    /**
+     * Attempt to create the record. If a unique constraint violation occurs, find the matching record, including trashed records, and restore it.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @param  array<model-property<TRelatedModel>, mixed>|(Closure(): array<model-property<TRelatedModel>, mixed>)  $values
+     * @param  array<mixed>  $joining
+     * @return TRelatedModel
+     *
+     * @throws UniqueConstraintViolationException
+     */
+    public function createOrRestore(array $attributes = [], Closure|array $values = [], array $joining = [], bool $touch = true): Model;
+
+    /**
+     * Create or update a related record matching the attributes, and fill it with values.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @param  array<model-property<TRelatedModel>, mixed>|(Closure(): array<model-property<TRelatedModel>, mixed>)  $values
+     * @param  array<mixed>  $joining
+     * @return TRelatedModel
+     */
+    public function updateOrCreate(array $attributes, Closure|array $values = [], array $joining = [], bool $touch = true): Model;
+
+    /**
+     * Create a related record matching the attributes, or increment the existing record.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @param  model-property<TRelatedModel>  $column
+     * @param  array<model-property<TRelatedModel>, mixed>  $extra
+     * @return TRelatedModel
+     */
+    public function incrementOrCreate(array $attributes, string $column = 'count', float|int $default = 1, float|int $step = 1, array $extra = []): Model;
+
+    /**
+     * Find a related model by its primary key.
+     *
+     * @param  array<int, model-property<TRelatedModel>|Expression|'*'>  $columns
+     * @return (
+     *     $id is Model ? (TRelatedModel&object{pivot: TPivotModel})|null : (
+     *         $id is (Arrayable<array<array-key, mixed>>|array<mixed>)
+     *         ? collection-of<int, TRelatedModel&object{pivot: TPivotModel}>
+     *         : (TRelatedModel&object{pivot: TPivotModel})|null
+     *     )
+     * )
+     */
+    public function find(mixed $id, array $columns = ['*']);
+
+    /**
+     * Find multiple related models by their primary keys.
+     *
+     * @param  array<mixed>|Arrayable<array<array-key, mixed>>  $ids
+     * @param  array<int, model-property<TRelatedModel>|Expression|'*'>  $columns
+     * @return collection-of<int, object{pivot: TPivotModel}&TRelatedModel>
+     */
+    public function findMany(Arrayable|array $ids, array $columns = ['*']);
+
+    /**
+     * Find a related model by its primary key or throw an exception.
+     *
+     * @param  array<int, model-property<TRelatedModel>|Expression|'*'>  $columns
+     * @return (
+     *     $id is Model ? TRelatedModel&object{pivot: TPivotModel} : (
+     *         $id is (Arrayable<array<array-key, mixed>>|array<mixed>)
+     *         ? collection-of<int, TRelatedModel&object{pivot: TPivotModel}>
+     *         : TRelatedModel&object{pivot: TPivotModel}
+     *     )
+     * )
+     *
+     * @throws ModelNotFoundException<TRelatedModel>
+     */
+    public function findOrFail(mixed $id, array $columns = ['*']);
+
+    /**
+     * Find a related model by its primary key or call a callback.
+     *
+     * @template TValue
+     *
+     * @param  (Closure(): TValue)|list<model-property<TRelatedModel>|Expression|'*'>|model-property<TRelatedModel>|'*'  $columns
+     * @param  null|(Closure(): TValue)  $callback
+     * @return (
+     *     $id is Model ? (TRelatedModel&object{pivot: TPivotModel})|TValue : (
+     *         $id is (Arrayable<array<array-key, mixed>>|array<mixed>)
+     *         ? collection-of<int, TRelatedModel&object{pivot: TPivotModel}>|TValue
+     *         : (TRelatedModel&object{pivot: TPivotModel})|TValue
+     *     )
+     * )
+     */
+    public function findOr(mixed $id, Closure|array|string $columns = ['*'], ?Closure $callback = null): mixed;
+
+    /**
+     * Add a basic where clause to the query, and return the first result.
+     *
+     * @param  array<int|model-property<TRelatedModel>, mixed>|(Closure(($operator is null ? model-query-of<TRelatedModel> : QueryBuilder)): mixed)|model-property<TRelatedModel>  $column
+     * @return null|(object{pivot: TPivotModel}&TRelatedModel)
+     */
+    public function firstWhere(Closure|string|array $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): ?Model;
+
+    /**
+     * Execute the query and get the first result.
+     *
+     * @param  array<int, model-property<TRelatedModel>|Expression|'*'>  $columns
+     * @return null|(object{pivot: TPivotModel}&TRelatedModel)
+     */
+    public function first(array $columns = ['*']): ?Model;
+
+    /**
+     * Execute the query and get the first result or throw an exception.
+     *
+     * @param  array<int, model-property<TRelatedModel>|Expression|'*'>  $columns
+     * @return object{pivot: TPivotModel}&TRelatedModel
+     *
+     * @throws ModelNotFoundException<TRelatedModel>
+     */
+    public function firstOrFail(array $columns = ['*']): Model;
+
+    /**
+     * Execute the query and get the first result or call a callback.
+     *
+     * @template TValue
+     *
+     * @param  (Closure(): TValue)|list<model-property<TRelatedModel>|Expression|'*'>  $columns
+     * @param  null|(Closure(): TValue)  $callback
+     * @return (object{pivot: TPivotModel}&TRelatedModel)|TValue
+     */
+    public function firstOr(Closure|array $columns = ['*'], ?Closure $callback = null): mixed;
+
+    /**
+     * Execute the query as a "select" statement.
+     *
+     * @param  array<int, model-property<TRelatedModel>|Expression|'*'>  $columns
+     * @return collection-of<int, object{pivot: TPivotModel}&TRelatedModel>
+     */
+    public function get(array $columns = ['*']);
+
+    /**
+     * Chunk the results of the query.
+     *
+     * @param  callable(collection-of<int, object{pivot: TPivotModel}&TRelatedModel>, int): mixed  $callback
+     */
+    public function chunk(int $count, callable $callback): bool;
+
+    /**
+     * Chunk the results of a query by comparing numeric IDs.
+     *
+     * @param  callable(collection-of<int, object{pivot: TPivotModel}&TRelatedModel>, int): mixed  $callback
+     */
+    public function chunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool;
+
+    /**
+     * Chunk the results of a query by comparing IDs in descending order.
+     *
+     * @param  callable(collection-of<int, object{pivot: TPivotModel}&TRelatedModel>, int): mixed  $callback
+     */
+    public function chunkByIdDesc(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool;
+
+    /**
+     * Chunk the results of a query by comparing IDs in a given order.
+     *
+     * @param  callable(collection-of<int, object{pivot: TPivotModel}&TRelatedModel>, int): mixed  $callback
+     */
+    public function orderedChunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null, SortDirection|bool $descending = false): bool;
+
+    /**
+     * Create a new instance of the related model.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @param  array<mixed>  $joining
+     * @return TRelatedModel
+     */
+    public function create(array $attributes = [], array $joining = [], bool $touch = true): Model;
+}

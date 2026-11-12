@@ -186,7 +186,8 @@ class QueueManager implements FactoryContract, MonitorContract
 
         $this->app->make('events')
             ->listen(JobAttempted::class, function (JobAttempted $event) use ($threshold, $handler): void {
-                if (! is_null($event->duration) && $event->duration > $threshold) {
+                // Application callbacks do not run in a canceled or killed attempt.
+                if (! $event->canceled && ! is_null($event->duration) && $event->duration > $threshold) {
                     $handler($event->job, $event->duration);
                 }
             });
@@ -360,12 +361,13 @@ class QueueManager implements FactoryContract, MonitorContract
             return array_values($queues);
         }
 
+        // A list keeps keyed input from being read as key/default pairs.
         $keys = array_map(
             static fn (string $queue): string => "illuminate:queue:paused:{$connection}:{$queue}",
-            $queues,
+            array_values($queues),
         );
 
-        $states = $cache->many($keys);
+        $states = $cache->get($keys);
 
         return array_values(array_filter(
             $queues,
@@ -640,6 +642,8 @@ class QueueManager implements FactoryContract, MonitorContract
      * Tests only. Swaps the container reference on the singleton and on every
      * cached queue connection; per-request use races across coroutines and
      * breaks every concurrent dispatch.
+     *
+     * @return $this
      */
     public function setApplication(Container $app): static
     {

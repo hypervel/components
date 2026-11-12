@@ -8,6 +8,7 @@ use ArrayObject;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\HttpServer\Events\RequestCanceled;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\ResponseSent;
@@ -51,7 +52,9 @@ use OpenTelemetry\SemConv\Attributes\NetworkAttributes;
 use OpenTelemetry\SemConv\Attributes\ServerAttributes;
 use OpenTelemetry\SemConv\Attributes\UrlAttributes;
 use OpenTelemetry\SemConv\Metrics\HttpMetrics;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class HttpServerInstrumentationTest extends TestCase
 {
@@ -253,6 +256,50 @@ class HttpServerInstrumentationTest extends TestCase
         $lowercaseAttributes = $lowercaseSpan->getAttributes()->toArray();
         $this->assertSame('GET', $lowercaseAttributes[HttpAttributes::HTTP_REQUEST_METHOD]);
         $this->assertSame('get', $lowercaseAttributes[HttpAttributes::HTTP_REQUEST_METHOD_ORIGINAL]);
+    }
+
+    #[TestWith(['direct'])]
+    #[TestWith(['wrapped'])]
+    #[TestWith(['sent'])]
+    #[TestWith(['failure'])]
+    public function testCanceledRequestEndsItsSpanWithTheKnownOutcomeAndReleasesTheActiveRequest(string $case): void
+    {
+        $this->instrumentation()->register($this->options([
+            'metrics' => [
+                HttpMetrics::HTTP_SERVER_REQUEST_DURATION => true,
+                'http.server.active_requests' => true,
+            ],
+        ]));
+        $request = Request::create('/users', 'GET', server: ['HTTP_HOST' => 'example.test']);
+        $cancellation = $case === 'wrapped'
+            ? new RuntimeException('Cleanup failed.', previous: new CanceledException)
+            : new CanceledException;
+        $failure = $case === 'failure' ? new RuntimeException('Handled listener failed.') : null;
+
+        $this->events->dispatch(new RequestReceived($request, null));
+        $this->events->dispatch(new RequestCanceled(
+            $request,
+            $case === 'sent' ? new Response('OK') : null,
+            $cancellation,
+            $failure,
+        ));
+
+        $spans = $this->spanExporter->getSpans();
+        $this->assertCount(1, $spans);
+        $expectedError = match ($case) {
+            'wrapped' => RuntimeException::class,
+            'failure' => RuntimeException::class,
+            default => null,
+        };
+        $this->assertSame($expectedError, $spans[0]->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
+        $this->assertSame(
+            $expectedError === null ? StatusCode::STATUS_UNSET : StatusCode::STATUS_ERROR,
+            $spans[0]->getStatus()->getCode(),
+        );
+        $this->assertSame($case === 'sent' ? 200 : null, $spans[0]->getAttributes()->get(HttpAttributes::HTTP_RESPONSE_STATUS_CODE));
+        $this->metricReader->collect();
+        $this->assertSame(0, $this->metric('http.server.active_requests')->data->dataPoints[0]->value);
+        $this->assertCount(1, $this->metric(HttpMetrics::HTTP_SERVER_REQUEST_DURATION)->data->dataPoints);
     }
 
     public function testExcludedRequestsPerformNoTelemetryWork(): void

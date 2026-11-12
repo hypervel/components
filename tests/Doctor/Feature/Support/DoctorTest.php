@@ -34,9 +34,11 @@ use Hypervel\Tests\Doctor\TestCase;
 use InvalidArgumentException;
 use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Command\Command;
+use Throwable;
 
 class DoctorTest extends TestCase
 {
@@ -601,14 +603,16 @@ class DoctorTest extends TestCase
     }
 
     #[DataProvider('canceledOperations')]
-    public function testCancellationPropagatesUnchanged(string $operation): void
+    public function testCancellationPropagatesUnchanged(string $operation, bool $carried): void
     {
-        $cancellation = new CanceledException('Doctor operation canceled');
+        $cancellation = $carried
+            ? new RuntimeException('Doctor cleanup failed', previous: new CanceledException('Doctor operation canceled'))
+            : new CanceledException('Doctor operation canceled');
         $diagnostic = new class($cancellation) extends Diagnostic implements Fixable {
             /**
              * Capture the cancellation raised by diagnostic work.
              */
-            public function __construct(private CanceledException $cancellation)
+            public function __construct(private Throwable $cancellation)
             {
                 parent::__construct();
             }
@@ -636,18 +640,26 @@ class DoctorTest extends TestCase
                 'check' => $doctor->check($diagnostic),
                 'fix' => $doctor->fix(new DiagnosticOutcome($diagnostic, DiagnosticResult::fail('Repair required')->fixable())),
             };
-            $this->fail('The operation must propagate cancellation.');
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
+
+            return;
         }
+
+        $this->fail('The operation must propagate cancellation.');
     }
 
     /**
-     * Provide the runner's diagnostic entry points.
+     * Provide the runner's diagnostic entry points, with direct and carried cancellation.
      */
     public static function canceledOperations(): array
     {
-        return [['check'], ['fix']];
+        return [
+            'check' => ['check', false],
+            'carried check' => ['check', true],
+            'fix' => ['fix', false],
+            'carried fix' => ['fix', true],
+        ];
     }
 }
 

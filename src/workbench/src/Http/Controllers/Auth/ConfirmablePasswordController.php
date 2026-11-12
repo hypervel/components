@@ -18,6 +18,7 @@ class ConfirmablePasswordController extends Controller
      */
     public function show(): View
     {
+        // @phpstan-ignore argument.type (AuthServiceProvider adds the Workbench views only when Workbench authentication is enabled.)
         return view('auth.confirm-password');
     }
 
@@ -28,7 +29,7 @@ class ConfirmablePasswordController extends Controller
     {
         if (! Auth::guard()->validate([
             'email' => $request->user()->email,
-            'password' => $request->password, // @phpstan-ignore property.notFound
+            'password' => $request->password,
         ])) {
             throw ValidationException::withMessages([
                 'password' => __('auth.password'),

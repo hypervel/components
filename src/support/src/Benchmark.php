@@ -14,8 +14,10 @@ class Benchmark
     /**
      * Measure a callable or array of callables over the given number of iterations.
      *
-     * @param array<callable>|Closure $benchmarkables
-     * @return array<float|int>|float
+     * @template TKey of array-key
+     *
+     * @param array<TKey, callable>|Closure $benchmarkables
+     * @return ($benchmarkables is Closure ? float : array<TKey, float|int>)
      */
     public static function measure(Closure|array $benchmarkables, int $iterations = 1): array|float
     {

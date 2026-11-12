@@ -11,6 +11,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\QueueableEntity;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
@@ -269,7 +270,7 @@ class QueueSyncQueueTest extends TestCase
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testCancellationEscapesWithoutFailedOrCompletionEvents(bool $cleanupThrows): void
+    public function testCancellationEscapesWithACanceledAttemptAndNoFailedOrCompletionEvent(bool $cleanupThrows): void
     {
         CancelingSyncQueueTestHandler::reset();
         $gate = $this->armCurrentCoroutineCancellation();
@@ -277,14 +278,16 @@ class QueueSyncQueueTest extends TestCase
         $cleanupException = $cleanupThrows ? new RuntimeException('Sync job cleanup failed.') : null;
         CancelingSyncQueueTestHandler::$cleanupException = $cleanupException;
         $dispatched = [];
+        $attempted = null;
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $events = new EventsDispatcher($container);
 
         foreach ([JobProcessing::class, JobProcessed::class, JobExceptionOccurred::class, JobAttempted::class, JobQueueingFailed::class] as $event) {
-            $events->listen($event, static function (object $event) use (&$dispatched): void {
+            $events->listen($event, static function (object $event) use (&$dispatched, &$attempted): void {
                 $dispatched[] = $event::class;
+                $attempted = $event instanceof JobAttempted ? $event : $attempted;
             });
         }
 
@@ -302,21 +305,52 @@ class QueueSyncQueueTest extends TestCase
             } else {
                 $this->assertInstanceOf(CanceledException::class, $exception);
             }
-            $this->assertSame([JobProcessing::class], $dispatched);
+            $this->assertSame([JobProcessing::class, JobAttempted::class], $dispatched);
+            $this->assertTrue($attempted->canceled);
+            $this->assertSame($exception, $attempted->exception);
+            $this->assertFalse($attempted->successful());
             $this->assertFalse(CancelingSyncQueueTestHandler::$failed);
         } finally {
             CancelingSyncQueueTestHandler::reset();
         }
     }
 
-    public function testWrappedCancellationDuringFailureObservationSkipsFailureAndCompletion(): void
+    public function testCanceledAttemptListenerFailureIsReportedWithoutReplacingTheCancellation(): void
+    {
+        CancelingSyncQueueTestHandler::reset();
+        CancelingSyncQueueTestHandler::$gate = $this->armCurrentCoroutineCancellation();
+        $listenerFailure = new RuntimeException('Attempt listener failed.');
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync');
+        $container = $this->getContainer();
+        $events = new EventsDispatcher($container);
+        $events->listen(JobAttempted::class, static function () use ($listenerFailure): never {
+            throw $listenerFailure;
+        });
+        $container->instance('events', $events);
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($listenerFailure);
+        $container->instance(ExceptionHandler::class, $handler);
+        $sync->setContainer($container);
+
+        try {
+            $sync->push(CancelingSyncQueueTestHandler::class);
+            $this->fail('Expected cancellation to escape the sync queue.');
+        } catch (CanceledException) {
+        } finally {
+            CancelingSyncQueueTestHandler::reset();
+        }
+    }
+
+    public function testWrappedCancellationDuringFailureObservationSkipsFailureAndPublishesACanceledAttempt(): void
     {
         $cleanupException = new RuntimeException('Failure observer cleanup failed.');
+        $jobFailure = new RuntimeException('Job failed.');
         $gate = $this->armCurrentCoroutineCancellation();
         $events = m::mock(EventDispatcher::class);
         $events->shouldReceive('hasListeners')->with(JobProcessing::class)->andReturnFalse();
         $events->shouldReceive('hasListeners')->with(JobExceptionOccurred::class)->andReturnTrue();
-        $events->shouldNotReceive('hasListeners')->with(JobAttempted::class);
+        $events->shouldReceive('hasListeners')->with(JobAttempted::class)->andReturnTrue();
         $events->expects('dispatch')->with(m::type(JobExceptionOccurred::class))->andReturnUsing(static function () use ($gate, $cleanupException): never {
             try {
                 $gate->push(true);
@@ -326,10 +360,13 @@ class QueueSyncQueueTest extends TestCase
                 throw $cleanupException;
             }
         });
+        $events->expects('dispatch')->with(m::on(
+            static fn (object $event): bool => $event instanceof JobAttempted && $event->canceled && $event->exception === $jobFailure,
+        ));
         $container = $this->getContainer();
         $container->instance('events', $events);
         $job = m::mock(SyncJob::class);
-        $job->expects('fire')->andThrow(new RuntimeException('Job failed.'));
+        $job->expects('fire')->andThrow($jobFailure);
         $job->shouldNotReceive('fail');
         $sync = m::mock(SyncQueue::class)->makePartial()->shouldAllowMockingProtectedMethods();
         $sync->shouldReceive('resolveJob')->andReturn($job);

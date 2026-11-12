@@ -349,6 +349,15 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
         return ! $this->containsStrict(...func_get_args());
     }
 
+    /**
+     * Cross join with the given lists, returning all possible permutations.
+     *
+     * @TODO Remove repeated generic tags once PHPStan correctly inherits method templates.
+     * @template TCrossJoinValue
+     *
+     * @param Arrayable<array<array-key, TCrossJoinValue>>|iterable<array-key, TCrossJoinValue> ...$arrays
+     * @return static<int, array<int, TCrossJoinValue|TValue>>
+     */
     #[Override]
     public function crossJoin(Arrayable|iterable ...$arrays): static
     {
@@ -583,6 +592,12 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
 
     /**
      * Key an associative array by a field or using a callback.
+     *
+     * @TODO Remove repeated generic tags once PHPStan correctly inherits method templates.
+     * @template TNewKey of array-key|null|UnitEnum|BaseStringable
+     *
+     * @param array|(callable(TValue, TKey): TNewKey)|string $keyBy
+     * @return static<($keyBy is (array|string) ? array-key : (TNewKey is array-key ? TNewKey : (TNewKey is (null|BaseStringable) ? string : array-key))), TValue>
      */
     #[Override]
     public function keyBy(callable|array|string $keyBy): static
@@ -739,9 +754,12 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
     /**
      * Get the values of a given key.
      *
-     * @param null|array<array-key, string>|Closure|int|string $value
-     * @param null|array<array-key, string>|Closure|int|string $key
-     * @return static<array-key, mixed>
+     * @template TPluckValue
+     * @template TPluckKey of array-key|BaseStringable
+     *
+     * @param null|array<array-key, string>|(Closure(TValue): TPluckValue)|int|string $value
+     * @param null|array<array-key, string>|(Closure(TValue): TPluckKey)|int|string $key
+     * @return static<($key is Closure ? (TPluckKey is int ? int : string) : array-key), ($value is Closure ? TPluckValue : mixed)>
      */
     public function pluck(Closure|string|int|array|null $value, Closure|string|int|array|null $key = null): static
     {
@@ -799,6 +817,18 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
         });
     }
 
+    /**
+     * Run a dictionary map over the items.
+     *
+     * The callback should return an associative array with a single key/value pair.
+     *
+     * @TODO Remove repeated generic tags once PHPStan correctly inherits method templates.
+     * @template TMapToDictionaryKey of array-key
+     * @template TMapToDictionaryValue
+     *
+     * @param callable(TValue, TKey): array<TMapToDictionaryKey, TMapToDictionaryValue> $callback
+     * @return static<TMapToDictionaryKey, array<int, TMapToDictionaryValue>>
+     */
     #[Override]
     public function mapToDictionary(callable $callback): static
     {
@@ -851,7 +881,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
      * @template TFlatMapValue
      *
      * @param callable(TValue, TKey): (array<TFlatMapKey, TFlatMapValue>|Enumerable<TFlatMapKey, TFlatMapValue>) $callback
-     * @return static<TFlatMapKey, TFlatMapValue>
+     * @return static<int, TFlatMapValue>
      */
     public function flatMap(callable $callback): static
     {
@@ -875,6 +905,15 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
         return $this->map(fn ($value, $key) => new $class($value, $key));
     }
 
+    /**
+     * Merge the collection with the given items.
+     *
+     * @TODO Remove repeated generic tags once PHPStan correctly inherits method templates.
+     * @template TMergeValue
+     *
+     * @param Arrayable<array<TKey, TMergeValue>>|iterable<TKey, TMergeValue> $items
+     * @return static<(array<TKey, mixed> is array<int, mixed> ? int : TKey), TMergeValue|TValue>
+     */
     #[Override]
     public function merge(mixed $items): static
     {
@@ -882,6 +921,15 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
+    /**
+     * Recursively merge the collection with the given items.
+     *
+     * @TODO Remove repeated generic tags once PHPStan correctly inherits method templates.
+     * @template TMergeRecursiveValue
+     *
+     * @param Arrayable<array<TKey, TMergeRecursiveValue>>|iterable<TKey, TMergeRecursiveValue> $items
+     * @return static<(array<TKey, mixed> is array<int, mixed> ? int : TKey), (TKey is int ? TMergeRecursiveValue|TValue : array<array-key, mixed>|TMergeRecursiveValue|TValue)>
+     */
     #[Override]
     public function mergeRecursive(mixed $items): static
     {
@@ -891,9 +939,12 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
 
     /**
      * Multiply the items in the collection by the multiplier.
+     *
+     * @return static<int, TValue>
      */
     public function multiply(int $multiplier): static
     {
+        // @phpstan-ignore return.type (passthru loses generic type info)
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
@@ -903,8 +954,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
      * @template TCombineValue = mixed
      *
      * @param Arrayable<array<array-key, TCombineValue>>|(callable(): iterable<array-key, TCombineValue>)|iterable<array-key, TCombineValue> $values
-     * @return static<TValue, TCombineValue>
-     * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
+     * @return static<(TValue is array-key ? TValue : array-key), TCombineValue>
      */
     public function combine(Arrayable|iterable|callable $values): static
     {
@@ -1058,11 +1108,10 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
     /**
      * Push all of the given items onto the collection.
      *
-     * @template TConcatKey of array-key
      * @template TConcatValue
      *
-     * @param iterable<TConcatKey, TConcatValue> $source
-     * @return static<TConcatKey|TKey, TConcatValue|TValue>
+     * @param iterable<array-key, TConcatValue> $source
+     * @return static<int, TConcatValue|TValue>
      */
     public function concat(iterable $source): static
     {
@@ -1209,6 +1258,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
     #[Override]
     public function shuffle(): static
     {
+        // @phpstan-ignore return.type (passthru loses generic type info)
         return $this->passthru(__FUNCTION__, []);
     }
 
@@ -1330,6 +1380,8 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
 
     /**
      * Split a collection into a certain number of groups.
+     *
+     * @return ($numberOfGroups is positive-int ? static<int, Collection<(array<TKey, mixed> is array<int, mixed> ? int : TKey), TValue>> : never)
      *
      * @throws InvalidArgumentException
      */
@@ -1480,7 +1532,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
             $chunk = new Collection;
 
             if ($iterator->valid()) {
-                // @phpstan-ignore offsetAssign.dimType (PHPStan 2.2.14 rejects template keys on ArrayAccess)
+                // @phpstan-ignore offsetAssign.dimType (PHPStan rejects template keys on ArrayAccess)
                 $chunk[$iterator->key()] = $iterator->current();
 
                 $iterator->next();
@@ -1493,7 +1545,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
                     $chunk = new Collection;
                 }
 
-                // @phpstan-ignore offsetAssign.dimType (PHPStan 2.2.14 rejects template keys on ArrayAccess)
+                // @phpstan-ignore offsetAssign.dimType (PHPStan rejects template keys on ArrayAccess)
                 $chunk[$iterator->key()] = $iterator->current();
 
                 $iterator->next();
@@ -1967,6 +2019,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
 
         class_exists(Sleep::class)
             ? Sleep::usleep($microseconds)
+            // @phpstan-ignore hypervel.rawSleep (fallback when collections is installed without hypervel/support)
             : usleep($microseconds);
     }
 

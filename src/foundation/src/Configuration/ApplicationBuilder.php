@@ -47,6 +47,8 @@ class ApplicationBuilder
      * Boot-only. Re-registering the kernels replaces shared bindings and can
      * discard middleware or console configuration used by subsequent requests
      * and commands.
+     *
+     * @return $this
      */
     public function withKernels(): static
     {
@@ -71,6 +73,8 @@ class ApplicationBuilder
 
     /**
      * Register additional service providers.
+     *
+     * @return $this
      */
     public function withProviders(array $providers = [], bool $withBootstrapProviders = true): static
     {
@@ -88,6 +92,7 @@ class ApplicationBuilder
      * Register the core event service provider for the application.
      *
      * @param bool|iterable<int, string> $discover
+     * @return $this
      */
     public function withEvents(iterable|bool $discover = true): static
     {
@@ -112,6 +117,8 @@ class ApplicationBuilder
 
     /**
      * Register the broadcasting services for the application.
+     *
+     * @return $this
      */
     public function withBroadcasting(string $channels, array $attributes = []): static
     {
@@ -128,6 +135,8 @@ class ApplicationBuilder
 
     /**
      * Register the routing services for the application.
+     *
+     * @return $this
      */
     public function withRouting(
         ?Closure $using = null,
@@ -217,6 +226,8 @@ class ApplicationBuilder
 
     /**
      * Register the global middleware, middleware groups, and middleware aliases for the application.
+     *
+     * @return $this
      */
     public function withMiddleware(?callable $callback = null): static
     {
@@ -260,6 +271,8 @@ class ApplicationBuilder
 
     /**
      * Register additional Artisan commands with the application.
+     *
+     * @return $this
      */
     public function withCommands(array $commands = []): static
     {
@@ -283,6 +296,8 @@ class ApplicationBuilder
 
     /**
      * Register additional Artisan route paths.
+     *
+     * @return $this
      */
     protected function withCommandRouting(array $paths): static
     {
@@ -295,6 +310,8 @@ class ApplicationBuilder
 
     /**
      * Register the scheduled tasks for the application.
+     *
+     * @return $this
      */
     public function withSchedule(callable $callback): static
     {
@@ -316,6 +333,7 @@ class ApplicationBuilder
      * in the application container and affect subsequent requests.
      *
      * @param null|(callable(Exceptions): mixed) $using
+     * @return $this
      */
     public function withExceptions(?callable $using = null): static
     {
@@ -337,6 +355,8 @@ class ApplicationBuilder
 
     /**
      * Register an array of container bindings to be bound when the application is booting.
+     *
+     * @return $this
      */
     public function withBindings(array $bindings): static
     {
@@ -349,6 +369,8 @@ class ApplicationBuilder
 
     /**
      * Register an array of singleton container bindings to be bound when the application is booting.
+     *
+     * @return $this
      */
     public function withSingletons(array $singletons): static
     {
@@ -365,6 +387,8 @@ class ApplicationBuilder
 
     /**
      * Register an array of scoped singleton container bindings to be bound when the application is booting.
+     *
+     * @return $this
      */
     public function withScopedSingletons(array $scopedSingletons): static
     {
@@ -381,6 +405,8 @@ class ApplicationBuilder
 
     /**
      * Globally prefer JSON responses when the incoming "Accept" header is broad.
+     *
+     * @return $this
      */
     public function prefersJsonResponses(bool $prefer = true): static
     {
@@ -397,6 +423,8 @@ class ApplicationBuilder
 
     /**
      * Register a callback to be invoked when the application's service providers are registered.
+     *
+     * @return $this
      */
     public function registered(callable $callback): static
     {
@@ -407,6 +435,8 @@ class ApplicationBuilder
 
     /**
      * Register a callback to be invoked when the application is "booting".
+     *
+     * @return $this
      */
     public function booting(callable $callback): static
     {
@@ -417,6 +447,8 @@ class ApplicationBuilder
 
     /**
      * Register a callback to be invoked when the application is "booted".
+     *
+     * @return $this
      */
     public function booted(callable $callback): static
     {

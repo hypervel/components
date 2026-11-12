@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Doctor\Diagnostics;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Doctor\Diagnostic;
 use Hypervel\Doctor\Results\DiagnosticResult;
 use Hypervel\Doctor\Results\Link;
@@ -11,7 +12,6 @@ use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\Configured;
 use Hypervel\Support\Facades\Storage;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class FilesystemDisksAreReachable extends Diagnostic
@@ -57,9 +57,11 @@ class FilesystemDisksAreReachable extends Diagnostic
 
         try {
             $this->probe($disk, $configuration);
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             return $this->fail('unreachable', ['disk' => $disk])
                 ->withDetails($e->getMessage());
         }

@@ -247,7 +247,7 @@ class AboutCommand extends Command
 
                 return [public_path($path) => static::format(is_link($link), console: $formatStorageLinkedStatus)];
             })
-            ->toArray();
+            ->all();
     }
 
     /**

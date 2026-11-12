@@ -362,32 +362,24 @@ class GrpcInstrumentationTest extends TestCase
         );
     }
 
-    public function testRuntimeCancellationProducesNoFalseCompletionTelemetry(): void
+    public function testRuntimeCancellationEndsTheSpanWithoutAnRpcStatus(): void
     {
         $this->registerInstrumentation();
-        $cancellation = new CanceledException;
-        $debugScopesDisabled = $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'] ?? null;
-        $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'] = 'true';
-
-        try {
-            // Terminal cancellation deliberately abandons the activated scope under test.
-            $handle = $this->operations->start($this->serverOperation());
-        } finally {
-            if ($debugScopesDisabled === null) {
-                unset($_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED']);
-            } else {
-                $_SERVER['OTEL_PHP_DEBUG_SCOPES_DISABLED'] = $debugScopesDisabled;
-            }
-        }
-
         $activeSpanId = Span::getCurrent()->getContext()->getSpanId();
+        $handle = $this->operations->start($this->serverOperation());
 
-        $handle->finish(new GrpcOperationResult(null, $cancellation, 0));
+        $handle->finish(new GrpcOperationResult(null, new CanceledException, 0));
 
         $this->assertSame($activeSpanId, Span::getCurrent()->getContext()->getSpanId());
-        $this->assertSame([], $this->spanExporter->getSpans());
+        $span = $this->exportedSpan('example.Echo/Say');
+        $this->assertSame(TraceStatusCode::STATUS_UNSET, $span->getStatus()->getCode());
+        $this->assertNull($span->getAttributes()->get('rpc.status_code'));
+        $this->assertNull($span->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
+        $this->assertSame([], $span->getEvents());
         $this->metricReader->collect();
-        $this->assertCount(0, $this->metric(self::SERVER_DURATION_METRIC)->data->dataPoints);
+        $point = $this->histogramPoint(self::SERVER_DURATION_METRIC);
+        $this->assertNull($point->attributes->get('rpc.status_code'));
+        $this->assertNull($point->attributes->get(ErrorAttributes::ERROR_TYPE));
     }
 
     public function testMetricOnlyClientOutputDoesNoWorkForServerCalls(): void

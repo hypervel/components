@@ -44,8 +44,8 @@
         "hypervel/routing": "^0.4",
         "hypervel/server": "^0.4",
         "hypervel/support": "^0.4",
-        "symfony/http-foundation": "^8.1",
-        "symfony/http-kernel": "^8.1"
+        "symfony/http-foundation": "^8.1.11",
+        "symfony/http-kernel": "^8.1.11"
     },
     "config": {
         "sort-packages": true

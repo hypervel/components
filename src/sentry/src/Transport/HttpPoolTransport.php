@@ -16,7 +16,6 @@ use Sentry\Transport\HttpTransport;
 use Sentry\Transport\Result;
 use Sentry\Transport\ResultStatus;
 use Sentry\Transport\TransportInterface;
-use Swoole\Coroutine\CanceledException;
 use Swoole\Runtime;
 use Throwable;
 
@@ -101,7 +100,7 @@ class HttpPoolTransport implements TransportInterface
                 }
             }
 
-            if ($exception instanceof CanceledException) {
+            if (Coroutine::causedByCancellation($exception)) {
                 throw $exception;
             }
 

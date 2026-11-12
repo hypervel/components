@@ -10,6 +10,7 @@ use Hypervel\SchemaParser\EnumType;
 use Hypervel\SchemaParser\Index;
 use Hypervel\SchemaParser\Issue;
 use Hypervel\SchemaParser\TableReference;
+use Hypervel\SchemaParser\TypeReference;
 use Hypervel\SchemaParser\View;
 
 /**
@@ -20,7 +21,7 @@ use Hypervel\SchemaParser\View;
  *
  * @internal
  */
-final class ParseState
+class ParseState
 {
     /** @var array<string, TableDefinition> */
     public array $tables = [];
@@ -61,6 +62,15 @@ final class ParseState
     /** @var list<Issue> */
     public array $issues = [];
 
+    /** @var array<string, TableReference> the tables and views the input alters, drops or renames, by key */
+    public array $affectedRelations = [];
+
+    /** @var array<string, TypeReference> the user types and domains the input alters or drops, by key */
+    public array $affectedTypes = [];
+
+    /** Whether a statement may have changed relations or types without naming them, or changed how later statements resolve names. */
+    public bool $unknownImpact = false;
+
     /** The schema of unqualified relation names: SQLite's main database, or the one a MySQL USE statement selects. */
     public ?string $defaultSchema = null;
 
@@ -94,6 +104,26 @@ final class ParseState
         $this->lineOffset = $this->offset;
 
         return new Issue($message, $this->line);
+    }
+
+    /**
+     * Record that the input alters, drops or renames a table or view, naming an unqualified one in the default schema.
+     */
+    public function affect(TableReference $relation): void
+    {
+        if ($relation->schema === null && $this->defaultSchema !== null) {
+            $relation = new TableReference($relation->name, $this->defaultSchema);
+        }
+
+        $this->affectedRelations[$this->key($relation->schema, $relation->name)] ??= $relation;
+    }
+
+    /**
+     * Record that the input alters or drops a user type or domain.
+     */
+    public function affectType(TypeReference $type): void
+    {
+        $this->affectedTypes[$this->key($type->schema, $type->name)] ??= $type;
     }
 
     /**

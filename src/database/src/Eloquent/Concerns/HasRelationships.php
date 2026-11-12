@@ -37,6 +37,8 @@ trait HasRelationships
 
     /**
      * The relationships that should be touched on save.
+     *
+     * @var array<string>
      */
     protected array $touches = [];
 
@@ -124,6 +126,8 @@ trait HasRelationships
 
     /**
      * Define an automatic relationship autoloader callback for this model and its relations.
+     *
+     * @return $this
      */
     public function autoloadRelationsUsing(Closure $callback, mixed $context = null): static
     {
@@ -1081,6 +1085,8 @@ trait HasRelationships
 
     /**
      * Get the relationships that are touched on save.
+     *
+     * @return array<string>
      */
     public function getTouchedRelations(): array
     {
@@ -1090,6 +1096,7 @@ trait HasRelationships
     /**
      * Set the relationships that are touched on save.
      *
+     * @param array<string> $touches
      * @return $this
      */
     public function setTouchedRelations(array $touches): static

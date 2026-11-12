@@ -43,6 +43,8 @@ class SocialiteFake implements Factory
 
     /**
      * Register a fake user for the given driver.
+     *
+     * @return $this
      */
     public function fake(string $driver, UserContract|Closure|null $user = null): static
     {

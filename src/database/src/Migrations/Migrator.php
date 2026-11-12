@@ -910,6 +910,8 @@ class Migrator
 
     /**
      * Set the output implementation that should be used by the console.
+     *
+     * @return $this
      */
     public function setOutput(OutputStyle $output): static
     {

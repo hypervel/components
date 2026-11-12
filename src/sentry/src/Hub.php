@@ -457,6 +457,12 @@ class Hub implements HubInterface
 
     /**
      * Run the callback with a new scope that is removed afterwards.
+     *
+     * @TODO Remove repeated generic tags once PHPStan correctly inherits method templates.
+     * @template T
+     *
+     * @param callable(Scope): T $callback
+     * @return T
      */
     public function withScope(callable $callback): mixed
     {
@@ -506,6 +512,12 @@ class Hub implements HubInterface
 
     /**
      * Get the client's integration with the given class name.
+     *
+     * @TODO Remove repeated generic tags once PHPStan correctly inherits method templates.
+     * @template T of IntegrationInterface
+     *
+     * @param class-string<T> $className
+     * @return null|T
      */
     public function getIntegration(string $className): ?IntegrationInterface
     {

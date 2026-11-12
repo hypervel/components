@@ -6,6 +6,7 @@ namespace Hypervel\Grpc;
 
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Grpc\Contracts\GrpcOperationObserver;
+use Hypervel\Support\FailureReporter;
 use Throwable;
 
 /**
@@ -50,20 +51,26 @@ final class GrpcOperationHandle
             try {
                 $observer->finished($this->operation, $token, $result);
             } catch (Throwable $throwable) {
-                if (Coroutine::causedByCancellation($throwable)) {
-                    throw $throwable;
+                // An observer that rethrows the operation's own failure adds none; its owner handles it.
+                if ($throwable !== $result->exception) {
+                    $observerFailure = FailureReporter::preferCancellation($observerFailure, $throwable);
                 }
-
-                $observerFailure ??= $throwable;
             }
         }
 
-        if (
-            $observerFailure !== null
-            && $result->exception === null
-            && ($result->status === null || $result->status->isOk())
+        if ($observerFailure === null) {
+            return;
+        }
+
+        // An observer's cancellation propagates unless the operation already carries one;
+        // any other observer failure only replaces a successful result, and is reported otherwise.
+        if (Coroutine::causedByCancellation($observerFailure)
+            ? $result->exception === null || ! Coroutine::causedByCancellation($result->exception)
+            : $result->exception === null && ($result->status === null || $result->status->isOk())
         ) {
             throw $observerFailure;
         }
+
+        FailureReporter::report($observerFailure);
     }
 }

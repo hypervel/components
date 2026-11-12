@@ -39,6 +39,8 @@ class AuthorizationException extends Exception
 
     /**
      * Set the response from the gate.
+     *
+     * @return $this
      */
     public function setResponse(?Response $response): static
     {
@@ -49,6 +51,8 @@ class AuthorizationException extends Exception
 
     /**
      * Set the HTTP response status code.
+     *
+     * @return $this
      */
     public function withStatus(?int $status): static
     {
@@ -59,6 +63,8 @@ class AuthorizationException extends Exception
 
     /**
      * Set the HTTP response status code to 404.
+     *
+     * @return $this
      */
     public function asNotFound(): static
     {

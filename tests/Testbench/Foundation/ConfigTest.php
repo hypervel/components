@@ -41,6 +41,7 @@ class ConfigTest extends TestCase
     {
         $config = Config::loadFromYaml(__DIR__ . '/Fixtures/');
 
+        $this->assertSame(__DIR__ . '/Fixtures/', $config->getConfigurationPath());
         $this->assertNull($config['hypervel']);
         $this->assertSame(['APP_DEBUG=false'], $config['env']);
         $this->assertSame([], $config['bootstrappers']);
@@ -101,6 +102,7 @@ class ConfigTest extends TestCase
     {
         $config = new Config;
 
+        $this->assertNull($config->getConfigurationPath());
         $this->assertNull($config['hypervel']);
         $this->assertSame([], $config['env']);
         $this->assertSame([], $config['bootstrappers']);

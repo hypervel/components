@@ -18,7 +18,6 @@ use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\API\Trace\TracerProviderInterface;
 use OpenTelemetry\Context\Context;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class ViewInstrumentation extends AbstractInstrumentation
@@ -140,11 +139,6 @@ class ViewInstrumentation extends AbstractInstrumentation
      */
     protected function finish(ViewContract $view, ?Throwable $exception): void
     {
-        // Direct notifyRendered() callers can supply cancellation; the framework render path skips this callback.
-        if ($exception instanceof CanceledException) {
-            return;
-        }
-
         $state = $this->takeState($view);
 
         if ($state === null) {
@@ -152,27 +146,32 @@ class ViewInstrumentation extends AbstractInstrumentation
         }
 
         $finishedAt = $this->clock->now();
-        $result = $exception === null ? 'success' : 'failure';
-        $attributes = $state->attributes + ['result' => $result];
+        $failure = null;
+        $outcome = [];
 
-        if ($exception !== null) {
-            $attributes[ErrorAttributes::ERROR_TYPE] = $exception::class;
+        // A directly canceled render produced no result.
+        if (! $this->isDirectCancellation($exception)) {
+            $failure = $exception;
+            $outcome['result'] = $failure === null ? 'success' : 'failure';
+
+            if ($failure !== null) {
+                $outcome[ErrorAttributes::ERROR_TYPE] = $failure::class;
+            }
         }
 
         try {
             if ($state->span?->isRecording()) {
-                $state->span->setAttribute('result', $result);
+                $state->span->setAttributes($outcome);
 
-                if ($exception !== null) {
-                    $state->span->recordException($exception);
-                    $state->span->setAttribute(ErrorAttributes::ERROR_TYPE, $exception::class);
+                if ($failure !== null) {
+                    $state->span->recordException($failure);
                     $state->span->setStatus(StatusCode::STATUS_ERROR);
                 }
             }
 
             $this->duration?->record(
                 ($finishedAt - $state->startedAt) / ClockInterface::NANOS_PER_SECOND,
-                $attributes,
+                $state->attributes + $outcome,
                 $state->context,
             );
         } finally {

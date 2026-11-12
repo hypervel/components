@@ -163,7 +163,6 @@ class Coroutine implements CoroutineInterface
             return false;
         }
 
-        /* @phpstan-ignore staticMethod.notFound (@TODO: Remove once PHPStan's bundled JetBrains Swoole stub includes Swoole 6.2's isCanceled() method.) */
         return SwooleCo::isCanceled();
     }
 

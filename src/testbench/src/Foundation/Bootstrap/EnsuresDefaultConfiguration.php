@@ -41,6 +41,7 @@ final class EnsuresDefaultConfiguration
      */
     private function includesDefaultConfigurations(Application $app): bool
     {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (decides which configuration loads, so configuration cannot hold it)
         return Env::get('TESTBENCH_WITHOUT_DEFAULT_VARIABLES') !== true;
     }
 }

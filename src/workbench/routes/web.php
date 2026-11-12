@@ -11,6 +11,7 @@ use Hypervel\Workbench\Http\Controllers\ProfileController;
 // });
 
 Route::get('/dashboard', function (): View {
+    // @phpstan-ignore argument.type (AuthServiceProvider adds the Workbench views only when Workbench authentication is enabled.)
     return view('dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 

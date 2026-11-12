@@ -510,6 +510,7 @@ trait HasPermissions
      * @param Builder<static> $query
      * @return Builder<static>
      */
+    // @phpstan-ignore hypervel.legacyModelScope (reusable trait: a using model's own method of the scope's name would silently replace an attributed scope)
     public function scopePermission(
         Builder $query,
         array|Collection|int|Permission|string|UnitEnum $permissions,
@@ -611,6 +612,7 @@ trait HasPermissions
      * @param Builder<static> $query
      * @return Builder<static>
      */
+    // @phpstan-ignore hypervel.legacyModelScope (reusable trait: a using model's own method of the scope's name would silently replace an attributed scope)
     public function scopeWithoutPermission(Builder $query, array|Collection|int|Permission|string|UnitEnum $permissions): Builder
     {
         return $this->scopePermission($query, $permissions, true);

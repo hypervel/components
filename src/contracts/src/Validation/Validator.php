@@ -38,11 +38,15 @@ interface Validator extends MessageProvider
 
     /**
      * Add conditions to a given field based on a Closure.
+     *
+     * @return $this
      */
     public function sometimes(array|string $attribute, array|object|string $rules, callable $callback): static;
 
     /**
      * Add an after validation callback.
+     *
+     * @return $this
      */
     public function after(callable|string $callback): static;
 
@@ -90,7 +94,7 @@ interface Validator extends MessageProvider
      * Get a validated input container for the validated input.
      *
      * @param null|array<int, string> $keys
-     * @return ($keys is array ? array<string, mixed> : ValidatedInput)
+     * @return ($keys is array ? array<array-key, mixed> : ValidatedInput)
      *
      * @throws ValidationException
      */

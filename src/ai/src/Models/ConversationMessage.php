@@ -37,6 +37,7 @@ class ConversationMessage extends Model
      *
      * @var array<int, string>
      */
+    // @phpstan-ignore hypervel.legacyModelProperty (#[Unguarded] would replace a $guarded = ['*'] a subclass constructor sets before parent::__construct())
     protected array $guarded = [];
 
     /**
@@ -44,6 +45,7 @@ class ConversationMessage extends Model
      *
      * @var array<int, string>
      */
+    // @phpstan-ignore hypervel.legacyModelProperty (#[Appends] would merge with a subclass's $appends instead of letting it replace this list)
     protected array $appends = ['tool_calls', 'tool_results', 'provider_tool_calls'];
 
     /**
@@ -62,6 +64,8 @@ class ConversationMessage extends Model
 
     /**
      * The tool calls made across every step of the turn, in step order.
+     *
+     * @return Attribute<array, never>
      */
     protected function toolCalls(): Attribute
     {
@@ -70,6 +74,8 @@ class ConversationMessage extends Model
 
     /**
      * The provider-hosted tool calls made across every step of the turn, in step order.
+     *
+     * @return Attribute<array, never>
      */
     protected function providerToolCalls(): Attribute
     {
@@ -78,6 +84,8 @@ class ConversationMessage extends Model
 
     /**
      * The tool results recorded across every step of the turn, in step order.
+     *
+     * @return Attribute<list<array>, never>
      */
     protected function toolResults(): Attribute
     {

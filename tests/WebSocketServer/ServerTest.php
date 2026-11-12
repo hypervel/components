@@ -33,6 +33,7 @@ use Hypervel\WebSocketServer\Exceptions\Handler\WebSocketExceptionHandler;
 use Hypervel\WebSocketServer\Server;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Request as SwooleRequest;
@@ -219,10 +220,14 @@ class ServerTest extends TestCase
     }
 
     #[DataProvider('messageDeferredOutcomes')]
-    public function testMessageDeferredWorkFollowsTheCallbackOutcome(?string $failureAt, bool $cancel, array $expected): void
+    public function testMessageDeferredWorkFollowsTheCallbackOutcome(?string $failureAt, string $failure, array $expected): void
     {
         $calls = [];
-        $exception = $cancel ? new CanceledException : new RuntimeException('message failed');
+        $exception = match ($failure) {
+            'cancellation' => new CanceledException,
+            'wrapped' => new RuntimeException('message cleanup failed', previous: new CanceledException),
+            default => new RuntimeException('message failed'),
+        };
         $dispatcher = m::mock(EventDispatcherContract::class);
         $dispatcher->shouldReceive('hasListeners')->andReturnTrue();
         $dispatcher->shouldReceive('dispatch')->andReturnUsing(function (object $event) use (&$calls, $failureAt, $exception): void {
@@ -262,13 +267,16 @@ class ServerTest extends TestCase
     public static function messageDeferredOutcomes(): array
     {
         return [
-            'success' => [null, false, ['received', 'handler', 'handled', 'deferred', 'always']],
-            'received failure' => ['received', false, ['received', 'handler', 'handled', 'always']],
-            'handler failure' => ['handler', false, ['received', 'handler', 'handled', 'always']],
-            'handled failure' => ['handled', false, ['received', 'handler', 'handled', 'always']],
-            'received cancellation' => ['received', true, ['received']],
-            'handler cancellation' => ['handler', true, ['received', 'handler']],
-            'handled cancellation' => ['handled', true, ['received', 'handler', 'handled']],
+            'success' => [null, 'failure', ['received', 'handler', 'handled', 'deferred', 'always']],
+            'received failure' => ['received', 'failure', ['received', 'handler', 'handled', 'always']],
+            'handler failure' => ['handler', 'failure', ['received', 'handler', 'handled', 'always']],
+            'handled failure' => ['handled', 'failure', ['received', 'handler', 'handled', 'always']],
+            'received cancellation' => ['received', 'cancellation', ['received', 'handled']],
+            'handler cancellation' => ['handler', 'cancellation', ['received', 'handler', 'handled']],
+            'handled cancellation' => ['handled', 'cancellation', ['received', 'handler', 'handled']],
+            'received wrapped cancellation' => ['received', 'wrapped', ['received', 'handled']],
+            'handler wrapped cancellation' => ['handler', 'wrapped', ['received', 'handler', 'handled']],
+            'handled wrapped cancellation' => ['handled', 'wrapped', ['received', 'handler', 'handled']],
         ];
     }
 
@@ -449,14 +457,24 @@ class ServerTest extends TestCase
         $this->assertTrue(WebSocketMessageStub::$messageHandled);
     }
 
-    public function testMessageReceivedCancellationSkipsHandlerAndCompletionEvent(): void
+    #[TestWith([false], 'direct')]
+    #[TestWith([true], 'wrapped')]
+    public function testMessageReceivedCancellationSkipsTheHandlerAndCompletesWithTheCancellation(bool $wrapped): void
     {
+        $cancellation = $wrapped
+            ? new RuntimeException('received cleanup failed', previous: new CanceledException)
+            : new CanceledException;
+        $exceptionHandler = m::mock(ExceptionHandlerContract::class);
+        $exceptionHandler->shouldReceive('report')->times($wrapped ? 1 : 0)->with($cancellation);
         $dispatcher = m::mock(EventDispatcherContract::class);
         $dispatcher->shouldReceive('hasListeners')->once()->with(MessageReceived::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->with(m::type(MessageReceived::class))->andThrow(new CanceledException);
-        $dispatcher->shouldNotReceive('hasListeners')->with(MessageHandled::class);
+        $dispatcher->shouldReceive('dispatch')->once()->with(m::type(MessageReceived::class))->andThrow($cancellation);
+        $dispatcher->shouldReceive('hasListeners')->once()->with(MessageHandled::class)->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')->once()->with(m::on(
+            fn (MessageHandled $event) => $event->exception === $cancellation
+        ));
 
-        $container = $this->createContainer(dispatcher: $dispatcher);
+        $container = $this->createContainer(dispatcher: $dispatcher, exceptionHandler: $exceptionHandler);
         $container->shouldReceive('make')->with(WebSocketMessageStub::class)->andReturn(new WebSocketMessageStub);
         FdCollector::set(1, WebSocketMessageStub::class);
 
@@ -532,18 +550,55 @@ class ServerTest extends TestCase
         $this->assertSame([$receivedException, $messageException], $reported);
     }
 
-    public function testMessageHandlerCancellationIsContained(): void
+    #[TestWith([false], 'without an earlier failure')]
+    #[TestWith([true], 'after a received failure')]
+    public function testMessageHandlerCancellationCompletesWithTheKnownOutcome(bool $receivedFails): void
+    {
+        $cancellation = new CanceledException;
+        $receivedFailure = new RuntimeException('received failed');
+        WebSocketMessageStub::$messageException = $cancellation;
+
+        $exceptionHandler = m::mock(ExceptionHandlerContract::class);
+        $exceptionHandler->shouldReceive('report')->times($receivedFails ? 1 : 0)->with($receivedFailure);
+
+        $dispatcher = m::mock(EventDispatcherContract::class);
+        $dispatcher->shouldReceive('hasListeners')->once()->with(MessageReceived::class)->andReturn($receivedFails);
+        if ($receivedFails) {
+            $dispatcher->shouldReceive('dispatch')->once()->with(m::type(MessageReceived::class))->andThrow($receivedFailure);
+        }
+        $dispatcher->shouldReceive('hasListeners')->once()->with(MessageHandled::class)->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')->once()->with(m::on(
+            fn (MessageHandled $event) => $event->exception === ($receivedFails ? $receivedFailure : $cancellation)
+        ));
+
+        $container = $this->createContainer(dispatcher: $dispatcher, exceptionHandler: $exceptionHandler);
+        $container->shouldReceive('make')->with(WebSocketMessageStub::class)->andReturn(new WebSocketMessageStub);
+        FdCollector::set(1, WebSocketMessageStub::class);
+
+        $frame = new Frame;
+        $frame->fd = 1;
+
+        (new Server($container))->onMessage(m::mock(WebSocketSwooleServer::class), $frame);
+
+        $this->assertTrue(WebSocketMessageStub::$messageHandled);
+    }
+
+    #[TestWith([false], 'ordinary failure')]
+    #[TestWith([true], 'cancellation')]
+    public function testCanceledMessageCompletionContainsListenerFailures(bool $cancel): void
     {
         WebSocketMessageStub::$messageException = new CanceledException;
+        $listenerFailure = $cancel ? new CanceledException : new RuntimeException('completion failed');
 
-        $logger = m::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing();
-        $logger->shouldNotReceive('error');
+        $exceptionHandler = m::mock(ExceptionHandlerContract::class);
+        $exceptionHandler->shouldReceive('report')->times($cancel ? 0 : 1)->with($listenerFailure);
 
         $dispatcher = m::mock(EventDispatcherContract::class);
         $dispatcher->shouldReceive('hasListeners')->once()->with(MessageReceived::class)->andReturnFalse();
-        $dispatcher->shouldNotReceive('hasListeners')->with(MessageHandled::class);
+        $dispatcher->shouldReceive('hasListeners')->once()->with(MessageHandled::class)->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')->once()->with(m::type(MessageHandled::class))->andThrow($listenerFailure);
 
-        $container = $this->createContainer($logger, $dispatcher);
+        $container = $this->createContainer(dispatcher: $dispatcher, exceptionHandler: $exceptionHandler);
         $container->shouldReceive('make')->with(WebSocketMessageStub::class)->andReturn(new WebSocketMessageStub);
         FdCollector::set(1, WebSocketMessageStub::class);
 
@@ -681,16 +736,28 @@ class ServerTest extends TestCase
         $this->assertArrayNotHasKey(1, WebSocketContext::getStorage());
     }
 
-    public function testConnectionClosingCancellationSkipsCloseCallbacksAndStillCleansUp(): void
+    #[TestWith([false], 'direct')]
+    #[TestWith([true], 'wrapped')]
+    public function testConnectionClosingCancellationSkipsCloseCallbacksButCompletesAndCleansUp(bool $wrapped): void
     {
+        $cancellation = $wrapped
+            ? new RuntimeException('closing cleanup failed', previous: new CanceledException)
+            : new CanceledException;
+        $listenerFailure = new RuntimeException('closed listener failed');
+        $reported = [];
+        $exceptionHandler = m::mock(ExceptionHandlerContract::class);
+        $exceptionHandler->shouldReceive('report')->andReturnUsing(function (Throwable $throwable) use (&$reported): void {
+            $reported[] = $throwable;
+        });
         $dispatcher = m::mock(EventDispatcherContract::class);
         $dispatcher->shouldReceive('hasListeners')->with(ConnectionClosing::class)->andReturnTrue();
         $dispatcher->shouldReceive('dispatch')
             ->once()
             ->with(m::type(ConnectionClosing::class))
-            ->andThrow(new CanceledException);
-        $dispatcher->shouldNotReceive('hasListeners')->with(ConnectionClosed::class);
-        $container = $this->createContainer(dispatcher: $dispatcher);
+            ->andThrow($cancellation);
+        $dispatcher->shouldReceive('hasListeners')->with(ConnectionClosed::class)->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')->once()->with(m::type(ConnectionClosed::class))->andThrow($listenerFailure);
+        $container = $this->createContainer(dispatcher: $dispatcher, exceptionHandler: $exceptionHandler);
         $container->shouldNotReceive('make')->with(WebSocketMessageStub::class);
         CoroutineContext::set(WebSocketContext::FD, 1);
         WebSocketContext::set('connection.id', 'one');
@@ -698,6 +765,7 @@ class ServerTest extends TestCase
 
         (new Server($container))->onClose(m::mock(SwooleServer::class), 1, 0);
 
+        $this->assertSame($wrapped ? [$cancellation, $listenerFailure] : [$listenerFailure], $reported);
         $this->assertFalse(WebSocketMessageStub::$closeHandled);
         $this->assertNull(FdCollector::get(1));
         $this->assertArrayNotHasKey(1, WebSocketContext::getStorage());

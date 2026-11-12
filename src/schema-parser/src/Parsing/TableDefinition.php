@@ -15,7 +15,7 @@ use Hypervel\SchemaParser\TableReference;
  *
  * @internal
  */
-final class TableDefinition
+class TableDefinition
 {
     /** @var array<array-key, ColumnDefinition> columns by name, in declaration order */
     public array $columns = [];

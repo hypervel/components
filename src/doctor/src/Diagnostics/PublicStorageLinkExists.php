@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Doctor\Diagnostics;
 
 use FilesystemIterator;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Doctor\Contracts\Fixable;
 use Hypervel\Doctor\Diagnostic;
 use Hypervel\Doctor\Results\DiagnosticResult;
@@ -13,7 +14,6 @@ use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\Details;
 use Hypervel\Support\Facades\Artisan;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class PublicStorageLinkExists extends Diagnostic implements Fixable
@@ -100,9 +100,11 @@ class PublicStorageLinkExists extends Diagnostic implements Fixable
 
         try {
             $exitCode = Artisan::call('storage:link');
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return $this->fixFailed('creation-failed')->withDetails($exception->getMessage());
         }
 

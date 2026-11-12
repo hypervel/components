@@ -79,7 +79,7 @@ function test(User $user, Post $post, DatabaseNotification $notification): void
     assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\NamedScopes\Post, Hypervel\Types\NamedScopes\User>', $user->posts()->where('active', true));
 
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Notifications\DatabaseNotification>', DatabaseNotification::query()->read());
-    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Notifications\DatabaseNotification>', DatabaseNotification::query()->unread()->get());
+    assertType('Hypervel\Notifications\DatabaseNotificationCollection<int, Hypervel\Notifications\DatabaseNotification>', DatabaseNotification::query()->unread()->get());
     assertType('bool', $notification->read());
 
     assertType('never', $user->posts()->unavailable());
@@ -192,7 +192,7 @@ class Post extends BasePost
         return null;
     }
 
-    /** @phpstan-ignore missingType.return */
+    /** @phpstan-ignore missingType.return (the fixture needs a scope without a return type) */
     #[Scope]
     protected function untypedReturn(BuilderContract $query)
     {

@@ -1089,6 +1089,7 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
      * and queued unique-lock cleanup in every coroutine using that repository.
      *
      * @internal
+     * @return $this
      */
     public function setName(string $name): static
     {

@@ -57,6 +57,8 @@ ParaTest defaults to the machine CPU count when no process count is specified. R
 
 To run a single test class: `./vendor/bin/phpunit --no-progress path/to/TestClass.php`.
 
+The analyzer tests in `tests/PHPStan` run as a separate suite: use `composer test:phpstan`, or `./vendor/bin/phpunit -c phpunit.phpstan.xml.dist --no-progress path/to/TestClass.php` for a single class.
+
 ## Change Workflow
 
 ### Classify the change
@@ -117,7 +119,7 @@ Anything found follows When to Stop and Report — "the task didn't ask me to fi
 
 **Run verification commands sequentially** — Never overlap formatting, static analysis or tests. Wait for each command to finish before starting another. A tool’s built-in parallelism, such as ParaTest workers, is fine.
 
-**During implementation**, run each new or changed test file immediately with `./vendor/bin/phpunit --no-progress path/to/TestClass.php`.
+**During implementation**, run each new or changed test file immediately with `./vendor/bin/phpunit --no-progress path/to/TestClass.php` (add `-c phpunit.phpstan.xml.dist` for `tests/PHPStan`).
 
 Do not routinely run formatting or PHPStan during edits. Run targeted PHPStan earlier only when investigating a typing issue or when its feedback is needed to guide implementation.
 
@@ -138,8 +140,7 @@ Apply approved adaptations when porting or modifying code. Do not expand a chang
 ### Working rules
 
 - **Never use subagents without explicit user consent** — Do not spawn or delegate work to subagents unless the user explicitly requests or approves their use.
-- **Avoid bulk modification tools** — tools like `sed` and `replace_all` often have unwanted side effects. Never use bulk modification tools without explicit user approval; prefer manual edits. When approved, run them in multiple passes that each target long, exact, case-sensitive strings to avoid accidental changes.
-- **One file at a time** — never work on multiple files simultaneously. This governs manual editing; package-manager and formatter runs may touch multiple files.
+- **One change at a time** — Work on one coherent change at a time. Sequence dependent edits, and review the complete affected behavior across files before considering the change finished.
 - **Never use Write to overwrite files** — always use Edit for targeted updates.
 - **Always use `cp` to copy files and `mv` to move/rename** — never read → write new version → delete old version.
 - **Copy before splitting** — When a new file or class is primarily extracted from existing code, use `cp` to copy the primary source first and then update the copy rather than rebuilding it from individual pieces. Copy any additional blocks, including comments and docblocks, into the destination before removing them from their source.
@@ -456,6 +457,9 @@ Package-specific tests that require one database driver go in `tests/Integration
 |-------|----------|
 | `Hypervel\Tests\TestCase` | Unit tests, mocks only, no container needed. Tests that only need an isolated scratch directory stay here — use `ParallelTesting::tempDir()` (see Temp directories below). |
 | `Hypervel\Testbench\TestCase` | Integration tests (needs container for facades, config, DB, etc.) **or any test that needs a full app skeleton / writes through `BASE_PATH`** — testbench clones a disposable runtime skeleton per run and exposes its path via `BASE_PATH` (and `TESTBENCH_BASE_PATH` for subprocesses), deleted on shutdown. Committed source is never mutated. |
+| `PHPStan\Testing\RuleTestCase` | PHPStan rule tests in `tests/PHPStan`. |
+| `PHPStan\Testing\TypeInferenceTestCase` | PHPStan type-inference tests in `tests/PHPStan`. |
+| `PHPStan\Testing\PHPStanTestCase` | PHPStan tests in `tests/PHPStan` that need PHPStan's service container. |
 
 Always call `parent::setUp()` in your setUp method.
 
@@ -509,7 +513,7 @@ The Testbench skeleton clone is shared for the whole worker, so tests that write
 
 ### Coroutine support
 
-All tests run inside coroutines by default. The `RunTestsInCoroutine` trait is on both base test cases (`Hypervel\Tests\TestCase` and `Hypervel\Foundation\Testing\TestCase` / Testbench), so each test method automatically runs in a fresh coroutine. Context is destroyed when the coroutine ends — no manual cleanup needed.
+Tests using Hypervel's base classes run inside coroutines by default. The `RunTestsInCoroutine` trait is on both base test cases (`Hypervel\Tests\TestCase` and `Hypervel\Foundation\Testing\TestCase` / Testbench), so each test method automatically runs in a fresh coroutine. Context is destroyed when the coroutine ends — no manual cleanup needed.
 
 **Never add `use RunTestsInCoroutine;` to individual test classes.** It's inherited from the base class. If you encounter a test extending raw `PHPUnit\Framework\TestCase`, change it to extend `Hypervel\Tests\TestCase` instead.
 
@@ -762,6 +766,8 @@ See the existing entries for database, Redis, Meilisearch, and Typesense as exam
 
 ## Static Analysis
 
+Components is analyzed with its own `hypervel/phpstan` extension. [Static Analysis](src/docs/static-analysis.md#fixing-and-ignoring-diagnostics) is the source of truth for each diagnostic's intended fix and legitimate exceptions; the rules below add Components-specific requirements.
+
 The `tests/` directory is excluded from phpstan. Do not run phpstan on tests.
 
 Run full PHPStan checks with `composer analyse`. During implementation, use targeted PHPStan only when investigating or validating a specific type issue.
@@ -771,15 +777,14 @@ Run full PHPStan checks with `composer analyse`. During implementation, use targ
 **When fixing phpstan errors:**
 
 1. **Investigate before coding.** For each error: read the code, check the Laravel equivalent's types (native and docblock), trace through callers and dependents. Report findings with the single, most correct fix.
-2. **Don't make the code worse or more convoluted just to satisfy PHPStan.** Fix real issues in the code, but don't add awkward wrappers, fake branches, casts, or wider types just to silence PHPStan. A phpstan fix is a typing change: it must not change runtime behavior, add overhead, or introduce new edge cases. If you cannot satisfy PHPStan within those constraints, reach consensus on a compliant solution through a second-opinion loop with your peer agent. If the code is correct and PHPStan cannot understand it, follow the narrowing / suppression order below.
-3. **Native types vs docblocks determine what's dead code.** If a native return type makes a guard unreachable, the guard is dead code — remove it. If only a docblock suggests always-true, the guard is legitimate runtime defense — leave it.
+2. **Don't make the code worse or more convoluted just to satisfy PHPStan.** Fix real issues in the code, but don't add awkward wrappers, fake branches, casts, or wider types just to silence PHPStan. A type-only fix must not change runtime behavior, add overhead, or introduce new edge cases. A genuine runtime bug that PHPStan exposes is fixed through the normal bug-fix workflow. If you cannot satisfy PHPStan within those constraints, reach consensus on a compliant solution through a second-opinion loop with your peer agent. If the code is correct and PHPStan cannot understand it, follow the source-first rule below.
+3. **Check the supported runtime contract before removing guards.** Preserve necessary validation of caller input, consumer configuration and external data. Remove checks that only repeat guarantees the code already enforces; PHPDoc types and facts inferred from the booted application are not such guarantees.
 4. **Don't change contract/concrete boundaries to fix phpstan.** Swapping a contract for a concrete (or vice versa) to satisfy a type check diverges from Laravel's API. Only do this when Laravel's typing is genuinely incorrect.
 5. **Methods can be added to contracts only if they represent behavior any conforming implementation must provide.** Implementation-specific methods, internal helpers, or driver-specific features don't belong on contracts — find another fix even if adding them would satisfy phpstan.
-6. **Wrong docblock types should be fixed**, not suppressed. Check the actual runtime behavior (extension docs, reflection, tests) to determine the correct type.
-7. **Type decisions must be evidence-based.** See Development Conventions — check Laravel/Hyperf signatures and docblocks, then trace real control flow. Don't guess.
-8. **Narrowing / suppression order.** When the code is correct but PHPStan can't follow it, in order: (1) fix the type signature or docblock; (2) `@var` to narrow to the correct runtime type; (3) a line- or identifier-scoped `@phpstan-ignore` (e.g. magic `__call`/`__get` forwarding). Never use `assert()` to narrow types, and never add a neon-wide rule on your own (see #9).
-   When a container string key is also a PHP class name, keep the canonical service key and use `@var` for its actual runtime type; do not change service resolution solely for PHPStan.
-9. **Don't add patterns to `phpstan.neon.dist` on your own.** The neon file's global ignores cover fundamental framework patterns (Eloquent magic, generics, `new static`). Fix new phpstan errors at the source, not by masking them with new neon rules. Global suppression is a rare exception. First, reach consensus through a second-opinion loop with your peer agent that the error cannot be fixed at the source or narrowed locally, and that the pattern is frequent enough to justify global suppression. Then STOP, explain the reason and recommended suppression to the owner, and wait for approval before adding it.
+6. **Type decisions must be evidence-based.** See Development Conventions — check Laravel/Hyperf signatures and docblocks, then trace real control flow. Don't guess.
+7. **Fix types at their source.** Correct signatures, PHPDoc, generics, stubs or extensions. Use `assert()` only for genuine invariants; assertions may be disabled and cannot replace required validation. A truthful inline `@var` is a last resort. For verified analysis limitations, use `@phpstan-ignore identifier (reason)`, always including a meaningful reason; never use identifier-less ignores. For a confirmed PHPStan bug, start the reason with `@TODO: Remove once PHPStan` and describe the needed fix; do not add a `docs/todo.md` entry. NEON ignores require approval under the global-ignore rule.
+8. **Don't add patterns to `phpstan.neon.dist` on your own.** The neon file's global ignores cover fundamental framework patterns (Eloquent magic, generics, `new static`). Fix new phpstan errors at the source, not by masking them with new neon rules. Global suppression is a rare exception. First, reach consensus through a second-opinion loop with your peer agent that the error cannot be fixed at the source or narrowed locally, and that the pattern is frequent enough to justify global suppression. Then STOP, explain the reason and recommended suppression to the owner, and wait for approval before adding it.
+9. **Environment reads outside config files.** Framework source reads the environment outside config files only for a deliberate infrastructure need, such as reads before configuration loads, process transport like `__HYPERVEL_CONTEXT`, or test infrastructure like worker tokens. Use `Env::get()` with an inline `@phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (reason)` stating that need. `Env::get()` is the convention for these intentional reads; switching from `env()` does not fix a read in the wrong place. Do not add directory, path or class-wide exemptions.
 
 ## Porting Packages
 
@@ -959,7 +964,7 @@ Tests for these features should be **removed** (not commented out) without askin
 1. Update namespace to `Hypervel\Tests\{Package}`
 2. Add `declare(strict_types=1);`
 3. Change `Illuminate\` imports to `Hypervel\`
-4. Extend correct base TestCase (`Hypervel\Tests\TestCase` or `Hypervel\Testbench\TestCase`)
+4. Extend the appropriate test base listed under [Base classes](#base-classes)
 5. Ensure `parent::setUp()` is called
 6. Add type declarations to model properties
 7. Fix mock types (PDO, QueryBuilder, Grammar, etc.)

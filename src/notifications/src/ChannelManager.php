@@ -171,6 +171,8 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
 
     /**
      * Set the locale of notifications.
+     *
+     * @return $this
      */
     public function locale(string $locale): static
     {

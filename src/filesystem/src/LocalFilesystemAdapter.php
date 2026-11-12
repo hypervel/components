@@ -146,6 +146,8 @@ class LocalFilesystemAdapter extends FilesystemAdapter
 
     /**
      * Specify the name of the disk the adapter is managing.
+     *
+     * @return $this
      */
     public function diskName(string $disk): static
     {
@@ -159,6 +161,8 @@ class LocalFilesystemAdapter extends FilesystemAdapter
      *
      * Boot-only. The route metadata persists on the cached adapter for the
      * worker lifetime and affects every subsequent signed URL request.
+     *
+     * @return $this
      */
     public function servingRoute(?string $disk, string $prefix = ''): static
     {
@@ -175,6 +179,8 @@ class LocalFilesystemAdapter extends FilesystemAdapter
      * Boot-only. The flag and resolver persist on the cached local disk adapter
      * for the worker lifetime and apply to every subsequent signed URL request
      * for that disk.
+     *
+     * @return $this
      */
     public function shouldServeSignedUrls(bool $serve = true, ?Closure $urlGeneratorResolver = null): static
     {

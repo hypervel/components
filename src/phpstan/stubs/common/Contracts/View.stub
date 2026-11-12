@@ -1,0 +1,27 @@
+<?php
+
+namespace Hypervel\Contracts\View;
+
+use Hypervel\Contracts\Support\Arrayable;
+
+interface Factory
+{
+    /**
+     * Determine if a given view exists.
+     *
+     * @phpstan-assert-if-true view-string $view
+     */
+    public function exists(string $view): bool;
+
+    /**
+     * Get the evaluated view contents for the given view.
+     *
+     * @param view-string $view
+     * @param Arrayable|array<string, mixed> $data
+     * @param array<string, mixed> $mergeData
+     */
+    public function make(string $view, Arrayable|array $data = [], array $mergeData = []): View;
+}
+
+interface View
+{}

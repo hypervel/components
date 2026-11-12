@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Jobs;
 
+use Hypervel\Reverb\Events\ConnectionPruned;
 use Hypervel\Reverb\Jobs\PruneStaleConnections;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Servers\Hypervel\ConnectionLifecycle;
@@ -54,6 +55,25 @@ class PruneStaleConnectionsTest extends ReverbTestCase
         // path handles the unsubscribe. Calling it directly causes double-unsubscribe
         // which decrements SharedState counters twice.
         $channelManager->shouldNotHaveReceived('for');
+    }
+
+    public function testDispatchesConnectionPrunedWithTheStaleConnection(): void
+    {
+        [$connection] = static::factory();
+        $connection->setLastSeenAt(time() - 60 * 10);
+        $connection->setHasBeenPinged();
+        $connection->connection()->markEstablished();
+        $this->addToWebSocketHandler(1, $connection->connection());
+
+        $events = [];
+        $this->app->make('events')->listen(ConnectionPruned::class, function (ConnectionPruned $event) use (&$events): void {
+            $events[] = $event;
+        });
+
+        (new PruneStaleConnections)->handle();
+
+        $this->assertCount(1, $events);
+        $this->assertSame($connection->connection(), $events[0]->connection->connection());
     }
 
     /**

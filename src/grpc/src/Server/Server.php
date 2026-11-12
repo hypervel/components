@@ -11,6 +11,7 @@ use Hypervel\Contracts\Server\BootstrapsForServer;
 use Hypervel\Contracts\Server\OnRequestInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Grpc\Exceptions\ProtocolException;
 use Hypervel\Grpc\Exceptions\RpcException;
 use Hypervel\Grpc\GrpcOperationResult;
@@ -24,8 +25,8 @@ use Hypervel\Grpc\StatusCode;
 use Hypervel\HttpServer\RequestBridge;
 use Hypervel\HttpServer\ResponseBridge;
 use Hypervel\Server\TlsOptions;
+use Hypervel\Support\FailureReporter;
 use InvalidArgumentException;
-use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -98,7 +99,7 @@ class Server implements OnRequestInterface, BootstrapsForServer
         $operationHandle = null;
         $terminalException = null;
         $emissionFailure = null;
-        $cancelled = false;
+        $cancellation = null;
 
         try {
             CoordinatorManager::until(Constants::WORKER_START)->yield();
@@ -136,11 +137,13 @@ class Server implements OnRequestInterface, BootstrapsForServer
 
             $emissionStarted = true;
             ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/2', request: $request ?? null);
-        } catch (CanceledException $exception) {
-            $cancelled = true;
-
-            throw $exception;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                $cancellation = $throwable;
+
+                throw $throwable;
+            }
+
             $terminalException = $throwable;
 
             if ($response instanceof GrpcStreamedResponse) {
@@ -159,11 +162,13 @@ class Server implements OnRequestInterface, BootstrapsForServer
                 $response = $this->responses->error($this->exceptions->map($throwable));
                 $emissionStarted = true;
                 ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/2', request: $request ?? null);
-            } catch (CanceledException $exception) {
-                $cancelled = true;
-
-                throw $exception;
             } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    $cancellation = $throwable;
+
+                    throw $throwable;
+                }
+
                 $emissionFailure = $throwable;
                 $this->exceptions->report($emissionFailure);
                 $this->completeWritableResponse($swooleResponse);
@@ -175,12 +180,16 @@ class Server implements OnRequestInterface, BootstrapsForServer
 
             $this->contexts->forget();
 
-            if (! $cancelled && $operationHandle !== null) {
-                $operationHandle->finish($this->operationResult(
-                    $response,
-                    $terminalException,
-                    $emissionFailure,
-                ));
+            if ($operationHandle !== null && $cancellation === null) {
+                $operationHandle->finish($this->operationResult($response, $terminalException, $emissionFailure));
+            } elseif ($operationHandle !== null) {
+                // A canceled call sent no final status; a handler failure that preceded it stays the outcome.
+                try {
+                    $operationHandle->finish(new GrpcOperationResult(null, $terminalException ?? $cancellation, 1));
+                } catch (Throwable $throwable) {
+                    // The unwinding cancellation keeps precedence; an observer failure is still reported.
+                    FailureReporter::report($throwable);
+                }
             }
         }
     }

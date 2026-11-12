@@ -825,9 +825,4 @@ Applications that need the resolved metadata as structured data instead of rende
 <a name="static-analysis"></a>
 ### Static Analysis
 
-Head includes editor declarations for its route macros and a PHPStan extension for checking their named arguments and fluent return types. PHPStan's extension installer discovers the extension automatically. Without extension discovery, include it in your PHPStan configuration:
-
-```neon
-includes:
-    - vendor/hypervel/head/extension.neon
-```
+Head includes editor declarations for its route macros. The [`hypervel/phpstan`](/docs/{{version}}/static-analysis) extension checks their named arguments and fluent return types.

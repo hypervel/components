@@ -279,12 +279,14 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     /**
      * Split a string using a regular expression or by length.
      *
-     * @return Collection<int, string>
+     * PREG_SPLIT_OFFSET_CAPTURE makes a pattern split return [segment, offset] pairs; a length split ignores flags.
+     *
+     * @return ($flags is int-mask<PREG_SPLIT_NO_EMPTY, PREG_SPLIT_DELIM_CAPTURE> ? Collection<int, string> : Collection<int, array{string, int<0, max>}|string>)
      */
     public function split(string|int $pattern, int $limit = -1, int $flags = 0): Collection
     {
-        if (filter_var($pattern, FILTER_VALIDATE_INT) !== false) {
-            return new Collection(mb_str_split($this->value, $pattern));
+        if (($length = filter_var($pattern, FILTER_VALIDATE_INT)) !== false) {
+            return new Collection(mb_str_split($this->value, $length));
         }
 
         $segments = preg_split($pattern, $this->value, $limit, $flags);
@@ -1115,6 +1117,8 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
 
     /**
      * Dump the string.
+     *
+     * @return $this
      */
     public function dump(mixed ...$args): static
     {

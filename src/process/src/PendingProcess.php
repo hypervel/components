@@ -103,6 +103,8 @@ class PendingProcess
 
     /**
      * Specify the command that will invoke the process.
+     *
+     * @return $this
      */
     public function command(array|string $command): static
     {
@@ -113,6 +115,8 @@ class PendingProcess
 
     /**
      * Specify the working directory of the process.
+     *
+     * @return $this
      */
     public function path(string $path): static
     {
@@ -123,6 +127,8 @@ class PendingProcess
 
     /**
      * Specify the maximum number of seconds the process may run.
+     *
+     * @return $this
      */
     public function timeout(CarbonInterval|int $timeout): static
     {
@@ -133,6 +139,8 @@ class PendingProcess
 
     /**
      * Specify the maximum number of seconds a process may go without returning output.
+     *
+     * @return $this
      */
     public function idleTimeout(CarbonInterval|int $timeout): static
     {
@@ -143,6 +151,8 @@ class PendingProcess
 
     /**
      * Indicate that the process may run forever without timing out.
+     *
+     * @return $this
      */
     public function forever(): static
     {
@@ -155,6 +165,7 @@ class PendingProcess
      * Set the additional environment variables for the process.
      *
      * @param array<string, false|string|Stringable> $environment
+     * @return $this
      */
     public function env(array $environment): static
     {
@@ -167,6 +178,7 @@ class PendingProcess
      * Set the standard input that should be provided when invoking the process.
      *
      * @param null|bool|float|int|resource|string|Traversable $input
+     * @return $this
      */
     public function input(mixed $input): static
     {
@@ -177,6 +189,8 @@ class PendingProcess
 
     /**
      * Disable output for the process.
+     *
+     * @return $this
      */
     public function quietly(): static
     {
@@ -187,6 +201,8 @@ class PendingProcess
 
     /**
      * Enable TTY mode for the process.
+     *
+     * @return $this
      */
     public function tty(bool $tty = true): static
     {
@@ -199,6 +215,7 @@ class PendingProcess
      * Set the "proc_open" options that should be used when invoking the process.
      *
      * @param array<string, mixed> $options
+     * @return $this
      */
     public function options(array $options): static
     {
@@ -230,7 +247,7 @@ class PendingProcess
 
             ConnectionResolver::releaseIdleConnections();
 
-            return new ProcessResult(tap($process)->run($this->guardProcessOutput($process, $output))); // @phpstan-ignore method.notFound (tap proxy __call)
+            return new ProcessResult(tap($process)->run($this->guardProcessOutput($process, $output)));
         } catch (SymfonyTimeoutException $e) {
             throw ProcessTimedOutException::make($e, new ProcessResult($process));
         } catch (Throwable $exception) {
@@ -337,6 +354,7 @@ class PendingProcess
      * Specify the fake process result handlers for the pending process.
      *
      * @param array<string, callable> $fakeHandlers
+     * @return $this
      */
     public function withFakeHandlers(array $fakeHandlers): static
     {

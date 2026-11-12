@@ -113,6 +113,8 @@ class Middleware
 
     /**
      * Prepend middleware to the application's global middleware stack.
+     *
+     * @return $this
      */
     public function prepend(array|string $middleware): static
     {
@@ -126,6 +128,8 @@ class Middleware
 
     /**
      * Append middleware to the application's global middleware stack.
+     *
+     * @return $this
      */
     public function append(array|string $middleware): static
     {
@@ -139,6 +143,8 @@ class Middleware
 
     /**
      * Remove middleware from the application's global middleware stack.
+     *
+     * @return $this
      */
     public function remove(array|string $middleware): static
     {
@@ -152,6 +158,8 @@ class Middleware
 
     /**
      * Specify a middleware that should be replaced with another middleware.
+     *
+     * @return $this
      */
     public function replace(string $search, array|string $replace): static
     {
@@ -162,6 +170,8 @@ class Middleware
 
     /**
      * Insert middleware before the given middleware in the global middleware stack.
+     *
+     * @return $this
      */
     public function insertBefore(string $search, array|string $middleware): static
     {
@@ -173,6 +183,8 @@ class Middleware
 
     /**
      * Insert middleware after the given middleware in the global middleware stack.
+     *
+     * @return $this
      */
     public function insertAfter(string $search, array|string $middleware): static
     {
@@ -184,6 +196,8 @@ class Middleware
 
     /**
      * Define the global middleware for the application.
+     *
+     * @return $this
      */
     public function use(array $middleware): static
     {
@@ -194,6 +208,8 @@ class Middleware
 
     /**
      * Define a middleware group.
+     *
+     * @return $this
      */
     public function group(string $group, array $middleware): static
     {
@@ -204,6 +220,8 @@ class Middleware
 
     /**
      * Prepend the given middleware to the specified group.
+     *
+     * @return $this
      */
     public function prependToGroup(string $group, array|string $middleware): static
     {
@@ -217,6 +235,8 @@ class Middleware
 
     /**
      * Append the given middleware to the specified group.
+     *
+     * @return $this
      */
     public function appendToGroup(string $group, array|string $middleware): static
     {
@@ -230,6 +250,8 @@ class Middleware
 
     /**
      * Remove the given middleware from the specified group.
+     *
+     * @return $this
      */
     public function removeFromGroup(string $group, array|string $middleware): static
     {
@@ -243,6 +265,8 @@ class Middleware
 
     /**
      * Replace the given middleware in the specified group with another middleware.
+     *
+     * @return $this
      */
     public function replaceInGroup(string $group, string $search, array|string $replace): static
     {
@@ -253,6 +277,8 @@ class Middleware
 
     /**
      * Insert middleware before the given middleware in the specified group.
+     *
+     * @return $this
      */
     public function insertBeforeInGroup(string $group, string $search, array|string $middleware): static
     {
@@ -264,6 +290,8 @@ class Middleware
 
     /**
      * Insert middleware after the given middleware in the specified group.
+     *
+     * @return $this
      */
     public function insertAfterInGroup(string $group, string $search, array|string $middleware): static
     {
@@ -275,6 +303,8 @@ class Middleware
 
     /**
      * Modify the middleware in the "web" group.
+     *
+     * @return $this
      */
     public function web(array|string $append = [], array|string $prepend = [], array|string $remove = [], array $replace = []): static
     {
@@ -283,6 +313,8 @@ class Middleware
 
     /**
      * Modify the middleware in the "api" group.
+     *
+     * @return $this
      */
     public function api(array|string $append = [], array|string $prepend = [], array|string $remove = [], array $replace = []): static
     {
@@ -291,6 +323,8 @@ class Middleware
 
     /**
      * Modify the middleware in the given group.
+     *
+     * @return $this
      */
     protected function modifyGroup(string $group, array|string $append, array|string $prepend, array|string $remove, array $replace): static
     {
@@ -319,6 +353,8 @@ class Middleware
 
     /**
      * Register additional middleware aliases.
+     *
+     * @return $this
      */
     public function alias(array $aliases): static
     {
@@ -329,6 +365,8 @@ class Middleware
 
     /**
      * Define the middleware priority for the application.
+     *
+     * @return $this
      */
     public function priority(array $priority): static
     {
@@ -339,6 +377,8 @@ class Middleware
 
     /**
      * Prepend middleware to the priority middleware.
+     *
+     * @return $this
      */
     public function prependToPriorityList(array|string $before, string $prepend): static
     {
@@ -349,6 +389,8 @@ class Middleware
 
     /**
      * Append middleware to the priority middleware.
+     *
+     * @return $this
      */
     public function appendToPriorityList(array|string $after, string $append): static
     {
@@ -444,6 +486,8 @@ class Middleware
      * Boot-only. The callback persists in authentication middleware and
      * exception static properties for the worker lifetime and affects every
      * subsequent unauthenticated or session-mismatch request.
+     *
+     * @return $this
      */
     public function redirectGuestsTo(callable|string|null $redirect): static
     {
@@ -458,6 +502,8 @@ class Middleware
      * Boot-only. The callback persists in the guest middleware static property
      * for the worker lifetime and affects every subsequent already-authenticated
      * guest-route request.
+     *
+     * @return $this
      */
     public function redirectUsersTo(callable|string $redirect): static
     {
@@ -470,6 +516,8 @@ class Middleware
      * Boot-only. The callbacks persist in authentication middleware and
      * exception static properties for the worker lifetime and affect every
      * subsequent matching request.
+     *
+     * @return $this
      */
     public function redirectTo(callable|string|null $guests = null, callable|string|null $users = null): static
     {
@@ -483,6 +531,7 @@ class Middleware
      *
      * @param array<int, string> $except
      * @param array<int, string> $only
+     * @return $this
      */
     public function encryptCookies(array $except = [], array $only = []): static
     {
@@ -499,6 +548,8 @@ class Middleware
 
     /**
      * Configure the request forgery prevention middleware.
+     *
+     * @return $this
      */
     public function preventRequestForgery(array $except = [], bool $originOnly = false, bool $allowSameSite = false): static
     {
@@ -519,6 +570,7 @@ class Middleware
      * Configure the URL signature validation middleware.
      *
      * @param array<int, string> $except
+     * @return $this
      */
     public function validateSignatures(array $except = []): static
     {
@@ -531,6 +583,7 @@ class Middleware
      * Configure the empty string conversion middleware.
      *
      * @param array<int, (Closure(Request): bool)> $except
+     * @return $this
      */
     public function convertEmptyStringsToNull(array $except = []): static
     {
@@ -543,6 +596,7 @@ class Middleware
      * Configure the string trimming middleware.
      *
      * @param array<int, (Closure(Request): bool)|string> $except
+     * @return $this
      */
     public function trimStrings(array $except = []): static
     {
@@ -559,6 +613,7 @@ class Middleware
      * Indicate that the trusted host middleware should be enabled.
      *
      * @param null|array<int, string>|(callable(): array<int, string>) $at
+     * @return $this
      */
     public function trustHosts(array|callable|null $at = null, bool $subdomains = true): static
     {
@@ -575,6 +630,7 @@ class Middleware
      * Configure the trusted proxies for the application.
      *
      * @param null|array<int, string>|string $at
+     * @return $this
      */
     public function trustProxies(array|string|null $at = null, ?int $headers = null): static
     {
@@ -593,6 +649,7 @@ class Middleware
      * Configure the middleware that prevents requests during maintenance mode.
      *
      * @param array<int, string> $except
+     * @return $this
      */
     public function preventRequestsDuringMaintenance(array $except = []): static
     {
@@ -603,6 +660,8 @@ class Middleware
 
     /**
      * Indicate that Sanctum's frontend state middleware should be enabled.
+     *
+     * @return $this
      */
     public function statefulApi(): static
     {
@@ -613,6 +672,8 @@ class Middleware
 
     /**
      * Indicate that the API middleware group's throttling middleware should be enabled.
+     *
+     * @return $this
      */
     public function throttleApi(string $limiter = 'api'): static
     {
@@ -626,6 +687,8 @@ class Middleware
 
     /**
      * Indicate that sessions should be authenticated for the "web" middleware group.
+     *
+     * @return $this
      */
     public function authenticateSessions(): static
     {

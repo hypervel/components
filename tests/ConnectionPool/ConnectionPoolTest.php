@@ -729,9 +729,11 @@ class ConnectionPoolTest extends TestCase
     }
 
     #[DataProvider('idleCheckCleanupFailures')]
-    public function testCanceledIdleCheckDisposesOnceAndPreservesCancellation(?string $cleanupFailure): void
+    public function testCanceledIdleCheckDisposesOnceAndPreservesCancellation(?string $cleanupFailure, bool $carried = false): void
     {
-        $cancellation = new CanceledException('idle check canceled');
+        $cancellation = $carried
+            ? new RuntimeException('idle check failed', previous: new CanceledException('idle check canceled'))
+            : new CanceledException('idle check canceled');
         $secondary = match ($cleanupFailure) {
             'canceled' => new CanceledException('close canceled'),
             'failed' => new RuntimeException('close failed'),
@@ -757,7 +759,7 @@ class ConnectionPoolTest extends TestCase
 
         try {
             $pool->checkIdleConnection();
-        } catch (CanceledException $exception) {
+        } catch (Throwable $exception) {
             $caught = $exception;
         } finally {
             $pool->close();
@@ -771,7 +773,7 @@ class ConnectionPoolTest extends TestCase
 
     public static function idleCheckCleanupFailures(): array
     {
-        return [[null], ['canceled'], ['failed']];
+        return [[null], ['canceled'], ['failed'], [null, true]];
     }
 
     public function testIdleDisposalCancellationPropagatesWithoutSecondDestruction(): void

@@ -117,6 +117,7 @@ class CreateVendorSymlinkTest extends TestCase
         $application = $this->createApplication();
         (new DeleteVendorSymlink)->handle($application);
         $manifest = m::mock(PackageManifest::class);
+        $manifest->manifestPath = $application->getCachedPackagesPath();
         $manifest->shouldReceive('build')
             ->once()
             ->andThrow(new RuntimeException('Package discovery failed.'));
@@ -176,15 +177,13 @@ class CreateVendorSymlinkTest extends TestCase
     {
         $application = $this->createApplication();
         $filesystem = new Filesystem;
-        $cachedPath = $application->bootstrapPath('cache/packages.php');
-
-        if ($filesystem->exists($cachedPath)) {
-            $filesystem->delete($cachedPath);
-        }
+        // A custom path, as from APP_PACKAGES_CACHE, proves the manifest's own path is used.
+        $cachedPath = $application->bootstrapPath('cache/custom-packages.php');
 
         $filesystem->ensureDirectoryExists($cachedPath);
         $this->manifestDirectory = $cachedPath;
         $manifest = m::mock(PackageManifest::class);
+        $manifest->manifestPath = $cachedPath;
         $manifest->shouldNotReceive('build');
         $application->instance(PackageManifest::class, $manifest);
 

@@ -1,0 +1,191 @@
+<?php
+
+namespace Hypervel\Database\Eloquent\Relations;
+
+use Closure;
+use Hypervel\Contracts\Database\Query\Expression;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\UniqueConstraintViolationException;
+
+/*
+ * A stub's docblock replaces the source's, so the class docblock and each method's docblock repeat
+ * the source and add only analyzer-only types. Keep them in sync with the source. Native signatures
+ * repeat the source too, except return types naming a collection, which stub validation cannot
+ * declare; their docblocks type them.
+ */
+
+/**
+ * @template TRelatedModel of Model
+ * @template TDeclaringModel of Model
+ * @template TResult
+ *
+ * @extends Relation<TRelatedModel, TDeclaringModel, TResult>
+ */
+abstract class HasOneOrMany extends Relation
+{
+    /**
+     * Create and return an un-saved instance of the related model.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @return TRelatedModel
+     */
+    public function make(array $attributes = []): Model;
+
+    /**
+     * Create and return an un-saved instance of the related models.
+     *
+     * @param  iterable<array<model-property<TRelatedModel>, mixed>>  $records
+     * @return collection-of<int, TRelatedModel>
+     */
+    public function makeMany(iterable $records);
+
+    /**
+     * Find a model by its primary key or return a new instance of the related model.
+     *
+     * @param  array<int, model-property<TRelatedModel>|Expression|'*'>  $columns
+     * @return ($id is Model ? TRelatedModel : ($id is (array<mixed>|Arrayable<array<array-key, mixed>>) ? collection-of<int, TRelatedModel> : TRelatedModel))
+     */
+    public function findOrNew(mixed $id, array $columns = ['*']);
+
+    /**
+     * Get the first related model record matching the attributes or instantiate it.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @param  array<model-property<TRelatedModel>, mixed>|(Closure(): array<model-property<TRelatedModel>, mixed>)  $values
+     * @return TRelatedModel
+     */
+    public function firstOrNew(array $attributes = [], Closure|array $values = []): Model;
+
+    /**
+     * Get the first record matching the attributes. If the record is not found, create it.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @param  array<model-property<TRelatedModel>, mixed>|(Closure(): array<model-property<TRelatedModel>, mixed>)  $values
+     * @return TRelatedModel
+     */
+    public function firstOrCreate(array $attributes = [], Closure|array $values = []): Model;
+
+    /**
+     * Attempt to create the record. If a unique constraint violation occurs, attempt to find the matching record.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @param  array<model-property<TRelatedModel>, mixed>|(Closure(): array<model-property<TRelatedModel>, mixed>)  $values
+     * @return TRelatedModel
+     *
+     * @throws UniqueConstraintViolationException
+     */
+    public function createOrFirst(array $attributes = [], Closure|array $values = []): Model;
+
+    /**
+     * Get the first record matching the attributes, including trashed records, and restore it. If the record is not found, create it.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @param  array<model-property<TRelatedModel>, mixed>|(Closure(): array<model-property<TRelatedModel>, mixed>)  $values
+     * @return TRelatedModel
+     */
+    public function restoreOrCreate(array $attributes = [], Closure|array $values = []): Model;
+
+    /**
+     * Attempt to create the record. If a unique constraint violation occurs, find the matching record, including trashed records, and restore it.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @param  array<model-property<TRelatedModel>, mixed>|(Closure(): array<model-property<TRelatedModel>, mixed>)  $values
+     * @return TRelatedModel
+     *
+     * @throws UniqueConstraintViolationException
+     */
+    public function createOrRestore(array $attributes = [], Closure|array $values = []): Model;
+
+    /**
+     * Create or update a related record matching the attributes, and fill it with values.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @param  array<model-property<TRelatedModel>, mixed>|(Closure(): array<model-property<TRelatedModel>, mixed>)  $values
+     * @return TRelatedModel
+     */
+    public function updateOrCreate(array $attributes, Closure|array $values = []): Model;
+
+    /**
+     * Create a related record matching the attributes, or increment the existing record.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @param  model-property<TRelatedModel>  $column
+     * @param  array<model-property<TRelatedModel>, mixed>  $extra
+     * @return TRelatedModel
+     */
+    public function incrementOrCreate(array $attributes, string $column = 'count', float|int $default = 1, float|int $step = 1, array $extra = []): Model;
+
+    /**
+     * Insert new records or update the existing ones.
+     *
+     * @param  array<model-property<TRelatedModel>, scalar|object|resource|null>|array<int, array<model-property<TRelatedModel>, mixed>>  $values
+     * @param  model-property<TRelatedModel>|array<int, model-property<TRelatedModel>>  $uniqueBy
+     * @param  null|array<int|model-property<TRelatedModel>, mixed>  $update
+     */
+    public function upsert(array $values, array|string $uniqueBy, ?array $update = null): int;
+
+    /**
+     * Create a new instance of the related model.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @return TRelatedModel
+     */
+    public function create(array $attributes = []): Model;
+
+    /**
+     * Create a new instance of the related model without raising any events to the parent model.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @return TRelatedModel
+     */
+    public function createQuietly(array $attributes = []): Model;
+
+    /**
+     * Create a new instance of the related model. Allow mass-assignment.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @return TRelatedModel
+     */
+    public function forceCreate(array $attributes = []): Model;
+
+    /**
+     * Create a new instance of the related model with mass assignment without raising model events.
+     *
+     * @param  array<model-property<TRelatedModel>, mixed>  $attributes
+     * @return TRelatedModel
+     */
+    public function forceCreateQuietly(array $attributes = []): Model;
+
+    /**
+     * Create a Collection of new instances of the related model.
+     *
+     * @param  iterable<array<model-property<TRelatedModel>, mixed>>  $records
+     * @return collection-of<int, TRelatedModel>
+     */
+    public function createMany(iterable $records);
+
+    /**
+     * Create a Collection of new instances of the related model without raising any events to the parent model.
+     *
+     * @param  iterable<array<model-property<TRelatedModel>, mixed>>  $records
+     * @return collection-of<int, TRelatedModel>
+     */
+    public function createManyQuietly(iterable $records);
+
+    /**
+     * Create a Collection of new instances of the related model, allowing mass-assignment.
+     *
+     * @param  iterable<array<model-property<TRelatedModel>, mixed>>  $records
+     * @return collection-of<int, TRelatedModel>
+     */
+    public function forceCreateMany(iterable $records);
+
+    /**
+     * Create a Collection of new instances of the related model, allowing mass-assignment and without raising any events to the parent model.
+     *
+     * @param  iterable<array<model-property<TRelatedModel>, mixed>>  $records
+     * @return collection-of<int, TRelatedModel>
+     */
+    public function forceCreateManyQuietly(iterable $records);
+}

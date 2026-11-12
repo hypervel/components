@@ -70,6 +70,8 @@ trait DatabaseRule
 
     /**
      * Set a "where" constraint on the query.
+     *
+     * @return $this
      */
     public function where(Closure|string $column, mixed $value = null): static
     {
@@ -94,6 +96,8 @@ trait DatabaseRule
 
     /**
      * Set a "where not" constraint on the query.
+     *
+     * @return $this
      */
     public function whereNot(string $column, mixed $value): static
     {
@@ -108,6 +112,8 @@ trait DatabaseRule
 
     /**
      * Set a "where null" constraint on the query.
+     *
+     * @return $this
      */
     public function whereNull(string $column): static
     {
@@ -116,6 +122,8 @@ trait DatabaseRule
 
     /**
      * Set a "where not null" constraint on the query.
+     *
+     * @return $this
      */
     public function whereNotNull(string $column): static
     {
@@ -124,6 +132,8 @@ trait DatabaseRule
 
     /**
      * Set a "where in" constraint on the query.
+     *
+     * @return $this
      */
     public function whereIn(string $column, array|Arrayable|BackedEnum $values): static
     {
@@ -134,6 +144,8 @@ trait DatabaseRule
 
     /**
      * Set a "where not in" constraint on the query.
+     *
+     * @return $this
      */
     public function whereNotIn(string $column, array|Arrayable|BackedEnum $values): static
     {
@@ -144,6 +156,8 @@ trait DatabaseRule
 
     /**
      * Ignore soft deleted models during the existence checks.
+     *
+     * @return $this
      */
     public function withoutTrashed(string $deletedAtColumn = 'deleted_at'): static
     {
@@ -154,6 +168,8 @@ trait DatabaseRule
 
     /**
      * Only include soft deleted models during the existence check.
+     *
+     * @return $this
      */
     public function onlyTrashed(string $deletedAtColumn = 'deleted_at'): static
     {
@@ -164,6 +180,8 @@ trait DatabaseRule
 
     /**
      * Register a custom query callback.
+     *
+     * @return $this
      */
     public function using(Closure $callback): static
     {

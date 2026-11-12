@@ -95,7 +95,7 @@ class CoroutineState implements NonCopyableContext
             try {
                 $this->queue->run();
             } catch (Throwable $exception) {
-                $failure ??= $exception;
+                $failure = Coroutine::preferCancellation($failure, $exception);
             }
         } while ($this->promises !== [] || ! $this->queue->isEmpty());
 

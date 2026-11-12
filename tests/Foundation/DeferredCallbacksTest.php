@@ -16,6 +16,7 @@ use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Swoole\Coroutine\CanceledException;
 
 class DeferredCallbacksTest extends TestCase
 {
@@ -119,6 +120,22 @@ class DeferredCallbacksTest extends TestCase
 
         $this->assertSame(['deferred'], DeferredCallbacksTestState::$calls);
         $this->assertCount(0, $this->app->make(DeferredCallbackCollection::class));
+    }
+
+    public function testCanceledJobAttemptSkipsEveryDeferredCallback(): void
+    {
+        defer(function (): void {
+            DeferredCallbacksTestState::record('deferred');
+        });
+        defer(function (): void {
+            DeferredCallbacksTestState::record('always');
+        })->always();
+
+        $this->app->make(Dispatcher::class)->dispatch(
+            new JobAttempted('database', m::mock(Job::class), new CanceledException, canceled: true)
+        );
+
+        $this->assertSame([], DeferredCallbacksTestState::$calls);
     }
 
     public function testJobWithoutDeferredCallbacksDoesNotResolveTheCollection(): void

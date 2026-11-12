@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testing;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithEnvironment;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
@@ -38,8 +39,7 @@ abstract class UnitTestCase extends BaseTestCase
         try {
             $this->tearDownTheTestEnvironmentUsingMockery();
         } catch (Throwable $throwable) {
-            // Preserve the first cleanup failure while still running Mockery teardown.
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {

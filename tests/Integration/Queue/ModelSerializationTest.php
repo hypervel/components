@@ -437,6 +437,26 @@ class ModelSerializationTest extends TestCase
     }
 
     #[WithConfig('database.default', 'testing')]
+    public function testParentPrivatePropertiesAreSerializedAndRestored(): void
+    {
+        $user = ModelSerializationTestUser::create([
+            'email' => 'taylor@laravel.com',
+        ]);
+
+        $serialized = serialize(new ModelSerializationPrivateChildTestClass($user, 'parent', 'child'));
+
+        $user->update(['email' => 'taylor@hypervel.org']);
+
+        /** @var ModelSerializationPrivateChildTestClass $unserialized */
+        $unserialized = unserialize($serialized);
+
+        // The parent's private model is restored from its identifier, so it reads the current row.
+        $this->assertSame('taylor@hypervel.org', $unserialized->parentUser()->email);
+        $this->assertSame('parent', $unserialized->parentMarker());
+        $this->assertSame('child', $unserialized->childMarker());
+    }
+
+    #[WithConfig('database.default', 'testing')]
     public function testItRespectsWithoutRelationsAttribute(): void
     {
         $user = User::create([
@@ -592,20 +612,28 @@ class ModelSerializationTest extends TestCase
         $class = ModelSerializationParentAccessibleTestClass::class;
         $modelIdentifier = ModelIdentifier::class;
         $userClass = ModelSerializationTestUser::class;
+        $user = sprintf(
+            'O:%d:"%s":5:{s:5:"class";s:%d:"%s";s:2:"id";i:1;s:9:"relations";a:0:{}s:10:"connection";s:7:"testing";s:15:"collectionClass";N;}',
+            strlen($modelIdentifier),
+            $modelIdentifier,
+            strlen($userClass),
+            $userClass,
+        );
+        // Hypervel: unlike Laravel, the parent's private user3 is serialized too, under PHP's key for it.
+        $parentPrivateKey = "\0" . ModelSerializationAccessibleTestClass::class . "\0user3";
 
         return sprintf(
-            'O:%d:"%s":2:{s:4:"user";O:%d:"%s":5:{s:5:"class";s:%d:"%s";s:2:"id";i:1;s:9:"relations";a:0:{}s:10:"connection";s:7:"testing";s:15:"collectionClass";N;}s:8:"%s";O:%d:"%s":5:{s:5:"class";s:%d:"%s";s:2:"id";i:1;s:9:"relations";a:0:{}s:10:"connection";s:7:"testing";s:15:"collectionClass";N;}}',
+            'O:%d:"%s":3:{s:4:"user";%s'
+                . 's:8:"%s";%s'
+                . 's:%d:"%s";%s}',
             strlen($class),
             $class,
-            strlen($modelIdentifier),
-            $modelIdentifier,
-            strlen($userClass),
-            $userClass,
+            $user,
             "\0*\0user2",
-            strlen($modelIdentifier),
-            $modelIdentifier,
-            strlen($userClass),
-            $userClass,
+            $user,
+            strlen($parentPrivateKey),
+            $parentPrivateKey,
+            $user,
         );
     }
 
@@ -1003,6 +1031,55 @@ class ModelSerializationAccessibleTestClass
 
 class ModelSerializationParentAccessibleTestClass extends ModelSerializationAccessibleTestClass
 {
+}
+
+class ModelSerializationPrivateParentTestClass
+{
+    /**
+     * Create a fixture with private model and marker properties.
+     */
+    public function __construct(
+        private ModelSerializationTestUser $user,
+        private string $marker,
+    ) {
+    }
+
+    /**
+     * Get the parent's private user.
+     */
+    public function parentUser(): ModelSerializationTestUser
+    {
+        return $this->user;
+    }
+
+    /**
+     * Get the parent's private marker.
+     */
+    public function parentMarker(): string
+    {
+        return $this->marker;
+    }
+}
+
+class ModelSerializationPrivateChildTestClass extends ModelSerializationPrivateParentTestClass
+{
+    use SerializesModels;
+
+    /**
+     * Create a fixture whose private marker shares the parent's property name.
+     */
+    public function __construct(ModelSerializationTestUser $user, string $parentMarker, private string $marker)
+    {
+        parent::__construct($user, $parentMarker);
+    }
+
+    /**
+     * Get the child's private marker.
+     */
+    public function childMarker(): string
+    {
+        return $this->marker;
+    }
 }
 
 class ModelSerializationWithoutRelations

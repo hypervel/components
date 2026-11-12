@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\SchemaParser;
 
-final readonly class Issue
+readonly class Issue
 {
     /**
      * Describe uncertainty in the owning schema or table.

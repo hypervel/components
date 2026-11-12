@@ -64,6 +64,8 @@ class AssertableJson implements Arrayable
 
     /**
      * Instantiate a new "scope" at the path of the given key.
+     *
+     * @return $this
      */
     protected function scope(string|int $key, Closure $callback): static
     {
@@ -81,6 +83,8 @@ class AssertableJson implements Arrayable
 
     /**
      * Instantiate a new "scope" on the first child element.
+     *
+     * @return $this
      */
     public function first(Closure $callback): static
     {
@@ -104,6 +108,8 @@ class AssertableJson implements Arrayable
 
     /**
      * Instantiate a new "scope" on each child element.
+     *
+     * @return $this
      */
     public function each(Closure $callback): static
     {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Filesystem;
 
 use Hypervel\Contracts\Filesystem\LockTimeoutException;
+use Hypervel\Coroutine\Coroutine;
 use RuntimeException;
 use Throwable;
 
@@ -110,6 +111,8 @@ class LockableFile
 
     /**
      * Write to the file.
+     *
+     * @return $this
      */
     public function write(string $contents): static
     {
@@ -132,6 +135,8 @@ class LockableFile
 
     /**
      * Truncate the file.
+     *
+     * @return $this
      */
     public function truncate(): static
     {
@@ -184,6 +189,8 @@ class LockableFile
 
     /**
      * Release the lock on the file.
+     *
+     * @return $this
      */
     public function releaseLock(): static
     {
@@ -218,7 +225,7 @@ class LockableFile
                 throw new RuntimeException("Unable to close file at path [{$this->path}].");
             }
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {

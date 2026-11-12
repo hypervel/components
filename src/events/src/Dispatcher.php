@@ -421,6 +421,8 @@ class Dispatcher implements DispatcherContract
 
     /**
      * Fire an event and call the listeners.
+     *
+     * @return ($halt is true ? mixed : null|list<mixed>)
      */
     public function dispatch(object|string $event, mixed $payload = [], bool $halt = false): mixed
     {
@@ -1160,6 +1162,7 @@ class Dispatcher implements DispatcherContract
      * worker lifetime and is consulted whenever a queued listener is dispatched.
      *
      * @param callable(): QueueFactory $resolver
+     * @return $this
      */
     public function setQueueResolver(callable $resolver): static
     {
@@ -1187,6 +1190,7 @@ class Dispatcher implements DispatcherContract
      * worker lifetime and is consulted for every transaction-aware dispatch.
      *
      * @param callable(): ?DatabaseTransactionsManager $resolver
+     * @return $this
      */
     public function setTransactionManagerResolver(callable $resolver): static
     {

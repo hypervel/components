@@ -28,6 +28,8 @@ class DeferredCallback
 
     /**
      * Specify the callback name.
+     *
+     * @return $this
      */
     public function name(string $name): static
     {
@@ -38,6 +40,8 @@ class DeferredCallback
 
     /**
      * Indicate that the callback should run on unsuccessful requests and jobs.
+     *
+     * @return $this
      */
     public function always(bool $always = true): static
     {

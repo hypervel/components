@@ -7,6 +7,7 @@ namespace Hypervel\Sentry;
 use ArrayObject;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Console\Events\ScheduledTaskStarting;
+use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -18,6 +19,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Di\Bootstrap\GenerateProxies;
 use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Http\Request;
+use Hypervel\HttpServer\Events\RequestCanceled;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Routing\Contracts\CallableDispatcher;
@@ -564,6 +566,15 @@ class SentryServiceProvider extends ServiceProvider
         $dispatcher = $this->app->make('events');
 
         $handler->subscribe($dispatcher);
+
+        // Termination completes the request transaction, and cancellation can stop a request before it.
+        $dispatcher->listen(RequestCanceled::class, static function (RequestCanceled $event): void {
+            $container = Container::getInstance();
+
+            if ($container->resolvedScoped(TracingMiddleware::class)) {
+                $container->make(TracingMiddleware::class)->requestCanceled($event);
+            }
+        });
     }
 
     /**

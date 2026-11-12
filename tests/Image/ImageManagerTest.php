@@ -82,6 +82,15 @@ class ImageManagerTest extends TestCase
         $manager->driver('nonexistent');
     }
 
+    public function testThrowsForADriverNameWithoutACreatorMethod(): void
+    {
+        $manager = new ImageManager($this->makeApp([]));
+
+        $this->expectExceptionObject(new InvalidArgumentException('Image driver [-] is not supported.'));
+
+        $manager->driver('-');
+    }
+
     public function testCustomDriverExceptionPropagatesUnchanged(): void
     {
         $creatorException = new InvalidArgumentException('Unable to create the custom image driver.');

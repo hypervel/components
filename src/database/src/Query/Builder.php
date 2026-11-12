@@ -290,6 +290,8 @@ class Builder implements BuilderContract
 
     /**
      * Set the columns to be selected.
+     *
+     * @return $this
      */
     public function select(mixed $columns = ['*']): static
     {
@@ -313,6 +315,7 @@ class Builder implements BuilderContract
      * Add a subselect expression to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string  $query
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -328,6 +331,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a select expression to the query.
+     *
+     * @return $this
      */
     public function selectExpression(ExpressionContract|string $expression, string $as): static
     {
@@ -338,6 +343,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a new "raw" select expression to the query.
+     *
+     * @return $this
      */
     public function selectRaw(string $expression, array $bindings = []): static
     {
@@ -354,6 +361,7 @@ class Builder implements BuilderContract
      * Makes "from" fetch from a subquery.
      *
      * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string  $query
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -370,6 +378,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a raw "from" clause to the query.
+     *
+     * @return $this
      */
     public function fromRaw(ExpressionContract|string $expression, mixed $bindings = []): static
     {
@@ -454,6 +464,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a new select column to the query.
+     *
+     * @return $this
      */
     public function addSelect(mixed $column): static
     {
@@ -500,6 +512,7 @@ class Builder implements BuilderContract
      * Add a vector-similarity selection to the query.
      *
      * @param array<int, float>|Arrayable<array<int, float>>|Collection<int, float>|string $vector
+     * @return $this
      *
      * @throws JsonException
      */
@@ -508,7 +521,7 @@ class Builder implements BuilderContract
         $this->ensureConnectionSupportsVectors();
 
         if (is_string($vector)) {
-            $vector = (new Stringable($vector))->toEmbeddings(cache: true); // @phpstan-ignore method.notFound (optional AI SDK macro, matching Laravel)
+            $vector = (new Stringable($vector))->toEmbeddings(cache: true);
         }
 
         $this->addBinding(
@@ -533,6 +546,8 @@ class Builder implements BuilderContract
 
     /**
      * Force the query to only return distinct results.
+     *
+     * @return $this
      */
     public function distinct(): static
     {
@@ -551,6 +566,7 @@ class Builder implements BuilderContract
      * Set the table which the query is targeting.
      *
      * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string  $table
+     * @return $this
      */
     public function from(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $table, ?string $as = null): static
     {
@@ -581,6 +597,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an index hint to suggest a query index.
+     *
+     * @return $this
      */
     public function useIndex(string $index): static
     {
@@ -591,6 +609,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an index hint to force a query index.
+     *
+     * @return $this
      */
     public function forceIndex(string $index): static
     {
@@ -601,6 +621,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an index hint to ignore a query index.
+     *
+     * @return $this
      */
     public function ignoreIndex(string $index): static
     {
@@ -611,6 +633,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "join" clause to the query.
+     *
+     * @return $this
      */
     public function join(ExpressionContract|string $table, Closure|ExpressionContract|string $first, ExpressionContract|string|null $operator = null, mixed $second = null, string $type = 'inner', bool $where = false): static
     {
@@ -643,6 +667,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "join where" clause to the query.
+     *
+     * @return $this
      */
     public function joinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, mixed $second, string $type = 'inner'): static
     {
@@ -653,6 +679,7 @@ class Builder implements BuilderContract
      * Add a "subquery join" clause to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string  $query
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -676,6 +703,7 @@ class Builder implements BuilderContract
      * Add a "lateral join" clause to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string  $query
+     * @return $this
      */
     public function joinLateral(Closure|self|EloquentBuilder|Relation|string $query, string $as, string $type = 'inner'): static
     {
@@ -694,6 +722,7 @@ class Builder implements BuilderContract
      * Add a lateral left join to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string  $query
+     * @return $this
      */
     public function leftJoinLateral(Closure|self|EloquentBuilder|Relation|string $query, string $as): static
     {
@@ -702,6 +731,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a left join to the query.
+     *
+     * @return $this
      */
     public function leftJoin(ExpressionContract|string $table, Closure|ExpressionContract|string $first, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null): static
     {
@@ -710,6 +741,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "join where" clause to the query.
+     *
+     * @return $this
      */
     public function leftJoinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, mixed $second): static
     {
@@ -720,6 +753,7 @@ class Builder implements BuilderContract
      * Add a subquery left join to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string  $query
+     * @return $this
      */
     public function leftJoinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as, Closure|ExpressionContract|string $first, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null): static
     {
@@ -728,6 +762,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a right join to the query.
+     *
+     * @return $this
      */
     public function rightJoin(ExpressionContract|string $table, Closure|ExpressionContract|string $first, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null): static
     {
@@ -736,6 +772,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "right join where" clause to the query.
+     *
+     * @return $this
      */
     public function rightJoinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, mixed $second): static
     {
@@ -746,6 +784,7 @@ class Builder implements BuilderContract
      * Add a subquery right join to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string  $query
+     * @return $this
      */
     public function rightJoinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as, Closure|ExpressionContract|string $first, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null): static
     {
@@ -754,6 +793,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "cross join" clause to the query.
+     *
+     * @return $this
      */
     public function crossJoin(ExpressionContract|string $table, Closure|ExpressionContract|string|null $first = null, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null): static
     {
@@ -770,6 +811,7 @@ class Builder implements BuilderContract
      * Add a subquery cross join to the query.
      *
      * @param Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string $query
+     * @return $this
      */
     public function crossJoinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as): static
     {
@@ -786,6 +828,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a straight join to the query.
+     *
+     * @return $this
      */
     public function straightJoin(ExpressionContract|string $table, Closure|ExpressionContract|string $first, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null): static
     {
@@ -794,6 +838,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a straight join where clause to the query.
+     *
+     * @return $this
      */
     public function straightJoinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, mixed $second): static
     {
@@ -804,6 +850,7 @@ class Builder implements BuilderContract
      * Add a subquery straight join to the query.
      *
      * @param Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string $query
+     * @return $this
      */
     public function straightJoinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as, Closure|ExpressionContract|string $first, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null): static
     {
@@ -828,6 +875,8 @@ class Builder implements BuilderContract
 
     /**
      * Merge an array of "where" clauses and bindings.
+     *
+     * @return $this
      */
     public function mergeWheres(array $wheres, array $bindings): static
     {
@@ -842,6 +891,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a basic "where" clause to the query.
+     *
+     * @return $this
      */
     public function where(Closure|self|EloquentBuilder|Relation|ExpressionContract|array|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
@@ -949,6 +1000,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an array of "where" clauses to the query.
+     *
+     * @return $this
      */
     protected function addArrayOfWheres(array $column, string $boolean, string $method = 'where'): static
     {
@@ -1011,6 +1064,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where" clause to the query.
+     *
+     * @return $this
      */
     public function orWhere(Closure|self|EloquentBuilder|Relation|ExpressionContract|array|string $column, mixed $operator = null, mixed $value = null): static
     {
@@ -1025,6 +1080,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a basic "where not" clause to the query.
+     *
+     * @return $this
      */
     public function whereNot(Closure|self|EloquentBuilder|Relation|ExpressionContract|array|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
@@ -1039,6 +1096,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where not" clause to the query.
+     *
+     * @return $this
      */
     public function orWhereNot(Closure|self|EloquentBuilder|Relation|ExpressionContract|array|string $column, mixed $operator = null, mixed $value = null): static
     {
@@ -1047,6 +1106,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where" clause comparing two columns to the query.
+     *
+     * @return $this
      */
     public function whereColumn(ExpressionContract|string|array $first, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null, string $boolean = 'and'): static
     {
@@ -1078,6 +1139,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where" clause comparing two columns to the query.
+     *
+     * @return $this
      */
     public function orWhereColumn(ExpressionContract|string|array $first, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null): static
     {
@@ -1089,6 +1152,7 @@ class Builder implements BuilderContract
      *
      * @param array<int, float>|Arrayable<array<int, float>>|Collection<int, float>|string $vector
      * @param float $minSimilarity A value between 0.0 and 1.0, where 1.0 is identical.
+     * @return $this
      *
      * @throws JsonException
      */
@@ -1097,7 +1161,7 @@ class Builder implements BuilderContract
         $this->ensureConnectionSupportsVectors();
 
         if (is_string($vector)) {
-            $vector = (new Stringable($vector))->toEmbeddings(cache: true); // @phpstan-ignore method.notFound (optional AI SDK macro, matching Laravel)
+            $vector = (new Stringable($vector))->toEmbeddings(cache: true);
         }
 
         $this->whereVectorDistanceLessThan($column, $vector, 1 - $minSimilarity);
@@ -1113,6 +1177,7 @@ class Builder implements BuilderContract
      * Add a vector distance "where" clause to the query.
      *
      * @param array<int, float>|Arrayable<array<int, float>>|Collection<int, float>|string $vector
+     * @return $this
      *
      * @throws JsonException
      */
@@ -1121,7 +1186,7 @@ class Builder implements BuilderContract
         $this->ensureConnectionSupportsVectors();
 
         if (is_string($vector)) {
-            $vector = (new Stringable($vector))->toEmbeddings(cache: true); // @phpstan-ignore method.notFound (optional AI SDK macro, matching Laravel)
+            $vector = (new Stringable($vector))->toEmbeddings(cache: true);
         }
 
         return $this->whereRaw(
@@ -1143,6 +1208,7 @@ class Builder implements BuilderContract
      * Add a vector distance "or where" clause to the query.
      *
      * @param array<int, float>|Arrayable<array<int, float>>|Collection<int, float>|string $vector
+     * @return $this
      *
      * @throws JsonException
      */
@@ -1153,6 +1219,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a raw "where" clause to the query.
+     *
+     * @return $this
      */
     public function whereRaw(ExpressionContract|string $sql, mixed $bindings = [], string $boolean = 'and'): static
     {
@@ -1165,6 +1233,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a raw "or where" clause to the query.
+     *
+     * @return $this
      */
     public function orWhereRaw(string $sql, mixed $bindings = []): static
     {
@@ -1173,6 +1243,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where binary" clause to the query.
+     *
+     * @return $this
      */
     public function whereBinary(ExpressionContract|string $column, string $value, string $boolean = 'and', bool $not = false): static
     {
@@ -1187,6 +1259,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where binary" clause to the query.
+     *
+     * @return $this
      */
     public function orWhereBinary(ExpressionContract|string $column, string $value): static
     {
@@ -1195,6 +1269,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where not binary" clause to the query.
+     *
+     * @return $this
      */
     public function whereNotBinary(ExpressionContract|string $column, string $value, string $boolean = 'and'): static
     {
@@ -1203,6 +1279,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where not binary" clause to the query.
+     *
+     * @return $this
      */
     public function orWhereNotBinary(ExpressionContract|string $column, string $value): static
     {
@@ -1211,6 +1289,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where like" clause to the query.
+     *
+     * @return $this
      */
     public function whereLike(ExpressionContract|string $column, string $value, bool $caseSensitive = false, string $boolean = 'and', bool $not = false): static
     {
@@ -1229,6 +1309,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where like" clause to the query.
+     *
+     * @return $this
      */
     public function orWhereLike(ExpressionContract|string $column, string $value, bool $caseSensitive = false): static
     {
@@ -1237,6 +1319,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where not like" clause to the query.
+     *
+     * @return $this
      */
     public function whereNotLike(ExpressionContract|string $column, string $value, bool $caseSensitive = false, string $boolean = 'and'): static
     {
@@ -1245,6 +1329,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where not like" clause to the query.
+     *
+     * @return $this
      */
     public function orWhereNotLike(ExpressionContract|string $column, string $value, bool $caseSensitive = false): static
     {
@@ -1253,6 +1339,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a null-safe equality clause to the query.
+     *
+     * @return $this
      */
     public function whereNullSafeEquals(ExpressionContract|string $column, mixed $value, string $boolean = 'and'): static
     {
@@ -1273,6 +1361,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or" null-safe equality clause to the query.
+     *
+     * @return $this
      */
     public function orWhereNullSafeEquals(ExpressionContract|string $column, mixed $value): static
     {
@@ -1281,6 +1371,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where in" clause to the query.
+     *
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -1322,6 +1414,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where in" clause to the query.
+     *
+     * @return $this
      */
     public function orWhereIn(ExpressionContract|string $column, mixed $values): static
     {
@@ -1330,6 +1424,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where not in" clause to the query.
+     *
+     * @return $this
      */
     public function whereNotIn(ExpressionContract|string $column, mixed $values, string $boolean = 'and'): static
     {
@@ -1338,6 +1434,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where not in" clause to the query.
+     *
+     * @return $this
      */
     public function orWhereNotIn(ExpressionContract|string $column, mixed $values): static
     {
@@ -1346,6 +1444,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where in raw" clause for integer values to the query.
+     *
+     * @return $this
      */
     public function whereIntegerInRaw(string $column, Arrayable|array $values, string $boolean = 'and', bool $not = false): static
     {
@@ -1368,6 +1468,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where in raw" clause for integer values to the query.
+     *
+     * @return $this
      */
     public function orWhereIntegerInRaw(string $column, Arrayable|array $values): static
     {
@@ -1376,6 +1478,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where not in raw" clause for integer values to the query.
+     *
+     * @return $this
      */
     public function whereIntegerNotInRaw(string $column, Arrayable|array $values, string $boolean = 'and'): static
     {
@@ -1384,6 +1488,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where not in raw" clause for integer values to the query.
+     *
+     * @return $this
      */
     public function orWhereIntegerNotInRaw(string $column, Arrayable|array $values): static
     {
@@ -1392,6 +1498,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where null" clause to the query.
+     *
+     * @return $this
      */
     public function whereNull(string|array|ExpressionContract $columns, string $boolean = 'and', bool $not = false): static
     {
@@ -1406,6 +1514,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where null" clause to the query.
+     *
+     * @return $this
      */
     public function orWhereNull(string|array|ExpressionContract $column): static
     {
@@ -1414,6 +1524,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where not null" clause to the query.
+     *
+     * @return $this
      */
     public function whereNotNull(string|array|ExpressionContract $columns, string $boolean = 'and'): static
     {
@@ -1424,6 +1536,7 @@ class Builder implements BuilderContract
      * Add a "where between" statement to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string  $column
+     * @return $this
      */
     public function whereBetween(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values, string $boolean = 'and', bool $not = false): static
     {
@@ -1453,6 +1566,7 @@ class Builder implements BuilderContract
      * Add a "where between" statement using columns to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string  $column
+     * @return $this
      */
     public function whereBetweenColumns(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, array $values, string $boolean = 'and', bool $not = false): static
     {
@@ -1474,6 +1588,7 @@ class Builder implements BuilderContract
      * Add an "or where between" statement to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string  $column
+     * @return $this
      */
     public function orWhereBetween(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values): static
     {
@@ -1482,6 +1597,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where between" statement using columns to the query.
+     *
+     * @return $this
      */
     public function orWhereBetweenColumns(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, array $values): static
     {
@@ -1492,6 +1609,7 @@ class Builder implements BuilderContract
      * Add a "where not between" statement to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string  $column
+     * @return $this
      */
     public function whereNotBetween(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values, string $boolean = 'and'): static
     {
@@ -1500,6 +1618,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where not between" statement using columns to the query.
+     *
+     * @return $this
      */
     public function whereNotBetweenColumns(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, array $values, string $boolean = 'and'): static
     {
@@ -1510,6 +1630,7 @@ class Builder implements BuilderContract
      * Add an "or where not between" statement to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string  $column
+     * @return $this
      */
     public function orWhereNotBetween(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values): static
     {
@@ -1518,6 +1639,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where not between" statement using columns to the query.
+     *
+     * @return $this
      */
     public function orWhereNotBetweenColumns(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, array $values): static
     {
@@ -1528,6 +1651,7 @@ class Builder implements BuilderContract
      * Add a "where between columns" statement using a value to the query.
      *
      * @param array{ExpressionContract|string, ExpressionContract|string} $columns
+     * @return $this
      */
     public function whereValueBetween(mixed $value, array $columns, string $boolean = 'and', bool $not = false): static
     {
@@ -1547,6 +1671,7 @@ class Builder implements BuilderContract
      * Add an "or where between columns" statement using a value to the query.
      *
      * @param array{ExpressionContract|string, ExpressionContract|string} $columns
+     * @return $this
      */
     public function orWhereValueBetween(mixed $value, array $columns): static
     {
@@ -1557,6 +1682,7 @@ class Builder implements BuilderContract
      * Add a "where not between columns" statement using a value to the query.
      *
      * @param array{ExpressionContract|string, ExpressionContract|string} $columns
+     * @return $this
      */
     public function whereValueNotBetween(mixed $value, array $columns, string $boolean = 'and'): static
     {
@@ -1567,6 +1693,7 @@ class Builder implements BuilderContract
      * Add an "or where not between columns" statement using a value to the query.
      *
      * @param array{ExpressionContract|string, ExpressionContract|string} $columns
+     * @return $this
      */
     public function orWhereValueNotBetween(mixed $value, array $columns): static
     {
@@ -1575,6 +1702,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where not null" clause to the query.
+     *
+     * @return $this
      */
     public function orWhereNotNull(array|ExpressionContract|string $column): static
     {
@@ -1583,6 +1712,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where date" statement to the query.
+     *
+     * @return $this
      */
     public function whereDate(ExpressionContract|BaseStringable|string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
     {
@@ -1610,6 +1741,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where date" statement to the query.
+     *
+     * @return $this
      */
     public function orWhereDate(ExpressionContract|BaseStringable|string $column, mixed $operator, mixed $value = null): static
     {
@@ -1624,6 +1757,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where time" statement to the query.
+     *
+     * @return $this
      */
     public function whereTime(ExpressionContract|BaseStringable|string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
     {
@@ -1651,6 +1786,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where time" statement to the query.
+     *
+     * @return $this
      */
     public function orWhereTime(ExpressionContract|BaseStringable|string $column, mixed $operator, mixed $value = null): static
     {
@@ -1665,6 +1802,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where day" statement to the query.
+     *
+     * @return $this
      */
     public function whereDay(ExpressionContract|BaseStringable|string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
     {
@@ -1697,6 +1836,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where day" statement to the query.
+     *
+     * @return $this
      */
     public function orWhereDay(ExpressionContract|BaseStringable|string $column, mixed $operator, mixed $value = null): static
     {
@@ -1711,6 +1852,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where month" statement to the query.
+     *
+     * @return $this
      */
     public function whereMonth(ExpressionContract|BaseStringable|string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
     {
@@ -1743,6 +1886,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where month" statement to the query.
+     *
+     * @return $this
      */
     public function orWhereMonth(ExpressionContract|BaseStringable|string $column, mixed $operator, mixed $value = null): static
     {
@@ -1757,6 +1902,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where year" statement to the query.
+     *
+     * @return $this
      */
     public function whereYear(ExpressionContract|BaseStringable|string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
     {
@@ -1784,6 +1931,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where year" statement to the query.
+     *
+     * @return $this
      */
     public function orWhereYear(ExpressionContract|BaseStringable|string $column, mixed $operator, mixed $value = null): static
     {
@@ -1798,6 +1947,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a date based (year, month, day, time) statement to the query.
+     *
+     * @return $this
      */
     protected function addDateBasedWhere(string $type, ExpressionContract|BaseStringable|string $column, string $operator, mixed $value, string $boolean = 'and'): static
     {
@@ -1815,6 +1966,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a nested "where" statement to the query.
+     *
+     * @return $this
      */
     public function whereNested(Closure $callback, string $boolean = 'and'): static
     {
@@ -1839,6 +1992,8 @@ class Builder implements BuilderContract
 
     /**
      * Add another query builder as a nested where to the query builder.
+     *
+     * @return $this
      */
     public function addNestedWhereQuery(self $query, string $boolean = 'and'): static
     {
@@ -1857,6 +2012,7 @@ class Builder implements BuilderContract
      * Add a full sub-select to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>  $callback
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -1888,6 +2044,7 @@ class Builder implements BuilderContract
      * Add an "exists" clause to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>  $callback
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -1911,6 +2068,7 @@ class Builder implements BuilderContract
      * Add an "or where exists" clause to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>  $callback
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -1923,6 +2081,7 @@ class Builder implements BuilderContract
      * Add a "where not exists" clause to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>  $callback
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -1935,6 +2094,7 @@ class Builder implements BuilderContract
      * Add an "or where not exists" clause to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>  $callback
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -1945,6 +2105,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "exists" clause to the query.
+     *
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -1963,6 +2125,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a where condition using row values.
+     *
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -1987,6 +2151,8 @@ class Builder implements BuilderContract
 
     /**
      * Adds an or where condition using row values.
+     *
+     * @return $this
      */
     public function orWhereRowValues(array $columns, string $operator, array $values): static
     {
@@ -1995,6 +2161,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where JSON contains" clause to the query.
+     *
+     * @return $this
      */
     public function whereJsonContains(string $column, mixed $value, string $boolean = 'and', bool $not = false): static
     {
@@ -2011,6 +2179,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where JSON contains" clause to the query.
+     *
+     * @return $this
      */
     public function orWhereJsonContains(string $column, mixed $value): static
     {
@@ -2019,6 +2189,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where JSON not contains" clause to the query.
+     *
+     * @return $this
      */
     public function whereJsonDoesntContain(string $column, mixed $value, string $boolean = 'and'): static
     {
@@ -2027,6 +2199,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where JSON not contains" clause to the query.
+     *
+     * @return $this
      */
     public function orWhereJsonDoesntContain(string $column, mixed $value): static
     {
@@ -2035,6 +2209,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where JSON overlaps" clause to the query.
+     *
+     * @return $this
      */
     public function whereJsonOverlaps(string $column, mixed $value, string $boolean = 'and', bool $not = false): static
     {
@@ -2051,6 +2227,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where JSON overlaps" clause to the query.
+     *
+     * @return $this
      */
     public function orWhereJsonOverlaps(string $column, mixed $value): static
     {
@@ -2059,6 +2237,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where JSON not overlap" clause to the query.
+     *
+     * @return $this
      */
     public function whereJsonDoesntOverlap(string $column, mixed $value, string $boolean = 'and'): static
     {
@@ -2067,6 +2247,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where JSON not overlap" clause to the query.
+     *
+     * @return $this
      */
     public function orWhereJsonDoesntOverlap(string $column, mixed $value): static
     {
@@ -2075,6 +2257,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a clause that determines if a JSON path exists to the query.
+     *
+     * @return $this
      */
     public function whereJsonContainsKey(string $column, string $boolean = 'and', bool $not = false): static
     {
@@ -2087,6 +2271,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or" clause that determines if a JSON path exists to the query.
+     *
+     * @return $this
      */
     public function orWhereJsonContainsKey(string $column): static
     {
@@ -2095,6 +2281,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a clause that determines if a JSON path does not exist to the query.
+     *
+     * @return $this
      */
     public function whereJsonDoesntContainKey(string $column, string $boolean = 'and'): static
     {
@@ -2103,6 +2291,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or" clause that determines if a JSON path does not exist to the query.
+     *
+     * @return $this
      */
     public function orWhereJsonDoesntContainKey(string $column): static
     {
@@ -2111,6 +2301,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where JSON length" clause to the query.
+     *
+     * @return $this
      */
     public function whereJsonLength(string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
     {
@@ -2140,6 +2332,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where JSON length" clause to the query.
+     *
+     * @return $this
      */
     public function orWhereJsonLength(string $column, mixed $operator, mixed $value = null): static
     {
@@ -2154,6 +2348,8 @@ class Builder implements BuilderContract
 
     /**
      * Handles dynamic "where" clauses to the query.
+     *
+     * @return $this
      */
     public function dynamicWhere(string $method, array $parameters): static
     {
@@ -2209,6 +2405,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where fulltext" clause to the query.
+     *
+     * @return $this
      */
     public function whereFullText(string|array $columns, string $value, array $options = [], string $boolean = 'and'): static
     {
@@ -2225,6 +2423,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where fulltext" clause to the query.
+     *
+     * @return $this
      */
     public function orWhereFullText(string|array $columns, string $value, array $options = []): static
     {
@@ -2235,6 +2435,7 @@ class Builder implements BuilderContract
      * Add a "where" clause to the query for multiple columns with "and" conditions between them.
      *
      * @param array<Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string> $columns
+     * @return $this
      */
     public function whereAll(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
@@ -2257,6 +2458,7 @@ class Builder implements BuilderContract
      * Add an "or where" clause to the query for multiple columns with "and" conditions between them.
      *
      * @param array<Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string> $columns
+     * @return $this
      */
     public function orWhereAll(array $columns, mixed $operator = null, mixed $value = null): static
     {
@@ -2267,6 +2469,7 @@ class Builder implements BuilderContract
      * Add a "where" clause to the query for multiple columns with "or" conditions between them.
      *
      * @param array<Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string> $columns
+     * @return $this
      */
     public function whereAny(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
@@ -2289,6 +2492,7 @@ class Builder implements BuilderContract
      * Add an "or where" clause to the query for multiple columns with "or" conditions between them.
      *
      * @param array<Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string> $columns
+     * @return $this
      */
     public function orWhereAny(array $columns, mixed $operator = null, mixed $value = null): static
     {
@@ -2299,6 +2503,7 @@ class Builder implements BuilderContract
      * Add a "where not" clause to the query for multiple columns where none of the conditions should be true.
      *
      * @param array<Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string> $columns
+     * @return $this
      */
     public function whereNone(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
@@ -2309,6 +2514,7 @@ class Builder implements BuilderContract
      * Add an "or where not" clause to the query for multiple columns where none of the conditions should be true.
      *
      * @param array<Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string> $columns
+     * @return $this
      */
     public function orWhereNone(array $columns, mixed $operator = null, mixed $value = null): static
     {
@@ -2317,6 +2523,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "group by" clause to the query.
+     *
+     * @return $this
      */
     public function groupBy(array|ExpressionContract|string ...$groups): static
     {
@@ -2332,6 +2540,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a raw "groupBy" clause to the query.
+     *
+     * @return $this
      */
     public function groupByRaw(string $sql, array $bindings = []): static
     {
@@ -2344,6 +2554,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "having" clause to the query.
+     *
+     * @return $this
      */
     public function having(
         ExpressionContract|Closure|string $column,
@@ -2396,6 +2608,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or having" clause to the query.
+     *
+     * @return $this
      */
     public function orHaving(
         ExpressionContract|Closure|string $column,
@@ -2413,6 +2627,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a nested "having" statement to the query.
+     *
+     * @return $this
      */
     public function havingNested(Closure $callback, string $boolean = 'and'): static
     {
@@ -2423,6 +2639,8 @@ class Builder implements BuilderContract
 
     /**
      * Add another query builder as a nested having to the query builder.
+     *
+     * @return $this
      */
     public function addNestedHavingQuery(self $query, string $boolean = 'and'): static
     {
@@ -2439,6 +2657,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "having null" clause to the query.
+     *
+     * @return $this
      */
     public function havingNull(array|string $columns, string $boolean = 'and', bool $not = false): static
     {
@@ -2453,6 +2673,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or having null" clause to the query.
+     *
+     * @return $this
      */
     public function orHavingNull(string $column): static
     {
@@ -2461,6 +2683,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "having not null" clause to the query.
+     *
+     * @return $this
      */
     public function havingNotNull(array|string $columns, string $boolean = 'and'): static
     {
@@ -2469,6 +2693,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or having not null" clause to the query.
+     *
+     * @return $this
      */
     public function orHavingNotNull(string $column): static
     {
@@ -2477,6 +2703,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "having between" clause to the query.
+     *
+     * @return $this
      */
     public function havingBetween(string $column, iterable $values, string $boolean = 'and', bool $not = false): static
     {
@@ -2497,6 +2725,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "having not between" clause to the query.
+     *
+     * @return $this
      */
     public function havingNotBetween(string $column, iterable $values, string $boolean = 'and'): static
     {
@@ -2505,6 +2735,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or having between" clause to the query.
+     *
+     * @return $this
      */
     public function orHavingBetween(string $column, iterable $values): static
     {
@@ -2513,6 +2745,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or having not between" clause to the query.
+     *
+     * @return $this
      */
     public function orHavingNotBetween(string $column, iterable $values): static
     {
@@ -2542,6 +2776,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a raw "having" clause to the query.
+     *
+     * @return $this
      */
     public function havingRaw(string $sql, array $bindings = [], string $boolean = 'and'): static
     {
@@ -2556,6 +2792,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a raw "or having" clause to the query.
+     *
+     * @return $this
      */
     public function orHavingRaw(string $sql, array $bindings = []): static
     {
@@ -2567,6 +2805,7 @@ class Builder implements BuilderContract
      *
      * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string  $column
      * @param 'asc'|'desc'|SortDirection $direction
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -2602,6 +2841,7 @@ class Builder implements BuilderContract
      * Add a descending "order by" clause to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string  $column
+     * @return $this
      */
     public function orderByDesc(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column): static
     {
@@ -2610,6 +2850,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "order by" clause for a timestamp to the query.
+     *
+     * @return $this
      */
     public function latest(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column = 'created_at'): static
     {
@@ -2618,6 +2860,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "order by" clause for a timestamp to the query.
+     *
+     * @return $this
      */
     public function oldest(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column = 'created_at'): static
     {
@@ -2628,6 +2872,7 @@ class Builder implements BuilderContract
      * Add a vector-distance "order by" clause to the query.
      *
      * @param array<int, float>|Arrayable<array<int, float>>|Collection<int, float>|string $vector
+     * @return $this
      *
      * @throws JsonException
      */
@@ -2636,7 +2881,7 @@ class Builder implements BuilderContract
         $this->ensureConnectionSupportsVectors();
 
         if (is_string($vector)) {
-            $vector = (new Stringable($vector))->toEmbeddings(cache: true); // @phpstan-ignore method.notFound (optional AI SDK macro, matching Laravel)
+            $vector = (new Stringable($vector))->toEmbeddings(cache: true);
         }
 
         $this->addBinding(
@@ -2659,6 +2904,8 @@ class Builder implements BuilderContract
 
     /**
      * Put the query's results in random order.
+     *
+     * @return $this
      */
     public function inRandomOrder(string|int $seed = ''): static
     {
@@ -2669,6 +2916,7 @@ class Builder implements BuilderContract
      * Add an "order by" clause to order results by a given sequence of values.
      *
      * @param array<bool|float|int|string|UnitEnum>|Arrayable $values
+     * @return $this
      */
     public function inOrderOf(ExpressionContract|string $column, Arrayable|array $values): static
     {
@@ -2697,6 +2945,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a raw "order by" clause to the query.
+     *
+     * @return $this
      */
     public function orderByRaw(string $sql, mixed $bindings = []): static
     {
@@ -2731,6 +2981,8 @@ class Builder implements BuilderContract
 
     /**
      * Alias to set the "offset" value of the query.
+     *
+     * @return $this
      */
     public function skip(?int $value): static
     {
@@ -2739,6 +2991,8 @@ class Builder implements BuilderContract
 
     /**
      * Set the "offset" value of the query.
+     *
+     * @return $this
      */
     public function offset(?int $value): static
     {
@@ -2751,6 +3005,8 @@ class Builder implements BuilderContract
 
     /**
      * Alias to set the "limit" value of the query.
+     *
+     * @return $this
      */
     public function take(?int $value): static
     {
@@ -2759,6 +3015,8 @@ class Builder implements BuilderContract
 
     /**
      * Set the "limit" value of the query.
+     *
+     * @return $this
      */
     public function limit(?int $value): static
     {
@@ -2773,6 +3031,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "group limit" clause to the query.
+     *
+     * @return $this
      */
     public function groupLimit(int $value, string $column): static
     {
@@ -2785,6 +3045,8 @@ class Builder implements BuilderContract
 
     /**
      * Set the limit and offset for a given page.
+     *
+     * @return $this
      */
     public function forPage(int $page, int $perPage = 15): static
     {
@@ -2795,6 +3057,7 @@ class Builder implements BuilderContract
      * Constrain the query to the previous "page" of results before a given ID.
      *
      * @param null|BinaryParameter|int|resource|string $lastId
+     * @return $this
      */
     public function forPageBeforeId(int $perPage = 15, mixed $lastId = 0, string $column = 'id'): static
     {
@@ -2828,6 +3091,7 @@ class Builder implements BuilderContract
      * Constrain the query to the next "page" of results after a given ID.
      *
      * @param null|BinaryParameter|int|resource|string $lastId
+     * @return $this
      */
     public function forPageAfterId(int $perPage = 15, mixed $lastId = 0, string $column = 'id'): static
     {
@@ -2861,6 +3125,7 @@ class Builder implements BuilderContract
      * Remove all existing orders and optionally add a new order.
      *
      * @param 'asc'|'desc'|SortDirection $direction
+     * @return $this
      */
     public function reorder(Closure|self|EloquentBuilder|Relation|ExpressionContract|string|null $column = null, SortDirection|string $direction = SortDirection::Ascending): static
     {
@@ -2879,6 +3144,8 @@ class Builder implements BuilderContract
 
     /**
      * Add descending "reorder" clause to the query.
+     *
+     * @return $this
      */
     public function reorderDesc(Closure|self|EloquentBuilder|Relation|ExpressionContract|string|null $column): static
     {
@@ -2941,6 +3208,7 @@ class Builder implements BuilderContract
      * Add a "union" statement to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>  $query
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -2967,6 +3235,7 @@ class Builder implements BuilderContract
      * Add a "union all" statement to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>  $query
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -2977,6 +3246,8 @@ class Builder implements BuilderContract
 
     /**
      * Lock the selected rows in the table.
+     *
+     * @return $this
      */
     public function lock(string|bool $value = true): static
     {
@@ -2992,6 +3263,8 @@ class Builder implements BuilderContract
 
     /**
      * Lock the selected rows in the table for updating.
+     *
+     * @return $this
      */
     public function lockForUpdate(): static
     {
@@ -3000,6 +3273,8 @@ class Builder implements BuilderContract
 
     /**
      * Share lock the selected rows in the table.
+     *
+     * @return $this
      */
     public function sharedLock(): static
     {
@@ -3008,6 +3283,8 @@ class Builder implements BuilderContract
 
     /**
      * Skip rows locked by another transaction when supported by the server.
+     *
+     * @return $this
      */
     public function skipLocked(): static
     {
@@ -3022,6 +3299,8 @@ class Builder implements BuilderContract
 
     /**
      * Set a query execution timeout in seconds.
+     *
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -3038,6 +3317,8 @@ class Builder implements BuilderContract
 
     /**
      * Register a closure to be invoked before the query is executed.
+     *
+     * @return $this
      */
     public function beforeQuery(callable $callback): static
     {
@@ -3062,6 +3343,7 @@ class Builder implements BuilderContract
      * Register a closure to be invoked after the query is executed.
      *
      * @param Closure(Collection<TKey, TValue>): (Collection<TKey, TValue>|void) $callback
+     * @return $this
      */
     public function afterQuery(Closure $callback): static
     {
@@ -3274,7 +3556,9 @@ class Builder implements BuilderContract
     /**
      * Paginate the given query into a simple paginator.
      *
+     * @param (Closure(int): int)|int $perPage
      * @param array<ExpressionContract|string>|ExpressionContract|string $columns
+     * @param null|(Closure(): ?int)|int $total
      */
     public function paginate(
         int|Closure $perPage = 15,
@@ -3459,6 +3743,7 @@ class Builder implements BuilderContract
      * Sort an ID iteration by its paging column before any other order.
      *
      * @internal
+     * @return $this
      */
     public function prioritizeKeysetOrders(bool $limited = false): static
     {
@@ -3512,6 +3797,7 @@ class Builder implements BuilderContract
      *
      * @param list<array{column: string, original: ExpressionContract|string, direction: string}> $orders
      * @param array<string, mixed> $bindings
+     * @return $this
      * @internal
      */
     public function addCursorPaginationConditions(array $orders, array $bindings): static
@@ -3910,6 +4196,8 @@ class Builder implements BuilderContract
 
     /**
      * Append comparisons using the member's source columns or isolated output names.
+     *
+     * @return $this
      */
     protected function appendKeysetConditions(array $conditions, array $mapping = [], bool $output = false): static
     {
@@ -4359,6 +4647,8 @@ class Builder implements BuilderContract
 
     /**
      * Retrieve the sum of the values of a given column.
+     *
+     * @return float|int|string
      */
     public function sum(ExpressionContract|string $column): mixed
     {
@@ -4369,6 +4659,8 @@ class Builder implements BuilderContract
 
     /**
      * Retrieve the average of the values of a given column.
+     *
+     * @return null|float|int|string
      */
     public function avg(ExpressionContract|string $column): mixed
     {
@@ -4377,6 +4669,8 @@ class Builder implements BuilderContract
 
     /**
      * Alias for the "avg" method.
+     *
+     * @return null|float|int|string
      */
     public function average(ExpressionContract|string $column): mixed
     {
@@ -4441,6 +4735,7 @@ class Builder implements BuilderContract
      * Set the aggregate property without running the query.
      *
      * @param array<ExpressionContract|string> $columns
+     * @return $this
      */
     protected function setAggregate(string $function, array $columns): static
     {
@@ -5018,6 +5313,7 @@ class Builder implements BuilderContract
      *
      * @param list<mixed> $bindings
      * @param TBindingType $type
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -5036,6 +5332,7 @@ class Builder implements BuilderContract
      * Add a binding to the query.
      *
      * @param TBindingType $type
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -5071,6 +5368,8 @@ class Builder implements BuilderContract
 
     /**
      * Merge an array of bindings into our bindings.
+     *
+     * @return $this
      */
     public function mergeBindings(self $query): static
     {
@@ -5151,6 +5450,8 @@ class Builder implements BuilderContract
 
     /**
      * Use the write connection when executing the query.
+     *
+     * @return $this
      */
     public function useWritePdo(): static
     {
@@ -5251,6 +5552,8 @@ class Builder implements BuilderContract
 
     /**
      * Dump the current SQL and bindings.
+     *
+     * @return $this
      */
     public function dump(mixed ...$args): static
     {
@@ -5265,6 +5568,8 @@ class Builder implements BuilderContract
 
     /**
      * Dump the raw current SQL with embedded bindings.
+     *
+     * @return $this
      */
     public function dumpRawSql(): static
     {

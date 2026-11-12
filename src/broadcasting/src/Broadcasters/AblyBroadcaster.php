@@ -130,7 +130,7 @@ class AblyBroadcaster extends Broadcaster
                     $message = $this->buildAblyMessage($event, $payload);
                     ConnectionResolver::releaseIdleConnections();
 
-                    /* @phpstan-ignore arguments.count, argument.type (Ably declares two @method publish() overloads and PHPStan keeps only the last; publish(...$args) accepts a Message as its sole argument.) */
+                    /* @phpstan-ignore arguments.count (PHPStan keeps only the last of Ably's two @method publish() overloads; publish(...$args) accepts a sole Message), argument.type (the same overload limitation) */
                     $channel->publish($message);
                 } finally {
                     if ($channel->getCipherParams() === null) {

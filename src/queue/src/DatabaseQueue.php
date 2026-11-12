@@ -390,6 +390,8 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
      */
     protected function enqueueBatch(array $jobs, ?string $queue): mixed
     {
+        $sendAttempted = false;
+
         try {
             foreach ($jobs as $index => $job) {
                 $jobs[$index]['payload'] = $this->finalizePayloadForQueueing(
@@ -409,6 +411,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
 
             $now = $this->availableAt();
             $connection = $this->getDatabase();
+            $sendAttempted = true;
 
             $this->insertDatabaseRows(
                 $connection,
@@ -427,13 +430,9 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
 
             $result = true;
         } catch (Throwable $exception) {
-            if (Coroutine::causedByCancellation($exception)) {
-                throw $exception;
-            }
-
             $this->notifyBatchMembersOfFailure(
                 $jobs,
-                fn (array $job) => $this->raiseJobQueueingFailedEvent($queue, $job['job'], $job['payload'], $job['delay'], $exception),
+                fn (array $job) => $this->raiseJobQueueingFailedEvent($queue, $job['job'], $job['payload'], $job['delay'], $exception, $sendAttempted),
             );
 
             throw $exception;

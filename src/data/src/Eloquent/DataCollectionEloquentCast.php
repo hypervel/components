@@ -132,7 +132,7 @@ class DataCollectionEloquentCast extends AbstractDataEloquentCast implements Cas
 
             $itemPayload = $item->transform($context);
             $payload[$itemKey] = $isAbstractClassCast
-                ? $this->createMorphEnvelope($item, $itemPayload)
+                ? $this->createMorphEnvelope($item, $itemPayload) // @phpstan-ignore argument.type (@TODO: Remove once PHPStan keeps class-string<TData> instanceof narrowing inside foreach.)
                 : $itemPayload;
         }
 

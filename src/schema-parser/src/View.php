@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\SchemaParser;
 
-final readonly class View
+readonly class View
 {
     /**
      * Create a view definition without inferring its query result types.

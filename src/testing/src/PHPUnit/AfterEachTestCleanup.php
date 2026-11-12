@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testing\PHPUnit;
 
 use Closure;
+use Hypervel\Coroutine\Coroutine;
 use Throwable;
 
 /**
@@ -48,8 +49,7 @@ class AfterEachTestCleanup
             try {
                 $callback();
             } catch (Throwable $throwable) {
-                // Keep running cleanup, then surface the first failure as the root cause.
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 

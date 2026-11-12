@@ -83,6 +83,11 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     protected const string IGNORE_ON_TOUCH_CONTEXT_KEY = '__database.model.ignore_on_touch';
 
     /**
+     * Context key for suppressing automatic eager loading of relationships.
+     */
+    protected const string AUTOMATIC_EAGER_LOADING_SUPPRESSED_CONTEXT_KEY = '__database.model.automatic_eager_loading_suppressed';
+
+    /**
      * Context key for storing whether broadcasting is enabled.
      */
     protected const string BROADCASTING_CONTEXT_KEY = '__database.model.broadcasting';
@@ -708,6 +713,29 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     }
 
     /**
+     * Execute a callback without automatically eager loading relationships for the models it retrieves or makes.
+     *
+     * Uses Context, so concurrent coroutines keep the boot setting.
+     *
+     * @template TReturn
+     *
+     * @param callable(): TReturn $callback
+     * @return TReturn
+     */
+    public static function withoutAutomaticallyEagerLoadingRelationships(callable $callback): mixed
+    {
+        $wasSuppressed = CoroutineContext::get(self::AUTOMATIC_EAGER_LOADING_SUPPRESSED_CONTEXT_KEY, false);
+
+        CoroutineContext::set(self::AUTOMATIC_EAGER_LOADING_SUPPRESSED_CONTEXT_KEY, true);
+
+        try {
+            return $callback();
+        } finally {
+            CoroutineContext::set(self::AUTOMATIC_EAGER_LOADING_SUPPRESSED_CONTEXT_KEY, $wasSuppressed);
+        }
+    }
+
+    /**
      * Register a callback that is responsible for handling lazy loading violations.
      *
      * Boot-only. The callback persists in a static property for the worker
@@ -814,6 +842,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Fill the model with an array of attributes.
      *
      * @param array<string, mixed> $attributes
+     * @return $this
      *
      * @throws MassAssignmentException
      */
@@ -868,6 +897,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Fill the model with an array of attributes. Force mass assignment.
      *
      * @param array<string, mixed> $attributes
+     * @return $this
      */
     public function forceFill(array $attributes): static
     {
@@ -997,6 +1027,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relations on the model.
      *
      * @param array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string $relations
+     * @return $this
      */
     public function load(array|string $relations): static
     {
@@ -1013,6 +1044,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relationships on the polymorphic relation of a model.
      *
      * @param array<array-key, array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string> $relations
+     * @return $this
      */
     public function loadMorph(string $relation, array $relations): static
     {
@@ -1031,6 +1063,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relations on the model if they are not already eager loaded.
      *
      * @param array<array-key, array|(callable(Relation<*, *, *>): mixed)|string>|string $relations
+     * @return $this
      */
     public function loadMissing(array|string $relations): static
     {
@@ -1045,6 +1078,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relation's column aggregations on the model.
      *
      * @param array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string $relations
+     * @return $this
      */
     public function loadAggregate(array|string $relations, Expression|string $column, ?string $function = null): static
     {
@@ -1057,6 +1091,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relation counts on the model.
      *
      * @param array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string $relations
+     * @return $this
      */
     public function loadCount(array|string $relations): static
     {
@@ -1069,6 +1104,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relation max column values on the model.
      *
      * @param array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string $relations
+     * @return $this
      */
     public function loadMax(array|string $relations, Expression|string $column): static
     {
@@ -1079,6 +1115,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relation min column values on the model.
      *
      * @param array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string $relations
+     * @return $this
      */
     public function loadMin(array|string $relations, Expression|string $column): static
     {
@@ -1089,6 +1126,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relation's column summations on the model.
      *
      * @param array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string $relations
+     * @return $this
      */
     public function loadSum(array|string $relations, Expression|string $column): static
     {
@@ -1099,6 +1137,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relation average column values on the model.
      *
      * @param array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string $relations
+     * @return $this
      */
     public function loadAvg(array|string $relations, Expression|string $column): static
     {
@@ -1109,6 +1148,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load related model existence values on the model.
      *
      * @param array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string $relations
+     * @return $this
      */
     public function loadExists(array|string $relations): static
     {
@@ -1119,6 +1159,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relationship column aggregation on the polymorphic relation of a model.
      *
      * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
+     * @return $this
      */
     public function loadMorphAggregate(string $relation, array $relations, Expression|string $column, ?string $function = null): static
     {
@@ -1137,6 +1178,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relationship counts on the polymorphic relation of a model.
      *
      * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
+     * @return $this
      */
     public function loadMorphCount(string $relation, array $relations): static
     {
@@ -1147,6 +1189,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relationship max column values on the polymorphic relation of a model.
      *
      * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
+     * @return $this
      */
     public function loadMorphMax(string $relation, array $relations, Expression|string $column): static
     {
@@ -1157,6 +1200,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relationship min column values on the polymorphic relation of a model.
      *
      * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
+     * @return $this
      */
     public function loadMorphMin(string $relation, array $relations, Expression|string $column): static
     {
@@ -1167,6 +1211,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relationship column summations on the polymorphic relation of a model.
      *
      * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
+     * @return $this
      */
     public function loadMorphSum(string $relation, array $relations, Expression|string $column): static
     {
@@ -1177,6 +1222,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Eager load relationship average column values on the polymorphic relation of a model.
      *
      * @param array<array-key, array<array-key, array{}|(callable(Builder<*>): mixed)|string>|string> $relations
+     * @return $this
      */
     public function loadMorphAvg(string $relation, array $relations, Expression|string $column): static
     {
@@ -1258,7 +1304,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Update the model in the database.
      *
      * @param array<string, mixed> $attributes
-     * @param array<string, mixed> $options
+     * @param array{touch?: null|bool, ...<string, mixed>} $options
      */
     public function update(array $attributes = [], array $options = []): bool
     {
@@ -1273,7 +1319,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Update the model in the database within a transaction.
      *
      * @param array<string, mixed> $attributes
-     * @param array<string, mixed> $options
+     * @param array{touch?: null|bool, ...<string, mixed>} $options
      *
      * @throws Throwable
      */
@@ -1290,7 +1336,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Update the model in the database without raising any events.
      *
      * @param array<string, mixed> $attributes
-     * @param array<string, mixed> $options
+     * @param array{touch?: null|bool, ...<string, mixed>} $options
      */
     public function updateQuietly(array $attributes = [], array $options = []): bool
     {
@@ -1306,8 +1352,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param array<string, mixed> $extra
      */
-    protected function incrementQuietly(string $column, float|int $amount = 1, array $extra = []): int|false
+    protected function incrementQuietly(string $column, float|int $amount = 1, array $extra = []): int
     {
+        // fireModelEvent() returns true while events are disabled, so the update never halts with false.
         return static::withoutEvents(
             fn () => $this->incrementOrDecrement($column, $amount, $extra, 'increment')
         );
@@ -1318,8 +1365,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param array<string, mixed> $extra
      */
-    protected function decrementQuietly(string $column, float|int $amount = 1, array $extra = []): int|false
+    protected function decrementQuietly(string $column, float|int $amount = 1, array $extra = []): int
     {
+        // fireModelEvent() returns true while events are disabled, so the update never halts with false.
         return static::withoutEvents(
             fn () => $this->incrementOrDecrement($column, $amount, $extra, 'decrement')
         );
@@ -1353,8 +1401,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * @param array<string, float|int> $columns
      * @param array<string, mixed> $extra
      */
-    protected function incrementEachQuietly(array $columns, array $extra = []): int|false
+    protected function incrementEachQuietly(array $columns, array $extra = []): int
     {
+        // fireModelEvent() returns true while events are disabled, so the update never halts with false.
         return static::withoutEvents(
             fn () => $this->incrementOrDecrementEach($columns, $extra, 'incrementEach')
         );
@@ -1366,8 +1415,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * @param array<string, float|int> $columns
      * @param array<string, mixed> $extra
      */
-    protected function decrementEachQuietly(array $columns, array $extra = []): int|false
+    protected function decrementEachQuietly(array $columns, array $extra = []): int
     {
+        // fireModelEvent() returns true while events are disabled, so the update never halts with false.
         return static::withoutEvents(
             fn () => $this->incrementOrDecrementEach($columns, $extra, 'decrementEach')
         );
@@ -1513,7 +1563,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Save the model to the database without raising any events.
      *
-     * @param array<string, mixed> $options
+     * @param array{touch?: null|bool, ...<string, mixed>} $options
      */
     public function saveQuietly(array $options = []): bool
     {
@@ -1523,7 +1573,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Save the model to the database.
      *
-     * @param array<string, mixed> $options
+     * @param array{touch?: null|bool, ...<string, mixed>} $options
      */
     public function save(array $options = []): bool
     {
@@ -1570,7 +1620,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Save the model to the database, ignoring specific unique constraint conflicts.
      *
-     * @param array<string, mixed> $options
+     * @param array{touch?: null|bool, ...<string, mixed>} $options
      *
      * @throws LogicException
      */
@@ -1604,7 +1654,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Save the model to the database within a transaction.
      *
-     * @param array<string, mixed> $options
+     * @param array{touch?: null|bool, ...<string, mixed>} $options
      *
      * @throws Throwable
      */
@@ -1616,7 +1666,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Perform any actions that are necessary after the model is saved.
      *
-     * @param array<string, mixed> $options
+     * @param array{touch?: null|bool, ...<string, mixed>} $options
      */
     protected function finishSave(array $options): void
     {
@@ -1937,7 +1987,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         $count = 0;
 
-        foreach ($instance->whereIn($key, $ids)->get() as $model) { // @phpstan-ignore method.notFound (Eloquent __call forwarding)
+        foreach ($instance->whereIn($key, $ids)->get() as $model) {
             if ($model->delete()) {
                 ++$count;
             }
@@ -2253,6 +2303,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Convert the model instance to an array.
+     *
+     * @return array<string, mixed>
      */
     public function toArray(): array
     {
@@ -2491,6 +2543,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Set the connection associated with the model.
+     *
+     * @return $this
      */
     public function setConnection(UnitEnum|string|null $name): static
     {
@@ -2655,6 +2709,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Set the table associated with the model.
+     *
+     * @return $this
      */
     public function setTable(string $table): static
     {
@@ -2673,6 +2729,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Set the primary key for the model.
+     *
+     * @return $this
      */
     public function setKeyName(?string $key): static
     {
@@ -2701,6 +2759,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Set the data type for the primary key.
+     *
+     * @return $this
      */
     public function setKeyType(string $type): static
     {
@@ -2722,6 +2782,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Set whether IDs are incrementing.
+     *
+     * @return $this
      */
     public function setIncrementing(bool $value): static
     {
@@ -2869,8 +2931,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Retrieve the model for a bound value.
      *
-     * @param  self|Builder|Relation<*, *, *>  $query
-     * @return Builder<static>|Relation<*, *, *>
+     * @template TQuery of Builder<*>|Relation<*, *, *>
+     *
+     * @param self|TQuery $query
+     * @return ($query is self ? Builder<static> : TQuery)
      *
      * @throws ModelNotFoundException<static>
      */
@@ -2936,6 +3000,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Set the number of models to return per page.
+     *
+     * @return $this
      */
     public function setPerPage(int $perPage): static
     {
@@ -2981,7 +3047,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function isAutomaticallyEagerLoadingRelationships(): bool
     {
-        return static::$modelsShouldAutomaticallyEagerLoadRelationships;
+        return static::$modelsShouldAutomaticallyEagerLoadRelationships
+            && ! CoroutineContext::get(self::AUTOMATIC_EAGER_LOADING_SUPPRESSED_CONTEXT_KEY, false);
     }
 
     /**
@@ -3227,6 +3294,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Indicate that the object's string representation should be escaped when __toString is invoked.
+     *
+     * @return $this
      */
     public function escapeWhenCastingToString(bool $escape = true): static
     {
@@ -3252,15 +3321,14 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         $this->relationAutoloadCallback = null;
         $this->relationAutoloadContext = null;
 
-        $keys = get_object_vars($this);
-
-        foreach ((new ReflectionClass($this))->getProperties() as $property) {
-            if ($property->hasHooks()) {
-                unset($keys[$property->getName()]);
-            }
-        }
-
-        return array_keys($keys);
+        // Unlike Laravel, this names every stored property, including a subclass's private ones under
+        // PHP's own keys, without running property hooks. Virtual properties store nothing, so the
+        // array cast leaves them out. Protected names stay plain, as Laravel returns them, so
+        // overrides that filter parent::__sleep() by name keep working.
+        return array_map(
+            static fn (string $key): string => str_starts_with($key, "\0*\0") ? substr($key, 3) : $key,
+            array_keys((array) $this),
+        );
     }
 
     /**

@@ -704,6 +704,8 @@ trait ResolvesJsonApiElements
 
     /**
      * Indicate that attributes should respect the request's sparse fieldsets.
+     *
+     * @return $this
      */
     public function respectFieldsAndIncludesInQueryString(bool $value = true): static
     {
@@ -714,6 +716,8 @@ trait ResolvesJsonApiElements
 
     /**
      * Indicate that attributes should ignore the request's sparse fieldsets.
+     *
+     * @return $this
      */
     public function ignoreFieldsAndIncludesInQueryString(): static
     {
@@ -722,6 +726,8 @@ trait ResolvesJsonApiElements
 
     /**
      * Indicate that relationship should include loaded relationships.
+     *
+     * @return $this
      */
     public function includePreviouslyLoadedRelationships(): static
     {

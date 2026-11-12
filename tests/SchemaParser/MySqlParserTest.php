@@ -708,6 +708,81 @@ class MySqlParserTest extends TestCase
         $this->assertSame(2, $schema->issues[0]->line);
     }
 
+    #[DataProvider('impactProvider')]
+    public function testImpactNamesChangedRelationsAndFlagsUnnamedChanges(string $sql, array $relations, bool $unknown): void
+    {
+        $impact = (new MySqlParser)->parse($sql)->impact;
+
+        $this->assertEquals($relations, $impact->relations);
+        $this->assertSame($unknown, $impact->unknown);
+    }
+
+    /**
+     * Provide statements with the relations they change and whether they can change others without naming them.
+     */
+    public static function impactProvider(): iterable
+    {
+        yield 'indexes, new definitions and temporary tables' => [<<<'SQL'
+            CREATE TABLE posts (id int);
+            CREATE VIEW recent AS SELECT id FROM posts;
+            CREATE UNIQUE INDEX users_email ON users (email);
+            DROP INDEX users_email ON users;
+            ALTER TABLE users DISABLE KEYS;
+            CREATE TEMPORARY TABLE scratch (id int);
+            DROP TEMPORARY TABLE scratch;
+            SQL, [], false];
+
+        yield 'rows, settings and routines' => [<<<'SQL'
+            SET FOREIGN_KEY_CHECKS = 0;
+            SET NAMES utf8mb4;
+            INSERT INTO users (email) VALUES ('a@example.com');
+            UPDATE users SET email = lower(email);
+            DELETE FROM users WHERE email IS NULL;
+            REPLACE INTO settings (name) VALUES ('theme');
+            TRUNCATE TABLE sessions;
+            CREATE DEFINER = CURRENT_USER TRIGGER touch_users BEFORE UPDATE ON users FOR EACH ROW SET NEW.updated_at = NOW();
+            DROP TRIGGER IF EXISTS touch_users;
+            DELIMITER ;;
+            CREATE PROCEDURE cleanup() BEGIN DROP TABLE users; END;;
+            DELIMITER ;
+            ALTER PROCEDURE cleanup COMMENT 'removes users';
+            DROP PROCEDURE cleanup;
+            DROP FUNCTION IF EXISTS slug;
+            SQL, [], false];
+
+        yield 'altered, dropped and renamed relations' => [<<<'SQL'
+            CREATE TABLE IF NOT EXISTS users (id int);
+            DROP TABLE users;
+            ALTER TABLE posts ADD COLUMN body text;
+            ALTER TABLE posts RENAME COLUMN body TO content;
+            ALTER TABLE accounts RENAME TO members;
+            ALTER TABLE logs ADD COLUMN level int, RENAME AS archive.logs;
+            RENAME TABLE carts TO app.baskets, a TO b;
+            DROP VIEW IF EXISTS recent, app.feed;
+            ALTER ALGORITHM = MERGE VIEW totals AS SELECT 1;
+            SQL, [
+            new TableReference('users'),
+            new TableReference('posts'),
+            new TableReference('accounts'),
+            new TableReference('members'),
+            new TableReference('logs'),
+            new TableReference('logs', 'archive'),
+            new TableReference('carts'),
+            new TableReference('baskets', 'app'),
+            new TableReference('a'),
+            new TableReference('b'),
+            new TableReference('recent'),
+            new TableReference('feed', 'app'),
+            new TableReference('totals'),
+        ], false];
+
+        yield 'database selection' => ['USE app; DROP TABLE users;', [new TableReference('users', 'app')], true];
+        yield 'query' => ['SELECT COUNT(*) FROM users', [], true];
+        yield 'table from a query' => ['CREATE TABLE copied SELECT id FROM users', [], true];
+        yield 'database drop' => ['DROP DATABASE app', [], true];
+        yield 'database change' => ['ALTER DATABASE app CHARACTER SET utf8mb4', [], true];
+    }
+
     public function testIssuesReportTheLineOfTheirStatement(): void
     {
         $parser = new MySqlParser;

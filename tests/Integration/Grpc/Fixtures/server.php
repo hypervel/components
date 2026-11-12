@@ -6,6 +6,7 @@ use Hypervel\Engine\Coroutine;
 use Hypervel\Grpc\GrpcServiceProvider;
 use Hypervel\Grpc\Health\HealthStatusProvider;
 use Hypervel\Server\ServerFactory;
+use Hypervel\Support\Env;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Foundation\Application as TestbenchApplication;
 use Hypervel\Tests\Integration\Grpc\Fixtures\TestHealthStatusProvider;
@@ -24,10 +25,10 @@ Bootstrapper::bootstrap();
 
 $_SERVER['APP_RUNNING_IN_CONSOLE'] = 'false';
 
-$port = (int) (env('GRPC_TEST_SERVER_PORT') ?: 19520);
-$certificate = env('GRPC_TEST_SERVER_CERT');
-$privateKey = env('GRPC_TEST_SERVER_KEY');
-$compression = env('GRPC_TEST_SERVER_COMPRESSION');
+$port = (int) (Env::get('GRPC_TEST_SERVER_PORT') ?: 19520);
+$certificate = Env::get('GRPC_TEST_SERVER_CERT');
+$privateKey = Env::get('GRPC_TEST_SERVER_KEY');
+$compression = Env::get('GRPC_TEST_SERVER_COMPRESSION');
 
 $app = TestbenchApplication::create();
 

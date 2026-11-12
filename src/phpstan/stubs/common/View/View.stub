@@ -1,0 +1,10 @@
+<?php
+
+namespace Hypervel\View;
+
+use Hypervel\Contracts\View\Factory as FactoryContract;
+
+// View's ArrayAccess generic is declared in its source.
+
+class Factory implements FactoryContract
+{}

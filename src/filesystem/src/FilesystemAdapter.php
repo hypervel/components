@@ -126,6 +126,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Assert that the given file or directory exists.
+     *
+     * @return $this
      */
     public function assertExists(array|string $path, ?string $content = null): static
     {
@@ -155,6 +157,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Assert that the number of files in path equals the expected count.
+     *
+     * @return $this
      */
     public function assertCount(string $path, int $count, bool $recursive = false): static
     {
@@ -173,6 +177,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Assert that the given file or directory does not exist.
+     *
+     * @return $this
      */
     public function assertMissing(array|string $path): static
     {
@@ -192,6 +198,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Assert that the given directory is empty.
+     *
+     * @return $this
      */
     public function assertDirectoryEmpty(string $path): static
     {
@@ -205,6 +213,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Assert that the disk contains no files.
+     *
+     * @return $this
      */
     public function assertEmpty(): static
     {

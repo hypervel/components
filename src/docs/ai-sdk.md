@@ -1512,8 +1512,8 @@ Although your tool's schema constrains the arguments a model may provide, you ma
 public function handle(Request $request): Stringable|string
 {
     $validated = $request->validate([
-        'city' => 'required|string',
-        'days' => 'required|integer|max:7',
+        'city' => ['required', 'string'],
+        'days' => ['required', 'integer', 'max:7'],
     ]);
 
     return $this->forecast($validated['city'], $validated['days']);

@@ -2832,6 +2832,14 @@ class SupportCollectionTest extends TestCase
     }
 
     #[DataProvider('collectionClassProvider')]
+    public function testPluckWithIntegerKeys($collection): void
+    {
+        $data = new $collection([['taylor', 'foo'], ['dayle', 'bar']]);
+
+        $this->assertEquals(['foo' => 'taylor', 'bar' => 'dayle'], $data->pluck(0, 1)->all());
+    }
+
+    #[DataProvider('collectionClassProvider')]
     public function testPluckWithClosure($collection): void
     {
         $data = new $collection([

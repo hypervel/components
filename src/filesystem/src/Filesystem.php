@@ -7,6 +7,7 @@ namespace Hypervel\Filesystem;
 use ErrorException;
 use FilesystemIterator;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Json;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Traits\Conditionable;
@@ -116,7 +117,7 @@ class Filesystem
                     throw new RuntimeException("Unable to release the shared lock for file at path [{$path}].");
                 }
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
@@ -125,7 +126,7 @@ class Filesystem
                 throw new RuntimeException("Unable to close file at path [{$path}].");
             }
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {

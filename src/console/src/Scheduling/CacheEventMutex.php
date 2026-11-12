@@ -97,6 +97,8 @@ class CacheEventMutex implements EventMutex, CacheAware
      *
      * Boot-only. Mutates the shared mutex instance for the worker lifetime;
      * per-request use races across coroutines.
+     *
+     * @return $this
      */
     public function useStore(?string $store): static
     {

@@ -18,6 +18,7 @@ class MakeRangeSearchable implements ShouldQueue
     /**
      * Indicates if the job should be marked as failed on timeout.
      */
+    // @phpstan-ignore hypervel.legacyQueueProperty (public property; removing it would leave assignments to it without declared storage)
     public bool $failOnTimeout = true;
 
     /**

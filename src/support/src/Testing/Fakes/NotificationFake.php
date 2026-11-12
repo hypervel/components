@@ -358,6 +358,8 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
 
     /**
      * Set the locale of notifications.
+     *
+     * @return $this
      */
     public function locale(string $locale): static
     {
@@ -368,6 +370,8 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
 
     /**
      * Specify if notification should be serialized and restored when being "pushed" to the queue.
+     *
+     * @return $this
      */
     public function serializeAndRestore(bool $serializeAndRestore = true): static
     {

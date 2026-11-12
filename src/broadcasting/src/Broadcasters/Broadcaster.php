@@ -93,6 +93,8 @@ abstract class Broadcaster implements BroadcasterContract
      * Boot-only. The channel authorizer and options persist in shared static
      * state on the Broadcaster class for the worker lifetime and apply to
      * every subsequent connection authentication.
+     *
+     * @return $this
      */
     public function channel(HasBroadcastChannel|string $channel, callable|string $callback, array $options = []): static
     {

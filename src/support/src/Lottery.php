@@ -71,6 +71,8 @@ class Lottery
 
     /**
      * Set the winner callback.
+     *
+     * @return $this
      */
     public function winner(callable $callback): static
     {
@@ -81,6 +83,8 @@ class Lottery
 
     /**
      * Set the loser callback.
+     *
+     * @return $this
      */
     public function loser(callable $callback): static
     {

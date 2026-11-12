@@ -7,6 +7,7 @@ use Exception;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
+use Hypervel\Support\Stringable;
 use SortDirection;
 use Traversable;
 
@@ -290,7 +291,7 @@ assertType('Hypervel\Support\Collection<int, User>|true', $collection->when(true
 
     return true;
 }));
-assertType('Hypervel\Support\Collection<int, User>|null', $collection->when(true, function ($collection) {
+assertType('Hypervel\Support\Collection<int, User>', $collection->when(true, function ($collection) {
     assertType('Hypervel\Support\Collection<int, User>', $collection);
 }));
 assertType("'string'|Hypervel\\Support\\Collection<int, User>", $collection->when(true, function ($collection) {
@@ -298,12 +299,12 @@ assertType("'string'|Hypervel\\Support\\Collection<int, User>", $collection->whe
 
     return 'string';
 }));
-assertType('Hypervel\Support\Collection<int, User>|null', $collection->when('Taylor', function ($collection, $name) {
+assertType('Hypervel\Support\Collection<int, User>', $collection->when('Taylor', function ($collection, $name) {
     assertType('Hypervel\Support\Collection<int, User>', $collection);
     assertType("'Taylor'", $name);
 }));
 assertType(
-    'Hypervel\Support\Collection<int, User>|null',
+    'Hypervel\Support\Collection<int, User>',
     $collection->when(
         'Taylor',
         function ($collection, $name) {
@@ -316,12 +317,12 @@ assertType(
         }
     )
 );
-assertType('Hypervel\Support\Collection<int, User>|null', $collection->when(fn () => 'Taylor', function ($collection, $name) {
+assertType('Hypervel\Support\Collection<int, User>', $collection->when(fn () => 'Taylor', function ($collection, $name) {
     assertType('Hypervel\Support\Collection<int, User>', $collection);
     assertType("'Taylor'", $name);
 }));
 assertType(
-    'Hypervel\Support\Collection<int, User>|null',
+    'Hypervel\Support\Collection<int, User>',
     $collection->when(
         function ($collection) {
             assertType('Hypervel\Support\Collection<int, User>', $collection);
@@ -339,7 +340,7 @@ assertType(
     )
 );
 
-assertType('Hypervel\Support\Collection<int, User>|null', $collection->when($invokable, function ($collection, $param) {
+assertType('Hypervel\Support\Collection<int, User>', $collection->when($invokable, function ($collection, $param) {
     assertType('Hypervel\Support\Collection<int, User>', $collection);
     assertType('Invokable', $param);
 }));
@@ -349,7 +350,7 @@ assertType('Hypervel\Support\Collection<int, User>|true', $collection->whenEmpty
 
     return true;
 }));
-assertType('Hypervel\Support\Collection<int, User>|null', $collection->whenEmpty(function ($collection) {
+assertType('Hypervel\Support\Collection<int, User>', $collection->whenEmpty(function ($collection) {
     assertType('Hypervel\Support\Collection<int, User>', $collection);
 }));
 assertType("'string'|Hypervel\\Support\\Collection<int, User>", $collection->whenEmpty(function ($collection) {
@@ -363,7 +364,7 @@ assertType('Hypervel\Support\Collection<int, User>|true', $collection->whenNotEm
 
     return true;
 }));
-assertType('Hypervel\Support\Collection<int, User>|null', $collection->whenNotEmpty(function ($collection) {
+assertType('Hypervel\Support\Collection<int, User>', $collection->whenNotEmpty(function ($collection) {
     assertType('Hypervel\Support\Collection<int, User>', $collection);
 }));
 assertType("'string'|Hypervel\\Support\\Collection<int, User>", $collection->whenNotEmpty(function ($collection) {
@@ -377,7 +378,7 @@ assertType('Hypervel\Support\Collection<int, User>|true', $collection->unless(tr
 
     return true;
 }));
-assertType('Hypervel\Support\Collection<int, User>|null', $collection->unless(true, function ($collection) {
+assertType('Hypervel\Support\Collection<int, User>', $collection->unless(true, function ($collection) {
     assertType('Hypervel\Support\Collection<int, User>', $collection);
 }));
 assertType("'string'|Hypervel\\Support\\Collection<int, User>", $collection->unless(true, function ($collection) {
@@ -385,12 +386,12 @@ assertType("'string'|Hypervel\\Support\\Collection<int, User>", $collection->unl
 
     return 'string';
 }));
-assertType('Hypervel\Support\Collection<int, User>|null', $collection->unless('Taylor', function ($collection, $name) {
+assertType('Hypervel\Support\Collection<int, User>', $collection->unless('Taylor', function ($collection, $name) {
     assertType('Hypervel\Support\Collection<int, User>', $collection);
     assertType("'Taylor'", $name);
 }));
 assertType(
-    'Hypervel\Support\Collection<int, User>|null',
+    'Hypervel\Support\Collection<int, User>',
     $collection->unless(
         'Taylor',
         function ($collection, $name) {
@@ -403,12 +404,12 @@ assertType(
         }
     )
 );
-assertType('Hypervel\Support\Collection<int, User>|null', $collection->unless(fn () => 'Taylor', function ($collection, $name) {
+assertType('Hypervel\Support\Collection<int, User>', $collection->unless(fn () => 'Taylor', function ($collection, $name) {
     assertType('Hypervel\Support\Collection<int, User>', $collection);
     assertType("'Taylor'", $name);
 }));
 assertType(
-    'Hypervel\Support\Collection<int, User>|null',
+    'Hypervel\Support\Collection<int, User>',
     $collection->unless(
         function ($collection) {
             assertType('Hypervel\Support\Collection<int, User>', $collection);
@@ -426,7 +427,7 @@ assertType(
     )
 );
 
-assertType('Hypervel\Support\Collection<int, User>|null', $collection->unless($invokable, function ($collection, $param) {
+assertType('Hypervel\Support\Collection<int, User>', $collection->unless($invokable, function ($collection, $param) {
     assertType('Hypervel\Support\Collection<int, User>', $collection);
     assertType('Invokable', $param);
 }));
@@ -436,7 +437,7 @@ assertType('Hypervel\Support\Collection<int, User>|true', $collection->unlessEmp
 
     return true;
 }));
-assertType('Hypervel\Support\Collection<int, User>|null', $collection->unlessEmpty(function ($collection) {
+assertType('Hypervel\Support\Collection<int, User>', $collection->unlessEmpty(function ($collection) {
     assertType('Hypervel\Support\Collection<int, User>', $collection);
 }));
 assertType("'string'|Hypervel\\Support\\Collection<int, User>", $collection->unlessEmpty(function ($collection) {
@@ -450,7 +451,7 @@ assertType('Hypervel\Support\Collection<int, User>|true', $collection->unlessNot
 
     return true;
 }));
-assertType('Hypervel\Support\Collection<int, User>|null', $collection->unlessNotEmpty(function ($collection) {
+assertType('Hypervel\Support\Collection<int, User>', $collection->unlessNotEmpty(function ($collection) {
     assertType('Hypervel\Support\Collection<int, User>', $collection);
 }));
 assertType("'string'|Hypervel\\Support\\Collection<int, User>", $collection->unlessNotEmpty(function ($collection) {
@@ -569,6 +570,8 @@ assertType('Hypervel\Support\Collection<int, User>', $collection->keyBy(static f
 assertType('Hypervel\Support\Collection<(int|string), User>', $collection->keyBy(static fn ($user) => Digit::One));
 assertType('Hypervel\Support\Collection<(int|string), User>', $collection->keyBy(static fn ($user) => NamedDigit::One));
 assertType('Hypervel\Support\Collection<(int|string), User>', $collection->keyBy(static fn ($user) => NumberedDigit::One));
+assertType('Hypervel\Support\Collection<string, User>', $collection->keyBy(static fn ($user): ?string => null));
+assertType('Hypervel\Support\Collection<int<1, 10>, User>', $collection->keyBy(static fn ($user): int => random_int(1, 10)));
 
 assertType('bool', $collection->has(0));
 assertType('bool', $collection->has([0, 1]));
@@ -679,6 +682,7 @@ assertType('Hypervel\Support\Collection<int|string, array<mixed>|int>', $collect
 assertType('Hypervel\Support\Collection<string, int>', $collection::make(['string' => 'string'])->combine([2]));
 assertType('Hypervel\Support\Collection<int, int>', $collection::make([1])->combine([1]));
 assertType('Hypervel\Support\Collection<string, string>', $collection::make(['string'])->combine(['string']));
+assertType('Hypervel\Support\Collection<(int|string), int>', $collection->flatten()->combine([1]));
 
 assertType('Hypervel\Support\Collection<int, int>', $collection::make([1])->union([1]));
 assertType('Hypervel\Support\Collection<string, string>', $collection::make(['string' => 'string'])->union(['string' => 'string']));
@@ -734,6 +738,24 @@ assertType('Hypervel\Support\Collection<int<0, 1>, Hypervel\Support\Collection<i
 assertType('Hypervel\Support\Collection<int, int>', $collection::make([1])->concat([2]));
 assertType('Hypervel\Support\Collection<int, string>', $collection::make(['string'])->concat(['string']));
 assertType('Hypervel\Support\Collection<int, int|string>', $collection::make([1])->concat(['string']));
+assertType('Hypervel\Support\Collection<int|string, string>', $collection::make(['first' => 'string'])->concat(['key' => 'string']));
+
+// Merging, multiplying, shuffling and splicing renumber integer keys.
+assertType('Hypervel\Support\Collection<int, string>', $collection::make([10 => 'string'])->merge([10 => 'string']));
+assertType('Hypervel\Support\Collection<string, string>', $collection::make(['first' => 'string'])->merge(['first' => 'string']));
+assertType('Hypervel\Support\Collection<int, string>', $collection::make([10 => 'string'])->mergeRecursive([10 => 'string']));
+assertType('Hypervel\Support\Collection<int, string>', $collection::make(['first' => 'string'])->multiply(2));
+assertType('Hypervel\Support\Collection<int, string>', $collection::make(['first' => 'string'])->shuffle());
+assertType('Hypervel\Support\Collection<int, int>', $collection::make([1])->flatMap(fn (int $value): array => [10 => $value]));
+assertType('Hypervel\Support\Collection<string, int>', $collection::make([1])->flatMap(fn (int $value): array => ['key' => $value]));
+
+$splicedCollection = $collection::make([10 => 'string', 20 => 'string']);
+assertType('Hypervel\Support\Collection<int, string>', $splicedCollection->splice(1));
+assertType('Hypervel\Support\Collection<int, string>', $splicedCollection);
+
+$shiftedCollection = $collection::make([10 => 'string', 20 => 'string']);
+assertType('string|null', $shiftedCollection->shift());
+assertType('Hypervel\Support\Collection<int, string>', $shiftedCollection);
 
 assertType('Hypervel\Support\Collection<int, int>', $collection::make([1])->random(2));
 assertType('string', $collection::make(['string'])->random());
@@ -831,6 +853,10 @@ assertType('Hypervel\Support\Collection<int, User>', $collection->slice(1, 2));
 
 assertType('Hypervel\Support\Collection<int, Hypervel\Support\Collection<int, User>>', $collection->split(3));
 assertType('Hypervel\Support\Collection<int, Hypervel\Support\Collection<int, int>>', $collection::make([1])->split(3));
+assertType('Hypervel\Support\Collection<int, Hypervel\Support\Collection<string, User>>', $associativeCollection->split(2));
+/** @var Collection<5|8, User> $nonSequentialCollection */
+$nonSequentialCollection = new Collection([5 => new User, 8 => new User]);
+assertType('Hypervel\Support\Collection<int, Hypervel\Support\Collection<int, User>>', $nonSequentialCollection->split(2));
 
 assertType('string', $collection::make(['string' => 'string'])->sole('string', 'string'));
 assertType('string', $collection::make(['string' => 'string'])->sole('string', '=', 'string'));
@@ -970,8 +996,14 @@ assertType('User', $collection->pipeInto(User::class));
 
 assertType('Hypervel\Support\Collection<(int|string), mixed>', $collection::make(['string' => 'string'])->pluck('string'));
 assertType('Hypervel\Support\Collection<(int|string), mixed>', $collection::make(['string' => 'string'])->pluck('string', 'string'));
+assertType('Hypervel\Support\Collection<(int|string), int>', $collection->pluck(fn (User $user): int => 1));
+assertType('Hypervel\Support\Collection<string, mixed>', $collection->pluck('string', fn (User $user): string => 'key'));
+assertType('Hypervel\Support\Collection<string, mixed>', $collection->pluck('string', fn (User $user) => 'key'));
+assertType('Hypervel\Support\Collection<int, string>', $collection->pluck(fn (User $user): string => 'value', fn (User $user): int => 1));
+assertType('Hypervel\Support\Collection<string, int>', $collection->pluck(fn (User $user): int => 1, fn (User $user): Stringable => new Stringable('key')));
 
-assertType('Hypervel\Support\Collection<int, User>', $collection->reject());
+// Without a callback, reject() keeps only falsy items, and objects are never falsy.
+assertType('Hypervel\Support\Collection<int, *NEVER*>', $collection->reject());
 assertType('Hypervel\Support\Collection<int, User>', $collection->reject(new User));
 assertType('Hypervel\Support\Collection<int, User>', $collection->reject(function ($user) {
     assertType('User', $user);
@@ -1058,6 +1090,10 @@ assertType("Hypervel\\Support\\Collection<int, 'string'|User>", $getOrPutCollect
 $getOrPutCollection = $collection::make(['first' => new User]);
 assertType("'string'|User", $getOrPutCollection->getOrPut(null, 'string'));
 assertType("Hypervel\\Support\\Collection<int|string, 'string'|User>", $getOrPutCollection);
+
+$getOrPutCollection = $collection::make([new User]);
+assertType("'string'|User", $getOrPutCollection->getOrPut('name', 'string'));
+assertType("Hypervel\\Support\\Collection<'name'|int, 'string'|User>", $getOrPutCollection);
 
 assertType('Hypervel\Support\Collection<int, User>', $collection->forget(1));
 assertType('Hypervel\Support\Collection<int, User>', $collection->forget([1, 2]));

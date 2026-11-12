@@ -11,6 +11,7 @@ use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Translation\CreatesPotentiallyTranslatedStrings;
 
+// @phpstan-ignore class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
 class InvokableValidationRule implements Rule, ValidatorAwareRule
 {
     use CreatesPotentiallyTranslatedStrings;
@@ -51,6 +52,7 @@ class InvokableValidationRule implements Rule, ValidatorAwareRule
     public static function make(ValidationRule $invokable): InvokableValidationRule
     {
         if ($invokable->implicit ?? false) {
+            // @phpstan-ignore class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
             return new class($invokable) extends InvokableValidationRule implements ImplicitRule {};
         }
 
@@ -99,6 +101,8 @@ class InvokableValidationRule implements Rule, ValidatorAwareRule
 
     /**
      * Set the data under validation.
+     *
+     * @return $this
      */
     public function setData(array $data): static
     {
@@ -109,6 +113,8 @@ class InvokableValidationRule implements Rule, ValidatorAwareRule
 
     /**
      * Set the current validator.
+     *
+     * @return $this
      */
     public function setValidator(Validator $validator): static
     {

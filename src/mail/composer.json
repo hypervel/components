@@ -41,7 +41,7 @@
         "hypervel/view": "^0.4",
         "league/commonmark": "^2.10.3",
         "psr/log": "^3.0",
-        "symfony/http-foundation": "^8.1",
+        "symfony/http-foundation": "^8.1.11",
         "symfony/mailer": "^8.1",
         "symfony/mime": "^8.1",
         "tijsverkoyen/css-to-inline-styles": "^2.2.5"
@@ -53,7 +53,7 @@
         "hypervel/testing": "Required to use ordered Mailable assertions (^0.4).",
         "phpunit/phpunit": "Required to use Mailable assertion methods (^13.0).",
         "resend/resend-php": "Required to enable support for the Resend mail transport (^1.0).",
-        "symfony/http-client": "Required to use the Symfony API mail transports (^8.1).",
+        "symfony/http-client": "Required to use the Symfony API mail transports (^8.1.11).",
         "symfony/mailgun-mailer": "Required to enable support for the Mailgun mail transport (^8.1).",
         "symfony/postmark-mailer": "Required to enable support for the Postmark mail transport (^8.1)."
     },

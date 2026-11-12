@@ -219,10 +219,12 @@ class AuthManager implements FactoryContract
 
     /**
      * Register a new callback based request guard.
+     *
+     * @return $this
      */
     public function viaRequest(string $driver, callable $callback): static
     {
-        return $this->extend($driver, function ($app, $name, $config) use ($callback) {
+        return $this->extend($driver, function (Container $app, string $name, array $config) use ($callback): RequestGuard {
             return new RequestGuard($name, $callback, $app, $this->createUserProvider($config['provider'] ?? null));
         });
     }
@@ -246,6 +248,8 @@ class AuthManager implements FactoryContract
      * Set the callback to be used to resolve users.
      *
      * Uses coroutine Context so one request's override doesn't affect others.
+     *
+     * @return $this
      */
     public function resolveUsersUsing(Closure $userResolver): static
     {
@@ -292,6 +296,8 @@ class AuthManager implements FactoryContract
      * Boot-only. The callback persists in authentication middleware and
      * exception static properties for the worker lifetime and affects every
      * subsequent unauthenticated or session-mismatch request.
+     *
+     * @return $this
      */
     public function redirectGuestsTo(callable|string|null $redirect): static
     {
@@ -306,6 +312,8 @@ class AuthManager implements FactoryContract
      * Boot-only. The callback persists in the guest middleware static property
      * for the worker lifetime and affects every subsequent already-authenticated
      * guest-route request.
+     *
+     * @return $this
      */
     public function redirectUsersTo(callable|string $redirect): static
     {
@@ -320,6 +328,8 @@ class AuthManager implements FactoryContract
      * Boot-only. The callbacks persist in authentication middleware and
      * exception static properties for the worker lifetime and affect every
      * subsequent matching request.
+     *
+     * @return $this
      */
     public function redirectTo(callable|string|null $guests = null, callable|string|null $users = null): static
     {
@@ -359,6 +369,8 @@ class AuthManager implements FactoryContract
      * Boot-only. The callback persists in the singleton's customProviderCreators
      * array for the worker lifetime and applies to every subsequent user
      * provider resolution.
+     *
+     * @return $this
      */
     public function provider(string $name, Closure $callback): static
     {
@@ -382,6 +394,8 @@ class AuthManager implements FactoryContract
      * coroutines may already hold references to the prior guard instances
      * (each holding its own coroutine-scoped state) that next resolution
      * will not share.
+     *
+     * @return $this
      */
     public function forgetGuards(): static
     {
@@ -427,6 +441,8 @@ class AuthManager implements FactoryContract
      * Tests only. Swaps the singleton's container reference; per-request use
      * races across coroutines and breaks every concurrent request's auth
      * resolution.
+     *
+     * @return $this
      */
     public function setApplication(Container $app): static
     {

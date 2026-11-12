@@ -107,6 +107,8 @@ class CacheCommandMutex implements CommandMutex
      *
      * Boot-only. Mutates the shared command mutex instance for the worker
      * lifetime; per-request use races across coroutines.
+     *
+     * @return $this
      */
     public function useStore(?string $store): static
     {

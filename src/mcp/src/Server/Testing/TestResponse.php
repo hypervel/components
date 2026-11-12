@@ -81,11 +81,11 @@ class TestResponse
                 }
             }
 
-            // @phpstan-ignore-next-line
+            // @phpstan-ignore staticMethod.impossibleType (fails with the message, as upstream)
             Assert::assertTrue(false, "The expected text [{$segment}] was not found in the response content.");
         }
 
-        // @phpstan-ignore-next-line
+        // @phpstan-ignore staticMethod.alreadyNarrowedType (counts a passed assertion)
         Assert::assertTrue(true);
 
         return $this;
@@ -106,7 +106,7 @@ class TestResponse
         foreach (is_array($text) ? $text : [$text] as $segment) {
             foreach ($seeable as $message) {
                 if (str_contains($message, $segment)) {
-                    // @phpstan-ignore-next-line
+                    // @phpstan-ignore staticMethod.impossibleType (fails with the message, as upstream)
                     Assert::assertTrue(false, "The unexpected text [{$segment}] was found in the response content.");
 
                     return $this;
@@ -114,7 +114,7 @@ class TestResponse
             }
         }
 
-        // @phpstan-ignore-next-line
+        // @phpstan-ignore staticMethod.alreadyNarrowedType (counts a passed assertion)
         Assert::assertTrue(true);
 
         return $this;
@@ -403,7 +403,7 @@ class TestResponse
             $content = $notification->toArray();
 
             if ($content['method'] === $method && (is_array($params) === false || $this->toJsonRepresentation($content['params']) === $this->toJsonRepresentation($params))) {
-                Assert::assertTrue(true); // @phpstan-ignore-line
+                Assert::assertTrue(true); // @phpstan-ignore staticMethod.alreadyNarrowedType (counts a passed assertion)
 
                 return $this;
             }
@@ -654,14 +654,11 @@ class TestResponse
     protected function content(): array
     {
         return (match (true) {
-            // @phpstan-ignore-next-line
             $this->primitive instanceof Tool => collect($this->response->toArray()['result']['content'] ?? [])
                 ->map(fn (array $message): string => $message['text'] ?? $message['data'] ?? ''),
-            // @phpstan-ignore-next-line
             $this->primitive instanceof Prompt => collect($this->response->toArray()['result']['messages'] ?? [])
                 ->map(fn (array $message): array => $message['content'])
                 ->map(fn (array $content): string => $content['text'] ?? $content['data'] ?? ''),
-            // @phpstan-ignore-next-line
             $this->primitive instanceof Resource => collect($this->response->toArray()['result']['contents'] ?? [])
                 ->map(fn (array $item): string => $item['text'] ?? $item['blob'] ?? ''),
             default => throw new RuntimeException('This primitive type is not supported.'),

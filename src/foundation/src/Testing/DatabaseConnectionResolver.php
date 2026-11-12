@@ -9,6 +9,7 @@ use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\CachedConnectionResolver;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
@@ -90,7 +91,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
                     try {
                         static::discardCachedConnection($cacheKey);
                     } catch (Throwable $throwable) {
-                        $exception ??= $throwable;
+                        $exception = Coroutine::preferCancellation($exception, $throwable);
                     }
                 }
             }
@@ -355,7 +356,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
             try {
                 $pooled->discard();
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 

@@ -91,7 +91,7 @@ class Markdown
         $viewFactory = $this->viewFactoryWithMailNamespace($this->htmlComponentPaths());
 
         $bladeCompiler = $viewFactory
-            ->getEngineResolver() // @phpstan-ignore method.notFound
+            ->getEngineResolver() // @phpstan-ignore method.notFound (view Factory method outside the contract)
             ->resolve('blade')
             ->getCompiler();
 
@@ -251,6 +251,8 @@ class Markdown
      *
      * Boot-only. Mutates the shared Markdown renderer's default theme; pass a
      * per-render theme to render() for message-specific themes.
+     *
+     * @return $this
      */
     public function theme(string $theme): static
     {

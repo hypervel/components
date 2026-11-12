@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Concerns;
 
 use Attribute;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Collection;
@@ -154,7 +155,7 @@ trait InteractsWithTestCase
                     try {
                         $callback->afterEach($app);
                     } catch (Throwable $throwable) {
-                        $exception ??= $throwable;
+                        $exception = Coroutine::preferCancellation($exception, $throwable);
                     }
                 }
             } catch (Throwable $throwable) {
@@ -177,7 +178,6 @@ trait InteractsWithTestCase
     public static function setUpBeforeClassUsingTestCase(): void
     {
         if (static::usesTestingConcern(WithFixtures::class)) {
-            /* @phpstan-ignore-next-line */
             static::setupWithFixturesForTestingEnvironment();
         }
 
@@ -205,7 +205,7 @@ trait InteractsWithTestCase
                 try {
                     $callback->afterAll();
                 } catch (Throwable $throwable) {
-                    $exception ??= $throwable;
+                    $exception = Coroutine::preferCancellation($exception, $throwable);
                 }
             }
         } catch (Throwable $throwable) {

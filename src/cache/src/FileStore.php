@@ -14,7 +14,6 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\LockableFile;
 use Hypervel\Support\InteractsWithTime;
 use RuntimeException;
-use Swoole\Coroutine\CanceledException;
 
 class FileStore implements CanFlushLocks, LockProvider, Store
 {
@@ -242,9 +241,11 @@ class FileStore implements CanFlushLocks, LockProvider, Store
     {
         try {
             $expire = (int) substr($this->files->get($this->path($key), true), 0, 10);
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return null;
         }
 
@@ -426,6 +427,8 @@ class FileStore implements CanFlushLocks, LockProvider, Store
      *
      * Boot-only. Persists on the cached store for the worker lifetime;
      * per-request use races across coroutines.
+     *
+     * @return $this
      */
     public function setDirectory(string $directory): static
     {
@@ -439,6 +442,8 @@ class FileStore implements CanFlushLocks, LockProvider, Store
      *
      * Boot-only. Persists on the cached store for the worker lifetime;
      * per-request use races across coroutines.
+     *
+     * @return $this
      */
     public function setLockDirectory(?string $lockDirectory): static
     {
@@ -524,9 +529,11 @@ class FileStore implements CanFlushLocks, LockProvider, Store
                 0,
                 10
             );
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return $this->emptyPayload();
         }
 

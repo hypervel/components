@@ -7,6 +7,8 @@ namespace Hypervel\Sentry\Tracing;
 use Closure;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
+use Hypervel\HttpServer\Events\RequestCanceled;
+use Hypervel\Sentry\Features\Concerns\WorksWithSpans;
 use Hypervel\Sentry\Http\HypervelRequestFetcher;
 use Hypervel\Sentry\Http\SensitiveCookieFilter;
 use Sentry\DataCollection\DataCollectionPolicy;
@@ -27,6 +29,8 @@ use function Sentry\continueTrace;
  */
 class Middleware
 {
+    use WorksWithSpans;
+
     /**
      * The current active transaction.
      */
@@ -90,6 +94,39 @@ class Middleware
         $this->transaction->setData($this->collectRequestData());
 
         $this->hydrateResponseData($response);
+
+        if (! $this->continueAfterResponse) {
+            $this->finishTransaction();
+        }
+    }
+
+    /**
+     * Complete the transaction when cancellation stopped the request before it terminated.
+     */
+    public function requestCanceled(RequestCanceled $event): void
+    {
+        if ($this->transaction === null) {
+            return;
+        }
+
+        if ($this->shouldRouteBeIgnored()) {
+            $this->discardTransaction();
+
+            return;
+        }
+
+        if ($this->appSpan !== null) {
+            $this->appSpan->finish();
+            $this->appSpan = null;
+        }
+
+        $this->transaction->setData($this->collectRequestData());
+
+        if ($event->response !== null) {
+            $this->hydrateResponseData($event->response);
+        } elseif (($status = $this->cancellationStatus($event->cancellation, $event->exception)) !== null) {
+            $this->transaction->setStatus($status);
+        }
 
         if (! $this->continueAfterResponse) {
             $this->finishTransaction();

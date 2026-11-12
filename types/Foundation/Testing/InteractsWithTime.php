@@ -24,7 +24,7 @@ class InteractsWithTimeTestCase
         assertType('42', $this->freezeSecond(fn () => 42));
         assertType('42', $this->freezeSecond(fn (CarbonInterface $date) => 42));
 
-        // @phpstan-ignore method.void
+        // @phpstan-ignore method.void (asserts the void result)
         assertType('null', $this->travelTo(CarbonImmutable::now(), function (): void {
         }));
         assertType('42', $this->travelTo(CarbonImmutable::now(), fn () => 42));

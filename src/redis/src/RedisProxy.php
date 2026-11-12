@@ -707,9 +707,11 @@ class RedisProxy implements ConnectionContract
                     $config['scheme'],
                     $config['context'],
                 );
-            } catch (CanceledException $cancellation) {
-                throw $cancellation;
             } catch (Throwable $exception) {
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
                 $failures[] = sprintf(
                     '[%s:%d]: %s',
                     $master[0],

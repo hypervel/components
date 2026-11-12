@@ -45,6 +45,7 @@ class LoadEnvironmentVariables
             return;
         }
 
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (selects the environment file before it loads)
         $environment = Env::get('APP_ENV');
 
         if (! $environment) {

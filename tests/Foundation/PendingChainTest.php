@@ -8,6 +8,9 @@ use Hypervel\Bus\Queueable;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Foundation\Bus\PendingChain;
+use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\Delay;
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -85,6 +88,38 @@ class PendingChainTest extends TestCase
         $this->assertNull($dispatched->chainConnection);
         $this->assertNull($dispatched->chainQueue);
     }
+
+    public function testDispatchKeepsFirstJobAttributesOverChainDefaults(): void
+    {
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatch')->once()->andReturnArg(0);
+        Container::getInstance()->instance(Dispatcher::class, $dispatcher);
+
+        $dispatched = (new PendingChain(new PendingChainAttributedJob, []))
+            ->onConnection('chain-connection')
+            ->onQueue('chain-queue')
+            ->delay(10)
+            ->dispatch();
+
+        $this->assertNull($dispatched->connection);
+        $this->assertNull($dispatched->queue);
+        $this->assertNull($dispatched->delay);
+        $this->assertSame('chain-connection', $dispatched->chainConnection);
+        $this->assertSame('chain-queue', $dispatched->chainQueue);
+    }
+
+    public function testDispatchAppliesChainDelayOnlyWithoutAFirstJobDelay(): void
+    {
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatch')->twice()->andReturnArg(0);
+        Container::getInstance()->instance(Dispatcher::class, $dispatcher);
+
+        $delayed = (new PendingChain(new PendingChainTestJob, []))->delay(10)->dispatch();
+        $immediate = (new PendingChain((new PendingChainTestJob)->withoutDelay(), []))->delay(10)->dispatch();
+
+        $this->assertSame(10, $delayed->delay);
+        $this->assertSame(0, $immediate->delay);
+    }
 }
 
 enum PendingChainIntegerIdentifier: int
@@ -98,6 +133,14 @@ enum PendingChainUnitIdentifier
 }
 
 class PendingChainTestJob
+{
+    use Queueable;
+}
+
+#[Connection('job-connection')]
+#[QueueAttribute('job-queue')]
+#[Delay(30)]
+class PendingChainAttributedJob
 {
     use Queueable;
 }

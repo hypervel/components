@@ -81,6 +81,14 @@ function test(Builder $query, EloquentBuilder $userQuery): void
         assertType('stdClass', $users);
         assertType('int', $page);
     });
+    $query->paginate(function ($total) {
+        assertType('int', $total);
+
+        return 15;
+    }, total: fn () => 10);
+    assertType('float|int|string', $query->sum('id'));
+    assertType('float|int|string|null', $query->avg('id'));
+    assertType('float|int|string|null', $query->average('id'));
     assertType('Hypervel\Database\Query\Builder', $query->pipe(function () {
     }));
     assertType('Hypervel\Database\Query\Builder', $query->pipe(fn () => null));

@@ -9,6 +9,7 @@ use Hypervel\Http\JsonResponse;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response as HypervelResponse;
+use Hypervel\HttpServer\Events\RequestCanceled;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\ResponseSent;
@@ -37,7 +38,6 @@ use OpenTelemetry\SemConv\Attributes\NetworkAttributes;
 use OpenTelemetry\SemConv\Attributes\UrlAttributes;
 use OpenTelemetry\SemConv\Attributes\UserAgentAttributes;
 use OpenTelemetry\SemConv\Metrics\HttpMetrics;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -180,7 +180,17 @@ class HttpServerInstrumentation extends AbstractInstrumentation
             $this->requestReceived($event);
         });
         $this->events->listen(ResponseSent::class, function (ResponseSent $event): void {
-            $this->responseSent($event);
+            $this->complete($event->request, $event->response, $event->exception);
+        });
+        $this->events->listen(RequestCanceled::class, function (RequestCanceled $event): void {
+            // A sent response keeps its outcome; otherwise only a cleanup failure carrying the cancellation is one.
+            $this->complete(
+                $event->request,
+                $event->response,
+                $event->exception ?? ($event->response !== null || $this->isDirectCancellation($event->cancellation)
+                    ? null
+                    : $event->cancellation),
+            );
         });
 
         if ($this->tracer !== null && ! $this->responsePropagator instanceof NoopResponsePropagator) {
@@ -275,8 +285,7 @@ class HttpServerInstrumentation extends AbstractInstrumentation
     {
         $state = RequestTelemetryState::current();
 
-        if ($event->exception instanceof CanceledException
-            || $event->response === null
+        if ($event->response === null
             || $state === null
             || $state->completed
             || $state->request !== $event->request
@@ -290,13 +299,15 @@ class HttpServerInstrumentation extends AbstractInstrumentation
     }
 
     /**
-     * Complete telemetry at the response transport boundary.
+     * Complete telemetry at the response transport boundary, or where cancellation stopped the request.
+     *
+     * The response is null when none was sent; the exception is the lifecycle failure, if any.
      */
-    protected function responseSent(ResponseSent $event): void
+    protected function complete(?Request $request, ?Response $response, ?Throwable $exception): void
     {
         $state = RequestTelemetryState::current();
 
-        if ($state === null || $state->completed || $state->request !== $event->request) {
+        if ($state === null || $state->completed || $state->request !== $request) {
             return;
         }
 
@@ -305,14 +316,12 @@ class HttpServerInstrumentation extends AbstractInstrumentation
         $finishedAt = $state->span === null && $this->duration === null
             ? 0
             : $this->clock->now();
-        $response = null;
         $errorType = null;
         $completionAttributes = [];
 
         if ($recordingSpan || $this->duration !== null) {
-            $response = $event->response;
             $statusCode = $response?->getStatusCode();
-            $exception = $event->exception ?? $this->responseException($response);
+            $exception ??= $this->responseException($response);
             $errorType = $exception !== null
                 ? $exception::class
                 : ($statusCode !== null && $statusCode >= 500 ? (string) $statusCode : null);
@@ -336,10 +345,6 @@ class HttpServerInstrumentation extends AbstractInstrumentation
                     $state->span->setAttributes($this->responseTraceAttributes($response));
                 }
 
-                if ($this->userContext) {
-                    $state->span->setAttributes($this->userContexts->resolve($state));
-                }
-
                 if ($errorType !== null) {
                     $state->span->setStatus(StatusCode::STATUS_ERROR);
                 }
@@ -351,6 +356,12 @@ class HttpServerInstrumentation extends AbstractInstrumentation
                     $completionAttributes,
                     $state->context,
                 );
+            }
+
+            // Resolved last: an application user resolver may fail or be canceled
+            // and must not drop the outcome recorded above.
+            if ($recordingSpan && $this->userContext) {
+                $state->span->setAttributes($this->userContexts->resolve($state));
             }
         } finally {
             if ($state->activeRequestRecorded) {

@@ -31,6 +31,7 @@ use function Hypervel\Support\now;
  */
 class PersonalAccessToken extends Model implements HasAbilities
 {
+    // @phpstan-ignore hypervel.legacyModelProperty (a subclass's own #[Table] would drop this table name)
     protected ?string $table = 'personal_access_tokens';
 
     /**
@@ -49,6 +50,7 @@ class PersonalAccessToken extends Model implements HasAbilities
      *
      * @var array<int, string>
      */
+    // @phpstan-ignore hypervel.legacyModelProperty (#[Fillable] would merge with a subclass's $fillable instead of letting it replace this list)
     protected array $fillable = [
         'name',
         'token',
@@ -61,6 +63,7 @@ class PersonalAccessToken extends Model implements HasAbilities
      *
      * @var array<int, string>
      */
+    // @phpstan-ignore hypervel.legacyModelProperty (#[Hidden] would merge with a subclass's $hidden instead of letting it replace this list)
     protected array $hidden = [
         'token',
     ];

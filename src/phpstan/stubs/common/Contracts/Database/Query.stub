@@ -1,0 +1,9 @@
+<?php
+
+namespace Hypervel\Contracts\Database\Query;
+
+interface Builder
+{}
+
+interface Expression
+{}

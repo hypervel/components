@@ -42,6 +42,8 @@ class PendingDispatch
 
     /**
      * Set the desired connection for the job.
+     *
+     * @return $this
      */
     public function onConnection(UnitEnum|string|null $connection): static
     {
@@ -52,6 +54,8 @@ class PendingDispatch
 
     /**
      * Set the desired queue for the job.
+     *
+     * @return $this
      */
     public function onQueue(UnitEnum|string|null $queue): static
     {
@@ -64,6 +68,8 @@ class PendingDispatch
      * Set the desired job message group.
      *
      * This feature is only supported by some queues, such as Amazon SQS.
+     *
+     * @return $this
      */
     public function onGroup(array|UnitEnum|string|int|null $group): static
     {
@@ -78,6 +84,8 @@ class PendingDispatch
      * Set the desired job deduplicator callback.
      *
      * This feature is only supported by some queues, such as Amazon SQS FIFO.
+     *
+     * @return $this
      */
     public function withDeduplicator(array|callable|null $deduplicator): static
     {
@@ -88,6 +96,8 @@ class PendingDispatch
 
     /**
      * Set the desired connection for the chain.
+     *
+     * @return $this
      */
     public function allOnConnection(UnitEnum|string|null $connection): static
     {
@@ -98,6 +108,8 @@ class PendingDispatch
 
     /**
      * Set the desired queue for the chain.
+     *
+     * @return $this
      */
     public function allOnQueue(UnitEnum|string|null $queue): static
     {
@@ -108,6 +120,8 @@ class PendingDispatch
 
     /**
      * Set the desired delay in seconds for the job.
+     *
+     * @return $this
      */
     public function delay(DateInterval|DateTimeInterface|int|null $delay): static
     {
@@ -118,6 +132,8 @@ class PendingDispatch
 
     /**
      * Set the delay for the job to zero seconds.
+     *
+     * @return $this
      */
     public function withoutDelay(): static
     {
@@ -128,6 +144,8 @@ class PendingDispatch
 
     /**
      * Indicate that the job should be dispatched after the open parent database transactions have committed.
+     *
+     * @return $this
      */
     public function afterCommit(): static
     {
@@ -138,6 +156,8 @@ class PendingDispatch
 
     /**
      * Indicate that the job should not wait until database transactions have been committed before dispatching.
+     *
+     * @return $this
      */
     public function beforeCommit(): static
     {
@@ -148,6 +168,8 @@ class PendingDispatch
 
     /**
      * Dispatch the job through the transactional outbox.
+     *
+     * @return $this
      */
     public function viaOutbox(): static
     {
@@ -158,6 +180,8 @@ class PendingDispatch
 
     /**
      * Dispatch the job without the transactional outbox.
+     *
+     * @return $this
      */
     public function withoutOutbox(): static
     {
@@ -168,6 +192,8 @@ class PendingDispatch
 
     /**
      * Stage the job on the given database connection.
+     *
+     * @return $this
      */
     public function onOutboxDatabase(UnitEnum|string $connection): static
     {
@@ -178,6 +204,8 @@ class PendingDispatch
 
     /**
      * Set the jobs that should run if this job is successful.
+     *
+     * @return $this
      */
     public function chain(array $chain): static
     {
@@ -188,6 +216,8 @@ class PendingDispatch
 
     /**
      * Indicate that the job should be dispatched after the response is sent to the browser.
+     *
+     * @return $this
      */
     public function afterResponse(bool $afterResponse = true): static
     {
@@ -265,6 +295,8 @@ class PendingDispatch
 
     /**
      * Dynamically proxy methods to the underlying job.
+     *
+     * @return $this
      */
     public function __call(string $method, array $parameters): static
     {

@@ -232,19 +232,22 @@ class ViewInstrumentationTest extends TestCase
         $this->assertCount(2, $this->spanExporter->getSpans());
     }
 
-    public function testCancellationProducesNoFalseCompletionTelemetry(): void
+    public function testCancellationEndsTheSpanWithoutAnError(): void
     {
         $this->registerInstrumentation();
         $view = $this->view('reports.daily');
+        $active = Span::getCurrent()->getContext();
 
         ($this->renderingObserver)($view);
-        $active = Span::getCurrent()->getContext();
         ($this->renderedObserver)($view, new CanceledException);
 
         $this->assertSame($active->getSpanId(), Span::getCurrent()->getContext()->getSpanId());
-        $this->assertSame([], $this->spanExporter->getSpans());
+        $span = $this->exportedSpan('view reports.daily');
+        $this->assertSame(StatusCode::STATUS_UNSET, $span->getStatus()->getCode());
+        $this->assertNull($span->getAttributes()->get(ErrorAttributes::ERROR_TYPE));
+        $this->assertSame([], $span->getEvents());
         $this->metricReader->collect();
-        $this->assertCount(0, $this->metric()->data->dataPoints);
+        $this->assertNull($this->histogramPoint()->attributes->get(ErrorAttributes::ERROR_TYPE));
     }
 
     public function testMetricOnlyModeRecordsWithoutCreatingASpan(): void

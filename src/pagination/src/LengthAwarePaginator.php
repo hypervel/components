@@ -20,8 +20,9 @@ use JsonSerializable;
  * @template TKey of array-key
  *
  * @template-covariant TValue
+ * @template-covariant TCollection of Collection = Collection<array-key, mixed>
  *
- * @extends AbstractPaginator<TKey, TValue>
+ * @extends AbstractPaginator<TKey, TValue, TCollection>
  *
  * @implements Arrayable<array<string, mixed>>
  * @implements ArrayAccess<TKey, TValue>
@@ -200,7 +201,7 @@ class LengthAwarePaginator extends AbstractPaginator implements Arrayable, Array
             'from' => $this->firstItem(),
             'last_page' => $this->lastPage(),
             'last_page_url' => $this->url($this->lastPage()),
-            'links' => $this->linkCollection()->toArray(),
+            'links' => $this->linkCollection()->all(),
             'next_page_url' => $this->nextPageUrl(),
             'path' => $this->path(),
             'per_page' => $this->perPage(),

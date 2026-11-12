@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Doctor\Diagnostics;
 
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Doctor\Contracts\Fixable;
 use Hypervel\Doctor\Diagnostic;
@@ -14,7 +15,6 @@ use Hypervel\Doctor\Results\Link;
 use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\Details;
 use Hypervel\Support\Facades\Artisan;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class MigrationsAreUpToDate extends Diagnostic implements Fixable
@@ -85,9 +85,11 @@ class MigrationsAreUpToDate extends Diagnostic implements Fixable
                     ->fixable(EnvironmentMode::Local)
                     ->withDetails(Details::bullets(array_map($migrator->getMigrationName(...), $pending)));
             });
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $e) {
+            if (Coroutine::causedByCancellation($e)) {
+                throw $e;
+            }
+
             return $this->fail('inspection-failed')
                 ->withDetails($e->getMessage());
         }
@@ -107,9 +109,11 @@ class MigrationsAreUpToDate extends Diagnostic implements Fixable
                         'The migrate command exited without output.',
                     ));
             }
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             return $this->fixFailed('migration-failed')
                 ->withDetails($exception->getMessage());
         }

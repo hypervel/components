@@ -364,6 +364,17 @@ class DataTypeFactoryTest extends TestCase
         );
     }
 
+    public function testParentWithoutAParentClassRemainsUnresolved(): void
+    {
+        $nativeType = $this->property('unresolvedNativeParent')->getNamedTypes()[0];
+        $phpDocType = $this->property('unresolvedParent')->getNamedTypes()[0];
+
+        $this->assertSame('parent', $nativeType->name);
+        $this->assertNull($nativeType->dataClass);
+        $this->assertSame('parent', $phpDocType->iterableItemType?->getNamedTypes()[0]->name);
+        $this->assertNull($phpDocType->dataClass);
+    }
+
     // Spatie's DataReturnTypeTest: return types are built by this factory. Spatie's buildFromNamedType() and
     // buildFromValue() only resolved collect() targets, which Hypervel resolves without type metadata.
 
@@ -485,8 +496,15 @@ abstract class DataTypeFactoryItemData implements BaseData
 {
 }
 
+trait DataTypeFactoryParentProperty
+{
+    public ?parent $unresolvedNativeParent = null;
+}
+
 class DataTypeFactoryFixture
 {
+    use DataTypeFactoryParentProperty;
+
     public int $integer;
 
     /** @var int<0, max> */
@@ -523,6 +541,9 @@ class DataTypeFactoryFixture
 
     /** @var array<array-key> */
     public array $arrayKeys;
+
+    /** @var array<parent> */
+    public array $unresolvedParent;
 
     /** @var non-empty-array<int, DataTypeFactoryItemData> */
     public array $nonEmptyArray;

@@ -12,6 +12,7 @@ use Hypervel\Queue\Attributes\WithoutRelations;
 use Hypervel\Queue\SerializesModels;
 use Hypervel\Tests\TestCase;
 use LogicException;
+use ReflectionProperty;
 
 class SerializesModelsTest extends TestCase
 {
@@ -69,6 +70,16 @@ class SerializesModelsTest extends TestCase
         $this->assertSame(['collection'], $restored->collection->items);
     }
 
+    public function testPropertyHooksDoNotRunWhenSerializingAndRestoring(): void
+    {
+        $fixture = new HookedPropertySerializationFixture;
+        $fixture->secret = 'input';
+
+        $restored = unserialize(serialize($fixture));
+
+        $this->assertSame('stored:input', (new ReflectionProperty($restored, 'secret'))->getRawValue($restored));
+    }
+
     public function testKeylessEloquentModelCannotPublishAQueueIdentifier(): void
     {
         $this->expectException(LogicException::class);
@@ -92,6 +103,16 @@ class EloquentModelSerializationFixture
 
 class KeylessModelSerializationFixture extends Model
 {
+}
+
+class HookedPropertySerializationFixture
+{
+    use SerializesModels;
+
+    public string $secret = '' {
+        get => throw new LogicException('Serialization ran a get hook.');
+        set => "stored:{$value}";
+    }
 }
 
 #[WithoutRelations]

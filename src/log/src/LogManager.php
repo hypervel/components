@@ -272,16 +272,16 @@ class LogManager implements LoggerInterface
         $handlers = (new Collection($config['channels']))
             ->flatMap(function (LoggerInterface|UnitEnum|string|null $channel): array {
                 return $channel instanceof LoggerInterface
-                    ? $channel->getHandlers() // @phpstan-ignore method.notFound
-                    : $this->channel($channel)->getHandlers(); // @phpstan-ignore method.notFound
+                    ? $channel->getHandlers() // @phpstan-ignore method.notFound (Monolog method outside LoggerInterface)
+                    : $this->channel($channel)->getHandlers(); // @phpstan-ignore method.notFound (Monolog method outside LoggerInterface)
             })
             ->all();
 
         $processors = (new Collection($config['channels']))
             ->flatMap(function (LoggerInterface|UnitEnum|string|null $channel): array {
                 return $channel instanceof LoggerInterface
-                    ? $channel->getProcessors() // @phpstan-ignore method.notFound
-                    : $this->channel($channel)->getProcessors(); // @phpstan-ignore method.notFound
+                    ? $channel->getProcessors() // @phpstan-ignore method.notFound (Monolog method outside LoggerInterface)
+                    : $this->channel($channel)->getProcessors(); // @phpstan-ignore method.notFound (Monolog method outside LoggerInterface)
             })
             // Filter out the wrapped context processor from constituent channels.
             // Each constituent already had one pushed by get(); without filtering,

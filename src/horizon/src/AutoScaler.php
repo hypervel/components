@@ -58,7 +58,7 @@ class AutoScaler
     {
         return $pools->mapWithKeys(function ($pool, $queue) use ($supervisor) {
             // Numeric queue names become integer collection keys.
-            $queues = collect(explode(',', (string) $queue))->map(function ($_queue) use ($supervisor) { // @phpstan-ignore argument.unresolvableType
+            $queues = collect(explode(',', (string) $queue))->map(function ($_queue) use ($supervisor) { // @phpstan-ignore argument.unresolvableType (the callback's size comes from readyNow(), which the Queue contract omits)
                 // @phpstan-ignore method.notFound (RedisQueue has readyNow method)
                 $size = $this->queue->connection($supervisor->options->connection)->readyNow($_queue);
 

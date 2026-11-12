@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\SchemaParser;
 
-final readonly class TableReference
+readonly class TableReference
 {
     /**
      * Create a table reference without assuming an unspecified schema.

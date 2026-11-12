@@ -29,12 +29,12 @@ trait Dispatchable
         if ($boolean instanceof Closure) {
             $dispatchable = new static(...$arguments);
 
-            return value($boolean, $dispatchable) // @phpstan-ignore ternary.alwaysTrue (phpstan over-narrows TValue from conditional return PHPDoc)
+            return value($boolean, $dispatchable)
                 ? static::newPendingDispatch($dispatchable)
                 : new Fluent;
         }
 
-        return value($boolean)
+        return $boolean
             ? static::newPendingDispatch(new static(...$arguments))
             : new Fluent;
     }
@@ -47,12 +47,12 @@ trait Dispatchable
         if ($boolean instanceof Closure) {
             $dispatchable = new static(...$arguments);
 
-            return ! value($boolean, $dispatchable) // @phpstan-ignore booleanNot.alwaysFalse
+            return ! value($boolean, $dispatchable)
                 ? static::newPendingDispatch($dispatchable)
                 : new Fluent;
         }
 
-        return ! value($boolean)
+        return ! $boolean
             ? static::newPendingDispatch(new static(...$arguments))
             : new Fluent;
     }

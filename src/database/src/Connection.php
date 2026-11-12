@@ -1047,11 +1047,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         try {
             $this->resetTransactionState();
         } catch (Throwable $throwable) {
-            if ($exception === null
-                || (Coroutine::causedByCancellation($throwable) && ! Coroutine::causedByCancellation($exception))
-            ) {
-                $exception = $throwable;
-            }
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {
@@ -1128,6 +1124,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Register a hook to be run just before a database transaction is started.
+     *
+     * @return $this
      */
     public function beforeStartingTransaction(Closure $callback): static
     {
@@ -1138,6 +1136,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Register a hook to be run just before a database query is executed.
+     *
+     * @return $this
      */
     public function beforeExecuting(Closure $callback): static
     {
@@ -1404,6 +1404,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the record modification state.
+     *
+     * @return $this
      */
     public function setRecordModificationState(bool $value): static
     {
@@ -1422,6 +1424,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Indicate that the connection should use the write connection for reads.
+     *
+     * @return $this
      */
     public function useWriteConnectionWhenReading(bool $value = true): static
     {
@@ -1492,6 +1496,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the reconnect instance on the connection.
+     *
+     * @return $this
      */
     public function setReconnector(callable $reconnector): static
     {
@@ -1614,6 +1620,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the query grammar used by the connection.
+     *
+     * @return $this
      */
     public function setQueryGrammar(Query\Grammars\Grammar $grammar): static
     {
@@ -1632,6 +1640,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the schema grammar used by the connection.
+     *
+     * @return $this
      */
     public function setSchemaGrammar(Schema\Grammars\Grammar $grammar): static
     {
@@ -1650,6 +1660,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the query post processor used by the connection.
+     *
+     * @return $this
      */
     public function setPostProcessor(Processor $processor): static
     {
@@ -1668,6 +1680,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the event dispatcher instance on the connection.
+     *
+     * @return $this
      */
     public function setEventDispatcher(Dispatcher $events): static
     {
@@ -1748,6 +1762,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the transaction manager instance on the connection.
+     *
+     * @return $this
      */
     public function setTransactionManager(DatabaseTransactionsManager $manager): static
     {
@@ -1849,6 +1865,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the name of the connected database.
+     *
+     * @return $this
      */
     public function setDatabaseName(string $database): static
     {
@@ -1859,6 +1877,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the read / write type of the connection.
+     *
+     * @return $this
      */
     public function setReadWriteType(?string $readWriteType): static
     {
@@ -1887,6 +1907,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Set the table prefix in use by the connection.
+     *
+     * @return $this
      */
     public function setTablePrefix(string $prefix): static
     {

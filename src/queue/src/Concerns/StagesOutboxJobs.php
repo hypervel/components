@@ -8,7 +8,6 @@ use DateInterval;
 use DateTimeInterface;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Queue\ShouldQueueViaOutbox;
-use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\InvalidPayloadException;
@@ -97,19 +96,18 @@ trait StagesOutboxJobs
      */
     protected function enqueueViaOutbox(object|string $job, string $payload, ?string $queue, DateInterval|DateTimeInterface|int|null $delay): string
     {
+        $sendAttempted = false;
+
         try {
             $dispatcher = $this->container->make(OutboxDispatcher::class);
             $connection = $dispatcher->databaseFor($job);
             $payload = $this->finalizePayloadForQueueing($queue, $job, $payload, $delay);
             $row = $this->prepareOutboxRow($job, $payload, $queue, $delay);
             $this->raiseJobQueueingEvent($queue, $job, $payload, $delay);
+            $sendAttempted = true;
             $dispatcher->store($connection, [$row], [$job]);
         } catch (Throwable $exception) {
-            if (Coroutine::causedByCancellation($exception)) {
-                throw $exception;
-            }
-
-            $this->raiseJobQueueingFailedEvent($queue, $job, $payload, $delay, $exception);
+            $this->raiseJobQueueingFailedEvent($queue, $job, $payload, $delay, $exception, $sendAttempted);
 
             throw $exception;
         }
@@ -142,6 +140,7 @@ trait StagesOutboxJobs
         $dispatcher = $this->container->make(OutboxDispatcher::class);
         $prepared = $this->prepareBatchJobs($selected, $data, $queue);
         $groups = [];
+        $attempted = [];
 
         try {
             // Resolve every owner before finalization or insertion of any group.
@@ -169,6 +168,7 @@ trait StagesOutboxJobs
                     $this->raiseJobQueueingEvent($queue, $member['job'], $member['payload'], $member['delay']);
                 }
 
+                $attempted = array_fill_keys($group['members'], true);
                 $dispatcher->store($group['connection'], $rows, $groupJobs);
                 $accepted = [];
 
@@ -189,12 +189,10 @@ trait StagesOutboxJobs
                 }
             }
         } catch (Throwable $exception) {
-            if (Coroutine::causedByCancellation($exception)) {
-                throw $exception;
-            }
-
-            $this->notifyBatchMembersOfFailure($prepared, function (array $member) use ($queue, $exception): void {
-                $this->raiseJobQueueingFailedEvent($queue, $member['job'], $member['payload'], $member['delay'], $exception);
+            // Stored groups were removed, so only the group whose store failed was attempted.
+            $this->notifyBatchMembersOfFailure(array_keys($prepared), function (int $index) use ($prepared, $attempted, $queue, $exception): void {
+                $member = $prepared[$index];
+                $this->raiseJobQueueingFailedEvent($queue, $member['job'], $member['payload'], $member['delay'], $exception, isset($attempted[$index]));
             });
 
             throw $exception;

@@ -10,13 +10,14 @@ use Hypervel\Ai\Providers\TypeSafeProvider;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
+use Hypervel\Support\Env;
 use Hypervel\Support\Facades\Http;
 use PHPUnit\Framework\Assert;
 
 function requiresApiKey(string ...$keys): void
 {
     foreach ($keys as $key) {
-        if (empty(env($key))) {
+        if (empty(Env::get($key))) {
             Assert::markTestSkipped("Missing {$key} — skipping external test.");
         }
     }

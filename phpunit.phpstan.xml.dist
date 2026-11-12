@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit backupGlobals="false"
+         bootstrap="tests/PHPStan/phpunit-bootstrap.php"
+         beStrictAboutTestsThatDoNotTestAnything="false"
+         colors="true"
+         defaultTimeLimit="60"
+         enforceTimeLimit="true"
+         failOnRisky="true"
+         failOnWarning="true"
+         processIsolation="false"
+         stopOnError="false"
+         stopOnFailure="false"
+         backupStaticProperties="false"
+         displayDetailsOnTestsThatTriggerDeprecations="true"
+         displayDetailsOnTestsThatTriggerWarnings="true"
+         displayDetailsOnTestsThatTriggerNotices="true">
+    <testsuites>
+        <testsuite name="Hypervel PHPStan Test Suite">
+            <directory suffix="Test.php">./tests/PHPStan</directory>
+        </testsuite>
+    </testsuites>
+    <!--
+        No AfterEachTestExtension: PHPStan loads the analyzer's application once per
+        process, and that cleanup would discard it after the first test.
+    -->
+    <php>
+        <ini name="error_reporting" value="-1"/>
+        <!-- Keep isolated-child startup errors on stderr so PHPUnit reports their cause. -->
+        <ini name="display_errors" value="stderr"/>
+        <ini name="display_startup_errors" value="on"/>
+        <!-- PHPStan's test case keeps a container per config set, and the analyzed fixtures stay cached, so a worker's memory grows with the files it runs. -->
+        <ini name="memory_limit" value="2G"/>
+        <server name="HYPERVEL_PARALLEL_TESTING" value="1"/>
+        <!--
+            Fix terminal dimensions so console-output assertions do not depend
+            on the developer's terminal size.
+        -->
+        <env name="COLUMNS" value="80" force="true"/>
+        <env name="LINES" value="24" force="true"/>
+        <!-- Prevent unrelated Testbench subprocesses from exporting telemetry. Not forced, so jobs can opt in. -->
+        <env name="OTEL_TRACES_EXPORTER" value="none"/>
+        <env name="OTEL_METRICS_EXPORTER" value="none"/>
+        <env name="OTEL_LOGS_EXPORTER" value="none"/>
+    </php>
+</phpunit>

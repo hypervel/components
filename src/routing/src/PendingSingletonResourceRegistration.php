@@ -70,6 +70,8 @@ class PendingSingletonResourceRegistration
 
     /**
      * Indicate that the resource should have creation and storage routes.
+     *
+     * @return $this
      */
     public function creatable(): static
     {
@@ -80,6 +82,8 @@ class PendingSingletonResourceRegistration
 
     /**
      * Indicate that the resource should have a deletion route.
+     *
+     * @return $this
      */
     public function destroyable(): static
     {
@@ -155,6 +159,8 @@ class PendingSingletonResourceRegistration
 
     /**
      * Specify middleware that should be added to the specified resource routes.
+     *
+     * @return $this
      */
     public function middlewareFor(array|string $methods, array|string $middleware): static
     {
@@ -177,6 +183,8 @@ class PendingSingletonResourceRegistration
 
     /**
      * Specify middleware that should be removed from the resource routes.
+     *
+     * @return $this
      */
     public function withoutMiddleware(array|string $middleware): static
     {
@@ -190,6 +198,8 @@ class PendingSingletonResourceRegistration
 
     /**
      * Specify middleware that should be removed from the specified resource routes.
+     *
+     * @return $this
      */
     public function withoutMiddlewareFor(array|string $methods, array|string $middleware): static
     {
@@ -205,6 +215,8 @@ class PendingSingletonResourceRegistration
 
     /**
      * Add "where" constraints to the resource routes.
+     *
+     * @return $this
      */
     public function where(mixed $wheres): static
     {
@@ -215,6 +227,8 @@ class PendingSingletonResourceRegistration
 
     /**
      * Add metadata to the registered singleton resource routes.
+     *
+     * @return $this
      */
     public function metadata(array $metadata): static
     {

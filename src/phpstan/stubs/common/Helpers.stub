@@ -1,0 +1,32 @@
+<?php
+
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Contracts\View\View as ViewContract;
+
+/**
+ * Get the evaluated view contents for the given view.
+ *
+ * @param view-string|null $view
+ * @param Arrayable|array<string, mixed> $data
+ * @param array<string, mixed> $mergeData
+ */
+function view(?string $view = null, array|Arrayable $data = [], array $mergeData = []): ViewFactory|ViewContract {}
+
+// Upstream's optional() stub is omitted: it types an Optional as mixed to accept any method call,
+// while the source declares Optional<TValue>, whose calls OptionalExtension passes to the value.
+
+// Upstream's trans() and __() are omitted: the source already declares their conditional
+// return, and upstream's replacement type rejects objects Hypervel's translator accepts.
+
+// Upstream's blank(), filled(), rescue(), retry(), tap() and transform() stubs and its TapExtension
+// are omitted: the source declares their types.
+
+// Upstream's cookie(), logger(), logs(), redirect(), request(), session() and url() stubs are omitted:
+// the source declares their conditional returns.
+
+// Upstream's config() and env() stubs and EnvFunctionDynamicFunctionReturnTypeExtension are omitted:
+// the source declares their types, and an env() default does not decide the type of the value read.
+
+// Upstream's NowAndTodayExtension and DateExtension are omitted: they type dates as the class of
+// now() when analysis runs, while now(), today() and the Date facade declare CarbonInterface.

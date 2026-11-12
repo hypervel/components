@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Concurrency;
 
+use Carbon\CarbonInterval;
+use Closure;
 use Hypervel\Contracts\Concurrency\Driver;
 use Hypervel\Process\Factory as ProcessFactory;
 use Hypervel\Support\MultipleInstanceManager;
@@ -12,12 +14,16 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
+ * @method array run(Closure|array $tasks, CarbonInterval|int|null $timeout = null)
+ *
  * @mixin Driver
  */
 class ConcurrencyManager extends MultipleInstanceManager
 {
     /**
      * Get a driver instance by name.
+     *
+     * @return Driver
      */
     public function driver(UnitEnum|string|null $name = null): mixed
     {

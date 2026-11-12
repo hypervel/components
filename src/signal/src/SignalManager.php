@@ -149,6 +149,8 @@ class SignalManager
      */
     protected function getQueue(): SplPriorityQueue
     {
+        // Published configuration may register handlers in any form, which the loop validates.
+        /** @var array<array-key, mixed> $handlers */
         $handlers = $this->config->array('signal.handlers');
 
         $queue = new SplPriorityQueue;

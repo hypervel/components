@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Auth;
 
 use Hypervel\Auth\Passwords\CacheTokenRepository;
-use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Auth\CanResetPassword;
+use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Hashing\Hasher;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;

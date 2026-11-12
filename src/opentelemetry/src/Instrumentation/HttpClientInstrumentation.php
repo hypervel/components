@@ -37,7 +37,6 @@ use OpenTelemetry\SemConv\Metrics\HttpMetrics;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\UriInterface;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnexpectedValueException;
 
@@ -188,8 +187,6 @@ class HttpClientInstrumentation extends AbstractInstrumentation
                     }
 
                     $promise = $handler($request, $options);
-                } catch (CanceledException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
                     $this->completeFailure(
                         $exception,
@@ -225,10 +222,6 @@ class HttpClientInstrumentation extends AbstractInstrumentation
                         $startedAt,
                         $requestAttributes,
                     ): PromiseInterface {
-                        if ($reason instanceof CanceledException) {
-                            throw $reason;
-                        }
-
                         if ($reason instanceof Throwable) {
                             $this->completeFailure(
                                 $reason,
@@ -422,7 +415,7 @@ class HttpClientInstrumentation extends AbstractInstrumentation
     }
 
     /**
-     * Complete a failed physical request.
+     * Complete a failed or canceled physical request.
      *
      * @param array<string, int|string> $requestAttributes
      */
@@ -433,6 +426,13 @@ class HttpClientInstrumentation extends AbstractInstrumentation
         int $startedAt,
         array $requestAttributes,
     ): void {
+        // HTTP client semantic conventions leave a canceled request's status unset and omit error.type.
+        if ($this->isDirectCancellation($exception)) {
+            $this->complete($span, $context, $startedAt, $requestAttributes);
+
+            return;
+        }
+
         if ($span !== null) {
             $this->exceptionContexts->associate(
                 $exception,

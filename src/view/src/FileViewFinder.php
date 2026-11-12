@@ -242,6 +242,8 @@ class FileViewFinder implements ViewFinderInterface
      *
      * Boot-only. Request-time use changes shared view paths while concurrent
      * coroutines may still be resolving views.
+     *
+     * @return $this
      */
     public function setPaths(array $paths): static
     {

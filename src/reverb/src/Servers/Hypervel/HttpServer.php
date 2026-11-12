@@ -12,13 +12,15 @@ use Hypervel\Contracts\Server\BootstrapsForServer;
 use Hypervel\Contracts\Server\OnRequestInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
+use Hypervel\HttpServer\Events\RequestCanceled;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\ResponseSent;
 use Hypervel\HttpServer\RequestBridge;
 use Hypervel\HttpServer\ResponseBridge;
-use Swoole\Coroutine\CanceledException;
+use Hypervel\Support\FailureReporter;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -87,24 +89,35 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
 
                 $response = $this->router->dispatch($request);
             }
-        } catch (CanceledException $cancellation) {
-            throw $cancellation;
         } catch (Throwable $throwable) {
+            if (Coroutine::causedByCancellation($throwable)) {
+                throw $request === null ? $throwable : $this->requestCanceled($request, null, null, $throwable);
+            }
+
             // Keep the original in flight while it is handled and emitted, so
             // any failure at that boundary carries the root cause as previous.
             // The return suppresses it once the response has been emitted.
             try {
-                /* @phpstan-ignore finally.exitPoint */
+                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 throw $throwable;
             } finally {
-                $handler = $this->container->make(ExceptionHandler::class);
-                $handler->report($throwable);
-                $response = $request !== null
-                    ? $handler->render($request, $throwable)
-                    : new Response('Internal Server Error', 500);
+                try {
+                    $handler = $this->container->make(ExceptionHandler::class);
+                    $handler->report($throwable);
+                    $response = $request !== null
+                        ? $handler->render($request, $throwable)
+                        : new Response('Internal Server Error', 500);
+                } catch (Throwable $failure) {
+                    if ($request !== null && Coroutine::causedByCancellation($failure)) {
+                        $failure = $this->requestCanceled($request, null, $throwable, $failure);
+                    }
+
+                    throw $failure;
+                }
+
                 $this->sendResponse($request, $response, $swooleResponse, $throwable);
 
-                /* @phpstan-ignore finally.exitPoint */
+                /* @phpstan-ignore finally.exitPoint (preserves exception chaining until handling succeeds) */
                 return;
             }
         }
@@ -122,52 +135,105 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
         ?Throwable $exception = null,
     ): void {
         $terminalException = null;
-
-        if ($request !== null) {
-            try {
-                if ($this->event?->hasListeners(RequestHandled::class)) {
-                    $this->event->dispatch(new RequestHandled(
-                        request: $request,
-                        response: $response,
-                        exception: $exception,
-                        server: $this->serverName,
-                    ));
-                }
-            } catch (CanceledException $throwable) {
-                throw $throwable;
-            } catch (Throwable $throwable) {
-                $terminalException = $throwable;
-            }
-        }
+        $responseSent = false;
 
         try {
-            ResponseBridge::send($response, $swooleResponse, request: $request);
-        } catch (CanceledException $throwable) {
-            throw $throwable;
-        } catch (Throwable $throwable) {
-            $terminalException ??= $throwable;
-        }
+            if ($request !== null) {
+                try {
+                    if ($this->event?->hasListeners(RequestHandled::class)) {
+                        $this->event->dispatch(new RequestHandled(
+                            request: $request,
+                            response: $response,
+                            exception: $exception,
+                            server: $this->serverName,
+                        ));
+                    }
+                } catch (Throwable $throwable) {
+                    if (Coroutine::causedByCancellation($throwable)) {
+                        throw $throwable;
+                    }
 
-        if ($request !== null) {
-            try {
-                if ($this->event?->hasListeners(ResponseSent::class)) {
-                    $this->event->dispatch(new ResponseSent(
-                        request: $request,
-                        response: $response,
-                        exception: $exception ?? $terminalException,
-                        server: $this->serverName,
-                    ));
+                    $terminalException = $throwable;
                 }
-            } catch (CanceledException $throwable) {
-                throw $throwable;
-            } catch (Throwable $throwable) {
-                $terminalException ??= $throwable;
             }
+
+            try {
+                ResponseBridge::send($response, $swooleResponse, request: $request);
+            } catch (Throwable $throwable) {
+                if (Coroutine::causedByCancellation($throwable)) {
+                    throw $throwable;
+                }
+
+                $terminalException = FailureReporter::preferCancellation($terminalException, $throwable);
+            }
+
+            $responseSent = true;
+
+            if ($request !== null) {
+                try {
+                    if ($this->event?->hasListeners(ResponseSent::class)) {
+                        $this->event->dispatch(new ResponseSent(
+                            request: $request,
+                            response: $response,
+                            exception: $exception ?? $terminalException,
+                            server: $this->serverName,
+                        ));
+                    }
+                } catch (Throwable $throwable) {
+                    if (Coroutine::causedByCancellation($throwable)) {
+                        throw $throwable;
+                    }
+
+                    $terminalException = FailureReporter::preferCancellation($terminalException, $throwable);
+                }
+            }
+        } catch (Throwable $cancellation) {
+            // Only cancellation reaches here; every other failure is kept above. The original
+            // failure was already reported, but a later one would otherwise be lost.
+            if ($terminalException !== null) {
+                FailureReporter::report($terminalException);
+            }
+
+            throw $request === null ? $cancellation : $this->requestCanceled(
+                $request,
+                $responseSent ? $response : null,
+                $exception ?? $terminalException,
+                $cancellation,
+            );
         }
 
         if ($terminalException !== null) {
             throw $terminalException;
         }
+    }
+
+    /**
+     * Notify listeners that cancellation stopped the request lifecycle.
+     *
+     * Returns the throwable to propagate, so a listener failure never replaces the cancellation.
+     */
+    protected function requestCanceled(
+        Request $request,
+        ?Response $response,
+        ?Throwable $exception,
+        Throwable $cancellation,
+    ): Throwable {
+        try {
+            if ($this->event?->hasListeners(RequestCanceled::class)) {
+                $this->event->dispatch(new RequestCanceled(
+                    request: $request,
+                    response: $response,
+                    cancellation: $cancellation,
+                    exception: $exception,
+                    server: $this->serverName,
+                ));
+            }
+        } catch (Throwable $throwable) {
+            // The first cancellation keeps precedence; the listener failure is still reported.
+            FailureReporter::report($throwable);
+        }
+
+        return $cancellation;
     }
 
     /**

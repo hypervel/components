@@ -15,6 +15,7 @@ use Hypervel\Foundation\Application;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Composer;
 use Hypervel\Support\ProcessUtils;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Contracts\TestCase as TestCaseContract;
@@ -300,12 +301,13 @@ function package_path(array|string $path = ''): string
     $argumentCount = func_num_args();
 
     $workingPath = once(static function (): string {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the test process sets the package working path in its environment)
         $configuredWorkingPath = Env::get('TESTBENCH_WORKING_PATH');
 
         $resolvedPath = realpath(match (true) {
             defined('TESTBENCH_WORKING_PATH') => TESTBENCH_WORKING_PATH,
             is_string($configuredWorkingPath) && $configuredWorkingPath !== '' => $configuredWorkingPath,
-            default => InstalledVersions::getRootPackage()['install_path'],
+            default => Composer::rootPackage()['install_path'],
         });
 
         return $resolvedPath !== false ? $resolvedPath : getcwd();
@@ -399,7 +401,7 @@ function hypervel_vendor_exists(ApplicationContract $app, ?string $workingPath =
     $filesystem = new \Hypervel\Filesystem\Filesystem;
 
     $appVendorPath = $app->basePath('vendor');
-    $workingPath ??= package_path('vendor');
+    $workingPath ??= Composer::vendorPath(package_path());
 
     return $filesystem->isFile(join_paths($appVendorPath, 'autoload.php'))
         && $filesystem->hash(join_paths($appVendorPath, 'autoload.php')) === $filesystem->hash(join_paths($workingPath, 'autoload.php'));
@@ -744,20 +746,16 @@ function php_binary(bool $escape = false): string
  */
 function remote(Closure|array|string $command, array|string $env = [], ?bool $tty = null): ProcessDecorator
 {
+    if (is_string($env)) {
+        $env = ['APP_ENV' => $env];
+    }
+
+    // Run this Testbench's own binary with the package's autoloader. That works for any
+    // Composer vendor or bin directory, and for path-repository installs where the
+    // binary's own location resolves to the source checkout.
+    $env['HYPERVEL_AUTOLOAD_PATH'] ??= Composer::vendorPath(package_path()) . '/autoload.php';
+
     $remote = new RemoteCommand(package_path(), $env, $tty);
 
-    // Look for testbench binary in order of preference:
-    // 1. vendor/bin/testbench (installed as dependency)
-    // 2. src/testbench/bin/testbench (monorepo structure)
-    // 3. Fall back to 'testbench' in PATH
-    $vendorBinary = package_path('vendor', 'bin', 'testbench');
-    $srcBinary = package_path('src', 'testbench', 'bin', 'testbench');
-
-    $commander = match (true) {
-        is_file($vendorBinary) => $vendorBinary,
-        is_file($srcBinary) => $srcBinary,
-        default => 'testbench',
-    };
-
-    return $remote->handle($commander, $command);
+    return $remote->handle(testbench_path('bin/testbench'), $command);
 }

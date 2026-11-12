@@ -156,6 +156,8 @@ class TokenGuard implements Guard
 
     /**
      * Set the current user.
+     *
+     * @return $this
      */
     public function setUser(AuthenticatableContract $user): static
     {
@@ -166,6 +168,8 @@ class TokenGuard implements Guard
 
     /**
      * Forget the current user.
+     *
+     * @return $this
      */
     public function forgetUser(): static
     {

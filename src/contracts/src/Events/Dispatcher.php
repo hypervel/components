@@ -41,6 +41,8 @@ interface Dispatcher
 
     /**
      * Dispatch an event and call the listeners.
+     *
+     * @return ($halt is true ? mixed : null|array<mixed>)
      */
     public function dispatch(object|string $event, mixed $payload = [], bool $halt = false): mixed;
 

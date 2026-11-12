@@ -15,6 +15,7 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\BufferStream;
 use GuzzleHttp\TransferStats;
+use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Engine\Coroutine;
 use Hypervel\ObjectPool\PoolErrorReporter;
@@ -132,9 +133,11 @@ class CurlStreamingBody implements StreamInterface
             if ($onHeaders !== null) {
                 try {
                     $onHeaders($response, $this->request);
-                } catch (CanceledException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
+                    if (FrameworkCoroutine::causedByCancellation($exception)) {
+                        throw $exception;
+                    }
+
                     throw $this->responseException('An error was encountered during the on_headers event', $response, $exception);
                 }
             }
@@ -148,9 +151,11 @@ class CurlStreamingBody implements StreamInterface
 
                 try {
                     $onTrailers(...$trailerArguments);
-                } catch (CanceledException $exception) {
-                    throw $exception;
                 } catch (Throwable $exception) {
+                    if (FrameworkCoroutine::causedByCancellation($exception)) {
+                        throw $exception;
+                    }
+
                     throw $this->responseException('An error was encountered during the on_trailers event', $response, $exception);
                 }
             }
@@ -328,6 +333,7 @@ class CurlStreamingBody implements StreamInterface
             $this->completedResponse = CurlFactory::finish($retry, $easy, $this->factory)->wait();
         } catch (TransferException $exception) {
             // Completion callbacks run after the native cancellation check above.
+            // @phpstan-ignore hypervel.cancellation.exactType (restores the direct cancellation Guzzle wrapped; a deeper carrier still propagates)
             if ($exception->getPrevious() instanceof CanceledException) {
                 throw $exception->getPrevious();
             }
@@ -370,6 +376,7 @@ class CurlStreamingBody implements StreamInterface
 
         if ($selected === -1) {
             // libcurl can briefly have no descriptors while scheduling its next action.
+            // @phpstan-ignore hypervel.rawSleep (libcurl needs real time to schedule its next action)
             usleep(1000);
         } elseif ($selected > 0 && $this->readTimeout > 0) {
             $idleDeadline = hrtime(true) / 1e9 + $this->readTimeout;

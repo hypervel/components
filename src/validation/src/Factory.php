@@ -289,6 +289,8 @@ class Factory implements FactoryContract
      * Tests only. Swaps the container on the singleton validation Factory;
      * per-request use races across coroutines and breaks every concurrent
      * validator build.
+     *
+     * @return $this
      */
     public function setContainer(Container $container): static
     {

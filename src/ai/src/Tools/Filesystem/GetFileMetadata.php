@@ -52,8 +52,7 @@ class GetFileMetadata extends FilesystemTool
             'path' => $path,
             'size' => $size,
             'last_modified' => rescue(fn (): int => $disk->lastModified($path), report: false),
-            // The contract omits adapter metadata methods, which every shipped disk provides.
-            // @phpstan-ignore method.notFound
+            // @phpstan-ignore method.notFound (the contract omits adapter metadata methods, which every shipped disk provides)
             'mime_type' => rescue(fn (): false|string => $disk->mimeType($path), report: false),
             'visibility' => rescue(fn (): string => $disk->getVisibility($path), report: false),
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

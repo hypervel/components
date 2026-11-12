@@ -7,11 +7,13 @@ namespace Hypervel\Tests\Sentry\Features;
 use Exception;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\Events\JobQueueingCanceled;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\InteractsWithQueue;
@@ -25,6 +27,7 @@ use Sentry\Breadcrumb;
 use Sentry\EventType;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanStatus;
+use Swoole\Coroutine\CanceledException;
 
 use function Hypervel\Coroutine\wait;
 use function Sentry\addBreadcrumb;
@@ -260,6 +263,70 @@ class QueueIntegrationTest extends TestCase
         $this->assertNotNull($spans['A']->getEndTimestamp());
         $this->assertNotNull($spans['B']->getEndTimestamp());
         $this->assertNotNull($spans['C']->getEndTimestamp());
+    }
+
+    #[DefineEnvironment('withTracingEnabled')]
+    public function testCanceledPublishSpansKeepTheKnownOutcome(): void
+    {
+        $transaction = $this->startTransaction();
+        $cases = [
+            'direct' => [new CanceledException, false, null],
+            'wrapped' => [new RuntimeException('Cleanup failed.', previous: new CanceledException), false, null],
+            'failed' => [new CanceledException, false, new RuntimeException('Send failed.')],
+            'queued' => [new RuntimeException('Cleanup failed.', previous: new CanceledException), true, null],
+        ];
+
+        foreach ($cases as $job => [$cancellation, $queued, $exception]) {
+            $payload = json_encode(['uuid' => $job], JSON_THROW_ON_ERROR);
+            $this->dispatchHypervelEvent(new JobQueueing('test', 'default', $job, $payload, null));
+            $this->dispatchHypervelEvent(new JobQueueingCanceled('test', 'default', $job, $payload, null, $cancellation, true, $queued, $exception));
+        }
+
+        $spans = [];
+
+        foreach (array_slice($transaction->getSpanRecorder()->getSpans(), 1) as $span) {
+            $spans[$span->getDescription()] = $span;
+        }
+
+        $this->assertNull($spans['direct']->getStatus());
+        $this->assertSame(SpanStatus::internalError(), $spans['wrapped']->getStatus());
+        $this->assertSame(SpanStatus::internalError(), $spans['failed']->getStatus());
+        $this->assertSame(SpanStatus::ok(), $spans['queued']->getStatus());
+
+        foreach ($spans as $span) {
+            $this->assertNotNull($span->getEndTimestamp());
+        }
+    }
+
+    #[DefineEnvironment('withTracingEnabled')]
+    public function testCanceledAttemptFinishesItsProcessSpan(): void
+    {
+        $transaction = $this->startTransaction();
+        $queue = (new QueueFeatureTestQueue)
+            ->setContainer($this->app)
+            ->setConnectionName('test');
+        $cases = [
+            'direct' => new CanceledException,
+            'wrapped' => new RuntimeException('Cleanup failed.', previous: new CanceledException),
+        ];
+
+        foreach ($cases as $exception) {
+            $job = new QueueFeatureResolvedQueueJob($this->app, $queue->enqueueForTest(new QueueEventsTestJob), 'test', 'default');
+            $this->dispatchHypervelEvent(new JobProcessing('test', $job));
+            $this->dispatchHypervelEvent(new JobAttempted('test', $job, $exception, null, canceled: true));
+            $this->assertSame($transaction, $this->getSentryHubFromContainer()->getSpan());
+        }
+
+        $processSpans = array_values(array_filter(
+            $transaction->getSpanRecorder()->getSpans(),
+            static fn (Span $span): bool => $span->getOp() === 'queue.process',
+        ));
+
+        $this->assertCount(2, $processSpans);
+        $this->assertNull($processSpans[0]->getStatus());
+        $this->assertSame(SpanStatus::internalError(), $processSpans[1]->getStatus());
+        $this->assertNotNull($processSpans[0]->getEndTimestamp());
+        $this->assertNotNull($processSpans[1]->getEndTimestamp());
     }
 
     #[DefineEnvironment('withTracingEnabled')]

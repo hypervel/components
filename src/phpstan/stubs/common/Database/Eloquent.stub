@@ -1,0 +1,20 @@
+<?php
+
+namespace Hypervel\Database\Eloquent;
+
+use Hypervel\Database\RecordsNotFoundException;
+
+/**
+ * @template TModel of Model
+ */
+class ModelNotFoundException extends RecordsNotFoundException
+{}
+
+class MassAssignmentException extends \RuntimeException
+{}
+
+class HigherOrderBuilderProxy
+{}
+
+interface Scope
+{}

@@ -34,6 +34,7 @@ class ModelNotFoundException extends RecordsNotFoundException
      *
      * @param class-string<TModel> $model
      * @param null|array<int, int|string|UnitEnum>|int|string|UnitEnum $ids
+     * @return $this
      */
     public function setModel(string $model, array|int|string|UnitEnum|null $ids = []): static
     {

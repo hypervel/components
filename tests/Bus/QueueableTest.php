@@ -7,6 +7,8 @@ namespace Hypervel\Tests\Bus;
 use Hypervel\Bus\Queueable;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Tests\TestCase;
 use Laravel\SerializableClosure\SerializableClosure;
 use Mockery as m;
@@ -185,9 +187,37 @@ class QueueableTest extends TestCase
 
         $job->dispatchNextJobInChain();
     }
+
+    public function testDispatchNextJobKeepsItsAttributesOverChainDefaults(): void
+    {
+        $job = new FakeJob;
+        $job->chain([new AttributedFakeJob]);
+        $job->chainConnection = 'default-connection';
+        $job->chainQueue = 'default-queue';
+
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatch')->once()->with(m::on(function (AttributedFakeJob $next): bool {
+            $this->assertNull($next->connection);
+            $this->assertNull($next->queue);
+            $this->assertSame('default-connection', $next->chainConnection);
+            $this->assertSame('default-queue', $next->chainQueue);
+
+            return true;
+        }));
+        Container::getInstance()->instance(Dispatcher::class, $dispatcher);
+
+        $job->dispatchNextJobInChain();
+    }
 }
 
 class FakeJob
+{
+    use Queueable;
+}
+
+#[Connection('job-connection')]
+#[QueueAttribute('job-queue')]
+class AttributedFakeJob
 {
     use Queueable;
 }

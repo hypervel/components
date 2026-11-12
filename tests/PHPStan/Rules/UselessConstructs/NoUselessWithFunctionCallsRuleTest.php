@@ -1,0 +1,47 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\PHPStan\Rules\UselessConstructs;
+
+use Hypervel\PHPStan\Rules\UselessConstructs\NoUselessWithFunctionCallsRule;
+use PHPStan\Rules\Rule;
+use PHPStan\Testing\RuleTestCase;
+
+/** @extends RuleTestCase<NoUselessWithFunctionCallsRule> */
+class NoUselessWithFunctionCallsRuleTest extends RuleTestCase
+{
+    public function testNoFalsePositives(): void
+    {
+        $this->analyse(
+            [
+                __DIR__ . '/data/CorrectWithFunctionCall.php',
+            ],
+            [],
+        );
+    }
+
+    public function testUselessWithCalls(): void
+    {
+        $this->analyse(
+            [
+                __DIR__ . '/data/UselessWithFunctionCall.php',
+            ],
+            [
+                ["Calling the helper function 'with()' with only one argument simply returns the value itself. If you want to chain methods on a construct, use '(new ClassName())->foo()' instead", 11],
+                ["Calling the helper function 'with()' without a callable as the second argument simply returns the value without doing anything", 16],
+                ["Calling the helper function 'with()' with only one argument simply returns the value itself. If you want to chain methods on a construct, use '(new ClassName())->foo()' instead", 26],
+            ],
+        );
+    }
+
+    public function testFix(): void
+    {
+        $this->fix(__DIR__ . '/data/UselessWithFunctionCall.php', __DIR__ . '/data/UselessWithFunctionCallFixed.php');
+    }
+
+    protected function getRule(): Rule
+    {
+        return new NoUselessWithFunctionCallsRule($this->createReflectionProvider());
+    }
+}

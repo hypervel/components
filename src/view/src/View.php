@@ -13,8 +13,8 @@ use Hypervel\Contracts\Support\MessageProvider;
 use Hypervel\Contracts\Support\Renderable;
 use Hypervel\Contracts\View\Engine;
 use Hypervel\Contracts\View\View as ViewContract;
-use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Collection;
+use Hypervel\Support\FailureReporter;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
@@ -23,6 +23,9 @@ use Hypervel\Support\ViewErrorBag;
 use Stringable;
 use Throwable;
 
+/**
+ * @implements ArrayAccess<array-key, mixed>
+ */
 class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 {
     use Macroable {
@@ -74,7 +77,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      */
     public function fragmentIf(bool $boolean, string $fragment): string|Htmlable
     {
-        if (value($boolean)) {
+        if ($boolean) {
             return $this->fragment($fragment);
         }
 
@@ -86,7 +89,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      */
     public function fragmentsIf(bool $boolean, ?array $fragments = null): string
     {
-        if (value($boolean)) {
+        if ($boolean) {
             return $this->fragments($fragments);
         }
 
@@ -182,17 +185,14 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
             $this->factory->notifyRendering($this);
             $contents = $this->getContents();
         } catch (Throwable $throwable) {
-            if (Coroutine::causedByCancellation($throwable)) {
-                throw $throwable;
-            }
-
+            // Cancellation is passed on too, so observers that started can finish.
             $exception = $throwable;
         }
 
         try {
             $this->factory->notifyRendered($this, $exception);
         } catch (Throwable $throwable) {
-            $exception = Coroutine::preferCancellation($exception, $throwable);
+            $exception = FailureReporter::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {
@@ -258,6 +258,8 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Add a piece of data to the view.
+     *
+     * @return $this
      */
     public function with(string|array $key, mixed $value = null): static
     {
@@ -272,6 +274,8 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Add a view instance to the view data.
+     *
+     * @return $this
      */
     public function nest(string $key, string $view, array $data = []): static
     {
@@ -280,6 +284,8 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Add validation errors to the view.
+     *
+     * @return $this
      */
     public function withErrors(MessageProvider|array|string $provider, string $bag = 'default'): static
     {

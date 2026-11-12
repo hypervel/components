@@ -1,0 +1,99 @@
+<?php
+
+namespace Hypervel\Support\Facades;
+
+use Hypervel\Cache\CacheManager;
+use Hypervel\Cache\Repository as CacheRepository;
+use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Cookie\CookieJar;
+use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\DatabaseManager;
+use Hypervel\Database\Schema\Builder as SchemaBuilder;
+use Hypervel\Foundation\Console\Kernel;
+use Hypervel\Http\Client\Factory as HttpFactory;
+use Hypervel\Http\Request as HttpRequest;
+use Hypervel\Log\LogManager;
+use Hypervel\Queue\Queue as BaseQueue;
+use Hypervel\Queue\QueueManager;
+use Hypervel\Routing\Router;
+use Hypervel\Support\Testing\Fakes\EventFake;
+use Hypervel\Support\Testing\Fakes\QueueFake;
+use Hypervel\View\Factory;
+
+// These docblocks replace the generated @method tags during analysis, so calls keep
+// the root methods' generic and conditional types.
+
+abstract class Facade {}
+
+/**
+ * @mixin CacheManager
+ * @mixin CacheRepository
+ */
+class Cache extends Facade {}
+
+/**
+ * @mixin DatabaseManager
+ * @mixin Connection
+ * @mixin ConnectionInterface
+ */
+class DB extends Facade {}
+
+/**
+ * @mixin SchemaBuilder
+ */
+class Schema extends Facade {}
+
+/**
+ * @mixin Dispatcher
+ * @mixin EventFake
+ */
+class Event extends Facade {}
+
+/**
+ * @mixin QueueManager
+ * @mixin BaseQueue
+ * @mixin QueueFake
+ */
+class Queue extends Facade {}
+
+/**
+ * @mixin LogManager
+ */
+class Log extends Facade {}
+
+/**
+ * @mixin HttpRequest
+ */
+class Request extends Facade {}
+
+/**
+ * @mixin Kernel
+ */
+class Artisan extends Facade {}
+
+/**
+ * @mixin CookieJar
+ */
+class Cookie extends Facade {}
+
+/**
+ * @mixin ConfigRepository
+ */
+class Config extends Facade {}
+
+/**
+ * @mixin HttpFactory
+ */
+class Http extends Facade {}
+
+/**
+ * @mixin Factory
+ */
+class View extends Facade {}
+
+/**
+ * @mixin Router
+ */
+class Route extends Facade {}

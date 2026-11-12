@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Database\Sqlite;
 
 use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Env;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use Override;
@@ -24,7 +25,7 @@ abstract class SqliteTestCase extends DatabaseTestCase
     /**
      * Check if configured for in-memory SQLite database.
      *
-     * Uses env() so it can be called before the app boots.
+     * Reads the environment so it can be called before the app boots.
      */
     protected function isConfiguredForInMemoryDatabase(): bool
     {
@@ -34,11 +35,11 @@ abstract class SqliteTestCase extends DatabaseTestCase
     /**
      * Get the configured SQLite database path from env.
      *
-     * Uses env() so it can be called before the app boots.
+     * Reads the environment so it can be called before the app boots.
      */
     protected function getConfiguredDatabasePath(): string
     {
-        return env('DB_DATABASE', ':memory:');
+        return Env::get('DB_DATABASE', ':memory:');
     }
 
     /**
@@ -51,7 +52,7 @@ abstract class SqliteTestCase extends DatabaseTestCase
     {
         // This runs before the class-level RequiresDatabase skip, so another driver's
         // database name must not be created as a file in the working directory.
-        if (env('DB_CONNECTION', 'sqlite') !== 'sqlite') {
+        if (Env::get('DB_CONNECTION', 'sqlite') !== 'sqlite') {
             return;
         }
 

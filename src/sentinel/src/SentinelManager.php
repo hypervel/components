@@ -8,7 +8,6 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Sentinel\Drivers\Driver;
 use Hypervel\Sentinel\Drivers\Hypervel;
 use Hypervel\Support\Manager;
-use Hypervel\Support\Str;
 use InvalidArgumentException;
 
 class SentinelManager extends Manager
@@ -42,7 +41,7 @@ class SentinelManager extends Manager
     {
         if ($driver !== null
             && ! isset($this->customCreators[$driver])
-            && ! method_exists($this, 'create' . Str::studly($driver) . 'Driver')) {
+            && $this->getCreatorMethod($driver) === null) {
             $driver = null;
         }
 

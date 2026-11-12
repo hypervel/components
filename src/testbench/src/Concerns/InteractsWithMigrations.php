@@ -6,6 +6,7 @@ namespace Hypervel\Testbench\Concerns;
 
 use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Foundation\Console\Kernel as FoundationConsoleKernel;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
@@ -75,7 +76,7 @@ trait InteractsWithMigrations
             try {
                 $migrator->rollback();
             } catch (Throwable $throwable) {
-                $failure ??= $throwable;
+                $failure = Coroutine::preferCancellation($failure, $throwable);
             }
         }
 
@@ -245,14 +246,14 @@ trait InteractsWithMigrations
     {
         if (
             static::usesRefreshDatabaseTestingConcern()
-            && $this->usingInMemoryDatabases() /* @phpstan-ignore method.notFound */
+            && $this->usingInMemoryDatabases() /* @phpstan-ignore method.notFound (provided by RefreshDatabase, checked first) */
         ) {
             return true;
         }
 
         if (static::usesTestingConcern(DatabaseTruncation::class)) {
             // Every cached truncation PDO needs the same class-boundary state owner.
-            return $this->usingInMemoryDatabasesForTruncation(); /* @phpstan-ignore method.notFound */
+            return $this->usingInMemoryDatabasesForTruncation(); /* @phpstan-ignore method.notFound (provided by DatabaseTruncation, checked above) */
         }
 
         return $this->usesSqliteInMemoryDatabaseConnection();

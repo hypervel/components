@@ -252,6 +252,8 @@ class Handler implements ExceptionHandlerContract
      *
      * Boot-only. The callback persists on the shared handler and affects exception
      * rendering for every subsequent request in the worker.
+     *
+     * @return $this
      */
     public function renderable(callable $renderUsing): static
     {
@@ -269,6 +271,8 @@ class Handler implements ExceptionHandlerContract
      *
      * Boot-only. The mapping persists on the shared handler and affects exception
      * reporting and rendering for every subsequent request and job in the worker.
+     *
+     * @return $this
      *
      * @throws InvalidArgumentException
      */
@@ -298,6 +302,8 @@ class Handler implements ExceptionHandlerContract
      *
      * Boot-only. The exception types persist on the shared handler and affect
      * exception reporting for every subsequent request and job in the worker.
+     *
+     * @return $this
      */
     public function dontReport(array|string $exceptions): static
     {
@@ -311,6 +317,7 @@ class Handler implements ExceptionHandlerContract
      * reporting for every subsequent request and job in the worker.
      *
      * @param (callable(Throwable): bool) $dontReportWhen
+     * @return $this
      */
     public function dontReportWhen(callable $dontReportWhen): static
     {
@@ -328,6 +335,8 @@ class Handler implements ExceptionHandlerContract
      *
      * Boot-only. The exception types persist on the shared handler and affect
      * exception reporting for every subsequent request and job in the worker.
+     *
+     * @return $this
      */
     public function ignore(array|string $exceptions): static
     {
@@ -343,6 +352,8 @@ class Handler implements ExceptionHandlerContract
      *
      * Boot-only. The exception types persist on the shared handler and affect
      * every subsequently failed job in the worker.
+     *
+     * @return $this
      */
     public function dontRetry(array|string $exceptions): static
     {
@@ -362,6 +373,7 @@ class Handler implements ExceptionHandlerContract
      * @template TException of Throwable
      *
      * @param callable(TException): bool $dontRetryWhen
+     * @return $this
      */
     public function dontRetryWhen(callable $dontRetryWhen): static
     {
@@ -436,6 +448,8 @@ class Handler implements ExceptionHandlerContract
      *
      * Boot-only. The attributes persist on the shared handler and are omitted
      * from every subsequent validation redirect in the worker.
+     *
+     * @return $this
      */
     public function dontFlash(array|string $attributes): static
     {
@@ -454,6 +468,7 @@ class Handler implements ExceptionHandlerContract
      *
      * @param class-string<Throwable> $type
      * @param LogLevel::* $level
+     * @return $this
      */
     public function level(string $type, string $level): static
     {
@@ -473,6 +488,7 @@ class Handler implements ExceptionHandlerContract
     public function report(Throwable $e, array $context = [], ?string $level = null): void
     {
         // Cancellation must not reach user-defined exception mappers.
+        // @phpstan-ignore hypervel.cancellation.exactType (a direct cancellation is never reported; a failure carrying it is reported once below)
         if ($e instanceof CanceledException) {
             return;
         }
@@ -640,6 +656,7 @@ class Handler implements ExceptionHandlerContract
      */
     protected function shouldntReport(Throwable $e): bool
     {
+        // @phpstan-ignore hypervel.cancellation.exactType (a direct cancellation is never reported; a failure carrying it is reported once)
         if ($e instanceof CanceledException) {
             return true;
         }
@@ -709,6 +726,8 @@ class Handler implements ExceptionHandlerContract
      *
      * Boot-only. The callback persists on the shared handler and affects exception
      * reporting for every subsequent request and job in the worker.
+     *
+     * @return $this
      */
     public function throttleUsing(callable $throttleUsing): static
     {
@@ -726,6 +745,8 @@ class Handler implements ExceptionHandlerContract
      *
      * Boot-only. The exception lists persist on the shared handler and affect
      * exception reporting for every subsequent request and job in the worker.
+     *
+     * @return $this
      */
     public function stopIgnoring(array|string $exceptions): static
     {
@@ -820,6 +841,7 @@ class Handler implements ExceptionHandlerContract
      * subsequently logged exception in the worker.
      *
      * @param Closure(Throwable, array): array $contextCallback
+     * @return $this
      */
     public function buildContextUsing(Closure $contextCallback): static
     {
@@ -896,6 +918,7 @@ class Handler implements ExceptionHandlerContract
      * Callback return values are ignored.
      *
      * @param callable(SymfonyResponse, Throwable, Request): mixed $callback
+     * @return $this
      */
     public function beforeResponding(callable $callback): static
     {
@@ -930,6 +953,8 @@ class Handler implements ExceptionHandlerContract
      *
      * Boot-only. The callback replaces the shared handler's response callback for
      * every subsequent request in the worker.
+     *
+     * @return $this
      */
     public function respondUsing(callable $callback): static
     {
@@ -1086,6 +1111,7 @@ class Handler implements ExceptionHandlerContract
      * subsequent request in the worker.
      *
      * @param callable(Request $request, Throwable): bool $callback
+     * @return $this
      */
     public function shouldRenderJsonWhen(callable $callback): static
     {
@@ -1315,6 +1341,8 @@ class Handler implements ExceptionHandlerContract
      *
      * Boot-only. The setting persists on the shared handler and applies to every
      * subsequent request and job in the worker.
+     *
+     * @return $this
      */
     public function dontReportDuplicates(): static
     {

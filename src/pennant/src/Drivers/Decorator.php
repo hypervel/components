@@ -197,7 +197,7 @@ class Decorator implements CanListStoredFeatures, CanSetManyFeaturesForScopes, D
         $this->driver->define($feature, function (mixed $scope) use ($feature, $resolver): mixed {
             if ($resolver instanceof LazilyResolvedFeature) {
                 $resolver = with($this->container->make($resolver->feature), fn ($instance) => method_exists($instance, 'resolve')
-                    ? $instance->resolve(...) // @phpstan-ignore callable.nonNativeMethod
+                    ? $instance->resolve(...)
                     : $instance(...));
             }
 
@@ -1049,6 +1049,8 @@ class Decorator implements CanListStoredFeatures, CanSetManyFeaturesForScopes, D
      * Set the container instance used by the decorator.
      *
      * Tests only. The container persists on the store for the worker lifetime.
+     *
+     * @return $this
      */
     public function setContainer(Container $container): static
     {

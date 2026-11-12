@@ -26,7 +26,10 @@ use RuntimeException;
 
 use function Hypervel\Support\enum_value;
 
-/** @mixin Builder */
+/**
+ * Unlike Laravel, this declares no `@mixin Builder`: Builder is its only user, and the bare mixin made
+ * PHPStan accept on every builder whatever the builder of an unknown model accepts.
+ */
 trait QueriesRelationships
 {
     /**
@@ -36,6 +39,7 @@ trait QueriesRelationships
      *
      * @param  Relation<TRelatedModel, *, *>|string  $relation
      * @param null|(Closure(Builder<TRelatedModel>): mixed) $callback
+     * @return $this
      *
      * @throws RuntimeException
      */
@@ -51,7 +55,6 @@ trait QueriesRelationships
         }
 
         if ($relation instanceof MorphTo) {
-            // @phpstan-ignore argument.type (callback template types don't narrow through forwarding)
             return $this->hasMorph($relation, ['*'], $operator, $count, $boolean, $callback);
         }
 
@@ -89,6 +92,7 @@ trait QueriesRelationships
      * Set up recursive calls to has until we finish the nested relation.
      *
      * @param  (Closure(Builder<*>): mixed)|null  $callback
+     * @return $this
      */
     protected function hasNested(string $relations, string $operator = '>=', ExpressionContract|int $count = 1, string $boolean = 'and', ?Closure $callback = null): static
     {
@@ -111,6 +115,7 @@ trait QueriesRelationships
      * Add a relationship count / exists condition to the query with an "or".
      *
      * @param  Relation<*, *, *>|string  $relation
+     * @return $this
      */
     public function orHas(Relation|string $relation, string $operator = '>=', ExpressionContract|int $count = 1): static
     {
@@ -124,6 +129,7 @@ trait QueriesRelationships
      *
      * @param  Relation<TRelatedModel, *, *>|string  $relation
      * @param null|(Closure(Builder<TRelatedModel>): mixed) $callback
+     * @return $this
      */
     public function doesntHave(Relation|string $relation, string $boolean = 'and', ?Closure $callback = null): static
     {
@@ -134,6 +140,7 @@ trait QueriesRelationships
      * Add a relationship count / exists condition to the query with an "or".
      *
      * @param  Relation<*, *, *>|string  $relation
+     * @return $this
      */
     public function orDoesntHave(Relation|string $relation): static
     {
@@ -147,6 +154,7 @@ trait QueriesRelationships
      *
      * @param  Relation<TRelatedModel, *, *>|string  $relation
      * @param null|(Closure(Builder<TRelatedModel>): mixed) $callback
+     * @return $this
      */
     public function whereHas(Relation|string $relation, ?Closure $callback = null, string $operator = '>=', ExpressionContract|int $count = 1): static
     {
@@ -159,6 +167,7 @@ trait QueriesRelationships
      * Also load the relationship with the same condition.
      *
      * @param  (Closure(Builder<*>|Relation<*, *, *>): mixed)|null  $callback
+     * @return $this
      */
     public function withWhereHas(string $relation, ?Closure $callback = null, string $operator = '>=', ExpressionContract|int $count = 1): static
     {
@@ -179,6 +188,7 @@ trait QueriesRelationships
      *
      * @param  Relation<TRelatedModel, *, *>|string  $relation
      * @param null|(Closure(Builder<TRelatedModel>): mixed) $callback
+     * @return $this
      */
     public function orWhereHas(Relation|string $relation, ?Closure $callback = null, string $operator = '>=', ExpressionContract|int $count = 1): static
     {
@@ -192,6 +202,7 @@ trait QueriesRelationships
      *
      * @param  Relation<TRelatedModel, *, *>|string  $relation
      * @param null|(Closure(Builder<TRelatedModel>): mixed) $callback
+     * @return $this
      */
     public function whereDoesntHave(Relation|string $relation, ?Closure $callback = null): static
     {
@@ -205,6 +216,7 @@ trait QueriesRelationships
      *
      * @param  Relation<TRelatedModel, *, *>|string  $relation
      * @param null|(Closure(Builder<TRelatedModel>): mixed) $callback
+     * @return $this
      */
     public function orWhereDoesntHave(Relation|string $relation, ?Closure $callback = null): static
     {
@@ -219,6 +231,7 @@ trait QueriesRelationships
      * @param MorphTo<TRelatedModel, *>|string $relation
      * @param array<int, string>|string $types
      * @param null|(Closure(Builder<TRelatedModel>, string): mixed) $callback
+     * @return $this
      */
     public function hasMorph(MorphTo|string $relation, string|array $types, string $operator = '>=', ExpressionContract|int $count = 1, string $boolean = 'and', ?Closure $callback = null): static
     {
@@ -318,6 +331,7 @@ trait QueriesRelationships
      *
      * @param  MorphTo<*, *>|string  $relation
      * @param array<int, string>|string $types
+     * @return $this
      */
     public function orHasMorph(MorphTo|string $relation, string|array $types, string $operator = '>=', ExpressionContract|int $count = 1): static
     {
@@ -332,6 +346,7 @@ trait QueriesRelationships
      * @param MorphTo<TRelatedModel, *>|string $relation
      * @param array<int, string>|string $types
      * @param null|(Closure(Builder<TRelatedModel>, string): mixed) $callback
+     * @return $this
      */
     public function doesntHaveMorph(MorphTo|string $relation, string|array $types, string $boolean = 'and', ?Closure $callback = null): static
     {
@@ -343,6 +358,7 @@ trait QueriesRelationships
      *
      * @param  MorphTo<*, *>|string  $relation
      * @param array<int, string>|string $types
+     * @return $this
      */
     public function orDoesntHaveMorph(MorphTo|string $relation, string|array $types): static
     {
@@ -357,6 +373,7 @@ trait QueriesRelationships
      * @param MorphTo<TRelatedModel, *>|string $relation
      * @param array<int, string>|string $types
      * @param null|(Closure(Builder<TRelatedModel>, string): mixed) $callback
+     * @return $this
      */
     public function whereHasMorph(MorphTo|string $relation, string|array $types, ?Closure $callback = null, string $operator = '>=', ExpressionContract|int $count = 1): static
     {
@@ -371,6 +388,7 @@ trait QueriesRelationships
      * @param MorphTo<TRelatedModel, *>|string $relation
      * @param array<int, string>|string $types
      * @param null|(Closure(Builder<TRelatedModel>, string): mixed) $callback
+     * @return $this
      */
     public function orWhereHasMorph(MorphTo|string $relation, string|array $types, ?Closure $callback = null, string $operator = '>=', ExpressionContract|int $count = 1): static
     {
@@ -385,6 +403,7 @@ trait QueriesRelationships
      * @param MorphTo<TRelatedModel, *>|string $relation
      * @param array<int, string>|string $types
      * @param null|(Closure(Builder<TRelatedModel>, string): mixed) $callback
+     * @return $this
      */
     public function whereDoesntHaveMorph(MorphTo|string $relation, string|array $types, ?Closure $callback = null): static
     {
@@ -399,6 +418,7 @@ trait QueriesRelationships
      * @param MorphTo<TRelatedModel, *>|string $relation
      * @param array<int, string>|string $types
      * @param null|(Closure(Builder<TRelatedModel>, string): mixed) $callback
+     * @return $this
      */
     public function orWhereDoesntHaveMorph(MorphTo|string $relation, string|array $types, ?Closure $callback = null): static
     {
@@ -412,6 +432,7 @@ trait QueriesRelationships
      *
      * @param  Relation<TRelatedModel, *, *>|string  $relation
      * @param array|(Closure(Builder<TRelatedModel>): mixed)|ExpressionContract|string $column
+     * @return $this
      */
     public function whereRelation(Relation|string $relation, Closure|string|array|ExpressionContract $column, mixed $operator = null, mixed $value = null): static
     {
@@ -426,6 +447,8 @@ trait QueriesRelationships
 
     /**
      * Add a basic where clause to a relationship query and eager-load the relationship with the same conditions.
+     *
+     * @return $this
      */
     public function withWhereRelation(string $relation, Closure|string|array|ExpressionContract $column, mixed $operator = null, mixed $value = null): static
     {
@@ -444,6 +467,7 @@ trait QueriesRelationships
      *
      * @param  Relation<TRelatedModel, *, *>|string  $relation
      * @param array|(Closure(Builder<TRelatedModel>): mixed)|ExpressionContract|string $column
+     * @return $this
      */
     public function orWhereRelation(Relation|string $relation, Closure|string|array|ExpressionContract $column, mixed $operator = null, mixed $value = null): static
     {
@@ -463,6 +487,7 @@ trait QueriesRelationships
      *
      * @param  Relation<TRelatedModel, *, *>|string  $relation
      * @param array|(Closure(Builder<TRelatedModel>): mixed)|ExpressionContract|string $column
+     * @return $this
      */
     public function whereDoesntHaveRelation(Relation|string $relation, Closure|string|array|ExpressionContract $column, mixed $operator = null, mixed $value = null): static
     {
@@ -482,6 +507,7 @@ trait QueriesRelationships
      *
      * @param  Relation<TRelatedModel, *, *>|string  $relation
      * @param array|(Closure(Builder<TRelatedModel>): mixed)|ExpressionContract|string $column
+     * @return $this
      */
     public function orWhereDoesntHaveRelation(Relation|string $relation, Closure|string|array|ExpressionContract $column, mixed $operator = null, mixed $value = null): static
     {
@@ -502,6 +528,7 @@ trait QueriesRelationships
      * @param MorphTo<TRelatedModel, *>|string $relation
      * @param array<int, string>|string $types
      * @param array|(Closure(Builder<TRelatedModel>): mixed)|ExpressionContract|string $column
+     * @return $this
      */
     public function whereMorphRelation(MorphTo|string $relation, string|array $types, Closure|string|array|ExpressionContract $column, mixed $operator = null, mixed $value = null): static
     {
@@ -518,6 +545,7 @@ trait QueriesRelationships
      * @param MorphTo<TRelatedModel, *>|string $relation
      * @param array<int, string>|string $types
      * @param array|(Closure(Builder<TRelatedModel>): mixed)|ExpressionContract|string $column
+     * @return $this
      */
     public function orWhereMorphRelation(MorphTo|string $relation, string|array $types, Closure|string|array|ExpressionContract $column, mixed $operator = null, mixed $value = null): static
     {
@@ -534,6 +562,7 @@ trait QueriesRelationships
      * @param MorphTo<TRelatedModel, *>|string $relation
      * @param array<int, string>|string $types
      * @param array|(Closure(Builder<TRelatedModel>): mixed)|ExpressionContract|string $column
+     * @return $this
      */
     public function whereMorphDoesntHaveRelation(MorphTo|string $relation, string|array $types, Closure|string|array|ExpressionContract $column, mixed $operator = null, mixed $value = null): static
     {
@@ -550,6 +579,7 @@ trait QueriesRelationships
      * @param MorphTo<TRelatedModel, *>|string $relation
      * @param array<int, string>|string $types
      * @param array|(Closure(Builder<TRelatedModel>): mixed)|ExpressionContract|string $column
+     * @return $this
      */
     public function orWhereMorphDoesntHaveRelation(MorphTo|string $relation, string|array $types, Closure|string|array|ExpressionContract $column, mixed $operator = null, mixed $value = null): static
     {
@@ -563,6 +593,7 @@ trait QueriesRelationships
      *
      * @param  MorphTo<*, *>|string  $relation
      * @param null|iterable<int, Model>|Model|string $model
+     * @return $this
      *
      * @throws ClassMorphViolationException
      * @throws InvalidArgumentException
@@ -580,7 +611,6 @@ trait QueriesRelationships
         $foreignKey = $relation->getQualifiedForeignKeyName();
 
         if (is_null($model)) {
-            // @phpstan-ignore return.type (mixin returns $this at runtime)
             return $this->whereNull($morphType, $boolean);
         }
 
@@ -613,6 +643,7 @@ trait QueriesRelationships
      *
      * @param  MorphTo<*, *>|string  $relation
      * @param null|iterable<int, Model>|Model|string $model
+     * @return $this
      *
      * @throws ClassMorphViolationException
      * @throws InvalidArgumentException
@@ -629,7 +660,6 @@ trait QueriesRelationships
         $foreignKey = $relation->getQualifiedForeignKeyName();
 
         if (is_null($model)) {
-            // @phpstan-ignore return.type (mixin returns $this at runtime)
             return $this->whereNotNull($morphType, $boolean);
         }
 
@@ -665,6 +695,7 @@ trait QueriesRelationships
      *
      * @param  MorphTo<*, *>|string  $relation
      * @param null|iterable<int, Model>|Model|string $model
+     * @return $this
      */
     public function orWhereMorphedTo(MorphTo|string $relation, mixed $model): static
     {
@@ -676,6 +707,7 @@ trait QueriesRelationships
      *
      * @param  MorphTo<*, *>|string  $relation
      * @param null|iterable<int, Model>|Model|string $model
+     * @return $this
      */
     public function orWhereNotMorphedTo(MorphTo|string $relation, mixed $model): static
     {
@@ -708,6 +740,7 @@ trait QueriesRelationships
      * Add a "belongs to" relationship where clause to the query.
      *
      * @param EloquentCollection<int, covariant Model>|Model $related
+     * @return $this
      *
      * @throws InvalidArgumentException
      * @throws RelationNotFoundException
@@ -753,6 +786,7 @@ trait QueriesRelationships
      * Add a "BelongsTo" relationship with an "or where" clause to the query.
      *
      * @param EloquentCollection<int, covariant Model>|Model $related
+     * @return $this
      */
     public function orWhereBelongsTo(mixed $related, ?string $relationshipName = null): static
     {
@@ -763,6 +797,7 @@ trait QueriesRelationships
      * Add a "belongs to many" relationship where clause to the query.
      *
      * @param EloquentCollection<int, covariant Model>|Model $related
+     * @return $this
      *
      * @throws InvalidArgumentException
      * @throws RelationNotFoundException
@@ -804,6 +839,7 @@ trait QueriesRelationships
      * Add a "belongs to many" relationship with an "or where" clause to the query.
      *
      * @param EloquentCollection<int, covariant Model>|Model $related
+     * @return $this
      *
      * @throws RuntimeException
      */
@@ -814,6 +850,8 @@ trait QueriesRelationships
 
     /**
      * Add subselect queries to include an aggregate value for a relationship.
+     *
+     * @return $this
      */
     public function withAggregate(mixed $relations, ExpressionContract|string $column, ?string $function = null): static
     {
@@ -900,7 +938,7 @@ trait QueriesRelationships
                 $this->selectRaw(
                     sprintf('%s as %s', $this->getQuery()->grammar->compileExistsColumn($query->toSql()), $this->getQuery()->grammar->wrapIdentifier($alias)),
                     $query->getBindings()
-                )->withCasts([$alias => 'bool']); // @phpstan-ignore method.notFound (selectRaw returns Eloquent\Builder $this, not Query\Builder)
+                )->withCasts([$alias => 'bool']);
             } else {
                 $this->selectSub(
                     $function ? $query : $query->limit(1),
@@ -930,6 +968,8 @@ trait QueriesRelationships
 
     /**
      * Add subselect queries to count the relations.
+     *
+     * @return $this
      */
     public function withCount(mixed $relations): static
     {
@@ -938,6 +978,8 @@ trait QueriesRelationships
 
     /**
      * Add subselect queries to include the max of the relation's column.
+     *
+     * @return $this
      */
     public function withMax(string|array $relation, ExpressionContract|string $column): static
     {
@@ -946,6 +988,8 @@ trait QueriesRelationships
 
     /**
      * Add subselect queries to include the min of the relation's column.
+     *
+     * @return $this
      */
     public function withMin(string|array $relation, ExpressionContract|string $column): static
     {
@@ -954,6 +998,8 @@ trait QueriesRelationships
 
     /**
      * Add subselect queries to include the sum of the relation's column.
+     *
+     * @return $this
      */
     public function withSum(string|array $relation, ExpressionContract|string $column): static
     {
@@ -962,6 +1008,8 @@ trait QueriesRelationships
 
     /**
      * Add subselect queries to include the average of the relation's column.
+     *
+     * @return $this
      */
     public function withAvg(string|array $relation, ExpressionContract|string $column): static
     {
@@ -970,6 +1018,8 @@ trait QueriesRelationships
 
     /**
      * Add subselect queries to include the existence of related models.
+     *
+     * @return $this
      */
     public function withExists(string|array $relation): static
     {
@@ -981,6 +1031,7 @@ trait QueriesRelationships
      *
      * @param  Builder<*>  $hasQuery
      * @param  Relation<*, *, *>  $relation
+     * @return $this
      */
     protected function addHasWhere(Builder $hasQuery, Relation $relation, string $operator, ExpressionContract|int $count, string $boolean): static
     {
@@ -998,10 +1049,10 @@ trait QueriesRelationships
      * Merge the where constraints from another query to the current query.
      *
      * @param  Builder<*>  $from
+     * @return $this
      */
     public function mergeConstraintsFrom(Builder $from): static
     {
-        // @phpstan-ignore nullCoalesce.offset (defensive fallback)
         $whereBindings = $from->getQuery()->getRawBindings()['where'] ?? [];
 
         $wheres = $from->getQuery()->from !== $this->getQuery()->from
@@ -1014,7 +1065,6 @@ trait QueriesRelationships
         // Here we have some other query that we want to merge the where constraints from. We will
         // copy over any where constraints on the query as well as remove any global scopes the
         // query might have removed. Then we will return ourselves with the finished merging.
-        // @phpstan-ignore return.type (mixin method returns $this at runtime)
         return $this->withoutGlobalScopes(
             $from->removedScopes()
         )->mergeWheres(
@@ -1039,6 +1089,8 @@ trait QueriesRelationships
 
     /**
      * Add a sub-query count clause to this query.
+     *
+     * @return $this
      */
     protected function addWhereCountQuery(QueryBuilder $query, string $operator = '>=', ExpressionContract|int $count = 1, string $boolean = 'and'): static
     {

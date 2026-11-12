@@ -26,6 +26,7 @@ class RegisteredUserController extends Controller
      */
     public function create(): View
     {
+        // @phpstan-ignore argument.type (AuthServiceProvider adds the Workbench views only when Workbench authentication is enabled.)
         return view('auth.register');
     }
 
@@ -48,9 +49,9 @@ class RegisteredUserController extends Controller
         ]);
 
         $user = $userModel::forceCreate([
-            'name' => $request->name, // @phpstan-ignore property.notFound
-            'email' => $request->email, // @phpstan-ignore property.notFound
-            'password' => Hash::make($request->password), // @phpstan-ignore property.notFound
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
         ]);
 
         if (Event::hasListeners(Registered::class)) {

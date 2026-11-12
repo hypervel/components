@@ -86,6 +86,8 @@ class Hub implements HubContract
      * Tests only. Swaps the container on the singleton Hub used by every
      * coroutine; per-request use races across coroutines and breaks every
      * concurrent pipeline dispatch.
+     *
+     * @return $this
      */
     public function setContainer(Container $container): static
     {

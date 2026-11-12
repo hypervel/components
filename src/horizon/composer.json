@@ -45,14 +45,15 @@
         "hypervel/notifications": "^0.4",
         "hypervel/queue": "^0.4",
         "hypervel/redis": "^0.4",
+        "hypervel/reflection": "^0.4",
         "hypervel/routing": "^0.4",
         "hypervel/sentinel": "^0.4",
         "hypervel/slack-notification-channel": "^0.4",
         "hypervel/support": "^0.4",
         "hypervel/watcher": "^0.4",
         "symfony/console": "^8.1.10",
-        "symfony/http-foundation": "^8.1",
-        "symfony/http-kernel": "^8.1",
+        "symfony/http-foundation": "^8.1.11",
+        "symfony/http-kernel": "^8.1.11",
         "symfony/process": "^8.1"
     },
     "autoload": {

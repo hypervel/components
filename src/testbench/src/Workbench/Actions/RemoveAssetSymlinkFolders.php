@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Workbench\Actions;
 
 use Closure;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
@@ -69,8 +70,8 @@ final class RemoveAssetSymlinkFolders
                 try {
                     value($payload[1], $payload[0]);
                 } catch (Throwable $throwable) {
-                    // Remove the remaining links before reporting the first failure.
-                    $failure ??= $throwable;
+                    // Remove the remaining links before reporting a failure.
+                    $failure = Coroutine::preferCancellation($failure, $throwable);
                 }
             });
 

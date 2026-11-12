@@ -37,6 +37,8 @@ interface Application
 
     /**
      * Get all of the commands registered with the application.
+     *
+     * @return array<string, SymfonyCommand>
      */
     public function all(?string $namespace = null): array;
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use DateTimeImmutable;
 use Exception;
+use Hypervel\Support\Env;
 use Throwable;
 
 use function PHPStan\Testing\assertType;
@@ -21,6 +22,12 @@ if (blank($value)) {
     assertType('bool|float|int|non-empty-string', $value);
 }
 
+// The default does not decide the type of a value that is set.
+assertType('bool|string|null', env('FOO'));
+assertType('1|bool|string|null', env('FOO', 1));
+assertType('1|bool|string|null', env('FOO', fn () => 1));
+assertType('1|bool|string|null', Env::get('FOO', fn () => 1));
+
 assertType('User', object_get(new User, null));
 assertType('User', object_get(new User, ''));
 assertType('mixed', object_get(new User, 'name'));
@@ -29,7 +36,7 @@ assertType('1', once(fn () => 1));
 assertType('null', once(function () { /* @phpstan-ignore function.void (testing void) */
 }));
 
-assertType('Hypervel\Support\Optional', optional());
+assertType('Hypervel\Support\Optional<null>', optional());
 assertType('null', optional(null, fn () => 1));
 assertType('1', optional('foo', function ($value) {
     assertType("'foo'", $value);
@@ -40,7 +47,8 @@ assertType('1', optional('foo', function ($value) {
 assertType('1', retry(5, fn () => 1));
 assertType('1', retry(2, fn () => 1, fn (int $attempt, Throwable $exception): int => 1000));
 
-assertType('object', str());
+// The analyzer does not model the anonymous class that passes calls to Str, so it types it as mixed.
+assertType('mixed', str());
 assertType('Hypervel\Support\Stringable', str('foo'));
 
 assertType('User', tap(new User, function ($user) {
@@ -96,8 +104,8 @@ assertType('null', transform('', fn () => 1));
 assertType('true', transform('', fn () => 1, true));
 assertType('true', transform('', fn () => 1, fn () => true));
 
-assertType('User', with(new User));
-assertType('bool', with(new User)->save());
+assertType('User', with(new User)); // @phpstan-ignore hypervel.uselessConstructs.with (asserts the helper's own type)
+assertType('bool', with(new User)->save()); // @phpstan-ignore hypervel.uselessConstructs.with (asserts the helper's own type)
 assertType('10', with(new User, function ($user) {
     assertType('User', $user);
 

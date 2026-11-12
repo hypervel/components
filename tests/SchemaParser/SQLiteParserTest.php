@@ -11,6 +11,7 @@ use Hypervel\SchemaParser\IndexColumn;
 use Hypervel\SchemaParser\ParseException;
 use Hypervel\SchemaParser\ReferentialAction;
 use Hypervel\SchemaParser\SQLiteParser;
+use Hypervel\SchemaParser\TableReference;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -340,6 +341,62 @@ class SQLiteParserTest extends TestCase
 
         $this->assertCount(1, (new SQLiteParser)->parse('CREATE TABLE kept (a); ALTER TABLE kept RENAME TO renamed;')->issues);
         $this->assertCount(1, (new SQLiteParser)->parse('ALTER TABLE missing ADD COLUMN b;')->issues);
+    }
+
+    #[DataProvider('impactProvider')]
+    public function testImpactNamesChangedRelationsAndFlagsUnnamedChanges(string $sql, array $relations, bool $unknown): void
+    {
+        $impact = (new SQLiteParser)->parse($sql)->impact;
+
+        $this->assertEquals($relations, $impact->relations);
+        $this->assertSame($unknown, $impact->unknown);
+    }
+
+    /**
+     * Provide statements with the relations they change and whether they can change others without naming them.
+     */
+    public static function impactProvider(): iterable
+    {
+        yield 'indexes, rows, pragmas, triggers and temporary objects' => [<<<'SQL'
+            PRAGMA foreign_keys = OFF;
+            CREATE TABLE posts (id integer);
+            CREATE VIEW recent AS SELECT id FROM posts;
+            CREATE UNIQUE INDEX users_email ON users (email);
+            DROP INDEX users_email;
+            INSERT INTO users (email) VALUES ('a@example.com');
+            UPDATE users SET email = lower(email);
+            DELETE FROM users WHERE email IS NULL;
+            REPLACE INTO settings (name) VALUES ('theme');
+            CREATE TRIGGER touch_users AFTER UPDATE ON users BEGIN
+              DROP TABLE posts;
+            END;
+            DROP TRIGGER touch_users;
+            CREATE TEMP TABLE scratch (id integer);
+            ALTER TABLE temp.scratch ADD COLUMN label text;
+            DROP TABLE temp.scratch;
+            SQL, [], false];
+
+        yield 'altered, dropped and renamed relations' => [<<<'SQL'
+            CREATE TABLE IF NOT EXISTS users (id integer);
+            DROP TABLE users;
+            ALTER TABLE Main.posts ADD COLUMN body text;
+            ALTER TABLE POSTS RENAME COLUMN body TO content;
+            ALTER TABLE accounts RENAME TO members;
+            DROP TABLE IF EXISTS archive.logs;
+            DROP VIEW recent;
+            SQL, [
+            new TableReference('users', 'main'),
+            new TableReference('posts', 'main'),
+            new TableReference('accounts', 'main'),
+            new TableReference('members', 'main'),
+            new TableReference('logs', 'archive'),
+            new TableReference('recent', 'main'),
+        ], false];
+
+        yield 'writable schema' => ['PRAGMA main.writable_schema = ON', [], true];
+        yield 'table from a query' => ['CREATE TABLE copied AS SELECT id FROM users', [], true];
+        yield 'attached database' => ["ATTACH DATABASE 'archive.db' AS archive", [], true];
+        yield 'query' => ['SELECT COUNT(*) FROM users', [], true];
     }
 
     public function testIncompleteTablesDoNotHideOtherDeclarations(): void

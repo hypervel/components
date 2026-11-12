@@ -6,12 +6,14 @@ namespace Hypervel\Sentry\Features;
 
 use DateTimeZone;
 use Hypervel\Console\Application as ConsoleApplication;
+use Hypervel\Console\Events\ScheduledTaskCanceled;
 use Hypervel\Console\Events\ScheduledTaskFailed;
 use Hypervel\Console\Events\ScheduledTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event as SchedulingEvent;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Sentry\Features\Concerns\TracksPushedScopesAndSpans;
+use Hypervel\Sentry\Features\Concerns\WorksWithSpans;
 use Hypervel\Support\Str;
 use RuntimeException;
 use Sentry\CheckIn;
@@ -27,6 +29,7 @@ use Sentry\Tracing\TransactionSource;
 class ConsoleSchedulingIntegration extends Feature
 {
     use TracksPushedScopesAndSpans;
+    use WorksWithSpans;
 
     /**
      * The context key for the check-ins in progress in the current coroutine.
@@ -130,15 +133,18 @@ class ConsoleSchedulingIntegration extends Feature
     {
         $this->shouldHandleCheckIn = true;
 
+        $dispatcher = $this->container->make('events');
+
+        // A failed or canceled run can skip the after callbacks that finish its check-in.
+        $dispatcher->listen(ScheduledTaskFailed::class, [$this, 'handleScheduledTaskFailed']);
+        $dispatcher->listen(ScheduledTaskCanceled::class, [$this, 'handleScheduledTaskCanceled']);
+
         if (! $this->canRecordSpans()) {
             return;
         }
 
-        $dispatcher = $this->container->make('events');
-
         $dispatcher->listen(ScheduledTaskStarting::class, [$this, 'handleScheduledTaskStarting']);
         $dispatcher->listen(ScheduledTaskFinished::class, [$this, 'handleScheduledTaskFinished']);
-        $dispatcher->listen(ScheduledTaskFailed::class, [$this, 'handleScheduledTaskFailed']);
     }
 
     /**
@@ -177,20 +183,50 @@ class ConsoleSchedulingIntegration extends Feature
      */
     public function handleScheduledTaskFinished(ScheduledTaskFinished $event): void
     {
-        $exitCode = $event->task->exitCode();
-        $status = $exitCode === null || $exitCode === 0
-            ? SpanStatus::ok()
-            : SpanStatus::internalError();
-
-        $this->maybeFinishSpan($status);
+        $this->maybeFinishSpan($this->finishedStatus($event->task));
     }
 
     /**
-     * Mark tracing for the scheduled task as failed.
+     * Mark tracing and the unfinished check-ins of the scheduled task as failed.
      */
     public function handleScheduledTaskFailed(): void
     {
         $this->maybeFinishSpan(SpanStatus::internalError());
+        $this->failUnfinishedCheckIns();
+    }
+
+    /**
+     * Finish tracing the scheduled task that cancellation stopped before its outcome was published.
+     *
+     * A direct cancellation leaves an unfinished check-in without a terminal status: the SDK has no
+     * canceled status, and the cancellation is not a task failure.
+     */
+    public function handleScheduledTaskCanceled(ScheduledTaskCanceled $event): void
+    {
+        $status = match (true) {
+            $event->exception !== null => SpanStatus::internalError(),
+            // A task that finished running keeps its outcome; the cancellation came from a listener.
+            $event->runtime !== null => $this->finishedStatus($event->task),
+            default => $this->cancellationStatus($event->cancellation),
+        };
+
+        $this->maybeFinishSpan($status);
+
+        if ($status === SpanStatus::internalError()) {
+            $this->failUnfinishedCheckIns();
+        }
+    }
+
+    /**
+     * Get the span status of a scheduled task that finished running.
+     */
+    private function finishedStatus(SchedulingEvent $task): SpanStatus
+    {
+        $exitCode = $task->exitCode();
+
+        return $exitCode === null || $exitCode === 0
+            ? SpanStatus::ok()
+            : SpanStatus::internalError();
     }
 
     /**
@@ -269,6 +305,38 @@ class ConsoleSchedulingIntegration extends Feature
         unset($checkIns[$cacheKey]);
         CoroutineContext::set(self::CHECK_INS_CONTEXT_KEY, $checkIns);
 
+        $this->sendFinalCheckIn($checkIn, $status);
+    }
+
+    /**
+     * Send the error check-in for every check-in the task's coroutine started and has not finished.
+     *
+     * Each task runs in its own coroutine, so the stored check-ins belong to the failed task.
+     */
+    private function failUnfinishedCheckIns(): void
+    {
+        if (! $this->shouldHandleCheckIn) {
+            return;
+        }
+
+        $checkIns = CoroutineContext::get(self::CHECK_INS_CONTEXT_KEY, []);
+
+        if ($checkIns === []) {
+            return;
+        }
+
+        CoroutineContext::forget(self::CHECK_INS_CONTEXT_KEY);
+
+        foreach ($checkIns as $checkIn) {
+            $this->sendFinalCheckIn($checkIn, CheckInStatus::error());
+        }
+    }
+
+    /**
+     * Send a started check-in's terminal status.
+     */
+    private function sendFinalCheckIn(CheckIn $checkIn, CheckInStatus $status): void
+    {
         // The start check-in may still be waiting for asynchronous delivery, so it must not change
         $checkIn = clone $checkIn;
         $checkIn->setStatus($status);

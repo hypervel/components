@@ -194,9 +194,7 @@ class Event
             try {
                 $this->finish($container, $exitCode);
             } catch (Throwable $throwable) {
-                if ($exception === null || (Coroutine::causedByCancellation($throwable) && ! Coroutine::causedByCancellation($exception))) {
-                    $exception = $throwable;
-                }
+                $exception = Coroutine::preferCancellation($exception, $throwable);
             }
         }
 
@@ -315,17 +313,13 @@ class Event
         try {
             $this->callAfterCallbacks($container);
         } catch (Throwable $throwable) {
-            if ($exception === null || (Coroutine::causedByCancellation($throwable) && ! Coroutine::causedByCancellation($exception))) {
-                $exception = $throwable;
-            }
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         try {
             $this->removeMutex();
         } catch (Throwable $throwable) {
-            if ($exception === null || (Coroutine::causedByCancellation($throwable) && ! Coroutine::causedByCancellation($exception))) {
-                $exception = $throwable;
-            }
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         CoroutineContext::forget($this->processContextKey());
@@ -443,6 +437,8 @@ class Event
 
     /**
      * Ensure that the output is stored on disk in a log file.
+     *
+     * @return $this
      */
     public function storeOutput(): static
     {
@@ -453,6 +449,8 @@ class Event
 
     /**
      * Send the output of the command to a given location.
+     *
+     * @return $this
      */
     public function sendOutputTo(string $location, bool $append = false): static
     {
@@ -500,6 +498,8 @@ class Event
 
     /**
      * Append the output of the command to a given location.
+     *
+     * @return $this
      */
     public function appendOutputTo(string $location): static
     {
@@ -508,6 +508,8 @@ class Event
 
     /**
      * E-mail the results of the scheduled operation.
+     *
+     * @return $this
      *
      * @throws LogicException
      */
@@ -525,6 +527,8 @@ class Event
     /**
      * E-mail the results of the scheduled operation if it produces output.
      *
+     * @return $this
+     *
      * @throws LogicException
      */
     public function emailWrittenOutputTo(mixed $addresses): static
@@ -534,6 +538,8 @@ class Event
 
     /**
      * E-mail the results of the scheduled operation if it fails.
+     *
+     * @return $this
      */
     public function emailOutputOnFailure(mixed $addresses): static
     {
@@ -591,6 +597,8 @@ class Event
 
     /**
      * Register a callback to ping a given URL before the job runs.
+     *
+     * @return $this
      */
     public function pingBefore(string $url): static
     {
@@ -599,6 +607,8 @@ class Event
 
     /**
      * Register a callback to ping a given URL before the job runs if the given condition is true.
+     *
+     * @return $this
      */
     public function pingBeforeIf(bool $value, string $url): static
     {
@@ -607,6 +617,8 @@ class Event
 
     /**
      * Register a callback to ping a given URL after the job runs.
+     *
+     * @return $this
      */
     public function thenPing(string $url): static
     {
@@ -615,6 +627,8 @@ class Event
 
     /**
      * Register a callback to ping a given URL after the job runs if the given condition is true.
+     *
+     * @return $this
      */
     public function thenPingIf(bool $value, string $url): static
     {
@@ -623,6 +637,8 @@ class Event
 
     /**
      * Register a callback to ping a given URL if the operation succeeds.
+     *
+     * @return $this
      */
     public function pingOnSuccess(string $url): static
     {
@@ -631,6 +647,8 @@ class Event
 
     /**
      * Register a callback to ping a given URL if the operation succeeds and if the given condition is true.
+     *
+     * @return $this
      */
     public function pingOnSuccessIf(bool $value, string $url): static
     {
@@ -639,6 +657,8 @@ class Event
 
     /**
      * Register a callback to ping a given URL if the operation fails.
+     *
+     * @return $this
      */
     public function pingOnFailure(string $url): static
     {
@@ -647,6 +667,8 @@ class Event
 
     /**
      * Register a callback to ping a given URL if the operation fails and if the given condition is true.
+     *
+     * @return $this
      */
     public function pingOnFailureIf(bool $value, string $url): static
     {
@@ -685,6 +707,8 @@ class Event
 
     /**
      * Register a callback to be called before the operation.
+     *
+     * @return $this
      */
     public function before(Closure $callback): static
     {
@@ -695,6 +719,8 @@ class Event
 
     /**
      * Register a callback to be called after the operation.
+     *
+     * @return $this
      */
     public function after(Closure $callback): static
     {
@@ -703,6 +729,8 @@ class Event
 
     /**
      * Register a callback to be called after the operation.
+     *
+     * @return $this
      */
     public function then(Closure $callback): static
     {
@@ -719,6 +747,8 @@ class Event
 
     /**
      * Register a callback that uses the output after the job runs.
+     *
+     * @return $this
      */
     public function thenWithOutput(Closure $callback, bool $onlyIfOutputExists = false): static
     {
@@ -729,6 +759,8 @@ class Event
 
     /**
      * Register a callback to be called if the operation succeeds.
+     *
+     * @return $this
      */
     public function onSuccess(Closure $callback): static
     {
@@ -747,6 +779,8 @@ class Event
 
     /**
      * Register a callback that uses the output if the operation succeeds.
+     *
+     * @return $this
      */
     public function onSuccessWithOutput(Closure $callback, bool $onlyIfOutputExists = false): static
     {
@@ -757,6 +791,8 @@ class Event
 
     /**
      * Register a callback to be called if the operation fails.
+     *
+     * @return $this
      */
     public function onFailure(Closure $callback): static
     {
@@ -775,6 +811,8 @@ class Event
 
     /**
      * Register a callback that uses the output if the operation fails.
+     *
+     * @return $this
      */
     public function onFailureWithOutput(Closure $callback, bool $onlyIfOutputExists = false): static
     {
@@ -875,6 +913,8 @@ class Event
 
     /**
      * Set the event mutex implementation to be used.
+     *
+     * @return $this
      */
     public function preventOverlapsUsing(EventMutex $mutex): static
     {
@@ -900,6 +940,8 @@ class Event
 
     /**
      * Set the mutex name or name resolver callback.
+     *
+     * @return $this
      */
     public function createMutexNameUsing(Closure|string $mutexName): static
     {

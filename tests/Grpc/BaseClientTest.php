@@ -301,16 +301,20 @@ class BaseClientTest extends TestCase
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testCancellationWhileReleasingAnIdleConnectionDoesNotFinishTheOperation(bool $cleanupThrows): void
+    public function testCancellationWhileReleasingAnIdleConnectionFinishesTheOperationWithIt(bool $cleanupThrows): void
     {
         $engineClient = new ClientCallClient;
         $this->bindFactory(new ClientCallClientFactory($engineClient));
-        $finished = false;
+        $finishedResult = null;
         Container::getInstance()->make(GrpcOperationRunner::class)->observe(
             new BaseClientGrpcOperationObserverStub(
                 static fn (): null => null,
-                static function () use (&$finished): void {
-                    $finished = true;
+                static function (
+                    GrpcOperation $operation,
+                    mixed $token,
+                    GrpcOperationResult $result,
+                ) use (&$finishedResult): void {
+                    $finishedResult = $result;
                 },
             ),
         );
@@ -330,7 +334,10 @@ class BaseClientTest extends TestCase
             CoroutineContext::forget('__grpc.test.connection_lease');
         }
 
-        $this->assertFalse($finished);
+        $this->assertInstanceOf(GrpcOperationResult::class, $finishedResult);
+        $this->assertNull($finishedResult->status);
+        $this->assertSame($failure, $finishedResult->exception);
+        $this->assertSame(1, $finishedResult->attemptCount);
         $this->assertSame([], $engineClient->sentRequests);
     }
 

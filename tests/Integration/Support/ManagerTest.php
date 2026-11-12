@@ -10,6 +10,7 @@ use Hypervel\Support\Manager;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Integration\Support\Fixtures\NullableManager;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 
 class ManagerTest extends TestCase
@@ -116,6 +117,36 @@ class ManagerTest extends TestCase
         $this->assertSame('zero', $manager->driver(ManagerIntegerIdentifier::Zero));
     }
 
+    #[DataProvider('namesWithoutACreatorMethodProvider')]
+    public function testNamesWithoutACreatorMethodAreNotSupported(?string $driver, string $message): void
+    {
+        $manager = new EmptyDefaultManager($this->app);
+
+        $this->expectExceptionObject(new InvalidArgumentException($message));
+
+        $manager->driver($driver);
+    }
+
+    public static function namesWithoutACreatorMethodProvider(): array
+    {
+        return [
+            'empty default' => [null, 'Driver [] not supported.'],
+            'separator' => ['-', 'Driver [-] not supported.'],
+            'whitespace' => [' ', 'Driver [ ] not supported.'],
+        ];
+    }
+
+    public function testNamesWithoutACreatorMethodCanBeRegistered(): void
+    {
+        $manager = new EmptyDefaultManager($this->app);
+
+        $manager->extend('', fn (): string => 'empty');
+        $manager->extend('-', fn (): string => 'separator');
+
+        $this->assertSame('empty', $manager->driver());
+        $this->assertSame('separator', $manager->driver('-'));
+    }
+
     public function testSetContainerRefreshesTheConfigurationRepository(): void
     {
         $manager = $this->createManager();
@@ -182,6 +213,17 @@ class EnumIdentifierManager extends Manager
     public function getConfigurationRepository(): Repository
     {
         return $this->config;
+    }
+}
+
+class EmptyDefaultManager extends Manager
+{
+    /**
+     * Get the default driver name.
+     */
+    public function getDefaultDriver(): string
+    {
+        return '';
     }
 }
 

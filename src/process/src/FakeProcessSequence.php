@@ -36,6 +36,8 @@ class FakeProcessSequence
 
     /**
      * Push a new process result or description onto the sequence.
+     *
+     * @return $this
      */
     public function push(array|FakeProcessDescription|ProcessResultContract|string $process): static
     {
@@ -46,6 +48,8 @@ class FakeProcessSequence
 
     /**
      * Make the sequence return a default result when it is empty.
+     *
+     * @return $this
      */
     public function whenEmpty(array|FakeProcessDescription|ProcessResultContract|string $process): static
     {
@@ -67,6 +71,8 @@ class FakeProcessSequence
 
     /**
      * Make the sequence return a default result when it is empty.
+     *
+     * @return $this
      */
     public function dontFailWhenEmpty(): static
     {
@@ -93,7 +99,7 @@ class FakeProcessSequence
         }
 
         if (! $this->failWhenEmpty && count($this->processes) === 0) {
-            return value($this->emptyProcess ?? new FakeProcessResult);
+            return $this->emptyProcess ?? new FakeProcessResult;
         }
 
         return array_shift($this->processes);

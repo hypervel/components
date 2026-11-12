@@ -135,6 +135,26 @@ class PostgresParser extends Parser
             $this->parseDrop($tokens, $state);
         } elseif ($tokens->accept('SET', 'STANDARD_CONFORMING_STRINGS') || $tokens->accept('SET', 'SESSION', 'STANDARD_CONFORMING_STRINGS')) {
             $this->parseStandardConformingStrings($tokens);
+        } elseif ($tokens->accept('SET')) {
+            $this->parseSet($tokens, $state);
+        } else {
+            $this->recordUnreadStatement($tokens, $state);
+        }
+    }
+
+    /**
+     * Record a setting that changes how later statements resolve names, which other settings leave unchanged.
+     */
+    private function parseSet(TokenStream $tokens, ParseState $state): void
+    {
+        if (! $tokens->accept('SESSION')) {
+            $tokens->accept('LOCAL');
+        }
+
+        // The role is the search path's $user schema.
+        if ($tokens->is('SEARCH_PATH') || $tokens->is('SCHEMA') || $tokens->is('ROLE')
+            || $tokens->is('AUTHORIZATION') || $tokens->is('SESSION', 'AUTHORIZATION')) {
+            $state->unknownImpact = true;
         }
     }
 
@@ -201,6 +221,8 @@ class PostgresParser extends Parser
             $this->parseCreateEnum($tokens, $state);
         } elseif ($tokens->accept('DOMAIN')) {
             $this->parseCreateDomain($tokens, $state);
+        } elseif (! isset(self::NON_RELATION_OBJECTS[$tokens->text()])) {
+            $state->unknownImpact = true;
         }
     }
 
@@ -233,7 +255,7 @@ class PostgresParser extends Parser
             }
 
             $table->issues[] = $state->issue('The partition declaration does not include its complete column and constraint definitions.');
-        } elseif ($tokens->isSymbol('(')) {
+        } elseif ($tokens->isSymbol('(') && ! $this->isQueryColumnList($tokens)) {
             $this->parseTableBody($tokens, $state, $table);
 
             if ($tokens->accept('INHERITS')) {
@@ -263,6 +285,19 @@ class PostgresParser extends Parser
         } elseif ($tokens->atEnd()) {
             throw $tokens->error('Expected a table definition');
         } else {
+            while (! $tokens->atEnd() && ! $tokens->is('AS')) {
+                if ($tokens->isSymbol('(')) {
+                    $tokens->skipGroup();
+                } else {
+                    $tokens->next();
+                }
+            }
+
+            // CREATE TABLE AS runs its query, which can change other relations.
+            if (! $tokens->atEnd()) {
+                $state->unknownImpact = true;
+            }
+
             $table->issues[] = $state->issue('The table declaration does not contain a complete column definition.');
         }
 
@@ -275,6 +310,17 @@ class PostgresParser extends Parser
                 $state->linkChild($parentKey, $key);
             }
         }
+    }
+
+    /**
+     * Determine whether a parenthesized list names the columns of a CREATE TABLE AS query rather than declaring them.
+     */
+    private function isQueryColumnList(TokenStream $tokens): bool
+    {
+        $name = $tokens->type(1);
+
+        return ($name === TokenType::Word || $name === TokenType::QuotedIdentifier)
+            && ($tokens->isSymbol(',', 2) || $tokens->isSymbol(')', 2));
     }
 
     /**
@@ -1256,15 +1302,30 @@ class PostgresParser extends Parser
     {
         if ($tokens->accept('TABLE') || $tokens->accept('FOREIGN', 'TABLE')) {
             $this->parseAlterTable($tokens, $state);
+        } elseif ($tokens->accept('VIEW') || $tokens->accept('MATERIALIZED', 'VIEW')) {
+            $this->parseAlterView($tokens, $state);
         } elseif ($tokens->accept('DOMAIN')) {
             $this->parseAlterDomain($tokens, $state);
         } elseif ($tokens->accept('TYPE')) {
-            $this->parseQualifiedName($tokens, 'a type name');
+            $reference = $this->parseQualifiedName($tokens, 'a type name');
 
-            if ($this->isIdentityChange($tokens) || $tokens->is('ADD', 'VALUE') || $tokens->is('RENAME', 'VALUE')) {
+            if ($tokens->is('ADD', 'VALUE') || $tokens->is('RENAME', 'VALUE')) {
+                // Only the enum's labels change; its columns keep referring to it by name.
+                $state->affectType(new TypeReference($reference->name, $reference->schema));
                 $this->reportIdentityChange($state);
+            } else {
+                // A rename or schema move reaches the type's columns without naming them, as other changes can.
+                $state->unknownImpact = true;
+
+                if ($this->isIdentityChange($tokens)) {
+                    $this->reportIdentityChange($state);
+                }
             }
         } else {
+            if (! $tokens->is('INDEX') && ! isset(self::NON_RELATION_OBJECTS[$tokens->text()])) {
+                $state->unknownImpact = true;
+            }
+
             while (! $tokens->atEnd()) {
                 if ($this->isIdentityChange($tokens)) {
                     $this->reportIdentityChange($state);
@@ -1297,6 +1358,22 @@ class PostgresParser extends Parser
     }
 
     /**
+     * Read the new identity that a rename or schema change gives a relation.
+     */
+    private function parseIdentityChange(TokenStream $tokens, TableReference $reference): TableReference
+    {
+        $rename = $tokens->accept('RENAME', 'TO');
+
+        if (! $rename) {
+            $tokens->accept('SET', 'SCHEMA');
+        }
+
+        $name = $this->parseName($tokens, 'a new identity');
+
+        return $rename ? new TableReference($name, $reference->schema) : new TableReference($reference->name, $name);
+    }
+
+    /**
      * Record that an identity or enum label change is not replayed across dependent definitions.
      */
     private function reportIdentityChange(ParseState $state): void
@@ -1311,6 +1388,8 @@ class PostgresParser extends Parser
      */
     private function reportCascade(ParseState $state): void
     {
+        $state->unknownImpact = true;
+
         if ($state->hasDefinitions()) {
             $state->issues[] = $state->issue('Cascading drops can change dependent definitions that are not replayed.');
         }
@@ -1325,8 +1404,10 @@ class PostgresParser extends Parser
         $only = $tokens->accept('ONLY');
         $reference = $this->parseQualifiedName($tokens, 'a table name');
         $tokens->acceptSymbol('*');
+        $state->affect($reference);
 
         if ($this->isIdentityChange($tokens)) {
+            $state->affect($this->parseIdentityChange($tokens, $reference));
             $this->reportIdentityChange($state);
 
             return;
@@ -1341,6 +1422,21 @@ class PostgresParser extends Parser
     }
 
     /**
+     * Record the view or materialized view an ALTER statement changes, and its new identity after a rename.
+     */
+    private function parseAlterView(TokenStream $tokens, ParseState $state): void
+    {
+        $tokens->accept('IF', 'EXISTS');
+        $reference = $this->parseQualifiedName($tokens, 'a view name');
+        $state->affect($reference);
+
+        if ($this->isIdentityChange($tokens)) {
+            $state->affect($this->parseIdentityChange($tokens, $reference));
+            $this->reportIdentityChange($state);
+        }
+    }
+
+    /**
      * Apply one ALTER TABLE action, or record what it leaves unknown.
      */
     private function parseAlterTableAction(TokenStream $tokens, ParseState $state, TableReference $reference, ?string $key, bool $view, bool $only): void
@@ -1349,9 +1445,12 @@ class PostgresParser extends Parser
             // A clean dump drops constraints before it creates their tables.
             $constraint = $tokens->keyword(1) === 'CONSTRAINT';
 
+            // A cascade affects other definitions; the dropped target is still not applied.
             if ($this->endsWithCascade($tokens)) {
                 $this->reportCascade($state);
-            } elseif ($key !== null) {
+            }
+
+            if ($key !== null) {
                 $state->tables[$key]->issues[] = $state->issue('An ALTER TABLE action could not be represented.');
             } elseif (! $view && ! $constraint) {
                 $state->issues[] = $state->issue("The altered table [{$reference->name}] could not be resolved.");
@@ -1834,10 +1933,15 @@ class PostgresParser extends Parser
         $reference = $this->parseQualifiedName($tokens, 'a domain name');
 
         if ($this->isIdentityChange($tokens)) {
+            // The domain's columns follow the rename or schema move without being named.
+            $state->unknownImpact = true;
             $this->reportIdentityChange($state);
 
             return;
         }
+
+        // ALTER DOMAIN cannot change the base type, so the named domain bounds the change.
+        $state->affectType(new TypeReference($reference->name, $reference->schema));
 
         if ($tokens->is('OWNER', 'TO')) {
             return;
@@ -1968,12 +2072,16 @@ class PostgresParser extends Parser
         };
 
         if ($kind === null) {
+            $nonRelation = isset(self::NON_RELATION_OBJECTS[$tokens->text()]);
+
             do {
                 $cascade = $this->endsWithCascade($tokens);
             } while ($tokens->acceptSymbol(','));
 
             if ($cascade) {
                 $this->reportCascade($state);
+            } elseif (! $nonRelation) {
+                $state->unknownImpact = true;
             }
 
             return;
@@ -2016,6 +2124,12 @@ class PostgresParser extends Parser
             $this->dropIndex($reference, $state);
 
             return;
+        }
+
+        if ($kind === 'table' || $kind === 'view') {
+            $state->affect($reference);
+        } elseif ($kind === 'type' || $kind === 'domain') {
+            $state->affectType(new TypeReference($reference->name, $reference->schema));
         }
 
         if ($kind === 'schema') {

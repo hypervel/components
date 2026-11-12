@@ -7,9 +7,13 @@ namespace Hypervel\Foundation\Bus;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Bus\ChainDefaults;
 use Hypervel\Bus\ChainedBatch;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\Delay;
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\Conditionable;
@@ -57,6 +61,8 @@ class PendingChain
 
     /**
      * Set the desired connection for the job.
+     *
+     * @return $this
      */
     public function onConnection(UnitEnum|string|null $connection): static
     {
@@ -69,6 +75,8 @@ class PendingChain
 
     /**
      * Set the desired queue for the job.
+     *
+     * @return $this
      */
     public function onQueue(UnitEnum|string|null $queue): static
     {
@@ -81,6 +89,8 @@ class PendingChain
 
     /**
      * Prepend a job to the chain.
+     *
+     * @return $this
      */
     public function prepend(mixed $job): static
     {
@@ -101,6 +111,8 @@ class PendingChain
 
     /**
      * Append a job to the chain.
+     *
+     * @return $this
      */
     public function append(mixed $job): static
     {
@@ -119,6 +131,8 @@ class PendingChain
 
     /**
      * Set the desired delay in seconds for the chain.
+     *
+     * @return $this
      */
     public function delay(DateInterval|DateTimeInterface|int|null $delay): static
     {
@@ -129,6 +143,8 @@ class PendingChain
 
     /**
      * Add a callback to be executed on job failure.
+     *
+     * @return $this
      */
     public function catch(callable $callback): static
     {
@@ -152,6 +168,16 @@ class PendingChain
      */
     public function dispatch(mixed ...$arguments): mixed
     {
+        return Container::getInstance()
+            ->make(Dispatcher::class)
+            ->dispatch($this->prepareFirstJob($arguments));
+    }
+
+    /**
+     * Prepare the first job of the chain for dispatch.
+     */
+    protected function prepareFirstJob(array $arguments): object
+    {
         if (is_string($this->job)) {
             $firstJob = new $this->job(...$arguments);
         } elseif ($this->job instanceof Closure) {
@@ -160,30 +186,34 @@ class PendingChain
             $firstJob = $this->job;
         }
 
+        // Laravel checks only the job's properties, so a chain default replaced the job's own
+        // #[Connection], #[Queue] or #[Delay]. The job's own attribute or property beats the chain default.
+        $defaults = new ChainDefaults;
+
         if ($this->connection !== null && $this->connection !== '') {
             $firstJob->chainConnection = $this->connection;
-            $firstJob->connection = $firstJob->connection === null || $firstJob->connection === ''
-                ? $this->connection
-                : $firstJob->connection;
+
+            if ($defaults->appliesTo($firstJob, Connection::class, 'connection')) {
+                $firstJob->connection = $this->connection;
+            }
         }
 
         if ($this->queue !== null && $this->queue !== '') {
             $firstJob->chainQueue = $this->queue;
-            $firstJob->queue = $firstJob->queue === null || $firstJob->queue === ''
-                ? $this->queue
-                : $firstJob->queue;
+
+            if ($defaults->appliesTo($firstJob, QueueAttribute::class, 'queue')) {
+                $firstJob->queue = $this->queue;
+            }
         }
 
-        if ($this->delay) {
-            $firstJob->delay = ! is_null($firstJob->delay) ? $firstJob->delay : $this->delay;
+        if ($this->delay && $defaults->appliesTo($firstJob, Delay::class, 'delay')) {
+            $firstJob->delay = $this->delay;
         }
 
         $firstJob->chain($this->chain);
         $firstJob->chainCatchCallbacks = $this->catchCallbacks();
 
-        return Container::getInstance()
-            ->make(Dispatcher::class)
-            ->dispatch($firstJob);
+        return $firstJob;
     }
 
     /**

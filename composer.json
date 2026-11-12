@@ -98,8 +98,8 @@
         "symfony/error-handler": "^8.1",
         "symfony/event-dispatcher": "^8.1",
         "symfony/finder": "^8.1",
-        "symfony/http-foundation": "^8.1",
-        "symfony/http-kernel": "^8.1",
+        "symfony/http-foundation": "^8.1.11",
+        "symfony/http-kernel": "^8.1.11",
         "symfony/mailer": "^8.1",
         "symfony/mime": "^8.1",
         "symfony/polyfill-php85": "^1.36",
@@ -107,8 +107,8 @@
         "symfony/process": "^8.1",
         "symfony/property-access": "^8.1",
         "symfony/psr-http-message-bridge": "^8.1",
-        "symfony/routing": "^8.1",
-        "symfony/serializer": "^8.1",
+        "symfony/routing": "^8.1.11",
+        "symfony/serializer": "^8.1.11",
         "symfony/uid": "^8.1",
         "symfony/var-dumper": "^8.1",
         "symfony/yaml": "^8.1.11",
@@ -133,14 +133,15 @@
         "mockery/mockery": "^1.6.15",
         "opis/json-schema": "^2.6.0",
         "pda/pheanstalk": "^8.0.2",
-        "phpstan/phpstan": "2.3.1",
+        "phpstan/phpstan": "^2.3.5",
+        "phpstan/phpstan-deprecation-rules": "^2.0.5",
         "phpunit/phpunit": "~13.4.3",
         "pusher/pusher-php-server": "^7.2",
         "resend/resend-php": "^1.0",
         "spomky-labs/cbor-php": "^3.4.1",
         "swoole/ide-helper": "^6.0.2",
-        "symfony/filesystem": "^8.1",
-        "symfony/http-client": "^8.1",
+        "symfony/filesystem": "^8.1.11",
+        "symfony/http-client": "^8.1.11",
         "symfony/mailgun-mailer": "^8.1",
         "symfony/mercure": "^0.8",
         "symfony/postmark-mailer": "^8.1",
@@ -205,6 +206,7 @@
         "hypervel/passport": "self.version",
         "hypervel/pennant": "self.version",
         "hypervel/permission": "self.version",
+        "hypervel/phpstan": "self.version",
         "hypervel/pipeline": "self.version",
         "hypervel/process": "self.version",
         "hypervel/prompts": "self.version",
@@ -302,6 +304,7 @@
             "Hypervel\\Passport\\Database\\Factories\\": "src/passport/database/factories/",
             "Hypervel\\Pennant\\": "src/pennant/src/",
             "Hypervel\\Permission\\": "src/permission/src/",
+            "Hypervel\\PHPStan\\": "src/phpstan/src/",
             "Hypervel\\Pipeline\\": "src/pipeline/src/",
             "Hypervel\\Process\\": "src/process/src/",
             "Hypervel\\Prompts\\": "src/prompts/src/",
@@ -370,6 +373,18 @@
             "Workbench\\Database\\Factories\\": "src/testbench/workbench/database/factories/",
             "Workbench\\Database\\Seeders\\": "src/testbench/workbench/database/seeders/"
         },
+        "classmap": [
+            "tests/PHPStan/Integration/data",
+            "tests/PHPStan/Rules/Coroutine/data",
+            "tests/PHPStan/Rules/data",
+            "tests/PHPStan/Rules/Queue/data",
+            "tests/PHPStan/Rules/Validation/data",
+            "tests/PHPStan/Type/data",
+            "tests/PHPStan/Unit/data"
+        ],
+        "exclude-from-classmap": [
+            "tests/PHPStan/**/*-fixed.php"
+        ],
         "files": [
             "tests/Database/Fixtures/MigrationCreatorFakeMigration.php"
         ]
@@ -478,6 +493,7 @@
         "check": [
             "@check:skeleton-config",
             "@test",
+            "@test:phpstan",
             "@test:testbench",
             "@test:dogfood",
             "@analyse",
@@ -490,6 +506,7 @@
             "@sync:skeleton-config",
             "@analyse",
             "@test:parallel",
+            "@test:phpstan",
             "@test:testbench",
             "@test:dogfood"
         ],
@@ -520,6 +537,10 @@
         "test:parallel": [
             "Composer\\Config::disableProcessTimeout",
             "paratest"
+        ],
+        "test:phpstan": [
+            "Composer\\Config::disableProcessTimeout",
+            "paratest -c phpunit.phpstan.xml.dist"
         ],
         "test:profile": [
             "Composer\\Config::disableProcessTimeout",

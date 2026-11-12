@@ -10,6 +10,7 @@ use Hypervel\Image\Image;
 use Hypervel\Routing\Route;
 use Hypervel\Session\NullSessionHandler;
 use Hypervel\Session\Store;
+use Hypervel\Support\Stringable;
 use Hypervel\Tests\Database\Fixtures\Models\Money\Price;
 use Hypervel\Tests\Support\Concerns\TestsInteractsWithDataContract;
 use Hypervel\Tests\TestCase;
@@ -785,6 +786,29 @@ class HttpRequestTest extends TestCase
         $this->assertSame('Taylor', $all['name']);
     }
 
+    public function testInputSourceGettersReturnAnyDefaultAndStoredValue(): void
+    {
+        $request = Request::create('/', 'GET');
+        $this->assertSame(15, $request->query('per_page', 15));
+        $this->assertFalse($request->cookie('consent', false));
+        $this->assertTrue($request->server('MISSING', true));
+
+        $request->merge(['active' => true]);
+        $this->assertTrue($request->query('active'));
+
+        $name = new Stringable('Taylor');
+        $request->query->set('name', $name);
+        $this->assertSame($name, $request->query('name'));
+
+        $request->server->set('HTTPS', true);
+        $this->assertTrue($request->server('HTTPS'));
+
+        $request = Request::createFromBase(
+            SymfonyRequest::create('/', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], '{"count":5}')
+        );
+        $this->assertSame(5, $request->post('count'));
+    }
+
     public function testHasCookieMethod(): void
     {
         $request = Request::create('/', 'GET', [], ['foo' => 'bar']);
@@ -805,6 +829,8 @@ class HttpRequestTest extends TestCase
         ];
         $request = Request::create('/', 'GET', [], [], $files);
         $this->assertInstanceOf(SymfonyUploadedFile::class, $request->file('foo'));
+        $this->assertSame('none', $request->file('bar', 'none'));
+        $this->assertSame('lazy', $request->file('bar', fn () => 'lazy'));
     }
 
     public function testImageMethod(): void
@@ -975,6 +1001,10 @@ class HttpRequestTest extends TestCase
         $this->assertSame('foo', $request->bearerToken());
 
         $request = Request::create('/', 'GET', [], [], [], ['HTTP_AUTHORIZATION' => 'foo,bar']);
+        $this->assertNull($request->bearerToken());
+
+        $request = Request::create('/');
+        $request->headers->set('Authorization', null);
         $this->assertNull($request->bearerToken());
     }
 

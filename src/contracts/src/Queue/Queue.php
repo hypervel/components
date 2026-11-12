@@ -77,6 +77,8 @@ interface Queue
 
     /**
      * Set the connection name for the queue.
+     *
+     * @return $this
      */
     public function setConnectionName(string $name): static;
 }

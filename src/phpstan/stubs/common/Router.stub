@@ -1,0 +1,16 @@
+<?php
+
+namespace Hypervel\Routing;
+
+class Router
+{
+    /**
+     * Register a new route that returns a view.
+     *
+     * @param view-string $view
+     * @param array<string, mixed> $data
+     * @param int|array<string, string> $status an array is taken as the headers
+     * @param array<string, string> $headers
+     */
+    public function view(string $uri, string $view, array $data = [], int|array $status = 200, array $headers = []): Route;
+}

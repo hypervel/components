@@ -18,6 +18,8 @@ class AnonymousNotifiable
     /**
      * Add routing information to the target.
      *
+     * @return $this
+     *
      * @throws InvalidArgumentException
      */
     public function route(string $channel, mixed $route): static

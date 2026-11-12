@@ -8,6 +8,7 @@ use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\NonCopyableContext;
+use Hypervel\Context\ReplicableContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ChannelClosedException;
@@ -1120,6 +1121,49 @@ class ParallelTest extends TestCase
         }
     }
 
+    public function testWrappedCancellationWhileCopyingContextCancelsStartedChildren(): void
+    {
+        $blocker = new Channel(1);
+        $childCoroutineId = null;
+        $childCancellation = null;
+        $outcome = null;
+
+        $runner = Coroutine::create(static function () use ($blocker, &$childCoroutineId, &$childCancellation, &$outcome): void {
+            CoroutineContext::set('canceling', new ParallelTestCancelingContext);
+            $parallel = new Parallel(copyContext: true);
+            $parallel->add(static function () use ($blocker, &$childCoroutineId, &$childCancellation): void {
+                $childCoroutineId = Coroutine::id();
+
+                try {
+                    $blocker->pop();
+                } catch (CanceledException $exception) {
+                    $childCancellation = $exception;
+                }
+            }, 'first');
+            $parallel->add(static fn (): string => 'never', 'second');
+
+            try {
+                $parallel->wait();
+            } catch (Throwable $throwable) {
+                $outcome = $throwable;
+            }
+        });
+
+        try {
+            $this->assertInstanceOf(RuntimeException::class, $outcome);
+            $this->assertSame('Copying the context was canceled.', $outcome->getMessage());
+            $this->assertInstanceOf(CanceledException::class, $childCancellation);
+            $this->assertIsInt($childCoroutineId);
+            $this->assertFalse(Coroutine::exists($childCoroutineId));
+        } finally {
+            foreach ([$runner, $childCoroutineId] as $coroutineId) {
+                if ($coroutineId !== null && Coroutine::exists($coroutineId)) {
+                    SwooleCoroutine::cancel($coroutineId, true);
+                }
+            }
+        }
+    }
+
     public function returnCoroutineId(): int
     {
         return Coroutine::id();
@@ -1131,5 +1175,22 @@ class ParallelTestParallel extends Parallel
     public function closeConcurrencyChannelForTest(): void
     {
         $this->concurrentChannel?->close();
+    }
+}
+
+class ParallelTestCancelingContext implements ReplicableContext
+{
+    private int $replications = 0;
+
+    /**
+     * Copy the context once, then fail with a cleanup error that carries cancellation.
+     */
+    public function replicate(): static
+    {
+        if (++$this->replications > 1) {
+            throw new RuntimeException('Copying the context was canceled.', previous: new CanceledException('Canceled while copying the context.'));
+        }
+
+        return new static;
     }
 }

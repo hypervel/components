@@ -18,8 +18,10 @@ use Hypervel\Queue\DatabaseQueue;
 use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\Events\JobQueueingCanceled;
 use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\InvalidPayloadException;
+use Hypervel\Queue\Outbox\DatabaseOutboxRepository;
 use Hypervel\Queue\Outbox\OutboxDispatcher;
 use Hypervel\Queue\Queue;
 use Hypervel\Queue\RedisQueue;
@@ -192,7 +194,7 @@ class OutboxDispatchTest extends TestCase
             }
         });
         $this->app->make('events')->listen(JobQueueingFailed::class, function (JobQueueingFailed $event) use (&$failed): void {
-            $failed[] = $event->job;
+            $failed[] = $event;
         });
         $jobs = [(new OutboxDispatchJob)->viaOutbox(), (new OutboxDispatchJob)->viaOutbox(), (new OutboxDispatchJob)->viaOutbox()];
 
@@ -203,8 +205,43 @@ class OutboxDispatchTest extends TestCase
             $this->assertSame($failure, $exception);
         }
 
-        $this->assertSame($jobs, $failed);
+        $this->assertSame($jobs, array_column($failed, 'job'));
+        $this->assertSame([false, false, false], array_column($failed, 'sendAttempted'));
         $this->assertSame(0, DB::table('job_outbox')->count());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testStorageFailureTerminatesEveryMemberAsAttempted(bool $bulk): void
+    {
+        $queue = $this->queue();
+        $failure = new RuntimeException('Storage failed');
+        $dispatcher = m::mock(OutboxDispatcher::class, [
+            $this->app->make(DatabaseOutboxRepository::class),
+            $this->app->make(ConnectionResolverInterface::class),
+            $this->app->make('db.transactions'),
+        ])->makePartial();
+        $dispatcher->expects('store')->andThrow($failure);
+        $this->app->instance(OutboxDispatcher::class, $dispatcher);
+        $failed = [];
+        $this->app->make('events')->listen(JobQueueingFailed::class, function (JobQueueingFailed $event) use (&$failed): void {
+            $failed[] = $event;
+        });
+        $jobs = $bulk ? [(new OutboxDispatchJob)->viaOutbox(), (new OutboxDispatchJob)->viaOutbox()] : [(new OutboxDispatchJob)->viaOutbox()];
+
+        try {
+            $bulk ? $queue->bulk($jobs) : $queue->push($jobs[0]);
+            $this->fail('Expected storage to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertSame($jobs, array_column($failed, 'job'));
+
+        foreach ($failed as $event) {
+            $this->assertSame($failure, $event->exception);
+            $this->assertTrue($event->sendAttempted);
+        }
     }
 
     public function testBulkFailureIsNotReplacedByAFailingFailureListener(): void
@@ -236,7 +273,7 @@ class OutboxDispatchTest extends TestCase
 
     #[TestWith([false])]
     #[TestWith([true])]
-    public function testStagingCancellationDoesNotNotifyFailureOrStoreJobs(bool $bulk): void
+    public function testStagingCancellationPublishesCanceledEventsWithoutFailureOrStorage(bool $bulk): void
     {
         $queue = $this->queue();
         $cancellation = new RuntimeException('Finalization cleanup failed.', previous: new CanceledException);
@@ -246,16 +283,28 @@ class OutboxDispatchTest extends TestCase
         $events->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$failed): void {
             $failed[] = $event;
         });
+        $canceled = [];
+        $events->listen(JobQueueingCanceled::class, static function (JobQueueingCanceled $event) use (&$canceled): void {
+            $canceled[] = $event;
+        });
         $job = (new OutboxDispatchJob)->viaOutbox();
+        $jobs = $bulk ? [$job, clone $job] : [$job];
 
         try {
-            $bulk ? $queue->bulk([$job, clone $job]) : $queue->push($job);
+            $bulk ? $queue->bulk($jobs) : $queue->push($job);
             $this->fail('Expected staging cancellation to propagate.');
         } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
 
         $this->assertSame([], $failed);
+        $this->assertSame($jobs, array_column($canceled, 'job'));
+
+        foreach ($canceled as $event) {
+            $this->assertSame($cancellation, $event->cancellation);
+            $this->assertFalse($event->sendAttempted);
+        }
+
         $this->assertSame(0, DB::table('job_outbox')->count());
     }
 
@@ -378,6 +427,7 @@ class OutboxDispatchTest extends TestCase
             $this->assertCount(1, $failed);
             $this->assertSame($job, $failed[0]->job);
             $this->assertSame($exception, $failed[0]->exception);
+            $this->assertFalse($failed[0]->sendAttempted);
         } finally {
             DB::rollBack();
         }

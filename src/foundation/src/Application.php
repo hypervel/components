@@ -250,6 +250,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
         return match (true) {
             isset($_ENV['APP_BASE_PATH']) => $_ENV['APP_BASE_PATH'],
             isset($_SERVER['APP_BASE_PATH']) => $_SERVER['APP_BASE_PATH'],
+            // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the base path is needed before the environment file and configuration load)
             is_string($basePath = Env::get('APP_BASE_PATH')) => $basePath,
             default => dirname(array_values(array_filter(
                 array_keys(ClassLoader::getRegisteredLoaders()),
@@ -428,6 +429,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
      *
      * Boot-only. The configured path and its container binding are shared by
      * every request in the worker.
+     *
+     * @return $this
      */
     public function useAppPath(string $path): static
     {
@@ -459,6 +462,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
      *
      * Boot-only. The configured path and its container binding are shared by
      * every request in the worker.
+     *
+     * @return $this
      */
     public function useBootstrapPath(string $path): static
     {
@@ -490,6 +495,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
      *
      * Boot-only. The configured path and its container binding are shared by
      * every request in the worker.
+     *
+     * @return $this
      */
     public function useConfigPath(string $path): static
     {
@@ -513,6 +520,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
      *
      * Boot-only. The configured path and its container binding are shared by
      * every request in the worker.
+     *
+     * @return $this
      */
     public function useDatabasePath(string $path): static
     {
@@ -536,6 +545,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
      *
      * Boot-only. The configured path and its container binding are shared by
      * every request in the worker.
+     *
+     * @return $this
      */
     public function useLangPath(string $path): static
     {
@@ -559,6 +570,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
      *
      * Boot-only. The configured path and its container binding are shared by
      * every request in the worker.
+     *
+     * @return $this
      */
     public function usePublicPath(string $path): static
     {
@@ -615,6 +628,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
      *
      * Boot-only. The configured path and its container binding are shared by
      * every request in the worker.
+     *
+     * @return $this
      */
     public function useStoragePath(string $path): static
     {
@@ -753,6 +768,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     protected function normalizeCachePath(string $key, string $default): string
     {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (cache paths are read before configuration loads, including the configuration cache's own)
         if (is_null($env = Env::get($key))) {
             return $this->bootstrapPath($default);
         }
@@ -791,7 +807,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
     public function environment(UnitEnum|array|string ...$environments): bool|string
     {
         if ($environments !== []) {
-            $patterns = is_array($environments[0]) ? $environments[0] : $environments;
+            // Hypervel: a named environments: argument is keyed by name, so read the first value, not key 0.
+            $first = $environments[array_key_first($environments)];
+            $patterns = is_array($first) ? $first : $environments;
 
             return Str::is(array_map(enum_value(...), $patterns), $this->make('env'));
         }
@@ -839,6 +857,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
             return $this->isRunningInConsole;
         }
 
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the server command sets this in the process environment its workers inherit)
         return $this->isRunningInConsole = (bool) (Env::get('APP_RUNNING_IN_CONSOLE') ?? true);
     }
 

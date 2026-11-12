@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\SchemaParser;
 
-final readonly class Table
+readonly class Table
 {
     /** @var array<array-key, Column> */
     private array $columnsByName;

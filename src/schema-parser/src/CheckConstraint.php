@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\SchemaParser;
 
-final readonly class CheckConstraint
+readonly class CheckConstraint
 {
     /**
      * Create a check constraint with its unevaluated SQL expression.

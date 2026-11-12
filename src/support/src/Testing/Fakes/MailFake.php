@@ -524,7 +524,7 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
 
         if ($queue !== null) {
             // Queueable owns identifier normalization, so it is intentionally absent from the Mailable contract.
-            $view->onQueue($queue); // @phpstan-ignore method.notFound
+            $view->onQueue($queue); // @phpstan-ignore method.notFound (Queueable method outside the Mailable contract)
         }
 
         $this->queuedMailables[] = $view;
@@ -591,6 +591,8 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
 
     /**
      * Forget all of the resolved mailer instances.
+     *
+     * @return $this
      */
     public function forgetMailers(): static
     {

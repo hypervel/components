@@ -174,7 +174,7 @@ class RequestBridgeTest extends TestCase
 
     public function testCreateFromSwooleWithRawJsonBody(): void
     {
-        $body = '{"name":"Taylor","role":"admin"}';
+        $body = '{"name":"Taylor","age":38,"admin":true,"profile":{"city":"Paris"}}';
 
         $swooleRequest = $this->createSwooleRequest(
             server: ['request_method' => 'post', 'request_uri' => '/api/users'],
@@ -185,6 +185,28 @@ class RequestBridgeTest extends TestCase
         $request = RequestBridge::createFromSwoole($swooleRequest);
 
         $this->assertSame($body, $request->getContent());
+        $this->assertSame(38, $request->post('age'));
+        $this->assertTrue($request->input('admin'));
+        $this->assertSame(['city' => 'Paris'], $request->request->all('profile'));
+
+        // The request bag and the JSON payload are the same bag.
+        $request->merge(['team' => 'core']);
+        $this->assertSame('core', $request->request->get('team'));
+        $this->assertSame('core', $request->json('team'));
+    }
+
+    public function testCreateFromSwooleWithMalformedJsonBody(): void
+    {
+        $swooleRequest = $this->createSwooleRequest(
+            server: ['request_method' => 'post', 'request_uri' => '/api/users'],
+            header: ['host' => 'example.com', 'content-type' => 'application/json'],
+            rawContent: '{"name":',
+        );
+
+        $request = RequestBridge::createFromSwoole($swooleRequest);
+
+        $this->assertSame('{"name":', $request->getContent());
+        $this->assertSame([], $request->post());
     }
 
     public function testCreateFromSwooleWithEmptyRawContent(): void

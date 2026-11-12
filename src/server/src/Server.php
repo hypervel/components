@@ -277,6 +277,7 @@ class Server implements ServerInterface
 
                 $callback($request, $response);
             } catch (Throwable $throwable) {
+                // @phpstan-ignore hypervel.cancellation.exactType (a direct cancellation is never reported; a failure carrying it is reported)
                 if (! $throwable instanceof CanceledException) {
                     $this->reportCallbackFailure($throwable);
                 }

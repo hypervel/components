@@ -1,0 +1,15 @@
+<?php
+
+namespace Hypervel\Mail\Mailables;
+
+class Content
+{
+    /**
+     * @param null|view-string $view
+     * @param null|view-string $html
+     * @param null|view-string $text
+     * @param null|view-string $markdown
+     * @param array<string, mixed> $with
+     */
+    public function __construct(?string $view = null, ?string $html = null, ?string $text = null, ?string $markdown = null, array $with = [], ?string $htmlString = null);
+}

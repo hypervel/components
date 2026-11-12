@@ -87,6 +87,7 @@ use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
+use ReflectionProperty;
 use RuntimeException;
 use stdClass;
 use Stringable as NativeStringable;
@@ -3193,6 +3194,23 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertSame(100, $model->toArray()['price']);
     }
 
+    public function testToArraySerializesEnumCastAttributesThroughTheirGetAccessors(): void
+    {
+        $model = new EnumCastWithAccessorsStub;
+        $model->setRawAttributes(['legacy_status' => 'draft', 'status' => 'done']);
+
+        $this->assertSame(['legacy_status' => 'Draft', 'status' => 'Done'], $model->toArray());
+    }
+
+    public function testToArrayAppendsCamelCaseAttributeAccessorBeforeItIsRead(): void
+    {
+        $model = new AppendsCamelCaseAttributeStub;
+
+        $this->assertSame(['fullName' => 'Taylor Otwell'], $model->toArray());
+        $this->assertSame('Taylor Otwell', $model->fullName);
+        $this->assertSame(['fullName' => 'Taylor Otwell'], $model->toArray());
+    }
+
     public function testMergeAppendsMergesAppends(): void
     {
         $model = new AppendsStub;
@@ -4153,6 +4171,32 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertSame([], $invoker->castMetadataCache, 'cache should be cleared by __sleep');
     }
 
+    public function testSerializationKeepsSubclassStateWithoutRunningPropertyHooks(): void
+    {
+        $model = new ModelPrivateStateStub;
+        $model->setRawAttributes(['name' => 'taylor']);
+        $model->changeState('child-changed');
+        $model->changeParentState('parent-changed');
+        $model->hookedLabel = 'label-changed';
+        $model->changeHookedState('hooked-changed');
+
+        $unserialized = unserialize(serialize($model));
+
+        $this->assertSame('taylor', $unserialized->name);
+        $this->assertSame('child-changed', $unserialized->state());
+        $this->assertSame('parent-changed', $unserialized->parentState());
+        $this->assertSame('label-changed', (new ReflectionProperty($unserialized, 'hookedLabel'))->getRawValue($unserialized));
+        $this->assertSame('hooked-changed', (new ReflectionProperty($unserialized, 'hookedState'))->getRawValue($unserialized));
+    }
+
+    public function testSleepOverridesCanExcludeProtectedPropertiesByName(): void
+    {
+        $model = new ModelFilteredSleepStub;
+        $model->changeTransientToken('changed');
+
+        $this->assertSame('default', unserialize(serialize($model))->transientToken());
+    }
+
     public function testIsClassCastableThrowsRepeatedlyForInvalidCast(): void
     {
         $invoker = new ClassInvoker(new CastCacheInvalidClassStub);
@@ -4166,6 +4210,29 @@ class DatabaseEloquentModelTest extends TestCase
 
         $this->expectException(InvalidCastException::class);
         $invoker->isClassCastable('foo');
+    }
+
+    public function testPrimitiveCastsInAnotherCaseReadAndWrite(): void
+    {
+        Crypt::swap(new ConcreteEncrypter(str_repeat('a', 32), 'AES-256-CBC'));
+
+        $model = new class extends Model {
+            protected array $casts = [
+                'flag' => 'BOOLEAN',
+                'secrets' => 'ENCRYPTED:ARRAY',
+            ];
+        };
+
+        $model->flag = false;
+        $model->secrets = ['key' => 'value'];
+
+        $this->assertFalse($model->flag);
+        $this->assertSame(['key' => 'value'], json_decode(Crypt::decrypt($model->getAttributes()['secrets'], false), true));
+        $this->assertSame(['key' => 'value'], $model->secrets);
+
+        $model->setRawAttributes(['flag' => 1]);
+
+        $this->assertTrue($model->flag);
     }
 
     public function testCastCacheIsIsolatedPerInstance(): void
@@ -5568,7 +5635,7 @@ class ModelStub extends Model
     /**
      * Expose quiet multi-column increments for testing.
      */
-    public function publicIncrementEachQuietly(array $columns, array $extra = []): int|false
+    public function publicIncrementEachQuietly(array $columns, array $extra = []): int
     {
         return $this->incrementEachQuietly($columns, $extra);
     }
@@ -5576,7 +5643,7 @@ class ModelStub extends Model
     /**
      * Expose quiet multi-column decrements for testing.
      */
-    public function publicDecrementEachQuietly(array $columns, array $extra = []): int|false
+    public function publicDecrementEachQuietly(array $columns, array $extra = []): int
     {
         return $this->decrementEachQuietly($columns, $extra);
     }
@@ -5881,6 +5948,34 @@ class AppendsWithExistingAttributeStub extends Model
     protected function price(): Attribute
     {
         return Attribute::get(fn (mixed $value): mixed => $value);
+    }
+}
+
+class EnumCastWithAccessorsStub extends Model
+{
+    protected array $casts = [
+        'legacy_status' => StringStatus::class,
+        'status' => StringStatus::class,
+    ];
+
+    public function getLegacyStatusAttribute(string $value): string
+    {
+        return StringStatus::from($value)->name;
+    }
+
+    protected function status(): Attribute
+    {
+        return Attribute::get(fn (string $value): string => StringStatus::from($value)->name);
+    }
+}
+
+class AppendsCamelCaseAttributeStub extends Model
+{
+    protected array $appends = ['fullName'];
+
+    protected function fullName(): Attribute
+    {
+        return Attribute::get(fn (): string => 'Taylor Otwell');
     }
 }
 
@@ -6646,4 +6741,97 @@ enum ConnectionNameBacked: string
 enum IntegerBackedConnectionName: int
 {
     case Zero = 0;
+}
+
+abstract class ModelPrivateStateParentStub extends Model
+{
+    private string $state = 'parent';
+
+    /**
+     * Change the parent's private state.
+     */
+    public function changeParentState(string $state): void
+    {
+        $this->state = $state;
+    }
+
+    /**
+     * Get the parent's private state.
+     */
+    public function parentState(): string
+    {
+        return $this->state;
+    }
+}
+
+class ModelPrivateStateStub extends ModelPrivateStateParentStub
+{
+    public string $hookedLabel = 'label' {
+        get => throw new LogicException('Serialization ran a get hook.');
+        set => $value;
+    }
+
+    private string $state = 'child';
+
+    private string $hookedState = 'hooked' {
+        get => throw new LogicException('Serialization ran a get hook.');
+        set => $value;
+    }
+
+    private string $virtual {
+        get => 'virtual';
+    }
+
+    /**
+     * Change the private state.
+     */
+    public function changeState(string $state): void
+    {
+        $this->state = $state;
+    }
+
+    /**
+     * Change the private hooked state.
+     */
+    public function changeHookedState(string $state): void
+    {
+        $this->hookedState = $state;
+    }
+
+    /**
+     * Get the private state.
+     */
+    public function state(): string
+    {
+        return $this->state;
+    }
+}
+
+class ModelFilteredSleepStub extends Model
+{
+    protected string $transientToken = 'default';
+
+    /**
+     * Change the transient token.
+     */
+    public function changeTransientToken(string $token): void
+    {
+        $this->transientToken = $token;
+    }
+
+    /**
+     * Get the transient token.
+     */
+    public function transientToken(): string
+    {
+        return $this->transientToken;
+    }
+
+    /**
+     * Leave the transient token out of serialization.
+     */
+    public function __sleep(): array
+    {
+        return array_values(array_diff(parent::__sleep(), ['transientToken']));
+    }
 }

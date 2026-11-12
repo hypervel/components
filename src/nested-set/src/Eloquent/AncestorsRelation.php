@@ -59,15 +59,15 @@ class AncestorsRelation extends BaseRelation
         }
 
         $grammar = $query->getGrammar();
-        $lft = $grammar->wrap($this->related->qualifyColumn($this->related->getLftName())); /* @phpstan-ignore method.notFound */
-        $rgt = $grammar->wrap($this->related->qualifyColumn($this->related->getRgtName())); /* @phpstan-ignore method.notFound */
+        $lft = $grammar->wrap($this->related->qualifyColumn($this->related->getLftName())); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+        $rgt = $grammar->wrap($this->related->qualifyColumn($this->related->getRgtName())); /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
         $this->addBalancedOrConstraints(
             $query,
             array_values($groups),
             function (Builder $query, array $group) use ($lft, $rgt): void {
                 $points = array_values(array_unique(array_map(
-                    static fn (Model $model): int => $model->getRgt(), /* @phpstan-ignore method.notFound */
+                    static fn (Model $model): int => $model->getRgt(), /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
                     $group,
                 )));
                 sort($points);
@@ -132,8 +132,8 @@ class AncestorsRelation extends BaseRelation
             $rgts = [];
 
             foreach ($group as $model) {
-                $lfts[] = $model->getLft(); /* @phpstan-ignore method.notFound */
-                $rgts[] = $model->getRgt(); /* @phpstan-ignore method.notFound */
+                $lfts[] = $model->getLft();
+                $rgts[] = $model->getRgt();
             }
 
             $positions = array_keys($group);
@@ -168,12 +168,12 @@ class AncestorsRelation extends BaseRelation
             $scope = $this->scopeKey($model);
             $key = $this->matchKey($model);
             /** @var int $lft */
-            $lft = $model->getLft(); /* @phpstan-ignore method.notFound */
+            $lft = $model->getLft();
             $found = [];
 
             foreach ($results as $related) {
-                if ($related->getLft() < $lft /* @phpstan-ignore method.notFound */
-                    && $related->getRgt() > $lft /* @phpstan-ignore method.notFound */
+                if ($related->getLft() < $lft /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+                    && $related->getRgt() > $lft /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
                     && $this->scopeKey($related) === $scope
                     && ($key === null || $this->matchKey($related) !== $key)
                 ) {
@@ -201,7 +201,7 @@ class AncestorsRelation extends BaseRelation
             }
 
             $lfts = array_map(
-                static fn (Model $model): int => $model->getLft(), /* @phpstan-ignore method.notFound */
+                static fn (Model $model): int => $model->getLft(), /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
                 $group,
             );
             $positions = array_keys($group);
@@ -271,8 +271,8 @@ class AncestorsRelation extends BaseRelation
     protected function intervalColumns(Model $model): array
     {
         $columns = array_fill_keys(array_keys($this->scopeValues($model)), false);
-        $columns[$model->getLftName()] = true; /* @phpstan-ignore method.notFound */
-        $columns[$model->getRgtName()] = true; /* @phpstan-ignore method.notFound */
+        $columns[$model->getLftName()] = true; /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
+        $columns[$model->getRgtName()] = true; /* @phpstan-ignore method.notFound (HasNode method; a template bound cannot name a trait) */
 
         return $columns;
     }

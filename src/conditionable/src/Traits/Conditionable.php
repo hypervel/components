@@ -13,12 +13,12 @@ trait Conditionable
      * Apply the callback if the given "value" is (or resolves to) truthy.
      *
      * @template TWhenParameter
-     * @template TWhenReturnType
+     * @template TWhenReturnType = never
      *
      * @param null|(Closure($this): TWhenParameter)|TWhenParameter $value
-     * @param null|(callable($this, TWhenParameter): TWhenReturnType) $callback
-     * @param null|(callable($this, TWhenParameter): TWhenReturnType) $default
-     * @return $this|TWhenReturnType
+     * @param null|(callable($this, TWhenParameter): (null|TWhenReturnType|void)) $callback
+     * @param null|(callable($this, TWhenParameter): (null|TWhenReturnType|void)) $default
+     * @return ($callback is null ? ($default is null ? $this|HigherOrderWhenProxy<$this, bool>|TWhenReturnType : $this|TWhenReturnType) : $this|TWhenReturnType)
      */
     public function when(mixed $value = null, ?callable $callback = null, ?callable $default = null): mixed
     {
@@ -46,12 +46,12 @@ trait Conditionable
      * Apply the callback if the given "value" is (or resolves to) falsy.
      *
      * @template TUnlessParameter
-     * @template TUnlessReturnType
+     * @template TUnlessReturnType = never
      *
      * @param null|(Closure($this): TUnlessParameter)|TUnlessParameter $value
-     * @param null|(callable($this, TUnlessParameter): TUnlessReturnType) $callback
-     * @param null|(callable($this, TUnlessParameter): TUnlessReturnType) $default
-     * @return $this|TUnlessReturnType
+     * @param null|(callable($this, TUnlessParameter): (null|TUnlessReturnType|void)) $callback
+     * @param null|(callable($this, TUnlessParameter): (null|TUnlessReturnType|void)) $default
+     * @return ($callback is null ? ($default is null ? $this|HigherOrderWhenProxy<$this, bool>|TUnlessReturnType : $this|TUnlessReturnType) : $this|TUnlessReturnType)
      */
     public function unless(mixed $value = null, ?callable $callback = null, ?callable $default = null): mixed
     {

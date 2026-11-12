@@ -6,6 +6,7 @@ namespace Hypervel\Testbench\Attributes;
 
 use Attribute;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Support\Composer;
 use Hypervel\Testbench\Contracts\Attributes\AfterEach;
 use Hypervel\Testbench\Contracts\Attributes\BeforeEach;
 use Hypervel\Testbench\Foundation\Actions\CreateVendorSymlink;
@@ -28,7 +29,7 @@ final class UsesVendor implements AfterEach, BeforeEach
     {
         $hypervel = clone $app;
 
-        (new CreateVendorSymlink(package_path('vendor')))->handle($hypervel);
+        (new CreateVendorSymlink(Composer::vendorPath(package_path())))->handle($hypervel);
 
         $this->vendorSymlinkCreated = $hypervel->make('TESTBENCH_VENDOR_SYMLINK');
     }

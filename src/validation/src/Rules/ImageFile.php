@@ -20,6 +20,8 @@ class ImageFile extends File
 
     /**
      * The dimension constraints for the uploaded file.
+     *
+     * @return $this
      */
     public function dimensions(Dimensions $dimensions): static
     {

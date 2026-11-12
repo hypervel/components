@@ -46,7 +46,7 @@ class HtmlDumper extends BaseHtmlDumper
      */
     public static function register(string $basePath, string $compiledViewPath): void
     {
-        $cloner = tap(new VarCloner)->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO); // @phpstan-ignore method.notFound (tap proxy __call)
+        $cloner = tap(new VarCloner)->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO);
 
         $dumper = new static($basePath, $compiledViewPath);
 

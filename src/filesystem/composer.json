@@ -44,8 +44,8 @@
         "league/flysystem-read-only": "^3.25.1",
         "psr/http-message": "^2.0",
         "symfony/finder": "^8.1",
-        "symfony/http-foundation": "^8.1",
-        "symfony/http-kernel": "^8.1"
+        "symfony/http-foundation": "^8.1.11",
+        "symfony/http-kernel": "^8.1.11"
     },
     "conflict": {
         "league/flysystem-ftp": "<3.13",
@@ -57,7 +57,7 @@
         "league/flysystem-ftp": "Required to use the Flysystem FTP driver (^3.25.1).",
         "league/flysystem-google-cloud-storage": "Required to use the Flysystem Google Cloud Storage driver (^3.25.1).",
         "league/flysystem-sftp-v3": "Required to use the Flysystem SFTP driver (^3.25.1).",
-        "symfony/filesystem": "Required to use relative symbolic links (^8.1).",
+        "symfony/filesystem": "Required to use relative symbolic links (^8.1.11).",
         "symfony/mime": "Required to enable support for guessing extensions (^8.1)."
     },
     "autoload": {

@@ -249,6 +249,8 @@ trait InteractsWithContainer
 
     /**
      * Execute deferred callbacks immediately.
+     *
+     * @return $this
      */
     protected function withoutDefer(): static
     {
@@ -273,6 +275,8 @@ trait InteractsWithContainer
 
     /**
      * Restore deferred callbacks.
+     *
+     * @return $this
      */
     protected function withDefer(): static
     {

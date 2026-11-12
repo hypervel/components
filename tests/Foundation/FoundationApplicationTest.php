@@ -297,6 +297,8 @@ class FoundationApplicationTest extends TestCase
         $this->assertTrue($app->environment('f*'));
         $this->assertTrue($app->environment('foo', 'bar'));
         $this->assertTrue($app->environment(['foo', 'bar']));
+        $this->assertTrue($app->environment(environments: 'foo'));
+        $this->assertTrue($app->environment(environments: ['qux', 'foo']));
 
         $this->assertFalse($app->environment('qux'));
         $this->assertFalse($app->environment('q*'));

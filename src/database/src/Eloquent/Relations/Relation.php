@@ -339,7 +339,6 @@ abstract class Relation implements BuilderContract
      */
     public function getRelationExistenceCountQuery(Builder $query, Builder $parentQuery): Builder
     {
-        // @phpstan-ignore return.type (fluent query methods return the Eloquent builder at runtime)
         return $this->getRelationExistenceQuery(
             $query,
             $parentQuery,
@@ -358,7 +357,6 @@ abstract class Relation implements BuilderContract
      */
     public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
-        // @phpstan-ignore return.type (fluent query methods return the Eloquent builder at runtime)
         return $query->select($columns)->whereColumn(
             $this->getQualifiedParentKeyName(),
             '=',

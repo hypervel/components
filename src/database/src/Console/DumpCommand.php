@@ -11,6 +11,8 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Events\MigrationsPruned;
 use Hypervel\Database\Events\SchemaDumped;
+use Hypervel\Database\Migrations\Migrator;
+use Hypervel\Database\Schema\SchemaState;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\Config;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -43,8 +45,11 @@ class DumpCommand extends Command
             return self::FAILURE;
         }
 
+        // Dump the connection that migrations run on, which `migrate` loads the dump into.
         /** @var Connection $connection */
-        $connection = $connections->connection($database = $this->input->getOption('database'));
+        $connection = $connections->connection(
+            Migrator::resolveMigrationConnectionName($this->input->getOption('database'))
+        );
 
         $this->schemaState($connection)->dump(
             $connection,
@@ -78,7 +83,7 @@ class DumpCommand extends Command
     /**
      * Create a schema state instance for the given connection.
      */
-    protected function schemaState(Connection $connection): mixed
+    protected function schemaState(Connection $connection): SchemaState
     {
         $migrationTable = Config::string('database.migrations.table');
 

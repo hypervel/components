@@ -24,7 +24,6 @@ use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\API\Trace\TracerProviderInterface;
 use OpenTelemetry\Context\Context;
 use OpenTelemetry\SemConv\Attributes\ErrorAttributes;
-use Swoole\Coroutine\CanceledException;
 use Swoole\WebSocket\Frame;
 
 class WebSocketInstrumentation extends AbstractInstrumentation
@@ -190,10 +189,6 @@ class WebSocketInstrumentation extends AbstractInstrumentation
      */
     protected function finish(MessageHandled $event): void
     {
-        if ($event->exception instanceof CanceledException) {
-            return;
-        }
-
         $state = $this->takeState($event->frame);
 
         if ($state === null && $this->messages === null) {
@@ -203,26 +198,33 @@ class WebSocketInstrumentation extends AbstractInstrumentation
         $finishedAt = $state === null ? 0 : $this->clock->now();
         $spanRecording = $state?->span?->isRecording() === true;
         $attributes = $state->attributes ?? [];
+        // A directly canceled message produced no result.
+        $canceled = $this->isDirectCancellation($event->exception);
+        $exception = $canceled ? null : $event->exception;
 
         if ($spanRecording || ($state !== null && $this->duration !== null) || $this->messages !== null) {
             if ($attributes === []) {
                 $attributes = $this->messageAttributes($event->frame, $event->server);
             }
 
-            $attributes['result'] = $event->exception === null ? 'success' : 'failure';
+            if (! $canceled) {
+                $attributes['result'] = $exception === null ? 'success' : 'failure';
+            }
 
-            if ($event->exception !== null) {
-                $attributes[ErrorAttributes::ERROR_TYPE] = $event->exception::class;
+            if ($exception !== null) {
+                $attributes[ErrorAttributes::ERROR_TYPE] = $exception::class;
             }
         }
 
         try {
             if ($spanRecording) {
-                $state->span?->setAttribute('result', $attributes['result']);
+                if (! $canceled) {
+                    $state->span?->setAttribute('result', $attributes['result']);
+                }
 
-                if ($event->exception !== null) {
-                    $state->span?->recordException($event->exception);
-                    $state->span?->setAttribute(ErrorAttributes::ERROR_TYPE, $event->exception::class);
+                if ($exception !== null) {
+                    $state->span?->recordException($exception);
+                    $state->span?->setAttribute(ErrorAttributes::ERROR_TYPE, $exception::class);
                     $state->span?->setStatus(StatusCode::STATUS_ERROR);
                 }
             }

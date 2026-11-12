@@ -24,6 +24,7 @@ use Hypervel\Queue\Outbox\OutboxBatchResult;
 use Hypervel\Queue\Outbox\OutboxMessage;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\FailureReporter;
 use Hypervel\Support\Str;
 use LogicException;
 use RuntimeException;
@@ -423,6 +424,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
     protected function sendBatchedMessages(array $messages, ?string $queue): void
     {
         $outstandingMessageIds = array_fill_keys(array_keys($messages), true);
+        $attemptedMessageIds = [];
 
         try {
             foreach ($messages as $id => $message) {
@@ -457,11 +459,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
             $store = $overflow === [] ? null : $this->overflowStore();
             $chunks = $this->chunkBatchEntries($entries);
         } catch (Throwable $exception) {
-            if (Coroutine::causedByCancellation($exception)) {
-                throw $exception;
-            }
-
-            $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
+            $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $attemptedMessageIds, $queue, $exception);
 
             throw $exception;
         }
@@ -475,15 +473,14 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                     $this->raiseJobQueueingEvent($queue, $message['job'], $message['payload'], $message['delay']);
                 }
 
+                // Overflow storage is part of the send, as in pushRaw().
+                $attemptedMessageIds += array_fill_keys(array_column($chunk, 'Id'), true);
+
                 if ($store !== null) {
                     $this->storeBatchOverflowPayloads($chunk, $overflow, $store);
                 }
             } catch (Throwable $exception) {
-                if (Coroutine::causedByCancellation($exception)) {
-                    throw $exception;
-                }
-
-                $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
+                $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $attemptedMessageIds, $queue, $exception);
 
                 throw $exception;
             }
@@ -496,11 +493,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                     'Entries' => $chunk,
                 ]);
             } catch (Throwable $exception) {
-                if (Coroutine::causedByCancellation($exception)) {
-                    throw $exception;
-                }
-
-                $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
+                $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $attemptedMessageIds, $queue, $exception);
 
                 throw $exception;
             }
@@ -518,7 +511,11 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                 $accepted[] = $success;
             }
 
+            // Cleanup and notification throw only cancellation, which must not skip
+            // the accepted messages' queued events or the outstanding messages' outcomes.
             $exception = null;
+            $notificationFailure = null;
+            $cancellation = null;
 
             if (! empty($result['Failed'])) {
                 $exception = $this->batchRejectionException($queueUrl, $chunk, $result);
@@ -532,32 +529,50 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                         }
                     }
 
-                    $this->cleanupOverflowPayloads($store, $rejectedPaths);
+                    try {
+                        $this->cleanupOverflowPayloads($store, $rejectedPaths);
+                    } catch (Throwable $throwable) {
+                        $cancellation = $throwable;
+                    }
                 }
             }
 
-            $notificationFailure = $this->notifyBatchMembers(
-                $accepted,
-                fn (array $success) => $this->handlePayloadPushed($messages[$success['Id']]['storedPayload'], $queue),
-                function (array $success) use ($messages, $queue): void {
-                    $message = $messages[$success['Id']];
-                    $this->raiseJobQueuedEvent($queue, $success['MessageId'], $message['job'], $message['payload'], $message['delay']);
-                },
-            );
-
-            if ($exception !== null && $notificationFailure !== null) {
-                $this->reportSecondaryFailure($notificationFailure);
+            try {
+                $notificationFailure = $this->notifyBatchMembers(
+                    $accepted,
+                    fn (array $success) => $this->handlePayloadPushed($messages[$success['Id']]['storedPayload'], $queue),
+                    function (array $success) use ($messages, $queue): void {
+                        $message = $messages[$success['Id']];
+                        $this->raiseJobQueuedEvent($queue, $success['MessageId'], $message['job'], $message['payload'], $message['delay']);
+                    },
+                );
+            } catch (Throwable $throwable) {
+                $cancellation = Coroutine::preferCancellation($cancellation, $throwable);
             }
 
-            $exception ??= $notificationFailure;
+            $failure = $exception ?? $notificationFailure ?? $cancellation;
 
-            if ($exception === null) {
+            if ($failure === null) {
                 continue;
             }
 
-            $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $queue, $exception);
+            // A rejection stays the outcome of the messages it left unsent. A canceled
+            // notification or report must not hide the failures still to be reported.
+            try {
+                $this->raiseBatchFailedEvents($messages, $outstandingMessageIds, $attemptedMessageIds, $queue, $failure);
+            } catch (Throwable $throwable) {
+                $cancellation = Coroutine::preferCancellation($cancellation, $throwable);
+            }
 
-            throw $exception;
+            if ($exception !== null && $notificationFailure !== null) {
+                try {
+                    $this->reportSecondaryFailure($notificationFailure);
+                } catch (Throwable $throwable) {
+                    $cancellation = Coroutine::preferCancellation($cancellation, $throwable);
+                }
+            }
+
+            throw $cancellation === null ? $failure : FailureReporter::preferCancellation($failure, $cancellation);
         }
     }
 
@@ -692,19 +707,30 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
     }
 
     /**
-     * Raise queueing-failed events for every outstanding message.
+     * Raise queueing-failed or canceled events for every outstanding message.
+     *
+     * @param array<int, true> $outstandingMessageIds
+     * @param array<int, true> $attemptedMessageIds
      */
     protected function raiseBatchFailedEvents(
         array $messages,
         array $outstandingMessageIds,
+        array $attemptedMessageIds,
         ?string $queue,
         Throwable $exception,
     ): void {
         $this->notifyBatchMembersOfFailure(
             array_keys($outstandingMessageIds),
-            function (int $id) use ($messages, $queue, $exception): void {
+            function (int $id) use ($messages, $attemptedMessageIds, $queue, $exception): void {
                 $message = $messages[$id];
-                $this->raiseJobQueueingFailedEvent($queue, $message['job'], $message['payload'], $message['delay'], $exception);
+                $this->raiseJobQueueingFailedEvent(
+                    $queue,
+                    $message['job'],
+                    $message['payload'],
+                    $message['delay'],
+                    $exception,
+                    isset($attemptedMessageIds[$id]),
+                );
             },
         );
     }
@@ -854,7 +880,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue, Publishes
                     try {
                         $this->reportSecondaryFailure($exception);
                     } catch (Throwable $reportingCancellation) {
-                        $cancellation ??= $reportingCancellation;
+                        $cancellation = Coroutine::preferCancellation($cancellation, $reportingCancellation);
                     }
                 }
             }

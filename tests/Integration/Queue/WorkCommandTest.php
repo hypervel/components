@@ -302,7 +302,7 @@ class WorkCommandTest extends QueueTestCase
         $cache = m::mock(Repository::class);
         $cache->shouldNotReceive('get')->with(Worker::RESTART_SIGNAL_CACHE_KEY);
         $cache->expects('get')->with('illuminate:queues:paused', false)->andReturn(false);
-        $cache->expects('many')
+        $cache->expects('get')
             ->with(['illuminate:queue:paused:database:default'])
             ->andReturn(['illuminate:queue:paused:database:default' => false]);
 
@@ -332,7 +332,6 @@ class WorkCommandTest extends QueueTestCase
         $cache = m::mock(Repository::class);
 
         $cache->expects('get')->twice()->with(Worker::RESTART_SIGNAL_CACHE_KEY)->andReturn(null);
-        $cache->shouldNotReceive('many');
 
         Cache::expects('store')->andReturn($cache);
         Cache::shouldNotReceive('driver');

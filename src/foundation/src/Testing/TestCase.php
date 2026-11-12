@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\BootProviders;
@@ -115,11 +116,11 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         $this->traitsUsedByTest ??= class_uses_recursive(static::class);
 
         if (isset(CachedState::$cachedConfig, $this->traitsUsedByTest[WithCachedConfig::class])) {
-            $this->markConfigCached($app); // @phpstan-ignore method.notFound
+            $this->markConfigCached($app); // @phpstan-ignore method.notFound (provided by WithCachedConfig, checked above)
         }
 
         if (isset(CachedState::$cachedRoutes, $this->traitsUsedByTest[WithCachedRoutes::class])) {
-            $this->markRoutesCached($app); // @phpstan-ignore method.notFound
+            $this->markRoutesCached($app); // @phpstan-ignore method.notFound (provided by WithCachedRoutes, checked above)
         }
     }
 
@@ -143,7 +144,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         try {
             $this->tearDownTheTestEnvironmentUsingMockery();
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = Coroutine::preferCancellation($exception, $throwable);
         }
 
         if ($exception !== null) {

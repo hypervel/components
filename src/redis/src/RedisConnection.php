@@ -14,6 +14,7 @@ use Hypervel\Contracts\ConnectionPool\ConnectionPool;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Redis\Exceptions\InvalidRedisOptionException;
 use Hypervel\Redis\Exceptions\LuaScriptException;
@@ -36,7 +37,6 @@ use Throwable;
  * @method mixed set(string $key, mixed $value, mixed $expireResolution = null, int|null $expireTTL = null, string|null $flag = null) Set the value of a key
  * @method array|false|Redis|RedisCluster mget(array $keys) Get the values of multiple keys
  * @method bool|int|Redis|RedisCluster setnx(string $key, mixed $value) Set key if not exists
- * @method bool|int|Redis|RedisCluster setNx(string $key, mixed $value) Set key if not exists
  * @method array|false|Redis|RedisCluster hmget(string $key, array $fields) Get hash field values
  * @method bool|Redis|RedisCluster hmset(string $key, array $fieldValues) Set hash field values
  * @method bool|int|Redis|RedisCluster hsetnx(string $hash, string $key, mixed $value) Set hash field if not exists
@@ -59,7 +59,7 @@ use Throwable;
  * @method mixed evalsha(string $script, int $numkeys, mixed ...$arguments) Evaluate Lua script by SHA1
  * @method mixed flushdb(mixed ...$arguments) Flush database
  * @method mixed executeRaw(array $parameters) Execute raw Redis command
- * @method mixed pipeline(callable|null $callback = null) Execute commands in a pipeline
+ * @method bool|Redis pipeline() Execute commands in a pipeline
  * @method array|false|Redis|RedisCluster smembers(string $key) Get all set members
  * @method false|int|Redis|RedisCluster hdel(string $key, string $field, string ...$other_fields) Delete hash fields
  * @method false|int|Redis|RedisCluster zrem(mixed $key, mixed $member, mixed ...$other_members) Remove sorted set members
@@ -78,8 +78,6 @@ use Throwable;
  * @method false|int|Redis|RedisCluster bitcount(string $key, int $start = 0, int $end = -1, bool $bybit = false)
  * @method false|int|Redis|RedisCluster bitop(string $operation, string $deskey, string $srckey, string ...$other_keys)
  * @method false|int|Redis|RedisCluster bitpos(string $key, bool $bit, int $start = 0, int $end = -1, bool $bybit = false)
- * @method null|array|false|Redis|RedisCluster blPop(array|string $key_or_keys, float|int|string $timeout_or_key, mixed ...$extra_args) Blocking left pop from list
- * @method null|array|false|Redis|RedisCluster brPop(array|string $key_or_keys, float|int|string $timeout_or_key, mixed ...$extra_args) Blocking right pop from list
  * @method false|Redis|RedisCluster|string brpoplpush(string $src, string $dst, float|int $timeout)
  * @method array|false|Redis|RedisCluster bzPopMax(array|string $key, int|string $timeout_or_key, mixed ...$extra_args)
  * @method array|false|Redis|RedisCluster bzPopMin(array|string $key, int|string $timeout_or_key, mixed ...$extra_args)
@@ -88,7 +86,6 @@ use Throwable;
  * @method null|array|false|Redis|RedisCluster blmpop(float $timeout, array $keys, string $from, int $count = 1)
  * @method null|array|false|Redis|RedisCluster lmpop(array $keys, string $from, int $count = 1)
  * @method bool clearLastError()
- * @method mixed client(string $opt = '', mixed ...$args)
  * @method mixed command(string|null $opt = null, mixed ...$args)
  * @method mixed config(string $operation, array|string|null $key_or_settings = null, string|null $value = null)
  * @method bool connect(string $host, int $port = 6379, float $timeout = 0, string|null $persistent_id = null, int $retry_interval = 0, float $read_timeout = 0, array|null $context = null)
@@ -115,7 +112,6 @@ use Throwable;
  * @method mixed fcall(string $fn, array $keys = [], array $args = [])
  * @method mixed fcall_ro(string $fn, array $keys = [], array $args = [])
  * @method bool|Redis|RedisCluster flushAll(bool|null $sync = null)
- * @method mixed flushDB(mixed ...$arguments) Flush database
  * @method array|bool|Redis|string function(string $operation, mixed ...$args)
  * @method false|int|Redis|RedisCluster geoadd(string $key, float $lng, float $lat, string $member, mixed ...$other_triples_and_options)
  * @method false|float|Redis|RedisCluster geodist(string $key, string $src, string $dst, string|null $unit = null)
@@ -146,7 +142,6 @@ use Throwable;
  * @method array getTransferredBytes()
  * @method void clearTransferredBytes()
  * @method array|false|Redis|RedisCluster getWithMeta(string $key)
- * @method false|int|Redis|RedisCluster hDel(string $key, string $field, string ...$other_fields) Delete hash fields
  * @method array|false|Redis|RedisCluster hexpire(string $key, int $ttl, array $fields, string|null $mode = null)
  * @method array|false|Redis|RedisCluster hpexpire(string $key, int $ttl, array $fields, string|null $mode = null)
  * @method array|false|Redis|RedisCluster hexpireat(string $key, int $time, array $fields, string|null $mode = null)
@@ -157,20 +152,13 @@ use Throwable;
  * @method array|false|Redis|RedisCluster hpexpiretime(string $key, array $fields)
  * @method array|false|Redis|RedisCluster hpersist(string $key, array $fields)
  * @method bool|Redis|RedisCluster hExists(string $key, string $field)
- * @method mixed hGet(string $key, string $member) Get hash field value
  * @method array|false|Redis|RedisCluster hGetAll(string $key)
  * @method mixed hGetWithMeta(string $key, string $member)
  * @method array|false|Redis|RedisCluster hgetdel(string $key, array $fields)
  * @method array|false|Redis|RedisCluster hgetex(string $key, array $fields, string|array|null $expiry = null)
  * @method false|int|Redis|RedisCluster hIncrBy(string $key, string $field, int $value)
  * @method false|float|Redis|RedisCluster hIncrByFloat(string $key, string $field, float $value)
- * @method array|false|Redis|RedisCluster hKeys(string $key) Get all hash field names
- * @method false|int|Redis|RedisCluster hLen(string $key) Get number of hash fields
- * @method array|false|Redis|RedisCluster hMget(string $key, array $fields) Get hash field values
- * @method bool|Redis|RedisCluster hMset(string $key, array $fieldValues) Set hash field values
  * @method array|false|Redis|RedisCluster|string hRandField(string $key, array|null $options = null)
- * @method false|int|Redis|RedisCluster hSet(string $key, mixed ...$fields_and_vals) Set hash field values
- * @method bool|int|Redis|RedisCluster hSetNx(string $hash, string $key, mixed $value) Set hash field if not exists
  * @method false|int|Redis|RedisCluster hsetex(string $key, array $fields, array|null $expiry = null)
  * @method false|int|Redis|RedisCluster hStrLen(string $key, string $field)
  * @method array|false|Redis|RedisCluster hVals(string $key)
@@ -181,7 +169,6 @@ use Throwable;
  * @method bool isConnected()
  * @method array|false|Redis|RedisCluster keys(string $pattern)
  * @method false|int|Redis|RedisCluster lInsert(string $key, string $pos, mixed $pivot, mixed $value)
- * @method false|int|Redis|RedisCluster lLen(string $key) Get list length
  * @method false|Redis|RedisCluster|string lMove(string $src, string $dst, string $wherefrom, string $whereto)
  * @method false|Redis|RedisCluster|string blmove(string $src, string $dst, string $wherefrom, string $whereto, float $timeout)
  * @method array|bool|Redis|RedisCluster|string lPop(string $key, int $count = 0)
@@ -230,10 +217,8 @@ use Throwable;
  * @method array|false|Redis|RedisCluster sInter(array|string $key, string ...$other_keys)
  * @method false|int|Redis|RedisCluster sintercard(array $keys, int $limit = -1)
  * @method false|int|Redis|RedisCluster sInterStore(array|string $key, string ...$other_keys)
- * @method array|false|Redis|RedisCluster sMembers(string $key) Get all set members
  * @method array|false|Redis|RedisCluster sMisMember(string $key, string $member, string ...$other_members)
  * @method bool|Redis|RedisCluster sMove(string $src, string $dst, mixed $value)
- * @method mixed sPop(string $key, int $count = 0) Remove and return random set member
  * @method mixed sRandMember(string $key, int $count = 0)
  * @method array|false|Redis|RedisCluster sUnion(string $key, string ...$other_keys)
  * @method false|int|Redis|RedisCluster sUnionStore(string $dst, string $key, string ...$other_keys)
@@ -253,7 +238,6 @@ use Throwable;
  * @method mixed slowlog(string $operation, int $length = 0)
  * @method mixed sort(string $key, array|null $options = null)
  * @method mixed sort_ro(string $key, array|null $options = null)
- * @method false|int|Redis|RedisCluster srem(string $key, mixed $value, mixed ...$other_values) Remove members from set
  * @method false|int|Redis|RedisCluster strlen(string $key)
  * @method array|bool|Redis sunsubscribe(array $channels)
  * @method bool|Redis swapdb(int $src, int $dst)
@@ -293,9 +277,6 @@ use Throwable;
  * @method array|bool|Redis|RedisCluster xreadgroup(string $group, string $consumer, array $streams, int $count = 1, int $block = 1)
  * @method array|bool|Redis|RedisCluster xrevrange(string $key, int|string $end, int|string $start, int $count = -1)
  * @method false|int|Redis|RedisCluster xtrim(string $key, int|string $threshold, bool $approx = false, bool $minid = false, int $limit = -1)
- * @method false|float|int|Redis|RedisCluster zAdd(string $key, array|float $score_or_options, mixed ...$more_scores_and_mems) Add members to sorted set
- * @method false|int|Redis|RedisCluster zCard(string $key) Get sorted set cardinality
- * @method false|int|Redis|RedisCluster zCount(string $key, float|int|string $start, float|int|string $end) Count sorted set members by score range
  * @method false|float|Redis|RedisCluster zIncrBy(string $key, float $value, mixed $member)
  * @method false|int|Redis|RedisCluster zLexCount(string $key, string $min, string $max)
  * @method array|false|Redis|RedisCluster zMscore(string $key, mixed $member, mixed ...$other_members)
@@ -303,17 +284,14 @@ use Throwable;
  * @method array|false|Redis|RedisCluster zPopMin(string $key, int|null $count = null)
  * @method array|false|Redis|RedisCluster zRange(string $key, string|int $start, string|int $end, array|bool|null $options = null)
  * @method array|false|Redis|RedisCluster zRangeByLex(string $key, string $min, string $max, int $offset = -1, int $count = -1)
- * @method array|false|Redis|RedisCluster zRangeByScore(string $key, float|int|string $min, float|int|string $max, array $options = []) Get sorted set members by score range
  * @method false|int|Redis|RedisCluster zrangestore(string $dstkey, string $srckey, string $start, string $end, array|bool|null $options = null)
  * @method array|Redis|RedisCluster|string zRandMember(string $key, array|null $options = null)
  * @method false|int|Redis|RedisCluster zRank(string $key, mixed $member)
- * @method false|int|Redis|RedisCluster zRem(mixed $key, mixed $member, mixed ...$other_members) Remove sorted set members
  * @method false|int|Redis|RedisCluster zRemRangeByLex(string $key, string $min, string $max)
  * @method false|int|Redis|RedisCluster zRemRangeByRank(string $key, int $start, int $end)
  * @method false|int|Redis|RedisCluster zRemRangeByScore(string $key, float|int|string $start, float|int|string $end)
  * @method array|false|Redis|RedisCluster zRevRange(string $key, int $start, int $end, mixed $scores = null)
  * @method array|false|Redis|RedisCluster zRevRangeByLex(string $key, string $max, string $min, int $offset = -1, int $count = -1)
- * @method array|false|Redis|RedisCluster zRevRangeByScore(string $key, float|int|string $max, float|int|string $min, array $options = []) Get sorted set members by score range (reverse)
  * @method false|int|Redis|RedisCluster zRevRank(string $key, mixed $member)
  * @method false|float|Redis|RedisCluster zScore(string $key, mixed $member)
  * @method array|false|Redis|RedisCluster zdiff(array $keys, array|null $options = null)
@@ -638,7 +616,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
             'compression' => Redis::OPT_COMPRESSION,
             'reply_literal' => Redis::OPT_REPLY_LITERAL,
             'compression_level' => Redis::OPT_COMPRESSION_LEVEL,
-            'pack_ignore_numbers' => Redis::OPT_PACK_IGNORE_NUMBERS, // @phpstan-ignore classConstant.notFound (setOptions() guards this option before resolving the constant)
+            'pack_ignore_numbers' => Redis::OPT_PACK_IGNORE_NUMBERS,
             'max_retries' => Redis::OPT_MAX_RETRIES,
             'backoff_algorithm' => Redis::OPT_BACKOFF_ALGORITHM,
             'backoff_base' => Redis::OPT_BACKOFF_BASE,
@@ -756,10 +734,11 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
 
             try {
                 $this->log('Release connection failed, caused by ' . $exception, LogLevel::CRITICAL);
-            } catch (CanceledException $cancellation) {
-                $this->releaseAfterCancellation($cancellation);
-            } catch (Throwable) {
+            } catch (Throwable $loggingException) {
                 // Reporting must not prevent terminal ownership cleanup.
+                if (Coroutine::causedByCancellation($loggingException)) {
+                    $this->releaseAfterCancellation($loggingException);
+                }
             }
 
             $this->resetReleaseState(true);
@@ -778,11 +757,12 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
                             : 'Discarding Redis connection left in WATCH state.',
                         LogLevel::CRITICAL
                     );
-                } catch (CanceledException $cancellation) {
-                    // Native close must not start while cancellation is unwinding.
-                    $this->releaseAfterCancellation($cancellation);
-                } catch (Throwable) {
-                    // Reporting must not prevent terminal ownership cleanup.
+                } catch (Throwable $loggingException) {
+                    // Native close must not start while cancellation is unwinding, and reporting
+                    // must not prevent terminal ownership cleanup.
+                    if (Coroutine::causedByCancellation($loggingException)) {
+                        $this->releaseAfterCancellation($loggingException);
+                    }
                 }
             }
 
@@ -827,10 +807,11 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
                 if ($cancellation === null) {
                     try {
                         $this->log('Release connection failed, caused by ' . $exception, LogLevel::CRITICAL);
-                    } catch (CanceledException $loggingCancellation) {
-                        $cancellation = $loggingCancellation;
-                    } catch (Throwable) {
+                    } catch (Throwable $loggingException) {
                         // Reporting must not prevent terminal ownership cleanup.
+                        if (Coroutine::causedByCancellation($loggingException)) {
+                            $cancellation = $loggingException;
+                        }
                     }
                 }
             }
@@ -858,7 +839,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
     /**
      * Return an invalid connection to its pool after cancellation.
      */
-    private function releaseAfterCancellation(CanceledException $cancellation): never
+    private function releaseAfterCancellation(Throwable $cancellation): never
     {
         $this->markInvalid();
         $this->resetReleaseState(true);

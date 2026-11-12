@@ -16,6 +16,8 @@ interface EngineOperationObserver
 
     /**
      * Finish observing an engine operation.
+     *
+     * Every started observer is finished, receiving the operation's failure or cancellation, if any.
      */
     public function finished(
         EngineOperation $operation,

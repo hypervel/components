@@ -7,6 +7,7 @@ namespace Hypervel\Testbench\Concerns\Database;
 use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Env;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Concerns\InteractsWithPublishedFiles;
 use InvalidArgumentException;
@@ -44,7 +45,8 @@ trait InteractsWithSqliteDatabaseFile
     protected function baseSqliteDatabasePath(): string
     {
         $database = $this->app->make('config')->string('database.connections.sqlite.database');
-        $token = env('TEST_TOKEN');
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the parallel test runner sets each process's token in its environment)
+        $token = Env::get('TEST_TOKEN');
 
         if ($token === null) {
             return $database;
@@ -68,7 +70,8 @@ trait InteractsWithSqliteDatabaseFile
     protected function activeSqliteDatabasePath(): string
     {
         $database = $this->baseSqliteDatabasePath();
-        $token = env('TEST_TOKEN');
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the parallel test runner sets each process's token in its environment)
+        $token = Env::get('TEST_TOKEN');
 
         if ($token === null || $database === '' || SQLiteDatabase::isInMemory($database)) {
             return $database;

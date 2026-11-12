@@ -14,6 +14,7 @@ trait UniqueByScoutKeys
      *
      * @var int
      */
+    // @phpstan-ignore hypervel.legacyQueueProperty (public property; removing it would leave assignments to it without declared storage)
     public $uniqueFor = 3600;
 
     /**

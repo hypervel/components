@@ -179,16 +179,18 @@ abstract class ConnectionPool implements ConnectionPoolContract
 
         try {
             $healthy = $connection->check();
-        } catch (CanceledException $cancellation) {
-            try {
-                $this->destroyConnection($connection);
-            } catch (CanceledException) {
-            } catch (Throwable $exception) {
-                $this->report($exception);
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                try {
+                    $this->destroyConnection($connection);
+                } catch (CanceledException) {
+                } catch (Throwable $cleanupException) {
+                    $this->report($cleanupException);
+                }
+
+                throw $exception;
             }
 
-            throw $cancellation;
-        } catch (Throwable $exception) {
             $this->report($exception);
             $healthy = false;
         }
@@ -219,10 +221,12 @@ abstract class ConnectionPool implements ConnectionPoolContract
 
         try {
             $this->idleMonitor?->stop();
-        } catch (CanceledException $exception) {
-            $cancellation = $exception;
         } catch (Throwable $exception) {
-            $this->report($exception);
+            if (Coroutine::causedByCancellation($exception)) {
+                $cancellation = $exception;
+            } else {
+                $this->report($exception);
+            }
         }
 
         $this->channel->close();
@@ -235,7 +239,7 @@ abstract class ConnectionPool implements ConnectionPoolContract
                     throw $exception;
                 }
 
-                $cancellation ??= $exception;
+                $cancellation = Coroutine::preferCancellation($cancellation, $exception);
             }
         }
 

@@ -52,8 +52,8 @@
         "hypervel/view": "^0.4",
         "nesbot/carbon": "^3.13.1",
         "symfony/console": "^8.1.10",
-        "symfony/http-foundation": "^8.1",
-        "symfony/http-kernel": "^8.1"
+        "symfony/http-foundation": "^8.1.11",
+        "symfony/http-kernel": "^8.1.11"
     },
     "config": {
         "sort-packages": true

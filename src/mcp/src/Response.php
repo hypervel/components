@@ -242,8 +242,7 @@ class Response
             throw new InvalidArgumentException("File not found at path [{$path}].");
         }
 
-        // The contract omits adapter metadata methods, which every shipped disk provides.
-        // @phpstan-ignore method.notFound
+        // @phpstan-ignore method.notFound (the contract omits adapter metadata methods, which every shipped disk provides)
         $mimeType ??= $storage->mimeType($path) ?: throw new InvalidArgumentException(
             "Unable to determine MIME type for [{$path}].",
         );

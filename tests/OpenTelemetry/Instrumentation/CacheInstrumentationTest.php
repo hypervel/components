@@ -219,7 +219,7 @@ class CacheInstrumentationTest extends TestCase
 
     #[TestWith([false], 'direct cancellation')]
     #[TestWith([true], 'wrapped cancellation')]
-    public function testResolverCancellationPropagatesWithoutCompletionTelemetry(bool $wrapped): void
+    public function testResolverCancellationPropagatesAfterCountingTheOperation(bool $wrapped): void
     {
         $cancellation = $wrapped ? new RuntimeException('Resolver cleanup failed.', previous: new CanceledException) : new CanceledException;
         $resolver = static function () use ($cancellation): never {
@@ -239,10 +239,12 @@ class CacheInstrumentationTest extends TestCase
             $this->assertSame($cancellation, $caught);
         });
 
+        // The key resolver only enriches the span event; the completed operation is counted first.
         $this->assertCount(0, $this->spanExporter->getSpans()[0]->getEvents());
         $metric = $this->metric('hypervel.cache.operations');
         $this->assertInstanceOf(Sum::class, $metric->data);
-        $this->assertCount(0, $metric->data->dataPoints);
+        $this->assertCount(1, $metric->data->dataPoints);
+        $this->assertSame('hit', $metric->data->dataPoints[0]->attributes->get('result'));
     }
 
     public function testMetricsOnlyModeSkipsCurrentSpanAndEveryKeyDependency(): void

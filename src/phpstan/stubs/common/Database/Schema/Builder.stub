@@ -1,0 +1,6 @@
+<?php
+
+namespace Hypervel\Database\Schema;
+
+class Builder
+{}

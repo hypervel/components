@@ -26,6 +26,7 @@ class NewPasswordController extends Controller
      */
     public function create(Request $request): View
     {
+        // @phpstan-ignore argument.type (AuthServiceProvider adds the Workbench views only when Workbench authentication is enabled.)
         return view('auth.reset-password', ['request' => $request]);
     }
 
@@ -49,7 +50,7 @@ class NewPasswordController extends Controller
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function (Authenticatable&CanResetPassword&Model $user) use ($request): void {
                 $user->forceFill([
-                    'password' => Hash::make($request->password), // @phpstan-ignore property.notFound
+                    'password' => Hash::make($request->password),
                 ]);
 
                 // The model names its remember token column, or has none.

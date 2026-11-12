@@ -6,13 +6,13 @@ namespace Hypervel\Mcp\Console\Commands;
 
 use Exception;
 use Hypervel\Console\Command;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Mcp\Server\Registrar;
 use Hypervel\Routing\Exceptions\UrlGenerationException;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\UrlGenerator;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Process;
-use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
@@ -160,9 +160,11 @@ class InspectorCommand extends Command
             Process::env($env)->forever()->run($command, function (string $type, string $buffer): void {
                 echo $buffer;
             })->throw();
-        } catch (CanceledException $exception) {
-            throw $exception;
         } catch (Exception $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
             $this->components->error('Failed to start MCP Inspector: ' . $exception->getMessage());
 
             return static::FAILURE;

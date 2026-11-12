@@ -26,6 +26,8 @@ class GitlabProvider extends AbstractProvider implements ProviderInterface
 
     /**
      * Set the Gitlab instance host.
+     *
+     * @return $this
      */
     public function setHost(?string $host): static
     {

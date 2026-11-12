@@ -48,11 +48,15 @@ interface ProcessResult
 
     /**
      * Throw an exception if the process failed.
+     *
+     * @return $this
      */
     public function throw(?callable $callback = null): static;
 
     /**
      * Throw an exception if the process failed and the given condition is true.
+     *
+     * @return $this
      */
     public function throwIf(bool $condition, ?callable $callback = null): static;
 }

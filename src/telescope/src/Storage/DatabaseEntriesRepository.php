@@ -223,7 +223,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
                         array_merge($exception->content, ['occurrences' => $occurrences[$familyHash]])
                     ),
                 ]);
-            })->toArray();
+            })->all();
 
             $connection = DB::connection($this->connection);
 
@@ -328,7 +328,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
                             'entry_uuid' => $entry->uuid,
                             'tag' => $tag,
                         ];
-                    })->toArray()
+                    })->all()
                 );
             } catch (UniqueConstraintViolationException) {
                 // Ignore tags that already exist...
