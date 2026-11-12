@@ -111,7 +111,7 @@ class CallbackEvent extends Event
      *
      * @throws RuntimeException
      */
-    #[Unsupported]
+    #[Unsupported('Only command and exec tasks can run in the background.')]
     public function runInBackground(): static
     {
         throw new RuntimeException('Scheduled closures can not be run in the background.');

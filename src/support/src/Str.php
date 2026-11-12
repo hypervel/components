@@ -2099,7 +2099,7 @@ class Str
     /**
      * Remove all strings from the casing caches.
      */
-    #[Unsupported]
+    #[Unsupported('Str keeps no casing caches; use StrCache for persistent casing caching.')]
     public static function flushCache(): void
     {
         throw new LogicException('Str::flushCache() is not implemented in Hypervel because Str casing caches are intentionally not used. Use StrCache for persistent casing caching.');

@@ -331,7 +331,7 @@ class PendingRequest implements Transient
     /**
      * Reject a custom Guzzle client that would bypass the API request pipeline.
      */
-    #[Unsupported]
+    #[Unsupported('Use setHandler() to configure a request-specific transport handler.')]
     public function setClient(ClientInterface $client): never
     {
         throw new BadMethodCallException(

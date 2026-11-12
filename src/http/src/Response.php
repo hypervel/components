@@ -157,7 +157,7 @@ class Response extends SymfonyResponse implements Transient
      * @throws RuntimeException always — Swoole manages headers via its own API
      */
     #[Override]
-    #[Unsupported]
+    #[Unsupported('Return the response from your route or controller so the server can send it.')]
     public function sendHeaders(?int $statusCode = null): never
     {
         throw new RuntimeException('Response::sendHeaders() is not supported in Hypervel. Responses are emitted through Swoole\'s response API.');
@@ -169,7 +169,7 @@ class Response extends SymfonyResponse implements Transient
      * @throws RuntimeException always — Swoole has no SAPI output stream
      */
     #[Override]
-    #[Unsupported]
+    #[Unsupported('Return the response from your route or controller so the server can send it.')]
     public function sendContent(): never
     {
         throw new RuntimeException('Response::sendContent() is not supported in Hypervel. Responses are emitted through Swoole\'s response API.');
@@ -181,7 +181,7 @@ class Response extends SymfonyResponse implements Transient
      * @throws RuntimeException always — Swoole manages response emission
      */
     #[Override]
-    #[Unsupported]
+    #[Unsupported('Return the response from your route or controller so the server can send it.')]
     public function send(bool $flush = true): never
     {
         throw new RuntimeException('Response::send() is not supported in Hypervel. Responses are emitted through Swoole\'s response API.');

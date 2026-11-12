@@ -9,4 +9,13 @@ use Attribute;
 #[Attribute(Attribute::TARGET_METHOD)]
 class Unsupported
 {
+    /**
+     * Create a new attribute instance.
+     *
+     * @param null|string $message guidance for callers
+     */
+    public function __construct(
+        public ?string $message = null,
+    ) {
+    }
 }

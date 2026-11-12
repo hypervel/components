@@ -308,7 +308,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      *
      * @throws RuntimeException always — superglobals don't exist in Swoole workers
      */
-    #[Unsupported]
+    #[Unsupported('Access the current request through dependency injection or request().')]
     public static function createFromGlobals(): never
     {
         throw new RuntimeException('Request::createFromGlobals() is not supported in Hypervel. Requests are created from Swoole request objects.');

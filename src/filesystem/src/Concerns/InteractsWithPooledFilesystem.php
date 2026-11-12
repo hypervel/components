@@ -508,7 +508,7 @@ trait InteractsWithPooledFilesystem
     /**
      * Reject access to the borrowed Flysystem driver.
      */
-    #[Unsupported]
+    #[Unsupported('Use withDriver() for borrow-scoped access.')]
     public function getDriver(): never
     {
         throw $this->borrowedInternalsException();
@@ -517,7 +517,7 @@ trait InteractsWithPooledFilesystem
     /**
      * Reject access to the borrowed Flysystem adapter.
      */
-    #[Unsupported]
+    #[Unsupported('Use withAdapter() for borrow-scoped access.')]
     public function getAdapter(): never
     {
         throw $this->borrowedInternalsException();
@@ -526,7 +526,7 @@ trait InteractsWithPooledFilesystem
     /**
      * Reject access to a borrowed client.
      */
-    #[Unsupported]
+    #[Unsupported('Use withClient() for borrow-scoped access.')]
     public function getClient(): never
     {
         throw $this->borrowedInternalsException();

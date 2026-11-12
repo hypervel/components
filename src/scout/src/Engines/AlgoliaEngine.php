@@ -487,7 +487,7 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
      *
      * @throws NotSupportedException
      */
-    #[Unsupported]
+    #[Unsupported('Indexes are created automatically when objects are added.')]
     public function createIndex(string $name, array $options = []): mixed
     {
         throw new NotSupportedException('Algolia indexes are created automatically upon adding objects.');

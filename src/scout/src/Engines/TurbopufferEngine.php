@@ -760,7 +760,7 @@ class TurbopufferEngine extends Engine implements DeletesByFilter, SupportsSeman
      *
      * @throws NotSupportedException
      */
-    #[Unsupported]
+    #[Unsupported('Namespaces are created automatically when documents are added.')]
     public function createIndex(string $name, array $options = []): mixed
     {
         throw new NotSupportedException('Turbopuffer namespaces are created automatically upon adding documents.');

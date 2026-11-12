@@ -217,7 +217,7 @@ class DatabaseManager implements ConnectionResolverInterface
      *
      * @throws RuntimeException Always - dynamic connections not supported in Hypervel
      */
-    #[Unsupported]
+    #[Unsupported('Configure every connection in config/database.php.')]
     public function build(array $config): never
     {
         throw new RuntimeException(
@@ -231,7 +231,7 @@ class DatabaseManager implements ConnectionResolverInterface
      *
      * @throws RuntimeException Always - dynamic connections not supported in Hypervel
      */
-    #[Unsupported]
+    #[Unsupported('Configure every connection in config/database.php.')]
     public function connectUsing(string $name, array $config, bool $force = false): never
     {
         throw new RuntimeException(

@@ -929,7 +929,7 @@ class TypesenseEngine extends Engine implements DeletesByFilter, SupportsSemanti
      *
      * @throws NotSupportedException
      */
-    #[Unsupported]
+    #[Unsupported('Indexes are created automatically when objects are added.')]
     public function createIndex(string $name, array $options = []): mixed
     {
         throw new NotSupportedException('Typesense indexes are created automatically upon adding objects.');

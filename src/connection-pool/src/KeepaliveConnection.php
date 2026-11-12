@@ -72,7 +72,7 @@ abstract class KeepaliveConnection implements ConnectionContract
      *
      * @throws InvalidArgumentException
      */
-    #[Unsupported]
+    #[Unsupported('Use call() instead.')]
     public function getConnection(): mixed
     {
         throw new InvalidArgumentException('Please use call instead of getConnection.');

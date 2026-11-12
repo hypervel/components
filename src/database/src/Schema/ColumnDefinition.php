@@ -45,7 +45,7 @@ class ColumnDefinition extends Fluent
     /**
      * Reject partial index modifiers on column definitions.
      */
-    #[Unsupported]
+    #[Unsupported('Chain it onto an index: $table->index(...)->whereNotNull(...).')]
     public function whereNotNull(string $column): never
     {
         throw new LogicException(
