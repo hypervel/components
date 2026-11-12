@@ -177,38 +177,47 @@ New `src/phpstan/src/Support/FacadeHelper.php`, an `@internal` `#[AutowiredServi
   - **Only exact construction counts.** These rules identify the root; they don't interpret factories, extenders or callbacks.
     - `Container::resolve()` applies registered extenders after construction (`Container.php:1299`), and an extender can return another object. So a not-yet-resolved chain with an extender registered for any of its keys (the container's `$extenders`, read like the other container state) is unknown. A booted instance stays evidence, since `extend()` replaces a stored instance directly.
     - A class reached without a factory that implements `SelfBuilding` is unknown: the container builds it through `newInstance()`, which may return a subclass. A literal `new X(...)` in a factory is still exact.
-    - "Buildable" uses `WorkerLifetimes::getBuildableClass()`'s rules (a concrete class without `#[Bind]`/`#[BindWhen]`), shared as a public static method that takes the reflection provider. The `SelfBuilding` check stays local to `FacadeHelper`, so the helper's meaning doesn't change for `WorkerLifetimes`.
+    - "Buildable" uses `WorkerLifetimes`' rules (a concrete class without `#[Bind]`/`#[BindWhen]`), shared as public static `WorkerLifetimes::isBuildableClass(ClassReflection)`; each caller looks the class up itself, so `WorkerLifetimes` still records it as a dependency. The `SelfBuilding` check stays local to `FacadeHelper`, so the helper's meaning doesn't change for `WorkerLifetimes`.
   - **Closure source matching.** `ReflectionFunction` gives the file and the start and end lines but no column. Parse the file with `@cachedRichParser` and take the closures and arrow functions with exactly that line range. Anything other than exactly one candidate is unknown, so two factories on one line never resolve. `X` must be a named class resolved through the file's namespace and imports. `self`, `static`, `parent`, dynamic class expressions and anonymous classes are unknown.
 - `getMethod(ClassReflection $facade, string $name): ?ExtendedMethodReflection`: the facade's own public static native method (`swap()`, …), else the root class's public native method.
 - **Tests** (through `UnsupportedCallRule`, which reads roots without contexts):
   - a facade over a single-expression `new X` factory resolves;
   - the same factory with an extender registered is unknown, as are a `SelfBuilding` root and a factory sharing its line with another closure;
   - a class-name binding chain resolves to its final class.
-- Every call, memoized or not, tracks `RuntimeInputs::track($scope)`, `trackSources($scope, $facade, Facade::class)` for the accessor body, `trackClass($scope, $root)`, and `trackFileDependency()` for a parsed binding closure's file.
+- Every call, memoized or not, tracks `RuntimeInputs::track($scope)`, `trackSources($scope, $facade, Facade::class)` for the accessor body, and `trackClass()` for the root and any class whose declaration made it unknown. A binding closure comes from a file the boot loaded, which `track()` already covers.
 
 ### 2.2 Lifetime queries on `WorkerLifetimes`
 
-- `sharesAbstract(string $abstract): TrinaryLogic`, for the canonical key:
-  - yes: a booted instance (including one over a scoped binding); a shared, non-scoped binding, closure factories included, since the container caches whatever they return; or a resolution the existing private `getLifetime($abstract, true)` reports shared (auto-singletons, a `bind()` to a shared class);
-  - no: scoped or fresh;
-  - maybe: unknown, including `bind()` closure factories, which may return a singleton.
-- `sharesParameter(string $class, string $parameter): TrinaryLogic`: `build()` records each constructor parameter's outcome from `resolveConstructorParameter()` in a new `$sharedParameters` map, keyed by declaring class and parameter, beside `$freshParameters`.
-  - yes only when every known build of that executed constructor injects a shared value.
-  - Unknown arguments, factories or conflicting outcomes give maybe; they're never dropped from the conjunction.
-- Injected entry parameters: `$configParameters` becomes `$injectedParameters`, mapping `class::method::parameter` to the abstract the container injects into a booted controller action (`discoverRoute()`) or job handler (`discoverJob()`, using a job's contextual class-name concrete; a contextual closure isn't recorded). `isConfigParameter()` checks `isGlobalConfig()` of the recorded abstract, and new `sharesInjectedParameter($class, $method, $parameter): TrinaryLogic` is its `sharesAbstract()` (no when unrecorded).
-- The new queries are used only by section 3.1.
+- `sharesAbstract(string $abstract): TrinaryLogic` maps `getLifetime(getAlias($abstract), true)`: shared → yes, unknown → maybe, scoped or fresh → no.
+  - `computeLifetime()` keeps a binding's own lifetime when the built class is unknown: the container caches whatever a shared or scoped closure factory returns, so it's shared or scoped; a `bind()` factory may return a singleton, so it's unknown. An unbuildable same-class concrete or an unknown concrete chain follows the same rule.
+  - Yes therefore covers booted instances (including one over a scoped binding), shared bindings with closure factories, auto-singletons and a `bind()` to a shared class.
+- Injected parameters: `$configParameters` becomes `$injectedParameters`, mapping `class::method::parameter` (declaring class; `__construct` for constructors) to the canonical abstract the container injects, or null when unknown.
+  - Sources: booted controller actions (`discoverRoute()`; route-bound, defaulted and contextual-attribute parameters record null), job handlers (`discoverJob()`; a contextual class name replaces the dependency, a contextual closure records null), and constructors run by `build()` (`resolveConstructorParameter()` returns the outcome with the injected abstract; unknown arguments record null). A closure factory, shared or contextual, records null for every parameter of its abstract's constructor, since it may build that class with any arguments.
+  - Merge: every call records through `recordInjection()`. Calls that inject different abstracts, or an unknown one, leave the entry null, so an inherited action, handler or constructor gets evidence only when every route, job or build agrees. The result doesn't depend on traversal order.
+  - `isConfigParameter()` checks `isGlobalConfig()` of the recorded abstract. `sharesInjectedParameter($class, $method, $parameter): TrinaryLogic` gives no when unrecorded, maybe when null, else `sharesAbstract()` of the abstract.
+- `isContainerBuilt(string $class, string $method)`: whether the container built every instance the method handles an operation for, so promoted properties hold what it injected.
+  - `addContext()` records each context's receiver class per method declaration, and helpers inherit their caller's receivers through propagation. An inherited handler or helper is analyzed in its declaring class's scope, so the receivers decide, not that class.
+  - A receiver counts when it isn't `ShouldQueue`, or when the dispatcher runs it as a listener (section 2.3). A serialized job is restored from its payload even when other code also resolves it from the container.
+  - Every receiver must count, so a base method that a serialized-job subclass also runs gives no evidence. A method no booted handler reaches is judged by its own class.
+- The new queries are used only by section 3.1 and the config-write check.
 
 ### 2.3 Listener and operation contexts in `WorkerLifetimes`
 
 `discoverListeners()` already makes listener classes roots. Extend it to record execution contexts per registered handler, as an operation context separate from lifetime roots:
 
-- **Handler:** `Class@method` strings, `[Class, 'method']` arrays, otherwise `handle()`, else `__invoke()`.
+- **Handler:** `Class@method` strings, `[Class, 'method']` arrays, otherwise `handle()`; a method the class lacks becomes `__invoke()` (`Dispatcher::createClassCallable()`). The receiver comes from `makeHandler()`, so a bound subclass and the declaring class follow the existing handling.
+- **Queued handlers:** a `ShouldQueue` listener or observer gets a `job` context for its registered method whatever its event, since `CallQueuedListener::handle()` resolves it from the container in the queue worker and calls that method. Its built class is recorded as a container-built receiver for `isContainerBuilt()`. Its event payload is never injected-parameter evidence.
 - **Context sources**, where any registration proves runtime use:
   - `request`: `HttpServer\Events\RequestReceived`, `RequestHandled`, `RequestTerminated`, `ResponseSent`, `RequestCanceled`, and `Routing\Events\Routing`, `RouteMatched`, `PreparingResponse`, `ResponsePrepared`.
   - `job`: `Queue\Events\JobProcessing`, `JobProcessed`, `JobFailed`, `JobExceptionOccurred`, `JobAttempted`, `JobReleasedAfterException`, `JobTimedOut`.
   - `operation`: `Core\Events\OnReceive`, `OnPacket`, `OnTask`, `OnFinish`, `OnPipeMessage`, `OnConnect`, `OnClose`. Each is dispatched per server operation from its `Core\Bootstrap\*Callback`.
-  - `operation` for Eloquent observer methods registered under `eloquent.*`: they can run during any operation that persists models, including requests, jobs, commands and seeders. Messages say "during an operation", not HTTP.
+  - `operation` for Eloquent observer methods: they can run during any operation that persists models, including requests, jobs, commands and seeders. Messages say "during an operation", not HTTP.
+    - Listeners registered under `eloquent.*` events in the booted dispatcher (`observe()` in a provider).
+    - `#[ObservedBy]` observers. `HasEvents::bootHasEvents()` registers them lazily at a model's first use, so the booted dispatcher lacks them. `WorkerStateClassCollector` records each concrete `Model` subclass's effective observers: the `#[ObservedBy]` class-strings of the model and its ancestors below `Model` (as `resolveObserveAttributes()` merges them), with its observable events (the standard `getObservableEvents()` names plus its inherited or redeclared `$observables` default). Property defaults aren't declarations, so it tracks `RuntimeInputs::trackSources($scope, $model, Model::class)`.
+    - A model overriding `bootHasEvents()`, `observe()`, `resolveObserveAttributes()`, `registerObserver()` or `getObservableEvents()`, or whose `$observables` default isn't a list of strings, records nothing; booted registrations still count. Runtime `setObservableEvents()`/`addObservableEvents()` changes aren't modeled.
+    - New `WorkerLifetimes::discoverObservers()` makes each observer a root through `makeHandler()` and gives `operation` to each event method the observer has natively (inherited included), as `registerObserver()` registers `Observer@event`.
 - Unknown app events add nothing. Contexts propagate to `$this` helpers through the existing helper-call propagation.
+- **Tests** (`WorkerStateRuleTest`): a request-event listener, a `Class@method` listener, a queued listener (job context), an `observe()` observer, direct and repeated `#[ObservedBy]`, an attributed abstract parent with a concrete child adding a custom event, an inherited observer method, a helper the event method calls (context) and an unused helper (none).
 - These contexts feed `getContext()`, so `WorkerStateRule` gains them too. Re-run its tests and review any new reports.
 
 ### 2.4 Collected data and the shared model
@@ -216,10 +225,11 @@ New `src/phpstan/src/Support/FacadeHelper.php`, an `@internal` `#[AutowiredServi
 `WorkerLifetimes` exists only in a `CollectedDataNode` rule, because it's built from every file's collected classes, resolutions, route actions and helper calls. Rules that need contexts or lifetimes therefore collect per-file facts and report from the collected data.
 
 - **Shared model.** Move the model building out of `WorkerStateRule::processNode()` (grouping the collected resolutions, singletons, queued classes, helper calls, route actions and reassigned parameters, then constructing `WorkerLifetimes`) into a new `Rules/Coroutine/WorkerStateAnalysis`, together with the rule's `getContext()`, `findAction()`, `getFunctionKey()`, `isReassigned()` and `isInjectedConfig()`.
-  - `WorkerStateHelper::analyze(CollectedDataNode $node, Scope $scope): WorkerStateAnalysis` builds it once per node (keeping the last node and its analysis) and, on every call, tracks the booted application and the lifetime classes on the caller's scope, as `WorkerStateRule` does today.
+  - `WorkerStateHelper::analyze(CollectedDataNode $node): WorkerStateAnalysis` builds it once per node, keeping the last node and its analysis. The helper takes over `HasContainer` from `WorkerStateRule`.
+  - Each rule calls `WorkerStateAnalysis::track($scope)` after its queries. It tracks the booted application and the lifetime classes, which a query can add to. `describeContext()` moves there too, shared by the three rules.
   - `WorkerStateRule`, `RestrictedCallRule` and `SwallowedCancellationRule` all use it.
 - **Facts.** `WorkerStateCallCollector` keeps its one fact per call (resolution, route action, helper edge or config write). New facts come from their own collectors, so a call can be both, for example a route registration that is also a restricted call:
-  - New `RestrictedCallCollector` (on `CallLike`, under `checkRestrictedCalls`) records `{line, method, attribute, may, whenShared, receiver, function}`. `may` means the parameter condition may not hold. `receiver` is section 3.1's evidence: `{abstracts}` (a facade accessor or a literal resolution), `{parameter}`, `{property: [class, property]}`, or null. Unmarked calls, calls whose parameter condition definitely doesn't hold, and configuration writes (section 3.1) aren't collected.
+  - New `RestrictedCallCollector` (on `CallLike`, under `checkRestrictedCalls`) records `{line, method, attribute, condition, may, whenShared, receiver, function}`. `condition` is the marker's parameter condition for the message, and `may` means it may not hold. `receiver` is section 3.1's evidence: `{abstracts}` (a facade accessor or a literal resolution), `{parameter}`, `{property: [class, property]}`, or null. Unmarked calls, calls whose parameter condition definitely doesn't hold, and configuration writes (section 3.1) aren't collected.
   - New `SwallowedCancellationCollector` (on `TryCatch`, under `checkCancellationHandling`) records `{line, operation, function}` for each catch that section 3.17 reports once a context is known.
 - **Enablement.** `WorkerStateHelper::isEnabled()` also covers `checkRestrictedCalls` and `checkCancellationHandling`, so the class, call and parameter collectors gather what the shared model needs when only a new check is on. New `hasStateChecks()` covers the four existing switches: `WorkerStateRule` and the write and config-offset collectors use it.
   - Regression test: with the four worker-state switches off and `checkRestrictedCalls` on, a restricted call in a controller action's `$this` helper is still reported (its own neon config beside the rule tests).
@@ -242,10 +252,12 @@ New `src/phpstan/src/Support/FacadeHelper.php`, an `@internal` `#[AutowiredServi
 - booted state (bindings, aliases, routes, listeners, config, package mode, `bound()`): `RuntimeInputs::track()`;
 - facade accessor bodies: `RuntimeInputs::trackSources($scope, $facade, Facade::class)`;
 - classes whose declarations decide a result (facade roots, lifetime classes, Socialite parents): `trackClass()`/`trackClassDependency()`;
-- code read beyond declarations, which PHPStan's exported nodes don't cover: exception constructor chains (3.17, the files from `SourceFiles::forInstance()`) and declared default values (`whenNotDefault`; exported nodes only record that a default exists). Track their files with `trackFileDependency()`;
-- marker attributes and their arguments are part of exported nodes, so the declaring file's normal dependency already covers them.
+- code read beyond declarations, which PHPStan's exported nodes don't cover. Track their files with `trackFileDependency()`:
+  - exception constructor chains (3.17, the files from `SourceFiles::forInstance()`);
+  - declared default values (`whenNotDefault`; exported nodes only record that a default exists): `SourceFiles::forParameterDefault()`, the method's file and the files of the constants the default reads;
+  - attribute arguments reading constants from other files: exported nodes keep the argument expressions, not the constants' values. `SourceFiles::forAttributeArguments()` takes an optional method name for method attributes. It covers lifetime markers (3.1), `#[Unsupported]` messages (3.2) and each model ancestor's `#[ObservedBy]` (2.3).
 
-Warm-cache tests go in `tests/PHPStan/WorkerStateDependencyTest.php`, one per mechanism rather than per rule: a booted registration changing a lifetime, a facade accessor body, a constructor forwarding `$previous`, and a declared default value.
+Warm-cache tests go in `tests/PHPStan/WorkerStateDependencyTest.php`, one per mechanism rather than per rule: a booted registration changing a lifetime, a facade accessor body, a constructor forwarding `$previous`, and a declared default value read from another class's constant. `SourceFilesTest` covers the method-attribute lookup.
 
 ## 3. Rules
 
@@ -278,6 +290,8 @@ Warm-cache tests go in `tests/PHPStan/WorkerStateDependencyTest.php`, one per me
 - **Where:** in a request, job or operation context, as `WorkerStateAnalysis::getContext()` gives it: booted middleware and controller actions, route closures, form requests, queued handlers, the section 2.3 contexts, and their `$this` helpers.
 - **Which methods:** the resolved declaration of an instance or static call (including a facade's own methods such as `swap()`); for other facade static calls, `FacadeHelper::getMethod()`. A facade whose root is unknown isn't collected.
 - **Not reported:** configuration writes, exactly the calls `WorkerStateCallCollector::isConfigWrite()` recognizes (`config()` with an array, a `Config` facade write, or `set`/`push`/`prepend`/`offsetSet`/`offsetUnset` on a repository). Move that method to `WorkerStateHelper` so both collectors call it. `noRuntimeConfigMutation` owns those writes, using its own global-repository evidence, so disabling it silences them completely. Every other marked repository method, such as `Config::macro()`, stays a restricted call.
+  - Its evidence gains the receiver forms below: an application-container resolution (`getApplicationResolvedAbstracts()`) and a readonly promoted repository property, where `isContainerBuilt()` holds and the constructor's injected abstract is the global repository (`WorkerStateAnalysis::isPromotedConfig()`). Method and offset writes both use it.
+  - An offset write on a repository-typed property is a configuration write, as its `set()` is, so `WorkerStateWriteCollector` skips it and one write gets one diagnostic.
 - **Message:** names the restriction and the context. The tip says to move the call to a service provider (boot), a test, or to keep per-request state in `CoroutineContext`/`scoped()`.
 
 **Conditions** (from PR 1's attribute arguments):
@@ -285,11 +299,11 @@ Warm-cache tests go in `tests/PHPStan/WorkerStateDependencyTest.php`, one per me
 - **`whenProvided: 'p'`.** An argument bound to `p` → reported; omitted → silent; an unknown binding → reported with "may change" wording.
 - **`whenShared: true`.** Report only with evidence that the receiver is the worker-shared instance:
   - a facade whose accessor `sharesAbstract()` is yes;
-  - a literal container resolution (`app('x')`, `resolve('x')`, `$this->app->make('x')`, `App::make('x')`) whose abstract is shared;
-  - a parameter of a container-called entry method that the container actually supplies on that invocation path, where `sharesInjectedParameter()` is yes: booted controller actions through `ResolvesRouteDependencies::transformDependency()` (excluding route-bound and defaulted parameters), and job `handle()`/`__invoke()` through `Container::call()` as `WorkerLifetimes::discoverJob()` models it. Event, listener and Bus command payloads, contextual attributes and route closure parameters aren't evidence. A parameter reassigned before the call (the existing reassignment facts) or taken by reference loses the evidence.
-  - a `readonly` promoted constructor property read as `$this->prop` on a container-created entry receiver, or its `$this` helpers, where `sharesParameter()` is yes for the executed constructor's declaring class. Queued-job constructor state never counts.
+  - a literal resolution from the application container whose abstract is shared, through `WorkerStateHelper::getApplicationResolvedAbstracts()`: `app('x')`, `resolve('x')`, `App::make('x')`, or the framework container's `make`/`get`/`factory` called on an application instance (`app()`, an injected application, `$this->app`) or on `Container::getInstance()`. A worker runs one application, so an `Application`-typed receiver is the booted one. Another container (`(new Container)->make('x')`) or a user override of the resolving method may hold other bindings, so it isn't evidence;
+  - a parameter of a container-called entry method that the container actually supplies on that invocation path, where `sharesInjectedParameter()` is yes: booted controller actions through `ResolvesRouteDependencies::transformDependency()` (excluding route-bound and defaulted parameters), and job `handle()`/`__invoke()` through `Container::call()` as `WorkerLifetimes::discoverJob()` models it. Event, listener and Bus command payloads, contextual attributes and route closure parameters aren't evidence. A parameter reassigned before the call loses the evidence, including through a by-reference argument, which PHPStan reports as a variable assignment. Under `checkRestrictedCalls`, `WorkerStateParameterCollector` also records reassignments of method parameters that may hold an object.
+  - a `readonly` promoted constructor property read as `$this->prop` outside closures (`WorkerStateHelper::getPromotedProperty()`; the code's class must run the constructor that promotes it), where `WorkerStateAnalysis::sharesPromotedProperty()` holds: `isContainerBuilt()` for the code's method, and `sharesInjectedParameter($constructorClass, '__construct', $prop)` is yes, so every build of that constructor injects the shared instance.
 
-  Everything else is silent, including bounded local `new` evidence (a `new` expression receiver, or a local variable assigned only from `new`). `WorkerLifetimes::isShared($class)` is class-level and never counts as receiver evidence.
+  Everything else is silent, including bounded local `new` evidence (a `new` expression receiver, or a local variable assigned only from `new`). `WorkerLifetimes::isShared($class)` is class-level and never counts as receiver evidence. Reference-alias mutations (`$alias = &$registry; $alias = new Registry;`) aren't modeled: a later call through the parameter keeps its evidence.
 - **A parameter condition and `whenShared`:** both must hold.
 - **Unconditional attributes:** reported regardless of receiver.
 
@@ -302,6 +316,8 @@ Warm-cache tests go in `tests/PHPStan/WorkerStateDependencyTest.php`, one per me
 - a boot provider call, a test-case call and a first-class callable, all silent;
 - `Config::set()` in a request: one `hypervel.runtimeConfigMutation` diagnostic only; with `noRuntimeConfigMutation` off (in the 2.4 switch config), `Config::set()` is silent while `Config::macro()` is still a restricted call;
 - `Date::useClass()` in a request (the `Date` resolution path in section 2.1);
+- receivers: a singleton-factory promoted property (reported) with contextual class and closure counterparts (silent); `app()->make()` (reported) and a local container's `make()` (silent); a parameter replaced through a by-reference argument (silent); a queued listener's promoted property (reported in a job) beside the serialized job's (silent); an inherited queued-listener handler and the helper it calls (reported), with the base's `handle()` that a serialized-job subclass runs (silent); an inherited job handler and a twice-routed action whose injections disagree, in the order where keeping one injection would report (silent);
+- promoted repository property writes: `set()` and an offset write, one config diagnostic each, and a contextual repository (silent);
 - the `Http\Client\Factory` example: `(new Factory)->globalOptions()` silent, `Http::globalOptions()` reported;
 - `RestrictedAttributeRule`: each malformed case and a valid marker.
 
@@ -309,8 +325,8 @@ Warm-cache tests go in `tests/PHPStan/WorkerStateDependencyTest.php`, one per me
 
 - **Reports:** any method or static call whose resolved declaration has `#[Unsupported]`, and facade static calls whose `FacadeHelper::getMethod()` has it. A per-node rule: it needs no lifetimes or contexts.
 - **Message:** "`Class::method()` is not supported by this implementation and always throws.", followed by a newline and the attribute's `message` when `getArgumentTypes()['message']` has exactly one nonempty constant string (PHPStan maps positional arguments to parameter names). The guidance goes in the message, not a tip, because the GitHub, Checkstyle, JSON, GitLab and Raw formatters drop tips; PHPStan's deprecation rules also append their description on a new line. No validation of the message itself.
-- **Silent:** an override without the attribute, and calls through a contract or base whose resolved declaration is unmarked.
-- **Tests:** API-client `PendingRequest::setClient()` reported with its positional message; a bare fixture marker reported with the generic message only; the HTTP client's `setClient()` not reported; a subclass override; a facade call.
+- **Silent:** an override without the attribute, calls through a contract or base whose resolved declaration is unmarked, and calls inside a method that is itself marked, which may reject through another (a stream's `rewind()` calls `seek()`).
+- **Tests:** API-client `PendingRequest::setClient()` reported with its positional message; a bare fixture marker reported with the generic message only; the HTTP client's `setClient()` not reported; a subclass override; a marked method delegating; a facade call.
 
 ### 3.3 Borrowed resource escape
 
@@ -580,4 +596,4 @@ Monorepo consumers: there's nothing to change. No class in `packages/hypervel/sr
 
 ## Status
 
-Done: section 1. Next step: section 2.1.
+Done: sections 1 and 2, 3.1 and 3.2, with the warm-cache tests for a booted registration, a facade accessor body and a declared default. Next step: section 3.3.
