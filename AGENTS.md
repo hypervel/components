@@ -215,6 +215,7 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 - **Prefer union types over `mixed` when all types are known** — `mixed` is only for truly unconstrained values or cases that cannot be safely narrowed after control-flow analysis.
 - **Type decisions must be evidence-based** — check corresponding Laravel/Hyperf signatures and docblocks as a reference, then trace the real control flow through method bodies across all callers and callees to confirm the types are correct.
 - **Fail fast with framework and PHP exceptions** — don't add guards, wrapping, or defensive checks unless they handle a reachable invalid case or materially improve the error, and never swallow exceptions. If code would fail anyway (e.g. null passed to a typed parameter), let it fail naturally instead of adding a check that throws a custom exception — the stack trace is enough to diagnose.
+- **Mark intentionally unsupported methods** — when a public method must be retained but intentionally rejects every call, mark it with `#[Unsupported]` from `Hypervel\Support\Attributes`, passing the supported alternative as its message when one exists. Exclude base defaults that supporting implementations override, extension hooks, deliberate control-flow throws, and conditional rejections.
 - **Use semantic column types in migrations** — `uuid()` / `foreignUuid()` / `uuidMorphs()` for UUIDs, `ipAddress()` / `macAddress()` for network addresses, and `jsonb()` for JSON the database queries, indexes or validates. Use `text()` for opaque serialized values that are only read back whole. PostgreSQL gets the real types (`jsonb`, `uuid`, `inet`, `macaddr`); the other supported databases fall back automatically to compatible types.
 - **No arbitrary string lengths** — use `->string('name')`, not `->string('name', 100)`. Don't invent limits; specify a length only when the domain or protocol defines one — exact (UUID: 36, ULID: 26, sha-256 hex token: 64) or a defined maximum (IPv6 address: 45).
 - **No database enums** — use string columns plus PHP enums. Adding a value to a database enum requires a migration.
@@ -389,12 +390,12 @@ Decide where state lives before writing code:
 - **Name static cache properties for what they store** — not with a `Cache` suffix; static properties in Swoole workers are caches by nature. Exception: matching an existing Laravel-ported pattern in the same class (e.g. `$classCastCache`, `$attributeCastCache` on `HasAttributes`).
 - **Bound worker-lifetime lookup caches** — any internal lookup cache retained across requests in a worker—for example, in static properties or singleton instances—must have a naturally limited set of keys or discard entries that are safe to recompute. Do not add a size limit merely to hide growth from request- or user-derived keys. This governs framework-derived caches, not application-owned cache stores such as the `worker-array` driver.
 - **Review worker-lifetime state explicitly** — before introducing or modifying static properties/caches, singletons or other long-lived state, assess the Swoole persistence impact (memory leaks, cross-request behavior) and reach consensus on the design through a second-opinion loop with your peer agent.
-- **Document worker-lifetime mutators** — when adding or touching a public method that mutates static state, singleton-held configuration, manager registries, cached drivers, global callbacks, or other worker-lifetime state, add a short warning to the method docblock if the method is intended only for boot-time configuration or tests. Use the tag-first format so humans and LLMs can recognize it quickly:
-  - `Boot-only.` — for startup configuration methods
-  - `Tests only.` — for test fakes, swaps, and resolver overrides
-  - `Boot or tests only.` — for cache/registry clearing methods used during boot reconfiguration or test cleanup
+- **Mark restricted worker-state mutators** — when adding or changing a public mutator intended only for startup or tests, use an attribute from `Hypervel\Support\Attributes`:
+  - `#[BootOnly]` — startup configuration
+  - `#[TestsOnly]` — test fakes, swaps, and overrides
+  - `#[BootOrTestsOnly]` — configuration or cleanup allowed in either context
 
-  The second sentence should name the concrete failure mode, e.g. "The callback persists in a static property for the worker lifetime and affects every subsequent request." Do not add these warnings to methods that are genuinely safe for normal runtime/per-request use. If a method is commonly expected to be used dynamically but mutates shared worker-lifetime state, treat that as a coroutine-safety bug and reach consensus on the fix through a second-opinion loop with your peer agent. Never just document it.
+  Use `whenNotDefault: 'parameter'` only when the restriction applies to values differing from that parameter's declared default, `whenProvided: 'parameter'` when it applies whenever the argument is passed, and `whenShared: true` when it applies only to a worker-shared receiver. Keep a concise docblock explaining the runtime harm. If an API is intended for runtime use, fix unsafe shared-state behavior through a peer second opinion rather than restricting it to boot or tests.
 - **Assess static caching opportunities** — if a path repeatedly computes expensive stable metadata and worker-lifetime static caching would be a clear win, reach consensus with your peer agent through a second-opinion loop on what to cache, the expected benefit, bounded memory use, and correctness across requests before implementing.
 
 Classes that use static caching need a `flushState()` method for test cleanup — see "Static state and test cleanup" under Writing Tests.
@@ -574,7 +575,7 @@ Use the standard title docblock for `flushState()` methods:
  */
 ```
 
-Do not add `Boot-only.`, `Tests only.`, or `Boot or tests only.` warning paragraphs to `flushState()` docblocks. Those warnings belong on public mutators and registrars that userland might call incorrectly, not on this test cleanup hook that is only registered in `AfterEachTestSubscriber`.
+Leave `flushState()` unmarked; PHPStan recognizes this cleanup hook by name.
 
 Keep the docblock to the title only — no extra paragraphs. If the method body has a non-obvious WHY worth explaining (ordering constraints, late-static-binding subtleties, etc.), put it as an inline comment above the relevant line inside the method, not as an extra paragraph under the title.
 
