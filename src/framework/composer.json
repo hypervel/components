@@ -41,6 +41,7 @@
         "ext-tokenizer": "*",
         "composer-runtime-api": "^2.2",
         "hypervel/api-client": "^0.4",
+        "hypervel/attributes": "^0.4",
         "hypervel/auth": "^0.4",
         "hypervel/broadcasting": "^0.4",
         "hypervel/bus": "^0.4",
