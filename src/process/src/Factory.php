@@ -6,6 +6,7 @@ namespace Hypervel\Process;
 
 use Closure;
 use Hypervel\Contracts\Process\ProcessResult as ProcessResultContract;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\Macroable;
 use PHPUnit\Framework\Assert as PHPUnit;
@@ -76,10 +77,11 @@ class Factory
     /**
      * Indicate that the process factory should fake processes.
      *
-     * Tests only. Fake handlers and recordings persist on the container-resolved factory for the worker lifetime and affect later calls.
+     * Fake handlers and recordings persist on the container-resolved factory for the worker lifetime and affect later calls.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function fake(array|Closure|null $callback = null): static
     {
         $this->recording = true;
@@ -130,10 +132,11 @@ class Factory
     /**
      * Record the given process.
      *
-     * Tests only. Recorded processes are retained on the worker factory and affect later assertions and memory retention.
+     * Recorded processes are retained on the worker factory and affect later assertions and memory retention.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function record(PendingProcess $process, ProcessResultContract $result): static
     {
         $this->recorded[] = [$process, $result];
@@ -144,10 +147,11 @@ class Factory
     /**
      * Indicate that an exception should be thrown if any process is not faked.
      *
-     * Tests only. This setting persists on the worker factory and can reject every later unmatched process.
+     * This setting persists on the worker factory and can reject every later unmatched process.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function preventStrayProcesses(bool $prevent = true): static
     {
         $this->preventStrayProcesses = $prevent;

@@ -8,6 +8,7 @@ use DateTimeZone;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Support\Reflector;
 use InvalidArgumentException;
 use LogicException;
@@ -110,6 +111,7 @@ class CallbackEvent extends Event
      *
      * @throws RuntimeException
      */
+    #[Unsupported]
     public function runInBackground(): static
     {
         throw new RuntimeException('Scheduled closures can not be run in the background.');

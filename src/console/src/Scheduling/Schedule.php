@@ -23,6 +23,7 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\CallQueuedClosure;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\InteractsWithTime;
@@ -453,11 +454,12 @@ class Schedule
     /**
      * Specify the cache store that should be used to store mutexes.
      *
-     * Boot-only. Mutates the shared mutex instances used by this worker's
-     * schedule; per-request use races across coroutines.
+     * Mutates the shared mutex instances used by this worker's schedule;
+     * per-request use races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly]
     public function useCache(UnitEnum|string|null $store): static
     {
         if (is_null($store)) {
@@ -504,9 +506,10 @@ class Schedule
      *
      * This prevents the scheduler from hitting the application cache to determine if it needs to pause or interrupt.
      *
-     * Boot-only. Mutates process-global scheduler flags; runtime use changes
-     * pause and interrupt behavior for every concurrent scheduler run.
+     * Mutates process-global scheduler flags; runtime use changes pause and
+     * interrupt behavior for every concurrent scheduler run.
      */
+    #[BootOnly]
     public static function withoutInterruptionPolling(): void
     {
         static::$pausable = false;
@@ -530,9 +533,10 @@ class Schedule
     /**
      * Indicate that every event on the schedule should only run on one server for each cron expression.
      *
-     * Boot-only. The flag persists for the worker lifetime and affects every
-     * schedule evaluated in the process.
+     * The flag persists for the worker lifetime and affects every schedule
+     * evaluated in the process.
      */
+    #[BootOnly]
     public static function alwaysOnOneServer(bool $value = true): void
     {
         static::$alwaysOnOneServer = $value;
@@ -541,11 +545,12 @@ class Schedule
     /**
      * Register a callback to be invoked when a scheduled task runs for longer than a given amount of time.
      *
-     * Boot-only. The listener persists on the singleton event dispatcher for
-     * the worker lifetime and runs for every subsequent matching scheduler event.
+     * The listener persists on the singleton event dispatcher for the worker
+     * lifetime and runs for every subsequent matching scheduler event.
      *
      * @param callable(Event, float): mixed $handler
      */
+    #[BootOnly]
     public function whenTaskRunsLongerThan(DateTimeInterface|CarbonInterval|float|int $threshold, callable $handler): void
     {
         $threshold = $threshold instanceof DateTimeInterface

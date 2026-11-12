@@ -38,6 +38,7 @@ class PackageMetadataTest extends TestCase
             'symfony/event-dispatcher',
             'symfony/finder',
             'symfony/process',
+            'hypervel/attributes',
             'hypervel/bus',
             'hypervel/cache',
             'hypervel/collections',
