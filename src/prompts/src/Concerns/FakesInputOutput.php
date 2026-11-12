@@ -7,6 +7,7 @@ namespace Hypervel\Prompts\Concerns;
 use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Support\Utils;
 use Hypervel\Prompts\Terminal;
+use Hypervel\Support\Attributes\TestsOnly;
 use Mockery;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Assert;
@@ -17,11 +18,11 @@ trait FakesInputOutput
     /**
      * Fake the terminal and queue key presses to be simulated.
      *
-     * Tests only. Swaps prompt terminal and output state for the worker
-     * lifetime.
+     * Swaps prompt terminal and output state for the worker lifetime.
      *
      * @param array<string> $keys
      */
+    #[TestsOnly]
     public static function fake(array $keys = []): void
     {
         // Force interactive mode when testing because we will be mocking the terminal.
