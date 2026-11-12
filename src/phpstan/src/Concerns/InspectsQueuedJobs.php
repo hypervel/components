@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\Concerns;
 
+use Hypervel\PHPStan\Reflection\ReflectionHelper;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\Array_;
@@ -54,23 +55,6 @@ trait InspectsQueuedJobs
     }
 
     /**
-     * Determine whether the static call target names the given facade.
-     *
-     * Matches the facade itself, a subclass of it, and the root namespace alias
-     * Hypervel registers for it (`\Bus`, `\DB`, ...).
-     */
-    private function isFacade(Name $class, string $facade, string $alias): bool
-    {
-        $className = $class->toString();
-
-        if ($className === $facade || $className === $alias) {
-            return true;
-        }
-
-        return (new ObjectType($facade))->isSuperTypeOf(new ObjectType($className))->yes();
-    }
-
-    /**
      * Get the lowercase name of the method the call makes when it is one of the given
      * facade or receiver methods, or null for any other call.
      *
@@ -87,7 +71,7 @@ trait InspectsQueuedJobs
             $method = $node->name->toLowerString();
 
             foreach ($facadeMethods as $alias => [$facade, $methods]) {
-                if (in_array($method, $methods, true) && $this->isFacade($node->class, $facade, $alias)) {
+                if (in_array($method, $methods, true) && ReflectionHelper::isFacade($node->class, $facade, $alias)) {
                     return $method;
                 }
             }

@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace ConfigComposition;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Support\Facades\Config;
 
 use function PHPStan\Testing\assertType;
 
-function test(Repository $config): void
+function test(): void
 {
     // Definite merges, including keys resolved from a class constant and a static property.
     assertType("'package'", config('package.key'));
@@ -62,6 +61,6 @@ function test(Repository $config): void
     assertType('mixed', config('merged.disks.local'));
     assertType('mixed', config('partial.other'));
 
-    assertType("'package'", $config->string('package.key'));
+    assertType("'package'", config()->string('package.key'));
     assertType("'app'", Config::get('merged.shared'));
 }

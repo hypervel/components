@@ -21,19 +21,19 @@ class ConfigCollectionRuleTest extends RuleTestCase
         $this->analyse([__DIR__ . '/data/config-collection-rule.php'], [
             [
                 "Config key 'test.foo' is not an array, so collection() throws. Correct the config value or use the getter that matches its type.",
-                12,
+                11,
+            ],
+            [
+                "Config key 'test.foo' is not an array, so collection() throws. Correct the config value or use the getter that matches its type.",
+                18,
             ],
             [
                 "Config key 'test.foo' is not an array, so collection() throws. Correct the config value or use the getter that matches its type.",
                 19,
             ],
             [
-                "Config key 'test.foo' is not an array, so collection() throws. Correct the config value or use the getter that matches its type.",
-                20,
-            ],
-            [
                 "Config key 'test.missing' is not an array, so collection() throws. Correct the config value or use the getter that matches its type.",
-                26,
+                25,
             ],
         ]);
     }

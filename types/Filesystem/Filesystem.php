@@ -18,7 +18,7 @@ use function PHPStan\Testing\assertType;
 function borrowedAccess(ClientPooledFilesystem $pooled, FilesystemAdapter $disk): void
 {
     assertType('Aws\Result', $pooled->withClient(fn (S3Client $client) => $client->listBuckets()));
-    assertType('mixed', $pooled->withClient(fn ($client) => $client));
+    $pooled->withClient(fn ($client) => assertType('mixed', $client));
 
     foreach ([$pooled, $disk] as $filesystem) {
         assertType('bool', $filesystem->withAdapter(fn ($adapter) => $adapter->fileExists('file.txt')));

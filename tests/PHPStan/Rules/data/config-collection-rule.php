@@ -2,7 +2,6 @@
 
 namespace ConfigCollectionRule;
 
-use Hypervel\Config\Repository;
 use Hypervel\Support\Facades\Config;
 
 class Foo
@@ -14,9 +13,9 @@ class Foo
         Config::collection('test.bar', 5);
     }
 
-    public function receivers(Repository $config): void
+    public function receivers(): void
     {
-        $config->collection('test.foo');
+        app('config')->collection('test.foo');
         config()->collection('test.foo');
     }
 

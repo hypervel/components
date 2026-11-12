@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\Rules;
 
-use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use Hypervel\PHPStan\Support\ConfigSourceResolver;
 use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Support\Env;
@@ -16,10 +15,8 @@ use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
-use PHPStan\DependencyInjection\AutowiredParameter;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\DependencyInjection\Conditional;
-use PHPStan\File\FileHelper;
 use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Rules\IdentifierRuleError;
 use PHPStan\Rules\Rule;
@@ -27,10 +24,7 @@ use PHPStan\Rules\RuleErrorBuilder;
 
 use function in_array;
 use function sprintf;
-use function str_starts_with;
 use function strtolower;
-
-use const DIRECTORY_SEPARATOR;
 
 /**
  * Catches environment reads outside of the config directory.
@@ -38,10 +32,6 @@ use const DIRECTORY_SEPARATOR;
  * Upstream matches only env(), which Env::get() and the other readers bypass, so every
  * env helper and Env reader is matched here. Raw repository, getenv() and superglobal
  * access are deliberate low-level reads and are not.
- *
- * Besides the application's config directories, the framework's config and config:publish
- * stub directories and package config files are config files: those providers merge, and
- * those they publish into the config directory.
  *
  * @implements Rule<CallLike>
  */
@@ -59,18 +49,12 @@ class NoEnvCallsOutsideOfConfigRule implements Rule
     private const array METHODS = ['get', 'getarray', 'getorfail'];
 
     /**
-     * The single reflection files are PHPStan's normalized `--tmp-file` and
-     * `--instead-of` paths, which are set in editor mode.
+     * Create a new env calls rule instance.
      */
     public function __construct(
         private ConfigSourceResolver $configSourceResolver,
-        private FileHelper $fileHelper,
         private ReflectionProvider $reflectionProvider,
         private RuntimeInputs $runtimeInputs,
-        #[AutowiredParameter]
-        private ?string $singleReflectionFile = null,
-        #[AutowiredParameter]
-        private ?string $singleReflectionInsteadOfFile = null,
     ) {
     }
 
@@ -101,7 +85,7 @@ class NoEnvCallsOutsideOfConfigRule implements Rule
         // The booted application decides the config directories and package config files.
         $this->runtimeInputs->track($scope);
 
-        if (! $this->isCalledOutsideOfConfig($node, $scope)) {
+        if ($this->configSourceResolver->isConfigFile($scope->getFile())) {
             return [];
         }
 
@@ -142,50 +126,12 @@ class NoEnvCallsOutsideOfConfigRule implements Rule
 
         $class = $this->reflectionProvider->getClass($className);
 
-        if (! $class->is(Env::class)) {
+        // An override's body is unknown, so only Env's own readers count.
+        if (! $class->hasNativeMethod($call->name->toString())
+            || $class->getNativeMethod($call->name->toString())->getDeclaringClass()->getName() !== Env::class) {
             return null;
         }
 
         return $class->getName() . '::' . $class->getNativeMethod($call->name->toString())->getName();
-    }
-
-    /**
-     * Determine whether the call is outside of every config directory and package config file.
-     */
-    protected function isCalledOutsideOfConfig(CallLike $call, Scope $scope): bool
-    {
-        $file = $this->fileHelper->normalizePath($this->resolveAnalysedFile($scope->getFile()));
-
-        $configDirectories = [
-            ...$this->configSourceResolver->getConfigDirectories(),
-            $this->fileHelper->normalizePath(LoadConfiguration::frameworkConfigPath()),
-            $this->fileHelper->normalizePath(LoadConfiguration::frameworkConfigStubPath()),
-        ];
-
-        foreach ($configDirectories as $configDirectory) {
-            // Upstream's bare prefix match lets /app/config permit /app/config-sibling.
-            if (str_starts_with($file, $configDirectory . DIRECTORY_SEPARATOR)) {
-                return false;
-            }
-        }
-
-        return ! $this->configSourceResolver->isPackageConfigFile($file);
-    }
-
-    /**
-     * In editor mode PHPStan analyses the temporary file, so map it back to
-     * the file it stands in for.
-     */
-    private function resolveAnalysedFile(string $scopeFile): string
-    {
-        if ($this->singleReflectionFile === null) {
-            return $scopeFile;
-        }
-
-        if ($this->fileHelper->normalizePath($scopeFile) !== $this->singleReflectionFile) {
-            return $scopeFile;
-        }
-
-        return $this->singleReflectionInsteadOfFile ?? $scopeFile;
     }
 }

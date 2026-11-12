@@ -131,9 +131,7 @@ class NoCoroutinesInTransactionsRule implements Rule
         // Every call reaches this rule, so cheap name and call-stack checks come before reflection.
         $name = $this->getCalledName($node);
 
-        if ((! isset(self::SPAWNING_NAMES[$name]) && $name !== 'aftercommit')
-            || $node->isFirstClassCallable()
-            || ! $this->runsInTransaction($scope)) {
+        if ((! isset(self::SPAWNING_NAMES[$name]) && $name !== 'aftercommit') || ! $this->runsInTransaction($scope)) {
             return [];
         }
 

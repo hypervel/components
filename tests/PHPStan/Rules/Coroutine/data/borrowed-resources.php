@@ -1,0 +1,226 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\PHPStan\Rules\Coroutine\BorrowedResources;
+
+use Closure;
+use Hypervel\Cache\Redis\Support\StoreContext;
+use Hypervel\Concurrency\SyncDriver;
+use Hypervel\Coordinator\Timer;
+use Hypervel\Coroutine\Concurrent;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Parallel;
+use Hypervel\Database\PdoConnection;
+use Hypervel\Filesystem\ClientPooledFilesystem;
+use Hypervel\Filesystem\FilesystemAdapter;
+use Hypervel\Filesystem\FilesystemPoolProxy;
+use Hypervel\Queue\QueuePoolProxy;
+use Hypervel\Queue\SqsQueue;
+use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisProxy;
+use Hypervel\Support\Facades\Concurrency;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Redis;
+use Hypervel\Support\Facades\Storage;
+use League\Flysystem\FilesystemOperator;
+use PDO;
+
+use function Hypervel\Coroutine\go;
+use function Hypervel\Coroutine\parallel;
+use function Hypervel\Coroutine\wait;
+
+class Holder
+{
+    public mixed $value = null;
+}
+
+class LendingService
+{
+    public function withConnection(Closure $callback): mixed
+    {
+        return $callback();
+    }
+}
+
+class Repository
+{
+    private mixed $connection = null;
+
+    private array $clients = [];
+
+    private static mixed $shared = null;
+
+    public function __construct(
+        private RedisProxy $redis,
+        private StoreContext $context,
+        private QueuePoolProxy $queue,
+        private FilesystemPoolProxy $disk,
+        private ClientPooledFilesystem $cloud,
+        private FilesystemAdapter $local,
+        private PdoConnection $database,
+        private Parallel $parallel,
+    ) {
+    }
+
+    public function returns(): void
+    {
+        Redis::withConnection(function (RedisConnection $connection) {
+            return $connection;
+        });
+        $this->redis->withConnection(fn (RedisConnection $connection) => $connection->client());
+        $this->context->withConnection(function (RedisConnection $connection) {
+            $alias = $connection;
+
+            return $alias;
+        });
+        $this->queue->withConnection(fn (SqsQueue $queue) => $queue->getSqs());
+        $this->disk->withDriver(fn (FilesystemOperator $driver) => $driver);
+        $this->cloud->withClient(fn ($client) => $client);
+        $this->local->withDriver(fn (FilesystemOperator $driver) => $driver);
+        Storage::disk('s3')->withClient(fn ($client) => $client);
+    }
+
+    public function stores(): void
+    {
+        $held = null;
+
+        Redis::withConnection(function (RedisConnection $connection) use (&$held) {
+            $client = $connection->client();
+            $this->connection = $connection;
+            $this->clients['main'] = $client;
+            self::$shared = $connection;
+            $held = $client;
+        });
+    }
+
+    public function spawns(): void
+    {
+        Redis::withConnection(function (RedisConnection $connection) {
+            go(function () use ($connection) {
+            });
+            Coroutine::create(fn () => $connection->get('a'));
+            parallel([fn () => $connection->get('b')]);
+            $tasks = [];
+            $tasks[] = fn () => $connection->get('c');
+            parallel($tasks);
+            $parallel = new Parallel;
+            $parallel->add(fn () => $connection->get('d'));
+            $this->parallel->add(fn () => $connection->get('e'));
+            Concurrency::run(fn () => $connection->get('f'));
+            Coroutine::defer(fn () => $connection->get('g'));
+            wait(fn () => $connection->get('h'));
+            wait(fn () => $connection->get('i'), waitForChildTermination: true);
+            (new SyncDriver)->run(fn () => $connection->get('j'));
+            go(fn () => 'unrelated');
+        });
+    }
+
+    public function nested(): void
+    {
+        Redis::withConnection(function (RedisConnection $connection) {
+            return array_map(function (string $key) use ($connection) {
+                go(fn () => $connection->get($key));
+
+                return $connection;
+            }, ['a']);
+        });
+    }
+
+    public function pinned(): void
+    {
+        $connection = $this->database;
+        $other = $this->database;
+
+        $connection->withPinnedSession(function () use ($connection) {
+            return $connection->getPdo();
+        });
+        $connection->withPinnedSession(fn () => $connection->getReadPdo());
+        DB::withPinnedSession(fn () => DB::getPdo());
+        $connection->withPinnedSession(function () use ($connection) {
+            $pdo = $connection->getPdo();
+            $pdo->exec('select 1');
+            go(fn () => $pdo->exec('select 2'));
+        });
+        $connection->withPinnedSession(fn () => $other->getPdo());
+        $connection->withPinnedSession(function () use ($connection) {
+            $connection = $this->database;
+
+            return $connection->getPdo();
+        });
+    }
+
+    public function contained(): void
+    {
+        Redis::withConnection(function (RedisConnection $connection) {
+            $holder = new Holder;
+            $holder->value = $connection;
+            $items = [$connection];
+            $items[] = $connection->client();
+
+            return $connection->get('key');
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $alias = $connection;
+            $alias = null;
+
+            return $alias;
+        });
+        $this->disk->withDriver(fn (FilesystemOperator $driver) => $driver->readStream('file'));
+        (new LendingService)->withConnection(fn (RedisConnection $connection) => $connection);
+    }
+
+    public function dispatchForms(Timer $timer, Concurrent $concurrent, QueuedParallel $queued, InlineParallel $inline): void
+    {
+        $join = true;
+
+        Redis::withConnection(function (RedisConnection $connection) use ($timer, $concurrent, $queued, $inline) {
+            $timer->after(1.0, fn () => $connection->get('k'));
+            $concurrent->create(fn () => $connection->get('l'));
+            $queued->add(fn () => $connection->get('m'));
+            $inline->add(fn () => $connection->get('n'));
+            wait(fn () => $connection->get('o'), waitForChildTermination: Joins::CHILD);
+            $join = false;
+            wait(fn () => $connection->get('p'), waitForChildTermination: $join);
+        });
+    }
+
+    public function overriddenGetters(ReplicaConnection $replica): void
+    {
+        DB::withPinnedSession(fn () => ExternalDB::getPdo());
+        $replica->withPinnedSession(fn () => $replica->getPdo());
+    }
+}
+
+class Joins
+{
+    public const bool CHILD = true;
+}
+
+class QueuedParallel extends Parallel
+{
+}
+
+class InlineParallel extends Parallel
+{
+    public function add(callable $callable, int|string|null $key = null): void
+    {
+        $callable();
+    }
+}
+
+class ExternalDB extends DB
+{
+    public static function getPdo(): PDO
+    {
+        return new PDO('sqlite::memory:');
+    }
+}
+
+class ReplicaConnection extends PdoConnection
+{
+    public function getPdo(): PDO
+    {
+        return new PDO('sqlite::memory:');
+    }
+}

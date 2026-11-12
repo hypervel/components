@@ -404,28 +404,37 @@ class WorkerStateHelper
      */
     public function getApplicationResolvedAbstracts(CallLike $call, Scope $scope): ?array
     {
-        if ($call instanceof MethodCall) {
-            $receiver = $call->var;
-            $type = $scope->getType($receiver);
-
-            // A worker runs one application, so any application instance is the booted one.
-            $application = (new ObjectType(Application::class))->isSuperTypeOf($type)->yes()
-                || ($receiver instanceof StaticCall
-                    && $receiver->class instanceof Name
-                    && $receiver->name instanceof Identifier
-                    && $receiver->name->toLowerString() === 'getinstance'
-                    && (new ObjectType(Container::class))->isSuperTypeOf(new ObjectType($scope->resolveName($receiver->class)))->yes());
-
-            $method = $application && $call->name instanceof Identifier
-                ? $scope->getMethodReflection($type, $call->name->name)
-                : null;
-
-            if ($method === null || ! (new ObjectType($method->getDeclaringClass()->getName()))->isSuperTypeOf(new ObjectType(Container::class))->yes()) {
-                return null;
-            }
+        if ($call instanceof MethodCall && ! $this->isApplicationContainerCall($call, $scope)) {
+            return null;
         }
 
         return $this->getResolvedAbstracts($call, $scope);
+    }
+
+    /**
+     * Determine whether the call runs the framework container's own method on the application: any
+     * application instance, such as app() or an injected application, or Container::getInstance().
+     *
+     * Another container, or one overriding the method, may hold other bindings than the booted ones.
+     */
+    public function isApplicationContainerCall(MethodCall $call, Scope $scope): bool
+    {
+        $receiver = $call->var;
+        $type = $scope->getType($receiver);
+
+        // A worker runs one application, so any application instance is the booted one.
+        $application = (new ObjectType(Application::class))->isSuperTypeOf($type)->yes()
+            || ($receiver instanceof StaticCall
+                && $receiver->class instanceof Name
+                && $receiver->name instanceof Identifier
+                && $receiver->name->toLowerString() === 'getinstance'
+                && (new ObjectType(Container::class))->isSuperTypeOf(new ObjectType($scope->resolveName($receiver->class)))->yes());
+
+        $method = $application && $call->name instanceof Identifier
+            ? $scope->getMethodReflection($type, $call->name->name)
+            : null;
+
+        return $method !== null && (new ObjectType($method->getDeclaringClass()->getName()))->isSuperTypeOf(new ObjectType(Container::class))->yes();
     }
 
     /**

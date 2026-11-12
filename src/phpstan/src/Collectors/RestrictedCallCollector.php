@@ -78,10 +78,8 @@ class RestrictedCallCollector implements Collector
      */
     public function processNode(Node $node, Scope $scope): ?array
     {
-        // PHPStan also analyzes a nullsafe call as a method call. Creating a first-class callable runs nothing.
-        if (! ($node instanceof MethodCall || $node instanceof StaticCall)
-            || ! $node->name instanceof Identifier
-            || $node->isFirstClassCallable()) {
+        // PHPStan also analyzes a nullsafe call as a method call, and a first-class callable as a separate node.
+        if (! ($node instanceof MethodCall || $node instanceof StaticCall) || ! $node->name instanceof Identifier) {
             return null;
         }
 

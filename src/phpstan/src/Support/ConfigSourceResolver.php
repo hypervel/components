@@ -157,6 +157,9 @@ class ConfigSourceResolver
     /**
      * Create a new resolver instance.
      *
+     * The single reflection files are PHPStan's normalized `--tmp-file` and
+     * `--instead-of` paths, which are set in editor mode.
+     *
      * @param list<non-empty-string> $configuredDirectories
      */
     public function __construct(
@@ -166,6 +169,10 @@ class ConfigSourceResolver
         private ReflectionProvider $reflectionProvider,
         #[AutowiredParameter(ref: '%configDirectories%')]
         private array $configuredDirectories,
+        #[AutowiredParameter]
+        private ?string $singleReflectionFile = null,
+        #[AutowiredParameter]
+        private ?string $singleReflectionInsteadOfFile = null,
     ) {
     }
 
@@ -327,6 +334,38 @@ class ConfigSourceResolver
     public function hasUnknownWrites(): bool
     {
         return $this->getProviderSources()['unknownWrites'];
+    }
+
+    /**
+     * Determine whether the analyzed file is a config file.
+     *
+     * Besides the application's config directories, the framework's config and config:publish
+     * stub directories and package config files are config files: those providers merge, and
+     * those they publish into the config directory. In editor mode PHPStan analyzes a temporary
+     * file, which stands in for the edited one.
+     */
+    public function isConfigFile(string $file): bool
+    {
+        $file = $this->fileHelper->normalizePath($file);
+
+        if ($file === $this->singleReflectionFile) {
+            $file = $this->singleReflectionInsteadOfFile ?? $file;
+        }
+
+        $configDirectories = [
+            ...$this->getConfigDirectories(),
+            $this->fileHelper->normalizePath(LoadConfiguration::frameworkConfigPath()),
+            $this->fileHelper->normalizePath(LoadConfiguration::frameworkConfigStubPath()),
+        ];
+
+        foreach ($configDirectories as $configDirectory) {
+            // Upstream's bare prefix match lets /app/config permit /app/config-sibling.
+            if (str_starts_with($file, $configDirectory . DIRECTORY_SEPARATOR)) {
+                return true;
+            }
+        }
+
+        return $this->isPackageConfigFile($file);
     }
 
     /**

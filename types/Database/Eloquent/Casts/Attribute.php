@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Types\Attribute;
 
-use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Hypervel\Database\Eloquent\Casts\Attribute;
 
@@ -17,7 +17,7 @@ use function PHPStan\Testing\assertType;
  */
 function widerDeclaration(): Attribute
 {
-    return Attribute::make(fn () => new Carbon, fn (string|int|null $value) => $value);
+    return Attribute::make(fn () => new CarbonImmutable, fn (string|int|null $value) => $value);
 }
 
 assertType('Hypervel\Database\Eloquent\Casts\Attribute<int, string>', Attribute::make(

@@ -51,6 +51,17 @@ parameters:
     noRuntimeConfigMutation: true
     checkRestrictedCalls: true
     noCoroutinesInTransactions: true
+    checkBorrowedResources: true
+    checkManagedTransactions: true
+    noNativeRequestApis: true
+    checkDiscardedDates: true
+    noMutableDates: true
+    checkConfigEnvCasts: true
+    checkTypedConfigGetters: true
+    checkObserverAttributes: true
+    # Off by default: existing migrations should not be edited.
+    checkMigrationColumnTypes: false
+    checkBindingCycles: true
     noRawSleepCalls: true
     noLegacyModelScopes: true
     noLegacyModelProperties: true
@@ -102,6 +113,16 @@ parametersSchema:
     noRuntimeConfigMutation: bool()
     checkRestrictedCalls: bool()
     noCoroutinesInTransactions: bool()
+    checkBorrowedResources: bool()
+    checkManagedTransactions: bool()
+    noNativeRequestApis: bool()
+    checkDiscardedDates: bool()
+    noMutableDates: bool()
+    checkConfigEnvCasts: bool()
+    checkTypedConfigGetters: bool()
+    checkObserverAttributes: bool()
+    checkMigrationColumnTypes: bool()
+    checkBindingCycles: bool()
     noRawSleepCalls: bool()
     noLegacyModelScopes: bool()
     noLegacyModelProperties: bool()

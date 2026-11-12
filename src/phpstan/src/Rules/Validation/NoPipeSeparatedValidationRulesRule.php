@@ -127,10 +127,6 @@ class NoPipeSeparatedValidationRulesRule implements Rule
      */
     public function processNode(Node $node, Scope $scope): array
     {
-        if ($node->isFirstClassCallable()) {
-            return [];
-        }
-
         $entry = match (true) {
             $node instanceof FuncCall => $this->matchFunction($node, $scope),
             $node instanceof New_ => $this->matchConstructor($node, $scope),

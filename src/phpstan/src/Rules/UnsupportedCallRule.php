@@ -67,9 +67,7 @@ class UnsupportedCallRule implements Rule
     public function processNode(Node $node, Scope $scope): array
     {
         // PHPStan also analyzes a nullsafe call as a method call.
-        if (! ($node instanceof MethodCall || $node instanceof StaticCall)
-            || ! $node->name instanceof Identifier
-            || $node->isFirstClassCallable()) {
+        if (! ($node instanceof MethodCall || $node instanceof StaticCall) || ! $node->name instanceof Identifier) {
             return [];
         }
 

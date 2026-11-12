@@ -9,11 +9,11 @@ use Hypervel\Support\Facades\Config;
 
 class Foo
 {
-    public function getters(Repository $config): void
+    public function getters(): void
     {
         Config::integer('test.foo');
         Config::string('test.foo');
-        $config->array('test.foo');
+        app('config')->array('test.foo');
         config()->float('auth.defaults.guard');
     }
 

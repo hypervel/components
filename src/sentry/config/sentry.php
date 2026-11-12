@@ -32,6 +32,7 @@ return [
     // Set to true to use the default Spotlight endpoint, a URL string to use
     // a custom endpoint, or false to disable Spotlight.
     // @see https://spotlightjs.com/
+    // @phpstan-ignore hypervel.uncastEnvValue (true, false or a custom endpoint URL, which SentryConfig reads)
     'spotlight' => env('SENTRY_SPOTLIGHT', false),
 
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#logger

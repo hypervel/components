@@ -80,7 +80,7 @@ class WorkerStateCallCollector implements Collector
      */
     public function processNode(Node $node, Scope $scope): ?array
     {
-        if (! $this->helper->isEnabled() || $node->isFirstClassCallable()) {
+        if (! $this->helper->isEnabled()) {
             return null;
         }
 
