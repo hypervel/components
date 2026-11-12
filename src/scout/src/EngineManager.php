@@ -18,6 +18,8 @@ use Hypervel\Scout\Engines\NullEngine;
 use Hypervel\Scout\Engines\TurbopufferEngine;
 use Hypervel\Scout\Engines\TypesenseEngine;
 use Hypervel\Scout\Services\Turbopuffer\TurbopufferClient;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use InvalidArgumentException;
 use Meilisearch\Client as MeilisearchClient;
 use Meilisearch\Meilisearch;
@@ -239,11 +241,12 @@ class EngineManager
     /**
      * Register a custom driver creator.
      *
-     * Boot-only. The callback persists in the singleton's customCreators array
-     * for the worker lifetime and applies to every subsequent engine resolution.
+     * The callback persists in the singleton's customCreators array for the
+     * worker lifetime and applies to every subsequent engine resolution.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $driver, Closure $callback): static
     {
         $this->customCreators[$driver] = $callback;
@@ -254,12 +257,12 @@ class EngineManager
     /**
      * Forget all of the resolved engine instances.
      *
-     * Boot or tests only. Clears the manager's engine cache; concurrent
-     * coroutines may already hold references that next resolution will not
-     * share.
+     * Clears the manager's engine cache; concurrent coroutines may already
+     * hold references that next resolution will not share.
      *
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetEngines(): static
     {
         $this->engines = [];
@@ -270,12 +273,12 @@ class EngineManager
     /**
      * Forget a specific resolved engine instance.
      *
-     * Boot or tests only. Mutates the manager's engine cache; concurrent
-     * coroutines may already hold a reference to the engine and next resolution
-     * will rebuild.
+     * Mutates the manager's engine cache; concurrent coroutines may already
+     * hold a reference to the engine and next resolution will rebuild.
      *
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetEngine(string $name): static
     {
         unset($this->engines[$name]);

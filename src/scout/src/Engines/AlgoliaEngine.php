@@ -22,6 +22,7 @@ use Hypervel\Scout\Exceptions\NotSupportedException;
 use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Scout\Scout;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use InvalidArgumentException;
@@ -486,6 +487,7 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
      *
      * @throws NotSupportedException
      */
+    #[Unsupported]
     public function createIndex(string $name, array $options = []): mixed
     {
         throw new NotSupportedException('Algolia indexes are created automatically upon adding objects.');

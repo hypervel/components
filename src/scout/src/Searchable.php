@@ -20,6 +20,7 @@ use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Events\ModelsFlushed;
 use Hypervel\Scout\Events\ModelsImported;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection as BaseCollection;
 use LogicException;
 use Throwable;
@@ -68,8 +69,9 @@ trait Searchable
     /**
      * Register the searchable macros on collections.
      *
-     * Boot-only. These macros persist for the worker lifetime and affect every subsequent request.
+     * These macros persist for the worker lifetime and affect every subsequent request.
      */
+    #[BootOnly]
     public function registerSearchableMacros(): void
     {
         BaseCollection::macro('searchable', function () {
