@@ -8,6 +8,8 @@ use Closure;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Translation\Translator;
 use Hypervel\Contracts\Validation\Factory as FactoryContract;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Str;
 
 class Factory implements FactoryContract
@@ -151,9 +153,10 @@ class Factory implements FactoryContract
     /**
      * Register a custom validator extension.
      *
-     * Boot-only. Request-time registration persists for the worker lifetime and
-     * exposes the extension to validators built by every concurrent request.
+     * On the shared factory, the extension persists for the worker lifetime and
+     * applies to validators built by every concurrent request.
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $rule, Closure|string $extension, ?string $message = null): void
     {
         $this->extensions[$rule] = $extension;
@@ -166,9 +169,10 @@ class Factory implements FactoryContract
     /**
      * Register a custom implicit validator extension.
      *
-     * Boot-only. Request-time registration persists for the worker lifetime and
-     * exposes the extension to validators built by every concurrent request.
+     * On the shared factory, the extension persists for the worker lifetime and
+     * applies to validators built by every concurrent request.
      */
+    #[BootOnly(whenShared: true)]
     public function extendImplicit(string $rule, Closure|string $extension, ?string $message = null): void
     {
         $this->implicitExtensions[$rule] = $extension;
@@ -181,9 +185,10 @@ class Factory implements FactoryContract
     /**
      * Register a custom dependent validator extension.
      *
-     * Boot-only. Request-time registration persists for the worker lifetime and
-     * exposes the extension to validators built by every concurrent request.
+     * On the shared factory, the extension persists for the worker lifetime and
+     * applies to validators built by every concurrent request.
      */
+    #[BootOnly(whenShared: true)]
     public function extendDependent(string $rule, Closure|string $extension, ?string $message = null): void
     {
         $this->dependentExtensions[$rule] = $extension;
@@ -196,9 +201,10 @@ class Factory implements FactoryContract
     /**
      * Register a custom validator message replacer.
      *
-     * Boot-only. Request-time registration persists for the worker lifetime and
-     * exposes the message replacer to validators built by every concurrent request.
+     * On the shared factory, the message replacer persists for the worker
+     * lifetime and applies to validators built by every concurrent request.
      */
+    #[BootOnly(whenShared: true)]
     public function replacer(string $rule, Closure|string $replacer): void
     {
         $this->replacers[$rule] = $replacer;
@@ -207,9 +213,10 @@ class Factory implements FactoryContract
     /**
      * Indicate that unvalidated array keys should be included in validated data when the parent array is validated.
      *
-     * Boot-only. Request-time mutation persists for the worker lifetime and can
-     * change validated-data shape for validators built by concurrent requests.
+     * On the shared factory, the setting persists for the worker lifetime and
+     * can change validated-data shape for validators built by concurrent requests.
      */
+    #[BootOnly(whenShared: true)]
     public function includeUnvalidatedArrayKeys(): void
     {
         $this->excludeUnvalidatedArrayKeys = false;
@@ -218,9 +225,10 @@ class Factory implements FactoryContract
     /**
      * Indicate that unvalidated array keys should be excluded from the validated data, even if the parent array was validated.
      *
-     * Boot-only. Request-time mutation persists for the worker lifetime and can
-     * change validated-data shape for validators built by concurrent requests.
+     * On the shared factory, the setting persists for the worker lifetime and
+     * can change validated-data shape for validators built by concurrent requests.
      */
+    #[BootOnly(whenShared: true)]
     public function excludeUnvalidatedArrayKeys(): void
     {
         $this->excludeUnvalidatedArrayKeys = true;
@@ -229,9 +237,10 @@ class Factory implements FactoryContract
     /**
      * Fake the DNS lookups performed by validation rules so they always succeed.
      *
-     * Tests only. The setting persists for the worker lifetime; failing to reset
-     * it through Validator::flushState() can make later tests bypass real DNS validation.
+     * The setting persists for the worker lifetime; failing to reset it through
+     * Validator::flushState() can make later tests bypass real DNS validation.
      */
+    #[TestsOnly]
     public function fakeDnsLookups(bool $value = true): void
     {
         Validator::fakeDnsLookups($value);
@@ -240,9 +249,10 @@ class Factory implements FactoryContract
     /**
      * Set the Validator instance resolver.
      *
-     * Boot-only. Request-time mutation persists for the worker lifetime and can
-     * change the Validator class used by concurrent builds.
+     * On the shared factory, the resolver persists for the worker lifetime and
+     * can change the Validator class used by concurrent builds.
      */
+    #[BootOnly(whenShared: true)]
     public function resolver(Closure $resolver): void
     {
         $this->resolver = $resolver;
@@ -267,9 +277,10 @@ class Factory implements FactoryContract
     /**
      * Set the Presence Verifier implementation.
      *
-     * Boot-only. Request-time mutation persists for the worker lifetime and can
-     * route concurrent exists and unique checks through the wrong verifier.
+     * On the shared factory, the verifier persists for the worker lifetime and
+     * can route concurrent exists and unique checks through the wrong verifier.
      */
+    #[BootOnly(whenShared: true)]
     public function setPresenceVerifier(PresenceVerifierInterface $presenceVerifier): void
     {
         $this->verifier = $presenceVerifier;
@@ -286,12 +297,12 @@ class Factory implements FactoryContract
     /**
      * Set the container instance used by the validation factory.
      *
-     * Tests only. Swaps the container on the singleton validation Factory;
-     * per-request use races across coroutines and breaks every concurrent
-     * validator build.
+     * Swaps the container on the singleton validation Factory; per-request use
+     * races across coroutines and breaks every concurrent validator build.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setContainer(Container $container): static
     {
         $this->container = $container;

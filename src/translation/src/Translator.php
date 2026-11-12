@@ -10,6 +10,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Translation\Loader;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\NamespacedItemResolver;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
@@ -363,9 +364,10 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     /**
      * Add translation lines to the given locale.
      *
-     * Boot-only. The lines are stored on the shared Translator instance and
-     * affect every subsequent lookup in the worker.
+     * The lines are stored on the shared Translator instance and affect
+     * every subsequent lookup in the worker.
      */
+    #[BootOnly(whenShared: true)]
     public function addLines(array $lines, string $locale, string $namespace = '*'): void
     {
         foreach ($lines as $key => $value) {
@@ -509,12 +511,13 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
      * fallback flag. Choice lookups add the automatic count replacement only
      * after selecting the plural form.
      *
-     * Boot-only. The callback is stored on the shared Translator instance and
-     * affects every subsequent missing-key lookup in the worker.
+     * The callback is stored on the shared Translator instance and affects
+     * every subsequent missing-key lookup in the worker.
      *
      * @param null|callable(string, array, ?string, bool): ?string $callback
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function handleMissingKeysUsing(?callable $callback): static
     {
         $this->missingTranslationKeyCallback = $callback;
@@ -525,8 +528,8 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     /**
      * Add a new namespace to the loader.
      *
-     * Boot-only. The namespace is added to the shared loader and affects every
-     * subsequent translation lookup in the worker.
+     * When the loader is the application's worker-shared loader, the namespace
+     * affects every subsequent translation lookup in the worker.
      */
     public function addNamespace(string $namespace, string $hint): void
     {
@@ -536,8 +539,8 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     /**
      * Add a new path to the loader.
      *
-     * Boot-only. The path is added to the shared loader and affects every
-     * subsequent translation lookup in the worker.
+     * When the loader is the application's worker-shared loader, the path
+     * affects every subsequent translation lookup in the worker.
      */
     public function addPath(string $path): void
     {
@@ -547,8 +550,8 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     /**
      * Add a new JSON path to the loader.
      *
-     * Boot-only. The path is added to the shared loader and affects every
-     * subsequent translation lookup in the worker.
+     * When the loader is the application's worker-shared loader, the path
+     * affects every subsequent translation lookup in the worker.
      */
     public function addJsonPath(string $path): void
     {
@@ -584,9 +587,10 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     /**
      * Specify a callback that should be invoked to determine the applicable locale array.
      *
-     * Boot-only. The callback is stored on the shared Translator instance and
-     * affects every subsequent locale resolution in the worker.
+     * The callback is stored on the shared Translator instance and affects
+     * every subsequent locale resolution in the worker.
      */
+    #[BootOnly(whenShared: true)]
     public function determineLocalesUsing(callable $callback): void
     {
         $this->determineLocalesUsing = $callback;
@@ -607,9 +611,10 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     /**
      * Set the message selector instance.
      *
-     * Boot-only. The selector is stored on the shared Translator instance and
-     * affects every subsequent choice() call in the worker.
+     * The selector is stored on the shared Translator instance and affects
+     * every subsequent choice() call in the worker.
      */
+    #[BootOnly(whenShared: true)]
     public function setSelector(MessageSelector $selector): void
     {
         $this->selector = $selector;
@@ -654,11 +659,12 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     /**
      * Set the base locale used by the translator.
      *
-     * Boot-only. The locale is shared by the worker's Translator instance and
-     * affects requests without a coroutine-local locale override.
+     * The locale is shared by the worker's Translator instance and affects
+     * requests without a coroutine-local locale override.
      *
      * @throws InvalidArgumentException
      */
+    #[BootOnly(whenShared: true)]
     public function setBaseLocale(string $locale): void
     {
         $this->ensureValidLocale($locale);
@@ -690,10 +696,11 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     /**
      * Set the fallback locale being used.
      *
-     * Boot-only. The fallback is shared by the worker's Translator instance and
-     * affects every subsequent translation lookup in that worker. Use
-     * setLocale() for a current-request locale override.
+     * The fallback is shared by the worker's Translator instance and affects
+     * every subsequent translation lookup in that worker. Use setLocale() for a
+     * current-request locale override.
      */
+    #[BootOnly(whenShared: true)]
     public function setFallback(string $fallback): void
     {
         $this->ensureValidLocale($fallback);
@@ -704,9 +711,10 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     /**
      * Set the loaded translation groups.
      *
-     * Boot-only. The groups are stored on the shared Translator instance and
-     * affect every subsequent translation lookup in the worker.
+     * The groups are stored on the shared Translator instance and affect
+     * every subsequent translation lookup in the worker.
      */
+    #[BootOnly(whenShared: true)]
     public function setLoaded(array $loaded): void
     {
         $this->loaded = $loaded;
@@ -720,11 +728,12 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     /**
      * Add a handler to be executed in order to format a given class to a string during translation replacements.
      *
-     * Boot-only. The handler is stored on the shared Translator instance and
-     * affects every subsequent replacement in the worker.
+     * The handler is stored on the shared Translator instance and affects
+     * every subsequent replacement in the worker.
      *
      * @param class-string|Closure $class
      */
+    #[BootOnly(whenShared: true)]
     public function stringable(Closure|string $class, ?callable $handler = null): void
     {
         if ($class instanceof Closure) {

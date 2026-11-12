@@ -14,6 +14,7 @@ use Hypervel\Contracts\Validation\UncompromisedVerifier;
 use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Facades\Validator;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Validation\Rules\Concerns\ClonesCustomRules;
@@ -117,15 +118,15 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
      *
      * If no arguments are passed, the default password rule configuration will be returned.
      *
-     * Boot-only when setting. The default callback persists in a static
-     * property for the worker lifetime and is used by every Password::default()
-     * call across all coroutines.
+     * A given callback persists in a static property for the worker lifetime
+     * and is used by every Password::default() call across all coroutines.
      *
      * @param null|callable|static $callback
      * @return ($callback is null ? static : null)
      *
      * @throws InvalidArgumentException
      */
+    #[BootOnly(whenNotDefault: 'callback')]
     public static function defaults(mixed $callback = null): ?static
     {
         if (is_null($callback)) {

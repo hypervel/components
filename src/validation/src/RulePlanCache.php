@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Hypervel\Contracts\Validation\ParameterizedRule;
+use Hypervel\Support\Attributes\TestsOnly;
 use InvalidArgumentException;
 
 /**
@@ -91,11 +92,12 @@ final class RulePlanCache
     }
 
     /**
-     * Set the maximum cache size. Intended for tests.
+     * Set the maximum cache size.
      *
-     * Tests only. The cache size persists in a static property for the worker
-     * lifetime and affects every subsequent validation rule plan cache write.
+     * The cache size persists in a static property for the worker lifetime
+     * and affects every subsequent validation rule plan cache write.
      */
+    #[TestsOnly]
     public static function setMaxSize(int $size): void
     {
         if ($size < 1) {
