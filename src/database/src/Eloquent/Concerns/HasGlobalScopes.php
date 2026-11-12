@@ -10,6 +10,8 @@ use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Scope;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
 use InvalidArgumentException;
 use ReflectionAttribute;
@@ -54,15 +56,15 @@ trait HasGlobalScopes
     /**
      * Register a new global scope on the model.
      *
-     * Boot-only. The scope persists in a static property for the worker
-     * lifetime and applies to every query for this model class across all
-     * coroutines.
+     * The scope persists in a static property for the worker lifetime and
+     * applies to every query for this model class across all coroutines.
      *
      * @param (Closure(Builder<static>): mixed)|Scope|string $scope
      * @param null|(Closure(Builder<static>): mixed)|Scope $implementation
      *
      * @throws InvalidArgumentException
      */
+    #[BootOnly]
     public static function addGlobalScope(Scope|Closure|string $scope, Scope|Closure|null $implementation = null): mixed
     {
         if (is_string($scope) && ($implementation instanceof Closure || $implementation instanceof Scope)) {
@@ -84,9 +86,10 @@ trait HasGlobalScopes
     /**
      * Register multiple global scopes on the model.
      *
-     * Boot-only. Delegates to addGlobalScope() per entry; each scope persists
-     * in a static property for the worker lifetime.
+     * Delegates to addGlobalScope() per entry; each scope persists in a
+     * static property for the worker lifetime.
      */
+    #[BootOnly]
     public static function addGlobalScopes(array $scopes): void
     {
         foreach ($scopes as $key => $scope) {
@@ -131,10 +134,11 @@ trait HasGlobalScopes
     /**
      * Set the current global scopes.
      *
-     * Boot or tests only. Replaces the worker-wide global scopes registry
-     * shared by every coroutine; per-request use changes scope behavior for
-     * every concurrent model query.
+     * Replaces the worker-wide global scopes registry shared by every
+     * coroutine; per-request use changes scope behavior for every
+     * concurrent model query.
      */
+    #[BootOrTestsOnly]
     public static function setAllGlobalScopes(array $scopes): void
     {
         static::$globalScopes = $scopes;

@@ -8,6 +8,7 @@ use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\BootOnly;
 use Psr\Log\NullLogger;
 use Sentry\Attachment\Attachment;
 use Sentry\Breadcrumb;
@@ -64,10 +65,10 @@ class Hub implements HubInterface
     /**
      * Bind a new client to the hub.
      *
-     * Boot-only. Mutates the shared client on the singleton Hub; per-request use
-     * races across coroutines, and existing coroutine layer stacks may already
-     * hold the previous client.
+     * On the shared Hub, per-request use races across coroutines, and existing
+     * coroutine layer stacks may already hold the previous client.
      */
+    #[BootOnly(whenShared: true)]
     public function bindClient(ClientInterface $client): void
     {
         $this->client = $client;

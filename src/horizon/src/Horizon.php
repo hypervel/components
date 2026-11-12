@@ -10,6 +10,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Foundation\DevCommands;
 use Hypervel\Http\Request;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Js;
 use RuntimeException;
@@ -67,10 +68,10 @@ class Horizon
     /**
      * Set the callback that should be used to authenticate Horizon users.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every Horizon dashboard request across all
-     * coroutines.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every Horizon dashboard request across all coroutines.
      */
+    #[BootOnly]
     public static function auth(Closure $callback): static
     {
         static::$authUsing = $callback;
@@ -81,11 +82,12 @@ class Horizon
     /**
      * Configure the Redis databases that will store Horizon data.
      *
-     * Boot-only. Mutates process-global config (database.redis.horizon);
+     * Mutates process-global config (database.redis.horizon);
      * per-request use races across coroutines.
      *
      * @throws Exception
      */
+    #[BootOnly]
     public static function use(string $connection): void
     {
         $config = config("database.redis.{$connection}");
@@ -174,9 +176,10 @@ class Horizon
     /**
      * Specify the email address to which email notifications should be routed.
      *
-     * Boot-only. The address persists in a static property for the worker
-     * lifetime and is used by every Horizon notification dispatch.
+     * The address persists in a static property for the worker lifetime
+     * and is used by every Horizon notification dispatch.
      */
+    #[BootOnly]
     public static function routeMailNotificationsTo(string $email): static
     {
         static::$email = $email;
@@ -187,9 +190,10 @@ class Horizon
     /**
      * Specify the webhook URL and channel to which Slack notifications should be routed.
      *
-     * Boot-only. The URL and channel persist in static properties for the
-     * worker lifetime and are used by every Horizon notification dispatch.
+     * The URL and channel persist in static properties for the worker
+     * lifetime and are used by every Horizon notification dispatch.
      */
+    #[BootOnly]
     public static function routeSlackNotificationsTo(string $url, ?string $channel = null): static
     {
         static::$slackWebhookUrl = $url;
@@ -201,9 +205,10 @@ class Horizon
     /**
      * Specify the phone number to which SMS notifications should be routed.
      *
-     * Boot-only. The number persists in a static property for the worker
-     * lifetime and is used by every Horizon notification dispatch.
+     * The number persists in a static property for the worker lifetime
+     * and is used by every Horizon notification dispatch.
      */
+    #[BootOnly]
     public static function routeSmsNotificationsTo(string $number): static
     {
         static::$smsNumber = $number;
@@ -230,9 +235,10 @@ class Horizon
     /**
      * Register the Horizon development commands.
      *
-     * Boot-only. The registrations persist for the worker lifetime and affect
-     * every subsequent development command invocation.
+     * The registrations persist for the worker lifetime and affect every
+     * subsequent development command invocation.
      */
+    #[BootOnly]
     public static function registerDevCommands(): void
     {
         DevCommands::artisan('horizon', 'horizon');

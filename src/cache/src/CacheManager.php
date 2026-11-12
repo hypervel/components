@@ -15,6 +15,9 @@ use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\RebindsCallbacksToSelf;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
@@ -40,6 +43,20 @@ class CacheManager implements FactoryContract
      * The context key prefix for memoized cache repositories.
      */
     protected const string MEMOIZED_CONTEXT_KEY_PREFIX = '__cache.memoized.';
+
+    /**
+     * The sequence used to build unique per-manager memo context keys.
+     */
+    // Do not reset this; live context entries may still use earlier prefixes.
+    private static int $memoizedContextKeySequence = 0;
+
+    /**
+     * The prefix of this manager's memoized repository context keys.
+     *
+     * Memoized repositories wrap this manager's stores, so each manager keys
+     * them with its own prefix.
+     */
+    private ?string $memoizedContextKeyPrefix = null;
 
     /**
      * The array of resolved cache stores.
@@ -107,9 +124,17 @@ class CacheManager implements FactoryContract
         // directly in coroutine context because coroutine teardown is the
         // request reset boundary.
         return CoroutineContext::getOrSet(
-            self::MEMOIZED_CONTEXT_KEY_PREFIX . $driver,
+            $this->memoizedContextKey($driver),
             fn (): CacheRepository => $this->createMemoizedRepository($driver),
         );
+    }
+
+    /**
+     * Get this manager's coroutine context key for the given memoized driver.
+     */
+    protected function memoizedContextKey(string $driver): string
+    {
+        return ($this->memoizedContextKeyPrefix ??= self::MEMOIZED_CONTEXT_KEY_PREFIX . ++self::$memoizedContextKeySequence . '.') . $driver;
     }
 
     /**
@@ -449,11 +474,12 @@ class CacheManager implements FactoryContract
     /**
      * Re-set the event dispatcher on resolved event-emitting cache repositories.
      *
-     * Boot or tests only. Replaces the dispatcher on cached concrete repositories
-     * that already emit events, preserving disabled stores and custom repository
-     * implementations. Per-request use races across coroutines. Reached by
-     * Event::fake() / Event::fakeFor() to install and restore fake dispatchers.
+     * Replaces the dispatcher on cached concrete repositories that already emit
+     * events, preserving disabled stores and custom repository implementations.
+     * Per-request use races across coroutines. Reached by Event::fake() /
+     * Event::fakeFor() to install and restore fake dispatchers.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function refreshEventDispatcher(): void
     {
         foreach ($this->stores as $repository) {
@@ -498,8 +524,9 @@ class CacheManager implements FactoryContract
     /**
      * Set the default cache driver name.
      *
-     * Boot-only. Mutates process-global config; per-request use races across coroutines.
+     * Mutates process-global config; per-request use races across coroutines.
      */
+    #[BootOnly]
     public function setDefaultDriver(UnitEnum|string $name): void
     {
         if ($name instanceof UnitEnum) {
@@ -512,26 +539,27 @@ class CacheManager implements FactoryContract
     /**
      * Unset the given driver instances.
      *
-     * Boot or tests only. Mutates the singleton's store cache; concurrent
-     * coroutines may already hold a reference to the store and next resolution
-     * will rebuild with fresh connections.
+     * Mutates the singleton's store cache; concurrent coroutines may already
+     * hold a reference to the store and next resolution will rebuild with
+     * fresh connections.
      *
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetDriver(array|UnitEnum|string|null $name = null): static
     {
         $name ??= $this->getDefaultDriver();
 
         foreach (is_array($name) ? $name : [$name] as $cacheName) {
-            if ($cacheName instanceof UnitEnum) {
-                $cacheName = (string) enum_value($cacheName);
-            }
+            // Numeric store names reach here as integers when taken from the
+            // configured store keys.
+            $cacheName = $cacheName instanceof UnitEnum ? (string) enum_value($cacheName) : (string) $cacheName;
 
             if (isset($this->stores[$cacheName])) {
                 unset($this->stores[$cacheName]);
             }
 
-            CoroutineContext::forget(self::MEMOIZED_CONTEXT_KEY_PREFIX . $cacheName);
+            CoroutineContext::forget($this->memoizedContextKey($cacheName));
         }
 
         return $this;
@@ -540,10 +568,11 @@ class CacheManager implements FactoryContract
     /**
      * Disconnect the given driver and remove from local cache.
      *
-     * Boot or tests only. Mutates the singleton's store cache; concurrent
-     * coroutines may already hold a reference to the store and next resolution
-     * will rebuild with fresh connections.
+     * Mutates the singleton's store cache; concurrent coroutines may already
+     * hold a reference to the store and next resolution will rebuild with
+     * fresh connections.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function purge(UnitEnum|string|null $name = null): void
     {
         if ($name instanceof UnitEnum) {
@@ -561,11 +590,12 @@ class CacheManager implements FactoryContract
      * Anonymous closures run in this manager's class scope; non-static closures
      * also receive the manager as $this.
      *
-     * Boot-only. The callback persists in the singleton's customCreators array
-     * for the worker lifetime and applies to every subsequent store resolution.
+     * The callback persists in the singleton's customCreators array for the
+     * worker lifetime and applies to every subsequent store resolution.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $driver, Closure $callback): static
     {
         try {
@@ -583,12 +613,13 @@ class CacheManager implements FactoryContract
     /**
      * Set the application instance used by the manager.
      *
-     * Tests only. Swaps the singleton's container reference; per-request use
-     * races across coroutines and breaks every concurrent request resolving
-     * stores through this manager.
+     * Swaps the singleton's container reference; per-request use races
+     * across coroutines and breaks every concurrent request resolving stores
+     * through this manager.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setApplication(Container $app): static
     {
         $this->app = $app;
@@ -599,10 +630,10 @@ class CacheManager implements FactoryContract
     /**
      * Register classes that cache stores may unserialize.
      *
-     * Boot-only. The resolver contributes to the worker-lifetime cache policy
-     * and is evaluated when the application finishes booting in console processes,
-     * after configuration reload in Swoole workers, or before a custom server
-     * process starts handling work. An earlier cache read evaluates the current
+     * The resolver contributes to the worker-lifetime cache policy and is
+     * evaluated when the application finishes booting in console processes, after
+     * configuration reload in Swoole workers, or before a custom server process
+     * starts handling work. An earlier cache read evaluates the current
      * contributions without memoizing them.
      *
      * @param Closure(): array<array-key, class-string> $resolver
@@ -610,6 +641,7 @@ class CacheManager implements FactoryContract
      *
      * @throws LogicException
      */
+    #[BootOnly(whenShared: true)]
     public function allowSerializableClassesUsing(Closure $resolver): static
     {
         $this->serializableClassPolicy->allowUsing($resolver);
@@ -620,11 +652,12 @@ class CacheManager implements FactoryContract
     /**
      * Finalize the worker-lifetime serializable class policy.
      *
-     * Boot-only. The policy is frozen for the worker lifetime; later
-     * contributions throw and every subsequent unserialize uses the frozen list.
+     * The policy is frozen for the worker lifetime; later contributions throw
+     * and every subsequent unserialize uses the frozen list.
      *
      * @internal
      */
+    #[BootOnly(whenShared: true)]
     public function finalizeSerializableClasses(): void
     {
         $this->serializableClassPolicy->finalize();
@@ -633,9 +666,10 @@ class CacheManager implements FactoryContract
     /**
      * Register a callback to be invoked when an unserializable class is encountered.
      *
-     * Boot or tests only. The callback persists for the worker lifetime and
-     * affects every subsequent cache read.
+     * The callback persists for the worker lifetime and affects every
+     * subsequent cache read.
      */
+    #[BootOrTestsOnly]
     public function handleUnserializableClassUsing(?callable $callback): void
     {
         Repository::handleUnserializableClassUsing($callback);

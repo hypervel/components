@@ -6,6 +6,7 @@ namespace Hypervel\Foundation;
 
 use Composer\InstalledVersions;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Facades\File;
 use Hypervel\Support\NodePackageManager;
 use ReflectionClass;
@@ -96,9 +97,10 @@ class DevCommands
     /**
      * Register the default development commands.
      *
-     * Boot-only. The commands persist in static properties for the worker lifetime
-     * and affect every subsequent development command invocation.
+     * The commands persist in static properties for the worker lifetime and affect
+     * every subsequent development command invocation.
      */
+    #[BootOnly]
     public static function registerDefaults(): void
     {
         if (! app()->runningInConsole()) {
@@ -117,9 +119,10 @@ class DevCommands
     /**
      * Register a development command.
      *
-     * Boot-only. The command persists in a static property for the worker lifetime
-     * and affects every subsequent development command invocation.
+     * The command persists in a static property for the worker lifetime and
+     * affects every subsequent development command invocation.
      */
+    #[BootOnly]
     public static function register(string $command, ?string $name = null): DevCommand
     {
         if (! app()->runningInConsole()) {
@@ -144,9 +147,10 @@ class DevCommands
     /**
      * Register an Artisan command, automatically prefixing it with "php artisan".
      *
-     * Boot-only. The command persists in a static property for the worker lifetime
-     * and affects every subsequent development command invocation.
+     * The command persists in a static property for the worker lifetime and
+     * affects every subsequent development command invocation.
      */
+    #[BootOnly]
     public static function artisan(string $command, ?string $name = null): DevCommand
     {
         return self::register("php artisan {$command}", $name ?? DevCommand::nameFromCommand($command));
@@ -155,9 +159,10 @@ class DevCommands
     /**
      * Register a Node command, automatically prefixing it with the detected package manager's run command.
      *
-     * Boot-only. The command persists in a static property for the worker lifetime
-     * and affects every subsequent development command invocation.
+     * The command persists in a static property for the worker lifetime and
+     * affects every subsequent development command invocation.
      */
+    #[BootOnly]
     public static function node(string $command, ?string $name = null): DevCommand
     {
         return self::register(self::getPackageManager()->getRunCommand($command), $name ?? DevCommand::nameFromCommand($command));
@@ -166,9 +171,10 @@ class DevCommands
     /**
      * Register a Node command, automatically prefixing it with the detected package manager's exec command.
      *
-     * Boot-only. The command persists in a static property for the worker lifetime
-     * and affects every subsequent development command invocation.
+     * The command persists in a static property for the worker lifetime and
+     * affects every subsequent development command invocation.
      */
+    #[BootOnly]
     public static function nodeExec(string $command, ?string $name = null): DevCommand
     {
         return self::register(self::getPackageManager()->getExecCommand($command), $name ?? DevCommand::nameFromCommand($command));
@@ -209,8 +215,9 @@ class DevCommands
     /**
      * Set the mode to inline, where all commands are run in the same terminal window.
      *
-     * Boot-only. The mode is shared by all development command invocations in the worker.
+     * The mode is shared by all development command invocations in the worker.
      */
+    #[BootOnly]
     public static function inline(): void
     {
         self::$mode = DevCommandMode::INLINE;
@@ -219,8 +226,9 @@ class DevCommands
     /**
      * Set the mode to stream, where all commands are run in the same terminal window, but their output is interactive within a TUI.
      *
-     * Boot-only. The mode is shared by all development command invocations in the worker.
+     * The mode is shared by all development command invocations in the worker.
      */
+    #[BootOnly]
     public static function stream(): void
     {
         self::$mode = DevCommandMode::STREAM;
@@ -229,8 +237,9 @@ class DevCommands
     /**
      * Set the mode to tabs, where each command is run in its own terminal tab.
      *
-     * Boot-only. The mode is shared by all development command invocations in the worker.
+     * The mode is shared by all development command invocations in the worker.
      */
+    #[BootOnly]
     public static function tabs(): void
     {
         self::$mode = DevCommandMode::TABS;
@@ -247,8 +256,9 @@ class DevCommands
     /**
      * Enable timestamps in the output of the "dev" command.
      *
-     * Boot-only. The setting is shared by all development command invocations in the worker.
+     * The setting is shared by all development command invocations in the worker.
      */
+    #[BootOnly]
     public static function withTimestamps(): void
     {
         self::$withTimestamps = true;
@@ -265,8 +275,9 @@ class DevCommands
     /**
      * Disable automatic restart of a "dev" command when it fails.
      *
-     * Boot-only. The setting is shared by all development command invocations in the worker.
+     * The setting is shared by all development command invocations in the worker.
      */
+    #[BootOnly]
     public static function disableAutoRestart(): void
     {
         self::$autoRestart = false;
@@ -283,8 +294,9 @@ class DevCommands
     /**
      * Set the number of lines of output to buffer for each command when running in tabbed mode.
      *
-     * Boot-only. The buffer size is shared by all development command invocations in the worker.
+     * The buffer size is shared by all development command invocations in the worker.
      */
+    #[BootOnly]
     public static function bufferSize(int $lines): void
     {
         self::$bufferSize = $lines;
@@ -301,8 +313,9 @@ class DevCommands
     /**
      * Set the number of lines of output to buffer total when running in stream mode.
      *
-     * Boot-only. The buffer size is shared by all development command invocations in the worker.
+     * The buffer size is shared by all development command invocations in the worker.
      */
+    #[BootOnly]
     public static function streamBufferSize(int $lines): void
     {
         self::$streamBufferSize = $lines;
@@ -471,9 +484,10 @@ class DevCommands
     /**
      * Set the commands that should be included when running the "dev" command.
      *
-     * Boot-only. The filter persists in a static property for the worker lifetime
-     * and affects every subsequent development command invocation.
+     * The filter persists in a static property for the worker lifetime and
+     * affects every subsequent development command invocation.
      */
+    #[BootOnly]
     public static function only(string ...$names): void
     {
         self::$only = $names;
@@ -482,9 +496,10 @@ class DevCommands
     /**
      * Set the commands that should be excluded when running the "dev" command.
      *
-     * Boot-only. The filter persists in a static property for the worker lifetime
-     * and affects every subsequent development command invocation.
+     * The filter persists in a static property for the worker lifetime and
+     * affects every subsequent development command invocation.
      */
+    #[BootOnly]
     public static function except(string ...$names): void
     {
         self::$except = $names;
@@ -493,10 +508,11 @@ class DevCommands
     /**
      * Set the order in which named commands should run when running the "dev" command.
      *
-     * Boot-only. The order is shared by all development command invocations in the worker.
+     * The order is shared by all development command invocations in the worker.
      *
      * @param array<int, string> $names
      */
+    #[BootOnly]
     public static function order(array $names): void
     {
         self::$order = $names;
@@ -505,8 +521,9 @@ class DevCommands
     /**
      * Exclude any commands from the vendor directory.
      *
-     * Boot-only. The filter is shared by all development command invocations in the worker.
+     * The filter is shared by all development command invocations in the worker.
      */
+    #[BootOnly]
     public static function withoutVendorCommands(): void
     {
         self::$withoutVendorCommands = true;
@@ -515,8 +532,9 @@ class DevCommands
     /**
      * Exclude the framework's default commands.
      *
-     * Boot-only. The filter is shared by all development command invocations in the worker.
+     * The filter is shared by all development command invocations in the worker.
      */
+    #[BootOnly]
     public static function withoutDefaultCommands(): void
     {
         self::$withoutDefaultCommands = true;

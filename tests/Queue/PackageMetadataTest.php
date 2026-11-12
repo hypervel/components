@@ -31,6 +31,7 @@ class PackageMetadataTest extends TestCase
             'nunomaduro/termwind',
             'symfony/console',
             'symfony/process',
+            'hypervel/attributes',
             'hypervel/bus',
             'hypervel/cache',
             'hypervel/collections',

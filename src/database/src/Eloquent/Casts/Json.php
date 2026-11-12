@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Casts;
 
+use Hypervel\Support\Attributes\BootOnly;
+
 class Json
 {
     private const int MAXIMUM_NESTING_DEPTH = 512;
@@ -58,9 +60,10 @@ class Json
     /**
      * Encode all values using the given callable.
      *
-     * Boot-only. The encoder persists in a static property for the worker
-     * lifetime and affects every subsequent JSON cast encode.
+     * The encoder persists in a static property for the worker lifetime
+     * and affects every subsequent JSON cast encode.
      */
+    #[BootOnly]
     public static function encodeUsing(?callable $encoder): void
     {
         static::$encoder = $encoder;
@@ -69,9 +72,10 @@ class Json
     /**
      * Decode all values using the given callable.
      *
-     * Boot-only. The decoder persists in a static property for the worker
-     * lifetime and affects every subsequent JSON cast decode.
+     * The decoder persists in a static property for the worker lifetime
+     * and affects every subsequent JSON cast decode.
      */
+    #[BootOnly]
     public static function decodeUsing(?callable $decoder): void
     {
         static::$decoder = $decoder;

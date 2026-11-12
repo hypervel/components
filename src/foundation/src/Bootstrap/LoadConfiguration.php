@@ -9,6 +9,7 @@ use Hypervel\Config\Repository;
 use Hypervel\Contracts\Config\Repository as RepositoryContract;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Foundation\Configuration\ConfigMutationTracker;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use RuntimeException;
 use SplFileInfo;
@@ -261,12 +262,13 @@ class LoadConfiguration
     /**
      * Set a callback to return the permanent, static configuration values.
      *
-     * Boot-only. The callback persists in a static property used during the
+     * The callback persists in a static property used during the
      * LoadConfiguration bootstrapper; runtime use has no effect on already-
      * loaded config.
      *
      * @param null|(Closure(Application): array<array-key, mixed>) $alwaysUseConfig
      */
+    #[BootOnly]
     public static function alwaysUse(?Closure $alwaysUseConfig): void
     {
         static::$alwaysUseConfig = $alwaysUseConfig;

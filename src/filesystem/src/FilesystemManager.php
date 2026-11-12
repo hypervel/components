@@ -20,6 +20,9 @@ use Hypervel\Database\ConnectionResolver;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Aws\SerializedCredentialProvider;
 use Hypervel\Support\RebindsCallbacksToSelf;
 use Hypervel\Support\Str;
@@ -986,13 +989,14 @@ class FilesystemManager implements FactoryContract
     /**
      * Set the given disk instance.
      *
-     * Boot or tests only. Mutates the singleton's disk cache; concurrent
-     * coroutines may already hold a reference to the prior disk and next
-     * resolution will return the replacement. Any shared pool remains
-     * available until its idle TTL expires or purge() invalidates it.
+     * Mutates the singleton's disk cache; concurrent coroutines may
+     * already hold a reference to the prior disk and next resolution
+     * will return the replacement. Any shared pool remains available
+     * until its idle TTL expires or purge() invalidates it.
      *
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function set(UnitEnum|string $name, mixed $disk): static
     {
         $this->disks[enum_value($name)] = $disk;
@@ -1033,14 +1037,15 @@ class FilesystemManager implements FactoryContract
     /**
      * Unset the given disk instances.
      *
-     * Boot or tests only. Mutates the singleton's disk cache; concurrent
-     * coroutines may already hold a reference to the disk and next resolution
-     * will rebuild a wrapper. Shared pools remain available until their idle
-     * TTL expires or purge() deliberately invalidates them.
+     * Mutates the singleton's disk cache; concurrent coroutines may already
+     * hold a reference to the disk and next resolution will rebuild a
+     * wrapper. Shared pools remain available until their idle TTL expires or
+     * purge() deliberately invalidates them.
      *
      * @param array<string|UnitEnum>|string|UnitEnum $disk
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetDisk(UnitEnum|array|string $disk): static
     {
         foreach (Arr::wrap($disk) as $diskName) {
@@ -1053,9 +1058,9 @@ class FilesystemManager implements FactoryContract
     /**
      * Disconnect the given disk, remove it from local cache, and close its pool.
      *
-     * Boot or tests only, plus operational recovery of broken pooled resources.
-     * Closing deliberately invalidates a shared pool; other converged disks
-     * acquire a fresh pool on their next operation.
+     * Use this to recover broken pooled resources. Closing deliberately
+     * invalidates a shared pool; other converged disks acquire a fresh pool on
+     * their next operation.
      */
     public function purge(UnitEnum|string|null $name = null): void
     {
@@ -1083,12 +1088,13 @@ class FilesystemManager implements FactoryContract
      * Anonymous closures run in this manager's class scope; non-static closures
      * also receive the manager as $this.
      *
-     * Boot-only. The callback persists in the singleton's customCreators array
-     * (and the poolable list if $poolable is true) for the worker lifetime and
-     * applies to every subsequent disk resolution.
+     * The callback persists in the singleton's customCreators array (and the
+     * poolable list if $poolable is true) for the worker lifetime and applies
+     * to every subsequent disk resolution.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $driver, Closure $callback, bool $poolable = false): static
     {
         if ($poolable) {
@@ -1110,11 +1116,12 @@ class FilesystemManager implements FactoryContract
     /**
      * Set the application instance used by the manager.
      *
-     * Tests only. Swaps the singleton's container reference; per-request use
-     * races across coroutines and breaks every concurrent filesystem operation.
+     * Swaps the singleton's container reference; per-request use races across
+     * coroutines and breaks every concurrent filesystem operation.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setApplication(Container $app): static
     {
         $this->app = $app;

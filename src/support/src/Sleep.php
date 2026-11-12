@@ -8,6 +8,7 @@ use Carbon\CarbonInterval;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Traits\Macroable;
 use PHPUnit\Framework\Assert as PHPUnit;
@@ -349,9 +350,10 @@ class Sleep
     /**
      * Stay awake and capture any attempts to sleep.
      *
-     * Tests only. Sleep fakes persist in static state for the worker lifetime
-     * and affect every subsequent sleep call.
+     * Sleep fakes persist in static state for the worker lifetime and affect
+     * every subsequent sleep call.
      */
+    #[TestsOnly]
     public static function fake(bool $value = true, bool $syncWithCarbon = false): void
     {
         static::$fake = $value;
@@ -485,9 +487,10 @@ class Sleep
     /**
      * Specify a callback that should be invoked when faking sleep within a test.
      *
-     * Tests only. The callback persists in static state for the worker lifetime
-     * and runs for every subsequent faked sleep.
+     * The callback persists in static state for the worker lifetime and runs
+     * for every subsequent faked sleep.
      */
+    #[TestsOnly]
     public static function whenFakingSleep(callable $callback): void
     {
         static::$fakeSleepCallbacks[] = $callback;
@@ -496,9 +499,10 @@ class Sleep
     /**
      * Indicate that Carbon's "now" should be kept in sync when sleeping.
      *
-     * Tests only. The flag persists in static state for the worker lifetime and
-     * affects every subsequent faked sleep.
+     * The flag persists in static state for the worker lifetime and affects
+     * every subsequent faked sleep.
      */
+    #[TestsOnly]
     public static function syncWithCarbon(bool $value = true): void
     {
         static::$syncWithCarbon = $value;

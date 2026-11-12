@@ -7,6 +7,7 @@ namespace Hypervel\Prompts\Concerns;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 trait Interactivity
 {
@@ -49,10 +50,11 @@ trait Interactivity
     /**
      * Reset interactivity state to defaults.
      *
-     * Boot or tests only. Clears worker-wide prompt interactivity
-     * configuration; concurrent prompts may render with different
-     * interactivity depending on timing.
+     * Clears worker-wide prompt interactivity configuration;
+     * concurrent prompts may render with different interactivity
+     * depending on timing.
      */
+    #[BootOrTestsOnly]
     public static function resetInteractivity(): void
     {
         static::$interactive = null;

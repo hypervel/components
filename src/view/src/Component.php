@@ -11,6 +11,8 @@ use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\Factory;
 use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
 use ReflectionClass;
 use ReflectionMethod;
@@ -397,9 +399,9 @@ abstract class Component
     /**
      * Flush the component's cached state.
      *
-     * Boot or tests only when called directly. Clears the worker-wide reflection
-     * and view caches shared by every coroutine; next render rebuilds them. The
-     * view:clear command owns runtime invalidation.
+     * Clears the worker-wide reflection and view caches shared by every
+     * coroutine; next render rebuilds them. The view:clear command owns runtime
+     * invalidation.
      */
     public static function flushCache(): void
     {
@@ -423,9 +425,10 @@ abstract class Component
     /**
      * Forget the component's factory instance.
      *
-     * Boot or tests only. Clears the worker-wide ViewFactory reference shared
-     * by every coroutine; next render re-resolves it from the container.
+     * Clears the worker-wide ViewFactory reference shared by every coroutine;
+     * next render re-resolves it from the container.
      */
+    #[BootOrTestsOnly]
     public static function forgetFactory(): void
     {
         static::$factory = null;
@@ -434,11 +437,12 @@ abstract class Component
     /**
      * Forget the component's resolver callback.
      *
-     * Boot or tests only. Clears the worker-wide resolver shared by every
-     * coroutine; next component resolution falls back to default behavior.
+     * Clears the worker-wide resolver shared by every coroutine; next
+     * component resolution falls back to default behavior.
      *
      * @internal
      */
+    #[BootOrTestsOnly]
     public static function forgetComponentsResolver(): void
     {
         static::$componentsResolver = null;
@@ -447,13 +451,14 @@ abstract class Component
     /**
      * Set the callback that should be used to resolve components within views.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every subsequent component resolution.
+     * The resolver persists in a static property for the worker lifetime
+     * and runs on every subsequent component resolution.
      *
      * @param Closure(string $component, array $data): static $resolver
      *
      * @internal
      */
+    #[BootOnly]
     public static function resolveComponentsUsing(Closure $resolver): void
     {
         static::$componentsResolver = $resolver;

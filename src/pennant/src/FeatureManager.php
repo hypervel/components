@@ -15,6 +15,9 @@ use Hypervel\Pennant\Drivers\DatabaseDriver;
 use Hypervel\Pennant\Drivers\Decorator;
 use Hypervel\Pennant\Drivers\StoredValueCache;
 use Hypervel\Pennant\Exceptions\FeaturePartitionNotResolved;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -300,11 +303,12 @@ class FeatureManager
     /**
      * Specify that the Eloquent morph map should be used when serializing.
      *
-     * Boot-only. The setting persists on the manager for the worker lifetime and
+     * On the shared manager, the setting persists for the worker lifetime and
      * changes how every subsequent request serializes model scopes.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function useMorphMap(bool $value = true): static
     {
         $this->useMorphMap = $value;
@@ -343,11 +347,12 @@ class FeatureManager
     /**
      * Set the default scope resolver.
      *
-     * Boot-only. The resolver persists on the manager for the worker lifetime and
+     * On the shared manager, the resolver persists for the worker lifetime and
      * applies to every subsequent request.
      *
      * @param callable(string): mixed $resolver
      */
+    #[BootOnly(whenShared: true)]
     public function resolveScopeUsing(callable $resolver): void
     {
         $this->defaultScopeResolver = $resolver(...);
@@ -359,7 +364,7 @@ class FeatureManager
      * The resolver receives the store name and returns the current partition value. Stores
      * configured with "partitioned" set to false are not partitioned.
      *
-     * Boot-only. Register before any store is resolved. The resolver persists on the manager
+     * Register before any store is resolved. On the shared manager, the resolver persists
      * for the worker lifetime and applies to every subsequent request.
      *
      * @param Closure(string): (null|int|string) $resolver
@@ -367,6 +372,7 @@ class FeatureManager
      * @throws InvalidArgumentException when the column is not a simple SQL identifier
      * @throws RuntimeException when a store has already been resolved or partitioning is already configured
      */
+    #[BootOnly(whenShared: true)]
     public function resolvePartitionUsing(string $column, Closure $resolver): void
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/D', $column) !== 1) {
@@ -389,13 +395,14 @@ class FeatureManager
     /**
      * Guard database writes, including the first resolution of a stored value.
      *
-     * Boot-only. Register once, before any store is resolved. The callback persists
-     * on database stores for the worker lifetime and affects every subsequent write.
+     * Register once, before any store is resolved. On the shared manager, the callback
+     * persists on database stores for the worker lifetime and affects every subsequent write.
      *
      * @param Closure(string, ?FeaturePartition): void $guard
      *
      * @throws RuntimeException when a store has already been resolved or a guard is already registered
      */
+    #[BootOnly(whenShared: true)]
     public function guardWritesUsing(Closure $guard): void
     {
         if ($this->stores !== []) {
@@ -456,9 +463,9 @@ class FeatureManager
     /**
      * Set the default store name.
      *
-     * Boot-only. The default store is process-global config shared by every
-     * request in the worker.
+     * The default store is process-global config shared by every request in the worker.
      */
+    #[BootOnly]
     public function setDefaultDriver(string $name): void
     {
         $this->container->make('config')->set('pennant.default', $name);
@@ -467,12 +474,13 @@ class FeatureManager
     /**
      * Unset the given store instances.
      *
-     * Boot or tests only. Stores are shared by every request in the worker, and
-     * the current coroutine's values for a forgotten store are flushed.
+     * The shared manager's stores serve every request in the worker, and the
+     * current coroutine's values for a forgotten store are flushed.
      *
      * @param null|array<string>|string $name
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetDriver(array|string|null $name = null): static
     {
         $name ??= $this->getDefaultDriver();
@@ -491,11 +499,12 @@ class FeatureManager
     /**
      * Forget all of the resolved store instances.
      *
-     * Boot or tests only. Stores are shared by every request in the worker, and
-     * the current coroutine's values for the forgotten stores are flushed.
+     * The shared manager's stores serve every request in the worker, and the
+     * current coroutine's values for the forgotten stores are flushed.
      *
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetDrivers(): static
     {
         foreach ($this->stores as $store) {
@@ -510,10 +519,11 @@ class FeatureManager
     /**
      * Register a custom driver creator Closure.
      *
-     * Boot-only. The creator persists on the manager for the worker lifetime.
+     * On the shared manager, the creator persists for the worker lifetime.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $driver, Closure $callback): static
     {
         $this->customCreators[$driver] = $callback->bindTo($this, $this);
@@ -524,11 +534,12 @@ class FeatureManager
     /**
      * Set the container instance used by the manager.
      *
-     * Tests only. The container persists on the manager and its stores for the
-     * worker lifetime.
+     * On the shared manager, the container persists on it and its stores for
+     * the worker lifetime.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setContainer(Container $container): static
     {
         $this->container = $container;

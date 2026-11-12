@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Grpc;
 
 use Hypervel\Grpc\Contracts\GrpcOperationObserver;
+use Hypervel\Support\Attributes\BootOnly;
 use Throwable;
 
 class GrpcOperationRunner
@@ -15,9 +16,10 @@ class GrpcOperationRunner
     /**
      * Register a logical gRPC operation observer.
      *
-     * Boot-only. Observers persist on this singleton for the worker lifetime
-     * and apply to every subsequent gRPC operation.
+     * On the shared runner, observers persist for the worker lifetime and
+     * apply to every subsequent gRPC operation.
      */
+    #[BootOnly(whenShared: true)]
     public function observe(GrpcOperationObserver $observer): void
     {
         $this->observers[] = $observer;

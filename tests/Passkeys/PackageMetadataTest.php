@@ -32,6 +32,7 @@ class PackageMetadataTest extends TestCase
 
         foreach ([
             'php',
+            'hypervel/attributes',
             'hypervel/auth',
             'hypervel/collections',
             'hypervel/config',

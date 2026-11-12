@@ -33,6 +33,8 @@ use Hypervel\Pennant\LazilyResolvedFeature;
 use Hypervel\Pennant\PendingScopedFeatureInteraction;
 use Hypervel\Pennant\PennantState;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
 use Hypervel\Support\Facades\Event;
@@ -149,9 +151,10 @@ class Decorator implements CanListStoredFeatures, CanSetManyFeaturesForScopes, D
     /**
      * Discover and register the application's feature classes.
      *
-     * Boot or tests only. The definitions persist on the store for the worker
-     * lifetime and apply to every subsequent request.
+     * On a shared store, the definitions persist for the worker lifetime and
+     * add every discovered class to all() for subsequent requests.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function discover(string $namespace = 'App\Features', ?string $path = null): void
     {
         $namespace = Str::finish($namespace, '\\');
@@ -167,12 +170,13 @@ class Decorator implements CanListStoredFeatures, CanSetManyFeaturesForScopes, D
     /**
      * Define an initial feature flag state resolver.
      *
-     * Boot or tests only. The definition persists on the store for the worker
-     * lifetime and applies to every subsequent request.
+     * On a shared store, the definition persists for the worker lifetime and
+     * applies to every subsequent request.
      *
      * @param class-string|string|UnitEnum $feature
      * @param mixed $resolver a resolver closure, a lottery, or the feature's value
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function define(UnitEnum|string $feature, mixed $resolver = null): void
     {
         $feature = enum_value($feature);
@@ -1048,10 +1052,11 @@ class Decorator implements CanListStoredFeatures, CanSetManyFeaturesForScopes, D
     /**
      * Set the container instance used by the decorator.
      *
-     * Tests only. The container persists on the store for the worker lifetime.
+     * On a shared store, the container persists for the worker lifetime.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setContainer(Container $container): static
     {
         $this->container = $container;

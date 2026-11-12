@@ -12,6 +12,7 @@ use Hypervel\Mcp\Exceptions\ClientException;
 use Hypervel\Mcp\WebClient;
 use Hypervel\Routing\Exceptions\InvalidSignatureException;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Facades\Route as Router;
 
 class OAuthRouteRegistrar
@@ -29,12 +30,13 @@ class OAuthRouteRegistrar
     /**
      * Register connection, callback and public metadata routes for a named client.
      *
-     * Boot-only. Routes persist for the worker lifetime and affect subsequent requests.
+     * Routes persist for the worker lifetime and affect subsequent requests.
      *
      * @param array{0: class-string, 1: string}|Closure(string, TokenSet): mixed $handler receives provider or client, token, and optional returnTo by parameter name
      * @param array<int, string>|string $middleware
      * @param array<string, mixed> $clientMetadata
      */
+    #[BootOnly]
     public function register(
         string $client,
         Closure|array $handler,

@@ -99,9 +99,9 @@ trait FilesystemAdapterDecorator
     /**
      * Define a custom temporary URL builder callback.
      *
-     * Boot-only. The callback persists on the cached disk adapter for the
-     * worker lifetime and runs on every subsequent temporary URL generation for
-     * that disk.
+     * This changes the wrapped adapter. On a cached disk, the callback persists
+     * for the worker lifetime and runs on every subsequent temporary URL
+     * generation for that disk.
      */
     public function buildTemporaryUrlsUsing(?Closure $callback): void
     {
@@ -111,8 +111,8 @@ trait FilesystemAdapterDecorator
     /**
      * Define a custom temporary upload URL builder callback.
      *
-     * Boot-only. The callback persists on the cached disk adapter for the
-     * worker lifetime and runs on every subsequent temporary upload URL
+     * This changes the wrapped adapter. On a cached disk, the callback persists
+     * for the worker lifetime and runs on every subsequent temporary upload URL
      * generation for that disk.
      */
     public function buildTemporaryUploadUrlsUsing(?Closure $callback): void

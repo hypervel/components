@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue;
 
 use Closure;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Traits\GuardsProcessOutput;
 use Symfony\Component\Process\Process;
@@ -182,9 +183,10 @@ class Listener
     /**
      * Set the output handler callback.
      *
-     * Boot-only. The callback persists on the singleton listener for the
-     * command lifetime and handles every subsequent worker output line.
+     * The callback persists on the singleton listener for the command
+     * lifetime and handles every subsequent worker output line.
      */
+    #[BootOnly(whenShared: true)]
     public function setOutputHandler(Closure $outputHandler): void
     {
         $this->outputHandler = $outputHandler;

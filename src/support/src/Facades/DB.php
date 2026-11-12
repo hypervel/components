@@ -9,6 +9,7 @@ use Hypervel\Database\Console\Migrations\RefreshCommand;
 use Hypervel\Database\Console\Migrations\ResetCommand;
 use Hypervel\Database\Console\Migrations\RollbackCommand;
 use Hypervel\Database\Console\WipeCommand;
+use Hypervel\Support\Attributes\BootOnly;
 
 /**
  * @method static void allowQueryDurationHandlersToRunAgain()
@@ -152,9 +153,10 @@ class DB extends Facade
      *
      * Prohibits: db:wipe, migrate:fresh, migrate:refresh, migrate:reset, and migrate:rollback
      *
-     * Boot-only. The prohibition flags persist in static command state for the
-     * worker lifetime and affect every subsequent destructive database command.
+     * The prohibition flags persist in static command state for the worker
+     * lifetime and affect every subsequent destructive database command.
      */
+    #[BootOnly]
     public static function prohibitDestructiveCommands(bool $prohibit = true): void
     {
         FreshCommand::prohibit($prohibit);

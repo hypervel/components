@@ -6,6 +6,8 @@ namespace Hypervel\View\Engines;
 
 use Closure;
 use Hypervel\Contracts\View\Engine;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use InvalidArgumentException;
 
 class EngineResolver
@@ -25,9 +27,10 @@ class EngineResolver
      *
      * The engine string typically corresponds to a file extension.
      *
-     * Boot-only. The resolver persists on the singleton EngineResolver for the
-     * worker lifetime and applies to every subsequent engine resolution.
+     * The resolver persists on the singleton EngineResolver for the worker
+     * lifetime and applies to every subsequent engine resolution.
      */
+    #[BootOnly(whenShared: true)]
     public function register(string $engine, Closure $resolver): void
     {
         $this->forget($engine);
@@ -56,9 +59,10 @@ class EngineResolver
     /**
      * Remove a resolved engine.
      *
-     * Boot or tests only. Clears a worker-wide resolved engine shared by every
-     * coroutine; the next resolution rebuilds it from its registered resolver.
+     * On the shared resolver, this clears an engine used by every coroutine;
+     * the next resolution rebuilds it from its registered resolver.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forget(string $engine): void
     {
         unset($this->resolved[$engine]);

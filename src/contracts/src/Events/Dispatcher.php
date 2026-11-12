@@ -6,12 +6,15 @@ namespace Hypervel\Contracts\Events;
 
 use Closure;
 use Hypervel\Events\QueuedClosure;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 interface Dispatcher
 {
     /**
      * Register an event listener with the dispatcher.
      */
+    #[BootOnly(whenShared: true)]
     public function listen(
         array|Closure|QueuedClosure|string $events,
         array|object|string|null $listener = null
@@ -22,6 +25,7 @@ interface Dispatcher
      *
      * Observers receive dispatched events but are not counted by hasListeners().
      */
+    #[BootOnly(whenShared: true)]
     public function observe(array|string $events, array|object|string $observer): void;
 
     /**
@@ -32,6 +36,7 @@ interface Dispatcher
     /**
      * Register an event subscriber with the dispatcher.
      */
+    #[BootOnly(whenShared: true)]
     public function subscribe(object|string $subscriber): void;
 
     /**
@@ -59,6 +64,7 @@ interface Dispatcher
     /**
      * Remove a set of listeners from the dispatcher.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forget(string $event): void;
 
     /**

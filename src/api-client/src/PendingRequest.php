@@ -18,6 +18,7 @@ use Hypervel\Http\Client\PendingRequest as ClientPendingRequest;
 use Hypervel\Http\Client\Request as HttpRequest;
 use Hypervel\Http\Client\Response as HttpResponse;
 use Hypervel\Pipeline\Pipeline;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Stringable;
@@ -330,6 +331,7 @@ class PendingRequest implements Transient
     /**
      * Reject a custom Guzzle client that would bypass the API request pipeline.
      */
+    #[Unsupported('Use setHandler() to configure a request-specific transport handler.')]
     public function setClient(ClientInterface $client): never
     {
         throw new BadMethodCallException(

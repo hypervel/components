@@ -18,6 +18,7 @@ use Hypervel\Head\Tags\Schemas;
 use Hypervel\Head\Tags\TagBuilder;
 use Hypervel\Head\Tags\Title;
 use Hypervel\Head\Tags\Twitter;
+use Hypervel\Support\Attributes\BootOnly;
 use InvalidArgumentException;
 
 class TagRegistry
@@ -41,10 +42,11 @@ class TagRegistry
     /**
      * Register a custom tag builder.
      *
-     * Boot-only. Registered builders affect every request using this shared registry.
+     * Registered builders affect every request using this shared registry.
      *
      * @param class-string $builder
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $builder): static
     {
         if (! is_subclass_of($builder, TagBuilder::class)) {

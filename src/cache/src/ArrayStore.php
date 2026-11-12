@@ -52,6 +52,26 @@ class ArrayStore extends AbstractArrayStore
     }
 
     /**
+     * Give the cloned store its own coroutine context entries.
+     *
+     * The clone starts with the values and locks stored in the current
+     * coroutine, but later changes through either store leave the other's
+     * entries untouched.
+     */
+    public function __clone(): void
+    {
+        $items = $this->getCacheItems();
+        $records = $this->getLockRecords();
+        $suffix = (string) ++self::$contextKeySequence;
+
+        $this->storageContextKey = self::STORAGE_CONTEXT_KEY_PREFIX . $suffix;
+        $this->locksContextKey = self::LOCKS_CONTEXT_KEY_PREFIX . $suffix;
+
+        CoroutineContext::set($this->storageContextKey, $items);
+        CoroutineContext::set($this->locksContextKey, $records);
+    }
+
+    /**
      * Get the cached item for the given key.
      *
      * @return null|array{value: mixed, expiresAt: float}

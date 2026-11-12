@@ -22,6 +22,7 @@ use Hypervel\Queue\Jobs\Job as PoolLeaseAwareJob;
 use Hypervel\Queue\Outbox\Concerns\PublishesOutboxMessagesSequentially;
 use Hypervel\Queue\Outbox\OutboxBatchResult;
 use Hypervel\Queue\Outbox\OutboxMessage;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -334,7 +335,14 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
 
     /**
      * Set the connection name for the queue.
+     *
+     * Queue connection proxies are cached on QueueManager; runtime use races
+     * across coroutines and changes every concurrent dispatch through this
+     * connection.
+     *
+     * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setConnectionName(string $name): static
     {
         $this->connectionName = $name;

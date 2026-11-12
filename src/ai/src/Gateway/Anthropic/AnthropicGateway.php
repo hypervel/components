@@ -31,6 +31,7 @@ use Hypervel\Ai\Responses\EmbeddingsResponse;
 use Hypervel\Ai\Responses\ImageResponse;
 use Hypervel\Ai\Responses\TranscriptionResponse;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Support\Attributes\Unsupported;
 use LogicException;
 
 class AnthropicGateway implements Gateway, StepTextGateway
@@ -138,6 +139,7 @@ class AnthropicGateway implements Gateway, StepTextGateway
      *
      * @throws LogicException
      */
+    #[Unsupported]
     public function generateImage(
         ImageProvider $provider,
         string $model,
@@ -156,6 +158,7 @@ class AnthropicGateway implements Gateway, StepTextGateway
      *
      * @throws LogicException
      */
+    #[Unsupported]
     public function generateAudio(
         AudioProvider $provider,
         string $model,
@@ -173,6 +176,7 @@ class AnthropicGateway implements Gateway, StepTextGateway
      *
      * @throws LogicException
      */
+    #[Unsupported]
     public function generateTranscription(
         TranscriptionProvider $provider,
         string $model,
@@ -190,6 +194,7 @@ class AnthropicGateway implements Gateway, StepTextGateway
      *
      * @throws LogicException
      */
+    #[Unsupported]
     public function generateEmbeddings(
         EmbeddingProvider $provider,
         string $model,

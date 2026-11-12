@@ -8,6 +8,7 @@ use DateTimeInterface;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Store;
+use Hypervel\Support\Attributes\BootOnly;
 
 class CacheSchedulingMutex implements SchedulingMutex, CacheAware
 {
@@ -81,11 +82,12 @@ class CacheSchedulingMutex implements SchedulingMutex, CacheAware
     /**
      * Specify the cache store that should be used.
      *
-     * Boot-only. Mutates the shared mutex instance for the worker lifetime;
+     * Mutates the shared mutex instance for the worker lifetime;
      * per-request use races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function useStore(?string $store): static
     {
         $this->store = $store;

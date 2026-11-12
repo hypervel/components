@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Testing\Fakes\EventFake;
 
 /**
@@ -52,7 +53,10 @@ class Event extends Facade
 {
     /**
      * Replace the bound instance with a fake.
+     *
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     public static function fake(array|string $eventsToFake = []): EventFake
     {
         $actualDispatcher = static::isFake()
@@ -69,7 +73,10 @@ class Event extends Facade
 
     /**
      * Replace the bound instance with a fake that fakes all events except the given events.
+     *
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     public static function fakeExcept(array|string $eventsToAllow): EventFake
     {
         return static::fake([
@@ -81,7 +88,10 @@ class Event extends Facade
 
     /**
      * Replace the bound instance with a fake during the given callable's execution.
+     *
+     * Swaps the resolved facade instance worker-wide until the callable returns.
      */
+    #[TestsOnly]
     public static function fakeFor(callable $callable, array $eventsToFake = []): mixed
     {
         $originalDispatcher = static::getFacadeRoot();
@@ -100,7 +110,10 @@ class Event extends Facade
 
     /**
      * Replace the bound instance with a fake during the given callable's execution.
+     *
+     * Swaps the resolved facade instance worker-wide until the callable returns.
      */
+    #[TestsOnly]
     public static function fakeExceptFor(callable $callable, array $eventsToAllow = []): mixed
     {
         $originalDispatcher = static::getFacadeRoot();

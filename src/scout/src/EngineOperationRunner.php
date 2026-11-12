@@ -6,6 +6,7 @@ namespace Hypervel\Scout;
 
 use Closure;
 use Hypervel\Scout\Contracts\EngineOperationObserver;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\FailureReporter;
 use Throwable;
 
@@ -21,9 +22,10 @@ class EngineOperationRunner
     /**
      * Register an engine operation observer.
      *
-     * Boot-only. Observers persist on this singleton for the worker lifetime
-     * and apply to every subsequent engine operation.
+     * Observers persist on this singleton for the worker lifetime and apply
+     * to every subsequent engine operation.
      */
+    #[BootOnly(whenShared: true)]
     public function observe(EngineOperationObserver $observer): void
     {
         $this->observers[] = $observer;

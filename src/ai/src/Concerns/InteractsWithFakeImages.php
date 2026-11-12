@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Ai\Gateway\FakeImageGateway;
 use Hypervel\Ai\Prompts\ImagePrompt;
 use Hypervel\Ai\Prompts\QueuedImagePrompt;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use PHPUnit\Framework\Assert as PHPUnit;
 
@@ -31,8 +32,9 @@ trait InteractsWithFakeImages
     /**
      * Fake image generation.
      *
-     * Tests only. The fake gateway is shared by all requests in the worker.
+     * On the shared manager, the fake gateway affects every request.
      */
+    #[TestsOnly(whenShared: true)]
     public function fakeImages(Closure|array $responses = []): FakeImageGateway
     {
         return $this->fakeImageGateway = new FakeImageGateway($responses);
@@ -41,8 +43,9 @@ trait InteractsWithFakeImages
     /**
      * Record an image generation.
      *
-     * Tests only. Recorded prompts remain on the worker-shared manager.
+     * Recorded prompts remain on the worker-shared manager.
      */
+    #[TestsOnly(whenShared: true)]
     public function recordImageGeneration(ImagePrompt|QueuedImagePrompt $prompt): self
     {
         if ($prompt instanceof QueuedImagePrompt) {

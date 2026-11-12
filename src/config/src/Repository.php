@@ -8,6 +8,7 @@ use ArrayAccess;
 use Closure;
 use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
@@ -177,10 +178,10 @@ class Repository implements ArrayAccess, ConfigContract
     /**
      * Set a given configuration value.
      *
-     * Boot or tests only. The config repository is a process-global singleton;
-     * per-request mutation races across coroutines and affects every concurrent
-     * request.
+     * The config repository is a process-global singleton; per-request mutation
+     * races across coroutines and affects every concurrent request.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function set(array|string $key, mixed $value = null): void
     {
         $keys = is_array($key) ? $key : [$key => $value];
@@ -197,10 +198,10 @@ class Repository implements ArrayAccess, ConfigContract
     /**
      * Prepend a value onto an array configuration value.
      *
-     * Boot or tests only. The config repository is a process-global singleton;
-     * per-request mutation races across coroutines and affects every concurrent
-     * request.
+     * The config repository is a process-global singleton; per-request mutation
+     * races across coroutines and affects every concurrent request.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function prepend(string $key, mixed $value): void
     {
         $array = $this->get($key, []);
@@ -213,10 +214,10 @@ class Repository implements ArrayAccess, ConfigContract
     /**
      * Push a value onto an array configuration value.
      *
-     * Boot or tests only. The config repository is a process-global singleton;
-     * per-request mutation races across coroutines and affects every concurrent
-     * request.
+     * The config repository is a process-global singleton; per-request mutation
+     * races across coroutines and affects every concurrent request.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function push(string $key, mixed $value): void
     {
         $array = $this->get($key, []);
@@ -279,13 +280,13 @@ class Repository implements ArrayAccess, ConfigContract
     /**
      * Set a configuration option.
      *
-     * Boot or tests only. The config repository is a process-global singleton;
-     * per-request mutation races across coroutines and affects every concurrent
-     * request.
+     * The config repository is a process-global singleton; per-request mutation
+     * races across coroutines and affects every concurrent request.
      *
      * @param int|string $offset
      * @param mixed $value
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function offsetSet($offset, $value): void
     {
         $this->set((string) $offset, $value);
@@ -294,12 +295,12 @@ class Repository implements ArrayAccess, ConfigContract
     /**
      * Unset a configuration option.
      *
-     * Boot or tests only. The config repository is a process-global singleton;
-     * per-request mutation races across coroutines and affects every concurrent
-     * request.
+     * The config repository is a process-global singleton; per-request mutation
+     * races across coroutines and affects every concurrent request.
      *
      * @param int|string $offset
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function offsetUnset($offset): void
     {
         $this->set((string) $offset, null);

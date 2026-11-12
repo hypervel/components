@@ -31,7 +31,7 @@ class PackageMetadataTest extends TestCase
 
         foreach ([
             'ext-filter',
-            'hypervel/guzzle',
+            'hypervel/attributes',
             'hypervel/collections',
             'hypervel/conditionable',
             'hypervel/config',
@@ -42,6 +42,7 @@ class PackageMetadataTest extends TestCase
             'hypervel/coroutine',
             'hypervel/database',
             'hypervel/foundation',
+            'hypervel/guzzle',
             'hypervel/macroable',
             'hypervel/pagination',
             'hypervel/queue',

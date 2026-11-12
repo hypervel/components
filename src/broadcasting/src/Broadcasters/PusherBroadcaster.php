@@ -9,6 +9,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
 use Pusher\ApiErrorException;
 use Pusher\Pusher;
@@ -164,9 +165,10 @@ class PusherBroadcaster extends Broadcaster
     /**
      * Set the Pusher SDK instance.
      *
-     * Boot or tests only. Replaces the SDK client on this worker-cached broadcaster;
-     * per-request mutation races across coroutines.
+     * Replaces the SDK client on this worker-cached broadcaster; per-request
+     * mutation races across coroutines.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setPusher(Pusher $pusher): void
     {
         $this->pusher = $pusher;

@@ -26,6 +26,7 @@ use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\StrCache;
 
 trait HasRelationships
@@ -104,10 +105,11 @@ trait HasRelationships
     /**
      * Define a dynamic relation resolver.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every relation resolution for this model class
-     * across all coroutines.
+     * The resolver persists in a static property for the worker lifetime
+     * and runs on every relation resolution for this model class across
+     * all coroutines.
      */
+    #[BootOnly]
     public static function resolveRelationUsing(string $name, Closure $callback): void
     {
         static::$relationResolvers = array_replace_recursive(

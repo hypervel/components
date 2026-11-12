@@ -389,4 +389,38 @@ class InteractsWithAuthenticationTest extends TestCase
         $this->get('/me')
             ->assertRedirect(route('login'));
     }
+
+    public function testForgettingGuardsDropsActingAsUsers(): void
+    {
+        Route::get('me', function (Request $request) {
+            return 'Hello ' . $request->user()->username;
+        })->middleware(['auth']);
+        Route::get('login', function () {
+            return 'Login';
+        })->name('login');
+
+        $user = User::where('username', '=', 'taylorotwell')->first();
+
+        $this->actingAs($user)
+            ->get('/me')
+            ->assertSuccessful();
+
+        Auth::forgetGuards();
+
+        $this->assertGuest();
+        $this->get('/me')
+            ->assertRedirect(route('login'));
+    }
+
+    public function testForgettingGuardsReloadsUsersFromAValidSession(): void
+    {
+        $user = User::where('username', '=', 'taylorotwell')->first();
+        Auth::guard('web')->login($user);
+
+        Auth::forgetGuards();
+
+        $resolved = Auth::guard('web')->user();
+        $this->assertNotSame($user, $resolved);
+        $this->assertTrue($user->is($resolved));
+    }
 }

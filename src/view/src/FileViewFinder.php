@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\View;
 
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Attributes\BootOnly;
 use InvalidArgumentException;
 
 class FileViewFinder implements ViewFinderInterface
@@ -123,9 +124,10 @@ class FileViewFinder implements ViewFinderInterface
     /**
      * Add a location to the finder.
      *
-     * Boot-only. Request-time use changes shared view paths while concurrent
-     * coroutines may still be resolving views.
+     * On the shared factory's finder, request-time use changes view paths while
+     * concurrent coroutines may still be resolving views.
      */
+    #[BootOnly(whenShared: true)]
     public function addLocation(string $location): void
     {
         $this->paths[] = $this->resolvePath($location);
@@ -134,9 +136,10 @@ class FileViewFinder implements ViewFinderInterface
     /**
      * Prepend a location to the finder.
      *
-     * Boot-only. Request-time use changes shared view paths while concurrent
-     * coroutines may still be resolving views.
+     * On the shared factory's finder, request-time use changes view paths while
+     * concurrent coroutines may still be resolving views.
      */
+    #[BootOnly(whenShared: true)]
     public function prependLocation(string $location): void
     {
         array_unshift($this->paths, $this->resolvePath($location));
@@ -153,9 +156,10 @@ class FileViewFinder implements ViewFinderInterface
     /**
      * Add a namespace hint to the finder.
      *
-     * Boot-only. Request-time use changes shared view hints while concurrent
-     * coroutines may still be resolving views.
+     * On the shared factory's finder, request-time use changes view hints while
+     * concurrent coroutines may still be resolving views.
      */
+    #[BootOnly(whenShared: true)]
     public function addNamespace(string $namespace, string|array $hints): void
     {
         $hints = array_map($this->resolvePath(...), (array) $hints);
@@ -170,9 +174,10 @@ class FileViewFinder implements ViewFinderInterface
     /**
      * Prepend a namespace hint to the finder.
      *
-     * Boot-only. Request-time use changes shared view hints while concurrent
-     * coroutines may still be resolving views.
+     * On the shared factory's finder, request-time use changes view hints while
+     * concurrent coroutines may still be resolving views.
      */
+    #[BootOnly(whenShared: true)]
     public function prependNamespace(string $namespace, string|array $hints): void
     {
         $hints = array_map($this->resolvePath(...), (array) $hints);
@@ -187,9 +192,10 @@ class FileViewFinder implements ViewFinderInterface
     /**
      * Replace the namespace hints for the given namespace.
      *
-     * Boot-only. Request-time use changes shared view hints while concurrent
-     * coroutines may still be resolving views.
+     * On the shared factory's finder, request-time use changes view hints while
+     * concurrent coroutines may still be resolving views.
      */
+    #[BootOnly(whenShared: true)]
     public function replaceNamespace(string $namespace, string|array $hints): void
     {
         $this->hints[$namespace] = array_map($this->resolvePath(...), (array) $hints);
@@ -198,9 +204,10 @@ class FileViewFinder implements ViewFinderInterface
     /**
      * Register an extension with the view finder.
      *
-     * Boot-only. Request-time use changes shared view extensions while
-     * concurrent coroutines may still be resolving views.
+     * On the shared factory's finder, request-time use changes view extensions
+     * while concurrent coroutines may still be resolving views.
      */
+    #[BootOnly(whenShared: true)]
     public function addExtension(string $extension): void
     {
         if (($index = array_search($extension, $this->extensions)) !== false) {
@@ -220,9 +227,6 @@ class FileViewFinder implements ViewFinderInterface
 
     /**
      * Flush the cache of located views.
-     *
-     * Boot or tests only. Request-time use clears shared lookup state while
-     * concurrent coroutines may still be resolving views.
      */
     public function flush(): void
     {
@@ -240,11 +244,12 @@ class FileViewFinder implements ViewFinderInterface
     /**
      * Set the active view paths.
      *
-     * Boot-only. Request-time use changes shared view paths while concurrent
-     * coroutines may still be resolving views.
+     * On the shared factory's finder, request-time use changes view paths while
+     * concurrent coroutines may still be resolving views.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setPaths(array $paths): static
     {
         $this->paths = $paths;

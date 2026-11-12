@@ -13,6 +13,7 @@ use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -365,9 +366,10 @@ class ScheduleListCommand extends Command
     /**
      * Set a callback that should be used when resolving the terminal width.
      *
-     * Tests only. The resolver persists in a static property for the worker
-     * lifetime and affects every subsequent schedule:list render.
+     * The resolver persists in a static property for the worker lifetime
+     * and affects every subsequent schedule:list render.
      */
+    #[TestsOnly]
     public static function resolveTerminalWidthUsing(?Closure $resolver): void
     {
         static::$terminalWidthResolver = $resolver;

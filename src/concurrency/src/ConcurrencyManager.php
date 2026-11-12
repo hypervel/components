@@ -8,6 +8,7 @@ use Carbon\CarbonInterval;
 use Closure;
 use Hypervel\Contracts\Concurrency\Driver;
 use Hypervel\Process\Factory as ProcessFactory;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\MultipleInstanceManager;
 use UnitEnum;
 
@@ -72,8 +73,9 @@ class ConcurrencyManager extends MultipleInstanceManager
     /**
      * Set the default concurrency driver name.
      *
-     * Boot-only. Mutates process-global config; per-request use races across coroutines.
+     * Mutates process-global config; per-request use races across coroutines.
      */
+    #[BootOnly]
     public function setDefaultInstance(string $name): void
     {
         $this->config->set('concurrency.default', $name);

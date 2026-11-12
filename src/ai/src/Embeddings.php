@@ -11,6 +11,7 @@ use Hypervel\Ai\Files\Image;
 use Hypervel\Ai\Files\Video;
 use Hypervel\Ai\Gateway\FakeEmbeddingGateway;
 use Hypervel\Ai\PendingResponses\PendingEmbeddingsGeneration;
+use Hypervel\Support\Attributes\TestsOnly;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -31,8 +32,9 @@ class Embeddings
     /**
      * Fake embeddings generation.
      *
-     * Tests only. The fake gateway is shared across requests in the worker.
+     * The fake gateway is shared across requests in the worker.
      */
+    #[TestsOnly]
     public static function fake(Closure|array $responses = []): FakeEmbeddingGateway
     {
         return Ai::fakeEmbeddings($responses);

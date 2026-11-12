@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Providers\Concerns;
 
 use Hypervel\Ai\Contracts\Gateway\RerankingGateway;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 trait HasRerankingGateway
 {
@@ -21,8 +22,9 @@ trait HasRerankingGateway
     /**
      * Set the provider's reranking gateway.
      *
-     * Boot or tests only for configured providers, which are shared across requests.
+     * Changing a shared provider's gateway affects subsequent operations.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function useRerankingGateway(RerankingGateway $gateway): self
     {
         $this->rerankingGateway = $gateway;

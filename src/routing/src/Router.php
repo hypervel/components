@@ -27,6 +27,9 @@ use Hypervel\Routing\Events\RouteMatched;
 use Hypervel\Routing\Events\Routing;
 use Hypervel\Routing\Exceptions\BackedEnumCaseNotFoundException;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
@@ -961,11 +964,12 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Register a callback to run after implicit bindings are substituted.
      *
-     * Boot-only. The callback persists on the singleton Router and affects
-     * every subsequent route binding.
+     * The callback persists on the singleton Router and affects every
+     * subsequent route binding.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function substituteImplicitBindingsUsing(callable $callback): static
     {
         $this->implicitBindingCallback = $callback(...);
@@ -986,8 +990,9 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Register a route matched event listener.
      *
-     * Boot-only. The listener persists on the worker-lifetime event dispatcher
-     * and runs for every subsequent route match.
+     * When the dispatcher is the application's worker-shared dispatcher, the
+     * listener persists for the worker lifetime and runs for every subsequent
+     * route match.
      */
     public function matched(string|callable $callback): void
     {
@@ -1007,11 +1012,12 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Register a short-hand name for a middleware.
      *
-     * Boot-only. The alias persists in the singleton Router for the worker
-     * lifetime and applies to every subsequent route resolution.
+     * The alias persists in the singleton Router for the worker lifetime
+     * and applies to every subsequent route resolution.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function aliasMiddleware(string $name, string|Closure $class): static
     {
         $this->middleware[$name] = $class;
@@ -1040,11 +1046,12 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Register a group of middleware.
      *
-     * Boot-only. The middleware group persists in the singleton Router for the
-     * worker lifetime and applies to every subsequent route resolution.
+     * The middleware group persists in the singleton Router for the worker
+     * lifetime and applies to every subsequent route resolution.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function middlewareGroup(string $name, array $middleware): static
     {
         $this->middlewareGroups[$name] = $middleware;
@@ -1057,11 +1064,12 @@ class Router implements BindingRegistrar, RegistrarContract
      *
      * If the middleware is already in the group, it will not be added again.
      *
-     * Boot-only. The middleware group persists in the singleton Router for the
-     * worker lifetime and applies to every subsequent route resolution.
+     * The middleware group persists in the singleton Router for the worker
+     * lifetime and applies to every subsequent route resolution.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function prependMiddlewareToGroup(string $group, string $middleware): static
     {
         if (isset($this->middlewareGroups[$group]) && ! in_array($middleware, $this->middlewareGroups[$group], true)) {
@@ -1076,11 +1084,12 @@ class Router implements BindingRegistrar, RegistrarContract
      *
      * If the middleware is already in the group, it will not be added again.
      *
-     * Boot-only. The middleware group persists in the singleton Router for the
-     * worker lifetime and applies to every subsequent route resolution.
+     * The middleware group persists in the singleton Router for the worker
+     * lifetime and applies to every subsequent route resolution.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function pushMiddlewareToGroup(string $group, string $middleware): static
     {
         if (! array_key_exists($group, $this->middlewareGroups)) {
@@ -1097,11 +1106,12 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Remove the given middleware from the specified group.
      *
-     * Boot-only. The group mutation persists on the singleton Router and does
-     * not invalidate middleware already resolved on routes.
+     * The group mutation persists on the singleton Router and does not
+     * invalidate middleware already resolved on routes.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function removeMiddlewareFromGroup(string $group, string|array $middleware): static
     {
         if (! $this->hasMiddlewareGroup($group)) {
@@ -1126,12 +1136,12 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Flush the router's middleware groups.
      *
-     * Boot or tests only. Clears the singleton Router's middleware-group
-     * registry shared by every coroutine; concurrent requests lose middleware
-     * mid-dispatch.
+     * Clears the singleton Router's middleware-group registry shared by every
+     * coroutine; concurrent requests lose middleware mid-dispatch.
      *
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function flushMiddlewareGroups(): static
     {
         $this->middlewareGroups = [];
@@ -1142,9 +1152,10 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Add a new route parameter binder.
      *
-     * Boot-only. The binder persists in the singleton Router for the worker
-     * lifetime and runs on every subsequent route parameter resolution.
+     * The binder persists in the singleton Router for the worker lifetime
+     * and runs on every subsequent route parameter resolution.
      */
+    #[BootOnly(whenShared: true)]
     public function bind(string $key, string|callable $binder): void
     {
         $this->binders[str_replace('-', '_', $key)] = RouteBinding::forCallback(
@@ -1156,9 +1167,10 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Register a model binder for a wildcard.
      *
-     * Boot-only. The model binder persists in the singleton Router for the
-     * worker lifetime and runs on every subsequent route parameter resolution.
+     * The model binder persists in the singleton Router for the worker
+     * lifetime and runs on every subsequent route parameter resolution.
      */
+    #[BootOnly(whenShared: true)]
     public function model(string $key, string $class, ?Closure $callback = null): void
     {
         $this->bind($key, RouteBinding::forModel($this->container, $class, $callback));
@@ -1189,9 +1201,10 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Set a global where pattern on all routes.
      *
-     * Boot-only. The pattern persists in the singleton Router for the worker
-     * lifetime and applies to every subsequent route definition.
+     * The pattern persists in the singleton Router for the worker lifetime
+     * and applies to every subsequent route definition.
      */
+    #[BootOnly(whenShared: true)]
     public function pattern(string $key, string $pattern): void
     {
         $this->patterns[$key] = $pattern;
@@ -1200,9 +1213,10 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Set a group of global where patterns on all routes.
      *
-     * Boot-only. The patterns persist in the singleton Router for the worker
-     * lifetime and apply to every subsequent route definition.
+     * The patterns persist in the singleton Router for the worker lifetime
+     * and apply to every subsequent route definition.
      */
+    #[BootOnly(whenShared: true)]
     public function patterns(array $patterns): void
     {
         foreach ($patterns as $key => $pattern) {
@@ -1337,9 +1351,10 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Set the unmapped global resource parameters to singular.
      *
-     * Boot-only. Delegates to ResourceRegistrar::singularParameters() which
-     * persists in a static property for the worker lifetime.
+     * Delegates to ResourceRegistrar::singularParameters() which persists
+     * in a static property for the worker lifetime.
      */
+    #[BootOnly]
     public function singularResourceParameters(bool $singular = true): void
     {
         ResourceRegistrar::singularParameters($singular);
@@ -1348,8 +1363,9 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Set the global resource parameter mapping.
      *
-     * Boot-only. The mapping persists in static state for the worker lifetime.
+     * The mapping persists in static state for the worker lifetime.
      */
+    #[BootOnly]
     public function resourceParameters(array $parameters = []): void
     {
         ResourceRegistrar::setParameters($parameters);
@@ -1358,9 +1374,9 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Get or set the verbs used in the resource URIs.
      *
-     * Boot-only when setting. Custom verbs persist in static state for the
-     * worker lifetime.
+     * Given verbs persist in static state for the worker lifetime.
      */
+    #[BootOnly(whenNotDefault: 'verbs')]
     public function resourceVerbs(array $verbs = []): ?array
     {
         return ResourceRegistrar::verbs($verbs);
@@ -1377,9 +1393,10 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Set the route collection instance.
      *
-     * Boot or tests only. Replacing the collection mutates the singleton Router
-     * and its shared route binding for every subsequent request.
+     * Replacing the collection mutates the singleton Router and its shared
+     * route binding for every subsequent request.
      */
+    #[BootOrTestsOnly]
     public function setRoutes(RouteCollection $routes): void
     {
         if ($this->ownsGlobalRouteState()) {
@@ -1400,10 +1417,11 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Set the compiled route collection instance.
      *
-     * Boot-only. Replaces the singleton Router's route collection and rebinds
-     * the container's 'routes' instance; runtime use breaks every concurrent
+     * Replaces the singleton Router's route collection and rebinds the
+     * container's 'routes' instance; runtime use breaks every concurrent
      * request mid-dispatch.
      */
+    #[BootOnly]
     public function setCompiledRoutes(array $routes): void
     {
         if ($this->ownsGlobalRouteState()) {
@@ -1454,9 +1472,10 @@ class Router implements BindingRegistrar, RegistrarContract
      * Kernel::bootstrap() returns, before $server->start(). Idempotent —
      * safe to call from both servers in combined setups.
      *
-     * Boot-only. Replaces the route collection and populates process-wide
-     * caches before fork.
+     * Replaces the route collection and populates process-wide caches
+     * before fork.
      */
+    #[BootOnly]
     public function compileAndWarm(): void
     {
         $routes = $this->getRoutes();
@@ -1540,11 +1559,12 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Set the container instance used by the router.
      *
-     * Tests only. Swaps the singleton Router's container reference; per-request
-     * use races across coroutines and breaks every concurrent route dispatch.
+     * Swaps the singleton Router's container reference; per-request use races
+     * across coroutines and breaks every concurrent route dispatch.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setContainer(Container $container): static
     {
         $this->container = $container;

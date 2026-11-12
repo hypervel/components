@@ -12,6 +12,7 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Log\LogManager;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Env;
 use Monolog\Handler\NullHandler;
 use PHPUnit\Framework\TestCase;
@@ -351,11 +352,12 @@ class HandleExceptions
     /**
      * Release the handlers installed for an application that is being discarded.
      *
-     * Boot or tests only. Restores the handlers, display_errors setting and
-     * application that were active before the application was bootstrapped, so
-     * later errors are reported without its flushed container. Handlers and
-     * settings changed by other code stay in place.
+     * Restores the handlers, display_errors setting and application that were
+     * active before the application was bootstrapped, so later errors are
+     * reported without its flushed container. Handlers and settings changed by
+     * other code stay in place.
      */
+    #[BootOrTestsOnly]
     public static function release(Application $app): void
     {
         $owner = static::$owner;

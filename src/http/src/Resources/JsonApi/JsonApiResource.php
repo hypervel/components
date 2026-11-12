@@ -10,6 +10,8 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Resources\Json\JsonResource;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Support\Collection;
 use JsonSerializable;
 use Override;
@@ -49,9 +51,10 @@ class JsonApiResource extends JsonResource
     /**
      * Set the JSON:API version for the request.
      *
-     * Boot-only. The configuration persists in a static property for the worker
-     * lifetime and applies to every JSON:API response across all coroutines.
+     * The configuration persists in a static property for the worker lifetime
+     * and applies to every JSON:API response across all coroutines.
      */
+    #[BootOnly]
     public static function configure(?string $version = null, array $ext = [], array $profile = [], array $meta = []): void
     {
         static::$jsonApiInformation = array_filter([
@@ -225,6 +228,7 @@ class JsonApiResource extends JsonResource
      * @throws BadMethodCallException
      */
     #[Override]
+    #[Unsupported]
     public static function wrap(string $value): never
     {
         throw new BadMethodCallException(sprintf('Using %s() method is not allowed.', __METHOD__));
@@ -236,6 +240,7 @@ class JsonApiResource extends JsonResource
      * @throws BadMethodCallException
      */
     #[Override]
+    #[Unsupported]
     public static function withoutWrapping(): never
     {
         throw new BadMethodCallException(sprintf('Using %s() method is not allowed.', __METHOD__));

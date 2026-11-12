@@ -6,6 +6,7 @@ namespace Hypervel\Prompts;
 
 use Closure;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\Unsupported;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
@@ -275,6 +276,7 @@ class Progress extends Prompt
      *
      * @throws RuntimeException
      */
+    #[Unsupported('Use map(), or start(), advance() and finish().')]
     public function prompt(): never
     {
         throw new RuntimeException('Progress Bar cannot be prompted.');

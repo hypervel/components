@@ -18,12 +18,6 @@ use RuntimeException;
 
 class MultiExecTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-        CoroutineContext::forget(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default');
-    }
-
     public function testPipelineWithoutCallbackReturnsInstanceForChaining(): void
     {
         $pipelineInstance = m::mock(PhpRedis::class);
@@ -152,12 +146,11 @@ class MultiExecTest extends TestCase
         $phpRedis->shouldReceive('pipeline')->once()->andReturn($pipelineInstance);
 
         $connection = $this->createMockConnection($phpRedis);
+        $redis = $this->createRedis($connection);
         // Set up existing connection in context BEFORE the pipeline call
-        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+        CoroutineContext::set($this->contextKey($redis), $connection);
 
         $connection->shouldNotReceive('release');
-
-        $redis = $this->createRedis($connection);
 
         $redis->pipeline(function ($pipe) {
             // empty callback
@@ -196,13 +189,12 @@ class MultiExecTest extends TestCase
         $phpRedis->shouldReceive('multi')->once()->andReturn($multiInstance);
 
         $connection = $this->createMockConnection($phpRedis);
+        $redis = $this->createRedis($connection);
         // Set up existing connection in context BEFORE the transaction call
-        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+        CoroutineContext::set($this->contextKey($redis), $connection);
 
         $connection->shouldNotReceive('release');
         $connection->shouldReceive('clearWatchState')->once();
-
-        $redis = $this->createRedis($connection);
 
         $redis->transaction(function ($tx) {
             // empty callback
@@ -243,10 +235,11 @@ class MultiExecTest extends TestCase
         $connection = $this->createMockConnection($phpRedis);
         $connection->shouldReceive('invalidate')->once();
         $connection->shouldNotReceive('release');
-        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+        $redis = $this->createRedis($connection);
+        CoroutineContext::set($this->contextKey($redis), $connection);
 
         try {
-            $this->createRedis($connection)->transaction(static function (): void {
+            $redis->transaction(static function (): void {
             });
             $this->fail('Expected the transaction failure to propagate.');
         } catch (RuntimeException $throwable) {
@@ -255,7 +248,7 @@ class MultiExecTest extends TestCase
 
         $this->assertSame(
             $connection,
-            CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'),
+            CoroutineContext::get($this->contextKey($redis)),
         );
     }
 
@@ -284,7 +277,7 @@ class MultiExecTest extends TestCase
 
         // After pipeline callback completes, connection was released.
         // The connection should no longer be in context.
-        $this->assertNull(CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+        $this->assertNull(CoroutineContext::get($this->contextKey($redis)));
     }
 
     /**
@@ -312,7 +305,7 @@ class MultiExecTest extends TestCase
         $pool = m::mock(RedisPool::class);
         $pool->shouldReceive('borrow')->andReturn($connection);
 
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = m::mock(PoolManager::class)->makePartial();
         $poolManager->shouldReceive('pool')->with('default')->andReturn($pool);
 
         return new RedisProxy(
@@ -320,5 +313,13 @@ class MultiExecTest extends TestCase
             'default',
             m::mock(RedisSentinelFactory::class),
         );
+    }
+
+    /**
+     * Get the coroutine context key of the given proxy's pinned connection.
+     */
+    private function contextKey(RedisProxy $redis): string
+    {
+        return (fn (): string => $this->getContextKey())->call($redis);
     }
 }

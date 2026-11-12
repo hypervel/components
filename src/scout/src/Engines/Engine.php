@@ -11,6 +11,7 @@ use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\EngineOperation;
 use Hypervel\Scout\EngineOperationRunner;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 
@@ -102,11 +103,12 @@ abstract class Engine
     /**
      * Assign the operation runner to this engine.
      *
-     * Boot-only. The runner persists on this engine for the worker lifetime.
-     * Engines without observable operations retain no runner.
+     * The runner persists on a cached engine for the worker lifetime. Engines
+     * without observable operations retain no runner.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setOperationRunner(EngineOperationRunner $runner, string $engineName): static
     {
         if (! $this->hasObservableOperations()) {

@@ -7,6 +7,7 @@ namespace Hypervel\Auth;
 use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Session\Middleware\AuthenticateSession;
+use Hypervel\Support\Attributes\BootOnly;
 
 /**
  * Single source of truth for boot-time auth redirect wiring.
@@ -20,10 +21,11 @@ class AuthenticationRedirects
     /**
      * Configure where guests are redirected by the "auth" middleware.
      *
-     * Boot-only. The callback persists in authentication middleware and
-     * exception static properties for the worker lifetime and affects every
+     * The callback persists in authentication middleware and exception
+     * static properties for the worker lifetime and affects every
      * subsequent unauthenticated or session-mismatch request.
      */
+    #[BootOnly]
     public static function redirectGuestsTo(callable|string|null $redirect): void
     {
         $redirect = $redirect === null
@@ -36,10 +38,11 @@ class AuthenticationRedirects
     /**
      * Configure where users are redirected by the "guest" middleware.
      *
-     * Boot-only. The callback persists in the guest middleware static property
-     * for the worker lifetime and affects every subsequent already-authenticated
+     * The callback persists in the guest middleware static property for the
+     * worker lifetime and affects every subsequent already-authenticated
      * guest-route request.
      */
+    #[BootOnly]
     public static function redirectUsersTo(callable|string $redirect): void
     {
         self::redirectTo(users: $redirect);
@@ -48,10 +51,11 @@ class AuthenticationRedirects
     /**
      * Configure where users are redirected by the authentication and guest middleware.
      *
-     * Boot-only. The callbacks persist in authentication middleware and
-     * exception static properties for the worker lifetime and affect every
+     * The callbacks persist in authentication middleware and exception
+     * static properties for the worker lifetime and affect every
      * subsequent matching request.
      */
+    #[BootOnly]
     public static function redirectTo(callable|string|null $guests = null, callable|string|null $users = null): void
     {
         $guests = is_string($guests) ? fn () => $guests : $guests;

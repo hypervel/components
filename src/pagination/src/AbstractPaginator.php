@@ -12,6 +12,7 @@ use Hypervel\Contracts\View\Factory;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\Tappable;
@@ -478,9 +479,10 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Set the current request path resolver callback.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every subsequent paginator's path lookup.
+     * The resolver persists in a static property for the worker lifetime
+     * and runs on every subsequent paginator's path lookup.
      */
+    #[BootOnly]
     public static function currentPathResolver(Closure $resolver): void
     {
         static::$currentPathResolver = $resolver;
@@ -501,9 +503,10 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Set the current page resolver callback.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every subsequent paginator's page lookup.
+     * The resolver persists in a static property for the worker lifetime
+     * and runs on every subsequent paginator's page lookup.
      */
+    #[BootOnly]
     public static function currentPageResolver(Closure $resolver): void
     {
         static::$currentPageResolver = $resolver;
@@ -524,9 +527,10 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Set with query string resolver callback.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every subsequent paginator's query-string lookup.
+     * The resolver persists in a static property for the worker lifetime and
+     * runs on every subsequent paginator's query-string lookup.
      */
+    #[BootOnly]
     public static function queryStringResolver(Closure $resolver): void
     {
         static::$queryStringResolver = $resolver;
@@ -543,9 +547,10 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Set the view factory resolver callback.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every subsequent paginator render.
+     * The resolver persists in a static property for the worker lifetime
+     * and runs on every subsequent paginator render.
      */
+    #[BootOnly]
     public static function viewFactoryResolver(Closure $resolver): void
     {
         static::$viewFactoryResolver = $resolver;
@@ -554,9 +559,10 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Set the default pagination view.
      *
-     * Boot-only. The view name persists in a static property for the worker
-     * lifetime and applies to every subsequent paginator render.
+     * The view name persists in a static property for the worker lifetime
+     * and applies to every subsequent paginator render.
      */
+    #[BootOnly]
     public static function defaultView(string $view): void
     {
         static::$defaultView = $view;
@@ -565,9 +571,10 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Set the default "simple" pagination view.
      *
-     * Boot-only. The view name persists in a static property for the worker
-     * lifetime and applies to every subsequent simple-paginator render.
+     * The view name persists in a static property for the worker lifetime
+     * and applies to every subsequent simple-paginator render.
      */
+    #[BootOnly]
     public static function defaultSimpleView(string $view): void
     {
         static::$defaultSimpleView = $view;
@@ -576,9 +583,10 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Indicate that Tailwind styling should be used for generated links.
      *
-     * Boot-only. Sets the default view names in static properties for the
-     * worker lifetime; applies to every subsequent paginator render.
+     * Sets the default view names in static properties for the worker
+     * lifetime; applies to every subsequent paginator render.
      */
+    #[BootOnly]
     public static function useTailwind(): void
     {
         static::defaultView(self::DEFAULT_VIEW);

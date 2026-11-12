@@ -14,6 +14,8 @@ use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder;
 use Hypervel\Redis\Limiters\DurationLimiterBuilder;
 use Hypervel\Redis\Pool\PoolManager;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Throwable;
 use UnitEnum;
 
@@ -74,10 +76,11 @@ class RedisManager implements FactoryContract, ConnectionContract
      * Discards any context-pinned connection and flushes the underlying pool
      * so all connections are closed and re-created on next use.
      *
-     * Boot or tests only. Flushes the shared pool; concurrent coroutines
-     * checked out before this call may complete against the destroyed pool
-     * and other coroutines lose their cached proxy reference.
+     * Flushes the shared pool; concurrent coroutines checked out before
+     * this call may complete against the destroyed pool and other
+     * coroutines lose their cached proxy reference.
      */
+    #[BootOrTestsOnly]
     public function purge(UnitEnum|string|null $name = null): void
     {
         if ($name instanceof UnitEnum) {
@@ -124,9 +127,10 @@ class RedisManager implements FactoryContract, ConnectionContract
     /**
      * Enable Redis command events.
      *
-     * Boot-only. Existing pools with a different snapshotted setting are
-     * replaced; borrowed connections from the old generation are destroyed on release.
+     * Existing pools with a different snapshotted setting are replaced; borrowed
+     * connections from the old generation are destroyed on release.
      */
+    #[BootOnly]
     public function enableEvents(): void
     {
         $this->config->enableEvents();
@@ -136,9 +140,10 @@ class RedisManager implements FactoryContract, ConnectionContract
     /**
      * Disable Redis command events.
      *
-     * Boot-only. Existing pools with a different snapshotted setting are
-     * replaced; borrowed connections from the old generation are destroyed on release.
+     * Existing pools with a different snapshotted setting are replaced; borrowed
+     * connections from the old generation are destroyed on release.
      */
+    #[BootOnly]
     public function disableEvents(): void
     {
         $this->config->disableEvents();
@@ -147,7 +152,10 @@ class RedisManager implements FactoryContract, ConnectionContract
 
     /**
      * Refresh pools whose command-event setting differs from the worker override.
+     *
+     * Flushes shared pools that concurrent coroutines may be using.
      */
+    #[BootOnly]
     protected function refreshEventPools(bool $eventsEnabled): void
     {
         foreach ($this->poolManager->getPools() as $name => $pool) {
@@ -214,9 +222,10 @@ class RedisManager implements FactoryContract, ConnectionContract
     /**
      * Register a Redis command listener with the connection.
      *
-     * Boot-only. The listener persists on the singleton event dispatcher for
-     * the worker lifetime and runs for every subsequent Redis command event.
+     * The listener persists on the singleton event dispatcher for the worker
+     * lifetime and runs for every subsequent Redis command event.
      */
+    #[BootOnly]
     public function listen(Closure $callback): void
     {
         if ($this->app->bound('events')) {
@@ -227,9 +236,10 @@ class RedisManager implements FactoryContract, ConnectionContract
     /**
      * Register a Redis command failure listener with the connection.
      *
-     * Boot-only. The listener persists on the singleton event dispatcher for
-     * the worker lifetime and runs for every subsequent Redis failure event.
+     * The listener persists on the singleton event dispatcher for the worker
+     * lifetime and runs for every subsequent Redis failure event.
      */
+    #[BootOnly]
     public function listenForFailures(Closure $callback): void
     {
         if ($this->app->bound('events')) {

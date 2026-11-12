@@ -8,6 +8,9 @@ use Closure;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Benchmark;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Js;
@@ -62,9 +65,10 @@ abstract class Facade
     /**
      * Run a Closure when the facade has been resolved.
      *
-     * Boot-only. The callback is registered on the worker-global container
-     * and runs for every subsequent resolution of the facade accessor.
+     * The callback is registered on the worker-global container and runs
+     * for every subsequent resolution of the facade accessor.
      */
+    #[BootOnly]
     public static function resolved(Closure $callback): void
     {
         $accessor = static::getFacadeAccessor();
@@ -83,8 +87,9 @@ abstract class Facade
     /**
      * Convert the facade into a Mockery spy.
      *
-     * Tests only. Swaps the resolved facade instance for the worker lifetime.
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     public static function spy(): ?MockInterface
     {
         if (static::isMock()) {
@@ -101,8 +106,9 @@ abstract class Facade
     /**
      * Initiate a partial mock on the facade.
      *
-     * Tests only. Swaps the resolved facade instance for the worker lifetime.
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     public static function partialMock(): MockInterface
     {
         $name = static::getFacadeAccessor();
@@ -117,8 +123,9 @@ abstract class Facade
     /**
      * Initiate a mock expectation on the facade.
      *
-     * Tests only. Swaps the resolved facade instance for the worker lifetime.
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     public static function shouldReceive(): CompositeExpectation|Expectation|HigherOrderMessage
     {
         $name = static::getFacadeAccessor();
@@ -133,8 +140,9 @@ abstract class Facade
     /**
      * Initiate a mock expectation on the facade.
      *
-     * Tests only. Swaps the resolved facade instance for the worker lifetime.
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     public static function expects(): CompositeExpectation|Expectation|ExpectsHigherOrderMessage
     {
         $name = static::getFacadeAccessor();
@@ -148,7 +156,10 @@ abstract class Facade
 
     /**
      * Create a fresh mock instance for the given class.
+     *
+     * Swaps the resolved facade instance for the worker lifetime.
      */
+    #[TestsOnly]
     protected static function createFreshMockInstance(): MockInterface
     {
         return tap(static::createMock(), function ($mock) {
@@ -194,10 +205,11 @@ abstract class Facade
     /**
      * Hotswap the underlying instance behind the facade.
      *
-     * Tests only. Replaces the worker-wide resolved facade instance and
-     * container binding; runtime use races across coroutines and changes every
-     * subsequent facade call.
+     * Replaces the worker-wide resolved facade instance and container binding;
+     * runtime use races across coroutines and changes every subsequent facade
+     * call.
      */
+    #[TestsOnly]
     public static function swap(mixed $instance): void
     {
         static::$resolvedInstance[static::getFacadeAccessor()] = $instance;
@@ -267,9 +279,10 @@ abstract class Facade
     /**
      * Clear a resolved facade instance.
      *
-     * Boot or tests only. Clears a worker-wide facade cache entry; concurrent
-     * coroutines may still hold the previous resolved instance.
+     * Clears a worker-wide facade cache entry; concurrent coroutines may
+     * still hold the previous resolved instance.
      */
+    #[BootOrTestsOnly]
     public static function clearResolvedInstance(?string $name = null): void
     {
         $name ??= static::getFacadeAccessor();
@@ -280,9 +293,10 @@ abstract class Facade
     /**
      * Clear all of the resolved instances.
      *
-     * Boot or tests only. Clears the worker-wide facade cache; concurrent
-     * coroutines may still hold previously resolved instances.
+     * Clears the worker-wide facade cache; concurrent coroutines may
+     * still hold previously resolved instances.
      */
+    #[BootOrTestsOnly]
     public static function clearResolvedInstances(): void
     {
         static::$resolvedInstance = [];
@@ -360,9 +374,10 @@ abstract class Facade
     /**
      * Set the application instance.
      *
-     * Boot or tests only. Replaces the worker-wide facade application reference;
-     * runtime use races across coroutines and breaks every facade lookup.
+     * Replaces the worker-wide facade application reference; runtime use races
+     * across coroutines and breaks every facade lookup.
      */
+    #[BootOrTestsOnly]
     public static function setFacadeApplication(?ContainerContract $app): void
     {
         static::$app = $app;

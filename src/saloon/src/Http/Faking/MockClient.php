@@ -11,6 +11,7 @@ use Hypervel\Saloon\Http\PendingRequest;
 use Hypervel\Saloon\Http\Request;
 use Hypervel\Saloon\Http\Response;
 use Hypervel\Saloon\SaloonManager;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use PHPUnit\Framework\Assert as PHPUnit;
@@ -333,11 +334,12 @@ class MockClient
     /**
      * Register or retrieve the manager-backed global mock client.
      *
-     * Tests only. The client persists until the test application is destroyed
-     * or `destroyGlobal()` is called.
+     * The client persists until the test application is destroyed or
+     * `destroyGlobal()` is called.
      *
      * @param array<array-key, callable(PendingRequest): (Fixture|MockResponse)|Fixture|MockResponse> $mockData
      */
+    #[TestsOnly]
     public static function global(array $mockData = []): MockClient
     {
         $manager = static::manager();
@@ -355,7 +357,10 @@ class MockClient
 
     /**
      * Destroy the manager-backed global mock client.
+     *
+     * This removes the recorder for every subsequent Saloon request in the worker.
      */
+    #[TestsOnly]
     public static function destroyGlobal(): void
     {
         static::manager()->clearFake();

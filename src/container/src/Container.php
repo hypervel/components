@@ -20,6 +20,9 @@ use Hypervel\Contracts\Container\ExecutionScopedAttribute;
 use Hypervel\Contracts\Container\SelfBuilding;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\Traits\ReflectsClosures;
 use InvalidArgumentException;
@@ -38,11 +41,6 @@ class Container implements ContainerContract
     use ReflectsClosures;
 
     /**
-     * Context key for coroutine-local resolution state.
-     */
-    protected const string RESOLUTION_STATE_CONTEXT_KEY = '__container.resolution_state';
-
-    /**
      * Maximum resolution depth before assuming a circular dependency.
      *
      * Safety net for indirect cycles (e.g., through interfaces) where the
@@ -52,14 +50,16 @@ class Container implements ContainerContract
     protected const int MAX_RESOLUTION_DEPTH = 500;
 
     /**
-     * Context key prefix for coroutine-local scoped instances.
-     */
-    protected const string SCOPED_CONTEXT_PREFIX = '__container.scoped.';
-
-    /**
      * The current globally available container (if any).
      */
     protected static ?self $instance = null;
+
+    /**
+     * The number of context key prefixes given to containers in this worker.
+     *
+     * It is never reset, so no container reuses another container's prefix.
+     */
+    protected static int $contextKeyPrefixCount = 0;
 
     /**
      * An array of the types that have been resolved.
@@ -127,6 +127,14 @@ class Container implements ContainerContract
      * @var array<string, true>
      */
     protected array $scopedInstances = [];
+
+    /**
+     * The prefix of this container's coroutine context keys.
+     *
+     * Scoped instances and resolution state live in coroutine context, which
+     * every container shares, so each container keys them with its own prefix.
+     */
+    protected ?string $contextKeyPrefix = null;
 
     /**
      * The registered type aliases.
@@ -399,7 +407,7 @@ class Container implements ContainerContract
         }
 
         foreach ($this->scopedInstances as $abstract => $_) {
-            if (CoroutineContext::get(self::SCOPED_CONTEXT_PREFIX . $abstract) === $instance) {
+            if (CoroutineContext::get($this->contextKey('scoped.' . $abstract)) === $instance) {
                 return true;
             }
         }
@@ -427,7 +435,7 @@ class Container implements ContainerContract
     {
         $abstract = $this->getAlias($abstract);
 
-        return CoroutineContext::has(self::SCOPED_CONTEXT_PREFIX . $abstract)
+        return CoroutineContext::has($this->contextKey('scoped.' . $abstract))
             || ((isset($this->instances[$abstract]) || array_key_exists($abstract, $this->instances))
                 && $this->isScoped($abstract));
     }
@@ -492,13 +500,13 @@ class Container implements ContainerContract
     /**
      * Register a binding with the container.
      *
-     * Boot-only. Bindings persist on the worker-lifetime container; runtime
-     * use races across coroutines and changes resolution for every subsequent
-     * request.
+     * Bindings persist on the worker-lifetime container; runtime use races
+     * across coroutines and changes resolution for every subsequent request.
      *
      * @throws TypeError
      * @throws ReflectionException
      */
+    #[BootOnly(whenShared: true)]
     public function bind(Closure|string $abstract, Closure|string|null $concrete = null, bool $shared = false): void
     {
         if ($abstract instanceof Closure) {
@@ -583,9 +591,10 @@ class Container implements ContainerContract
     /**
      * Bind a callback to resolve with Container::call.
      *
-     * Boot-only. Method bindings persist on the worker-lifetime container and
-     * affect every subsequent Container::call() for the bound method.
+     * Method bindings persist on the worker-lifetime container and affect
+     * every subsequent Container::call() for the bound method.
      */
+    #[BootOnly(whenShared: true)]
     public function bindMethod(array|string $method, Closure $callback): void
     {
         $this->methodBindings[$this->parseBindMethod($method)] = $callback;
@@ -614,10 +623,11 @@ class Container implements ContainerContract
     /**
      * Add a contextual binding to the container.
      *
-     * Boot-only. Contextual bindings persist on the worker-lifetime container;
-     * runtime use races across coroutines and changes dependency resolution for
-     * every subsequent build of the concrete.
+     * Contextual bindings persist on the worker-lifetime container; runtime use
+     * races across coroutines and changes dependency resolution for every
+     * subsequent build of the concrete.
      */
+    #[BootOnly(whenShared: true)]
     public function addContextualBinding(string $concrete, string $abstract, mixed $implementation): void
     {
         $this->contextual[$concrete][$this->getAlias($abstract)] = $implementation;
@@ -626,9 +636,10 @@ class Container implements ContainerContract
     /**
      * Register a binding if it hasn't already been registered.
      *
-     * Boot-only. Conditional bindings mutate the worker-lifetime container for
-     * every subsequent request.
+     * Conditional bindings mutate the worker-lifetime container for every
+     * subsequent request.
      */
+    #[BootOnly(whenShared: true)]
     public function bindIf(Closure|string $abstract, Closure|string|null $concrete = null, bool $shared = false): void
     {
         if ($abstract instanceof Closure) {
@@ -650,10 +661,11 @@ class Container implements ContainerContract
     /**
      * Register a shared binding in the container.
      *
-     * Boot-only. Singleton bindings persist on the worker-lifetime container;
-     * runtime use races across coroutines and changes shared resolution for
-     * every subsequent request.
+     * Singleton bindings persist on the worker-lifetime container; runtime
+     * use races across coroutines and changes shared resolution for every
+     * subsequent request.
      */
+    #[BootOnly(whenShared: true)]
     public function singleton(Closure|string $abstract, Closure|string|null $concrete = null): void
     {
         $this->bind($abstract, $concrete, true);
@@ -662,9 +674,10 @@ class Container implements ContainerContract
     /**
      * Register a shared binding if it hasn't already been registered.
      *
-     * Boot-only. Conditional singleton bindings mutate the worker-lifetime
-     * container for every subsequent request.
+     * Conditional singleton bindings mutate the worker-lifetime container
+     * for every subsequent request.
      */
+    #[BootOnly(whenShared: true)]
     public function singletonIf(Closure|string $abstract, Closure|string|null $concrete = null): void
     {
         $this->bindIf($abstract, $concrete, true);
@@ -673,9 +686,10 @@ class Container implements ContainerContract
     /**
      * Register a scoped binding in the container.
      *
-     * Boot-only. Scoped binding definitions persist on the worker-lifetime
-     * container; only their resolved instances are coroutine-scoped.
+     * Scoped binding definitions persist on the worker-lifetime container;
+     * only their resolved instances are coroutine-scoped.
      */
+    #[BootOnly(whenShared: true)]
     public function scoped(Closure|string $abstract, Closure|string|null $concrete = null): void
     {
         if ($abstract instanceof Closure) {
@@ -690,9 +704,10 @@ class Container implements ContainerContract
     /**
      * Register a scoped binding if it hasn't already been registered.
      *
-     * Boot-only. Conditional scoped bindings mutate the worker-lifetime
-     * container for every subsequent request.
+     * Conditional scoped bindings mutate the worker-lifetime container
+     * for every subsequent request.
      */
+    #[BootOnly(whenShared: true)]
     public function scopedIf(Closure|string $abstract, Closure|string|null $concrete = null): void
     {
         if ($abstract instanceof Closure) {
@@ -738,11 +753,12 @@ class Container implements ContainerContract
     /**
      * "Extend" an abstract type in the container.
      *
-     * Boot-only. The extender persists in the container's $extenders array for
-     * the worker lifetime and runs on every subsequent resolution of $abstract.
+     * The extender persists in the container's $extenders array for the worker
+     * lifetime and runs on every subsequent resolution of $abstract.
      *
      * @throws InvalidArgumentException
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $abstract, Closure $closure): void
     {
         $abstract = $this->getAlias($abstract);
@@ -756,14 +772,13 @@ class Container implements ContainerContract
 
             $this->rebound($abstract);
         } elseif ($this->isScoped($abstract)
-            && ($instance = CoroutineContext::get(self::SCOPED_CONTEXT_PREFIX . $abstract)) !== null
+            && ($instance = CoroutineContext::get($this->contextKey('scoped.' . $abstract))) !== null
         ) {
             // Apply the extender to the current cached scoped instance immediately.
             // Also queue it in $this->extenders for future resolutions — unlike singletons
             // (which persist for the worker lifetime), scoped instances are destroyed each
             // request by forgetScopedInstances() and must re-apply extenders on rebuild.
-            $contextKey = self::SCOPED_CONTEXT_PREFIX . $abstract;
-            CoroutineContext::set($contextKey, $closure($instance, $this));
+            CoroutineContext::set($this->contextKey('scoped.' . $abstract), $closure($instance, $this));
 
             $this->extenders[$abstract][] = $closure;
 
@@ -780,15 +795,16 @@ class Container implements ContainerContract
     /**
      * Register an existing instance as shared in the container.
      *
-     * Boot or tests only. Replaces a worker-lifetime shared instance; runtime
-     * use races across coroutines and changes the object returned to every
-     * subsequent resolver.
+     * Replaces a worker-lifetime shared instance; runtime use races across
+     * coroutines and changes the object returned to every subsequent
+     * resolver.
      *
      * @template TInstance of mixed
      *
      * @param TInstance $instance
      * @return TInstance
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function instance(string $abstract, mixed $instance): mixed
     {
         $this->removeAbstractAlias($abstract);
@@ -832,9 +848,10 @@ class Container implements ContainerContract
     /**
      * Assign a set of tags to a given binding.
      *
-     * Boot-only. Tags persist on the worker-lifetime container and affect every
-     * subsequent tagged() resolution.
+     * Tags persist on the worker-lifetime container and affect every subsequent
+     * tagged() resolution.
      */
+    #[BootOnly(whenShared: true)]
     public function tag(array|string $abstracts, array|string $tags): void
     {
         $tags = is_array($tags) ? $tags : array_slice(func_get_args(), 1);
@@ -869,12 +886,12 @@ class Container implements ContainerContract
     /**
      * Alias a type to a different name.
      *
-     * Boot-only. Aliases persist on the worker-lifetime container; runtime use
-     * races across coroutines and changes resolution for every subsequent
-     * request.
+     * Aliases persist on the worker-lifetime container; runtime use races
+     * across coroutines and changes resolution for every subsequent request.
      *
      * @throws LogicException
      */
+    #[BootOnly(whenShared: true)]
     public function alias(string $abstract, string $alias): void
     {
         if ($alias === $abstract) {
@@ -901,9 +918,10 @@ class Container implements ContainerContract
     /**
      * Bind a new callback to an abstract's rebind event.
      *
-     * Boot-only. Rebinding callbacks persist on the worker-lifetime container
-     * and run whenever the abstract is rebound later in the worker.
+     * Rebinding callbacks persist on the worker-lifetime container and run
+     * whenever the abstract is rebound later in the worker.
      */
+    #[BootOnly(whenShared: true)]
     public function rebinding(string $abstract, Closure $callback): mixed
     {
         $this->reboundCallbacks[$abstract = $this->getAlias($abstract)][] = $callback;
@@ -918,9 +936,10 @@ class Container implements ContainerContract
     /**
      * Refresh an instance on the given target and method.
      *
-     * Boot-only. Registers a rebinding callback on the worker-lifetime
-     * container; runtime use leaks the callback across later rebindings.
+     * Registers a rebinding callback on the worker-lifetime container;
+     * runtime use leaks the callback across later rebindings.
      */
+    #[BootOnly(whenShared: true)]
     public function refresh(string $abstract, mixed $target, string $method): mixed
     {
         return $this->rebinding($abstract, function ($app, $instance) use ($target, $method) {
@@ -1214,8 +1233,7 @@ class Container implements ContainerContract
             && $this->isScoped($abstract)
             && ! $needsContextualBuild
         ) {
-            $contextKey = self::SCOPED_CONTEXT_PREFIX . $abstract;
-            $instance = CoroutineContext::get($contextKey);
+            $instance = CoroutineContext::get($this->contextKey('scoped.' . $abstract));
 
             if ($instance !== null) {
                 return $instance;
@@ -1309,7 +1327,7 @@ class Container implements ContainerContract
             if (! $needsContextualBuild) {
                 if ($applyImplicitLifetime && ! $transientResolution && $this->isShared($abstract)) {
                     if ($this->isScoped($abstract)) {
-                        CoroutineContext::set(self::SCOPED_CONTEXT_PREFIX . $abstract, $object);
+                        CoroutineContext::set($this->contextKey('scoped.' . $abstract), $object);
                         $publishedCache = 'scoped';
                         $publishedValue = $object;
                     } else {
@@ -1362,7 +1380,7 @@ class Container implements ContainerContract
             return $object;
         } catch (Throwable $e) {
             if ($publishedCache === 'scoped') {
-                $contextKey = self::SCOPED_CONTEXT_PREFIX . $abstract;
+                $contextKey = $this->contextKey('scoped.' . $abstract);
 
                 if ($publishedValue !== null
                     && CoroutineContext::get($contextKey) === $publishedValue
@@ -1625,7 +1643,7 @@ class Container implements ContainerContract
      */
     protected function getResolutionState(): ?ContainerResolutionState
     {
-        $resolutionState = CoroutineContext::get(self::RESOLUTION_STATE_CONTEXT_KEY);
+        $resolutionState = CoroutineContext::get($this->contextKey('resolution_state'));
 
         return $resolutionState instanceof ContainerResolutionState ? $resolutionState : null;
     }
@@ -1640,9 +1658,17 @@ class Container implements ContainerContract
         }
 
         $resolutionState = new ContainerResolutionState;
-        CoroutineContext::set(self::RESOLUTION_STATE_CONTEXT_KEY, $resolutionState);
+        CoroutineContext::set($this->contextKey('resolution_state'), $resolutionState);
 
         return $resolutionState;
+    }
+
+    /**
+     * Get this container's coroutine context key for the given entry.
+     */
+    protected function contextKey(string $name): string
+    {
+        return ($this->contextKeyPrefix ??= '__container.' . ++self::$contextKeyPrefixCount . '.') . $name;
     }
 
     /**
@@ -2161,9 +2187,10 @@ class Container implements ContainerContract
     /**
      * Register a new before resolving callback for all types.
      *
-     * Boot-only. The callback persists on the worker-lifetime container and
-     * runs before every matching future resolution.
+     * The callback persists on the worker-lifetime container and runs
+     * before every matching future resolution.
      */
+    #[BootOnly(whenShared: true)]
     public function beforeResolving(Closure|string $abstract, ?Closure $callback = null): void
     {
         if (is_string($abstract)) {
@@ -2180,9 +2207,10 @@ class Container implements ContainerContract
     /**
      * Register a new resolving callback.
      *
-     * Boot-only. The callback persists on the worker-lifetime container and
-     * runs during every matching future resolution.
+     * The callback persists on the worker-lifetime container and runs
+     * during every matching future resolution.
      */
+    #[BootOnly(whenShared: true)]
     public function resolving(Closure|string $abstract, ?Closure $callback = null): void
     {
         if (is_string($abstract)) {
@@ -2199,9 +2227,10 @@ class Container implements ContainerContract
     /**
      * Register a new after resolving callback for all types.
      *
-     * Boot-only. The callback persists on the worker-lifetime container and
-     * runs after every matching future resolution.
+     * The callback persists on the worker-lifetime container and runs after
+     * every matching future resolution.
      */
+    #[BootOnly(whenShared: true)]
     public function afterResolving(Closure|string $abstract, ?Closure $callback = null): void
     {
         if (is_string($abstract)) {
@@ -2218,9 +2247,10 @@ class Container implements ContainerContract
     /**
      * Register a new after resolving attribute callback for all types.
      *
-     * Boot-only. The callback persists on the worker-lifetime container and
-     * runs after every future resolution with the matching attribute.
+     * The callback persists on the worker-lifetime container and runs after
+     * every future resolution with the matching attribute.
      */
+    #[BootOnly(whenShared: true)]
     public function afterResolvingAttribute(string $attribute, Closure $callback): void
     {
         $this->afterResolvingAttributeCallbacks[$attribute][] = $callback;
@@ -2379,10 +2409,10 @@ class Container implements ContainerContract
     /**
      * Remove all of the extender callbacks for a given type.
      *
-     * Boot or tests only. Clears worker-lifetime extender callbacks; concurrent
-     * resolutions may diverge depending on whether they resolved before or
-     * after the removal.
+     * Clears worker-lifetime extender callbacks; concurrent resolutions may
+     * diverge depending on whether they resolved before or after the removal.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetExtenders(string $abstract): void
     {
         unset($this->extenders[$this->getAlias($abstract)]);
@@ -2406,16 +2436,17 @@ class Container implements ContainerContract
     {
         unset($this->instances[$abstract], $this->autoSingletons[$abstract]);
 
-        CoroutineContext::forget(self::SCOPED_CONTEXT_PREFIX . $abstract);
+        CoroutineContext::forget($this->contextKey('scoped.' . $abstract));
     }
 
     /**
      * Remove a resolved instance from the instance cache.
      *
-     * Boot or tests only. Clears a worker-lifetime shared instance and current
-     * coroutine scoped instance; concurrent coroutines may still hold references
-     * that next resolution will not share.
+     * Clears a worker-lifetime shared instance and current coroutine scoped
+     * instance; concurrent coroutines may still hold references that next
+     * resolution will not share.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetInstance(string $abstract): void
     {
         $this->forgetCachedInstances($this->getAlias($abstract));
@@ -2424,10 +2455,11 @@ class Container implements ContainerContract
     /**
      * Clear all of the instances from the container.
      *
-     * Boot or tests only. Clears worker-lifetime shared instances and all scoped
-     * context entries known to this container; concurrent coroutines may still
-     * hold references that next resolution will not share.
+     * Clears worker-lifetime shared instances and all scoped context entries
+     * known to this container; concurrent coroutines may still hold references
+     * that next resolution will not share.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetInstances(): void
     {
         $this->instances = [];
@@ -2438,25 +2470,26 @@ class Container implements ContainerContract
     /**
      * Clear all of the scoped instances from the container.
      *
-     * Boot or tests only. Clears scoped context entries known to this container;
-     * runtime use can invalidate scoped services while a coroutine is still
-     * handling a request.
+     * Clears this container's scoped instances in the current coroutine; runtime
+     * use can invalidate scoped services while the request is still using them.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetScopedInstances(): void
     {
         foreach ($this->scopedInstances as $scoped => $_) {
-            CoroutineContext::forget(self::SCOPED_CONTEXT_PREFIX . $scoped);
+            CoroutineContext::forget($this->contextKey('scoped.' . $scoped));
         }
     }
 
     /**
      * Set the callback which determines the current container environment.
      *
-     * Boot-only. The resolver persists on the worker-lifetime container and is
-     * used by every currentEnvironmentIs() call.
+     * The resolver persists on the worker-lifetime container and is used by
+     * every currentEnvironmentIs() call.
      *
      * @param null|(callable(array<int, string>|string): (bool|string)) $callback
      */
+    #[BootOnly(whenShared: true)]
     public function resolveEnvironmentUsing(?callable $callback): void
     {
         $this->environmentResolver = $callback;
@@ -2477,9 +2510,10 @@ class Container implements ContainerContract
     /**
      * Flush the container of all bindings and resolved instances.
      *
-     * Tests only. Clears the worker-lifetime container registry; runtime use
-     * breaks every concurrent resolution in the worker.
+     * Clears the worker-lifetime container registry; runtime use breaks
+     * every concurrent resolution in the worker.
      */
+    #[TestsOnly]
     public function flush(): void
     {
         // Must clear scoped Context entries before clearing $scopedInstances,
@@ -2503,6 +2537,29 @@ class Container implements ContainerContract
     }
 
     /**
+     * Give the cloned container its own coroutine context entries.
+     *
+     * Like its shared instances, the clone starts with the scoped instances
+     * resolved in the current coroutine, but forgetting or replacing them on
+     * one container leaves the other's untouched.
+     */
+    public function __clone(): void
+    {
+        $sourcePrefix = $this->contextKeyPrefix;
+        $this->contextKeyPrefix = null;
+
+        if ($sourcePrefix === null) {
+            return;
+        }
+
+        foreach ($this->scopedInstances as $abstract => $_) {
+            if (($instance = CoroutineContext::get($sourcePrefix . 'scoped.' . $abstract)) !== null) {
+                CoroutineContext::set($this->contextKey('scoped.' . $abstract), $instance);
+            }
+        }
+    }
+
+    /**
      * Get the globally available instance of the container.
      */
     public static function getInstance(): self
@@ -2513,9 +2570,10 @@ class Container implements ContainerContract
     /**
      * Set the shared instance of the container.
      *
-     * Tests only. Replaces the process-wide container singleton; runtime use
-     * races across coroutines and breaks every facade/global container lookup.
+     * Replaces the process-wide container singleton; runtime use races across
+     * coroutines and breaks every facade/global container lookup.
      */
+    #[TestsOnly]
     public static function setInstance(?self $container = null): ?self
     {
         return static::$instance = $container;

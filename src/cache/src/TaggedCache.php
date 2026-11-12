@@ -130,4 +130,14 @@ abstract class TaggedCache extends Repository
 
         parent::event($event);
     }
+
+    /**
+     * Give the cloned tagged cache a tag set on its cloned store.
+     */
+    public function __clone(): void
+    {
+        parent::__clone();
+
+        $this->tags = $this->tags->withStore($this->store);
+    }
 }

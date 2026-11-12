@@ -21,6 +21,7 @@ use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\ScoreAnswer;
 use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Support\Attributes\TestsOnly;
 use RuntimeException;
 
 class FakeClassificationGateway implements ClassificationGateway
@@ -183,8 +184,10 @@ class FakeClassificationGateway implements ClassificationGateway
     /**
      * Indicate that an exception should be thrown if any classification is not faked.
      *
-     * Tests only. This setting affects the fake gateway shared by requests in the worker.
+     * When the shared manager holds this fake gateway, the setting affects
+     * every request in the worker.
      */
+    #[TestsOnly(whenShared: true)]
     public function preventStrayClassifications(bool $prevent = true): self
     {
         $this->preventStrayClassifications = $prevent;

@@ -154,6 +154,7 @@
     "replace": {
         "hypervel/ai": "self.version",
         "hypervel/api-client": "self.version",
+        "hypervel/attributes": "self.version",
         "hypervel/auth": "self.version",
         "hypervel/broadcasting": "self.version",
         "hypervel/bus": "self.version",
@@ -325,6 +326,7 @@
             "Hypervel\\Signal\\": "src/signal/src/",
             "Hypervel\\Socialite\\": "src/socialite/src/",
             "Hypervel\\Support\\": [
+                "src/attributes/src/",
                 "src/collections/src/",
                 "src/conditionable/src/",
                 "src/macroable/src/",

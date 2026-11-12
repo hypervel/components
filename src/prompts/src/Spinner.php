@@ -7,6 +7,7 @@ namespace Hypervel\Prompts;
 use Closure;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Prompts\Support\PromptAnimation;
+use Hypervel\Support\Attributes\Unsupported;
 use RuntimeException;
 use Throwable;
 
@@ -156,6 +157,7 @@ class Spinner extends Prompt
      *
      * @throws RuntimeException
      */
+    #[Unsupported('Use spin() instead.')]
     public function prompt(): never
     {
         throw new RuntimeException('Spinner cannot be prompted.');

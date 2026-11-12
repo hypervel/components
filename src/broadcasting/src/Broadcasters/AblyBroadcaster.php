@@ -11,6 +11,7 @@ use Hypervel\Broadcasting\BroadcastException;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Http\Request;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Str;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
@@ -222,9 +223,10 @@ class AblyBroadcaster extends Broadcaster
     /**
      * Set the underlying Ably SDK instance.
      *
-     * Boot or tests only. Replaces the SDK client on this worker-cached broadcaster;
-     * per-request mutation races across coroutines.
+     * Replaces the SDK client on this worker-cached broadcaster; per-request
+     * mutation races across coroutines.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setAbly(AblyRest $ably): void
     {
         $this->ably = $ably;

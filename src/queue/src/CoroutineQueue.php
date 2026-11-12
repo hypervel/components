@@ -10,6 +10,7 @@ use DateTimeInterface;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Support\Attributes\BootOnly;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
@@ -72,9 +73,10 @@ abstract class CoroutineQueue extends SyncQueue
     /**
      * Set the exception callback for the coroutine queue.
      *
-     * Boot-only. The callback persists on the cached queue connection for the
-     * worker lifetime and handles every subsequent coroutine queue exception.
+     * The callback persists on the cached queue connection for the worker
+     * lifetime and handles every subsequent coroutine queue exception.
      */
+    #[BootOnly(whenShared: true)]
     public function setExceptionCallback(?callable $callback): static
     {
         $this->exceptionCallback = $callback;

@@ -13,6 +13,8 @@ use Hypervel\Contracts\Routing\BindingRegistrar;
 use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Reflector;
 use ReflectionClass;
@@ -76,12 +78,12 @@ abstract class Broadcaster implements BroadcasterContract
     /**
      * Register the user retrieval callback used to authenticate connections.
      *
-     * Boot-only. The callback persists in instance state on the cached
-     * broadcaster for the worker lifetime; per-request use races across
-     * coroutines.
+     * The callback persists in instance state on the cached broadcaster
+     * for the worker lifetime; per-request use races across coroutines.
      *
      * See: https://pusher.com/docs/channels/library_auth_reference/auth-signatures/#user-authentication.
      */
+    #[BootOnly(whenShared: true)]
     public function resolveAuthenticatedUserUsing(?Closure $callback): void
     {
         $this->authenticatedUserCallback = $callback;
@@ -90,12 +92,13 @@ abstract class Broadcaster implements BroadcasterContract
     /**
      * Register a channel authenticator.
      *
-     * Boot-only. The channel authorizer and options persist in shared static
-     * state on the Broadcaster class for the worker lifetime and apply to
-     * every subsequent connection authentication.
+     * The channel authorizer and options persist in shared static state on
+     * the Broadcaster class for the worker lifetime and apply to every
+     * subsequent connection authentication.
      *
      * @return $this
      */
+    #[BootOnly]
     public function channel(HasBroadcastChannel|string $channel, callable|string $callback, array $options = []): static
     {
         if ($channel instanceof HasBroadcastChannel) {
@@ -114,9 +117,10 @@ abstract class Broadcaster implements BroadcasterContract
     /**
      * Register the outgoing channel formatter.
      *
-     * Boot-only. The callback persists in shared static state for the worker
-     * lifetime and applies to every broadcaster across all coroutines.
+     * The callback persists in shared static state for the worker lifetime
+     * and applies to every broadcaster across all coroutines.
      */
+    #[BootOrTestsOnly]
     public static function formatChannelsUsing(?Closure $callback): void
     {
         static::$channelFormatter = $callback;
@@ -133,9 +137,10 @@ abstract class Broadcaster implements BroadcasterContract
     /**
      * Register the incoming channel authorizer.
      *
-     * Boot-only. The callback persists in shared static state for the worker
-     * lifetime and applies to every broadcaster across all coroutines.
+     * The callback persists in shared static state for the worker lifetime
+     * and applies to every broadcaster across all coroutines.
      */
+    #[BootOrTestsOnly]
     public static function authorizeChannelsUsing(?Closure $callback): void
     {
         static::$channelAuthorizer = $callback;

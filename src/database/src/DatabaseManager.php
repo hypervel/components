@@ -18,6 +18,10 @@ use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
@@ -213,6 +217,7 @@ class DatabaseManager implements ConnectionResolverInterface
      *
      * @throws RuntimeException Always - dynamic connections not supported in Hypervel
      */
+    #[Unsupported('Configure every connection in config/database.php.')]
     public function build(array $config): never
     {
         throw new RuntimeException(
@@ -226,6 +231,7 @@ class DatabaseManager implements ConnectionResolverInterface
      *
      * @throws RuntimeException Always - dynamic connections not supported in Hypervel
      */
+    #[Unsupported('Configure every connection in config/database.php.')]
     public function connectUsing(string $name, array $config, bool $force = false): never
     {
         throw new RuntimeException(
@@ -324,11 +330,12 @@ class DatabaseManager implements ConnectionResolverInterface
      * pooled connection), and flushes the pool. Use this when connection
      * configuration has changed and you need to fully reset.
      *
-     * Boot or tests only. Flushes the shared pool used by every coroutine;
-     * concurrent coroutines holding pooled connections will release them back
-     * into a discarded pool, and the current coroutine may briefly hold two
-     * pooled connections (the old one releases via defer at coroutine end).
+     * Flushes the shared pool used by every coroutine; concurrent coroutines
+     * holding pooled connections will release them back into a discarded
+     * pool, and the current coroutine may briefly hold two pooled connections
+     * (the old one releases via defer at coroutine end).
      */
+    #[BootOrTestsOnly]
     public function purge(UnitEnum|string|null $name = null): void
     {
         if ($name instanceof UnitEnum) {
@@ -539,8 +546,9 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * Register a callback to be invoked when the current connection queries for longer than a given amount of time.
      *
-     * Boot-only. The callback persists on the database manager for the worker lifetime and affects every subsequent request for the same connection.
+     * The callback persists on the database manager for the worker lifetime and affects every subsequent request for the same connection.
      */
+    #[BootOnly]
     public function whenQueryingForLongerThan(DateTimeInterface|CarbonInterval|float|int $threshold, callable $handler): void
     {
         $connectionName = $this->getEffectiveConnectionName();
@@ -743,9 +751,10 @@ class DatabaseManager implements ConnectionResolverInterface
      * by both the pooled path (PooledConnection → factory) and the non-pooled
      * path (DatabaseManager → factory).
      *
-     * Boot-only. The resolver persists on the singleton ConnectionFactory for
-     * the worker lifetime and applies to every subsequent connection.
+     * The resolver persists on the singleton ConnectionFactory for the worker
+     * lifetime and applies to every subsequent connection.
      */
+    #[BootOnly]
     public function extend(string $name, callable $resolver): void
     {
         $this->factory->extend($name, $resolver);
@@ -754,10 +763,11 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * Remove an extension connection resolver.
      *
-     * Boot or tests only. Mutates the singleton ConnectionFactory's extension
-     * registry; concurrent coroutines establishing connections may see the
-     * resolver removed mid-resolution.
+     * Mutates the singleton ConnectionFactory's extension registry;
+     * concurrent coroutines establishing connections may see the resolver
+     * removed mid-resolution.
      */
+    #[BootOrTestsOnly]
     public function forgetExtension(string $name): void
     {
         $this->factory->forgetExtension($name);
@@ -790,10 +800,11 @@ class DatabaseManager implements ConnectionResolverInterface
      * PHP class name would falsely report bound. bound() only checks
      * bindings/instances/aliases.
      *
-     * Boot or tests only. Calls purge() on every connection (flushes the
-     * shared pools); concurrent coroutines lose their cached connection
-     * references mid-request.
+     * Calls purge() on every connection (flushes the shared pools);
+     * concurrent coroutines lose their cached connection references
+     * mid-request.
      */
+    #[BootOrTestsOnly]
     public static function purgeConnections(): void
     {
         $container = Container::getInstance();
@@ -813,10 +824,11 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * Set the database reconnector callback.
      *
-     * Boot-only. The reconnector persists on the singleton DatabaseManager for
-     * the worker lifetime and is invoked for every disconnected connection
-     * across all coroutines.
+     * The reconnector persists on the singleton DatabaseManager for the worker
+     * lifetime and is invoked for every disconnected connection across all
+     * coroutines.
      */
+    #[BootOnly(whenShared: true)]
     public function setReconnector(callable $reconnector): void
     {
         $this->reconnector = $reconnector(...);
@@ -825,11 +837,12 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * Set the application instance used by the manager.
      *
-     * Tests only. Swaps the singleton's application reference; per-request use
-     * races across coroutines and breaks every concurrent database operation.
+     * Swaps the singleton's application reference; per-request use races
+     * across coroutines and breaks every concurrent database operation.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setApplication(Application $app): static
     {
         $this->app = $app;

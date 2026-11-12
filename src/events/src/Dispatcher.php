@@ -41,6 +41,8 @@ use Hypervel\Queue\Attributes\Timeout;
 use Hypervel\Queue\Attributes\Tries;
 use Hypervel\Queue\Attributes\UniqueFor;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use Hypervel\Support\Str;
@@ -185,9 +187,10 @@ class Dispatcher implements DispatcherContract
     /**
      * Register an event listener with the dispatcher.
      *
-     * Boot-only. The listener registry persists on the singleton Dispatcher for
-     * the worker lifetime; per-request registration races across coroutines.
+     * The listener registry persists on the singleton Dispatcher for the worker
+     * lifetime; per-request registration races across coroutines.
      */
+    #[BootOnly(whenShared: true)]
     public function listen(array|Closure|QueuedClosure|string $events, array|object|string|null $listener = null): void
     {
         if ($events instanceof Closure) {
@@ -247,8 +250,8 @@ class Dispatcher implements DispatcherContract
     /**
      * Register a passive event observer.
      *
-     * Boot-only. The observer registry persists on the singleton Dispatcher for
-     * the worker lifetime; per-request registration races across coroutines.
+     * The observer registry persists on the singleton Dispatcher for the worker
+     * lifetime; per-request registration races across coroutines.
      *
      * Observers receive dispatched events but are not counted by hasListeners().
      * They run after active listener processing ends, including ordinary listener
@@ -259,6 +262,7 @@ class Dispatcher implements DispatcherContract
      * Use this for observability tooling (tracing, metrics, logging) that must
      * not influence whether guarded events fire.
      */
+    #[BootOnly(whenShared: true)]
     public function observe(array|string $events, array|object|string $observer): void
     {
         foreach ((array) $events as $event) {
@@ -373,9 +377,10 @@ class Dispatcher implements DispatcherContract
     /**
      * Register an event subscriber with the dispatcher.
      *
-     * Boot-only. Subscriber registrations persist on the singleton Dispatcher for
-     * the worker lifetime; per-request registration races across coroutines.
+     * Subscriber registrations persist on the singleton Dispatcher for the worker
+     * lifetime; per-request registration races across coroutines.
      */
+    #[BootOnly(whenShared: true)]
     public function subscribe(object|string $subscriber): void
     {
         $subscriber = $this->resolveSubscriber($subscriber);
@@ -1106,10 +1111,11 @@ class Dispatcher implements DispatcherContract
     /**
      * Remove a set of listeners from the dispatcher.
      *
-     * Boot or tests only. The listener registry persists on the singleton
-     * Dispatcher for the worker lifetime; per-request removal races across
-     * coroutines and can remove application listeners for other requests.
+     * The listener registry persists on the singleton Dispatcher for the
+     * worker lifetime; per-request removal races across coroutines and can
+     * remove application listeners for other requests.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forget(string $event): void
     {
         if (str_contains($event, '*')) {
@@ -1158,12 +1164,13 @@ class Dispatcher implements DispatcherContract
     /**
      * Set the queue resolver implementation.
      *
-     * Boot-only. The resolver persists on the singleton Dispatcher for the
-     * worker lifetime and is consulted whenever a queued listener is dispatched.
+     * The resolver persists on the singleton Dispatcher for the worker lifetime
+     * and is consulted whenever a queued listener is dispatched.
      *
      * @param callable(): QueueFactory $resolver
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setQueueResolver(callable $resolver): static
     {
         $this->queueResolver = $resolver;
@@ -1186,12 +1193,13 @@ class Dispatcher implements DispatcherContract
     /**
      * Set the database transaction manager resolver implementation.
      *
-     * Boot-only. The resolver persists on the singleton Dispatcher for the
-     * worker lifetime and is consulted for every transaction-aware dispatch.
+     * The resolver persists on the singleton Dispatcher for the worker
+     * lifetime and is consulted for every transaction-aware dispatch.
      *
      * @param callable(): ?DatabaseTransactionsManager $resolver
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setTransactionManagerResolver(callable $resolver): static
     {
         $this->transactionManagerResolver = $resolver;

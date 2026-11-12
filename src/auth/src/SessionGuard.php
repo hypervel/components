@@ -23,6 +23,8 @@ use Hypervel\Contracts\Cookie\QueueingFactory as CookieJar;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Facades\Hash;
 use Hypervel\Support\Str;
 use Hypervel\Support\Timebox;
@@ -111,8 +113,8 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
         $classHash = hash('xxh128', static::class);
         $this->hashedName = 'login_' . $this->name . '_' . $classHash;
         $this->hashedRecallerName = 'remember_' . $this->name . '_' . $classHash;
-        $this->userContextKey = "__auth.guards.{$this->name}.user";
-        $this->missingUserContextKey = "__auth.guards.{$this->name}.missing_user";
+        $this->userContextKey = $this->contextKey('user');
+        $this->missingUserContextKey = $this->contextKey('missing_user');
     }
 
     /**
@@ -705,8 +707,8 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     /**
      * Register an authentication attempt event listener.
      *
-     * Boot-only. Listener registrations persist on the worker-lifetime dispatcher
-     * and affect every subsequent request.
+     * When the dispatcher is the application's worker-shared dispatcher,
+     * listener registrations persist and affect every subsequent request.
      */
     public function attempting(callable $callback): void
     {
@@ -814,11 +816,12 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     /**
      * Set the number of minutes the remember me cookie should be valid for.
      *
-     * Boot-only. The duration is stored on the worker-lifetime guard and affects
-     * every subsequent request.
+     * The duration is stored on the worker-lifetime guard and affects every
+     * subsequent request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setRememberDuration(int $minutes): static
     {
         $this->rememberDuration = $minutes;
@@ -843,9 +846,10 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     /**
      * Set the cookie creator instance used by the guard.
      *
-     * Boot or tests only. The cookie jar is stored on the worker-lifetime guard
-     * and affects every subsequent request.
+     * The cookie jar is stored on the worker-lifetime guard and affects every
+     * subsequent request.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setCookieJar(CookieJar $cookie): void
     {
         $this->cookie = $cookie;
@@ -862,9 +866,10 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     /**
      * Set the event dispatcher instance.
      *
-     * Boot or tests only. The dispatcher is stored on the worker-lifetime guard
-     * and affects every subsequent request.
+     * The dispatcher is stored on the worker-lifetime guard and affects every
+     * subsequent request.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setDispatcher(Dispatcher $events): void
     {
         $this->events = $events;
@@ -935,7 +940,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     {
         return [
             $this->userContextKey,
-            $this->getContextStateKey('loggedOut'),
+            $this->contextKey('loggedOut'),
         ];
     }
 
@@ -963,7 +968,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     protected function getContextState(string $key, mixed $default = null): mixed
     {
-        return CoroutineContext::get($this->getContextStateKey($key), $default);
+        return CoroutineContext::get($this->contextKey($key), $default);
     }
 
     /**
@@ -971,15 +976,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     protected function setContextState(string $key, mixed $value): void
     {
-        CoroutineContext::set($this->getContextStateKey($key), $value);
-    }
-
-    /**
-     * Get a per-request state Context key.
-     */
-    protected function getContextStateKey(string $key): string
-    {
-        return "__auth.guards.{$this->name}.{$key}";
+        CoroutineContext::set($this->contextKey($key), $value);
     }
 
     /**

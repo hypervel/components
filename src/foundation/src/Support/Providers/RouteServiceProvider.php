@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Support\Providers;
 use Closure;
 use Hypervel\Contracts\Routing\UrlGenerator;
 use Hypervel\Routing\Router;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Traits\ForwardsCalls;
 
@@ -88,9 +89,10 @@ class RouteServiceProvider extends ServiceProvider
     /**
      * Register the callback that will be used to load the application's routes.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs during route loading at boot.
+     * The callback persists in a static property for the worker lifetime
+     * and runs during route loading at boot.
      */
+    #[BootOnly]
     public static function loadRoutesUsing(?Closure $routesCallback): void
     {
         self::$alwaysLoadRoutesUsing = $routesCallback;
@@ -99,9 +101,10 @@ class RouteServiceProvider extends ServiceProvider
     /**
      * Register the callback that will be used to load the application's cached routes.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs during route loading at boot when route cache exists.
+     * The callback persists in a static property for the worker lifetime and
+     * runs during route loading at boot when route cache exists.
      */
+    #[BootOnly]
     public static function loadCachedRoutesUsing(?Closure $routesCallback): void
     {
         self::$alwaysLoadCachedRoutesUsing = $routesCallback;
@@ -116,9 +119,10 @@ class RouteServiceProvider extends ServiceProvider
      * though an application route with the same method, domain and URI replaces
      * them. Cached routes already contain them, so the callback does not run.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs during route loading at boot.
+     * The callback persists in a static property for the worker lifetime
+     * and runs during route loading at boot.
      */
+    #[BootOnly]
     public static function beforeLoadingRoutes(Closure $callback): void
     {
         self::$beforeLoadingRoutes[] = $callback;

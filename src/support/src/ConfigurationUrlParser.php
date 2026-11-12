@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
+use Hypervel\Support\Attributes\BootOnly;
 use InvalidArgumentException;
 
 class ConfigurationUrlParser
@@ -189,9 +190,10 @@ class ConfigurationUrlParser
     /**
      * Add the given driver alias to the driver aliases array.
      *
-     * Boot-only. Driver aliases persist in a static property for the worker
-     * lifetime and apply to every subsequent configuration URL parse.
+     * Driver aliases persist in a static property for the worker lifetime
+     * and apply to every subsequent configuration URL parse.
      */
+    #[BootOnly]
     public static function addDriverAlias(string $alias, string $driver): void
     {
         static::$driverAliases[$alias] = $driver;

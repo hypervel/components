@@ -11,6 +11,7 @@ use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\TransferStats;
 use Hypervel\Sentry\Features\Concerns\ResolvesEventOrigin;
 use Hypervel\Sentry\Integration;
+use Hypervel\Support\Attributes\BootOnly;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\UriInterface;
@@ -62,8 +63,9 @@ class HttpClientIntegration extends Feature
     /**
      * Instrument outgoing Guzzle requests.
      *
-     * Boot-only. The middleware persists for the worker lifetime and affects every Guzzle client.
+     * The middleware persists for the worker lifetime and affects every Guzzle client.
      */
+    #[BootOnly]
     public function onBoot(): void
     {
         $userConfig = $this->getUserConfig();

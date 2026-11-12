@@ -15,6 +15,7 @@ use Hypervel\Core\Events\BeforeServerFork;
 use Hypervel\Core\Events\BeforeServerStart;
 use Hypervel\Server\Exceptions\InvalidArgumentException;
 use Hypervel\Server\Exceptions\ServerException;
+use Hypervel\Support\Attributes\BootOnly;
 use Psr\Log\LoggerInterface;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Request as SwooleRequest;
@@ -41,9 +42,10 @@ class Server implements ServerInterface
     /**
      * Initialize the server with the given configuration.
      *
-     * Boot-only. Mutates the underlying Swoole server and registered callbacks;
-     * runtime use races with active workers and request handling.
+     * Mutates the underlying Swoole server and registered callbacks; runtime
+     * use races with active workers and request handling.
      */
+    #[BootOnly]
     public function init(ServerConfig $config): ServerInterface
     {
         $this->initServers($config);
@@ -77,7 +79,11 @@ class Server implements ServerInterface
 
     /**
      * Initialize all server ports from the configuration.
+     *
+     * Mutates the underlying Swoole server and the process-wide server
+     * registry; runtime use races with active workers and request handling.
      */
+    #[BootOnly]
     protected function initServers(ServerConfig $config): void
     {
         $servers = $this->sortServers($config->getServers());

@@ -8,6 +8,7 @@ use Closure;
 use Composer\Autoload\ClassLoader;
 use Composer\InstalledVersions;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Traits\GuardsProcessOutput;
 use JsonException;
 use RuntimeException;
@@ -278,9 +279,10 @@ class Composer
     /**
      * Set the Composer autoloader instance.
      *
-     * Tests only. Swaps the cached Composer loader for the worker lifetime and
-     * affects every subsequent class-map registration.
+     * Swaps the cached Composer loader for the worker lifetime and affects
+     * every subsequent class-map registration.
      */
+    #[TestsOnly]
     public static function setLoader(ClassLoader $classLoader): ClassLoader
     {
         return static::$classLoader = $classLoader;

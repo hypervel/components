@@ -9,6 +9,7 @@ use Hypervel\Auth\AuthenticationException;
 use Hypervel\Contracts\Auth\Factory as Auth;
 use Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Hypervel\Http\Request;
+use Hypervel\Support\Attributes\BootOnly;
 use Symfony\Component\HttpFoundation\Response;
 
 class Authenticate implements AuthenticatesRequests
@@ -99,10 +100,11 @@ class Authenticate implements AuthenticatesRequests
     /**
      * Specify the callback that should be used to generate the redirect path.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every unauthenticated request handled by this
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every unauthenticated request handled by this
      * middleware.
      */
+    #[BootOnly]
     public static function redirectUsing(callable $redirectToCallback): void
     {
         static::$redirectToCallback = $redirectToCallback;

@@ -7,6 +7,7 @@ namespace Hypervel\Passport\Bridge;
 use DateInterval;
 use Hypervel\Contracts\Routing\UrlGenerator;
 use Hypervel\Passport\ClientRepository as ClientModelRepository;
+use Hypervel\Support\Attributes\BootOnly;
 use League\OAuth2\Server\Entities\AccessTokenEntityInterface;
 use League\OAuth2\Server\Entities\ClientEntityInterface;
 use League\OAuth2\Server\Entities\DeviceCodeEntityInterface;
@@ -92,9 +93,10 @@ class DeviceCodeGrant extends LeagueDeviceCodeGrant
     /**
      * Configure whether device responses include the complete verification URI.
      *
-     * Boot-only. This grant is shared by the worker and the flag affects subsequent requests.
+     * On the worker-shared grant, the flag affects subsequent requests.
      */
     #[Override]
+    #[BootOnly(whenShared: true)]
     public function setIncludeVerificationUriComplete(bool $includeVerificationUriComplete): void
     {
         parent::setIncludeVerificationUriComplete($includeVerificationUriComplete);

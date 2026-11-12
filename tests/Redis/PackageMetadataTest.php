@@ -31,6 +31,7 @@ class PackageMetadataTest extends TestCase
             'ext-filter',
             'ext-swoole',
             'psr/log',
+            'hypervel/attributes',
             'hypervel/collections',
             'hypervel/config',
             'hypervel/container',

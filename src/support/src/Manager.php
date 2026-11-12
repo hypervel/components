@@ -7,6 +7,9 @@ namespace Hypervel\Support;
 use Closure;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use InvalidArgumentException;
 use ReflectionException;
 use RuntimeException;
@@ -129,11 +132,12 @@ abstract class Manager
      * Anonymous closures run in this manager's class scope; non-static closures
      * also receive the manager as $this.
      *
-     * Boot-only. The callback persists in the singleton's customCreators array
-     * for the worker lifetime and applies to every subsequent driver resolution.
+     * The callback persists in the singleton's customCreators array for the
+     * worker lifetime and applies to every subsequent driver resolution.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $driver, Closure $callback): static
     {
         try {
@@ -169,12 +173,13 @@ abstract class Manager
     /**
      * Set the container instance used by the manager.
      *
-     * Tests only. Swaps the singleton's container and configuration references;
-     * per-request use races across coroutines and breaks every concurrent driver
-     * resolution through this manager.
+     * Swaps the singleton's container and configuration references; per-request
+     * use races across coroutines and breaks every concurrent driver resolution
+     * through this manager.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setContainer(Container $container): static
     {
         $this->container = $container;
@@ -186,12 +191,12 @@ abstract class Manager
     /**
      * Forget all of the resolved driver instances.
      *
-     * Boot or tests only. Clears the singleton's driver cache; concurrent
-     * coroutines may already hold references that next resolution will not
-     * share.
+     * Clears the singleton's driver cache; concurrent coroutines may
+     * already hold references that next resolution will not share.
      *
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetDrivers(): static
     {
         $this->drivers = [];

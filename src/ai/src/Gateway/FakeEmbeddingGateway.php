@@ -16,6 +16,7 @@ use Hypervel\Ai\Prompts\EmbeddingsPrompt;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\Usage;
 use Hypervel\Ai\Responses\EmbeddingsResponse;
+use Hypervel\Support\Attributes\TestsOnly;
 use RuntimeException;
 
 class FakeEmbeddingGateway implements EmbeddingGateway
@@ -125,8 +126,10 @@ class FakeEmbeddingGateway implements EmbeddingGateway
     /**
      * Indicate that an exception should be thrown if any embeddings generation is not faked.
      *
-     * Tests only. This setting affects the fake gateway shared by requests in the worker.
+     * When the shared manager holds this fake gateway, the setting affects
+     * every request in the worker.
      */
+    #[TestsOnly(whenShared: true)]
     public function preventStrayEmbeddings(bool $prevent = true): self
     {
         $this->preventStrayGenerations = $prevent;

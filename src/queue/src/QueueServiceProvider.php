@@ -186,8 +186,7 @@ class QueueServiceProvider extends ServiceProvider
     /**
      * Register the connectors on the queue manager.
      *
-     * Boot-only. Connectors persist on the supplied manager for the worker
-     * lifetime and affect every subsequent connection it resolves.
+     * This changes the given manager, which is usually the application's worker-shared queue manager.
      */
     public function registerConnectors(QueueManager $manager): void
     {

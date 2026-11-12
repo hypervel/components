@@ -8,6 +8,7 @@ use Exception;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\InteractsWithTime;
 
 class StorageStore implements Store
@@ -308,9 +309,10 @@ class StorageStore implements Store
     /**
      * Set the cache key prefix.
      *
-     * Boot-only. Persists on the cached store for the worker lifetime;
+     * Persists on the cached store for the worker lifetime;
      * per-request use races across coroutines.
      */
+    #[BootOnly(whenShared: true)]
     public function setPrefix(string $prefix): void
     {
         $this->prefix = $prefix;

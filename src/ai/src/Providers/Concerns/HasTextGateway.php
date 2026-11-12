@@ -6,6 +6,7 @@ namespace Hypervel\Ai\Providers\Concerns;
 
 use Hypervel\Ai\Contracts\Gateway\StepTextGateway;
 use Hypervel\Ai\Gateway\TextGenerationLoop;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 
 trait HasTextGateway
 {
@@ -24,8 +25,9 @@ trait HasTextGateway
     /**
      * Set the provider's text gateway.
      *
-     * Boot or tests only for configured providers, which are shared across requests.
+     * Changing a shared provider's gateway affects subsequent operations.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function useTextGateway(StepTextGateway $gateway): self
     {
         $this->textGateway = $gateway;

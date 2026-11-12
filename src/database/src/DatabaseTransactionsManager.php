@@ -6,6 +6,7 @@ namespace Hypervel\Database;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use Throwable;
 
@@ -393,9 +394,10 @@ class DatabaseTransactionsManager
     /**
      * Copy transaction state from the current coroutine to non-coroutine storage.
      *
-     * Tests only. This copies coroutine-local transaction state into worker-global
-     * storage, so request-time use can leak or race across concurrent requests.
+     * This copies coroutine-local transaction state into worker-global storage, so
+     * request-time use can leak or race across concurrent requests.
      */
+    #[TestsOnly]
     public static function copyToNonCoroutineState(): void
     {
         CoroutineContext::setNonCoroutine(
@@ -407,9 +409,10 @@ class DatabaseTransactionsManager
     /**
      * Restore the test lifecycle's transaction state in the current coroutine.
      *
-     * Tests only. This deliberately shares transaction ownership across setup,
-     * test and teardown; normal child coroutines must own separate transactions.
+     * This deliberately shares transaction ownership across setup, test and
+     * teardown; normal child coroutines must own separate transactions.
      */
+    #[TestsOnly]
     public static function copyFromNonCoroutineState(): void
     {
         $state = CoroutineContext::getFromNonCoroutine(DatabaseTransactionState::CONTEXT_KEY);
@@ -422,9 +425,10 @@ class DatabaseTransactionsManager
     /**
      * Clear all transaction state from non-coroutine storage.
      *
-     * Tests only. This mutates worker-global transaction state, so request-time
-     * use can race with concurrent requests using the same storage.
+     * This mutates worker-global transaction state, so request-time use can
+     * race with concurrent requests using the same storage.
      */
+    #[TestsOnly]
     public static function clearNonCoroutineState(): void
     {
         CoroutineContext::clearFromNonCoroutine([DatabaseTransactionState::CONTEXT_KEY]);

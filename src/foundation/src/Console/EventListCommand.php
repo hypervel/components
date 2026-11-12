@@ -10,6 +10,7 @@ use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Events\Dispatcher;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use ReflectionFunction;
@@ -235,9 +236,10 @@ class EventListCommand extends Command
     /**
      * Set a callback that should be used when resolving the events dispatcher.
      *
-     * Tests only. The resolver persists in a static property for the worker
-     * lifetime and affects every subsequent event:list run.
+     * The resolver persists in a static property for the worker lifetime
+     * and affects every subsequent event:list run.
      */
+    #[TestsOnly]
     public static function resolveEventsUsing(?Closure $resolver): void
     {
         static::$eventsResolver = $resolver;

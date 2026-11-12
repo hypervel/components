@@ -25,6 +25,7 @@ use Hypervel\Routing\Matching\SchemeValidator;
 use Hypervel\Routing\Matching\UriValidator;
 use Hypervel\Routing\Matching\ValidatorInterface;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
@@ -424,13 +425,14 @@ class Route
     /**
      * Flush the cached controller state on the route.
      *
-     * Boot or tests only. Clears caches on the worker-shared route and
-     * evicts its controller class from the container.
+     * Clears caches on the worker-shared route and evicts its
+     * controller class from the container.
      *
      * Clears both the route-level property cache (for worker-shared controllers)
      * and the coroutine Context entry (for scoped/bound controllers), plus the
      * container's auto-singleton cache so make() creates a fresh instance.
      */
+    #[BootOrTestsOnly]
     public function flushController(): void
     {
         $this->computedMiddleware = null;

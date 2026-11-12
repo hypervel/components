@@ -10,6 +10,9 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Http\FormRequest;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Facades\App;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Request as RequestFacade;
@@ -26,6 +29,9 @@ use PhpParser\Node\Name;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredParameter;
 use PHPStan\DependencyInjection\AutowiredService;
+use PHPStan\Reflection\AttributeReflection;
+use PHPStan\Reflection\ExtendedMethodReflection;
+use PHPStan\Reflection\FunctionReflection;
 use PHPStan\Reflection\MethodReflection;
 use PHPStan\Reflection\ParameterReflection;
 use PHPStan\Reflection\ReflectionProvider;
@@ -44,7 +50,6 @@ use function array_find;
 use function array_map;
 use function in_array;
 use function is_string;
-use function preg_match;
 use function strtolower;
 
 /**
@@ -86,9 +91,9 @@ class WorkerStateHelper
     private const array RESOLVING_METHODS = ['make' => ['abstract', true], 'get' => ['id', false], 'factory' => ['abstract', false]];
 
     /**
-     * The documented warning tags of boot-time and test-only mutators.
+     * The attributes that restrict a method to boot time or tests.
      */
-    private const string LIFETIME_TAG_PATTERN = '/^\s*(?:\/\*\*|\*)?\s*(?:Boot-only|Tests only|Boot or tests only)\b/m';
+    private const array LIFETIME_ATTRIBUTES = [BootOnly::class, TestsOnly::class, BootOrTestsOnly::class];
 
     /**
      * Create a new worker state helper instance.
@@ -120,7 +125,7 @@ class WorkerStateHelper
 
     /**
      * Get the facts of the function the scope's code at the node runs in, or null when it is a
-     * flushState() method or one documented as boot-time or test-only.
+     * flushState() method or one marked as boot-time or test-only.
      *
      * The context is the operation the code always runs in when the class alone decides it: a queued
      * class's handle(), __invoke() or failed(), or a form request's method. The rule adds booted
@@ -133,7 +138,7 @@ class WorkerStateHelper
     {
         $function = $scope->getFunction();
 
-        if ($function !== null && ($function->getName() === 'flushState' || $this->hasLifetimeTag($function->getDocComment()))) {
+        if ($function !== null && ($function->getName() === 'flushState' || $this->hasLifetimeAttribute($function))) {
             return null;
         }
 
@@ -158,11 +163,14 @@ class WorkerStateHelper
     }
 
     /**
-     * Determine whether the docblock documents its method as boot-time or test-only.
+     * Determine whether the function is marked as running only while the application boots or in tests.
      */
-    public function hasLifetimeTag(?string $docComment): bool
+    public function hasLifetimeAttribute(FunctionReflection|ExtendedMethodReflection $function): bool
     {
-        return preg_match(self::LIFETIME_TAG_PATTERN, $docComment ?? '') === 1;
+        return array_any(
+            $function->getAttributes(),
+            static fn (AttributeReflection $attribute): bool => in_array($attribute->getName(), self::LIFETIME_ATTRIBUTES, true),
+        );
     }
 
     /**

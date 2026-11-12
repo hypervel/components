@@ -97,8 +97,8 @@ class CallableDispatcher implements CallableDispatcherContract
     /**
      * Flush the static reflection cache.
      *
-     * Boot or tests only. Clears the process-wide reflection cache shared by
-     * every coroutine; next dispatch re-reflects.
+     * Clears the process-wide reflection cache shared by every coroutine;
+     * next dispatch re-reflects.
      */
     public static function flushCache(): void
     {

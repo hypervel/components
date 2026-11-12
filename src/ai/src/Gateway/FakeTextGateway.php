@@ -28,6 +28,7 @@ use Hypervel\Ai\Streaming\Events\TextStart;
 use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
 use Hypervel\JsonSchema\Types\ObjectType;
 use Hypervel\JsonSchema\Types\Type;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use RuntimeException;
@@ -278,8 +279,10 @@ class FakeTextGateway implements StepTextGateway
     /**
      * Indicate that an exception should be thrown if any prompt is not faked.
      *
-     * Tests only. This setting affects the fake gateway shared by requests in the worker.
+     * When the shared manager holds this fake gateway, the setting affects
+     * every request in the worker.
      */
+    #[TestsOnly(whenShared: true)]
     public function preventStrayPrompts(bool $prevent = true): self
     {
         $this->preventStrayPrompts = $prevent;

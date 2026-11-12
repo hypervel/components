@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
+use Hypervel\Support\Attributes\TestsOnly;
 use RuntimeException;
 
 class Lottery
@@ -152,9 +153,10 @@ class Lottery
     /**
      * Force the lottery to always result in a win.
      *
-     * Tests only. Without a callback, the result factory persists in static
-     * state for the worker lifetime and affects every subsequent lottery.
+     * Without a callback, the result factory persists in static state for
+     * the worker lifetime and affects every subsequent lottery.
      */
+    #[TestsOnly]
     public static function alwaysWin(?callable $callback = null): void
     {
         self::setResultFactory(fn () => true);
@@ -173,9 +175,10 @@ class Lottery
     /**
      * Force the lottery to always result in a loss.
      *
-     * Tests only. Without a callback, the result factory persists in static
-     * state for the worker lifetime and affects every subsequent lottery.
+     * Without a callback, the result factory persists in static state for
+     * the worker lifetime and affects every subsequent lottery.
      */
+    #[TestsOnly]
     public static function alwaysLose(?callable $callback = null): void
     {
         self::setResultFactory(fn () => false);
@@ -194,9 +197,10 @@ class Lottery
     /**
      * Set the sequence that will be used to determine lottery results.
      *
-     * Tests only. The sequence factory persists in a static property for the
-     * worker lifetime and affects every subsequent lottery result.
+     * The sequence factory persists in a static property for the worker
+     * lifetime and affects every subsequent lottery result.
      */
+    #[TestsOnly]
     public static function fix(array $sequence, ?callable $whenMissing = null): void
     {
         static::forceResultWithSequence($sequence, $whenMissing);
@@ -205,9 +209,10 @@ class Lottery
     /**
      * Set the sequence that will be used to determine lottery results.
      *
-     * Tests only. The sequence factory persists in a static property for the
-     * worker lifetime and affects every subsequent lottery result.
+     * The sequence factory persists in a static property for the worker
+     * lifetime and affects every subsequent lottery result.
      */
+    #[TestsOnly]
     public static function forceResultWithSequence(array $sequence, ?callable $whenMissing = null): void
     {
         $next = 0;
@@ -239,7 +244,11 @@ class Lottery
 
     /**
      * Indicate that the lottery results should be determined normally.
+     *
+     * Clears the worker-wide result factory; concurrent coroutines may observe
+     * different lottery behavior depending on timing.
      */
+    #[TestsOnly]
     public static function determineResultsNormally(): void
     {
         static::determineResultNormally();
@@ -248,9 +257,10 @@ class Lottery
     /**
      * Indicate that the lottery results should be determined normally.
      *
-     * Tests only. Clears the worker-wide result factory; concurrent coroutines
-     * may observe different lottery behavior depending on timing.
+     * Clears the worker-wide result factory; concurrent coroutines may observe
+     * different lottery behavior depending on timing.
      */
+    #[TestsOnly]
     public static function determineResultNormally(): void
     {
         static::$resultFactory = null;
@@ -259,9 +269,10 @@ class Lottery
     /**
      * Set the factory that should be used to determine the lottery results.
      *
-     * Tests only. The factory persists in a static property for the worker
-     * lifetime and affects every subsequent lottery result.
+     * The factory persists in a static property for the worker lifetime
+     * and affects every subsequent lottery result.
      */
+    #[TestsOnly]
     public static function setResultFactory(callable $factory): void
     {
         self::$resultFactory = $factory;

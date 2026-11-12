@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Ai\Gateway\FakeTranscriptionGateway;
 use Hypervel\Ai\Prompts\QueuedTranscriptionPrompt;
 use Hypervel\Ai\Prompts\TranscriptionPrompt;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use PHPUnit\Framework\Assert as PHPUnit;
 
@@ -31,8 +32,9 @@ trait InteractsWithFakeTranscriptions
     /**
      * Fake transcription generation.
      *
-     * Tests only. The fake gateway is shared by all requests in the worker.
+     * On the shared manager, the fake gateway affects every request.
      */
+    #[TestsOnly(whenShared: true)]
     public function fakeTranscriptions(Closure|array $responses = []): FakeTranscriptionGateway
     {
         return $this->fakeTranscriptionGateway = new FakeTranscriptionGateway($responses);
@@ -41,8 +43,9 @@ trait InteractsWithFakeTranscriptions
     /**
      * Record a transcription generation.
      *
-     * Tests only. Recorded prompts remain on the worker-shared manager.
+     * Recorded prompts remain on the worker-shared manager.
      */
+    #[TestsOnly(whenShared: true)]
     public function recordTranscriptionGeneration(TranscriptionPrompt|QueuedTranscriptionPrompt $prompt): self
     {
         if ($prompt instanceof QueuedTranscriptionPrompt) {

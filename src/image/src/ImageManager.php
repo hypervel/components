@@ -12,6 +12,7 @@ use Hypervel\Http\Client\Factory as HttpFactory;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Image\Drivers\GdDriver;
 use Hypervel\Image\Drivers\ImagickDriver;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Manager;
 use InvalidArgumentException;
 use UnitEnum;
@@ -148,10 +149,11 @@ class ImageManager extends Manager
     /**
      * Register a transformation handler for the given driver.
      *
-     * Boot-only. The handler persists on a cached driver for the worker lifetime and affects every subsequent image processed by that driver.
+     * On the shared manager, the handler persists on a cached driver for the worker lifetime and affects every subsequent image processed by that driver.
      *
      * @param class-string<Transformation> $transformation
      */
+    #[BootOnly(whenShared: true)]
     public function transformUsing(string $driver, string $transformation, callable $callback): static
     {
         $this->transformationHandlers[$driver][$transformation] = $callback;

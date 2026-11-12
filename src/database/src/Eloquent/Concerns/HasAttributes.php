@@ -37,6 +37,7 @@ use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\LazyLoadingViolationException;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
@@ -1434,9 +1435,10 @@ trait HasAttributes
     /**
      * Set the encrypter instance that will be used to encrypt attributes.
      *
-     * Boot-only. The encrypter persists in a static property for the worker
-     * lifetime and is used by primitive encrypted casts across all coroutines.
+     * The encrypter persists in a static property for the worker lifetime and
+     * is used by primitive encrypted casts across all coroutines.
      */
+    #[BootOnly]
     public static function encryptUsing(?EncrypterContract $encrypter): void
     {
         static::$encrypter = $encrypter;
@@ -1875,8 +1877,8 @@ trait HasAttributes
     /**
      * Flush the caster cache for the model.
      *
-     * Boot or tests only. Clears the worker-wide caster instance cache shared
-     * by every coroutine; next attribute access rebuilds the casters.
+     * Clears the worker-wide caster instance cache shared by every coroutine;
+     * next attribute access rebuilds the casters.
      */
     public static function flushCasterCache(): void
     {

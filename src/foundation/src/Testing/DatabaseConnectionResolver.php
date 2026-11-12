@@ -17,6 +17,7 @@ use Hypervel\Database\ConnectionName;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\Pool\DatabasePool;
 use Hypervel\Database\Pool\PooledConnection;
+use Hypervel\Support\Attributes\TestsOnly;
 use PDO;
 use Throwable;
 use UnitEnum;
@@ -67,9 +68,10 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
      * services. A rebinding hook is registered so Event::fake() automatically
      * updates cached connections with the new dispatcher.
      *
-     * Tests only. The cached connections are process-global, so runtime use can
-     * reset or discard a connection borrowed by another coroutine.
+     * The cached connections are process-global, so runtime use can reset or
+     * discard a connection borrowed by another coroutine.
      */
+    #[TestsOnly]
     public static function resetCachedConnections(): void
     {
         $container = Container::getInstance();
@@ -107,9 +109,10 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
     /**
      * Discard all cached connections and clear resolver lifecycle state.
      *
-     * Tests only. The cached connections are process-global, so runtime use can
-     * discard a connection borrowed by another coroutine.
+     * The cached connections are process-global, so runtime use can discard a
+     * connection borrowed by another coroutine.
      */
+    #[TestsOnly]
     public static function flushCachedConnections(): void
     {
         static::discardCachedConnections();
@@ -312,8 +315,9 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
     /**
      * Restore a pooled in-memory database, returning false when pooling is disabled.
      *
-     * Tests only. Replaces the database shared by this application's pool borrowers.
+     * Replaces the database shared by this application's pool borrowers.
      */
+    #[TestsOnly]
     public function restoreInMemoryPdoIfPooled(UnitEnum|string|null $name, PDO $pdo): bool
     {
         $connectionName = ConnectionName::parse($this->connectionName($name));

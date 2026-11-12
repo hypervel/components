@@ -28,6 +28,7 @@ class PackageMetadataTest extends TestCase
             'ext-mbstring',
             'brick/math',
             'egulias/email-validator',
+            'hypervel/attributes',
             'hypervel/collections',
             'hypervel/conditionable',
             'hypervel/console',

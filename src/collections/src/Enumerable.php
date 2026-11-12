@@ -10,6 +10,7 @@ use Countable;
 use Exception;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use InvalidArgumentException;
 use IteratorAggregate;
 use JsonException;
@@ -1181,10 +1182,10 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Add a method to the list of proxied methods.
      *
-     * Boot or tests only. The method is registered on a worker-wide static and
-     * applies to every subsequent collection access; per-request use races
-     * across coroutines.
+     * The method is registered on a worker-wide static and applies to every
+     * subsequent collection access; per-request use races across coroutines.
      */
+    #[BootOrTestsOnly]
     public static function proxy(string $method): void;
 
     /**

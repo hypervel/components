@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Closure;
+use Hypervel\Support\Attributes\BootOnly;
 use InvalidArgumentException;
 use LogicException;
 
@@ -42,13 +43,14 @@ final class SerializableClassPolicy
     /**
      * Register classes that PHP may unserialize.
      *
-     * Boot-only. Contributions are held for the process-wide policy and cannot
-     * change after finalization.
+     * Contributions are held for the process-wide policy and cannot change
+     * after finalization.
      *
      * @param Closure(): array<array-key, class-string> $resolver
      *
      * @throws LogicException
      */
+    #[BootOnly(whenShared: true)]
     public function allowUsing(Closure $resolver): void
     {
         if ($this->finalized) {
@@ -63,11 +65,11 @@ final class SerializableClassPolicy
     /**
      * Finalize the serializable class policy.
      *
-     * Boot-only. The result is frozen for every subsequent cache read in the
-     * process.
+     * The result is frozen for every subsequent cache read in the process.
      *
      * @internal
      */
+    #[BootOnly(whenShared: true)]
     public function finalize(): void
     {
         if ($this->finalized) {

@@ -62,8 +62,10 @@ class WorkerStateClassCollector implements Collector
 
         $constructor = $node->getOriginalNode()->getMethod('__construct');
 
-        // A constructor documented as boot-time or test-only keeps its parameters by design.
-        $parameters = $this->helper->hasLifetimeTag($constructor?->getDocComment()?->getText()) ? [] : $constructor->params ?? [];
+        // A constructor marked as boot-time or test-only keeps its parameters by design.
+        $parameters = $constructor === null || $this->helper->hasLifetimeAttribute($class->getNativeMethod('__construct'))
+            ? []
+            : $constructor->params;
 
         foreach ($parameters as $parameter) {
             if ($parameter->flags === 0 || ! $parameter->var instanceof Variable || ! is_string($parameter->var->name)) {

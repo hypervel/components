@@ -16,6 +16,9 @@ use Hypervel\Log\Handlers\FingersCrossedHandler;
 use Hypervel\Log\Handlers\RotatingFileHandler;
 use Hypervel\Log\Handlers\StreamHandler;
 use Hypervel\Log\Processors\UidProcessor;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\RebindsCallbacksToSelf;
 use Hypervel\Support\Str;
@@ -609,8 +612,9 @@ class LogManager implements LoggerInterface
     /**
      * Set the default log driver name.
      *
-     * Boot-only. Mutates process-global config; per-request use races across coroutines.
+     * Mutates process-global config; per-request use races across coroutines.
      */
+    #[BootOnly]
     public function setDefaultDriver(UnitEnum|string $name): void
     {
         if ($name instanceof UnitEnum) {
@@ -626,11 +630,12 @@ class LogManager implements LoggerInterface
      * Anonymous closures run in this manager's class scope; non-static closures
      * also receive the manager as $this.
      *
-     * Boot-only. The callback persists in the singleton's customCreators array
-     * for the worker lifetime and applies to every subsequent channel resolution.
+     * The callback persists in the singleton's customCreators array for the
+     * worker lifetime and applies to every subsequent channel resolution.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $driver, Closure $callback): static
     {
         try {
@@ -648,10 +653,11 @@ class LogManager implements LoggerInterface
     /**
      * Unset the given channel instance.
      *
-     * Boot or tests only. Mutates the singleton's channel cache; concurrent
-     * coroutines may already hold a reference to the channel and next
-     * resolution will rebuild with fresh handlers (file handles, etc.).
+     * Mutates the singleton's channel cache; concurrent coroutines may
+     * already hold a reference to the channel and next resolution will
+     * rebuild with fresh handlers (file handles, etc.).
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetChannel(UnitEnum|string|null $driver = null): void
     {
         if ($driver instanceof UnitEnum) {
@@ -779,12 +785,13 @@ class LogManager implements LoggerInterface
     /**
      * Set the application instance used by the manager.
      *
-     * Tests only. Swaps the singleton's Application reference; per-request use
-     * races across coroutines and breaks every concurrent request resolving
-     * services through this manager.
+     * Swaps the singleton's Application reference; per-request use races
+     * across coroutines and breaks every concurrent request resolving services
+     * through this manager.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setApplication(Application $app): static
     {
         $this->app = $app;

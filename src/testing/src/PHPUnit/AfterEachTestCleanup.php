@@ -6,6 +6,7 @@ namespace Hypervel\Testing\PHPUnit;
 
 use Closure;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Throwable;
 
 /**
@@ -27,9 +28,10 @@ class AfterEachTestCleanup
     /**
      * Register a callback to flush test state after every test.
      *
-     * Boot or tests only. The callback persists in static state for the
-     * PHPUnit worker lifetime and runs after every subsequent test.
+     * The callback persists in static state for the PHPUnit worker
+     * lifetime and runs after every subsequent test.
      */
+    #[BootOrTestsOnly]
     public static function flushUsing(string $name, callable $callback): void
     {
         static::$callbacks[$name] = Closure::fromCallable($callback);
@@ -61,9 +63,10 @@ class AfterEachTestCleanup
     /**
      * Forget a registered callback by name.
      *
-     * Boot or tests only. This removes one process-local cleanup registration
-     * from the current PHPUnit worker.
+     * This removes one process-local cleanup registration from the current
+     * PHPUnit worker.
      */
+    #[BootOrTestsOnly]
     public static function forget(string $name): void
     {
         unset(static::$callbacks[$name]);
@@ -72,10 +75,11 @@ class AfterEachTestCleanup
     /**
      * Forget all registered callbacks.
      *
-     * Boot or tests only. This removes process-local cleanup registrations
-     * for the current PHPUnit worker, including callbacks discovered from
-     * app and package metadata.
+     * This removes process-local cleanup registrations for the current
+     * PHPUnit worker, including callbacks discovered from app and package
+     * metadata.
      */
+    #[BootOrTestsOnly]
     public static function forgetCallbacks(): void
     {
         static::$callbacks = [];

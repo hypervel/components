@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Jwt\Providers;
 
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use SensitiveParameter;
 
 abstract class Provider
@@ -42,11 +43,12 @@ abstract class Provider
     /**
      * Set the algorithm used to sign the token.
      *
-     * Boot-only. Providers are cached on the singleton JwtManager; runtime
-     * mutation affects every subsequent request and races across coroutines.
+     * On a provider cached by the shared JwtManager, runtime mutation
+     * affects every subsequent request and races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setAlgo(string $algo): static
     {
         $this->algo = $algo;
@@ -66,11 +68,12 @@ abstract class Provider
     /**
      * Set the secret used to sign the token.
      *
-     * Boot-only. Providers are cached on the singleton JwtManager; runtime
-     * mutation affects every subsequent request and races across coroutines.
+     * On a provider cached by the shared JwtManager, runtime mutation
+     * affects every subsequent request and races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setSecret(#[SensitiveParameter] string $secret): static
     {
         $this->secret = $secret;
@@ -90,11 +93,12 @@ abstract class Provider
     /**
      * Set the keys used to sign the token.
      *
-     * Boot-only. Providers are cached on the singleton JwtManager; runtime
-     * mutation affects every subsequent request and races across coroutines.
+     * On a provider cached by the shared JwtManager, runtime mutation
+     * affects every subsequent request and races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setKeys(#[SensitiveParameter] array $keys): static
     {
         $this->keys = $keys;

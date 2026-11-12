@@ -21,6 +21,8 @@ use Hypervel\Passport\Contracts\OAuthenticatable;
 use Hypervel\Passport\Contracts\ServerSettingsResolver;
 use Hypervel\Passport\Guards\TokenGuard;
 use Hypervel\Passport\Http\Responses\SimpleViewResponse;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use League\OAuth2\Server\ResourceServer;
@@ -341,11 +343,12 @@ class Passport
     /**
      * Set or get the default scopes.
      *
-     * Boot-only when setting. The scopes persist for the worker lifetime and affect every request.
+     * Given scopes persist for the worker lifetime and affect every request.
      *
      * @param null|string|string[] $scopes
      * @return string[]
      */
+    #[BootOnly(whenNotDefault: 'scopes')]
     public static function defaultScopes(array|string|null $scopes = null): array
     {
         if (! is_null($scopes)) {
@@ -427,10 +430,11 @@ class Passport
     /**
      * Define the scopes for the application.
      *
-     * Boot-only. The catalog persists in a static property and affects every request on the worker.
+     * The catalog persists in a static property and affects every request on the worker.
      *
      * @param array<string, string> $scopes
      */
+    #[BootOnly]
     public static function tokensCan(array $scopes): void
     {
         static::$scopes = $scopes;
@@ -439,10 +443,11 @@ class Passport
     /**
      * Define the resources tokens may access.
      *
-     * Boot-only. The catalog persists in a static property and affects every request on the worker.
+     * The catalog persists in a static property and affects every request on the worker.
      *
      * @param array<string, string> $resources
      */
+    #[BootOnly]
     public static function tokensCanAccess(array $resources): void
     {
         ProtectedResource::validateIdentifiers($resources);
@@ -492,8 +497,9 @@ class Passport
     /**
      * Get or set how long user approval is remembered.
      *
-     * Boot-only when setting. The duration persists for every subsequent request on the worker.
+     * A given duration, including null, persists for every subsequent request on the worker.
      */
+    #[BootOnly(whenProvided: 'duration')]
     public static function rememberConsentFor(DateTimeInterface|DateInterval|null $duration = null): ?DateInterval
     {
         if (func_num_args() === 0) {
@@ -508,8 +514,9 @@ class Passport
     /**
      * Get or set when access tokens expire.
      *
-     * Boot-only when setting. Cached servers retain this lifetime across requests.
+     * Cached servers retain a given lifetime across requests.
      */
+    #[BootOnly(whenNotDefault: 'date')]
     public static function tokensExpireIn(DateTimeInterface|DateInterval|null $date = null): DateInterval
     {
         if (is_null($date)) {
@@ -524,8 +531,9 @@ class Passport
     /**
      * Get or set when refresh tokens expire.
      *
-     * Boot-only when setting. Cached servers retain this lifetime across requests.
+     * Cached servers retain a given lifetime across requests.
      */
+    #[BootOnly(whenNotDefault: 'date')]
     public static function refreshTokensExpireIn(DateTimeInterface|DateInterval|null $date = null): DateInterval
     {
         if (is_null($date)) {
@@ -540,8 +548,9 @@ class Passport
     /**
      * Get or set when personal access tokens expire.
      *
-     * Boot-only when setting. Cached servers retain this lifetime across requests.
+     * Cached servers retain a given lifetime across requests.
      */
+    #[BootOnly(whenNotDefault: 'date')]
     public static function personalAccessTokensExpireIn(DateTimeInterface|DateInterval|null $date = null): DateInterval
     {
         if (is_null($date)) {
@@ -556,8 +565,9 @@ class Passport
     /**
      * Get or set when client credentials grant tokens expire.
      *
-     * Boot-only when setting. Cached servers retain this lifetime across requests.
+     * Cached servers retain a given lifetime across requests.
      */
+    #[BootOnly(whenNotDefault: 'date')]
     public static function clientCredentialsTokensExpireIn(DateTimeInterface|DateInterval|null $date = null): DateInterval
     {
         if (is_null($date)) {
@@ -572,8 +582,9 @@ class Passport
     /**
      * Get or set the maximum lifetime of proof-bound access tokens.
      *
-     * Boot-only when setting. The lifetime persists for every subsequent request on the worker.
+     * A given lifetime persists for every subsequent request on the worker.
      */
+    #[BootOnly(whenNotDefault: 'date')]
     public static function dpopTokensExpireIn(DateTimeInterface|DateInterval|null $date = null): DateInterval
     {
         if (is_null($date)) {
@@ -588,8 +599,9 @@ class Passport
     /**
      * Get or set the name for API token cookies.
      *
-     * Boot-only when setting. The name persists in a static property and affects every request on the worker.
+     * A given name persists in a static property and affects every request on the worker.
      */
+    #[BootOnly(whenNotDefault: 'cookie')]
     public static function cookie(?string $cookie = null): string
     {
         if (is_null($cookie)) {
@@ -602,8 +614,9 @@ class Passport
     /**
      * Indicate that Passport should ignore incoming CSRF tokens.
      *
-     * Boot-only. This policy persists in a static property and affects every request on the worker.
+     * This policy persists in a static property and affects every request on the worker.
      */
+    #[BootOnly]
     public static function ignoreCsrfToken(bool $ignoreCsrfToken = true): void
     {
         static::$ignoreCsrfToken = $ignoreCsrfToken;
@@ -612,13 +625,14 @@ class Passport
     /**
      * Set the current user for the application with the given scopes.
      *
-     * Tests only. This replaces the coroutine's authenticated user and default guard with test state.
+     * This replaces the coroutine's authenticated user and default guard with test state.
      *
      * @param OAuthenticatable $user
      * @param string[] $scopes
      * @param list<string> $resources
      * @return OAuthenticatable
      */
+    #[TestsOnly]
     public static function actingAs(
         Authenticatable $user,
         array $scopes = [],
@@ -650,11 +664,12 @@ class Passport
     /**
      * Set the current client for the application with the given scopes.
      *
-     * Tests only. This installs a resource-server mock and authenticated client in the coroutine's context.
+     * This installs a resource-server mock and authenticated client in the coroutine's context.
      *
      * @param string[] $scopes
      * @param list<string> $resources
      */
+    #[TestsOnly]
     public static function actingAsClient(Client $client, array $scopes = [], ?string $guard = self::DEFAULT_GUARD, array $resources = []): Client
     {
         $mock = Mockery::mock(ResourceServer::class);
@@ -689,8 +704,9 @@ class Passport
     /**
      * Set the storage location of the encryption keys.
      *
-     * Boot-only. Cached servers retain their loaded keys for the worker lifetime.
+     * Cached servers retain their loaded keys for the worker lifetime.
      */
+    #[BootOnly]
     public static function loadKeysFrom(string $path): void
     {
         static::$keyPath = $path;
@@ -711,10 +727,11 @@ class Passport
     /**
      * Set the access token entity class name.
      *
-     * Boot-only. The entity class persists in a static property and affects every issuance on the worker.
+     * The entity class persists in a static property and affects every issuance on the worker.
      *
      * @param class-string<AccessTokenEntity> $accessTokenEntity
      */
+    #[BootOnly]
     public static function useAccessTokenEntity(string $accessTokenEntity): void
     {
         static::$accessTokenEntity = $accessTokenEntity;
@@ -723,10 +740,11 @@ class Passport
     /**
      * Set the consent model class name.
      *
-     * Boot-only. The model class persists in a static property and affects every request on the worker.
+     * The model class persists in a static property and affects every request on the worker.
      *
      * @param class-string<Consent> $consentModel
      */
+    #[BootOnly]
     public static function useConsentModel(string $consentModel): void
     {
         static::$consentModel = $consentModel;
@@ -753,10 +771,11 @@ class Passport
     /**
      * Set the auth code model class name.
      *
-     * Boot-only. The model class persists in a static property and affects every request on the worker.
+     * The model class persists in a static property and affects every request on the worker.
      *
      * @param class-string<AuthCode> $authCodeModel
      */
+    #[BootOnly]
     public static function useAuthCodeModel(string $authCodeModel): void
     {
         static::$authCodeModel = $authCodeModel;
@@ -783,10 +802,11 @@ class Passport
     /**
      * Set the pushed authorization request model class name.
      *
-     * Boot-only. The model class persists for the worker lifetime and affects every request.
+     * The model class persists for the worker lifetime and affects every request.
      *
      * @param class-string<PushedAuthorizationRequest> $pushedAuthorizationRequestModel
      */
+    #[BootOnly]
     public static function usePushedAuthorizationRequestModel(string $pushedAuthorizationRequestModel): void
     {
         static::$pushedAuthorizationRequestModel = $pushedAuthorizationRequestModel;
@@ -813,8 +833,9 @@ class Passport
     /**
      * Set the default ResponseType that should be used by the authorization server.
      *
-     * Boot-only. Cached servers retain this response prototype for the worker lifetime.
+     * Cached servers retain this response prototype for the worker lifetime.
      */
+    #[BootOnly]
     public static function useAuthorizationServerResponseType(?ResponseTypeInterface $authorizationServerResponseType): void
     {
         static::$authorizationServerResponseType = $authorizationServerResponseType;
@@ -823,10 +844,11 @@ class Passport
     /**
      * Set the device code model class name.
      *
-     * Boot-only. The model class persists in a static property and affects every request on the worker.
+     * The model class persists in a static property and affects every request on the worker.
      *
      * @param class-string<DeviceCode> $deviceCodeModel
      */
+    #[BootOnly]
     public static function useDeviceCodeModel(string $deviceCodeModel): void
     {
         static::$deviceCodeModel = $deviceCodeModel;
@@ -853,10 +875,11 @@ class Passport
     /**
      * Set the client model class name.
      *
-     * Boot-only. The model class persists in a static property and affects every request on the worker.
+     * The model class persists in a static property and affects every request on the worker.
      *
      * @param class-string<Client> $clientModel
      */
+    #[BootOnly]
     public static function useClientModel(string $clientModel): void
     {
         static::$clientModel = $clientModel;
@@ -883,10 +906,11 @@ class Passport
     /**
      * Set the token model class name.
      *
-     * Boot-only. The model class persists in a static property and affects every request on the worker.
+     * The model class persists in a static property and affects every request on the worker.
      *
      * @param class-string<Token> $tokenModel
      */
+    #[BootOnly]
     public static function useTokenModel(string $tokenModel): void
     {
         static::$tokenModel = $tokenModel;
@@ -913,10 +937,11 @@ class Passport
     /**
      * Set the refresh token model class name.
      *
-     * Boot-only. The model class persists in a static property and affects every request on the worker.
+     * The model class persists in a static property and affects every request on the worker.
      *
      * @param class-string<RefreshToken> $refreshTokenModel
      */
+    #[BootOnly]
     public static function useRefreshTokenModel(string $refreshTokenModel): void
     {
         static::$refreshTokenModel = $refreshTokenModel;
@@ -943,10 +968,11 @@ class Passport
     /**
      * Set the refresh token family model class name.
      *
-     * Boot-only. The model class persists in a static property and affects every request on the worker.
+     * The model class persists in a static property and affects every request on the worker.
      *
      * @param class-string<RefreshTokenFamily> $refreshTokenFamilyModel
      */
+    #[BootOnly]
     public static function useRefreshTokenFamilyModel(string $refreshTokenFamilyModel): void
     {
         static::$refreshTokenFamilyModel = $refreshTokenFamilyModel;
@@ -973,10 +999,11 @@ class Passport
     /**
      * Set the signing key model class name.
      *
-     * Boot-only. The model class persists in a static property and affects every request on the worker.
+     * The model class persists in a static property and affects every request on the worker.
      *
      * @param class-string<SigningKey> $signingKeyModel
      */
+    #[BootOnly]
     public static function useSigningKeyModel(string $signingKeyModel): void
     {
         static::$signingKeyModel = $signingKeyModel;
@@ -1003,10 +1030,11 @@ class Passport
     /**
      * Specify an additional access token authentication check.
      *
-     * Boot-only. The callback persists in a static property and runs for every bearer authentication.
+     * The callback persists in a static property and runs for every bearer authentication.
      *
      * @param Closure(Token, bool): bool $callback
      */
+    #[BootOnly]
     public static function authenticateAccessTokensUsing(Closure $callback): void
     {
         static::$accessTokenAuthenticationCallback = $callback;
@@ -1015,10 +1043,11 @@ class Passport
     /**
      * Specify an additional client authentication check.
      *
-     * Boot-only. The callback persists in a static property and runs for every client authentication.
+     * The callback persists in a static property and runs for every client authentication.
      *
      * @param Closure(Client): bool $callback
      */
+    #[BootOnly]
     public static function authenticateClientsUsing(Closure $callback): void
     {
         static::$clientAuthenticationCallback = $callback;
@@ -1027,10 +1056,11 @@ class Passport
     /**
      * Authorize resource-server clients to inspect another client's access token.
      *
-     * Boot-only. The callback persists in a static property and affects every introspection request.
+     * The callback persists in a static property and affects every introspection request.
      *
      * @param Closure(Client, Token): bool $callback
      */
+    #[BootOnly]
     public static function authorizeIntrospectionUsing(Closure $callback): void
     {
         static::$introspectionAuthorizationCallback = $callback;
@@ -1039,10 +1069,11 @@ class Passport
     /**
      * Specify the callback resolving protected-resource metadata for authentication challenges.
      *
-     * Boot-only. The callback persists in a static property and affects every authentication challenge on the worker.
+     * The callback persists in a static property and affects every authentication challenge on the worker.
      *
      * @param null|(Closure(Request): ?string) $callback
      */
+    #[BootOnly]
     public static function resolveResourceMetadataUsing(?Closure $callback): void
     {
         static::$resourceMetadataCallback = $callback;
@@ -1051,10 +1082,11 @@ class Passport
     /**
      * Specify grant attributes to carry into issued tokens.
      *
-     * Boot-only. The attribute list persists in a static property and affects every issuance on the worker.
+     * The attribute list persists in a static property and affects every issuance on the worker.
      *
      * @param list<string> $attributes
      */
+    #[BootOnly]
     public static function inheritGrantAttributes(array $attributes): void
     {
         static::$inheritedGrantAttributes = $attributes;
@@ -1063,10 +1095,11 @@ class Passport
     /**
      * Specify the binding included in and checked against API cookies.
      *
-     * Boot-only. The callback persists in a static property and affects cookies across all requests.
+     * The callback persists in a static property and affects cookies across all requests.
      *
      * @param Closure(Request): ?string $callback
      */
+    #[BootOnly]
     public static function bindCookiesUsing(Closure $callback): void
     {
         static::$cookieBindingCallback = $callback;
@@ -1075,10 +1108,11 @@ class Passport
     /**
      * Specify additional claims for issued access tokens.
      *
-     * Boot-only. The callback persists in a static property and affects every issuance on the worker.
+     * The callback persists in a static property and affects every issuance on the worker.
      *
      * @param Closure(Token): array<string, mixed> $callback
      */
+    #[BootOnly]
     public static function accessTokenClaimsUsing(Closure $callback): void
     {
         static::$accessTokenClaimsCallback = $callback;
@@ -1087,10 +1121,11 @@ class Passport
     /**
      * Specify whether an access token may receive a refresh token.
      *
-     * Boot-only. The callback persists in a static property and affects every issuance on the worker.
+     * The callback persists in a static property and affects every issuance on the worker.
      *
      * @param Closure(Token): bool $callback
      */
+    #[BootOnly]
     public static function issueRefreshTokensUsing(Closure $callback): void
     {
         static::$issueRefreshTokensCallback = $callback;
@@ -1099,10 +1134,11 @@ class Passport
     /**
      * Specify the callback that should be invoked to generate encryption keys for encrypting JWT tokens.
      *
-     * Boot-only. The callback supplies random key material that cached servers retain for the worker lifetime.
+     * The callback supplies random key material that cached servers retain for the worker lifetime.
      *
      * @param null|(Closure(Encrypter): string) $callback
      */
+    #[BootOnly]
     public static function encryptTokensUsing(?Closure $callback): void
     {
         static::$tokenEncryptionKeyCallback = $callback;
@@ -1121,8 +1157,9 @@ class Passport
     /**
      * Register the views for Passport using conventional names under the given namespace.
      *
-     * Boot-only. The response bindings persist in the worker's container and affect subsequent requests.
+     * The response bindings persist in the worker's container and affect subsequent requests.
      */
+    #[BootOnly]
     public static function viewNamespace(string $namespace): void
     {
         static::viewPrefix($namespace . '::');
@@ -1131,8 +1168,9 @@ class Passport
     /**
      * Register the views for Passport using conventional names under the given prefix.
      *
-     * Boot-only. The response bindings persist in the worker's container and affect subsequent requests.
+     * The response bindings persist in the worker's container and affect subsequent requests.
      */
+    #[BootOnly]
     public static function viewPrefix(string $prefix): void
     {
         $prefix = str_ends_with($prefix, '::') ? $prefix : rtrim($prefix, '.') . '.';
@@ -1145,10 +1183,11 @@ class Passport
     /**
      * Specify which view should be used as the authorization view.
      *
-     * Boot-only. The response binding persists in the worker's container and affects subsequent requests.
+     * The response binding persists in the worker's container and affects subsequent requests.
      *
      * @param (Closure(array<string, mixed>): mixed)|string $view
      */
+    #[BootOnly]
     public static function authorizationView(Closure|string $view): void
     {
         // withParameters() stores consent data, so each resolution needs its own response.
@@ -1158,10 +1197,11 @@ class Passport
     /**
      * Specify which view should be used to select the approving account.
      *
-     * Boot-only. The response binding persists in the worker's container and affects subsequent requests.
+     * The response binding persists in the worker's container and affects subsequent requests.
      *
      * @param (Closure(array<string, mixed>): mixed)|string $view
      */
+    #[BootOnly]
     public static function accountSelectionView(Closure|string $view): void
     {
         app()->bind(AccountSelectionViewResponse::class, fn () => new SimpleViewResponse($view));
@@ -1170,10 +1210,11 @@ class Passport
     /**
      * Specify which view should be used as the device authorization view.
      *
-     * Boot-only. The response binding persists in the worker's container and affects subsequent requests.
+     * The response binding persists in the worker's container and affects subsequent requests.
      *
      * @param (Closure(array<string, mixed>): mixed)|string $view
      */
+    #[BootOnly]
     public static function deviceAuthorizationView(Closure|string $view): void
     {
         app()->bind(DeviceAuthorizationViewResponse::class, fn () => new SimpleViewResponse($view));
@@ -1182,10 +1223,11 @@ class Passport
     /**
      * Specify which view should be used as the device user code view.
      *
-     * Boot-only. The response binding persists in the worker's container and affects subsequent requests.
+     * The response binding persists in the worker's container and affects subsequent requests.
      *
      * @param (Closure(array<string, mixed>): mixed)|string $view
      */
+    #[BootOnly]
     public static function deviceUserCodeView(Closure|string $view): void
     {
         app()->bind(DeviceUserCodeViewResponse::class, fn () => new SimpleViewResponse($view));
@@ -1194,8 +1236,9 @@ class Passport
     /**
      * Configure Passport to not register its routes.
      *
-     * Boot-only. This changes route registration for the worker's application.
+     * This changes route registration for the worker's application.
      */
+    #[BootOnly]
     public static function ignoreRoutes(): void
     {
         static::$registersRoutes = false;
@@ -1204,8 +1247,9 @@ class Passport
     /**
      * Enable the dynamic client registration endpoint.
      *
-     * Boot-only. Call during provider registration, before Passport registers routes for the worker.
+     * Call during provider registration, before Passport registers routes for the worker.
      */
+    #[BootOnly]
     public static function enableDynamicClientRegistration(): void
     {
         static::$dynamicClientRegistrationEnabled = true;
@@ -1214,8 +1258,9 @@ class Passport
     /**
      * Instruct Passport to enable cookie serialization.
      *
-     * Boot-only. The policy persists in a static property and affects every request on the worker.
+     * The policy persists in a static property and affects every request on the worker.
      */
+    #[BootOnly]
     public static function withCookieSerialization(): void
     {
         static::$unserializesCookies = true;
@@ -1224,8 +1269,9 @@ class Passport
     /**
      * Instruct Passport to disable cookie serialization.
      *
-     * Boot-only. The policy persists in a static property and affects every request on the worker.
+     * The policy persists in a static property and affects every request on the worker.
      */
+    #[BootOnly]
     public static function withoutCookieSerialization(): void
     {
         static::$unserializesCookies = false;
@@ -1234,8 +1280,9 @@ class Passport
     /**
      * Instruct Passport to enable cookie encryption.
      *
-     * Boot-only. The policy persists in a static property and affects every request on the worker.
+     * The policy persists in a static property and affects every request on the worker.
      */
+    #[BootOnly]
     public static function withCookieEncryption(): void
     {
         static::$decryptsCookies = true;
@@ -1244,8 +1291,9 @@ class Passport
     /**
      * Instruct Passport to disable cookie encryption.
      *
-     * Boot-only. The policy persists in a static property and affects every request on the worker.
+     * The policy persists in a static property and affects every request on the worker.
      */
+    #[BootOnly]
     public static function withoutCookieEncryption(): void
     {
         static::$decryptsCookies = false;

@@ -29,6 +29,7 @@ use Hypervel\HttpServer\Events\ResponseSent;
 use Hypervel\HttpServer\RequestBridge;
 use Hypervel\HttpServer\ResponseBridge;
 use Hypervel\Routing\Router;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\FailureReporter;
@@ -536,12 +537,13 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
     /**
      * Set the server name.
      *
-     * Boot-only. Mutates the worker-lifetime WebSocket handler before Swoole
-     * starts; runtime use races across connections and changes emitted server
+     * Mutates the worker-lifetime WebSocket handler before Swoole starts;
+     * runtime use races across connections and changes emitted server
      * context.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setServerName(string $serverName): static
     {
         $this->serverName = $serverName;

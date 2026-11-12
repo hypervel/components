@@ -8,6 +8,7 @@ use DateTimeInterface;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\BootOnly;
 use InvalidArgumentException;
 use Psr\Log\InvalidArgumentException as PsrInvalidArgumentException;
 use Psr\Log\LoggerTrait;
@@ -64,9 +65,10 @@ class StdoutLogger implements StdoutLoggerInterface
     /**
      * Reload the cached stdout logger configuration.
      *
-     * Boot-only. The cached format and enabled levels affect every subsequent
-     * log entry in the worker.
+     * The cached format and enabled levels affect every subsequent log entry
+     * in the worker.
      */
+    #[BootOnly(whenShared: true)]
     public function reloadConfiguration(): void
     {
         $format = $this->config->string('app.stdout_log.format');

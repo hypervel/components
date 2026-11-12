@@ -51,6 +51,8 @@ use Hypervel\Prompts\Themes\Default\TextareaPromptRenderer;
 use Hypervel\Prompts\Themes\Default\TextPromptRenderer;
 use Hypervel\Prompts\Themes\Default\TitleRenderer;
 use Hypervel\Prompts\Title;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use InvalidArgumentException;
 
 trait Themes
@@ -108,11 +110,12 @@ trait Themes
     /**
      * Get or set the active theme.
      *
-     * Boot-only when setting. The active theme persists in a static property
-     * for the worker lifetime and applies to every subsequent prompt render.
+     * A given theme persists in a static property for the worker lifetime and
+     * applies to every subsequent prompt render.
      *
      * @throws InvalidArgumentException
      */
+    #[BootOnly(whenNotDefault: 'name')]
     public static function theme(?string $name = null): string
     {
         if ($name === null) {
@@ -129,11 +132,12 @@ trait Themes
     /**
      * Add a new theme.
      *
-     * Boot-only. Themes persist in a static property for the worker lifetime
-     * and are available to every subsequent prompt render.
+     * Themes persist in a static property for the worker lifetime and are
+     * available to every subsequent prompt render.
      *
      * @param array<class-string<Prompt>, class-string<callable&object>> $renderers
      */
+    #[BootOnly]
     public static function addTheme(string $name, array $renderers): void
     {
         if ($name === self::DEFAULT_THEME) {
@@ -171,9 +175,10 @@ trait Themes
     /**
      * Reset theme state to defaults.
      *
-     * Boot or tests only. Clears worker-wide prompt theme configuration;
-     * concurrent prompts may render with different themes depending on timing.
+     * Clears worker-wide prompt theme configuration; concurrent prompts may
+     * render with different themes depending on timing.
      */
+    #[BootOrTestsOnly]
     public static function resetTheme(): void
     {
         static::$theme = self::DEFAULT_THEME;

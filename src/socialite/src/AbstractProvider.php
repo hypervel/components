@@ -10,6 +10,7 @@ use Hypervel\Http\Client\Guzzle\ReleaseIdleDatabaseConnections;
 use Hypervel\Http\Request;
 use Hypervel\Socialite\Concerns\HasProviderContext;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Str;
 use LogicException;
 use SensitiveParameter;
@@ -48,11 +49,12 @@ abstract class AbstractProvider
     /**
      * Set the baseline provider configuration.
      *
-     * Boot-only. The configuration persists for the worker lifetime and affects
-     * every subsequent request. Use setConfig() for per-request overrides.
+     * On a worker-cached provider, the configuration persists and affects every
+     * subsequent request. Use setConfig() for per-request overrides.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function withConfig(#[SensitiveParameter] array $config): static
     {
         $this->additionalConfig = $config;

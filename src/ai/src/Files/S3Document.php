@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Ai\Files;
 
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Support\Attributes\Unsupported;
 use InvalidArgumentException;
 use JsonSerializable;
 use Override;
@@ -38,6 +39,7 @@ class S3Document extends Document implements Arrayable, JsonSerializable
      *
      * @throws InvalidArgumentException
      */
+    #[Unsupported('Use StoredDocument or RemoteDocument to send the file contents inline.')]
     public function content(): string
     {
         throw new InvalidArgumentException(

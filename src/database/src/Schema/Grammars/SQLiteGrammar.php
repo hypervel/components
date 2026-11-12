@@ -9,6 +9,7 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\IndexDefinition;
 use Hypervel\Database\Schema\SQLiteBuilder;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
 use Override;
@@ -635,6 +636,7 @@ class SQLiteGrammar extends Grammar
      *
      * @throws RuntimeException
      */
+    #[Unsupported]
     public function compileSpatialIndex(Blueprint $blueprint, Fluent $command): void
     {
         throw new RuntimeException('The database driver in use does not support spatial indexes.');
@@ -754,6 +756,7 @@ class SQLiteGrammar extends Grammar
      *
      * @throws RuntimeException
      */
+    #[Unsupported]
     public function compileDropSpatialIndex(Blueprint $blueprint, Fluent $command): void
     {
         throw new RuntimeException('The database driver in use does not support spatial indexes.');

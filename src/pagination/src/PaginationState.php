@@ -7,15 +7,17 @@ namespace Hypervel\Pagination;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\View\Factory;
+use Hypervel\Support\Attributes\BootOnly;
 
 class PaginationState
 {
     /**
      * Bind the pagination state resolvers using the given application container as a base.
      *
-     * Boot-only. The request resolvers read RequestContext on each invocation,
-     * while the lazy view resolver captures the worker-lifetime container.
+     * The request resolvers read RequestContext on each invocation, while the
+     * lazy view resolver captures the worker-lifetime container.
      */
+    #[BootOnly]
     public static function resolveUsing(Container $app): void
     {
         Paginator::viewFactoryResolver(fn (): Factory => $app->make('view'));

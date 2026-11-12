@@ -8,6 +8,8 @@ use Hypervel\Contracts\ObjectPool\Factory;
 use Hypervel\Contracts\ObjectPool\Recycler;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
@@ -44,9 +46,10 @@ class PoolRecycler implements Recycler
     /**
      * Start periodic pool maintenance.
      *
-     * Boot-only. Starting during a request schedules worker-wide maintenance
-     * that affects every subsequently registered pool.
+     * Starting during a request schedules worker-wide maintenance that
+     * affects every subsequently registered pool.
      */
+    #[BootOnly]
     public function start(): void
     {
         if ($this->timerId !== null) {
@@ -72,9 +75,9 @@ class PoolRecycler implements Recycler
     /**
      * Stop periodic pool maintenance.
      *
-     * Boot or tests only. Stopping disables automatic maintenance for every
-     * pool in the worker.
+     * Stopping disables automatic maintenance for every pool in the worker.
      */
+    #[BootOrTestsOnly]
     public function stop(): void
     {
         if ($this->timerId !== null) {

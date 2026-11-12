@@ -149,9 +149,9 @@ class CompilerEngine extends PhpEngine
     /**
      * Clear the cache of compiled view paths verified as not expired.
      *
-     * Boot or tests only when called directly. Clears the worker-wide compile-check
-     * cache shared by every coroutine; concurrent compilations may re-check disk
-     * redundantly. The view:clear command owns runtime invalidation.
+     * Clears the worker-wide compile-check cache shared by every coroutine;
+     * concurrent compilations may re-check disk redundantly. The view:clear
+     * command owns runtime invalidation.
      */
     public static function forgetCompiledOrNotExpired(): void
     {

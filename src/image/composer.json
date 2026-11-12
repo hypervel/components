@@ -31,6 +31,7 @@
     "require": {
         "php": "^8.4",
         "ext-fileinfo": "*",
+        "hypervel/attributes": "^0.4",
         "hypervel/conditionable": "^0.4",
         "hypervel/container": "^0.4",
         "hypervel/contracts": "^0.4",

@@ -26,6 +26,7 @@
     "require": {
         "php": "^8.4",
         "ext-filter": "*",
+        "hypervel/attributes": "^0.4",
         "hypervel/collections": "^0.4",
         "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",

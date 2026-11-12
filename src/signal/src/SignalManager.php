@@ -9,6 +9,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Signal\SignalHandler;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\SignalRegistry;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\SafeCaller;
 use Hypervel\Support\SplPriorityQueue;
 use InvalidArgumentException;
@@ -37,9 +38,10 @@ class SignalManager
     /**
      * Start listening for signals for the given process type.
      *
-     * Boot-only. Call once for each process incarnation to avoid registering
-     * the configured handlers more than once.
+     * Call once for each process incarnation to avoid registering the
+     * configured handlers more than once.
      */
+    #[BootOnly]
     public function listen(string $process): void
     {
         if (! in_array($process, [SignalHandler::WORKER, SignalHandler::SERVER_PROCESS], true)) {

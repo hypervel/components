@@ -10,6 +10,7 @@ use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Engine\Exceptions\RunningInNonCoroutineException;
 use Hypervel\Engine\Exceptions\RuntimeException;
+use Hypervel\Support\Attributes\BootOnly;
 use Swoole\Coroutine as SwooleCo;
 
 class Coroutine implements CoroutineInterface
@@ -98,9 +99,10 @@ class Coroutine implements CoroutineInterface
     /**
      * Set the coroutine configuration.
      *
-     * Boot-only. Mutates Swoole's process-global coroutine configuration; calling
-     * this per-request changes settings for every concurrent coroutine in the worker.
+     * Mutates Swoole's process-global coroutine configuration; calling this
+     * per-request changes settings for every concurrent coroutine in the worker.
      */
+    #[BootOnly]
     public static function set(array $config): void
     {
         SwooleCo::set($config);

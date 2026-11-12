@@ -15,6 +15,9 @@ use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Exceptions\UrlGenerationException;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
@@ -661,9 +664,10 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Register the default route parameter resolver.
      *
-     * Boot-only. The callback persists on the worker-shared URL generator and
-     * is evaluated for subsequent route generations across all coroutines.
+     * The callback persists on the worker-shared URL generator and is
+     * evaluated for subsequent route generations across all coroutines.
      */
+    #[BootOnly(whenShared: true)]
     public function resolveDefaultsUsing(?Closure $resolver): void
     {
         $this->defaultsResolver = $resolver;
@@ -737,10 +741,11 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Force the scheme for URLs.
      *
-     * Boot-only. The scheme is stored on the worker-shared URL generator
-     * singleton and affects subsequent requests across coroutines; not safe
-     * to call per-request.
+     * The scheme is stored on the worker-shared URL generator singleton and
+     * affects subsequent requests across coroutines; not safe to call
+     * per-request.
      */
+    #[BootOnly(whenShared: true)]
     public function forceScheme(?string $scheme): void
     {
         $this->forceScheme = $scheme ? $scheme . '://' : null;
@@ -757,10 +762,11 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Force the use of the HTTPS scheme for all generated URLs.
      *
-     * Boot-only. The scheme is stored on the worker-shared URL generator
-     * singleton and affects subsequent requests across coroutines; not safe
-     * to call per-request.
+     * The scheme is stored on the worker-shared URL generator singleton and
+     * affects subsequent requests across coroutines; not safe to call
+     * per-request.
      */
+    #[BootOnly(whenShared: true)]
     public function forceHttps(bool $force = true): void
     {
         $this->forceScheme($force ? 'https' : null);
@@ -769,9 +775,10 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Register the URL origin resolver.
      *
-     * Boot-only. The callback persists on the worker-shared URL generator and
-     * is evaluated for subsequent URL generations across all coroutines.
+     * The callback persists on the worker-shared URL generator and is
+     * evaluated for subsequent URL generations across all coroutines.
      */
+    #[BootOnly(whenShared: true)]
     public function resolveOriginUsing(?Closure $resolver): void
     {
         $this->originResolver = $resolver;
@@ -829,11 +836,12 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set a callback to be used to format the host of generated URLs.
      *
-     * Boot-only. The callback persists on the singleton URL generator and
-     * affects every subsequent request.
+     * The callback persists on the singleton URL generator and affects
+     * every subsequent request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function formatHostUsing(Closure $callback): static
     {
         $this->formatHostUsing = $callback;
@@ -844,11 +852,12 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set a callback to be used to format the path of generated URLs.
      *
-     * Boot-only. The callback persists on the singleton URL generator and
-     * affects every subsequent request.
+     * The callback persists on the singleton URL generator and affects
+     * every subsequent request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function formatPathUsing(Closure $callback): static
     {
         $this->formatPathUsing = $callback;
@@ -881,11 +890,12 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set the current request instance.
      *
-     * Tests only. Per-request code should rely on RequestContext (read first by
+     * Per-request code should rely on RequestContext (read first by
      * getRequest()); this setter writes the singleton UrlGenerator's fallback
      * request used outside coroutine contexts, plus mutates the shared
      * routeGenerator — runtime use races across coroutines.
      */
+    #[TestsOnly(whenShared: true)]
     public function setRequest(Request $request): void
     {
         $this->request = $request;
@@ -905,11 +915,12 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set the route collection.
      *
-     * Boot or tests only. Replacing the collection mutates the singleton URL
-     * generator for every subsequent request.
+     * Replacing the collection mutates the singleton URL generator for every
+     * subsequent request.
      *
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function setRoutes(RouteCollectionInterface $routes): static
     {
         $this->routes = $routes;
@@ -932,11 +943,12 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set the session resolver for the generator.
      *
-     * Boot-only. The resolver persists on the singleton URL generator and
-     * affects every subsequent request.
+     * The resolver persists on the singleton URL generator and affects
+     * every subsequent request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setSessionResolver(callable $sessionResolver): static
     {
         $this->sessionResolver = $sessionResolver;
@@ -947,11 +959,12 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set the encryption key resolver.
      *
-     * Boot-only. The resolver persists on the singleton URL generator and
-     * affects every subsequent request.
+     * The resolver persists on the singleton URL generator and affects
+     * every subsequent request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setKeyResolver(callable $keyResolver): static
     {
         $this->keyResolver = $keyResolver;
@@ -970,11 +983,12 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set the callback that should be used to attempt to resolve missing named routes.
      *
-     * Boot-only. The callback persists on the singleton URL generator and
-     * affects every subsequent request.
+     * The callback persists on the singleton URL generator and affects
+     * every subsequent request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function resolveMissingNamedRoutesUsing(callable $missingNamedRouteResolver): static
     {
         $this->missingNamedRouteResolver = $missingNamedRouteResolver;
@@ -993,11 +1007,12 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set the root controller namespace.
      *
-     * Boot-only. The namespace persists on the singleton URL generator and
-     * affects every subsequent request.
+     * The namespace persists on the singleton URL generator and affects
+     * every subsequent request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setRootControllerNamespace(string $rootNamespace): static
     {
         $this->rootNamespace = $rootNamespace;

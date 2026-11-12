@@ -8,6 +8,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Server\Entry\EventDispatcher;
 use Hypervel\Server\Entry\Logger;
+use Hypervel\Support\Attributes\BootOnly;
 use Psr\Log\LoggerInterface;
 
 class ServerFactory
@@ -61,9 +62,10 @@ class ServerFactory
     /**
      * Set the server instance.
      *
-     * Boot-only. Mutates the shared ServerFactory before startup; runtime use
-     * races across coroutines and changes the server used by later calls.
+     * Mutates the shared ServerFactory before startup; runtime use races
+     * across coroutines and changes the server used by later calls.
      */
+    #[BootOnly(whenShared: true)]
     public function setServer(ServerInterface $server): static
     {
         $this->server = $server;
@@ -84,9 +86,10 @@ class ServerFactory
     /**
      * Set the event dispatcher instance.
      *
-     * Boot-only. Set before configure(); the constructed Server captures this
-     * dispatcher and does not pick up later changes.
+     * Set before configure(); the constructed Server captures this dispatcher
+     * and does not pick up later changes.
      */
+    #[BootOnly(whenShared: true)]
     public function setEventDispatcher(DispatcherContract $eventDispatcher): static
     {
         $this->eventDispatcher = $eventDispatcher;
@@ -107,9 +110,10 @@ class ServerFactory
     /**
      * Set the logger instance.
      *
-     * Boot-only. Set before configure(); the constructed Server captures this
-     * logger and does not pick up later changes.
+     * Set before configure(); the constructed Server captures this logger and
+     * does not pick up later changes.
      */
+    #[BootOnly(whenShared: true)]
     public function setLogger(LoggerInterface $logger): static
     {
         $this->logger = $logger;

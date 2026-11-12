@@ -12,6 +12,7 @@ use GuzzleHttp\TransferStats;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Client\PendingRequest;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\IncomingEntry;
@@ -34,8 +35,9 @@ class ClientRequestWatcher extends Watcher
     /**
      * Register the watcher.
      *
-     * Boot-only. The middleware persists for the worker lifetime and affects every Guzzle client.
+     * The middleware persists for the worker lifetime and affects every Guzzle client.
      */
+    #[BootOnly]
     public function register(Application $app): void
     {
         Client::pushGlobalMiddleware($this->recordRequests(...), self::MIDDLEWARE_NAME);

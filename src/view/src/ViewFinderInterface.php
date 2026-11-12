@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\View;
 
+use Hypervel\Support\Attributes\BootOnly;
+
 interface ViewFinderInterface
 {
     /**
@@ -19,26 +21,31 @@ interface ViewFinderInterface
     /**
      * Add a location to the finder.
      */
+    #[BootOnly(whenShared: true)]
     public function addLocation(string $location): void;
 
     /**
      * Add a namespace hint to the finder.
      */
+    #[BootOnly(whenShared: true)]
     public function addNamespace(string $namespace, string|array $hints): void;
 
     /**
      * Prepend a namespace hint to the finder.
      */
+    #[BootOnly(whenShared: true)]
     public function prependNamespace(string $namespace, string|array $hints): void;
 
     /**
      * Replace the namespace hints for the given namespace.
      */
+    #[BootOnly(whenShared: true)]
     public function replaceNamespace(string $namespace, string|array $hints): void;
 
     /**
      * Add a valid view extension to the finder.
      */
+    #[BootOnly(whenShared: true)]
     public function addExtension(string $extension): void;
 
     /**
@@ -49,6 +56,7 @@ interface ViewFinderInterface
     /**
      * Prepend a location to the finder.
      */
+    #[BootOnly(whenShared: true)]
     public function prependLocation(string $location): void;
 
     /**

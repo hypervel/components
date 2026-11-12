@@ -43,6 +43,8 @@ use Hypervel\Queue\Events\WorkerResuming;
 use Hypervel\Queue\Events\WorkerStarting;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\QueueManager as ConcreteQueueManager;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\FailureReporter;
 use Hypervel\Support\Sleep;
@@ -221,7 +223,7 @@ class Worker
     /**
      * The custom exit code to be used when memory is exceeded.
      *
-     * Boot-only. Mutates process-global worker configuration; runtime use
+     * Setting this mutates process-global worker configuration; runtime use
      * races across coroutines and changes every concurrent worker stop check.
      */
     public static ?int $memoryExceededExitCode = null;
@@ -229,7 +231,7 @@ class Worker
     /**
      * The custom exit code to be used when a job times out.
      *
-     * Boot-only. Mutates process-global worker configuration; runtime use
+     * Setting this mutates process-global worker configuration; runtime use
      * races across coroutines and changes every concurrent timeout exit.
      */
     public static ?int $timedOutExitCode = null;
@@ -237,7 +239,7 @@ class Worker
     /**
      * Indicates if the worker should be killed when a job exceeds its timeout.
      *
-     * Boot-only. Mutates the timeout policy shared by every job in the worker.
+     * Setting this mutates the timeout policy for every job in the worker.
      */
     public static bool $killOnTimeout = true;
 
@@ -251,7 +253,7 @@ class Worker
     /**
      * Indicates if the worker should report job exceptions.
      *
-     * Boot-only. Mutates process-global worker configuration; runtime use
+     * Setting this mutates process-global worker configuration; runtime use
      * races across coroutines and changes exception reporting for every job.
      */
     public static bool $reportJobExceptions = true;
@@ -259,7 +261,7 @@ class Worker
     /**
      * Indicates if the worker should stop when a lost connection is detected.
      *
-     * Boot-only. Mutates process-global worker configuration; runtime use
+     * Setting this mutates process-global worker configuration; runtime use
      * races across coroutines and changes every concurrent worker.
      */
     public static bool $stopOnLostConnection = true;
@@ -267,7 +269,7 @@ class Worker
     /**
      * Indicates if the worker should check for the restart signal in the cache.
      *
-     * Boot-only. Mutates process-global worker configuration; runtime use
+     * Setting this mutates process-global worker configuration; runtime use
      * races across coroutines and changes every concurrent restart check.
      */
     public static bool $restartable = true;
@@ -275,7 +277,7 @@ class Worker
     /**
      * Indicates if the worker should check for the paused signal in the cache.
      *
-     * Boot-only. Mutates process-global worker configuration; runtime use
+     * Setting this mutates process-global worker configuration; runtime use
      * races across coroutines and changes every concurrent pause check.
      */
     public static bool $pausable = true;
@@ -2016,11 +2018,12 @@ class Worker
     /**
      * Set the cache repository implementation.
      *
-     * Boot-only. The repository persists on the singleton worker for the
-     * worker lifetime and is read by every subsequent pause or restart check.
+     * The repository persists on the singleton worker for the worker lifetime
+     * and is read by every subsequent pause or restart check.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setCache(CacheContract $cache): static
     {
         $this->cache = $cache;
@@ -2031,11 +2034,12 @@ class Worker
     /**
      * Set the name of the worker.
      *
-     * Boot-only. The name persists on the singleton worker for the worker
-     * lifetime and selects the static pop callback used by every job pop.
+     * The name persists on the singleton worker for the worker lifetime
+     * and selects the static pop callback used by every job pop.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setName(string $name): static
     {
         $this->name = $name;
@@ -2046,10 +2050,11 @@ class Worker
     /**
      * Register a callback to be executed to pick jobs.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * process lifetime and runs on every job pop for the named worker. Passing
-     * null removes the callback.
+     * The callback persists in a static property for the worker process
+     * lifetime and runs on every job pop for the named worker. Passing null
+     * removes the callback.
      */
+    #[BootOnly]
     public static function popUsing(string $workerName, ?callable $callback): void
     {
         if (is_null($callback)) {
@@ -2062,11 +2067,12 @@ class Worker
     /**
      * Register a callback to be used to kill the worker process.
      *
-     * Boot-only. The callback persists for the worker lifetime and runs before
-     * forced process termination. Passing null clears it.
+     * The callback persists for the worker lifetime and runs before forced
+     * process termination. Passing null clears it.
      *
      * @param null|(callable(int): mixed) $callback
      */
+    #[BootOnly]
     public static function killUsing(?callable $callback): void
     {
         static::$killCallback = $callback;
@@ -2083,9 +2089,10 @@ class Worker
     /**
      * Set the queue manager instance.
      *
-     * Tests only. Swaps the manager reference on the singleton worker; runtime
-     * use races across coroutines and changes every concurrent queue lookup.
+     * Swaps the manager reference on the singleton worker; runtime use races
+     * across coroutines and changes every concurrent queue lookup.
      */
+    #[TestsOnly(whenShared: true)]
     public function setManager(QueueManager $manager): void
     {
         $this->manager = $manager;
