@@ -2,7 +2,7 @@
 
 Branch: `feature/hypervel-attributes` (from `0.4`). This PR is complete on its own: it adds the `hypervel/attributes` package, replaces the docblock lifetime tags (`Boot-only.`, `Tests only.`, `Boot or tests only.`) with attributes, adds `#[Unsupported]` markers, gives each container its own coroutine context keys (the container markers depend on it), and switches the existing PHPStan worker-state analysis to the attributes, so current analysis keeps working. The new call-site rules, the facade lifetime fix and the other PHPStan work are PR 2 (`docs/plans/2026-11-12-hypervel-phpstan-rules.md`), which builds on this PR after it merges.
 
-Owner-approved: the new package, and the `AGENTS.md` wording below (agreed with the peer reviewer). After implementation and signoff, show the owner each `AGENTS.md` change before and after in chat.
+Owner-approved: the new package, and the `AGENTS.md` wording below (agreed with the peer reviewer).
 
 ## Why
 
@@ -132,7 +132,7 @@ It also reports tag lines on anything other than a method docblock.
 | `Str::freezeUuids()`, `Str::freezeUlids()` | `#[TestsOnly]`. Replace "Tests only unless a callback is supplied" prose: both forms install a worker-wide factory (the callback form only until it returns) and aren't coroutine-safe. No runtime caller exists. |
 | `View\Component::flushCache()`, `CompilerEngine::forgetCompiledOrNotExpired()` | No attribute: clearing is safe at runtime (`view:clear` does it), since the next render or compile check rebuilds the cache. Replace the tag sentence; keep the effect sentence and "The view:clear command owns runtime invalidation." |
 | `View\Factory::flushFinderCache()`, `FileViewFinder::flush()` (unconditional tags) | No attribute: `find()` rebuilds the cleared `$views` from unchanged paths, hints and extensions. Remove the stale warning. `ViewFinderInterface` gets `#[BootOnly(whenShared: true)]` on its other six methods and leaves `flush()` unmarked; `Contracts\View\Factory::flushFinderCache()` stays unmarked. |
-| `View\Factory::addLocation()`, `prependLocation()`, `addNamespace()`, `prependNamespace()`, `replaceNamespace()` (unconditional tags) | `#[BootOnly(whenShared: true)]`: they change only the factory's own finder (see Forwarders). Prose names "the shared factory's finder". `addExtension()` gets no attribute: it changes the factory's own state, and with a resolver also the engine resolver, which clones share, so the condition can't be expressed. |
+| `View\Factory::addLocation()`, `prependLocation()`, `addNamespace()`, `prependNamespace()`, `replaceNamespace()`, `addExtension()` (unconditional tags) | `#[BootOnly(whenShared: true)]`: they change the factory's own finder and, for `addExtension()`, its extension map (see Forwarders). Prose names "the shared factory's finder". `addExtension()`'s resolver argument is forwarded to the injected engine resolver, whose `register()` carries its own marker; its prose explains that clones share that resolver. |
 | `AiManager::forgetInstance()`, `AiManager::purge()` | No attribute: forgetting an on-demand provider only clears `CoroutineContext`, while forgetting a configured one affects the worker, and the marker can't express which name a call passes. Replace the tag sentence with "Forgetting a configured provider affects every request on the worker; on-demand providers belong to the current operation." The inherited `MultipleInstanceManager` methods keep their attribute. |
 | `Ai\Providers\Concerns\Has{Text,Image,Audio,Transcription,Embedding,Reranking,File,Store,Classification}Gateway::use*Gateway()` | `#[BootOrTestsOnly(whenShared: true)]`: configured providers are shared, while providers built per request are not. |
 | `BroadcastManager::purge()`, `QueueManager::purge()`, `MailManager::purge()`, `FilesystemManager::purge()` | No attribute. Their documented contract (`queues.md:189`, `mail.md:362`, `filesystem.md:335`) is safe runtime recovery: other users transparently acquire a fresh pool. Replace the tag sentence with "Use this to recover broken pooled resources." and keep the effect sentences. `DatabaseManager`, `RedisManager`, `CacheManager` and `MultipleInstanceManager` purges keep `#[BootOrTestsOnly]`, since their documented effects on concurrent coroutines are unsafe. |
@@ -157,6 +157,8 @@ It also reports tag lines on anything other than a method docblock.
   - `InteractsWithAuthenticationTest` covers `forgetGuards()` dropping an `actingAs()` user through the HTTP sync, and reloading the user from a valid session.
 
 **ArrayStore cloning.** `Cache\Repository::__clone()` clones its store, but `ArrayStore` currently copies its context keys unchanged, so writes through the clone change the original's values and locks. Add `ArrayStore::__clone()` to allocate fresh keys from the existing sequence and shallow-copy the current context's storage and lock records. Keep the readonly key properties; PHP supports reinitializing them during cloning. Cover initial values and independent subsequent value and lock mutations through a cloned repository. Check other context-key holders only where their supported clone paths require the same isolation.
+
+Tagged caches inherit `Repository::__clone()`, so a cloned tagged cache must keep its tag set on its cloned store. `TagSet::withStore()` returns a copy of the set on another store, keeping its class and names, and `TaggedCache::__clone()` rebinds its tags with it. `MemoizedTaggedCache::__clone()` clones its delegate and takes the delegate's store and tag set, rather than cloning the store a second time. Its `flush()` clears its own memo first, since a clone isn't registered with the `MemoizedStore`. `CacheTaggedCacheTest` and `CacheMemoizedStoreTest` cover flushing a clone without affecting the original.
 
 **Check.** After converting, `grep -rnE '\* (Boot-only|Tests only|Boot or tests only)\b' src tests` returns nothing. Historical `docs/plans/*` are immutable and keep their text.
 
@@ -292,5 +294,5 @@ Run sequentially from the components root:
 
 Plan signed off by the peer and implementation approved by the owner.
 
-- Done: sections 1 to 5 and 7; the container, CacheManager memo, Redis pinned-connection and guard context keys; the ArrayStore clone correction.
-- Next step: after the peer signs off this checkpoint, show the owner each `AGENTS.md` change before and after in chat. Section 6 follows the merge.
+- Done: sections 1 to 5 and 7; the container, CacheManager memo, Redis pinned-connection and guard context keys; the ArrayStore and tagged-cache clone corrections.
+- Next step: resolve PR review and CI feedback before merge. Section 6 follows the merge.

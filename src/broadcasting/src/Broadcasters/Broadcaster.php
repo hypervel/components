@@ -14,6 +14,7 @@ use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Reflector;
 use ReflectionClass;
@@ -119,7 +120,7 @@ abstract class Broadcaster implements BroadcasterContract
      * The callback persists in shared static state for the worker lifetime
      * and applies to every broadcaster across all coroutines.
      */
-    #[BootOnly]
+    #[BootOrTestsOnly]
     public static function formatChannelsUsing(?Closure $callback): void
     {
         static::$channelFormatter = $callback;
@@ -139,7 +140,7 @@ abstract class Broadcaster implements BroadcasterContract
      * The callback persists in shared static state for the worker lifetime
      * and applies to every broadcaster across all coroutines.
      */
-    #[BootOnly]
+    #[BootOrTestsOnly]
     public static function authorizeChannelsUsing(?Closure $callback): void
     {
         static::$channelAuthorizer = $callback;

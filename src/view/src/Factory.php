@@ -516,6 +516,7 @@ class Factory implements FactoryContract
      * the engine resolver, which cloned factories share and which is usually the
      * application's worker-shared resolver.
      */
+    #[BootOnly(whenShared: true)]
     public function addExtension(string $extension, string $engine, ?Closure $resolver = null): void
     {
         $this->finder->addExtension($extension);
