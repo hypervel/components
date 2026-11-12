@@ -13,6 +13,7 @@ use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Log\Context\Events\ContextDehydrating;
 use Hypervel\Log\Context\Events\ContextHydrated;
 use Hypervel\Queue\SerializesAndRestoresModelIdentifiers;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
@@ -550,12 +551,13 @@ class Repository implements ReplicableContext
     /**
      * Register a callback to execute before context is dehydrated.
      *
-     * Boot-only. Registers a listener on the worker-global event dispatcher;
+     * Registers a listener on the worker-global event dispatcher;
      * per-request registration persists and affects subsequent requests.
      *
      * @param (callable(self): mixed) $callback
      * @return $this
      */
+    #[BootOnly]
     public function dehydrating(callable $callback): static
     {
         $this->events->listen(fn (ContextDehydrating $event) => $callback($event->context));
@@ -566,12 +568,13 @@ class Repository implements ReplicableContext
     /**
      * Register a callback to execute after context has been hydrated.
      *
-     * Boot-only. Registers a listener on the worker-global event dispatcher;
+     * Registers a listener on the worker-global event dispatcher;
      * per-request registration persists and affects subsequent requests.
      *
      * @param (callable(self): mixed) $callback
      * @return $this
      */
+    #[BootOnly]
     public function hydrated(callable $callback): static
     {
         $this->events->listen(fn (ContextHydrated $event) => $callback($event->context));
@@ -582,11 +585,12 @@ class Repository implements ReplicableContext
     /**
      * Set the callback to handle unserialize exceptions.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and handles every subsequent context hydration failure.
+     * The callback persists in a static property for the worker lifetime
+     * and handles every subsequent context hydration failure.
      *
      * @return $this
      */
+    #[BootOnly]
     public function handleUnserializeExceptionsUsing(?callable $callback): static
     {
         static::$handleUnserializeExceptionsUsing = $callback !== null

@@ -23,6 +23,7 @@ use Hypervel\Http\UploadedFile;
 use Hypervel\Image\Image;
 use Hypervel\Image\ImageException;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
@@ -1143,9 +1144,10 @@ class FilesystemAdapter implements CloudFilesystemContract
     /**
      * Define a custom callback that generates file download responses.
      *
-     * Boot-only. The callback persists on the cached disk adapter for the
-     * worker lifetime and runs on every subsequent serve() call for that disk.
+     * The callback persists on the cached disk adapter for the worker lifetime
+     * and runs on every subsequent serve() call for that disk.
      */
+    #[BootOnly(whenShared: true)]
     public function serveUsing(?Closure $callback): void
     {
         $this->serveCallback = $callback;
@@ -1154,10 +1156,10 @@ class FilesystemAdapter implements CloudFilesystemContract
     /**
      * Define a custom temporary URL builder callback.
      *
-     * Boot-only. The callback persists on the cached disk adapter for the
-     * worker lifetime and runs on every subsequent temporary URL generation for
-     * that disk.
+     * The callback persists on the cached disk adapter for the worker lifetime
+     * and runs on every subsequent temporary URL generation for that disk.
      */
+    #[BootOnly(whenShared: true)]
     public function buildTemporaryUrlsUsing(?Closure $callback): void
     {
         $this->temporaryUrlCallback = $this->prepareTemporaryUrlCallback($callback);
@@ -1166,10 +1168,11 @@ class FilesystemAdapter implements CloudFilesystemContract
     /**
      * Define a custom temporary upload URL builder callback.
      *
-     * Boot-only. The callback persists on the cached disk adapter for the
-     * worker lifetime and runs on every subsequent temporary upload URL
+     * The callback persists on the cached disk adapter for the worker
+     * lifetime and runs on every subsequent temporary upload URL
      * generation for that disk.
      */
+    #[BootOnly(whenShared: true)]
     public function buildTemporaryUploadUrlsUsing(?Closure $callback): void
     {
         $this->temporaryUploadUrlCallback = $this->prepareTemporaryUrlCallback($callback);
