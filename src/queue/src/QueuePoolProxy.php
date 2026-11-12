@@ -246,7 +246,10 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
     /**
      * Run a callback with the underlying SQS queue.
      *
-     * @param Closure(SqsQueue): mixed $callback
+     * @template T
+     *
+     * @param Closure(SqsQueue): T $callback
+     * @return T
      */
     public function withConnection(Closure $callback): mixed
     {

@@ -540,6 +540,10 @@ class RedisProxy implements ConnectionContract
      * All Redis operations inside the callback will reuse the same connection,
      * avoiding multiple pool checkouts. Re-entrant: if a connection is already
      * pinned, the callback runs on it without re-pinning.
+     *
+     * @template T
+     * @param callable(): T $callback
+     * @return T
      */
     public function withPinnedConnection(callable $callback): mixed
     {
