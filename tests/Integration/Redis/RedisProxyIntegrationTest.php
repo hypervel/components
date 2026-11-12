@@ -244,7 +244,7 @@ class RedisProxyIntegrationTest extends TestCase
         );
         $redis = Redis::connection($connectionName);
         $redis->multi();
-        $contextKey = RedisProxy::CONNECTION_CONTEXT_PREFIX . $connectionName;
+        $contextKey = (fn (): string => $this->getContextKey())->call($redis);
         $parentConnection = CoroutineContext::get($contextKey);
         $childrenReady = new Channel(2);
         $releaseChildren = new Channel(2);

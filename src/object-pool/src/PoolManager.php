@@ -7,6 +7,7 @@ namespace Hypervel\ObjectPool;
 use Hypervel\Contracts\ObjectPool\Factory as FactoryContract;
 use Hypervel\Contracts\ObjectPool\ObjectPool;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use JsonException;
 use RuntimeException;
 use Throwable;
@@ -152,9 +153,10 @@ class PoolManager implements FactoryContract
     /**
      * Remove and close every registered pool.
      *
-     * Boot or tests only. This clears worker-lifetime pools shared by every
-     * coroutine; use targeted removal for runtime resource recovery.
+     * This clears worker-lifetime pools shared by every coroutine; use
+     * targeted removal for runtime resource recovery.
      */
+    #[BootOrTestsOnly]
     public function purgeAll(): void
     {
         $pools = $this->pools;

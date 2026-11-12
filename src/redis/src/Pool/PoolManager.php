@@ -6,10 +6,26 @@ namespace Hypervel\Redis\Pool;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Throwable;
 
 class PoolManager
 {
+    /**
+     * The sequence used to build unique per-manager context key prefixes.
+     */
+    // Do not reset this; live context entries may still use earlier prefixes.
+    private static int $contextKeySequence = 0;
+
+    /**
+     * The prefix of this manager's coroutine context keys.
+     *
+     * Proxies pin connections from this manager's pools in coroutine context.
+     * Another manager can own a pool with the same connection name, so the
+     * keys include this manager's own prefix.
+     */
+    private ?string $contextKeyPrefix = null;
+
     /**
      * @var array<string, RedisPool>
      */
@@ -26,9 +42,10 @@ class PoolManager
     /**
      * Remove all pools and close their connections.
      *
-     * Boot or tests only. Closes worker-shared pools; connections already
-     * checked out by concurrent coroutines are destroyed on release.
+     * Closes worker-shared pools; connections already checked out by
+     * concurrent coroutines are destroyed on release.
      */
+    #[BootOrTestsOnly]
     public function purgeAll(): void
     {
         $pools = $this->pools;
@@ -51,9 +68,10 @@ class PoolManager
     /**
      * Remove a pool and close its connections.
      *
-     * Boot or tests only. Closes a worker-shared pool; connections already
-     * checked out by concurrent coroutines are destroyed on release.
+     * Closes a worker-shared pool; connections already checked out by
+     * concurrent coroutines are destroyed on release.
      */
+    #[BootOrTestsOnly]
     public function purge(string $name): void
     {
         $pool = $this->pools[$name] ?? null;
@@ -115,5 +133,15 @@ class PoolManager
     public function getPools(): array
     {
         return $this->pools;
+    }
+
+    /**
+     * Get this manager's coroutine context key for the given entry.
+     *
+     * @internal
+     */
+    public function contextKey(string $name): string
+    {
+        return ($this->contextKeyPrefix ??= '__redis.' . ++self::$contextKeySequence . '.') . $name;
     }
 }
