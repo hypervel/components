@@ -824,6 +824,52 @@ class SchemaAggregatorTest extends PHPStanTestCase
 
         $this->assertSame(['name' => ['string', false], 'alias' => ['string', false]], $this->columns($aggregator, 'a.users', 'pgsql_a'));
         $this->assertTrue($this->table($aggregator, 'a.users', 'pgsql_a')->complete);
+
+        // A queued drop or rename changes which tables exist only once the callback returns, so the
+        // facts cannot decide guards on any name or connection the change reaches until then.
+        $aggregator = $this->withConfig(
+            [
+                'database.connections.pgsql_ab' => ['driver' => 'pgsql', 'search_path' => 'a,b'],
+                'database.connections.pgsql_ac' => ['driver' => 'pgsql', 'search_path' => 'a,c', 'migrations_connection' => 'pgsql_ab'],
+            ],
+            fn (): SchemaAggregator => $this->aggregate(<<<'PHP'
+                Schema::create('a.users', fn (Blueprint $table) => $table->string('name'));
+                Schema::create('a.posts', fn (Blueprint $table) => $table->string('legacy'));
+
+                Schema::table('users', function (Blueprint $table) {
+                    $table->drop();
+
+                    if (Schema::connection('pgsql_ac')->hasTable('users')) {
+                        Schema::table('a.posts', fn (Blueprint $posts) => $posts->dropColumn('legacy'));
+                    }
+                });
+            PHP, 'pgsql_ab'),
+        );
+
+        $this->assertSame(['legacy' => [null, true]], $this->columns($aggregator, 'a.posts', 'pgsql_ab'));
+        $this->assertFalse($this->table($aggregator, 'a.posts', 'pgsql_ab')->complete);
+
+        $aggregator = $this->aggregate(<<<'PHP'
+            Schema::create('users', fn (Blueprint $table) => $table->string('name'));
+
+            Schema::create('posts', function (Blueprint $table) {
+                $table->string('title');
+                $table->string('legacy');
+            });
+
+            Schema::table('users', function (Blueprint $table) {
+                $table->rename('people');
+
+                if (! Schema::hasTable('people')) {
+                    Schema::table('posts', fn (Blueprint $posts) => $posts->dropColumn('legacy'));
+                }
+            });
+        PHP);
+
+        $this->assertSame(['title' => [null, true], 'legacy' => [null, true]], $this->columns($aggregator, 'posts'));
+        $this->assertFalse($this->table($aggregator, 'posts')->complete);
+        $this->assertSame(['name' => ['string', false]], $this->columns($aggregator, 'people'));
+        $this->assertTrue($this->table($aggregator, 'people')->complete);
     }
 
     #[Test]

@@ -55,13 +55,13 @@ use function strtolower;
  * A state is a copy of the facts: the connections, whether an earlier migration could have changed
  * any connection, and the morph key type. A scope holds the migration class, the class declaring the
  * body being applied (null for the migration class itself), the connection its statements default to
- * (null when it is unknown), inside a Blueprint callback the table it changes, with its physical name and
- * a copy of it as it was before the callback, and the Blueprint's variable, and the local variables holding
+ * (null when it is unknown), inside a Blueprint callback the table it changes, with a copy of it as it
+ * was before the callback, and the Blueprint's variable, and the local variables holding
  * Schema builders: those whose calls are followed, and those that escape, whose uses make the connections
  * they select unknown.
  *
  * @phpstan-type State array{array<string, SchemaConnection>, bool, ?string}
- * @phpstan-type TableScope array{connection: ConnectionConfig, key: string, name: array{?string, string}, before: ?SchemaTable, variable: string}
+ * @phpstan-type TableScope array{connection: ConnectionConfig, key: string, before: ?SchemaTable, variable: string}
  * @phpstan-type BuilderVariables array{builders: array<string, ?ConnectionConfig>, escaped: array<string, list<?ConnectionConfig>>}
  * @phpstan-type Scope array{class: PhpParser\Node\Stmt\Class_, declaring: ?string, connection: ?ConnectionConfig, table: ?TableScope, builders: array<string, ?ConnectionConfig>, escaped: array<string, list<?ConnectionConfig>>}
  *
@@ -906,29 +906,29 @@ class SchemaAggregator
         $table = $key === null ? null : $owner->tables[$key];
         $pendingKey = null;
 
-        // Blueprint commands run once the callback returns, so a guard on the callback's own table reads the
-        // table as it was before them. An immediate change to it, such as another Schema::table() call, makes
-        // that unknown, as does a queued drop or rename, which the facts already apply. An unqualified name is
-        // the callback's own only when the guard's connection resolves it through the same database or search path.
-        if ($pending !== null
-            && $pending['connection']->owner === $connection->owner
-            && ($key === $pending['key']
-                || ([$schema, $name] === $pending['name']
-                    && ($schema !== null
-                        || [$connection->defaultSchema, $connection->searchPath] === [$pending['connection']->defaultSchema, $pending['connection']->searchPath])))) {
+        if ($pending !== null && $pending['connection']->owner === $connection->owner) {
             $current = $owner->tables[$pending['key']] ?? null;
 
-            if ($current !== null) {
-                $this->sources += $current->sources;
-            }
-
-            if ($current === null || ! $current->complete) {
+            // A queued drop or rename, which the facts already apply, leaves them unlike the database until the
+            // callback returns, whatever name or connection the guard uses.
+            if ($current === null) {
                 return null;
             }
 
-            $pendingKey = $pending['key'];
-            $table = $pending['before'];
-            $key = $table === null ? null : $pendingKey;
+            // Blueprint commands run once the callback returns, so a guard on the callback's own table reads the
+            // table as it was before them. An immediate change to it, such as another Schema::table() call, makes
+            // that unknown.
+            if ($key === $pending['key']) {
+                $this->sources += $current->sources;
+
+                if (! $current->complete) {
+                    return null;
+                }
+
+                $pendingKey = $key;
+                $table = $pending['before'];
+                $key = $table === null ? null : $pendingKey;
+            }
         }
 
         // The outcome the guard selects can change any table, so the files the table's facts were read from
@@ -1861,8 +1861,7 @@ class SchemaAggregator
             return;
         }
 
-        $physicalName = $connection->physicalTable($tableName);
-        [$schema, $name] = $physicalName;
+        [$schema, $name] = $connection->physicalTable($tableName);
 
         if ($creating) {
             $schema ??= $connection->definitionSchema();
@@ -1892,7 +1891,7 @@ class SchemaAggregator
         /** @var PhpParser\Node\Expr\ArrowFunction|PhpParser\Node\Expr\Closure $callback */
         $this->applyBody(
             $this->getUpdateStatements($callback),
-            ['table' => ['connection' => $connection, 'key' => $key, 'name' => $physicalName, 'before' => $before, 'variable' => $variable]] + $scope,
+            ['table' => ['connection' => $connection, 'key' => $key, 'before' => $before, 'variable' => $variable]] + $scope,
         );
     }
 
