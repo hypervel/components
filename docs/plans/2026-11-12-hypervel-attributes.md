@@ -292,6 +292,5 @@ Run sequentially from the components root:
 
 Plan signed off by the peer and implementation approved by the owner.
 
-- Done: sections 1 to 4; the container, CacheManager memo, Redis pinned-connection and guard context keys; the ArrayStore clone correction.
-- Remaining: section 5; section 7.
-- Next step: after the peer signs off this checkpoint, do section 5.
+- Done: sections 1 to 5 and 7; the container, CacheManager memo, Redis pinned-connection and guard context keys; the ArrayStore clone correction.
+- Next step: after the peer signs off this checkpoint, show the owner each `AGENTS.md` change before and after in chat. Section 6 follows the merge.
