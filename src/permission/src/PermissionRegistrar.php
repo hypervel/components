@@ -36,6 +36,8 @@ use Hypervel\Permission\Support\PermissionCacheSettlement;
 use Hypervel\Permission\Support\PermissionPartition;
 use Hypervel\Permission\Support\PermissionRelationContext;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
@@ -146,11 +148,12 @@ class PermissionRegistrar
      *
      * Register before resolving the Permission registrar or Gate.
      *
-     * Boot-only. The column and callback persist in static properties for the
-     * worker lifetime and affect every subsequent permission operation.
+     * The column and callback persist in static properties for the worker
+     * lifetime and affect every subsequent permission operation.
      *
      * @param Closure(): (null|int|string) $resolver
      */
+    #[BootOnly]
     public static function resolvePartitionUsing(string $column, Closure $resolver): void
     {
         if (static::$initialized || static::$partitionResolver !== null) {
@@ -262,9 +265,10 @@ class PermissionRegistrar
     /**
      * Initialize cache and config-backed registrar state.
      *
-     * Boot or tests only. The values are stored on the singleton registrar and
-     * affect every later permission lookup in this worker.
+     * The values are stored on the singleton registrar and affect every later
+     * permission lookup in this worker.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function initializeCache(): void
     {
         /** @var class-string<Permission> $permissionClass */
@@ -1768,11 +1772,12 @@ class PermissionRegistrar
     /**
      * Set the permission model class.
      *
-     * Boot or tests only. The model class is stored on the singleton registrar
-     * and affects every later permission lookup in this worker.
+     * The model class is stored on the singleton registrar and affects every
+     * later permission lookup in this worker.
      *
      * @param class-string<Permission> $permissionClass
      */
+    #[BootOrTestsOnly]
     public function setPermissionClass(string $permissionClass): static
     {
         $this->validatePermissionClass($permissionClass);
@@ -1797,11 +1802,12 @@ class PermissionRegistrar
     /**
      * Set the role model class.
      *
-     * Boot or tests only. The model class is stored on the singleton registrar
-     * and affects every later role lookup in this worker.
+     * The model class is stored on the singleton registrar and affects every
+     * later role lookup in this worker.
      *
      * @param class-string<Role> $roleClass
      */
+    #[BootOrTestsOnly]
     public function setRoleClass(string $roleClass): static
     {
         $this->validateRoleClass($roleClass);
@@ -1845,11 +1851,12 @@ class PermissionRegistrar
     /**
      * Set the team model class.
      *
-     * Boot or tests only. The model class is stored on the singleton registrar
-     * and affects every later team permission lookup in this worker.
+     * The model class is stored on the singleton registrar and affects every
+     * later team permission lookup in this worker.
      *
      * @param null|class-string<Model> $teamClass
      */
+    #[BootOrTestsOnly]
     public function setTeamClass(?string $teamClass): static
     {
         $this->teamClass = $teamClass;

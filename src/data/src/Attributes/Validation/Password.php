@@ -8,6 +8,7 @@ use Attribute;
 use Hypervel\Data\Exceptions\CannotBuildValidationRule;
 use Hypervel\Data\Support\Validation\References\ExternalReference;
 use Hypervel\Data\Support\Validation\ValidationPath;
+use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Validation\Rules\Password as BasePassword;
 
 #[Attribute(Attribute::TARGET_PROPERTY | Attribute::TARGET_PARAMETER)]
@@ -87,6 +88,7 @@ class Password extends ObjectValidationAttribute
     /**
      * Reject string-based password rule construction.
      */
+    #[Unsupported]
     public static function create(string ...$parameters): static
     {
         throw CannotBuildValidationRule::create('Cannot create a password rule from string parameters.');

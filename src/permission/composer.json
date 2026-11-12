@@ -34,6 +34,7 @@
     "require": {
         "php": "^8.4",
         "composer-runtime-api": "^2.2",
+        "hypervel/attributes": "^0.4",
         "hypervel/auth": "^0.4",
         "hypervel/broadcasting": "^0.4",
         "hypervel/cache": "^0.4",
