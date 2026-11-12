@@ -435,8 +435,6 @@ Container lifecycles are adapted for Swoole:
 > [!WARNING]
 > Unbound concrete classes are automatically cached for the worker lifetime after their first resolution. If an unbound class captures the current user, tenant, request, or other mutable per-request data in its constructor, ordinary tests may pass while concurrent requests receive another request's state. Register the class with `bind()` for a fresh instance, use `scoped()` for one instance per request or job coroutine, call `makeTransient()` for one normal resolution without implicit auto-singletoning or constructor-derived execution scope, construct a guaranteed fresh instance with `build()`, or implement `Transient` when every subclass must always be fresh. Hypervel's intrinsically fresh model, value, builder, pending-request, pipeline, and response families already implement `Transient`; see [Transient Classes](/docs/{{version}}/container#transient-classes) for the current list and binding behavior.
 
-Facades cache non-scoped services for the worker lifetime, including `bind()` bindings; use `scoped()` for request or job state. Disabling the facade's cache resolves the service on every call, returning fresh instances only for `bind()` bindings and `Transient` classes; singletons and auto-singletons still return the same instance. See [how facades work](/docs/{{version}}/facades#how-facades-work).
-
 Hypervel treats a contextual attribute's resolved value as authoritative, including `null`. Laravel constructor injection may fall through from `null` to class or primitive resolution, a contextual binding, or a declared default. Move that fallback into the attribute resolver when porting code that relies on this behavior.
 
 On PHP 8.5 and later, `#[BindWhen]` conditions must depend only on boot-stable state. A matching condition becomes a normal worker-lifetime binding in Hypervel, while an unmatched condition may be evaluated again on a later resolution. Do not read the current request, user, or tenant from the condition.
@@ -776,6 +774,8 @@ $expiresAt = $expiresAt->addMinutes(5);
 ```
 
 Review concrete `Hypervel\Support\Carbon` type declarations that receive factory-created values. Use `Carbon\CarbonInterface` at boundaries that may receive mutable or immutable dates, or `CarbonImmutable` when immutability is required. An application that deliberately requires mutable dates may configure the date factory during application boot. See the [date and time documentation](/docs/{{version}}/helpers#dates).
+
+The framework binds `date` to `DateFactory`, so a `Date` facade subclass that overrides `DEFAULT_FACADE` no longer supplies the factory in a booted application. Bind `date` to your factory in a service provider instead.
 
 <a name="uuids"></a>
 ### UUIDs

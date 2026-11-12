@@ -18,6 +18,7 @@ use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Http\Request;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\DateFactory;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
@@ -128,6 +129,15 @@ class FoundationServiceProviderTest extends TestCase
             CarbonImmutable::class,
             $this->app->make(ClockInterface::class)->now()::class
         );
+    }
+
+    public function testDateFactorySingletonIsRegistered(): void
+    {
+        $date = $this->app->make('date');
+
+        $this->assertSame(DateFactory::class, $date::class);
+        $this->assertSame($date, $this->app->make('date'));
+        $this->assertSame($date, Date::getFacadeRoot());
     }
 
     public function testMaintenanceModeRefreshIntervalIsConfigured(): void

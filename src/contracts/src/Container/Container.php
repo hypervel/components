@@ -99,6 +99,11 @@ interface Container extends ContainerInterface
     public function isScopedInstance(mixed $instance): bool;
 
     /**
+     * Determine if the container holds a worker-shared instance for the given type.
+     */
+    public function resolvedShared(string $abstract): bool;
+
+    /**
      * "Extend" an abstract type in the container.
      *
      * @throws InvalidArgumentException
