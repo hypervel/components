@@ -18,6 +18,7 @@ use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\RedisPubSubProvider;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\RedisSharedState;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\SwooleTableSharedState;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Facades\Redis;
 use InvalidArgumentException;
 use Swoole\Table;
@@ -106,9 +107,10 @@ class HypervelServerProvider extends ServerProvider
     /**
      * Enable publishing of events.
      *
-     * Tests only. The flag persists on the cached server provider for the
-     * worker lifetime and cannot be turned back off.
+     * The flag persists on the cached server provider for the worker
+     * lifetime and cannot be turned back off.
      */
+    #[TestsOnly(whenShared: true)]
     public function withPublishing(): void
     {
         $this->publishesEvents = true;
