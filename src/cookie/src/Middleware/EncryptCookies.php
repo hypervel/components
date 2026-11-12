@@ -56,8 +56,8 @@ class EncryptCookies
     /**
      * Disable encryption for the given cookie name(s).
      *
-     * The list persists for the worker's lifetime and applies to every
-     * subsequent request.
+     * On the shared middleware, the list persists for the worker's lifetime and
+     * applies to every subsequent request.
      */
     #[BootOnly(whenShared: true)]
     public function disableFor(array|string $name): void

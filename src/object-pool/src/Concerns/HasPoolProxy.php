@@ -69,8 +69,8 @@ trait HasPoolProxy
     /**
      * Set the release callback for a pooled driver.
      *
-     * The callback persists on the manager for the worker lifetime and is
-     * captured by every subsequently created proxy for the driver.
+     * The callback persists on the shared manager for the worker lifetime and
+     * is captured by every subsequently created proxy for the driver.
      */
     #[BootOnly(whenShared: true)]
     public function setReleaseCallback(string $driver, Closure $callback): static

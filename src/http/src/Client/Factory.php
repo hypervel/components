@@ -113,7 +113,7 @@ class Factory
     /**
      * Add middleware to apply to every request.
      *
-     * The middleware persists on the factory for the worker lifetime and
+     * The middleware persists on the shared factory for the worker lifetime and
      * affects every subsequently created pending request.
      *
      * @return $this
@@ -129,7 +129,7 @@ class Factory
     /**
      * Add request middleware to apply to every request.
      *
-     * The middleware persists on the factory for the worker lifetime and
+     * The middleware persists on the shared factory for the worker lifetime and
      * affects every subsequently created pending request.
      *
      * @return $this
@@ -145,7 +145,7 @@ class Factory
     /**
      * Add response middleware to apply to every request.
      *
-     * The middleware persists on the factory for the worker lifetime and
+     * The middleware persists on the shared factory for the worker lifetime and
      * affects every subsequently created pending request.
      *
      * @return $this
@@ -161,8 +161,8 @@ class Factory
     /**
      * Set the options to apply to every request.
      *
-     * The options persist on the factory for the worker lifetime and affect
-     * every subsequently created pending request.
+     * The options persist on the shared factory for the worker lifetime and
+     * affect every subsequently created pending request.
      *
      * @return $this
      */
@@ -333,7 +333,7 @@ class Factory
     /**
      * Get an invokable object that returns a sequence of responses in order for use during stubbing.
      *
-     * The sequence is retained by the factory for the worker lifetime.
+     * The sequence is retained by the shared factory for the worker lifetime.
      */
     #[TestsOnly(whenShared: true)]
     public function sequence(array $responses = []): ResponseSequence
@@ -344,7 +344,7 @@ class Factory
     /**
      * Register a stub callable that will intercept requests and be able to return stub responses.
      *
-     * Stubs persist on the factory for the worker lifetime and affect
+     * Stubs persist on the shared factory for the worker lifetime and affect
      * every subsequently created pending request.
      *
      * @return $this
@@ -398,7 +398,8 @@ class Factory
     /**
      * Register a response sequence for the given URL pattern.
      *
-     * The sequence and stub persist on the factory for the worker lifetime.
+     * The sequence and stub persist on the shared factory for the worker
+     * lifetime.
      */
     #[TestsOnly(whenShared: true)]
     public function fakeSequence(string $url = '*'): ResponseSequence
@@ -411,8 +412,8 @@ class Factory
     /**
      * Stub the given URL using the given callback.
      *
-     * The stub persists on the factory for the worker lifetime and affects
-     * every subsequently created pending request.
+     * The stub persists on the shared factory for the worker lifetime and
+     * affects every subsequently created pending request.
      *
      * @return $this
      *
@@ -452,8 +453,8 @@ class Factory
     /**
      * Indicate that an exception should be thrown if any request is not faked.
      *
-     * The policy persists on the factory for the worker lifetime and affects every
-     * subsequently created pending request.
+     * The policy persists on the shared factory for the worker lifetime and
+     * affects every subsequently created pending request.
      *
      * @return $this
      */
@@ -476,8 +477,8 @@ class Factory
     /**
      * Indicate that an exception should not be thrown if any request is not faked.
      *
-     * The policy persists on the factory for the worker lifetime and affects every
-     * subsequently created pending request.
+     * The policy persists on the shared factory for the worker lifetime and
+     * affects every subsequently created pending request.
      *
      * @return $this
      */
@@ -497,8 +498,8 @@ class Factory
     /**
      * Begin recording request / response pairs.
      *
-     * Recording persists on the factory for the worker lifetime and retains
-     * every subsequently completed request attempt.
+     * Recording persists on the shared factory for the worker lifetime and
+     * retains every subsequently completed request attempt.
      *
      * @return $this
      */
@@ -662,7 +663,7 @@ class Factory
     /**
      * Set the event dispatcher implementation.
      *
-     * The dispatcher persists on the factory for the worker lifetime and
+     * The dispatcher persists on the shared factory for the worker lifetime and
      * receives every subsequent HTTP client event.
      */
     #[BootOrTestsOnly(whenShared: true)]
@@ -685,7 +686,7 @@ class Factory
      * Register a connection with the given name and configuration.
      *
      * The connection preset and shared transport handler registry persist on
-     * the factory for the worker lifetime.
+     * the shared factory for the worker lifetime.
      *
      * @return $this
      */

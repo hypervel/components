@@ -173,8 +173,8 @@ class MigrationCreator
     /**
      * Register a post migration create hook.
      *
-     * Hooks persist on the migration creator for the worker lifetime
-     * and run for every subsequent migration creation.
+     * Hooks persist on the shared migration creator for the worker lifetime and
+     * run for every subsequent migration creation.
      *
      * @param Closure(?string, string): void $callback
      */

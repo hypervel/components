@@ -107,7 +107,8 @@ class RedisConfig
     /**
      * Enable Redis command events.
      *
-     * The worker-wide override affects every subsequently assembled connection config.
+     * On the shared config, the override affects every subsequently assembled
+     * connection config.
      */
     #[BootOnly(whenShared: true)]
     public function enableEvents(): void
@@ -118,7 +119,8 @@ class RedisConfig
     /**
      * Disable Redis command events.
      *
-     * The worker-wide override affects every subsequently assembled connection config.
+     * On the shared config, the override affects every subsequently assembled
+     * connection config.
      */
     #[BootOnly(whenShared: true)]
     public function disableEvents(): void
