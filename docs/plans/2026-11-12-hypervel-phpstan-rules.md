@@ -1,7 +1,6 @@
 # Hypervel PHPStan Rules (PR 2)
 
-Branch: `feature/phpstan-hypervel-rules`. This PR builds on PR 1 (`docs/plans/2026-11-12-hypervel-attributes.md`): the `hypervel/attributes` package, converted markers, `#[Unsupported]` markers, and `WorkerStateHelper::hasLifetimeAttribute()`.
-- Before implementation, rebase the branch onto `0.4` after PR 1 merges. The branch holds only this plan until then and is unpushed, so no force push.
+Branch: `feature/phpstan-hypervel-rules`. This PR builds on PR 1 (`docs/plans/2026-11-12-hypervel-attributes.md`, merged into `0.4`): the `hypervel/attributes` package, converted markers, `#[Unsupported]` markers, and `WorkerStateHelper::hasLifetimeAttribute()`.
 - Commit the runtime changes (section 1) separately from the analysis work, so they can be reviewed and reverted on their own.
 
 Owner-approved:
@@ -9,7 +8,7 @@ Owner-approved:
 - binding `date` in `FoundationServiceProvider`, so a `Date` facade subclass overriding `DEFAULT_FACADE` needs an explicit `date` binding;
 - the `AGENTS.md` edits in section 6.
 
-After implementation and signoff, show the owner each `AGENTS.md` change from both PRs before and after in chat.
+After implementation and signoff, show the owner each section 6 `AGENTS.md` change before and after in chat.
 
 ## 1. Runtime changes
 
@@ -149,10 +148,11 @@ How the lookup behaves:
 
 ### 1.4 Callback typing (PHPDoc only)
 
-- `Filesystem\Concerns\InteractsWithPooledFilesystem`:
-  - `withDriver()`: `@template T` + `@param Closure(FilesystemOperator): T $callback` + `@return T`;
-  - `withAdapter()`: `Closure(League\Flysystem\FilesystemAdapter): T` (the imported `FlysystemAdapter`);
-  - `withClient()`: `Closure(object): T`.
+- `Filesystem\Concerns\InteractsWithPooledFilesystem`, each with `@return T`:
+  - `withDriver()`: `@template TDriver of FilesystemOperator`, `@param Closure(TDriver): T $callback`;
+  - `withAdapter()`: `@template TAdapter of FlysystemAdapter` (League's, imported under that alias), `Closure(TAdapter): T`;
+  - `withClient()`: an unbounded `@template TClient`, `Closure(TClient): T`.
+  - Callbacks may narrow the parameter to the disk's concrete driver, adapter or SDK client (`League\Flysystem\Filesystem`, League's `AwsS3V3Adapter`, `S3Client`). A fixed parameter type rejects those, so the template takes the callback's own type. Untyped callbacks get the bound; clients share no useful bound, so theirs stays `mixed`. `types/Filesystem/Filesystem.php` covers both forms.
 - `Filesystem\FilesystemAdapter::withDriver()`/`withAdapter()`: the same types. It has no `withClient()`.
 - `RedisProxy::withPinnedConnection()`, `RedisStore::withPinnedConnection()`: `@param callable(): T $callback`, `@return T`.
 - `QueuePoolProxy::withConnection()`: add `@template T`, with `Closure(SqsQueue): T` and `@return T`.
@@ -573,11 +573,11 @@ Monorepo consumers: there's nothing to change. No class in `packages/hypervel/sr
    > PHPStan checks marked calls in recognized runtime contexts.
 2. Append to "Mark intentionally unsupported methods":
    > PHPStan reports calls that reach a marked method.
-3. Replace binding pattern 3, including its code block (lines 302–309), with:
+3. Replace binding pattern 3, including its code block, with:
    > **3. Abstract and concrete are the same class — do not bind merely to share it.** Unbound concrete classes without a different declared lifetime are auto-singletons. Explicit registration can change lifetimes, `bound()`, optional constructor injection and rebinding; retain it when those effects are intended.
-4. Replace the last sentence of the alias paragraph (line 315), "Binding an alias instead of the canonical key can orphan the binding.", with:
+4. Replace the last sentence of the alias paragraph, "Binding an alias instead of the canonical key can orphan the binding.", with:
    > Binding an alias removes its mapping to the canonical key; the two keys can then resolve differently.
 
 ## Status
 
-Plan signed off by the peer. Next gate: commit it on this branch, then owner review. Implementation waits for PR 1 to merge, then rebases onto `0.4` and starts at section 1.1.
+Done: section 1. Next step: section 2.1.
