@@ -143,7 +143,7 @@ return [
         'syslog' => [
             'driver' => 'syslog',
             'level' => env('LOG_LEVEL', 'debug'),
-            'facility' => env('LOG_SYSLOG_FACILITY', LOG_USER),
+            'facility' => env('LOG_SYSLOG_FACILITY', 'user'),
             'replace_placeholders' => true,
         ],
 
