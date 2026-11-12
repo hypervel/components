@@ -62,8 +62,8 @@ class Integration implements IntegrationInterface
     /**
      * Register the exception handler with the Hypervel exception configuration.
      *
-     * Boot-only. Registers a reportable callback on the singleton exception
-     * handler that persists for the worker lifetime.
+     * When the configuration wraps the application's worker-shared handler,
+     * the reportable callback persists for the worker lifetime.
      */
     public static function handles(Exceptions $exceptions): void
     {

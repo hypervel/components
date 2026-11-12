@@ -31,6 +31,7 @@ class PackageMetadataTest extends TestCase
         );
 
         $hypervelDependencies = [
+            'hypervel/attributes',
             'hypervel/auth',
             'hypervel/broadcasting',
             'hypervel/bus',
@@ -44,6 +45,7 @@ class PackageMetadataTest extends TestCase
             'hypervel/database',
             'hypervel/di',
             'hypervel/events',
+            'hypervel/filesystem',
             'hypervel/foundation',
             'hypervel/http',
             'hypervel/http-server',
@@ -52,6 +54,8 @@ class PackageMetadataTest extends TestCase
             'hypervel/notifications',
             'hypervel/queue',
             'hypervel/redis',
+            'hypervel/reflection',
+            'hypervel/sentinel',
             'hypervel/support',
             'hypervel/view',
         ];

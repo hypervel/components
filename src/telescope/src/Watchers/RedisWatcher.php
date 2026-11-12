@@ -8,6 +8,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\RedisManager;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 
@@ -34,9 +35,10 @@ class RedisWatcher extends Watcher
     /**
      * Enable Redis events.
      *
-     * Boot-only. Applies a worker-wide Redis event override, refreshes existing
-     * mismatched pools, and sets a static flag; runtime use races across coroutines.
+     * Applies a worker-wide Redis event override, refreshes existing mismatched
+     * pools, and sets a static flag; runtime use races across coroutines.
      */
+    #[BootOnly]
     public static function enableRedisEvents(Application $app): void
     {
         $app->make(RedisManager::class)->enableEvents();
