@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Configuration;
 use Closure;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Config\Repository as RepositoryContract;
+use Hypervel\Support\Attributes\BootOnly;
 
 /**
  * Tracks configuration mutations made during application boot for worker replay.
@@ -30,9 +31,10 @@ class ConfigMutationTracker
     /**
      * Observe configuration mutations made during application boot.
      *
-     * Boot-only. Calling this outside application bootstrap replaces
-     * Foundation's mutation observer and can track the wrong lifecycle.
+     * Calling this outside application bootstrap replaces Foundation's
+     * mutation observer and can track the wrong lifecycle.
      */
+    #[BootOnly]
     public function observe(Repository $config): void
     {
         $config->setMutationObserver(function (array $values): void {
@@ -45,11 +47,12 @@ class ConfigMutationTracker
     /**
      * Apply and record a configuration operation for worker replay.
      *
-     * Boot-only. The operation is retained for worker-start replay and is
+     * The operation is retained for worker-start replay and is
      * re-evaluated against the freshly rebuilt configuration repository.
      *
      * @param Closure(RepositoryContract): void $mutation
      */
+    #[BootOnly]
     public function applyAndRecord(RepositoryContract $config, Closure $mutation): void
     {
         $wasRecording = $this->recording;
@@ -69,9 +72,10 @@ class ConfigMutationTracker
     /**
      * Replay the recorded mutations and stop tracking changes in this worker.
      *
-     * Boot-only. Calling this outside the before-worker-start boundary
+     * Calling this outside the before-worker-start boundary
      * permanently stops recording and can omit later boot mutations.
      */
+    #[BootOnly]
     public function replay(Repository $config): void
     {
         $this->recording = false;

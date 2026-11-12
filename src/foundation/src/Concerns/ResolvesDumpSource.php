@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Concerns;
 
+use Hypervel\Support\Attributes\BootOnly;
+
 /**
  * Resolve dump sources for consumers that provide $basePath and $compiledViewPath properties.
  */
@@ -133,11 +135,12 @@ trait ResolvesDumpSource
     /**
      * Set the resolver that resolves the source of the dump call.
      *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every dump source resolution across all coroutines.
+     * The resolver persists in a static property for the worker lifetime and
+     * runs on every dump source resolution across all coroutines.
      *
      * @param null|(callable(): (null|array{0: string, 1: string, 2: null|int})) $callable
      */
+    #[BootOnly]
     public static function resolveDumpSourceUsing(?callable $callable): void
     {
         static::$dumpSourceResolver = $callable;
@@ -146,9 +149,10 @@ trait ResolvesDumpSource
     /**
      * Don't include the location / file of the dump in dumps.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every dump source resolution across all coroutines.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every dump source resolution across all coroutines.
      */
+    #[BootOnly]
     public static function dontIncludeSource(): void
     {
         static::$dumpSourceResolver = false;

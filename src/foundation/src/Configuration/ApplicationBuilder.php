@@ -18,6 +18,8 @@ use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Hypervel\Foundation\Support\Providers\EventServiceProvider as AppEventServiceProvider;
 use Hypervel\Foundation\Support\Providers\RouteServiceProvider as AppRouteServiceProvider;
 use Hypervel\Http\Middleware\PrefersJsonResponses;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Route;
@@ -44,12 +46,13 @@ class ApplicationBuilder
     /**
      * Register the standard kernel classes for the application.
      *
-     * Boot-only. Re-registering the kernels replaces shared bindings and can
-     * discard middleware or console configuration used by subsequent requests
-     * and commands.
+     * Re-registering the kernels replaces shared bindings and can discard
+     * middleware or console configuration used by subsequent requests and
+     * commands.
      *
      * @return $this
      */
+    #[BootOnly]
     public function withKernels(): static
     {
         // Explicitly sharing the concrete kernels keeps one instance when they are
@@ -74,8 +77,12 @@ class ApplicationBuilder
     /**
      * Register additional service providers.
      *
+     * The provider list persists in a static property used when the
+     * application registers its providers.
+     *
      * @return $this
      */
+    #[BootOrTestsOnly]
     public function withProviders(array $providers = [], bool $withBootstrapProviders = true): static
     {
         RegisterProviders::merge(
@@ -91,9 +98,13 @@ class ApplicationBuilder
     /**
      * Register the core event service provider for the application.
      *
+     * The discovery settings persist in static properties, and the provider
+     * registers on the application for the worker lifetime.
+     *
      * @param bool|iterable<int, string> $discover
      * @return $this
      */
+    #[BootOnly]
     public function withEvents(iterable|bool $discover = true): static
     {
         if (is_iterable($discover)) {
@@ -118,8 +129,12 @@ class ApplicationBuilder
     /**
      * Register the broadcasting services for the application.
      *
+     * The broadcast routes and channels register on the application for the
+     * worker lifetime.
+     *
      * @return $this
      */
+    #[BootOnly]
     public function withBroadcasting(string $channels, array $attributes = []): static
     {
         $this->app->booted(function () use ($channels, $attributes) {
@@ -136,8 +151,11 @@ class ApplicationBuilder
     /**
      * Register the routing services for the application.
      *
+     * The routes and their loading callback persist for the worker lifetime.
+     *
      * @return $this
      */
+    #[BootOnly]
     public function withRouting(
         ?Closure $using = null,
         array|string|null $web = null,
@@ -227,8 +245,12 @@ class ApplicationBuilder
     /**
      * Register the global middleware, middleware groups, and middleware aliases for the application.
      *
+     * The middleware configuration applies to the shared kernels for the worker
+     * lifetime.
+     *
      * @return $this
      */
+    #[BootOnly]
     public function withMiddleware(?callable $callback = null): static
     {
         $this->app->afterResolving(HttpKernel::class, function ($kernel) use ($callback) {
@@ -272,8 +294,12 @@ class ApplicationBuilder
     /**
      * Register additional Artisan commands with the application.
      *
+     * The commands register on the shared console kernel for the worker
+     * lifetime.
+     *
      * @return $this
      */
+    #[BootOnly]
     public function withCommands(array $commands = []): static
     {
         if (empty($commands)) {
@@ -297,8 +323,12 @@ class ApplicationBuilder
     /**
      * Register additional Artisan route paths.
      *
+     * The route paths register on the shared console kernel for the worker
+     * lifetime.
+     *
      * @return $this
      */
+    #[BootOnly]
     protected function withCommandRouting(array $paths): static
     {
         $this->app->afterResolving(ConsoleKernel::class, function ($kernel) use ($paths) {
@@ -311,8 +341,12 @@ class ApplicationBuilder
     /**
      * Register the scheduled tasks for the application.
      *
+     * The callback persists for the worker lifetime and configures the shared
+     * schedule.
+     *
      * @return $this
      */
+    #[BootOnly]
     public function withSchedule(callable $callback): static
     {
         Artisan::starting(function () use ($callback) {
@@ -329,12 +363,13 @@ class ApplicationBuilder
     /**
      * Register and configure the application's exception handler.
      *
-     * Boot-only. The exception handler binding and resolution callback persist
-     * in the application container and affect subsequent requests.
+     * The exception handler binding and resolution callback persist in the
+     * application container and affect subsequent requests.
      *
      * @param null|(callable(Exceptions): mixed) $using
      * @return $this
      */
+    #[BootOnly]
     public function withExceptions(?callable $using = null): static
     {
         // Share the concrete handler so callbacks registered on it reach the handler
@@ -356,8 +391,11 @@ class ApplicationBuilder
     /**
      * Register an array of container bindings to be bound when the application is booting.
      *
+     * The bindings persist on the application for the worker lifetime.
+     *
      * @return $this
      */
+    #[BootOnly]
     public function withBindings(array $bindings): static
     {
         return $this->registered(function ($app) use ($bindings) {
@@ -370,8 +408,11 @@ class ApplicationBuilder
     /**
      * Register an array of singleton container bindings to be bound when the application is booting.
      *
+     * The bindings persist on the application for the worker lifetime.
+     *
      * @return $this
      */
+    #[BootOnly]
     public function withSingletons(array $singletons): static
     {
         return $this->registered(function ($app) use ($singletons) {
@@ -388,8 +429,11 @@ class ApplicationBuilder
     /**
      * Register an array of scoped singleton container bindings to be bound when the application is booting.
      *
+     * The bindings persist on the application for the worker lifetime.
+     *
      * @return $this
      */
+    #[BootOnly]
     public function withScopedSingletons(array $scopedSingletons): static
     {
         return $this->registered(function ($app) use ($scopedSingletons) {
@@ -406,8 +450,12 @@ class ApplicationBuilder
     /**
      * Globally prefer JSON responses when the incoming "Accept" header is broad.
      *
+     * The middleware joins the shared kernel's global stack for the worker
+     * lifetime.
+     *
      * @return $this
      */
+    #[BootOnly]
     public function prefersJsonResponses(bool $prefer = true): static
     {
         if (! $prefer) {
@@ -424,8 +472,11 @@ class ApplicationBuilder
     /**
      * Register a callback to be invoked when the application's service providers are registered.
      *
+     * The callback persists on the application for the worker lifetime.
+     *
      * @return $this
      */
+    #[BootOnly]
     public function registered(callable $callback): static
     {
         $this->app->registered($callback);
@@ -436,8 +487,11 @@ class ApplicationBuilder
     /**
      * Register a callback to be invoked when the application is "booting".
      *
+     * The callback persists on the application for the worker lifetime.
+     *
      * @return $this
      */
+    #[BootOnly]
     public function booting(callable $callback): static
     {
         $this->app->booting($callback);
@@ -448,8 +502,11 @@ class ApplicationBuilder
     /**
      * Register a callback to be invoked when the application is "booted".
      *
+     * The callback persists on the application for the worker lifetime.
+     *
      * @return $this
      */
+    #[BootOnly]
     public function booted(callable $callback): static
     {
         $this->app->booted($callback);

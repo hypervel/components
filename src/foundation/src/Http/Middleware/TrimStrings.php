@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Http\Middleware;
 use Closure;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Str;
 
 class TrimStrings extends TransformsRequest
@@ -79,9 +80,10 @@ class TrimStrings extends TransformsRequest
     /**
      * Indicate that the given attributes should never be trimmed.
      *
-     * Boot-only. The list persists in a static property for the worker lifetime
-     * and applies to every subsequent request.
+     * The list persists in a static property for the worker lifetime and
+     * applies to every subsequent request.
      */
+    #[BootOnly]
     public static function except(array|string $attributes): void
     {
         static::$neverTrim = array_values(array_unique(
@@ -92,9 +94,10 @@ class TrimStrings extends TransformsRequest
     /**
      * Register a callback that instructs the middleware to be skipped.
      *
-     * Boot-only. Skip callbacks persist in a static property for the worker
-     * lifetime and run on every subsequent request.
+     * Skip callbacks persist in a static property for the worker lifetime
+     * and run on every subsequent request.
      */
+    #[BootOnly]
     public static function skipWhen(Closure $callback): void
     {
         static::$skipCallbacks[] = $callback;

@@ -10,6 +10,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Events\VendorTagPublished;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Str;
@@ -458,9 +459,10 @@ class VendorPublishCommand extends Command
     /**
      * Instruct the command to not update the dates on migrations when publishing.
      *
-     * Boot-only. The publishing mode persists in a static property for the
-     * worker lifetime and affects every subsequent vendor:publish run.
+     * The publishing mode persists in a static property for the worker
+     * lifetime and affects every subsequent vendor:publish run.
      */
+    #[BootOnly]
     public static function dontUpdateMigrationDates(): void
     {
         static::$updateMigrationDates = false;

@@ -123,6 +123,7 @@ interface Application extends Container
     /**
      * Detect the application's current environment.
      */
+    #[BootOnly(whenShared: true)]
     public function detectEnvironment(Closure $callback): string;
 
     /**
@@ -198,11 +199,13 @@ interface Application extends Container
     /**
      * Register all of the configured providers.
      */
+    #[BootOnly(whenShared: true)]
     public function registerConfiguredProviders(): void;
 
     /**
      * Register a service provider with the application.
      */
+    #[BootOnly(whenShared: true)]
     public function register(ServiceProvider|string $provider, bool $force = false): ServiceProvider;
 
     /**

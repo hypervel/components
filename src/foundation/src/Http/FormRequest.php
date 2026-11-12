@@ -20,6 +20,7 @@ use Hypervel\Foundation\Http\Concerns\HasCasts;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Redirector;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\ValidatedInput;
 use Hypervel\Validation\UnknownFields;
 use Hypervel\Validation\ValidatesWhenResolvedTrait;
@@ -408,9 +409,10 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
     /**
      * Enable or disable unknown-field rejection globally for all form requests.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every subsequent request.
+     * The flag persists in a static property for the worker lifetime and
+     * applies to every subsequent request.
      */
+    #[BootOnly]
     public static function failOnUnknownFields(bool $value = true): void
     {
         static::$globalFailOnUnknownFields = $value;

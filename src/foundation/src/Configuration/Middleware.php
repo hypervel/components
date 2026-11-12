@@ -17,6 +17,7 @@ use Hypervel\Http\Middleware\TrustProxies;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Middleware\ValidateSignature;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 
 class Middleware
@@ -483,12 +484,13 @@ class Middleware
     /**
      * Configure where guests are redirected by the "auth" middleware.
      *
-     * Boot-only. The callback persists in authentication middleware and
-     * exception static properties for the worker lifetime and affects every
+     * The callback persists in authentication middleware and exception
+     * static properties for the worker lifetime and affects every
      * subsequent unauthenticated or session-mismatch request.
      *
      * @return $this
      */
+    #[BootOnly]
     public function redirectGuestsTo(callable|string|null $redirect): static
     {
         AuthenticationRedirects::redirectGuestsTo($redirect);
@@ -499,12 +501,13 @@ class Middleware
     /**
      * Configure where users are redirected by the "guest" middleware.
      *
-     * Boot-only. The callback persists in the guest middleware static property
-     * for the worker lifetime and affects every subsequent already-authenticated
+     * The callback persists in the guest middleware static property for the
+     * worker lifetime and affects every subsequent already-authenticated
      * guest-route request.
      *
      * @return $this
      */
+    #[BootOnly]
     public function redirectUsersTo(callable|string $redirect): static
     {
         return $this->redirectTo(users: $redirect);
@@ -513,12 +516,13 @@ class Middleware
     /**
      * Configure where users are redirected by the authentication and guest middleware.
      *
-     * Boot-only. The callbacks persist in authentication middleware and
-     * exception static properties for the worker lifetime and affect every
+     * The callbacks persist in authentication middleware and exception
+     * static properties for the worker lifetime and affect every
      * subsequent matching request.
      *
      * @return $this
      */
+    #[BootOnly]
     public function redirectTo(callable|string|null $guests = null, callable|string|null $users = null): static
     {
         AuthenticationRedirects::redirectTo(guests: $guests, users: $users);
@@ -529,10 +533,14 @@ class Middleware
     /**
      * Configure the cookie encryption middleware.
      *
+     * The cookie lists persist in static properties for the worker lifetime
+     * and apply to every subsequent request.
+     *
      * @param array<int, string> $except
      * @param array<int, string> $only
      * @return $this
      */
+    #[BootOnly]
     public function encryptCookies(array $except = [], array $only = []): static
     {
         if ($except !== []) {
@@ -549,8 +557,12 @@ class Middleware
     /**
      * Configure the request forgery prevention middleware.
      *
+     * The settings persist in static properties for the worker lifetime and
+     * apply to every subsequent request.
+     *
      * @return $this
      */
+    #[BootOnly]
     public function preventRequestForgery(array $except = [], bool $originOnly = false, bool $allowSameSite = false): static
     {
         if (! empty($except)) {
@@ -569,9 +581,13 @@ class Middleware
     /**
      * Configure the URL signature validation middleware.
      *
+     * The parameter list persists in a static property for the worker lifetime
+     * and applies to every subsequent request.
+     *
      * @param array<int, string> $except
      * @return $this
      */
+    #[BootOnly]
     public function validateSignatures(array $except = []): static
     {
         ValidateSignature::except($except);
@@ -582,9 +598,13 @@ class Middleware
     /**
      * Configure the empty string conversion middleware.
      *
+     * Skip callbacks persist in a static property for the worker lifetime and
+     * run on every subsequent request.
+     *
      * @param array<int, (Closure(Request): bool)> $except
      * @return $this
      */
+    #[BootOnly]
     public function convertEmptyStringsToNull(array $except = []): static
     {
         (new Collection($except))->each(fn (Closure $callback) => ConvertEmptyStringsToNull::skipWhen($callback));
@@ -595,9 +615,13 @@ class Middleware
     /**
      * Configure the string trimming middleware.
      *
+     * The exceptions persist in static properties for the worker lifetime and
+     * apply to every subsequent request.
+     *
      * @param array<int, (Closure(Request): bool)|string> $except
      * @return $this
      */
+    #[BootOnly]
     public function trimStrings(array $except = []): static
     {
         [$skipWhen, $except] = (new Collection($except))->partition(fn ($value) => $value instanceof Closure);
@@ -612,9 +636,13 @@ class Middleware
     /**
      * Indicate that the trusted host middleware should be enabled.
      *
+     * Given hosts persist in static properties for the worker lifetime and
+     * apply to every subsequent request.
+     *
      * @param null|array<int, string>|(callable(): array<int, string>) $at
      * @return $this
      */
+    #[BootOnly]
     public function trustHosts(array|callable|null $at = null, bool $subdomains = true): static
     {
         $this->trustHosts = true;
@@ -629,9 +657,13 @@ class Middleware
     /**
      * Configure the trusted proxies for the application.
      *
+     * Given proxies and headers persist in static properties for the worker
+     * lifetime and apply to every subsequent request.
+     *
      * @param null|array<int, string>|string $at
      * @return $this
      */
+    #[BootOnly]
     public function trustProxies(array|string|null $at = null, ?int $headers = null): static
     {
         if (! is_null($at)) {
@@ -648,9 +680,13 @@ class Middleware
     /**
      * Configure the middleware that prevents requests during maintenance mode.
      *
+     * The URI list persists in a static property for the worker lifetime and
+     * applies to every subsequent request.
+     *
      * @param array<int, string> $except
      * @return $this
      */
+    #[BootOnly]
     public function preventRequestsDuringMaintenance(array $except = []): static
     {
         PreventRequestsDuringMaintenance::except($except);

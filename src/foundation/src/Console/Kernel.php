@@ -22,6 +22,7 @@ use Hypervel\Foundation\Bootstrap\BootProviders;
 use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
@@ -355,10 +356,11 @@ class Kernel implements KernelContract
     /**
      * Register a Closure based command with the application.
      *
-     * Boot or tests only. Commands remain registered for the kernel's lifetime.
+     * Commands remain registered for the kernel's lifetime.
      *
      * @param-closure-this ClosureCommand $callback
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function command(string $signature, Closure $callback): ClosureCommand
     {
         $command = new ClosureCommand($signature, $callback);
