@@ -19,7 +19,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Http\Request;
-use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\StrCache;
 use InvalidArgumentException;
@@ -357,11 +356,7 @@ class AuthServiceProvider extends ServiceProvider
      *
      * Server requests reach middleware before container resolution. The default
      * callback resolves the current coroutine's user without retaining it.
-     *
-     * The callback persists for the worker lifetime and applies to every
-     * request without an instance-specific user resolver.
      */
-    #[BootOnly]
     protected function registerRequestUserResolver(): void
     {
         Request::setDefaultUserResolver(function (?string $guard = null): mixed {

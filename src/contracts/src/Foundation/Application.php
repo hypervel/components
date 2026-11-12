@@ -128,6 +128,7 @@ interface Application extends Container
     /**
      * Set the callback to resolve the application's environment.
      */
+    #[BootOnly(whenShared: true)]
     public function resolveEnvironmentUsing(?callable $callback): void;
 
     /**
