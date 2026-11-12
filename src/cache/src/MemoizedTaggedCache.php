@@ -223,6 +223,10 @@ class MemoizedTaggedCache extends TaggedCache
      */
     public function flush(): bool
     {
+        // A clone isn't registered with the memoized store, so the store-level
+        // flushes below don't reach its own memoized values.
+        $this->flushMemoized();
+
         if ($this->taggedCache instanceof AnyModeTaggedCache) {
             $this->memoizedStore->flushMemoized();
         } else {
@@ -287,6 +291,18 @@ class MemoizedTaggedCache extends TaggedCache
         // Each instance serves one ordered tag list, so memoized keys omit the
         // tag namespace. Resolving it can read every tag version from the store.
         return $this->store->getPrefix() . $key;
+    }
+
+    /**
+     * Give the cloned wrapper its own copy of the wrapped tagged cache.
+     */
+    public function __clone(): void
+    {
+        // The cloned delegate owns the cloned store and its tag set; the wrapper
+        // reuses them rather than cloning the store a second time.
+        $this->taggedCache = clone $this->taggedCache;
+        $this->store = $this->taggedCache->getStore();
+        $this->tags = $this->taggedCache->getTags();
     }
 
     /**

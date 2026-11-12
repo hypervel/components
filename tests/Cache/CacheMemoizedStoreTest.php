@@ -304,6 +304,29 @@ class CacheMemoizedStoreTest extends TestCase
         $this->assertNull($memoized->tags(['users'])->get('name'));
     }
 
+    public function testClonedTaggedCacheChangesIndependentlyOfTheOriginal(): void
+    {
+        $repository = new Repository(new ArrayStore);
+        $memoized = new Repository(new MemoizedStore('array', $repository));
+
+        $repository->tags(['users'])->put('name', 'Tim', 60);
+        $tagged = $memoized->tags(['users']);
+        $this->assertSame('Tim', $tagged->get('name'));
+
+        $copy = clone $tagged;
+        $copy->put('clone-only', 'value', 60);
+
+        $this->assertSame('value', $copy->get('clone-only'));
+        $this->assertNull($repository->tags(['users'])->get('clone-only'));
+
+        $copy->flush();
+
+        $this->assertNull($copy->get('name'));
+        $this->assertNull($copy->tags(['users'])->get('name'));
+        $this->assertSame('Tim', $tagged->get('name'));
+        $this->assertSame('Tim', $repository->tags(['users'])->get('name'));
+    }
+
     public function testMemoizedStoreCanWrapStackStore(): void
     {
         $stackRepo = $this->createStackRepository();
