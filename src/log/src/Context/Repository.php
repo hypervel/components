@@ -551,13 +551,12 @@ class Repository implements ReplicableContext
     /**
      * Register a callback to execute before context is dehydrated.
      *
-     * Registers a listener on the worker-global event dispatcher;
+     * When the dispatcher is the application's worker-shared dispatcher,
      * per-request registration persists and affects subsequent requests.
      *
      * @param (callable(self): mixed) $callback
      * @return $this
      */
-    #[BootOnly]
     public function dehydrating(callable $callback): static
     {
         $this->events->listen(fn (ContextDehydrating $event) => $callback($event->context));
@@ -568,13 +567,12 @@ class Repository implements ReplicableContext
     /**
      * Register a callback to execute after context has been hydrated.
      *
-     * Registers a listener on the worker-global event dispatcher;
+     * When the dispatcher is the application's worker-shared dispatcher,
      * per-request registration persists and affects subsequent requests.
      *
      * @param (callable(self): mixed) $callback
      * @return $this
      */
-    #[BootOnly]
     public function hydrated(callable $callback): static
     {
         $this->events->listen(fn (ContextHydrated $event) => $callback($event->context));

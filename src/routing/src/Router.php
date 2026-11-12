@@ -990,10 +990,10 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Register a route matched event listener.
      *
-     * The listener persists on the worker-lifetime event dispatcher and runs
-     * for every subsequent route match.
+     * When the dispatcher is the application's worker-shared dispatcher, the
+     * listener persists for the worker lifetime and runs for every subsequent
+     * route match.
      */
-    #[BootOnly]
     public function matched(string|callable $callback): void
     {
         $this->events->listen(RouteMatched::class, $callback);

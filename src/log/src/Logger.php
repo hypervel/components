@@ -11,7 +11,6 @@ use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Log\Events\MessageLogged;
-use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Traits\Conditionable;
 use Monolog\Logger as Monolog;
@@ -254,12 +253,11 @@ class Logger implements LoggerInterface
     /**
      * Register a new callback handler for when a log event is triggered.
      *
-     * Registers a listener on the worker-global event dispatcher;
+     * When the dispatcher is the application's worker-shared dispatcher,
      * per-request registration persists and affects subsequent requests.
      *
      * @throws RuntimeException
      */
-    #[BootOnly]
     public function listen(Closure $callback): void
     {
         if (! isset($this->dispatcher)) {
