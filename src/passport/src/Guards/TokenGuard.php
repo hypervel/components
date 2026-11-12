@@ -428,7 +428,7 @@ class TokenGuard implements Guard
      */
     protected function getExplicitUserContextKey(): string
     {
-        return "__auth.guards.{$this->name}.user.explicit";
+        return $this->contextKey('user.explicit');
     }
 
     /**
@@ -436,7 +436,7 @@ class TokenGuard implements Guard
      */
     protected function getExplicitClientContextKey(): string
     {
-        return "__auth.guards.{$this->name}.client.explicit";
+        return $this->contextKey('client.explicit');
     }
 
     /**
@@ -445,7 +445,7 @@ class TokenGuard implements Guard
     protected function getContextKey(Request $request, string $type): string
     {
         if ($this->hasAccessToken($request)) {
-            return "__auth.guards.{$this->name}.{$type}." . $this->servers->authenticationFingerprint($request);
+            return $this->contextKey($type . '.' . $this->servers->authenticationFingerprint($request));
         }
 
         $credentials = serialize([
@@ -454,7 +454,7 @@ class TokenGuard implements Guard
             $request->header('X-XSRF-TOKEN'),
         ]);
 
-        return "__auth.guards.{$this->name}.{$type}." . hash('xxh128', $credentials, options: ['seed' => $this->hashSeed]);
+        return $this->contextKey($type . '.' . hash('xxh128', $credentials, options: ['seed' => $this->hashSeed]));
     }
 
     /**

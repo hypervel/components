@@ -32,7 +32,6 @@ class TokenGuard implements Guard
     /**
      * Create a new authentication guard.
      *
-     * @param string $name the name of the guard for Context keying
      * @param string $inputKey the name of the query string item from the request containing the API token
      * @param string $storageKey the name of the token "column" in persistent storage
      * @param bool $hash indicates if the API token is hashed in storage
@@ -196,7 +195,7 @@ class TokenGuard implements Guard
      */
     protected function getExplicitUserContextKey(): string
     {
-        return "__auth.guards.{$this->name}.user.explicit";
+        return $this->contextKey('user.explicit');
     }
 
     /**
@@ -205,10 +204,10 @@ class TokenGuard implements Guard
     protected function getContextKeyForToken(?string $token): string
     {
         if ($token === null || $token === '') {
-            return "__auth.guards.{$this->name}.user.default";
+            return $this->contextKey('user.default');
         }
 
-        return "__auth.guards.{$this->name}.user." . hash('xxh128', $token, options: ['seed' => $this->hashSeed]);
+        return $this->contextKey('user.' . hash('xxh128', $token, options: ['seed' => $this->hashSeed]));
     }
 
     /**

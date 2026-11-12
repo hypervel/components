@@ -166,6 +166,22 @@ class TokenGuardTest extends PassportTestCase
         $this->assertNull($guard->client());
     }
 
+    public function testNewGuardWithTheSameNameStartsWithoutThePreviousGuardsBearerUser(): void
+    {
+        $user = UserFactory::new()->create();
+        ClientFactory::new()->asPersonalAccessTokenClient()->create();
+        $request = Request::create('/guard');
+        $request->headers->set('Authorization', 'Bearer ' . $user->createToken('test')->accessToken);
+        RequestContext::set($request);
+        $this->assertSame($user->id, auth('passport')->user()->getKey());
+
+        $this->app->make('auth')->forgetGuards();
+        $user->delete();
+
+        $this->assertFalse(auth('passport')->hasUser());
+        $this->assertNull(auth('passport')->user());
+    }
+
     public function testNothingIsReturnedWhenOauthThrowsException(): void
     {
         Exceptions::fake();

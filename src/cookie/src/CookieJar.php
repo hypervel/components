@@ -9,6 +9,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Cookie\QueueingFactory as JarContract;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -203,12 +204,13 @@ class CookieJar implements JarContract
     /**
      * Set the default path and domain for the jar.
      *
-     * Boot-only. The defaults persist on the worker-lifetime singleton;
+     * The defaults persist on the worker-lifetime singleton;
      * per-request mutation races across coroutines and affects every
      * subsequent request.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function setDefaultPathAndDomain(string $path, ?string $domain, ?bool $secure = false, ?string $sameSite = null): static
     {
         [$this->path, $this->domain, $this->secure, $this->sameSite] = [$path, $domain, $secure, $sameSite];

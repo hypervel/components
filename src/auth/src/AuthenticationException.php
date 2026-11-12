@@ -6,6 +6,7 @@ namespace Hypervel\Auth;
 
 use Exception;
 use Hypervel\Http\Request;
+use Hypervel\Support\Attributes\BootOnly;
 
 class AuthenticationException extends Exception
 {
@@ -64,9 +65,10 @@ class AuthenticationException extends Exception
     /**
      * Specify the callback that should be used to generate the redirect path.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every unauthenticated exception.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every unauthenticated exception.
      */
+    #[BootOnly]
     public static function redirectUsing(callable $redirectToCallback): void
     {
         static::$redirectToCallback = $redirectToCallback;

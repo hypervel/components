@@ -546,6 +546,25 @@ class GuardTest extends TestCase
         $this->assertSame($firstUser, $firstGuard->user());
     }
 
+    public function testNewGuardWithTheSameNameStartsWithoutThePreviousGuardsUsers(): void
+    {
+        [$tokenUser, $token, $plainToken] = $this->createUserWithToken();
+        $provider = $this->app->make('auth')->createUserProvider('users');
+        $this->assertNotNull($provider);
+        RequestContext::set(Request::create('/', server: [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $plainToken,
+        ]));
+        $previousGuard = new SanctumGuard('sanctum', $provider, $this->app, []);
+        $this->assertTrue($tokenUser->is($previousGuard->user()));
+        $previousGuard->setUser($tokenUser);
+        $token->delete();
+
+        $guard = new SanctumGuard('sanctum', $provider, $this->app, []);
+
+        $this->assertFalse($guard->hasUser());
+        $this->assertNull($guard->user());
+    }
+
     public function testAuthContextKeysIncludeOnlyDurableExplicitState(): void
     {
         $provider = $this->app->make('auth')->createUserProvider('users');
@@ -556,7 +575,7 @@ class GuardTest extends TestCase
         ]));
 
         $this->assertSame([
-            '__auth.guards.sanctum.user.explicit',
+            (fn (): string => $this->getExplicitUserContextKey())->call($guard),
         ], $guard->getAuthContextKeys());
     }
 

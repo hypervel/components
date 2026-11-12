@@ -10,6 +10,9 @@ use Hypervel\Contracts\Auth\Factory as FactoryContract;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\RebindsCallbacksToSelf;
 use InvalidArgumentException;
 use ReflectionException;
@@ -220,8 +223,12 @@ class AuthManager implements FactoryContract
     /**
      * Register a new callback based request guard.
      *
+     * The guard creator persists in the singleton's customCreators array for
+     * the worker lifetime and applies to every subsequent guard resolution.
+     *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function viaRequest(string $driver, callable $callback): static
     {
         return $this->extend($driver, function (Container $app, string $name, array $config) use ($callback): RequestGuard {
@@ -293,12 +300,13 @@ class AuthManager implements FactoryContract
     /**
      * Configure where guests are redirected by the "auth" middleware.
      *
-     * Boot-only. The callback persists in authentication middleware and
-     * exception static properties for the worker lifetime and affects every
+     * The callback persists in authentication middleware and exception
+     * static properties for the worker lifetime and affects every
      * subsequent unauthenticated or session-mismatch request.
      *
      * @return $this
      */
+    #[BootOnly]
     public function redirectGuestsTo(callable|string|null $redirect): static
     {
         AuthenticationRedirects::redirectGuestsTo($redirect);
@@ -309,12 +317,13 @@ class AuthManager implements FactoryContract
     /**
      * Configure where users are redirected by the "guest" middleware.
      *
-     * Boot-only. The callback persists in the guest middleware static property
-     * for the worker lifetime and affects every subsequent already-authenticated
+     * The callback persists in the guest middleware static property for the
+     * worker lifetime and affects every subsequent already-authenticated
      * guest-route request.
      *
      * @return $this
      */
+    #[BootOnly]
     public function redirectUsersTo(callable|string $redirect): static
     {
         AuthenticationRedirects::redirectUsersTo($redirect);
@@ -325,12 +334,13 @@ class AuthManager implements FactoryContract
     /**
      * Configure where users are redirected by the authentication and guest middleware.
      *
-     * Boot-only. The callbacks persist in authentication middleware and
-     * exception static properties for the worker lifetime and affect every
+     * The callbacks persist in authentication middleware and exception
+     * static properties for the worker lifetime and affect every
      * subsequent matching request.
      *
      * @return $this
      */
+    #[BootOnly]
     public function redirectTo(callable|string|null $guests = null, callable|string|null $users = null): static
     {
         AuthenticationRedirects::redirectTo(guests: $guests, users: $users);
@@ -344,11 +354,12 @@ class AuthManager implements FactoryContract
      * Anonymous closures run in this manager's class scope; non-static closures
      * also receive the manager as $this.
      *
-     * Boot-only. The callback persists in the singleton's customCreators array
-     * for the worker lifetime and applies to every subsequent guard resolution.
+     * The callback persists in the singleton's customCreators array for the
+     * worker lifetime and applies to every subsequent guard resolution.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $driver, Closure $callback): static
     {
         try {
@@ -366,12 +377,13 @@ class AuthManager implements FactoryContract
     /**
      * Register a custom provider creator Closure.
      *
-     * Boot-only. The callback persists in the singleton's customProviderCreators
-     * array for the worker lifetime and applies to every subsequent user
-     * provider resolution.
+     * The callback persists in the singleton's customProviderCreators array for
+     * the worker lifetime and applies to every subsequent user provider
+     * resolution.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function provider(string $name, Closure $callback): static
     {
         $this->customProviderCreators[$name] = $callback;
@@ -390,13 +402,14 @@ class AuthManager implements FactoryContract
     /**
      * Forget all of the resolved guard instances.
      *
-     * Boot or tests only. Clears the singleton's guard cache; concurrent
-     * coroutines may already hold references to the prior guard instances
-     * (each holding its own coroutine-scoped state) that next resolution
-     * will not share.
+     * Clears the singleton's guard cache; concurrent coroutines may
+     * already hold references to the prior guard instances (each holding
+     * its own coroutine-scoped state) that next resolution will not
+     * share.
      *
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetGuards(): static
     {
         $this->guards = [];
@@ -438,12 +451,13 @@ class AuthManager implements FactoryContract
     /**
      * Set the application instance used by the manager.
      *
-     * Tests only. Swaps the singleton's container reference; per-request use
-     * races across coroutines and breaks every concurrent request's auth
+     * Swaps the singleton's container reference; per-request use races
+     * across coroutines and breaks every concurrent request's auth
      * resolution.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setApplication(Container $app): static
     {
         $this->app = $app;

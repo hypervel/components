@@ -15,6 +15,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\Date;
@@ -686,9 +687,10 @@ class Store implements Session
     /**
      * Set the name of the session.
      *
-     * Boot-only. Mutates the shared session store name; per-request use races
-     * across coroutines and changes the cookie name for concurrent requests.
+     * Mutates the shared session store name; per-request use races across
+     * coroutines and changes the cookie name for concurrent requests.
      */
+    #[BootOnly(whenShared: true)]
     public function setName(string $name): void
     {
         $this->name = $name;
@@ -860,10 +862,11 @@ class Store implements Session
     /**
      * Set the underlying session handler implementation.
      *
-     * Boot-only. Replaces the handler on the shared session store; per-request
-     * use races across coroutines and can route session reads or writes through
-     * the wrong handler.
+     * Replaces the handler on the shared session store; per-request use races
+     * across coroutines and can route session reads or writes through the wrong
+     * handler.
      */
+    #[BootOnly(whenShared: true)]
     public function setHandler(SessionHandlerInterface $handler): SessionHandlerInterface
     {
         return $this->handler = $handler;

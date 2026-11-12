@@ -27,6 +27,7 @@ class PackageMetadataTest extends TestCase
             'ext-ctype',
             'ext-mbstring',
             'ext-session',
+            'hypervel/attributes',
             'hypervel/auth',
             'hypervel/cache',
             'hypervel/collections',

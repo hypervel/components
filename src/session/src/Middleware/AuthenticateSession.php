@@ -10,6 +10,7 @@ use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Session\Middleware\AuthenticatesSessions;
 use Hypervel\Http\Request;
+use Hypervel\Support\Attributes\BootOnly;
 
 class AuthenticateSession implements AuthenticatesSessions
 {
@@ -135,9 +136,10 @@ class AuthenticateSession implements AuthenticatesSessions
     /**
      * Specify the callback that should be used to generate the redirect path.
      *
-     * Boot-only. The callback persists in a static property for the worker
-     * lifetime and runs on every subsequent session-mismatch.
+     * The callback persists in a static property for the worker lifetime
+     * and runs on every subsequent session-mismatch.
      */
+    #[BootOnly]
     public static function redirectUsing(callable $redirectToCallback): void
     {
         static::$redirectToCallback = $redirectToCallback;

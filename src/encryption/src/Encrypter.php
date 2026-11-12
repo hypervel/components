@@ -8,6 +8,7 @@ use Hypervel\Contracts\Encryption\DecryptException;
 use Hypervel\Contracts\Encryption\Encrypter as EncrypterContract;
 use Hypervel\Contracts\Encryption\EncryptException;
 use Hypervel\Contracts\Encryption\StringEncrypter;
+use Hypervel\Support\Attributes\BootOnly;
 use RuntimeException;
 use SensitiveParameter;
 
@@ -338,11 +339,12 @@ class Encrypter implements EncrypterContract, StringEncrypter
     /**
      * Set the previous / legacy encryption keys that should be utilized if decryption fails.
      *
-     * Boot-only. Mutates the previous-key list; the encrypter is registered as
-     * a container singleton, so per-request use races across coroutines.
+     * Mutates the previous-key list; the encrypter is registered as a
+     * container singleton, so per-request use races across coroutines.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function previousKeys(#[SensitiveParameter] array $keys): static
     {
         foreach ($keys as $key) {

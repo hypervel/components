@@ -10,6 +10,7 @@ use Hypervel\Contracts\Encryption\Encrypter as EncrypterContract;
 use Hypervel\Cookie\CookieValuePrefix;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\BootOnly;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -55,9 +56,10 @@ class EncryptCookies
     /**
      * Disable encryption for the given cookie name(s).
      *
-     * Boot-only. The list persists for the worker's lifetime and applies to
-     * every subsequent request.
+     * The list persists for the worker's lifetime and applies to every
+     * subsequent request.
      */
+    #[BootOnly(whenShared: true)]
     public function disableFor(array|string $name): void
     {
         $this->except = array_merge($this->except, (array) $name);
@@ -194,9 +196,10 @@ class EncryptCookies
     /**
      * Indicate that the given cookies should never be encrypted.
      *
-     * Boot-only. The list persists in a static property for the worker lifetime
-     * and applies to every subsequent request.
+     * The list persists in a static property for the worker lifetime and
+     * applies to every subsequent request.
      */
+    #[BootOnly]
     public static function except(array|string $cookies): void
     {
         static::$neverEncrypt = array_values(array_unique(
@@ -210,9 +213,10 @@ class EncryptCookies
      * When set, all other cookies pass through unencrypted.
      * Takes precedence over except() and the $except property.
      *
-     * Boot-only. The list persists in a static property for the worker lifetime
-     * and applies to every subsequent request.
+     * The list persists in a static property for the worker lifetime and
+     * applies to every subsequent request.
      */
+    #[BootOnly]
     public static function only(array|string $cookies): void
     {
         static::$onlyEncrypt = array_values(array_unique(
