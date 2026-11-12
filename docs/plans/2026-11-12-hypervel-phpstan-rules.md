@@ -308,9 +308,9 @@ Warm-cache tests go in `tests/PHPStan/WorkerStateDependencyTest.php`, one per me
 ### 3.2 Unsupported calls
 
 - **Reports:** any method or static call whose resolved declaration has `#[Unsupported]`, and facade static calls whose `FacadeHelper::getMethod()` has it. A per-node rule: it needs no lifetimes or contexts.
-- **Message:** "`Class::method()` is not supported by this implementation and always throws." The method's docblock and exception message explain the alternative.
+- **Message:** "`Class::method()` is not supported by this implementation and always throws.", followed by a newline and the attribute's `message` when `getArgumentTypes()['message']` has exactly one nonempty constant string (PHPStan maps positional arguments to parameter names). The guidance goes in the message, not a tip, because the GitHub, Checkstyle, JSON, GitLab and Raw formatters drop tips; PHPStan's deprecation rules also append their description on a new line. No validation of the message itself.
 - **Silent:** an override without the attribute, and calls through a contract or base whose resolved declaration is unmarked.
-- **Tests:** API-client `PendingRequest::setClient()` reported; the HTTP client's not reported; a subclass override; a facade call.
+- **Tests:** API-client `PendingRequest::setClient()` reported with its positional message; a bare fixture marker reported with the generic message only; the HTTP client's `setClient()` not reported; a subclass override; a facade call.
 
 ### 3.3 Borrowed resource escape
 
@@ -550,7 +550,7 @@ Alternatively, its first statement is a positive `Coroutine::causedByCancellatio
 
 - `src/docs/static-analysis.md`:
   - one section per rule in section 3, placed with related sections (worker state, cancellation, configuration, dates, Eloquent, container), with the switch listed in the configuration reference;
-  - in PR 1's Method Attributes section, add that the analysis reports calls to lifetime-marked methods from request, job and operation code (applying the conditions) and calls that reach an `#[Unsupported]` method, linking to the rule sections;
+  - in PR 1's Method Attributes section, add that the analysis reports calls to lifetime-marked methods from request, job and operation code (applying the conditions) and calls that reach an `#[Unsupported]` method, including its message, linking to the rule sections;
   - extend Worker State's "Request and job checks cover …" sentence with the listener, observer and server-operation contexts from section 2.3.
 - `src/docs/facades.md`, `src/docs/porting-from-laravel.md` and `src/support/README.md` (sections 1.2, 1.3 and 3.5).
 - Don't repeat the rule catalogue elsewhere.
