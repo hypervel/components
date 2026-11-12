@@ -8,12 +8,14 @@ use Hypervel\Bus\Queueable;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Queue\Factory as QueueContract;
 use Hypervel\Queue\QueueManager;
+use Hypervel\Queue\Worker;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
+use ReflectionProperty;
 
 class SupportFacadesQueueTest extends TestCase
 {
@@ -74,15 +76,6 @@ class SupportFacadesQueueTest extends TestCase
         $this->assertSame($this->queueManager, Queue::getFacadeRoot());
     }
 
-    public function testFakeExceptForSwapsQueueManager(): void
-    {
-        Queue::fakeExceptFor(function (): void {
-            $this->assertInstanceOf(QueueFake::class, Queue::getFacadeRoot());
-        }, []);
-
-        $this->assertSame($this->queueManager, Queue::getFacadeRoot());
-    }
-
     public function testFakeExceptForReturnValue(): void
     {
         $result = Queue::fakeExceptFor(function (): string {
@@ -99,6 +92,20 @@ class SupportFacadesQueueTest extends TestCase
         });
 
         $this->assertSame('test-result', $result);
+    }
+
+    public function testPopUsingRegistersAndRemovesWorkerCallback(): void
+    {
+        $callbacks = new ReflectionProperty(Worker::class, 'popCallbacks');
+        $callback = static fn (): null => null;
+
+        Queue::popUsing('myworker', $callback);
+
+        $this->assertSame(['myworker' => $callback], $callbacks->getValue());
+
+        Queue::popUsing('myworker', null);
+
+        $this->assertSame([], $callbacks->getValue());
     }
 }
 

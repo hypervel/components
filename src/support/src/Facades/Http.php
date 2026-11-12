@@ -8,6 +8,8 @@ use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Http\Client\Response;
 use Hypervel\Http\Client\ResponseSequence;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 
 /**
  * @method static \Hypervel\Http\Client\Factory allowStrayRequests(array|null $only = null)
@@ -136,8 +138,9 @@ class Http extends Facade
     /**
      * Register a stub callable that will intercept requests and be able to return stub responses.
      *
-     * Tests only. Stubs persist on the HTTP factory for the worker lifetime.
+     * Stubs persist on the HTTP factory for the worker lifetime.
      */
+    #[TestsOnly]
     public static function fake(array|callable|null $callback = null): Factory
     {
         return tap(static::getFacadeRoot(), function ($fake) use ($callback) {
@@ -148,8 +151,9 @@ class Http extends Facade
     /**
      * Register a response sequence for the given URL pattern.
      *
-     * Tests only. The sequence and stub persist on the HTTP factory for the worker lifetime.
+     * The sequence and stub persist on the HTTP factory for the worker lifetime.
      */
+    #[TestsOnly]
     public static function fakeSequence(string $urlPattern = '*'): ResponseSequence
     {
         $fake = tap(static::getFacadeRoot(), function ($fake) {
@@ -162,8 +166,9 @@ class Http extends Facade
     /**
      * Indicate that an exception should be thrown if any request is not faked.
      *
-     * Boot or tests only. The policy persists on the HTTP factory for the worker lifetime.
+     * The policy persists on the HTTP factory for the worker lifetime.
      */
+    #[BootOrTestsOnly]
     public static function preventStrayRequests(bool $prevent = true): Factory
     {
         return tap(static::getFacadeRoot(), function ($fake) use ($prevent) {
@@ -174,8 +179,9 @@ class Http extends Facade
     /**
      * Stub the given URL using the given callback.
      *
-     * Tests only. The stub persists on the HTTP factory for the worker lifetime.
+     * The stub persists on the HTTP factory for the worker lifetime.
      */
+    #[TestsOnly]
     public static function stubUrl(string $url, array|callable|int|PromiseInterface|Response|string $callback): Factory
     {
         return tap(static::getFacadeRoot(), function ($fake) use ($url, $callback) {

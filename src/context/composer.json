@@ -25,6 +25,7 @@
     ],
     "require": {
         "php": "^8.4",
+        "hypervel/attributes": "^0.4",
         "hypervel/coroutine": "^0.4",
         "hypervel/engine": "^0.4",
         "hypervel/http": "^0.4",

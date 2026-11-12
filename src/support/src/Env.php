@@ -14,6 +14,8 @@ use Dotenv\Repository\RepositoryBuilder;
 use Dotenv\Repository\RepositoryInterface;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
 use InvalidArgumentException;
 use PhpOption\Option;
 use RuntimeException;
@@ -50,9 +52,10 @@ class Env
     /**
      * Enable the putenv adapter.
      *
-     * Boot-only. The setting and cached repository persist in static properties
-     * for the worker lifetime and affect every subsequent env lookup.
+     * The setting and cached repository persist in static properties for the
+     * worker lifetime and affect every subsequent env lookup.
      */
+    #[BootOnly]
     public static function enablePutenv(): void
     {
         static::$putenv = true;
@@ -62,8 +65,8 @@ class Env
     /**
      * Flush the environment repository.
      *
-     * Boot or tests only. Clears the worker-wide repository cache; concurrent
-     * env lookups may rebuild with different adapter state.
+     * Clears the worker-wide repository cache; concurrent env lookups may
+     * rebuild with different adapter state.
      *
      * Clears the cached repository so the next getRepository() call creates
      * a fresh instance with a new ImmutableWriter. This is required before
@@ -71,6 +74,7 @@ class Env
      * and refuses to overwrite "externally defined" keys. Flushing creates
      * a clean writer that treats all keys as writable.
      */
+    #[BootOrTestsOnly]
     public static function flushRepository(): void
     {
         static::$repository = null;
@@ -105,9 +109,10 @@ class Env
     /**
      * Disable the putenv adapter.
      *
-     * Boot-only. The setting and cached repository persist in static properties
-     * for the worker lifetime and affect every subsequent env lookup.
+     * The setting and cached repository persist in static properties for the
+     * worker lifetime and affect every subsequent env lookup.
      */
+    #[BootOnly]
     public static function disablePutenv(): void
     {
         static::$putenv = false;
@@ -117,9 +122,10 @@ class Env
     /**
      * Register a custom adapter creator Closure.
      *
-     * Boot-only. Custom adapters persist in a static property for the worker
-     * lifetime and affect every subsequent env repository build.
+     * Custom adapters persist in a static property for the worker lifetime
+     * and affect every subsequent env repository build.
      */
+    #[BootOnly]
     public static function extend(Closure $callback, ?string $name = null): void
     {
         if (! is_null($name)) {

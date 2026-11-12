@@ -8,6 +8,7 @@ use ArrayObject;
 use Closure;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
+use Hypervel\Support\Attributes\TestsOnly;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -230,9 +231,10 @@ class CoroutineContext
     /**
      * Copy context data from the specified coroutine context to non-coroutine context.
      *
-     * Tests only. This copies coroutine-local values into worker-global storage,
-     * so request-time use can leak or race across concurrent requests.
+     * This copies coroutine-local values into worker-global storage, so
+     * request-time use can leak or race across concurrent requests.
      */
+    #[TestsOnly]
     public static function copyToNonCoroutine(array $keys = [], ?int $coroutineId = null): void
     {
         if (is_null($context = Coroutine::getContextFor($coroutineId))) {
@@ -273,13 +275,14 @@ class CoroutineContext
     /**
      * Store a value in non-coroutine context only.
      *
-     * Tests only. This writes worker-global storage even from a coroutine,
-     * so request-time use can leak state between concurrent requests.
+     * This writes worker-global storage even from a coroutine, so
+     * request-time use can leak state between concurrent requests.
      *
      * @param TKey $id
      * @param TValue $value
      * @return TValue
      */
+    #[TestsOnly]
     public static function setNonCoroutine(UnitEnum|string $id, mixed $value): mixed
     {
         return static::$nonCoroutineContext[is_string($id) ? $id : enum_value($id)] = $value;
@@ -305,9 +308,10 @@ class CoroutineContext
     /**
      * Clear specific keys from non-coroutine context only.
      *
-     * Tests only. This mutates worker-global storage, so request-time use can
-     * race with concurrent requests using the same keys.
+     * This mutates worker-global storage, so request-time use can race with
+     * concurrent requests using the same keys.
      */
+    #[TestsOnly]
     public static function clearFromNonCoroutine(array $keys): void
     {
         foreach ($keys as $key) {

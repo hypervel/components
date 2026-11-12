@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
+use Hypervel\Support\Attributes\BootOnly;
 use InvalidArgumentException;
 use Symfony\Component\Uid\Ulid;
 use Symfony\Component\Uid\Uuid;
@@ -20,9 +21,10 @@ class BinaryCodec
     /**
      * Register a custom codec.
      *
-     * Boot-only. Codecs persist in a static property for the worker lifetime
-     * and apply to every subsequent encode/decode call.
+     * Codecs persist in a static property for the worker lifetime and apply
+     * to every subsequent encode/decode call.
      */
+    #[BootOnly]
     public static function register(string $name, callable $encode, callable $decode): void
     {
         self::$customCodecs[$name] = [

@@ -7,6 +7,9 @@ namespace Hypervel\Support;
 use Closure;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\Attributes\TestsOnly;
 use InvalidArgumentException;
 use ReflectionException;
 use RuntimeException;
@@ -52,9 +55,10 @@ abstract class MultipleInstanceManager
     /**
      * Set the default instance name.
      *
-     * Boot-only. Implementations typically mutate process-global config; per-request
-     * use races across coroutines. Use coroutine Context for request-scoped overrides.
+     * Implementations typically mutate process-global config; per-request use races
+     * across coroutines. Use coroutine Context for request-scoped overrides.
      */
+    #[BootOnly]
     abstract public function setDefaultInstance(string $name): void;
 
     /**
@@ -128,12 +132,13 @@ abstract class MultipleInstanceManager
     /**
      * Unset the given instances.
      *
-     * Boot or tests only. Mutates the singleton's instance cache; concurrent
-     * coroutines may already hold a reference to the forgotten instance and
-     * next resolution will rebuild.
+     * Mutates the singleton's instance cache; concurrent coroutines may
+     * already hold a reference to the forgotten instance and next resolution
+     * will rebuild.
      *
      * @return $this
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function forgetInstance(array|string|null $name = null): static
     {
         $name ??= $this->getDefaultInstance();
@@ -150,10 +155,11 @@ abstract class MultipleInstanceManager
     /**
      * Disconnect the given instance and remove from local cache.
      *
-     * Boot or tests only. Mutates the singleton's instance cache; concurrent
-     * coroutines may already hold a reference to the instance and next
-     * resolution will rebuild.
+     * Mutates the singleton's instance cache; concurrent coroutines may
+     * already hold a reference to the instance and next resolution will
+     * rebuild.
      */
+    #[BootOrTestsOnly(whenShared: true)]
     public function purge(?string $name = null): void
     {
         $name ??= $this->getDefaultInstance();
@@ -167,12 +173,12 @@ abstract class MultipleInstanceManager
      * Anonymous closures run in this manager's class scope; non-static closures
      * also receive the manager as $this.
      *
-     * Boot-only. The callback persists in the singleton's customCreators array
-     * for the worker lifetime and applies to every subsequent instance
-     * resolution.
+     * The callback persists in the singleton's customCreators array for the
+     * worker lifetime and applies to every subsequent instance resolution.
      *
      * @return $this
      */
+    #[BootOnly(whenShared: true)]
     public function extend(string $name, Closure $callback): static
     {
         try {
@@ -190,12 +196,13 @@ abstract class MultipleInstanceManager
     /**
      * Set the application instance used by the manager.
      *
-     * Tests only. Swaps the singleton's application and configuration references
-     * without rebuilding resolved instances; per-request use races across
-     * coroutines and breaks every concurrent resolution through this manager.
+     * Swaps the singleton's application and configuration references without
+     * rebuilding resolved instances; per-request use races across coroutines and
+     * breaks every concurrent resolution through this manager.
      *
      * @return $this
      */
+    #[TestsOnly(whenShared: true)]
     public function setApplication(Application $app): static
     {
         $this->app = $app;

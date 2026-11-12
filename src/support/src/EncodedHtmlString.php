@@ -9,6 +9,7 @@ use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Support\DeferringDisplayableValue;
 use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Support\Attributes\BootOnly;
 use Override;
 
 class EncodedHtmlString extends HtmlString
@@ -73,9 +74,10 @@ class EncodedHtmlString extends HtmlString
     /**
      * Set the callable that will be used to encode the HTML strings.
      *
-     * Boot-only. The factory persists in a static property for the worker
-     * lifetime and applies to every encoded HTML string.
+     * The factory persists in a static property for the worker lifetime
+     * and applies to every encoded HTML string.
      */
+    #[BootOnly]
     public static function encodeUsing(?callable $factory = null): void
     {
         static::$encodeUsingFactory = $factory === null ? null : Closure::fromCallable($factory);

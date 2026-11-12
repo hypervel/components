@@ -6,6 +6,7 @@ namespace Hypervel\Support\Facades;
 
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Testing\Fakes\ExceptionHandlerFake;
 use Throwable;
 
@@ -55,8 +56,11 @@ class Exceptions extends Facade
     /**
      * Replace the bound instance with a fake.
      *
+     * Swaps the resolved facade instance for the worker lifetime.
+     *
      * @param array<int, class-string<Throwable>>|class-string<Throwable> $exceptions
      */
+    #[TestsOnly]
     public static function fake(array|string $exceptions = []): ExceptionHandlerFake
     {
         $exceptionHandler = static::isFake()
