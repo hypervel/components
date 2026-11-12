@@ -9,7 +9,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
@@ -86,7 +86,7 @@ class Manager
     /**
      * Get a connection instance from the global manager.
      */
-    public static function connection(?string $connection = null): ConnectionInterface
+    public static function connection(?string $connection = null): Connection
     {
         return static::$instance->getConnection($connection);
     }
@@ -110,7 +110,7 @@ class Manager
     /**
      * Get a registered connection instance.
      */
-    public function getConnection(?string $name = null): ConnectionInterface
+    public function getConnection(?string $name = null): Connection
     {
         return $this->manager->connection($name);
     }

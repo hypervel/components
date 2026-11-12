@@ -631,9 +631,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
      */
     protected function getLockForPopping(): bool|string
     {
-        $connection = $this->getDatabase();
-
-        return $connection instanceof Connection && $connection->supportsSkipLocked()
+        return $this->getDatabase()->supportsSkipLocked()
             ? 'FOR UPDATE SKIP LOCKED'
             : true;
     }
@@ -818,7 +816,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue, Publ
     /**
      * Get the underlying database connection.
      */
-    public function getDatabase(): ConnectionInterface
+    public function getDatabase(): Connection
     {
         return $this->resolver->connection($this->connection);
     }

@@ -28,7 +28,7 @@
     - [Scheduling](#scheduling)
     - [Maintenance Mode](#maintenance-mode)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
-    - [Streamed Responses](#streamed-responses)
+    - [Native Request Functions](#native-request-functions)
     - [AI SDK](#ai-sdk)
     - [MCP](#mcp)
     - [Saloon](#saloon)
@@ -547,10 +547,10 @@ Hypervel installs `hypervel/guzzle`, a Guzzle 8 fork that replaces `guzzlehttp/g
 
 Hypervel's `Concurrency` facade provides `coroutine`, `process`, and `sync` drivers. Laravel's `fork` driver is not available because coroutines are Hypervel's native lightweight execution model. Use the default `coroutine` driver for normal concurrent application work and reserve `process` for work that requires operating system process isolation. See the [concurrency documentation](/docs/{{version}}/concurrency#choosing-a-driver).
 
-<a name="streamed-responses"></a>
-### Streamed Responses
+<a name="native-request-functions"></a>
+### Native Request Functions
 
-`connection_aborted()` does not report Swoole client disconnects. Replace loops that rely on it with a generator callback passed to `response()->stream()`, or an `IterableStreamedResponse`. See [Canceling Disconnected Streams](/docs/{{version}}/responses#canceling-disconnected-streams) to also cancel production during a wait.
+PHP's native request functions act on PHP's own process state, not the request a Hypervel worker is handling. Replace `header()`, `setcookie()` and `http_response_code()` with the response's `header()`, `cookie()` and `setStatusCode()` methods, read input from the request instead of `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES` and `$_REQUEST`, and use the session store instead of PHP's session-state functions, such as `session_start()`, and `$_SESSION`, which every request in the worker shares. `connection_aborted()` does not report Swoole client disconnects. Replace loops that rely on it with a generator callback passed to `response()->stream()`, or an `IterableStreamedResponse`. See [Canceling Disconnected Streams](/docs/{{version}}/responses#canceling-disconnected-streams) to also cancel production during a wait. [Static analysis](/docs/{{version}}/static-analysis#native-request-apis) reports these functions.
 
 <a name="ai-sdk"></a>
 ### AI SDK
@@ -847,6 +847,8 @@ Framework operations release idle database sessions at the boundaries listed in 
 Do not manually commit or roll back the transaction owned by a `DB::transaction()` closure; Hypervel throws when that closure returns. Let `transaction()` manage completion, or use the [manual transaction API](/docs/{{version}}/database#manually-using-transactions) separately. Balanced nested transactions remain supported.
 
 If your extension inspects transaction records or registers callbacks directly with `DatabaseTransactionsManager`, use the resolved connection's `getNameWithReadWriteType()` instead of `getName()`. Base, `::read`, and `::write` connections can have independent transactions. Always resolve the connection before reading its name; aliases for a shared in-memory SQLite connection resolve to the same session. Ordinary `afterCommit()` and `afterRollBack()` calls already use the correct connection.
+
+Custom `ConnectionResolverInterface` implementations must return a `Connection` from `connection()`, not any `ConnectionInterface`. In tests, mock `Connection` for the connections a mocked resolver, database manager or `DB::shouldReceive('connection')` returns.
 
 When a package constructs `DatabaseStore`, `DatabaseSessionHandler`, `DatabaseQueue`, or `DatabaseBatchRepository` directly, pass the database connection resolver and configured connection name instead of retaining a resolved connection. Framework-configured drivers already use this form.
 

@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Database;
 
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Console\MonitorCommand;
 use Hypervel\Database\Events\DatabaseBusy;
@@ -35,7 +35,7 @@ class DatabaseMonitorCommandTest extends TestCase
 
     public function testMonitorCommandPreservesConnectionNameZero(): void
     {
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $connection->shouldReceive('threadCount')->once()->andReturn(1);
 
         $resolver = m::mock(ConnectionResolverInterface::class);
@@ -49,7 +49,7 @@ class DatabaseMonitorCommandTest extends TestCase
 
     public function testBusyEventIsNotDispatchedWithoutListeners(): void
     {
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $connection->shouldReceive('threadCount')->once()->andReturn(2);
         $resolver = m::mock(ConnectionResolverInterface::class);
         $resolver->shouldReceive('connection')->once()->with('primary')->andReturn($connection);
@@ -67,7 +67,7 @@ class DatabaseMonitorCommandTest extends TestCase
 
     public function testBusyEventIsDispatchedWithAListener(): void
     {
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $connection->shouldReceive('threadCount')->once()->andReturn(2);
         $resolver = m::mock(ConnectionResolverInterface::class);
         $resolver->shouldReceive('connection')->once()->with('primary')->andReturn($connection);

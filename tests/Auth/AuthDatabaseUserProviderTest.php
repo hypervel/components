@@ -8,6 +8,7 @@ use Hypervel\Auth\DatabaseUserProvider;
 use Hypervel\Auth\GenericUser;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Hashing\Hasher;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\PdoConnection;
@@ -42,12 +43,12 @@ class AuthDatabaseUserProviderTest extends TestCase
 
     public function testResolverBackedProviderResolvesTheConfiguredConnectionForEveryOperation(): void
     {
-        $firstConnection = m::mock(ConnectionInterface::class);
+        $firstConnection = m::mock(Connection::class);
         $firstQuery = m::mock(Builder::class);
         $firstConnection->shouldReceive('table')->once()->with('foo')->andReturn($firstQuery);
         $firstQuery->shouldReceive('find')->once()->with(1)->andReturn(['id' => 1, 'name' => 'First']);
 
-        $secondConnection = m::mock(ConnectionInterface::class);
+        $secondConnection = m::mock(Connection::class);
         $secondQuery = m::mock(Builder::class);
         $secondConnection->shouldReceive('table')->once()->with('foo')->andReturn($secondQuery);
         $secondQuery->shouldReceive('find')->once()->with(2)->andReturn(['id' => 2, 'name' => 'Second']);
@@ -63,12 +64,12 @@ class AuthDatabaseUserProviderTest extends TestCase
 
     public function testResolverBackedProviderDoesNotRetainConnectionsAcrossExecutions(): void
     {
-        $firstConnection = m::mock(ConnectionInterface::class);
+        $firstConnection = m::mock(Connection::class);
         $firstQuery = m::mock(Builder::class);
         $firstConnection->shouldReceive('table')->once()->with('foo')->andReturn($firstQuery);
         $firstQuery->shouldReceive('find')->once()->andReturn(['id' => 1, 'name' => 'First']);
 
-        $secondConnection = m::mock(ConnectionInterface::class);
+        $secondConnection = m::mock(Connection::class);
         $secondQuery = m::mock(Builder::class);
         $secondConnection->shouldReceive('table')->once()->with('foo')->andReturn($secondQuery);
         $secondQuery->shouldReceive('find')->once()->andReturn(['id' => 2, 'name' => 'Second']);
@@ -88,7 +89,7 @@ class AuthDatabaseUserProviderTest extends TestCase
 
     public function testResolverBackedProviderUsesTheDefaultConnectionWhenNoNameIsConfigured(): void
     {
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $query = m::mock(Builder::class);
         $connection->shouldReceive('table')->once()->with('foo')->andReturn($query);
         $query->shouldReceive('find')->once()->with(1)->andReturn(null);
@@ -103,7 +104,7 @@ class AuthDatabaseUserProviderTest extends TestCase
 
     public function testResolverContractTakesPrecedenceForObjectsImplementingBothConnectionContracts(): void
     {
-        $resolvedConnection = m::mock(ConnectionInterface::class);
+        $resolvedConnection = m::mock(Connection::class);
         $query = m::mock(Builder::class);
         $resolvedConnection->shouldReceive('table')->once()->with('foo')->andReturn($query);
         $query->shouldReceive('find')->once()->with(1)->andReturn(null);

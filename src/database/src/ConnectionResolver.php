@@ -65,7 +65,7 @@ class ConnectionResolver implements ConnectionResolverInterface
      * Store a stable logical connection in the current coroutine's context.
      * The current physical lease is settled when the coroutine ends.
      */
-    public function connection(UnitEnum|string|null $name = null): ConnectionInterface
+    public function connection(UnitEnum|string|null $name = null): Connection
     {
         $connectionName = ConnectionName::parse($this->connectionName($name));
         $connectionOwnerName = $connectionName->requested;
@@ -73,7 +73,7 @@ class ConnectionResolver implements ConnectionResolverInterface
 
         $connection = CoroutineContext::get($contextKey);
 
-        if ($connection instanceof ConnectionInterface) {
+        if ($connection instanceof Connection) {
             return $connection;
         }
 
@@ -88,8 +88,8 @@ class ConnectionResolver implements ConnectionResolverInterface
 
             $connection = CoroutineContext::get($contextKey);
 
-            if ($connection instanceof ConnectionInterface) {
-                if ($connectionName->isWrite() && $connection instanceof Connection) {
+            if ($connection instanceof Connection) {
+                if ($connectionName->isWrite()) {
                     $connection->useWriteConnectionWhenReading();
                 }
 
@@ -164,7 +164,7 @@ class ConnectionResolver implements ConnectionResolverInterface
     /**
      * Get the current execution's connection without borrowing a pool slot.
      */
-    public function getHeldConnection(UnitEnum|string|null $name = null): ?ConnectionInterface
+    public function getHeldConnection(UnitEnum|string|null $name = null): ?Connection
     {
         return $this->getContextConnection($this->connectionName($name));
     }
@@ -172,12 +172,12 @@ class ConnectionResolver implements ConnectionResolverInterface
     /**
      * Find the context-owned connection, including shared in-memory aliases.
      */
-    private function getContextConnection(string $name): ?ConnectionInterface
+    private function getContextConnection(string $name): ?Connection
     {
         $connectionName = ConnectionName::parse($name);
         $held = CoroutineContext::get($this->getContextKey($connectionName->requested));
 
-        if ($held instanceof ConnectionInterface) {
+        if ($held instanceof Connection) {
             return $held;
         }
 
@@ -187,7 +187,7 @@ class ConnectionResolver implements ConnectionResolverInterface
         if ($pool?->getSharedInMemorySqlitePdo() !== null) {
             $held = CoroutineContext::get($this->getContextKey($pool->getName()));
 
-            if ($held instanceof ConnectionInterface) {
+            if ($held instanceof Connection) {
                 return $held;
             }
         }
@@ -202,7 +202,7 @@ class ConnectionResolver implements ConnectionResolverInterface
     {
         $held = $this->getContextConnection($this->connectionName($name));
 
-        return $held instanceof Connection && $held->hasApplicableTransaction();
+        return $held !== null && $held->hasApplicableTransaction();
     }
 
     /**
@@ -238,7 +238,6 @@ class ConnectionResolver implements ConnectionResolverInterface
             }
         }
 
-        /** @var Connection $connection */
         $connection = $this->connection($name);
 
         try {

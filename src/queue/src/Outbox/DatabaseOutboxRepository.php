@@ -55,7 +55,7 @@ class DatabaseOutboxRepository
     /**
      * Resolve a configured outbox source in the current coroutine.
      */
-    public function getConnection(string $database): ConnectionInterface
+    public function getConnection(string $database): Connection
     {
         if (! in_array($database, $this->databases, true)) {
             throw new InvalidArgumentException("Outbox database [{$database}] is not configured in queue.outbox.databases.");
@@ -85,7 +85,7 @@ class DatabaseOutboxRepository
         $now = $this->currentTime();
         $token = (string) Str::uuid();
         $expiresAt = $now + $this->retryAfter;
-        $skipLocked = $connection instanceof Connection && $connection->supportsSkipLocked();
+        $skipLocked = $connection->supportsSkipLocked();
         $limit = min($limit, $this->maxBindings($connection) - 3);
 
         if ($skipLocked && $connection->getDriverName() === 'pgsql') {

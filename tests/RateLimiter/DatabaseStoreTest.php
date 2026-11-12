@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\RateLimiter;
 
 use Closure;
-use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\RateLimiter\Backoff;
@@ -22,7 +22,7 @@ class DatabaseStoreTest extends TestCase
     public function testInspectionUsesTheConfiguredConnectionTableAndWritePdo(): void
     {
         $connections = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $query = m::mock(Builder::class);
 
         $connections->shouldReceive('connection')->once()->with('limiter')->andReturn($connection);
@@ -50,7 +50,7 @@ class DatabaseStoreTest extends TestCase
     public function testEstablishedNonSqlMutationLocksBeforeReadingServerTimeWithoutInserting(): void
     {
         $connections = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $locked = m::mock(Builder::class);
         $update = m::mock(Builder::class);
         $operations = [];
@@ -123,7 +123,7 @@ class DatabaseStoreTest extends TestCase
         string $clockQuery,
     ): void {
         $connections = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $missing = m::mock(Builder::class);
         $initialize = m::mock(Builder::class);
         $locked = m::mock(Builder::class);
@@ -274,7 +274,7 @@ class DatabaseStoreTest extends TestCase
     public function testSqliteMutationInsertsBeforeReadingTheLockedState(): void
     {
         $connections = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $insert = m::mock(Builder::class);
         $locked = m::mock(Builder::class);
         $update = m::mock(Builder::class);
@@ -345,7 +345,7 @@ class DatabaseStoreTest extends TestCase
     public function testMutatingOperationsRejectUnsupportedPostgresIsolation(string $operation): void
     {
         $connections = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
 
         $connections->shouldReceive('connection')->once()->with('limiter')->andReturn($connection);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
@@ -379,7 +379,7 @@ class DatabaseStoreTest extends TestCase
     public function testMutationRejectsNonStringPostgresIsolation(): void
     {
         $connections = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
 
         $connections->shouldReceive('connection')->once()->with('limiter')->andReturn($connection);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
@@ -399,7 +399,7 @@ class DatabaseStoreTest extends TestCase
     public function testPostgresMutationAllowsDefaultIsolation(): void
     {
         $connections = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $query = m::mock(Builder::class);
 
         $connections->shouldReceive('connection')->once()->with('limiter')->andReturn($connection);
@@ -419,7 +419,7 @@ class DatabaseStoreTest extends TestCase
     public function testMysqlMutationDoesNotInspectPostgresIsolationConfiguration(): void
     {
         $connections = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $query = m::mock(Builder::class);
 
         $connections->shouldReceive('connection')->once()->with('limiter')->andReturn($connection);
@@ -439,7 +439,7 @@ class DatabaseStoreTest extends TestCase
     public function testMutatingOperationsRejectAnActiveTransactionBeforeLimiterSql(string $operation): void
     {
         $connections = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
 
         $connections->shouldReceive('connection')->once()->with('limiter')->andReturn($connection);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(1);

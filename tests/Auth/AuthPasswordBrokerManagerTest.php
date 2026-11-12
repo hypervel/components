@@ -16,7 +16,7 @@ use Hypervel\Contracts\Auth\PasswordBroker as PasswordBrokerContract;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Hashing\Hasher;
-use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
@@ -315,7 +315,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
             ->once()
             ->with('admins')
             ->andReturn(m::mock(UserProvider::class));
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $resolutions = 0;
         $database->shouldReceive('connection')
             ->once()
@@ -392,7 +392,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
             ->once()
             ->with('users')
             ->andReturn(m::mock(UserProvider::class));
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $database->shouldReceive('connection')->once()->with(null)->andReturn($connection);
 
         $broker = (new PasswordBrokerManager($container))->broker('users');

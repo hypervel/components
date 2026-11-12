@@ -841,7 +841,7 @@ class Migrator
                 $connection
             );
         }
-        // @phpstan-ignore return.type (resolver returns ConnectionInterface but concrete Connection in practice)
+
         return $this->resolver->connection($connection);
     }
 

@@ -10,7 +10,7 @@ use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
@@ -282,7 +282,7 @@ class QueueJobTest extends TestCase
                 ],
             ],
         ]);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $connection->shouldReceive('rollBack')->once()->with(0);
         $database = m::mock(ConnectionResolverInterface::class);
         $database->shouldReceive('connection')->once()->with($databaseName)->andReturn($connection);

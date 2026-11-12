@@ -12,7 +12,7 @@ interface CachedConnectionResolver
     /**
      * Get an already resolved connection from the cache.
      */
-    public function getResolvedConnection(string $name): ?ConnectionInterface;
+    public function getResolvedConnection(string $name): ?Connection;
 
     /**
      * Flush a cached connection.

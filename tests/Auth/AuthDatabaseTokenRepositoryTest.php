@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Auth;
 use Hypervel\Auth\Passwords\DatabaseTokenRepository;
 use Hypervel\Contracts\Auth\CanResetPassword;
 use Hypervel\Contracts\Hashing\Hasher;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
@@ -126,13 +127,13 @@ class AuthDatabaseTokenRepositoryTest extends TestCase
 
     public function testResolverBackedRepositoryResolvesTheConfiguredConnectionForEveryOperation(): void
     {
-        $firstConnection = m::mock(ConnectionInterface::class);
+        $firstConnection = m::mock(Connection::class);
         $firstQuery = m::mock(Builder::class);
         $firstConnection->shouldReceive('table')->once()->with('table')->andReturn($firstQuery);
         $firstQuery->shouldReceive('where')->once()->with('created_at', '<', m::any())->andReturnSelf();
         $firstQuery->shouldReceive('delete')->once();
 
-        $secondConnection = m::mock(ConnectionInterface::class);
+        $secondConnection = m::mock(Connection::class);
         $secondQuery = m::mock(Builder::class);
         $secondConnection->shouldReceive('table')->once()->with('table')->andReturn($secondQuery);
         $secondQuery->shouldReceive('where')->once()->with('created_at', '<', m::any())->andReturnSelf();
@@ -155,7 +156,7 @@ class AuthDatabaseTokenRepositoryTest extends TestCase
 
     public function testResolverBackedRepositoryUsesTheDefaultConnectionWhenNoNameIsConfigured(): void
     {
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $resolver = m::mock(ConnectionResolverInterface::class);
         $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection);
 
@@ -166,7 +167,7 @@ class AuthDatabaseTokenRepositoryTest extends TestCase
 
     public function testResolverContractTakesPrecedenceForObjectsImplementingBothConnectionContracts(): void
     {
-        $resolvedConnection = m::mock(ConnectionInterface::class);
+        $resolvedConnection = m::mock(Connection::class);
         $connectionResolver = m::mock(ConnectionInterface::class . ', ' . ConnectionResolverInterface::class);
         $connectionResolver->shouldReceive('connection')->once()->with('passwords')->andReturn($resolvedConnection);
 

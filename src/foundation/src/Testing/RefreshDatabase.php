@@ -6,7 +6,6 @@ namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Database\Connection as DatabaseConnection;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
@@ -304,10 +303,7 @@ trait RefreshDatabase
                     RefreshDatabaseState::$migrated = false;
                 }
 
-                if ($connection instanceof DatabaseConnection) {
-                    $connection->forgetRecordModificationState();
-                }
-
+                $connection->forgetRecordModificationState();
                 $connection->rollBack(0);
             } finally {
                 if ($dispatcher !== null) {

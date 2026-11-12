@@ -16,7 +16,6 @@ use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\Connection;
-use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\MySqlConnection;
@@ -96,13 +95,15 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertSame('Emails', $queue->getQueue(UnitQueueName::Emails));
     }
 
-    public function testLockForPoppingUsesTheConnectionCapability(): void
+    #[TestWith([true, 'FOR UPDATE SKIP LOCKED'])]
+    #[TestWith([false, true])]
+    public function testLockForPoppingUsesTheConnectionCapability(bool $supportsSkipLocked, bool|string $lock): void
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
         $connection = m::mock(Connection::class);
 
         $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection);
-        $connection->shouldReceive('supportsSkipLocked')->once()->andReturn(true);
+        $connection->shouldReceive('supportsSkipLocked')->once()->andReturn($supportsSkipLocked);
 
         $queue = new TestDatabaseQueue(
             resolver: $resolver,
@@ -112,23 +113,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             currentTime: 1732502704,
         );
 
-        $this->assertSame('FOR UPDATE SKIP LOCKED', $queue->lockForPopping());
-    }
-
-    public function testLockForPoppingUsesAConservativeFallbackForInterfaceOnlyConnections(): void
-    {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->once()->with(null)->andReturn(m::mock(ConnectionInterface::class));
-
-        $queue = new TestDatabaseQueue(
-            resolver: $resolver,
-            connection: null,
-            table: 'table',
-            default: 'default',
-            currentTime: 1732502704,
-        );
-
-        $this->assertTrue($queue->lockForPopping());
+        $this->assertSame($lock, $queue->lockForPopping());
     }
 
     #[DataProvider('transientReservationFailureProvider')]
@@ -205,7 +190,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             currentTime: 1732502704,
         );
         $queue->setContainer($container = m::spy(Container::class)->makePartial());
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $resolver->expects('connection')->andReturn($connection);
         $query = m::mock(Builder::class);
         $connection->expects('table')->with('table')->andReturn($query);
@@ -260,7 +245,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             currentTime: 1000,
         );
         $queue->setContainer($container = m::spy(Container::class)->makePartial());
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $query = m::mock(Builder::class);
         $connection->expects('table')->with('table')->andReturn($query);
         $resolver->expects('connection')->andReturn($connection);
@@ -308,7 +293,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             currentTime: 1732502704,
         );
         $queue->setContainer($container = m::spy(Container::class)->makePartial());
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $resolver->expects('connection')->andReturn($connection);
         $query = m::mock(Builder::class);
         $connection->expects('table')->with('table')->andReturn($query);
@@ -327,7 +312,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testPushUsesPropertiesDeclaredOnChildClassOverInheritedAttributes(): void
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $database = m::mock(ConnectionInterface::class);
+        $database = m::mock(Connection::class);
         $resolver->expects('connection')->with(null)->andReturn($database);
         $queue = new DatabaseQueue($resolver, null, 'table', 'default');
         $queue->setContainer($container = m::spy(Container::class)->makePartial());
@@ -354,7 +339,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testPushStillUsesAttributesDeclaredOnSameClassOverDefaultProperties(): void
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $database = m::mock(ConnectionInterface::class);
+        $database = m::mock(Connection::class);
         $resolver->expects('connection')->with(null)->andReturn($database);
         $queue = new DatabaseQueue($resolver, null, 'table', 'default');
         $queue->setContainer($container = m::spy(Container::class)->makePartial());
@@ -428,7 +413,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             availableAt: 1732502704,
         );
         $queue->setContainer(new Container);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $query = m::mock(Builder::class);
         $connection->expects('table')->with('table')->andReturn($query);
         $resolver->expects('connection')->andReturn($connection);
@@ -514,7 +499,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         );
         $queue->setContainer(new Container);
 
-        $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection = m::mock(ConnectionInterface::class));
+        $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection = m::mock(Connection::class));
         $connection->shouldReceive('table')->once()->with('table')->andReturn($query = m::mock(Builder::class));
         $query->shouldReceive('insert')->once()->andReturnFalse();
 
@@ -582,7 +567,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $exception = new RuntimeException('Listener failed.');
         $notified = [];
 
-        $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection = m::mock(ConnectionInterface::class));
+        $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection = m::mock(Connection::class));
         $connection->shouldReceive('transactionLevel')->twice()->andReturn(0);
         $connection->shouldReceive('table')->once()->with('table')->andReturn($query = m::mock(Builder::class));
         $query->shouldReceive('insert')->once()->andReturnTrue();
@@ -617,7 +602,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             currentTime: 1732502704,
         );
         $queue->setContainer(new Container);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $resolver->expects('connection')->andReturn($connection);
         $query = m::mock(Builder::class);
         $connection->expects('table')->with('table')->andReturn($query);
@@ -645,7 +630,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $queue->setContainer($container);
         $queue->setConnectionName('database');
 
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $resolver->shouldReceive('connection')->with(null)->andReturn($connection)->once();
         $query->shouldReceive('insert')->once()->andReturnUsing(function (array $records): bool {
@@ -700,7 +685,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $queue->setConnectionName('database');
 
         $exception = new RuntimeException('Insert failed.');
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $resolver->shouldReceive('connection')->with(null)->andReturn($connection)->once();
         $query->shouldReceive('insert')->once()->andThrow($exception);
@@ -753,7 +738,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $queue->setConnectionName('database');
 
         $exception = new RuntimeException('Insert failed.');
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $resolver->shouldReceive('connection')->with(null)->andReturn($connection)->once();
         $query->shouldReceive('insert')->once()->andThrow($exception);
@@ -876,7 +861,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $queue->setContainer($container);
         $queue->setConnectionName('database');
 
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $resolver->shouldReceive('connection')->with(null)->andReturn($connection)->once();
         $gate = $this->armCurrentCoroutineCancellation();
@@ -959,7 +944,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $queue->setContainer($container);
         $deferredQueue->setContainer(new Container);
 
-        $immediateConnection = m::mock(ConnectionInterface::class);
+        $immediateConnection = m::mock(Connection::class);
         $immediateConnection->shouldReceive('table')->with('table')->andReturn($immediateQuery = m::mock(Builder::class));
         $immediateResolver->shouldReceive('connection')->with(null)->andReturn($immediateConnection)->once();
         $immediateRecords = [];
@@ -969,7 +954,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             return true;
         });
 
-        $deferredConnection = m::mock(ConnectionInterface::class);
+        $deferredConnection = m::mock(Connection::class);
         $deferredConnection->shouldReceive('table')->with('table')->andReturn($deferredQuery = m::mock(Builder::class));
         $deferredResolver->shouldReceive('connection')->with(null)->andReturn($deferredConnection)->once();
         $deferredRecords = [];
@@ -1048,7 +1033,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $container->instance('db.transactions', $transactions);
 
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $database = m::mock(ConnectionInterface::class);
+        $database = m::mock(Connection::class);
         $resolver->expects('connection')->with(null)->andReturn($database);
         $queue = new DatabaseQueue($resolver, null, 'table', 'default');
         $queue->setContainer($container);
@@ -1225,7 +1210,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testTotalSize(): void
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $database = m::mock(ConnectionInterface::class);
+        $database = m::mock(Connection::class);
         $resolver->expects('connection')->with(null)->andReturn($database);
         $queue = new TestDatabaseQueue($resolver, null, 'table', 'default', 1732502704);
         $queue->setContainer(new Container);
@@ -1240,7 +1225,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testTotalPendingSize(): void
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $database = m::mock(ConnectionInterface::class);
+        $database = m::mock(Connection::class);
         $resolver->expects('connection')->with(null)->andReturn($database);
         $queue = new TestDatabaseQueue($resolver, null, 'table', 'default', 1732502704);
         $queue->setContainer(new Container);
@@ -1257,7 +1242,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testTotalDelayedSize(): void
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $database = m::mock(ConnectionInterface::class);
+        $database = m::mock(Connection::class);
         $resolver->expects('connection')->with(null)->andReturn($database);
         $queue = new TestDatabaseQueue($resolver, null, 'table', 'default', 1732502704);
         $queue->setContainer(new Container);
@@ -1274,7 +1259,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testTotalReservedSize(): void
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $database = m::mock(ConnectionInterface::class);
+        $database = m::mock(Connection::class);
         $resolver->expects('connection')->with(null)->andReturn($database);
         $queue = new TestDatabaseQueue($resolver, null, 'table', 'default', 1732502704);
         $queue->setContainer(new Container);
@@ -1334,7 +1319,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     private function createFailingReservationQueue(Throwable $failure): array
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
         $connection->shouldReceive('transactionLevel')->andReturn(0);
         $connection->shouldReceive('transaction')->once()->andReturnUsing(static fn (Closure $callback): mixed => $callback());
@@ -1364,7 +1349,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     private function createInspectionQueue(): array
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $query = m::mock(Builder::class);
         $resolver->expects('connection')->with(null)->andReturn($connection);
         $connection->expects('table')->with('table')->andReturn($query);
