@@ -156,6 +156,7 @@ class SafeSocket implements SocketInterface
         $started = false;
 
         try {
+            // @phpstan-ignore hypervel.rawCoroutine (the engine package sits below hypervel/coroutine, and the send loop catches every Throwable)
             Coroutine::create(function () use (&$started): void {
                 $started = true;
 

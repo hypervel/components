@@ -62,6 +62,10 @@ parameters:
     # Off by default: existing migrations should not be edited.
     checkMigrationColumnTypes: false
     checkBindingCycles: true
+    noRawCoroutines: true
+    checkSocialiteProviders: true
+    checkSwooleTables: true
+    checkBindWhenConditions: true
     noRawSleepCalls: true
     noLegacyModelScopes: true
     noLegacyModelProperties: true
@@ -123,6 +127,10 @@ parametersSchema:
     checkObserverAttributes: bool()
     checkMigrationColumnTypes: bool()
     checkBindingCycles: bool()
+    noRawCoroutines: bool()
+    checkSocialiteProviders: bool()
+    checkSwooleTables: bool()
+    checkBindWhenConditions: bool()
     noRawSleepCalls: bool()
     noLegacyModelScopes: bool()
     noLegacyModelProperties: bool()

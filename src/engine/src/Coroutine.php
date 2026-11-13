@@ -36,6 +36,7 @@ class Coroutine implements CoroutineInterface
     public static function create(callable $callable, mixed ...$data): static
     {
         $coroutine = new static($callable);
+        // @phpstan-ignore hypervel.rawCoroutine (the engine primitive: its callers contain the callback)
         $coroutine->execute(...$data);
         return $coroutine;
     }
@@ -47,6 +48,7 @@ class Coroutine implements CoroutineInterface
     {
         // Swoole warns when its coroutine limit is exceeded; expose that native
         // failure through the typed framework exception instead of two signals.
+        // @phpstan-ignore hypervel.rawCoroutine (the engine primitive: its callers contain the callback)
         $id = @SwooleCo::create($this->callable, ...$data);
 
         if ($id === false) {

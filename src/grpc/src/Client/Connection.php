@@ -457,6 +457,7 @@ final class Connection
         $this->receiving = true;
 
         try {
+            // @phpstan-ignore hypervel.rawCoroutine (receive() contains cancellation and receiver failures as the terminal owner)
             Coroutine::create(function (): void {
                 $this->receiverCoroutineId = Coroutine::id();
                 $this->receive();

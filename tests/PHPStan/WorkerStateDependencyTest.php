@@ -76,6 +76,21 @@ class WorkerStateDependencyTest extends ResultCacheTestCase
     }
 
     /**
+     * Whether a wrapping exception keeps the cancellation depends on its constructor's body, which
+     * exported nodes do not hold.
+     */
+    public function testChangedExceptionConstructorsRecheckUnchangedCatches(): void
+    {
+        $applicationPath = $this->copyApplication();
+
+        $this->assertSame([], $this->diagnostics($this->analyse($applicationPath, reuseCollectedDataRuleErrors: true), 0));
+
+        $this->edit($applicationPath . '/app/ImportFailed.php', "parent::__construct('Import failed.', 0, \$cause);", 'parent::__construct($cause->getMessage());');
+
+        $this->assertSame(['ImportJob.php:17 hypervel.cancellation.swallowed'], $this->diagnostics($this->analyse($applicationPath, reuseCollectedDataRuleErrors: true), 1));
+    }
+
+    /**
      * Whether a call passes a parameter's default depends on the declared default, which exported
      * nodes record only as present, and on the constants it reads, which they do not hold at all.
      */

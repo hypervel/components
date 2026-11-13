@@ -155,6 +155,7 @@ class Coroutine
      */
     private static function createWithContext(callable $callable, array $context, ?Closure $wrapper): int
     {
+        // @phpstan-ignore hypervel.rawCoroutine (the framework wrapper: its callback catches and reports every exception)
         $coroutine = Co::create(static function () use ($callable, $context, $wrapper): void {
             try {
                 if ($wrapper === null) {

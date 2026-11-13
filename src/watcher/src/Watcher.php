@@ -44,6 +44,7 @@ class Watcher
         try {
             $this->strategy?->start();
 
+            // @phpstan-ignore hypervel.rawCoroutine (the callback catches every Throwable, including cancellation, and the command rethrows it)
             Coroutine::create(function () use ($channel, $driverFinished, &$driverFailure, &$driverStarted): void {
                 $driverStarted = true;
 

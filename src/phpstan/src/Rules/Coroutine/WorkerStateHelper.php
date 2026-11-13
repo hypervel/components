@@ -355,10 +355,6 @@ class WorkerStateHelper
      */
     public function getResolvedAbstracts(CallLike $call, Scope $scope): ?array
     {
-        if ($call->isFirstClassCallable()) {
-            return null;
-        }
-
         $signature = match (true) {
             $call instanceof FuncCall => $call->name instanceof Name
                 ? self::RESOLVING_FUNCTIONS[strtolower($this->reflectionProvider->resolveFunctionName($call->name, $scope) ?? '')] ?? null
@@ -375,7 +371,32 @@ class WorkerStateHelper
             default => null,
         };
 
-        if ($signature === null || array_any($call->getArgs(), static fn (Arg $argument): bool => $argument->unpack)) {
+        return $signature === null ? null : $this->getRequestedAbstracts($call, $signature, $scope);
+    }
+
+    /**
+     * Get the abstracts a resolution without parameters requests from a receiver known to be the
+     * container, such as the container a #[BindWhen] condition receives, or null for any other call.
+     *
+     * @return null|list<string>
+     */
+    public function getContainerResolvedAbstracts(MethodCall $call, Scope $scope): ?array
+    {
+        $signature = $call->name instanceof Identifier ? self::RESOLVING_METHODS[$call->name->toLowerString()] ?? null : null;
+
+        return $signature === null ? null : $this->getRequestedAbstracts($call, $signature, $scope);
+    }
+
+    /**
+     * Get the abstracts a resolving call with the given signature requests, or null when it may pass parameters or its abstract isn't a constant string.
+     *
+     * @param array{string, bool} $signature
+     *
+     * @return null|list<string>
+     */
+    private function getRequestedAbstracts(CallLike $call, array $signature, Scope $scope): ?array
+    {
+        if ($call->isFirstClassCallable() || array_any($call->getArgs(), static fn (Arg $argument): bool => $argument->unpack)) {
             return null;
         }
 
