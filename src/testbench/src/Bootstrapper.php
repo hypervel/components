@@ -38,6 +38,11 @@ class Bootstrapper
     protected static ?string $runtimeSourcePath = null;
 
     /**
+     * The working package's vendor directory, which the runtime copy links when its skeleton has none.
+     */
+    protected static ?string $runtimeVendorPath = null;
+
+    /**
      * Bootstrap the testbench environment.
      *
      * @param null|string $configurationPath the directory to load testbench.yaml from, instead of resolveConfigurationPath()
@@ -125,6 +130,17 @@ class Bootstrapper
     public static function runtimeSourcePath(): ?string
     {
         return static::$runtimeSourcePath;
+    }
+
+    /**
+     * Get the vendor directory the runtime copy created by this process links when its skeleton has none.
+     *
+     * Static analysis tracks the copy's Composer metadata through it, because the link is
+     * deleted with the copy.
+     */
+    public static function runtimeVendorPath(): ?string
+    {
+        return static::$runtimeVendorPath;
     }
 
     /**
@@ -270,6 +286,7 @@ class Bootstrapper
         $runtimePath = $tempDir . "/hypervel-components-testbench-{$token}-{$pid}";
 
         $filesystem = static::getFilesystem();
+        $vendorPath = Composer::vendorPath($workingPath);
 
         static::purgeStaleRuntimeCopies($tempDir, $pid);
 
@@ -286,7 +303,7 @@ class Bootstrapper
                 throw new RuntimeException("Unable to create runtime path [{$runtimePath}].");
             }
 
-            if (! static::copySkeleton($filesystem, $sourcePath, $runtimePath, Composer::vendorPath($workingPath))) {
+            if (! static::copySkeleton($filesystem, $sourcePath, $runtimePath, $vendorPath)) {
                 throw new RuntimeException("Unable to create the Testbench runtime copy at [{$runtimePath}].");
             }
 
@@ -320,6 +337,7 @@ class Bootstrapper
 
         static::$runtimePath = $runtimePath;
         static::$runtimeSourcePath = $sourcePath;
+        static::$runtimeVendorPath = $vendorPath;
 
         register_shutdown_function(static function () use ($pid): void {
             // A forked child inherits this callback but owns no runtime copy.
@@ -499,6 +517,7 @@ class Bootstrapper
 
         static::$runtimePath = null;
         static::$runtimeSourcePath = null;
+        static::$runtimeVendorPath = null;
     }
 
     /**
