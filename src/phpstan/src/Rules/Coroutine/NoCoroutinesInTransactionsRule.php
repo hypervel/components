@@ -128,6 +128,11 @@ class NoCoroutinesInTransactionsRule implements Rule
      */
     public function processNode(Node $node, Scope $scope): array
     {
+        // PHPStan also analyzes a nullsafe call as a method call.
+        if ($node instanceof NullsafeMethodCall) {
+            return [];
+        }
+
         // Every call reaches this rule, so cheap name and call-stack checks come before reflection.
         $name = $this->getCalledName($node);
 

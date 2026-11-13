@@ -166,17 +166,18 @@ class WorkerStateRule implements Rule
      * Get the diagnostic for a collected property write, choosing an unbounded cache before shared
      * or static state, or null when the write is fine.
      *
-     * @param array{static: bool, class: string, property: string, line: int, function: FunctionFacts, state: null|string, parameter: null|string, cacheKey: bool} $write
+     * @param array{static: bool, class: string, property: string, line: int, function: FunctionFacts, state: null|string, parameter: null|string, cacheKey: bool, copied: bool} $write
      * @param null|string $state the state the write keeps, unless it is a fresh constructor parameter
      *
      * @return null|Diagnostic
      */
     private function checkWrite(array $write, ?string $context, ?string $state, WorkerLifetimes $lifetimes): ?array
     {
-        // A queued listener's handler that runs on a clone writes to that job's copy.
-        $shared = ! $write['static']
-            && $lifetimes->isShared($write['class'])
-            && ($write['function']['method'] === null || ! $lifetimes->runsOnClone($write['class'], $write['function']['method']));
+        $method = $write['function']['method'];
+
+        // Each job's clone of a queued listener has its own properties and arrays, but shares the objects they hold.
+        $cloneOnly = $write['copied'] && $method !== null && $lifetimes->runsOnClone($write['class'], $method);
+        $shared = ! $write['static'] && ! $cloneOnly && $lifetimes->isShared($write['class']);
 
         if ($this->helper->checkUnboundedWorkerCaches && $write['cacheKey'] && ($write['static'] || $shared)) {
             return [
@@ -200,15 +201,15 @@ class WorkerStateRule implements Rule
             // other subclasses than the shared ones.
             $handledShared = $write['function']['closure'] || $write['function']['context'] !== null
                 ? $shared
-                : $write['function']['method'] !== null && $lifetimes->isContextShared($write['class'], $write['function']['method']);
+                : $method !== null && ! $cloneOnly && $lifetimes->isContextShared($write['class'], $method);
 
-            if ($context !== null && $handledShared && $write['function']['method'] !== null) {
+            if ($context !== null && $handledShared && $method !== null) {
                 return [
                     'identifier' => 'hypervel.workerSharedState',
                     'message' => sprintf(
                         '%s::%s() writes $this->%s %s, but the container shares %s across concurrent requests.',
                         $write['class'],
-                        $write['function']['method'],
+                        $method,
                         $write['property'],
                         WorkerStateAnalysis::describeContext($context),
                         $write['class'],

@@ -79,6 +79,12 @@ class BorrowedResourceEscapeRuleTest extends RuleTestCase
             $captured('parallel', 217),
             $pinned('The PDO taken inside withPinnedSession()', 'is returned', 247),
             $pinned('The PDO taken inside withPinnedSession()', 'is stored on a property', 249),
+            $borrowed($connection, 'is stored on a property', 309),
+            $captured('go', 318),
+            $captured('go', 323),
+            $captured('go', 329),
+            $borrowed($connection, 'is stored in a by-reference variable', 336),
+            $borrowed($client, 'is stored on a property', 342),
         ]);
     }
 

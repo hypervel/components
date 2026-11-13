@@ -15,13 +15,14 @@ use function Swoole\Coroutine\run;
 
 class RawCoroutines
 {
-    public function spawns(): void
+    public function spawns(?EngineCoroutine $pending): void
     {
         SwooleCoroutine::create(static function (): void {});
         swooleGo(static function (): void {});
         EngineCoroutine::create(static function (): void {});
         (new EngineCoroutine(static function (): void {}))->execute();
         InheritingEngineCoroutine::create(static function (): void {});
+        $pending?->execute();
 
         Coroutine::create(static function (): void {});
         Coroutine::fork(static function (): void {});

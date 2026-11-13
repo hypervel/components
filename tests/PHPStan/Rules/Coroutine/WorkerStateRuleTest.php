@@ -51,15 +51,20 @@ use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ScopedHelperController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\SendReportListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ServiceContract;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\SingletonBoundService;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\BaseRegistryListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\CatchAllObserver;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\ClonedEvent;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\ClonedListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\CollectingListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\JobListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\Post;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\ProviderObserver;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\QueuedListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\QueuedObserver;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\Registry;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\RegistryListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\RequestListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\SharedRegistry;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\WildcardJobListener;
 use PhpParser\Node;
 use PHPStan\Collectors\Collector;
@@ -190,25 +195,38 @@ class WorkerStateRuleTest extends RuleTestCase
             self::STATIC_TIP,
         ];
 
+        $jobWrite = static fn (string $class, string $method, string $property, int $line): array => [
+            sprintf('%1$s::%2$s() writes $this->%3$s %4$s, but the container shares %1$s across concurrent requests.', self::LISTENERS_NAMESPACE . $class, $method, $property, self::JOB),
+            $line,
+            self::SHARED_WRITE_TIP,
+        ];
+        $request = static fn (string $class, string $property, int $line): array => [
+            sprintf(self::SHARED_STATE, self::LISTENERS_NAMESPACE . $class, $property, 'the current request'),
+            $line,
+            self::SHARED_STATE_TIP,
+        ];
+
         $this->analyse([__DIR__ . '/data/worker-state-listeners.php'], [
-            $write('RequestListener', 'seen', self::REQUEST, 23),
-            $write('JobListener', 'recorded', self::JOB, 36),
-            $write('QueuedListener', 'recorded', self::JOB, 49),
-            $write('ProviderObserver', 'created', self::OPERATION, 62),
-            $write('DirectObserver', 'audited', self::OPERATION, 89),
-            $write('RepeatedObserver', 'updated', self::OPERATION, 110),
-            $write('BaseObserver', 'deleted', self::OPERATION, 133),
-            $write('AuditObserver', 'archived', self::OPERATION, 146),
-            $write('WildcardJobListener', 'seen', self::JOB, 184),
-            $write('CatchAllObserver', 'observed', self::OPERATION, 197),
-            $write('QueuedObserver', 'observed', self::REQUEST, 214),
-            [sprintf(self::CONFIG, self::REQUEST), 215, self::CONFIG_TIP],
-            [
-                sprintf('%1$s::failed() writes $this->failures %2$s, but the container shares %1$s across concurrent requests.', self::LISTENERS_NAMESPACE . 'ClonedListener', self::JOB),
-                267,
-                self::SHARED_WRITE_TIP,
-            ],
-            [sprintf(self::SHARED_STATE, self::LISTENERS_NAMESPACE . 'ClonedListener', 'latest', 'the current request'), 275, self::SHARED_STATE_TIP],
+            $write('RequestListener', 'seen', self::REQUEST, 24),
+            $write('JobListener', 'recorded', self::JOB, 37),
+            $write('QueuedListener', 'recorded', self::JOB, 50),
+            $write('ProviderObserver', 'created', self::OPERATION, 63),
+            $write('DirectObserver', 'audited', self::OPERATION, 90),
+            $write('RepeatedObserver', 'updated', self::OPERATION, 111),
+            $write('BaseObserver', 'deleted', self::OPERATION, 134),
+            $write('AuditObserver', 'archived', self::OPERATION, 147),
+            $write('WildcardJobListener', 'seen', self::JOB, 185),
+            $write('CatchAllObserver', 'observed', self::OPERATION, 198),
+            $write('QueuedObserver', 'observed', self::REQUEST, 215),
+            [sprintf(self::CONFIG, self::REQUEST), 216, self::CONFIG_TIP],
+            $jobWrite('ClonedListener', 'failed', 'failures', 275),
+            $request('ClonedListener', 'latest', 283),
+            $request('CollectingListener', 'values', 313),
+            $jobWrite('CollectingListener', 'handle', 'groups', 314),
+            $jobWrite('CollectingListener', 'handle', 'totals', 315),
+            $jobWrite('CollectingListener', 'count', 'values', 324),
+            $request('Registry', 'request', 337),
+            $request('BaseRegistry', 'request', 363),
         ]);
     }
 
@@ -377,6 +395,9 @@ class WorkerStateRuleTest extends RuleTestCase
         $events->listen('*', CatchAllObserver::class . '@observe');
         $events->observe(RequestReceived::class, QueuedObserver::class);
         $events->listen(ClonedEvent::class, ClonedListener::class);
+        $events->listen(ClonedEvent::class, CollectingListener::class);
+        $events->listen(ClonedEvent::class, RegistryListener::class);
+        $events->listen(ClonedEvent::class, BaseRegistryListener::class);
         $bus->map([MappedCommand::class => MappedHandler::class]);
 
         $container->bind(BoundFreshService::class);
@@ -389,6 +410,9 @@ class WorkerStateRuleTest extends RuleTestCase
         $container->when(ConsumerService::class)->needs(ContextualDependency::class)->give(ContextualImplementation::class);
         $container->when(OtherConsumer::class)->needs(User::class)->give(static fn (): User => new User);
         $container->when(ContextualConfigJob::class)->needs(Repository::class)->give(LocalConfig::class);
+        // Shared on their own as well as through the cloned listeners that extend them.
+        $container->singleton(Registry::class);
+        $container->singleton(SharedRegistry::class);
 
         return $container;
     }

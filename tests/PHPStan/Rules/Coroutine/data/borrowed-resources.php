@@ -296,3 +296,96 @@ class ReplicaConnection extends PdoConnection
         return new PDO('sqlite::memory:');
     }
 }
+
+class OrderedEscapes
+{
+    private array $items = [];
+
+    public function escapes(bool $cached, RedisConnection $other): void
+    {
+        Redis::withConnection(function (RedisConnection $connection) {
+            $items = [];
+            $items[] = $connection;
+            $this->items = $items;
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($cached) {
+            $task = fn () => $connection->get('key');
+
+            if ($cached) {
+                $task = fn () => 'cached';
+            }
+
+            go($task);
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($other) {
+            $task = fn () => $connection->get('key');
+            $connection = $other;
+            go($task);
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $task = function () use (&$connection) {
+                return $connection->get('key');
+            };
+            go($task);
+        });
+
+        $held = null;
+
+        Redis::withConnection(function (RedisConnection $connection) use (&$held) {
+            array_map(function () use ($connection, &$held) {
+                $held = $connection;
+            }, [1]);
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = $connection->client();
+            $store = function () use (&$client) {
+                $this->items = [$client];
+            };
+            $store();
+        });
+    }
+
+    public function staysInside(RedisConnection $other): void
+    {
+        Redis::withConnection(function (RedisConnection $connection) {
+            $items = [];
+            $items[] = $connection;
+            $this->consume($items);
+            $items = [];
+
+            return $items;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $task = fn () => $connection->get('key');
+            $value = $task();
+            $task = fn () => $value;
+            go($task);
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($other) {
+            $task = function () use (&$connection) {
+                return $connection->get('key');
+            };
+            $connection = $other;
+            go($task);
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($other) {
+            $task = function () use (&$connection) {
+                return $connection->get('key');
+            };
+            $connection = $other;
+
+            return $task;
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($other) {
+            $store = function () use (&$connection) {
+                $this->items = [$connection];
+            };
+            $connection = $other;
+            $store();
+        });
+    }
+
+    private function consume(array $items): void
+    {
+    }
+}

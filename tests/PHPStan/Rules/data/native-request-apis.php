@@ -27,4 +27,22 @@ class LegacyController
 
         return $_GET['page'] . $_SERVER['REQUEST_URI'] . $_ENV['APP_NAME'];
     }
+
+    /**
+     * @param array<mixed> $arguments
+     */
+    public function read(int $type, array $arguments): void
+    {
+        getallheaders();
+        apache_request_headers();
+        filter_input(INPUT_GET, 'page');
+        filter_input_array(type: INPUT_POST);
+        filter_has_var(INPUT_COOKIE, 'seen');
+        filter_has_var(input_type: INPUT_GET, var_name: 'page');
+
+        filter_input(INPUT_SERVER, 'REQUEST_URI');
+        filter_input(INPUT_ENV, 'APP_NAME');
+        filter_input($type, 'page');
+        filter_input(...$arguments);
+    }
 }

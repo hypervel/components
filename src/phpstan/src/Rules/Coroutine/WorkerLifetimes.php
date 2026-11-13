@@ -167,7 +167,7 @@ class WorkerLifetimes
     /** @var null|array<string, true> lowercase names of the worker-shared classes and their parents */
     private ?array $sharedClasses = null;
 
-    /** @var array<string, array{null|string, bool}> lowercase "class::method" => the operation it handles, if known, and whether a shared instance runs it */
+    /** @var array<string, array{null|string, bool}> lowercase "class::method" => the operation it handles, if known, and whether a shared instance, or a clone of one, runs it */
     private array $contexts = [];
 
     /** @var array<string, array<string, true>> lowercase "class::method" => the classes of the receivers it handles an operation for */
@@ -176,8 +176,14 @@ class WorkerLifetimes
     /** @var list<array{string, string, string, null|string, bool, bool}> the receiver, declaring class, method, operation, whether the receiver is shared and whether it is a clone, of each context still to propagate */
     private array $pendingContexts = [];
 
-    /** @var array<string, true> lowercase "class::method" => it handles an operation on a clone of a queued listener */
+    /** @var array<string, array<string, true>> lowercase "class::method" => the queued listeners it handles an operation for on a clone */
     private array $cloned = [];
+
+    /** @var array<string, true> lowercase "class::method" => a worker-shared instance itself handles an operation with it */
+    private array $direct = [];
+
+    /** @var array<string, true> lowercase "class::method" => only clones of the worker-shared instances run it */
+    private array $cloneOnly = [];
 
     /** @var array<string, null|string> lowercase "class::method::parameter" => the canonical abstract the container injects on every call it makes, or null when that is not known */
     private array $injectedParameters = [];
@@ -257,6 +263,7 @@ class WorkerLifetimes
         }
 
         $this->propagateContexts($helperCalls);
+        $this->discoverCloneOnlyMethods();
     }
 
     /**
@@ -313,14 +320,13 @@ class WorkerLifetimes
     }
 
     /**
-     * Determine whether the method handles operations only on clones of a queued listener, which
-     * CallQueuedListener makes of the container's instance for each job, so its writes stay with the job.
+     * Determine whether only clones of a queued listener run the method, which CallQueuedListener makes of
+     * the container's instance for each job. The clone is shallow, so only writes that replace the clone's
+     * own properties and arrays stay with the job.
      */
     public function runsOnClone(string $class, string $method): bool
     {
-        $key = strtolower($class . '::' . $method);
-
-        return isset($this->cloned[$key]) && ! ($this->contexts[$key][1] ?? false);
+        return isset($this->cloneOnly[strtolower($class . '::' . $method)]);
     }
 
     /**
@@ -585,7 +591,9 @@ class WorkerLifetimes
         $this->pendingContexts[] = [$receiver, $declaringClass, $method, $context, $shared, $cloned];
 
         if ($cloned) {
-            $this->cloned[$key] = true;
+            $this->cloned[$key][$receiver] = true;
+        } elseif ($shared) {
+            $this->direct[$key] = true;
         }
     }
 
@@ -655,6 +663,35 @@ class WorkerLifetimes
         }
 
         return $method->isStatic() || strtolower($method->getName()) === '__construct' ? null : $method;
+    }
+
+    /**
+     * Find the methods only clones of queued listeners run: no worker-shared instance runs one itself, and every
+     * other worker-shared class running the same declaration is one of those listeners. A parent's helper stays
+     * shared when the container also shares the parent or another subclass that runs it.
+     */
+    private function discoverCloneOnlyMethods(): void
+    {
+        foreach ($this->cloned as $key => $listeners) {
+            [$class, $method] = explode('::', $key, 2);
+            $declaringClass = isset($this->direct[$key]) ? null : $this->getClass($class);
+
+            if ($declaringClass === null) {
+                continue;
+            }
+
+            $runsElsewhere = array_any(array_keys($this->receivers), function (string $receiver) use ($listeners, $declaringClass, $method): bool {
+                $reflection = isset($listeners[$receiver]) ? null : $this->getClass($receiver);
+
+                return $reflection !== null
+                    && $reflection->is($declaringClass->getName())
+                    && $this->resolveHelper($receiver, $declaringClass->getName(), $method)?->getDeclaringClass()->getName() === $declaringClass->getName();
+            });
+
+            if (! $runsElsewhere) {
+                $this->cloneOnly[$key] = true;
+            }
+        }
     }
 
     /**
@@ -800,7 +837,7 @@ class WorkerLifetimes
         if ($context !== null && $receiver->hasNativeMethod($method)) {
             $declaringClass = $receiver->getNativeMethod($method)->getDeclaringClass()->getName();
 
-            $this->addContext($receiver->getName(), $declaringClass, $method, $context, $shared && ! $cloned, $cloned);
+            $this->addContext($receiver->getName(), $declaringClass, $method, $context, $shared, $cloned);
         }
     }
 

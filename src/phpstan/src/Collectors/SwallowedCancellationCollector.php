@@ -111,6 +111,7 @@ use function end;
 use function in_array;
 use function is_array;
 use function is_string;
+use function spl_object_id;
 use function strtolower;
 
 /**
@@ -345,6 +346,26 @@ class SwallowedCancellationCollector implements Collector
         Coroutine::class => [self::WAIT, ['join' => true, 'sleep' => true]],
         EngineCoroutine::class => [self::WAIT, ['join' => true]],
         Sleep::class => [self::WAIT, ['then' => true]],
+    ];
+
+    /**
+     * The lowercase query builder methods that return a lazy query.
+     */
+    private const array LAZY_METHODS = ['cursor' => true, 'lazy' => true, 'lazybyid' => true, 'lazybyiddesc' => true];
+
+    /**
+     * The lowercase methods returning a lazy query, which runs its queries while it's iterated, on the classes that
+     * declare them.
+     */
+    private const array LAZY_QUERIES = [
+        ConnectionInterface::class => ['cursor' => true],
+        Connection::class => ['cursor' => true],
+        PdoConnection::class => ['cursor' => true],
+        DB::class => ['cursor' => true],
+        QueryBuilder::class => self::LAZY_METHODS,
+        EloquentBuilder::class => self::LAZY_METHODS,
+        BelongsToMany::class => self::LAZY_METHODS,
+        HasOneOrManyThrough::class => self::LAZY_METHODS,
     ];
 
     /**
@@ -701,6 +722,22 @@ class SwallowedCancellationCollector implements Collector
             }
         }
 
+        // A lazy query runs its queries while it's iterated, so one the block iterates directly runs them there. The
+        // builders' lazy queries return a LazyCollection, whose each() iterates at once; a connection's cursor is a
+        // generator, which only foreach consumes.
+        $consumed = [];
+
+        foreach ($this->coroutineRuleHelper->find($statements, static fn (Node $node): bool => $node instanceof Foreach_ || $node instanceof MethodCall || $node instanceof NullsafeMethodCall) as $consumer) {
+            if ($consumer instanceof Foreach_) {
+                $consumed[spl_object_id($consumer->expr)] = true;
+            } elseif (($consumer instanceof MethodCall || $consumer instanceof NullsafeMethodCall)
+                && ! $consumer->isFirstClassCallable()
+                && $consumer->name instanceof Identifier
+                && $consumer->name->toLowerString() === 'each') {
+                $consumed[spl_object_id($consumer->var)] = true;
+            }
+        }
+
         $nodes = $this->coroutineRuleHelper->find(
             $statements,
             static fn (Node $node): bool => ($node instanceof Expression || ($node instanceof CallLike && ! $node->isFirstClassCallable()))
@@ -710,7 +747,7 @@ class SwallowedCancellationCollector implements Collector
         foreach ($nodes as $node) {
             $operation = match (true) {
                 $node instanceof Expression => $this->sleepsWhenDiscarded($node->expr, $scope) ? self::WAIT : null,
-                $node instanceof CallLike => $this->getOperation($node, $statements, $scope),
+                $node instanceof CallLike => $this->getOperation($node, $statements, $scope, isset($consumed[spl_object_id($node)])),
                 default => null,
             };
 
@@ -726,8 +763,9 @@ class SwallowedCancellationCollector implements Collector
      * Get the operation the call runs on every class it may be made on, matched by the framework's own declarations.
      *
      * @param array<Stmt> $statements
+     * @param bool $consumed whether the block iterates the call's result directly
      */
-    private function getOperation(CallLike $call, array $statements, Scope $scope): ?string
+    private function getOperation(CallLike $call, array $statements, Scope $scope, bool $consumed): ?string
     {
         if ($call instanceof FuncCall) {
             return $call->name instanceof Name
@@ -768,16 +806,23 @@ class SwallowedCancellationCollector implements Collector
             $declaringClass = $method->getDeclaringClass()->getName();
 
             // The class using a trait declares its methods, so an application model's SoftDeletes methods are matched by their trait.
-            // @phpstan-ignore phpstanApi.instanceofAssumption (Only PhpMethodReflection exposes a native method's declaring trait. The SoftDeletes test fails if that changes.)
-            if (! isset(self::OPERATIONS[$declaringClass]) && $method instanceof PhpMethodReflection && $method->getDeclaringTrait() !== null) {
+            // The Redis classes' own trait methods, such as RedisProxy's pipeline(), are matched by the class.
+            if (! isset(self::OPERATIONS[$declaringClass])
+                && ! in_array($declaringClass, self::REDIS_CLASSES, true)
+                // @phpstan-ignore phpstanApi.instanceofAssumption (Only PhpMethodReflection exposes a native method's declaring trait. The SoftDeletes test fails if that changes.)
+                && $method instanceof PhpMethodReflection
+                && $method->getDeclaringTrait() !== null) {
                 $declaringClass = $method->getDeclaringTrait()->getName();
             }
 
             [$classOperation, $methods] = self::OPERATIONS[$declaringClass] ?? [null, []];
+            $lowercase = strtolower($method->getName());
 
             if (in_array($declaringClass, self::REDIS_CLASSES, true)) {
                 $classOperation = $this->runsRedisCommand($method->getName(), $call) ? self::REDIS : null;
-            } elseif (! isset($methods[strtolower($method->getName())])
+            } elseif ($consumed && isset(self::LAZY_QUERIES[$declaringClass][$lowercase])) {
+                $classOperation = self::DATABASE;
+            } elseif (! isset($methods[$lowercase])
                 // Sleep::then() sleeps through goodnight(), which a subclass may override.
                 || ($declaringClass === Sleep::class && ! $this->runsFrameworkSleep($class, ['goodnight']))
             ) {

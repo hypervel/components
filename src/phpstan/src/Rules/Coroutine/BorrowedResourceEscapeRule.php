@@ -51,6 +51,7 @@ use PhpParser\Node\Name;
 use PhpParser\Node\StaticVar;
 use PhpParser\Node\Stmt\Catch_;
 use PhpParser\Node\Stmt\ClassLike;
+use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Stmt\Foreach_;
 use PhpParser\Node\Stmt\Global_;
 use PhpParser\Node\Stmt\Return_;
@@ -70,7 +71,9 @@ use PHPStan\Type\ObjectType;
 use Swoole\Coroutine as SwooleCoroutine;
 
 use function array_diff_key;
+use function array_filter;
 use function array_intersect_key;
+use function array_keys;
 use function array_map;
 use function array_values;
 use function class_basename;
@@ -86,8 +89,13 @@ use function strtolower;
  *
  * The pool lends the resource to other coroutines once the callback returns, and a pinned database
  * session can return to its pool once its pin ends, so anything still holding them afterwards may
- * act on another coroutine's work. Each callback is read as written: the lent parameter, its direct
- * local aliases and the raw handles taken from them are followed, but not values passed through calls.
+ * act on another coroutine's work. Each callback is read as written, in the order of its top-level
+ * statements: the lent parameter, the raw handles taken from it, and the local variables, arrays and
+ * closures holding them are followed, but not values passed through calls.
+ *
+ * @phpstan-type HeldClosure array{ArrowFunction|Closure, ?string}
+ * @phpstan-type Environment array{tracked: array<string, string>, appended: array<string, string>, callables: array<string, array<int, HeldClosure>>, defined: array<string, true>}
+ * @phpstan-type Fact array{tracked: ?string, appended: ?string, callables: array<int, HeldClosure>}
  *
  * @implements Rule<CallLike>
  *
@@ -240,8 +248,24 @@ class BorrowedResourceEscapeRule implements Rule
 
         // A closure callback receives its `use` variables from outside; an arrow function every variable it reads.
         $received = $callback instanceof Closure ? $this->getUseNames($callback) : null;
+        $environment = [
+            'tracked' => $tracked,
+            'appended' => [],
+            'callables' => [],
+            'defined' => ($received ?? $this->getCapturedNames($callback)) + $this->getParameterNames($callback),
+        ];
 
-        $this->analyzeFunction($callback, ['method' => $method, 'resource' => $resource], $tracked, $owners, $received, true, $scope, $errors);
+        $this->analyzeFunction(
+            $callback,
+            ['method' => $method, 'resource' => $resource],
+            $environment,
+            $owners,
+            $received,
+            $callback instanceof Closure ? $this->getReferenceNames($callback) : [],
+            true,
+            $scope,
+            $errors,
+        );
 
         return array_values($errors);
     }
@@ -297,31 +321,36 @@ class BorrowedResourceEscapeRule implements Rule
      * Report the escapes in the callback, or in a closure nested in it.
      *
      * Only the callback's own returns and by-reference variables leave it; a nested closure returns
-     * to its caller inside the callback.
+     * to its caller inside the callback. The top-level statements are walked in order. A statement that
+     * is exactly `$variable = value;` replaces what the variable holds once its value has been checked.
+     * Any other statement's writes may run in any order, any number of times or not at all, so they are
+     * applied conservatively before its escapes are checked.
      *
      * @param array{method: string, resource: string} $borrow
-     * @param array<string, string> $tracked the borrowed variables the function receives: "lent", or the name of the raw handle they hold
+     * @param Environment $environment what the function receives: each borrowed variable's value ("lent", or the name of the raw handle), what its appended arrays hold, the closures each variable may hold, and the variables already defined
      * @param array<string, true> $owners the variables or `$this` properties holding the pinned connection the function receives, or the DB facade
      * @param null|array<string, true> $received the variables the function receives from outside the callback, or null for every variable it doesn't own
+     * @param array<string, true> $byReference the variables the function shares by reference with the code calling the lending method
      * @param array<string, IdentifierRuleError> $errors
      */
     private function analyzeFunction(
         Closure|ArrowFunction $function,
         array $borrow,
-        array $tracked,
+        array $environment,
         array $owners,
         ?array $received,
+        array $byReference,
         bool $isCallback,
         Scope $scope,
         array &$errors,
     ): void {
-        $nodes = $this->getOwnNodes($function instanceof Closure ? $function->stmts : [$function->expr]);
-        [$writes, $closures, $propertyWrites] = $this->collectWrites($nodes);
+        $statements = $function instanceof Closure ? $function->stmts : [$function->expr];
+        [$writes, $propertyWrites] = $this->collectWrites($this->getOwnNodes($statements));
 
         // A reassigned variable or property no longer holds the pinned connection.
         $owners = array_diff_key($owners, $writes, $propertyWrites);
-        $tracked = $this->followAliases($tracked, $writes, $owners, $borrow['resource'], $scope);
         $locals = $writes + $this->getParameterNames($function);
+        $resource = $borrow['resource'];
 
         // The variables still holding what they received from outside the callback. An object they hold
         // outlives the callback, so a property written through one keeps its value.
@@ -331,67 +360,107 @@ class BorrowedResourceEscapeRule implements Rule
         // types. A nested function's are unknown.
         $outer = $isCallback ? $external : [];
 
-        $byReference = [];
-
-        if ($isCallback && $function instanceof Closure) {
-            foreach ($function->uses as $use) {
-                if ($use->byRef && is_string($use->var->name)) {
-                    $byReference[$use->var->name] = true;
-                }
-            }
-        }
-
+        // Each nested function with the environment it captured and the statement that created it, and the last
+        // statement writing each variable.
+        $created = [];
         $spawned = [];
+        $lastWritten = [];
 
-        foreach ($nodes as $node) {
-            $how = null;
-            $kind = null;
+        foreach ($statements as $index => $statement) {
+            $nodes = $this->getOwnNodes([$statement]);
 
-            if ($node instanceof Return_ && $isCallback && $node->expr !== null) {
-                $how = 'is returned';
-                $kind = $this->getBorrowedKind($node->expr, $tracked, $owners, $borrow['resource'], $scope);
-            } elseif ($node instanceof Assign || $node instanceof AssignRef) {
-                $how = $this->getStore($node->var, $byReference, $external, $locals);
-                $kind = $how === null ? null : $this->getBorrowedKind($node->expr, $tracked, $owners, $borrow['resource'], $scope);
-            } elseif ($node instanceof CallLike) {
-                $spawn = $this->getSpawn($node, $locals, $writes, $outer, $scope);
-                $how = $spawn === null ? null : sprintf('is captured by a closure passed to %s()', $spawn);
+            foreach (array_keys($this->collectWrites($nodes)[0]) as $name) {
+                $lastWritten[$name] = $index;
+            }
 
-                foreach ($spawn === null ? [] : $this->getPassedClosures($node, $closures) as $closure) {
-                    $spawned[spl_object_id($closure)] = true;
-                    $kind ??= $this->getCapturedKind($closure, $tracked);
+            $reset = $statement instanceof Expression
+                && $statement->expr instanceof Assign
+                && $statement->expr->var instanceof Variable
+                && is_string($statement->expr->var->name)
+                    ? [$statement->expr, $statement->expr->var->name]
+                    : null;
+
+            $this->applyWrites($nodes, $reset[0] ?? null, $environment, $owners, $resource, $scope);
+
+            foreach ($nodes as $node) {
+                $how = null;
+                $kind = null;
+
+                if ($node instanceof Return_ && $isCallback && $node->expr !== null) {
+                    $how = 'is returned';
+                    $kind = $this->getBorrowedKind($node->expr, $environment, $owners, $resource, $scope);
+                } elseif ($node instanceof Assign || $node instanceof AssignRef) {
+                    $how = $this->getStore($node->var, $byReference, $external, $locals);
+                    $kind = $how === null ? null : $this->getBorrowedKind($node->expr, $environment, $owners, $resource, $scope);
+                } elseif ($node instanceof CallLike) {
+                    $spawn = $this->getSpawn($node, $locals, $writes, $outer, $scope);
+                    $how = $spawn === null ? null : sprintf('is captured by a closure passed to %s()', $spawn);
+
+                    foreach ($spawn === null ? [] : $this->getPassedClosures($node, $environment) as [$closure, $capturedKind]) {
+                        $spawned[spl_object_id($closure)] = true;
+                        $kind ??= $capturedKind ?? $this->getReferencedKind($closure, $environment);
+                    }
+                } elseif ($node instanceof Closure || $node instanceof ArrowFunction) {
+                    $created[spl_object_id($node)] = [$node, [
+                        'tracked' => $this->getCaptured($node, $environment['tracked']),
+                        'appended' => $this->getCaptured($node, $environment['appended']),
+                        'callables' => $this->getCaptured($node, $environment['callables']),
+                        'defined' => $this->getCaptured($node, $environment['defined']) + $this->getParameterNames($node),
+                    ], $index];
+                }
+
+                if ($how !== null && $kind !== null) {
+                    $this->addError($errors, $node, $borrow, $kind, $how);
                 }
             }
 
-            if ($how !== null && $kind !== null) {
-                $this->addError($errors, $node, $borrow, $kind, $how);
+            if ($reset !== null) {
+                $this->setFact($environment, $reset[1], $this->getFact($reset[0]->expr, $environment, $owners, $resource, $scope));
             }
         }
 
         if ($isCallback && $function instanceof ArrowFunction) {
-            $kind = $this->getBorrowedKind($function->expr, $tracked, $owners, $borrow['resource'], $scope);
+            $kind = $this->getBorrowedKind($function->expr, $environment, $owners, $resource, $scope);
 
             if ($kind !== null) {
                 $this->addError($errors, $function->expr, $borrow, $kind, 'is returned');
             }
         }
 
-        foreach ($nodes as $node) {
-            if (($node instanceof Closure || $node instanceof ArrowFunction) && ! isset($spawned[spl_object_id($node)])) {
-                // A nested function takes from outside the callback only what this function itself took from there.
-                $captured = $this->getCapturedNames($node);
-
-                $this->analyzeFunction(
-                    $node,
-                    $borrow,
-                    $this->getCaptured($node, $tracked),
-                    $this->getCaptured($node, $owners),
-                    $external === null ? array_diff_key($captured, $locals) : array_intersect_key($captured, $external),
-                    false,
-                    $scope,
-                    $errors,
-                );
+        foreach ($created as $id => [$node, $capturedEnvironment, $index]) {
+            if (isset($spawned[$id])) {
+                continue;
             }
+
+            // A variable captured by reference holds what it was last given when the nested function runs, so
+            // a write in the statement that created the function, or after it, leaves its value unknown.
+            if ($node instanceof Closure) {
+                $rewritten = array_filter(
+                    $this->getReferenceNames($node),
+                    static fn (string $name): bool => isset($lastWritten[$name]) && $lastWritten[$name] >= $index,
+                    ARRAY_FILTER_USE_KEY,
+                );
+
+                $capturedEnvironment['tracked'] = array_diff_key($capturedEnvironment['tracked'], $rewritten);
+                $capturedEnvironment['appended'] = array_diff_key($capturedEnvironment['appended'], $rewritten);
+                $capturedEnvironment['callables'] = array_diff_key($capturedEnvironment['callables'], $rewritten);
+            }
+
+            // A nested function takes from outside the callback only what this function itself took from there,
+            // and shares a by-reference variable with that code only through its own by-reference `use`.
+            $captured = $this->getCapturedNames($node);
+
+            $this->analyzeFunction(
+                $node,
+                $borrow,
+                $capturedEnvironment,
+                $this->getCaptured($node, $owners),
+                $external === null ? array_diff_key($captured, $locals) : array_intersect_key($captured, $external),
+                $node instanceof Closure ? array_intersect_key($this->getReferenceNames($node), $byReference) : [],
+                false,
+                $scope,
+                $errors,
+            );
         }
     }
 
@@ -426,38 +495,24 @@ class BorrowedResourceEscapeRule implements Rule
     }
 
     /**
-     * Collect the values each variable is assigned, null for a write whose value is not followed, the
-     * closures each variable or its elements are assigned, directly or in an array, and the `$this`
-     * properties written.
+     * Collect the values each variable is assigned, null for a write whose value is not followed, and the
+     * `$this` properties written.
      *
      * @param list<Node> $nodes
      *
-     * @return array{array<string, non-empty-list<?Expr>>, array<string, list<ArrowFunction|Closure>>, array<string, true>}
+     * @return array{array<string, non-empty-list<?Expr>>, array<string, true>}
      */
     private function collectWrites(array $nodes): array
     {
         $writes = [];
-        $closures = [];
         $propertyWrites = [];
 
         foreach ($nodes as $node) {
-            $targets = match (true) {
-                $node instanceof Assign && ($node->var instanceof List_ || $node->var instanceof Array_) => [$node->var],
-                $node instanceof AssignOp => [$node->var],
-                $node instanceof Foreach_ => [$node->keyVar, $node->valueVar],
-                $node instanceof Catch_ => [$node->var],
-                $node instanceof Static_ => array_map(static fn (StaticVar $variable): Variable => $variable->var, $node->vars),
-                $node instanceof Global_ => $node->vars,
-                default => [],
-            };
-
-            foreach ($targets as $target) {
-                foreach ($this->getTargetLeaves($target) as $leaf) {
-                    if ($leaf instanceof Variable && is_string($leaf->name)) {
-                        $writes[$leaf->name][] = null;
-                    } elseif (($property = $this->getPropertyWriteKey($leaf)) !== null) {
-                        $propertyWrites[$property] = true;
-                    }
+            foreach ($this->getUnknownTargets($node) as $leaf) {
+                if ($leaf instanceof Variable && is_string($leaf->name)) {
+                    $writes[$leaf->name][] = null;
+                } elseif (($property = $this->getPropertyWriteKey($leaf)) !== null) {
+                    $propertyWrites[$property] = true;
                 }
             }
 
@@ -472,6 +527,64 @@ class BorrowedResourceEscapeRule implements Rule
             if ($node->var instanceof Variable && is_string($node->var->name)) {
                 $writes[$node->var->name][] = $node->expr;
             }
+        }
+
+        return [$writes, $propertyWrites];
+    }
+
+    /**
+     * Get the targets a node writes without a value the rule follows: destructuring, compound assignments,
+     * foreach, catch, static and global variables.
+     *
+     * @return list<Expr>
+     */
+    private function getUnknownTargets(Node $node): array
+    {
+        $targets = match (true) {
+            $node instanceof Assign && ($node->var instanceof List_ || $node->var instanceof Array_) => [$node->var],
+            $node instanceof AssignOp => [$node->var],
+            $node instanceof Foreach_ => [$node->keyVar, $node->valueVar],
+            $node instanceof Catch_ => [$node->var],
+            $node instanceof Static_ => array_map(static fn (StaticVar $variable): Variable => $variable->var, $node->vars),
+            $node instanceof Global_ => $node->vars,
+            default => [],
+        };
+
+        $leaves = [];
+
+        foreach ($targets as $target) {
+            $leaves = [...$leaves, ...$this->getTargetLeaves($target)];
+        }
+
+        return $leaves;
+    }
+
+    /**
+     * Apply a statement's writes, other than its reset, to the environment.
+     *
+     * They may run in any order, any number of times or not at all. A defined variable stays borrowed only
+     * when its old and new values both are, an array keeps what was appended to it until a reset, and a
+     * variable may hold any closure assigned to it. Repeated passes follow alias chains, including those
+     * a loop carries into its next iteration.
+     *
+     * @param list<Node> $nodes
+     * @param Environment $environment
+     * @param array<string, true> $owners
+     */
+    private function applyWrites(array $nodes, ?Assign $reset, array &$environment, array $owners, string $resource, Scope $scope): void
+    {
+        $writes = [];
+
+        foreach ($nodes as $node) {
+            foreach ($this->getUnknownTargets($node) as $leaf) {
+                if ($leaf instanceof Variable && is_string($leaf->name)) {
+                    $writes[] = [$leaf->name, null, false];
+                }
+            }
+
+            if ((! $node instanceof Assign && ! $node instanceof AssignRef) || $node === $reset) {
+                continue;
+            }
 
             $root = $node->var;
 
@@ -479,93 +592,140 @@ class BorrowedResourceEscapeRule implements Rule
                 $root = $root->var;
             }
 
-            if (! $root instanceof Variable || ! is_string($root->name)) {
-                continue;
-            }
-
-            $values = $node->expr instanceof Array_
-                ? array_map(static fn (ArrayItem $item): Expr => $item->value, $node->expr->items)
-                : [$node->expr];
-
-            foreach ($values as $value) {
-                if ($value instanceof Closure || $value instanceof ArrowFunction) {
-                    $closures[$root->name][] = $value;
-                }
+            if ($root instanceof Variable && is_string($root->name) && $root->name !== 'this') {
+                $writes[] = [$root->name, $node->expr, $root !== $node->var];
             }
         }
 
-        return [$writes, $closures, $propertyWrites];
-    }
-
-    /**
-     * Add the local variables assigned only borrowed values to the borrowed variables.
-     *
-     * A received variable stays borrowed only while every assignment in the function keeps it borrowed,
-     * so the result does not depend on the order of the statements.
-     *
-     * @param array<string, string> $tracked
-     * @param array<string, non-empty-list<?Expr>> $writes
-     * @param array<string, true> $owners
-     *
-     * @return array<string, string>
-     */
-    private function followAliases(array $tracked, array $writes, array $owners, string $resource, Scope $scope): array
-    {
-        $received = $tracked;
-        $tracked = array_diff_key($received, $writes);
+        if ($writes === []) {
+            return;
+        }
 
         do {
-            $added = false;
+            $previous = $environment;
 
-            foreach ($writes as $name => $values) {
-                if (isset($tracked[$name])) {
+            foreach ($writes as [$name, $value, $appends]) {
+                $fact = $value === null
+                    ? ['tracked' => null, 'appended' => null, 'callables' => []]
+                    : $this->getFact($value, $environment, $owners, $resource, $scope);
+
+                if (! isset($environment['defined'][$name])) {
+                    $this->setFact($environment, $name, $appends ? ['tracked' => null, 'appended' => $fact['tracked'] ?? $fact['appended'], 'callables' => $fact['callables']] : $fact);
+
                     continue;
                 }
 
-                $kind = $received[$name] ?? null;
-
-                foreach ($values as $value) {
-                    $valueKind = $value === null ? null : $this->getBorrowedKind($value, $tracked, $owners, $resource, $scope);
-
-                    if ($valueKind === null) {
-                        continue 2;
-                    }
-
-                    $kind ??= $valueKind;
+                if ($appends) {
+                    $fact = ['tracked' => $environment['tracked'][$name] ?? null, 'appended' => $fact['tracked'] ?? $fact['appended'], 'callables' => $fact['callables']];
+                } elseif ($fact['tracked'] === null || ! isset($environment['tracked'][$name])) {
+                    $fact['tracked'] = null;
+                } else {
+                    $fact['tracked'] = $environment['tracked'][$name];
                 }
 
-                $tracked[$name] = $kind;
-                $added = true;
-            }
-        } while ($added);
+                $fact['appended'] = $environment['appended'][$name] ?? $fact['appended'];
+                $fact['callables'] = ($environment['callables'][$name] ?? []) + $fact['callables'];
 
-        return $tracked;
+                $this->setFact($environment, $name, $fact);
+            }
+        } while ($environment !== $previous);
     }
 
     /**
-     * Get what the expression's value is or holds: "lent" for the lent resource, the name of a raw handle,
-     * or null. An array holds what its items hold, and a closure what it captures.
+     * Get what assigning the expression gives a variable: the borrowed value it is, what it holds as an array
+     * built by appending, and the closures it is or holds.
      *
-     * @param array<string, string> $tracked
+     * @param Environment $environment
      * @param array<string, true> $owners
+     *
+     * @return Fact
      */
-    private function getBorrowedKind(Expr $expr, array $tracked, array $owners, string $resource, Scope $scope): ?string
+    private function getFact(Expr $expr, array $environment, array $owners, string $resource, Scope $scope): array
     {
         if ($expr instanceof Assign || $expr instanceof AssignRef) {
-            return $this->getBorrowedKind($expr->expr, $tracked, $owners, $resource, $scope);
+            return $this->getFact($expr->expr, $environment, $owners, $resource, $scope);
         }
 
         if ($expr instanceof Variable) {
-            return is_string($expr->name) ? $tracked[$expr->name] ?? null : null;
+            return [
+                'tracked' => is_string($expr->name) ? $environment['tracked'][$expr->name] ?? null : null,
+                'appended' => is_string($expr->name) ? $environment['appended'][$expr->name] ?? null : null,
+                'callables' => is_string($expr->name) ? $environment['callables'][$expr->name] ?? [] : [],
+            ];
         }
 
         if ($expr instanceof Closure || $expr instanceof ArrowFunction) {
-            return $this->getCapturedKind($expr, $tracked);
+            return ['tracked' => null, 'appended' => null, 'callables' => [spl_object_id($expr) => [$expr, $this->getCapturedKind($expr, $environment)]]];
+        }
+
+        if ($expr instanceof Array_) {
+            $fact = ['tracked' => null, 'appended' => null, 'callables' => []];
+
+            foreach ($expr->items as $item) {
+                $itemFact = $this->getFact($item->value, $environment, $owners, $resource, $scope);
+                $fact['tracked'] ??= $itemFact['tracked'] ?? $itemFact['appended'];
+                $fact['callables'] += $itemFact['callables'];
+            }
+
+            return $fact;
+        }
+
+        return ['tracked' => $this->getBorrowedKind($expr, $environment, $owners, $resource, $scope), 'appended' => null, 'callables' => []];
+    }
+
+    /**
+     * Replace what the variable holds with the fact.
+     *
+     * @param Environment $environment
+     * @param Fact $fact
+     */
+    private function setFact(array &$environment, string $name, array $fact): void
+    {
+        if ($fact['tracked'] === null) {
+            unset($environment['tracked'][$name]);
+        } else {
+            $environment['tracked'][$name] = $fact['tracked'];
+        }
+
+        if ($fact['appended'] === null) {
+            unset($environment['appended'][$name]);
+        } else {
+            $environment['appended'][$name] = $fact['appended'];
+        }
+
+        if ($fact['callables'] === []) {
+            unset($environment['callables'][$name]);
+        } else {
+            $environment['callables'][$name] = $fact['callables'];
+        }
+
+        $environment['defined'][$name] = true;
+    }
+
+    /**
+     * Get what the expression's value is or holds now: "lent" for the lent resource, the name of a raw
+     * handle, or null. An array holds what its items hold, and a closure what it captures.
+     *
+     * @param Environment $environment
+     * @param array<string, true> $owners
+     */
+    private function getBorrowedKind(Expr $expr, array $environment, array $owners, string $resource, Scope $scope): ?string
+    {
+        if ($expr instanceof Assign || $expr instanceof AssignRef) {
+            return $this->getBorrowedKind($expr->expr, $environment, $owners, $resource, $scope);
+        }
+
+        if ($expr instanceof Variable) {
+            return is_string($expr->name) ? $this->getFirstKind([$expr->name => true], $environment) : null;
+        }
+
+        if ($expr instanceof Closure || $expr instanceof ArrowFunction) {
+            return $this->getCapturedKind($expr, $environment) ?? $this->getReferencedKind($expr, $environment);
         }
 
         if ($expr instanceof Array_) {
             foreach ($expr->items as $item) {
-                $kind = $this->getBorrowedKind($item->value, $tracked, $owners, $resource, $scope);
+                $kind = $this->getBorrowedKind($item->value, $environment, $owners, $resource, $scope);
 
                 if ($kind !== null) {
                     return $kind;
@@ -588,7 +748,7 @@ class BorrowedResourceEscapeRule implements Rule
         }
 
         if ($resource !== 'session') {
-            return ! $expr instanceof StaticCall && $this->getBorrowedKind($expr->var, $tracked, $owners, $resource, $scope) === 'lent' ? $handle : null;
+            return ! $expr instanceof StaticCall && $this->getBorrowedKind($expr->var, $environment, $owners, $resource, $scope) === 'lent' ? $handle : null;
         }
 
         // A pinned session's PDOs come from the pinned connection itself, through the framework's own getters.
@@ -744,13 +904,13 @@ class BorrowedResourceEscapeRule implements Rule
     }
 
     /**
-     * Get the closures a spawning call is passed: directly, in an array, or through a variable assigned them.
+     * Get the closures a spawning call is passed: directly, in an array, or through a variable that may hold them.
      *
-     * @param array<string, list<ArrowFunction|Closure>> $closures
+     * @param Environment $environment
      *
-     * @return list<ArrowFunction|Closure>
+     * @return list<HeldClosure>
      */
-    private function getPassedClosures(CallLike $call, array $closures): array
+    private function getPassedClosures(CallLike $call, array $environment): array
     {
         $passed = [];
 
@@ -763,9 +923,9 @@ class BorrowedResourceEscapeRule implements Rule
 
             foreach ($values as $value) {
                 if ($value instanceof Closure || $value instanceof ArrowFunction) {
-                    $passed[] = $value;
+                    $passed[] = [$value, $this->getCapturedKind($value, $environment)];
                 } elseif ($value instanceof Variable && is_string($value->name)) {
-                    $passed = [...$passed, ...$closures[$value->name] ?? []];
+                    $passed = [...$passed, ...array_values($environment['callables'][$value->name] ?? [])];
                 }
             }
         }
@@ -774,14 +934,55 @@ class BorrowedResourceEscapeRule implements Rule
     }
 
     /**
-     * Get what the first borrowed variable a closure captures holds, or null when it captures none.
+     * Get what the first borrowed variable a closure captures by value holds now, or null when it captures none.
+     * A closure keeps that value for as long as it lives.
      *
-     * @param array<string, string> $tracked
+     * @param Environment $environment
      */
-    private function getCapturedKind(Closure|ArrowFunction $closure, array $tracked): ?string
+    private function getCapturedKind(Closure|ArrowFunction $closure, array $environment): ?string
     {
-        foreach (array_intersect_key($tracked, $this->getCapturedNames($closure)) as $kind) {
-            return $kind;
+        $names = $this->getCapturedNames($closure);
+
+        return $this->getFirstKind($closure instanceof Closure ? array_diff_key($names, $this->getReferenceNames($closure)) : $names, $environment);
+    }
+
+    /**
+     * Get what the first borrowed variable a closure captures by reference holds now, or null when it captures none.
+     *
+     * @param Environment $environment
+     * @param array<int, true> $visited the closures already being read, which a closure capturing itself reaches again
+     */
+    private function getReferencedKind(Closure|ArrowFunction $closure, array $environment, array $visited = []): ?string
+    {
+        return $closure instanceof Closure
+            ? $this->getFirstKind($this->getReferenceNames($closure), $environment, $visited + [spl_object_id($closure) => true])
+            : null;
+    }
+
+    /**
+     * Get what the first of the variables that is borrowed holds now: its value, what was appended to it, or what
+     * a closure it may hold captures.
+     *
+     * @param array<string, true> $names
+     * @param Environment $environment
+     * @param array<int, true> $visited
+     */
+    private function getFirstKind(array $names, array $environment, array $visited = []): ?string
+    {
+        foreach ([$environment['tracked'], $environment['appended']] as $kinds) {
+            foreach (array_intersect_key($kinds, $names) as $kind) {
+                return $kind;
+            }
+        }
+
+        foreach (array_intersect_key($environment['callables'], $names) as $closures) {
+            foreach ($closures as $id => [$closure, $kind]) {
+                $kind ??= isset($visited[$id]) ? null : $this->getReferencedKind($closure, $environment, $visited);
+
+                if ($kind !== null) {
+                    return $kind;
+                }
+            }
         }
 
         return null;
@@ -881,6 +1082,24 @@ class BorrowedResourceEscapeRule implements Rule
 
         foreach ($closure->uses as $use) {
             if (is_string($use->var->name)) {
+                $names[$use->var->name] = true;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * Get a closure's by-reference `use` variable names.
+     *
+     * @return array<string, true>
+     */
+    private function getReferenceNames(Closure $closure): array
+    {
+        $names = [];
+
+        foreach ($closure->uses as $use) {
+            if ($use->byRef && is_string($use->var->name)) {
                 $names[$use->var->name] = true;
             }
         }

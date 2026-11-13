@@ -33,7 +33,7 @@ use function is_string;
  *
  * @phpstan-import-type FunctionFacts from WorkerStateHelper
  *
- * @implements Collector<PropertyAssignNode, array{static: bool, class: string, property: string, line: int, function: FunctionFacts, state: null|string, parameter: null|string, cacheKey: bool}>
+ * @implements Collector<PropertyAssignNode, array{static: bool, class: string, property: string, line: int, function: FunctionFacts, state: null|string, parameter: null|string, cacheKey: bool, copied: bool}>
  */
 #[AutowiredService]
 class WorkerStateWriteCollector implements Collector
@@ -59,7 +59,7 @@ class WorkerStateWriteCollector implements Collector
      *
      * @param PropertyAssignNode $node
      *
-     * @return null|array{static: bool, class: string, property: string, line: int, function: FunctionFacts, state: null|string, parameter: null|string, cacheKey: bool}
+     * @return null|array{static: bool, class: string, property: string, line: int, function: FunctionFacts, state: null|string, parameter: null|string, cacheKey: bool, copied: bool}
      */
     public function processNode(Node $node, Scope $scope): ?array
     {
@@ -113,6 +113,11 @@ class WorkerStateWriteCollector implements Collector
         // Storage the method just reset holds only what the method itself adds.
         $growingStorage = $storage->isArray()->yes() && ! $storage->isConstantArray()->yes();
 
+        // A write that replaces the property, or changes only values such as arrays and strings (including an
+        // array it creates from null), changes a copy on a cloned instance. One into an object the property
+        // holds, or may hold, changes the object every clone shares.
+        $copied = true;
+
         // @phpstan-ignore phpstanApi.class (The offset chain PHPStan builds inside a property write.), phpstanApi.class (The offset chain PHPStan builds inside a property write.)
         while ($value instanceof SetOffsetValueTypeExpr || $value instanceof SetExistingOffsetValueTypeExpr) {
             // @phpstan-ignore phpstanApi.method (The offset chain PHPStan builds inside a property write.)
@@ -124,7 +129,16 @@ class WorkerStateWriteCollector implements Collector
                 && ! $this->helper->isBoundedKey($scope->getType($dim)));
 
             // @phpstan-ignore phpstanApi.method (The offset chain PHPStan builds inside a property write.)
+            $copied = $copied && $scope->getType($value->getVar())->isObject()->no();
+
+            // @phpstan-ignore phpstanApi.method (The offset chain PHPStan builds inside a property write.)
             $value = $value->getValue();
+        }
+
+        // @phpstan-ignore phpstanApi.class (The offset chain PHPStan builds inside a property write.)
+        if ($value instanceof UnsetOffsetExpr) {
+            // @phpstan-ignore phpstanApi.method (The offset chain PHPStan builds inside a property write.)
+            $copied = $copied && $scope->getType($value->getVar())->isObject()->no();
         }
 
         // @phpstan-ignore phpstanApi.class (The offset chain PHPStan builds inside a property write.)
@@ -164,6 +178,7 @@ class WorkerStateWriteCollector implements Collector
             'state' => $state,
             'parameter' => $parameter,
             'cacheKey' => $cacheKey,
+            'copied' => $copied,
         ];
     }
 }

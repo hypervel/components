@@ -539,3 +539,95 @@ class ImportService
         }
     }
 }
+
+class SyncImportJob implements ShouldQueue
+{
+    /**
+     * @param list<mixed> $rows
+     */
+    public function handle(BufferedChannel $buffer, EngineChannel $channel, Import $import, array $rows): void
+    {
+        try {
+            Redis::connection('cache')->pipeline(function (): void {
+            });
+        } catch (Throwable) {
+            return;
+        }
+
+        try {
+            foreach (Import::lazy() as $lazyImport) {
+                $rows[] = $lazyImport;
+            }
+        } catch (Throwable) {
+            return;
+        }
+
+        try {
+            DB::table('imports')->cursor()->each(function (object $row): void {
+            });
+        } catch (Throwable) {
+            return;
+        }
+
+        try {
+            foreach (DB::connection()->cursor('select 1') as $row) {
+                $rows[] = $row;
+            }
+        } catch (Throwable) {
+            return;
+        }
+
+        try {
+            foreach ($import->tags()->lazy() as $tag) {
+                $rows[] = $tag;
+            }
+        } catch (Throwable) {
+            return;
+        }
+
+        try {
+            $buffer ??= new EngineChannel(1);
+            $buffer->pop(1.0);
+        } catch (Throwable) {
+            return;
+        }
+
+        try {
+            $lazy = Import::lazy();
+
+            foreach ($lazy as $lazyImport) {
+                $rows[] = $lazyImport;
+            }
+        } catch (Throwable) {
+            return;
+        }
+
+        try {
+            Import::lazy()->map(fn (Import $lazyImport): int => 1)->each(function (int $value): void {
+            });
+        } catch (Throwable) {
+            return;
+        }
+
+        try {
+            $consume = Import::lazy()->each(...);
+        } catch (Throwable) {
+            return;
+        }
+
+        try {
+            Import::lazy()?->each(function (Import $lazyImport): void {
+            });
+        } catch (Throwable) {
+            return;
+        }
+
+        try {
+            $class = BufferedChannel::class;
+            $channel ??= new $class(1);
+            $channel->pop(1.0);
+        } catch (Throwable) {
+            return;
+        }
+    }
+}

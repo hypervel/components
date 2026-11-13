@@ -30,6 +30,7 @@ class NoRawCoroutinesRuleTest extends RuleTestCase
             $error('Hypervel\Engine\Coroutine::create', 22),
             $error('Hypervel\Engine\Coroutine::execute', 23),
             $error('Hypervel\Engine\Coroutine::create', 24),
+            $error('Hypervel\Engine\Coroutine::execute', 25),
         ]);
     }
 

@@ -198,8 +198,9 @@ class CoroutineRuleHelper
      * The receiver is typed in the scope at the try's start, so it must not take a value the block may change
      * from there. A chain rooted at a local variable that the block only calls methods on keeps the variable's
      * type. One assignment, as a top-level statement before every call on the variable, gives it the assigned
-     * value, so the chain is typed with that expression in the variable's place; a `??=` one gives it the
-     * non-null value it already held or the assigned one. Any other write leaves it unknown. A call argument
+     * value, so the chain is typed with that expression in the variable's place; a `??=` one keeps a value
+     * that is always set and never null, without reading the expression it never assigns, and otherwise gives
+     * it the non-null value it held or the assigned one. Any other write leaves it unknown. A call argument
      * that reads a local the block may change is typed as unknown, so a call that selects its result's class
      * by it, such as the container's make(), gives no class, while a fluent where() keeps its own. Any other
      * read of such a local leaves the receiver unknown.
@@ -263,15 +264,22 @@ class CoroutineRuleHelper
         $value = $assignment?->expr;
 
         if ($assignment instanceof Coalesce) {
-            $assigned = $this->getEntryExpression($assignment->expr, $statements);
+            $defined = $scope->hasVariableType($name);
 
-            if ($assigned === null) {
-                return null;
+            // The assignment never runs when the variable always holds a value, so its expression is never read.
+            if ($defined->yes() && $scope->getType($root)->isNull()->no()) {
+                $value = null;
+            } else {
+                $assigned = $this->getEntryExpression($assignment->expr, $statements);
+
+                if ($assigned === null) {
+                    return null;
+                }
+
+                $value = new TypeExpr($defined->no()
+                    ? $scope->getType($assigned)
+                    : TypeCombinator::union(TypeCombinator::removeNull($scope->getType($root)), $scope->getType($assigned)));
             }
-
-            $value = new TypeExpr($scope->hasVariableType($name)->no()
-                ? $scope->getType($assigned)
-                : TypeCombinator::union(TypeCombinator::removeNull($scope->getType($root)), $scope->getType($assigned)));
         }
 
         $typed = $this->getEntryExpression($receiver, $statements, $root, $value);

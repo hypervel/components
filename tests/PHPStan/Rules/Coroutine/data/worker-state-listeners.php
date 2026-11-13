@@ -10,6 +10,7 @@ use Hypervel\Database\Eloquent\Attributes\ObservedBy;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Support\Collection;
 
 class RequestListener
 {
@@ -238,6 +239,11 @@ class ClonedListener implements ShouldQueue
 
     public int $failures = 0;
 
+    public string $status = 'idle';
+
+    /** @var null|array<string, int> */
+    public ?array $counts = null;
+
     /**
      * Decide on the container's instance whether to queue the event.
      */
@@ -255,6 +261,8 @@ class ClonedListener implements ShouldQueue
     {
         $this->request = $event->request;
         $this->seen[$event->request->ip()] = true;
+        $this->status[0] = 'b';
+        $this->counts['handled'] = 1;
         $this->remember($event);
         $this->track();
     }
@@ -282,4 +290,93 @@ class ClonedListener implements ShouldQueue
     {
         ++$this->tracked;
     }
+}
+
+class CollectingListener implements ShouldQueue
+{
+    use InteractsWithQueue;
+
+    /** @var Collection<string, mixed> */
+    public Collection $values;
+
+    /** @var array<string, Collection<string, int>> */
+    public array $groups = [];
+
+    /** @var array<string, int>|Collection<string, int> */
+    public array|Collection $totals = [];
+
+    /**
+     * Handle the event on the job's clone, whose properties still hold the container instance's objects.
+     */
+    public function handle(ClonedEvent $event): void
+    {
+        $this->values['request'] = $event->request;
+        $this->groups['imports']['count'] = 1;
+        $this->totals['count'] = 1;
+        $this->count();
+    }
+
+    /**
+     * Count the event.
+     */
+    private function count(): void
+    {
+        $this->values['count'] = 1;
+    }
+}
+
+class Registry
+{
+    public ?Request $request = null;
+
+    /**
+     * Remember the request.
+     */
+    public function remember(Request $request): void
+    {
+        $this->request = $request;
+    }
+}
+
+class RegistryListener extends Registry implements ShouldQueue
+{
+    use InteractsWithQueue;
+
+    /**
+     * Handle the event on the job's clone.
+     */
+    public function handle(ClonedEvent $event): void
+    {
+        $this->remember($event->request);
+    }
+}
+
+abstract class BaseRegistry
+{
+    public ?Request $request = null;
+
+    /**
+     * Keep the request.
+     */
+    public function keep(Request $request): void
+    {
+        $this->request = $request;
+    }
+}
+
+class BaseRegistryListener extends BaseRegistry implements ShouldQueue
+{
+    use InteractsWithQueue;
+
+    /**
+     * Handle the event on the job's clone.
+     */
+    public function handle(ClonedEvent $event): void
+    {
+        $this->keep($event->request);
+    }
+}
+
+class SharedRegistry extends BaseRegistry
+{
 }

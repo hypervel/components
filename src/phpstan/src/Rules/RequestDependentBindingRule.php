@@ -12,6 +12,7 @@ use Hypervel\PHPStan\Concerns\HasContainer;
 use Hypervel\PHPStan\Rules\Coroutine\CoroutineRuleHelper;
 use Hypervel\PHPStan\Rules\Coroutine\WorkerStateHelper;
 use Hypervel\PHPStan\Support\ConstructorParser;
+use Hypervel\PHPStan\Support\FacadeHelper;
 use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Request as RequestFacade;
@@ -367,7 +368,8 @@ class RequestDependentBindingRule implements Rule
                 && $expr->name->toLowerString() === 'guard'
                 && $class !== null
                 && $class->is(Auth::class)
-                && ! $class->hasNativeMethod('guard');
+                && ! $class->hasNativeMethod('guard')
+                && FacadeHelper::forwardsToRoot($class);
         }
 
         return match (true) {
@@ -383,7 +385,8 @@ class RequestDependentBindingRule implements Rule
     /**
      * Determine whether calling the method on the class reads request or user state: a RequestContext
      * read, a Request facade call the current request runs, or an Auth facade read. A subclass's own
-     * declaration of the method overrides it, so its body is unknown.
+     * declaration of the method overrides it, and a facade's own __callStatic() can forward the call
+     * anywhere, so either makes the call unknown.
      */
     private function isStaticRead(ClassReflection $class, string $method): bool
     {
@@ -400,18 +403,23 @@ class RequestDependentBindingRule implements Rule
             // The facade's own methods manage the facade, and static request methods such as hasMacro()
             // or create() don't read the current request.
             return ! $class->hasNativeMethod($method)
+                && FacadeHelper::forwardsToRoot($class)
                 && ! ($request->hasNativeMethod($method) && $request->getNativeMethod($method)->isStatic());
         }
 
-        return $class->is(Auth::class) && isset(self::AUTH_READS[$lowercase]) && ! $class->hasNativeMethod($method);
+        return $class->is(Auth::class)
+            && isset(self::AUTH_READS[$lowercase])
+            && ! $class->hasNativeMethod($method)
+            && FacadeHelper::forwardsToRoot($class);
     }
 
     /**
-     * Get the named class the static call is made on.
+     * Get the named class the static call is made on. The scope resolves self and parent; static is late-bound,
+     * so its class is unknown.
      */
     private function getStaticClass(StaticCall $call, Scope $scope): ?ClassReflection
     {
-        if (! $call->class instanceof Name || $call->class->isSpecialClassName()) {
+        if (! $call->class instanceof Name || $call->class->toLowerString() === 'static') {
             return null;
         }
 

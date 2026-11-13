@@ -207,3 +207,38 @@ function onAdminPath(): bool
 {
     return request()->is('admin/*');
 }
+
+#[BindWhen(Implementation::class, self::onApi(...))]
+abstract class SelectsWithOwnMethod
+{
+    public static function onApi(): bool
+    {
+        return request()->is('api/*');
+    }
+}
+
+#[BindWhen(Implementation::class, parent::onApi(...))]
+abstract class SelectsWithParentMethod extends SelectsWithOwnMethod
+{
+}
+
+#[BindWhen(Implementation::class, static fn (): bool => RoutedAuth::check() || RoutedAuth::guard()->check() || RoutedRequest::is('api/*'))]
+interface UsesFacadesWithOwnForwarding
+{
+}
+
+class RoutedAuth extends Auth
+{
+    public static function __callStatic(string $method, array $args): mixed
+    {
+        return false;
+    }
+}
+
+class RoutedRequest extends RequestFacade
+{
+    public static function __callStatic(string $method, array $args): mixed
+    {
+        return false;
+    }
+}

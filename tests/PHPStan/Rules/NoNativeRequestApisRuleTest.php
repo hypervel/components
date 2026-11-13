@@ -17,6 +17,10 @@ class NoNativeRequestApisRuleTest extends RuleTestCase
 
     private const string INPUT_TIP = 'Read input from the request with its query(), input(), post(), cookie() and file() methods.';
 
+    private const string HEADER_TIP = "Read the request's headers with its header() method.";
+
+    private const string FILTER_TIP = 'Read the value from the request with its query(), input(), post() or cookie() methods, then validate or filter that value.';
+
     protected function getRule(): Rule
     {
         return self::getContainer()->getByType(NoNativeRequestApisRule::class);
@@ -43,6 +47,12 @@ class NoNativeRequestApisRuleTest extends RuleTestCase
             $input('_POST', 25),
             ["\$_SESSION is not Hypervel's session.", 26, self::SESSION_TIP . ' $_SESSION is shared by every request the worker process handles.'],
             $input('_GET', 28),
+            $function('getallheaders', 36, self::HEADER_TIP),
+            $function('apache_request_headers', 37, self::HEADER_TIP),
+            $function('filter_input', 38, self::FILTER_TIP),
+            $function('filter_input_array', 39, self::FILTER_TIP),
+            $function('filter_has_var', 40, self::FILTER_TIP),
+            $function('filter_has_var', 41, self::FILTER_TIP),
         ]);
     }
 

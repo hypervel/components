@@ -41,6 +41,7 @@ class NoCoroutinesInTransactionsRuleTest extends RuleTestCase
             [self::MESSAGE, 87],
             [self::MESSAGE, 90],
             [self::MESSAGE, 97],
+            [self::MESSAGE, 104],
         ]);
     }
 

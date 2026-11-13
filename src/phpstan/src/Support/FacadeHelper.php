@@ -135,10 +135,7 @@ class FacadeHelper
 
         $root = $this->getRootClass($facade, $scope);
 
-        // Another __callStatic() can forward the call anywhere. Hash's and Crypt's forward it to the
-        // root as Facade's does, keeping the arguments out of stack traces.
-        if ($root === null
-            || ! in_array($facade->getNativeMethod('__callStatic')->getDeclaringClass()->getName(), [Facade::class, Hash::class, Crypt::class], true)) {
+        if ($root === null || ! self::forwardsToRoot($facade)) {
             return null;
         }
 
@@ -148,6 +145,16 @@ class FacadeHelper
         return $class->hasNativeMethod($name) && $class->getNativeMethod($name)->isPublic()
             ? $class->getNativeMethod($name)
             : null;
+    }
+
+    /**
+     * Determine whether the facade forwards static calls it doesn't declare to its root. Hash's and Crypt's
+     * __callStatic() forward as Facade's does, keeping the arguments out of stack traces; another can
+     * forward the call anywhere.
+     */
+    public static function forwardsToRoot(ClassReflection $facade): bool
+    {
+        return in_array($facade->getNativeMethod('__callStatic')->getDeclaringClass()->getName(), [Facade::class, Hash::class, Crypt::class], true);
     }
 
     /**
