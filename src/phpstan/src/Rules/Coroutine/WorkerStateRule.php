@@ -119,21 +119,27 @@ class WorkerStateRule implements Rule
         }
 
         foreach ($node->get(WorkerStateGlobalWriteCollector::class) as $file => $collected) {
-            // A write through a bound global name gets what it keeps from the request value written at the same target.
+            // A write through a bound global name gets what it keeps from the request value written at the same target,
+            // and an argument counts only where PHPStan's call handling wrote it as a by-reference argument.
             $states = [];
+            $arguments = [];
             $globalWrites = [];
 
             foreach ($collected as $writes) {
                 foreach ($writes as $write) {
-                    if ($write['type'] === 'value') {
-                        $states[$write['target']] = $write['state'];
-                    } else {
-                        $globalWrites[] = $write;
-                    }
+                    match ($write['type']) {
+                        'value' => $states[$write['target']] = $write['state'],
+                        'argument' => $arguments[$write['target']] = true,
+                        default => $globalWrites[] = $write,
+                    };
                 }
             }
 
             foreach ($globalWrites as $write) {
+                if ($write['argument'] && ! isset($arguments[$write['target']])) {
+                    continue;
+                }
+
                 $state = $write['state'] ?? $states[$write['target']] ?? null;
                 $context = $analysis->getContext($write['function'], $file);
 
