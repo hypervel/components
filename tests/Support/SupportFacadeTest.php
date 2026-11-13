@@ -9,6 +9,7 @@ use Hypervel\Container\Attributes\Scoped;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\ReplicableContext;
+use Hypervel\Engine\Channel;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Testing\Fakes\Fake;
 use Hypervel\Tests\TestCase;
@@ -335,9 +336,15 @@ class SupportFacadeTest extends TestCase
         $app->bind('foo', static fn (): stdClass => new stdClass);
         FacadeStub::setFacadeApplication($app);
 
-        $resolve = static function (): array {
+        // Both coroutines resolve before the clear and resolve again only after it. A bounded wait keeps a failure
+        // in one coroutine from leaving the others waiting.
+        $resolved = new Channel(2);
+        $cleared = new Channel(2);
+
+        $resolve = function () use ($resolved, $cleared): array {
             $before = FacadeStub::getFacadeRoot();
-            usleep(5000);
+            $resolved->push(true);
+            $this->assertTrue($cleared->pop(5.0));
 
             return [$before, FacadeStub::getFacadeRoot()];
         };
@@ -345,9 +352,12 @@ class SupportFacadeTest extends TestCase
         [[$firstBefore, $firstAfter], [$secondBefore, $secondAfter]] = parallel([
             $resolve,
             $resolve,
-            static function () use ($clear): void {
-                usleep(2000);
+            function () use ($clear, $resolved, $cleared): void {
+                $this->assertTrue($resolved->pop(5.0));
+                $this->assertTrue($resolved->pop(5.0));
                 $clear();
+                $cleared->push(true);
+                $cleared->push(true);
             },
         ]);
 
