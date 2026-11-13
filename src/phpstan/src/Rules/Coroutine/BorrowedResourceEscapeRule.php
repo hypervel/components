@@ -78,6 +78,7 @@ use PHPStan\Type\ObjectType;
 use Swoole\Coroutine as SwooleCoroutine;
 
 use function array_all;
+use function array_column;
 use function array_diff_key;
 use function array_fill_keys;
 use function array_filter;
@@ -421,6 +422,11 @@ class BorrowedResourceEscapeRule implements Rule
                 $this->applyDetachments($nodes, $environment);
             }
 
+            // The environment before the statement, with its writes and nested detachments applied in node order up to
+            // the walk's position, which a nested unset() rebuilds names from. Node order isn't proven execution order.
+            $path = $environment;
+            $pathPosition = 0;
+
             $this->applyWrites($nodes, $reset[0] ?? null, $environment, $owners, $resource, $scope);
 
             // What each name a nested unset() rebuilt held before the rebuild.
@@ -440,7 +446,12 @@ class BorrowedResourceEscapeRule implements Rule
                 }
 
                 if (! $detaches && $rebound !== []) {
-                    $this->applyNestedDetachment($node, $rebound, array_slice($nodes, $position + 1), $environment, $unsetFacts, $owners, $resource, $scope);
+                    $this->applyWrites(array_slice($nodes, $pathPosition, $position - $pathPosition), null, $path, $owners, $resource, $scope);
+                    // The detaching node's own write, such as `=&` giving the name another value, applies with the next
+                    // segment, after its detachment.
+                    $pathPosition = $position;
+
+                    $this->applyNestedDetachment($node, $rebound, array_slice($nodes, $position + 1), $path, $environment, $unsetFacts, $owners, $resource, $scope);
                 }
 
                 if ($node instanceof Return_ && $isCallback && $node->expr !== null) {
@@ -816,29 +827,42 @@ class BorrowedResourceEscapeRule implements Rule
     /**
      * Apply a detachment inside a larger statement where the walk reaches it, after the statement's earlier
      * escapes. It may not run, or may follow a write to the binding, so a closure sharing the old binding by
-     * reference only stops reading the name. An unset name keeps only what the statement's later writes give it.
+     * reference only stops reading the name. An unset name, and each name written after the unset, keeps only
+     * what the statement's path through the unset gives it.
      *
      * @param list<string> $names
      * @param list<Node> $later the statement's nodes after the detaching one
+     * @param Environment $path the statement's writes and detachments up to this one, in node order
      * @param Environment $environment
-     * @param array<string, array{tracked: ?string, appended: ?string, callables: array<int, HeldClosure>}> $unsetFacts what each unset name held before the statement's first unset of it rebuilt it
+     * @param array<string, array{tracked: ?string, appended: ?string, callables: array<int, HeldClosure>}> $unsetFacts what each name a nested unset rebuilt held before its first rebuild
      * @param array<string, true> $owners
      */
-    private function applyNestedDetachment(Node $node, array $names, array $later, array &$environment, array &$unsetFacts, array $owners, string $resource, Scope $scope): void
+    private function applyNestedDetachment(Node $node, array $names, array $later, array &$path, array &$environment, array &$unsetFacts, array $owners, string $resource, Scope $scope): void
     {
         $names = array_fill_keys($names, true);
 
-        foreach ($environment['callables'] as $variable => $closures) {
-            foreach ($closures as $id => $held) {
-                $environment['callables'][$variable][$id][2] = array_map(static fn (array $references): array => array_diff_key($references, $names), $held[2]);
-            }
-        }
+        $environment['callables'] = $this->forgetLiveNames($environment['callables'], $names);
+        $path['callables'] = $this->forgetLiveNames($path['callables'], $names);
 
         if (! $node instanceof Unset_) {
             return;
         }
 
-        foreach (array_keys($names) as $name) {
+        // The unset names, and the names written after the unset, are rebuilt from the path, so a write the unset
+        // discards doesn't return and a copy made after it doesn't keep the old value, while a value copied earlier
+        // keeps it. The main environment keeps their defined and referenced flags, since the unset may not run.
+        $path = [
+            'tracked' => array_diff_key($path['tracked'], $names),
+            'appended' => array_diff_key($path['appended'], $names),
+            'callables' => array_diff_key($path['callables'], $names),
+            'defined' => array_diff_key($path['defined'], $names),
+            'referenced' => array_diff_key($path['referenced'], $names),
+        ];
+        $after = $path;
+        $this->applyWrites($later, null, $after, $owners, $resource, $scope);
+        $rebuilt = $names + array_fill_keys(array_column($this->getWrites($later, null), 0), true);
+
+        foreach (array_keys($rebuilt) as $name) {
             $unsetFacts[$name] ??= [
                 'tracked' => $environment['tracked'][$name] ?? null,
                 'appended' => $environment['appended'][$name] ?? null,
@@ -846,22 +870,28 @@ class BorrowedResourceEscapeRule implements Rule
             ];
         }
 
-        // Only the unset names are rebuilt, from the later writes evaluated on a copy, so a value copied from them
-        // earlier keeps it and a write the unset discards doesn't return. Their defined and referenced flags stay,
-        // since the unset may not run.
-        $after = [
-            'tracked' => array_diff_key($environment['tracked'], $names),
-            'appended' => array_diff_key($environment['appended'], $names),
-            'callables' => array_diff_key($environment['callables'], $names),
-            'defined' => array_diff_key($environment['defined'], $names),
-            'referenced' => array_diff_key($environment['referenced'], $names),
-        ];
+        $environment['tracked'] = array_diff_key($environment['tracked'], $rebuilt) + array_intersect_key($after['tracked'], $rebuilt);
+        $environment['appended'] = array_diff_key($environment['appended'], $rebuilt) + array_intersect_key($after['appended'], $rebuilt);
+        $environment['callables'] = array_diff_key($environment['callables'], $rebuilt) + array_intersect_key($after['callables'], $rebuilt);
+    }
 
-        $this->applyWrites($later, null, $after, $owners, $resource, $scope);
+    /**
+     * Stop the held closures reading the names by reference.
+     *
+     * @param array<string, array<int, HeldClosure>> $callables
+     * @param array<string, true> $names
+     *
+     * @return array<string, array<int, HeldClosure>>
+     */
+    private function forgetLiveNames(array $callables, array $names): array
+    {
+        foreach ($callables as $variable => $closures) {
+            foreach ($closures as $id => $held) {
+                $callables[$variable][$id][2] = array_map(static fn (array $references): array => array_diff_key($references, $names), $held[2]);
+            }
+        }
 
-        $environment['tracked'] = array_diff_key($environment['tracked'], $names) + array_intersect_key($after['tracked'], $names);
-        $environment['appended'] = array_diff_key($environment['appended'], $names) + array_intersect_key($after['appended'], $names);
-        $environment['callables'] = array_diff_key($environment['callables'], $names) + array_intersect_key($after['callables'], $names);
+        return $callables;
     }
 
     /**
@@ -901,30 +931,7 @@ class BorrowedResourceEscapeRule implements Rule
      */
     private function applyWrites(array $nodes, ?Assign $reset, array &$environment, array $owners, string $resource, Scope $scope): void
     {
-        $writes = [];
-
-        foreach ($nodes as $node) {
-            foreach ($this->getUnknownTargets($node) as $leaf) {
-                if ($leaf instanceof Variable && is_string($leaf->name)) {
-                    $writes[] = [$leaf->name, null, false];
-                }
-            }
-
-            if ((! $node instanceof Assign && ! $node instanceof AssignRef && ! $node instanceof CoalesceAssign) || $node === $reset) {
-                continue;
-            }
-
-            $root = $node->var;
-
-            while ($root instanceof ArrayDimFetch) {
-                $root = $root->var;
-            }
-
-            // `??=` keeps a target that is already set, so the variable gets the target or the assigned value.
-            if ($root instanceof Variable && is_string($root->name) && $root->name !== 'this') {
-                $writes[] = [$root->name, $node instanceof CoalesceAssign ? $node : $node->expr, $root !== $node->var];
-            }
-        }
+        $writes = $this->getWrites($nodes, $reset);
 
         if ($writes === []) {
             return;
@@ -958,6 +965,44 @@ class BorrowedResourceEscapeRule implements Rule
                 $this->setFact($environment, $name, $fact);
             }
         } while ($environment !== $previous);
+    }
+
+    /**
+     * Get the variables the nodes write, other than the reset, each with the value it's given (null when the rule
+     * doesn't follow it) and whether the write goes into the array the variable holds.
+     *
+     * @param list<Node> $nodes
+     *
+     * @return list<array{string, ?Expr, bool}>
+     */
+    private function getWrites(array $nodes, ?Assign $reset): array
+    {
+        $writes = [];
+
+        foreach ($nodes as $node) {
+            foreach ($this->getUnknownTargets($node) as $leaf) {
+                if ($leaf instanceof Variable && is_string($leaf->name)) {
+                    $writes[] = [$leaf->name, null, false];
+                }
+            }
+
+            if ((! $node instanceof Assign && ! $node instanceof AssignRef && ! $node instanceof CoalesceAssign) || $node === $reset) {
+                continue;
+            }
+
+            $root = $node->var;
+
+            while ($root instanceof ArrayDimFetch) {
+                $root = $root->var;
+            }
+
+            // `??=` keeps a target that is already set, so the variable gets the target or the assigned value.
+            if ($root instanceof Variable && is_string($root->name) && $root->name !== 'this') {
+                $writes[] = [$root->name, $node instanceof CoalesceAssign ? $node : $node->expr, $root !== $node->var];
+            }
+        }
+
+        return $writes;
     }
 
     /**

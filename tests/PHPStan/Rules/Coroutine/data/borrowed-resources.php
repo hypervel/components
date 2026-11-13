@@ -751,6 +751,18 @@ class GlobalStores
 
             return $copy;
         });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $clients = [];
+            $clients[] = $connection->client();
+            $result = [];
+
+            if ($shared) {
+                unset($unrelated);
+                $result = $clients;
+            }
+
+            return $result;
+        });
     }
 
     public function staysInside(bool $shared): void
@@ -966,6 +978,65 @@ class GlobalStores
             }
 
             $store();
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $clients = [];
+            $clients[] = $connection->client();
+            $result = [];
+
+            if ($shared) {
+                unset($clients);
+                $clients = [];
+                $result = $clients;
+            }
+
+            return $result;
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $clients = [];
+            $clients[] = $connection->client();
+            $result = [];
+            $copy = [];
+            $other = null;
+
+            if ($shared) {
+                unset($clients);
+                $clients = [];
+                $result = $clients;
+                unset($other);
+                $copy = $result;
+            }
+
+            return $copy;
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $client = null;
+            $task = function () use (&$client) {
+                return $client;
+            };
+            $copy = null;
+
+            if ($shared) {
+                unset($client);
+                $client = $connection;
+                $copy = $task;
+                $this->callback = $copy;
+            }
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $client = $connection->client();
+            $safe = null;
+            $unrelated = null;
+
+            if ($shared) {
+                $client = &$safe;
+                unset($unrelated);
+                $copy = $client;
+
+                return $copy;
+            }
+
+            return null;
         });
     }
 }
