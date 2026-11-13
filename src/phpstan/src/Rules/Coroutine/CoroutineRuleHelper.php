@@ -10,6 +10,7 @@ use PhpParser\Node;
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\Array_;
+use PhpParser\Node\Expr\ArrayDimFetch;
 use PhpParser\Node\Expr\Assign;
 use PhpParser\Node\Expr\AssignOp;
 use PhpParser\Node\Expr\AssignOp\Coalesce;
@@ -162,7 +163,7 @@ class CoroutineRuleHelper
      *
      * @return list<Expr>
      */
-    private static function getWriteTargets(Node $node): array
+    public static function getWriteTargets(Node $node): array
     {
         return match (true) {
             $node instanceof Assign, $node instanceof AssignRef, $node instanceof AssignOp => self::getTargetLeaves($node->var),
@@ -197,9 +198,59 @@ class CoroutineRuleHelper
     }
 
     /**
+     * Get the destructuring leaves the target binds by reference, such as `$value` in `[&$value] = $items`.
+     *
+     * @return list<Expr>
+     */
+    public static function getReferenceLeaves(?Expr $target): array
+    {
+        if (! $target instanceof List_ && ! $target instanceof Array_) {
+            return [];
+        }
+
+        $leaves = [];
+
+        foreach ($target->items as $item) {
+            if ($item !== null) {
+                $leaves = [...$leaves, ...($item->byRef ? [$item->value] : self::getReferenceLeaves($item->value))];
+            }
+        }
+
+        return $leaves;
+    }
+
+    /**
+     * Get the plain variable a reference assignment binds to one of the given variables or an offset of it, and
+     * that root: `$alias =& $root['key']`, or `$root['key'] =& $alias`. A plain variable assigned by reference is
+     * only re-pointed, so it never passes its old binding on. A property isn't followed, since a property can
+     * return other storage by reference than its object's.
+     *
+     * @param array<string, true> $roots
+     *
+     * @return null|array{string, string}
+     */
+    public static function getStorageAlias(AssignRef $node, array $roots): ?array
+    {
+        [$alias, $storage] = $node->var instanceof Variable ? [$node->var, $node->expr] : [$node->expr, $node->var];
+
+        while ($storage instanceof ArrayDimFetch) {
+            $storage = $storage->var;
+        }
+
+        return $alias instanceof Variable
+            && is_string($alias->name)
+            && $storage instanceof Variable
+            && is_string($storage->name)
+            && isset($roots[$storage->name])
+                ? [$alias->name, $storage->name]
+                : null;
+    }
+
+    /**
      * Get the variable names the node unbinds from what they were bound to, such as a global or a caller's
-     * by-reference variable: unset(), a static declaration or a by-reference assignment to the variable itself.
-     * Unsetting or by-reference assigning an offset or property writes through the binding instead.
+     * by-reference variable: unset(), a static declaration, or binding the variable itself by reference through
+     * =&, a by-reference foreach value or a by-reference destructuring item. Unsetting or binding an offset or
+     * property by reference writes through the binding instead.
      *
      * @return list<string>
      */
@@ -209,6 +260,8 @@ class CoroutineRuleHelper
             $node instanceof Unset_ => $node->vars,
             $node instanceof Static_ => array_map(static fn (StaticVar $variable): Variable => $variable->var, $node->vars),
             $node instanceof AssignRef => [$node->var],
+            $node instanceof Assign => self::getReferenceLeaves($node->var),
+            $node instanceof Foreach_ => $node->byRef ? [$node->valueVar] : self::getReferenceLeaves($node->valueVar),
             default => [],
         };
 

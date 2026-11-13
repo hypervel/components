@@ -34,19 +34,24 @@ use PhpParser\Node\Expr\ArrayDimFetch;
 use PhpParser\Node\Expr\ArrowFunction;
 use PhpParser\Node\Expr\Assign;
 use PhpParser\Node\Expr\AssignOp;
+use PhpParser\Node\Expr\AssignOp\Coalesce as CoalesceAssign;
 use PhpParser\Node\Expr\AssignRef;
+use PhpParser\Node\Expr\BinaryOp\Coalesce;
 use PhpParser\Node\Expr\CallLike;
 use PhpParser\Node\Expr\Closure;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\List_;
+use PhpParser\Node\Expr\Match_;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\New_;
 use PhpParser\Node\Expr\NullsafeMethodCall;
 use PhpParser\Node\Expr\PropertyFetch;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Expr\StaticPropertyFetch;
+use PhpParser\Node\Expr\Ternary;
 use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Identifier;
+use PhpParser\Node\MatchArm;
 use PhpParser\Node\Name;
 use PhpParser\Node\StaticVar;
 use PhpParser\Node\Stmt\Catch_;
@@ -72,13 +77,18 @@ use PHPStan\Rules\RuleErrorBuilder;
 use PHPStan\Type\ObjectType;
 use Swoole\Coroutine as SwooleCoroutine;
 
+use function array_all;
 use function array_diff_key;
+use function array_fill_keys;
 use function array_filter;
 use function array_intersect_key;
 use function array_keys;
 use function array_map;
+use function array_merge;
+use function array_slice;
 use function array_values;
 use function class_basename;
+use function count;
 use function in_array;
 use function is_string;
 use function spl_object_id;
@@ -393,25 +403,60 @@ class BorrowedResourceEscapeRule implements Rule
                     ? [$statement->expr, $statement->expr->var->name]
                     : null;
 
-            $this->applyDetachments($statement, $nodes, $environment);
+            // A statement that is itself a detachment has no escapes of its own, and its old bindings keep what they hold
+            // before it. One inside a larger statement takes effect where the walk reaches it.
+            $detaches = $statement instanceof Unset_
+                || $statement instanceof Static_
+                || $statement instanceof Global_
+                || ($statement instanceof Expression && $statement->expr instanceof AssignRef);
+
+            // A top-level reference assignment between a plain variable and global or by-reference storage binds the
+            // variable to that storage, read before the statement detaches the variable from what it was bound to.
+            $alias = $statement instanceof Expression && $statement->expr instanceof AssignRef
+                ? CoroutineRuleHelper::getStorageAlias($statement->expr, $globals + $byReference + ['GLOBALS' => true])
+                : null;
+            $aliasesGlobal = $alias !== null && ($alias[1] === 'GLOBALS' || isset($globals[$alias[1]]));
+
+            if ($detaches) {
+                $this->applyDetachments($nodes, $environment);
+            }
+
             $this->applyWrites($nodes, $reset[0] ?? null, $environment, $owners, $resource, $scope);
 
-            foreach ($nodes as $node) {
+            // What each name a nested unset() rebuilt held before the rebuild.
+            $unsetFacts = [];
+
+            foreach ($nodes as $position => $node) {
                 $how = null;
                 $kind = null;
 
                 // Unsetting a name, or binding it to a static, a global or another variable, detaches it from the global
-                // or the caller's variable it was bound to.
-                foreach ($this->getReboundNames($node) as $name) {
+                // or the caller's variable it was bound to. That happens before the node's own store is checked, so
+                // binding a plain variable by reference points it at another value instead of storing through it.
+                $rebound = $this->getReboundNames($node);
+
+                foreach ($rebound as $name) {
                     unset($globals[$name], $byReference[$name]);
+                }
+
+                if (! $detaches && $rebound !== []) {
+                    $this->applyNestedDetachment($node, $rebound, array_slice($nodes, $position + 1), $environment, $unsetFacts, $owners, $resource, $scope);
                 }
 
                 if ($node instanceof Return_ && $isCallback && $node->expr !== null) {
                     $how = 'is returned';
                     $kind = $this->getBorrowedKind($node->expr, $environment, $owners, $resource, $scope);
-                } elseif ($node instanceof Assign || $node instanceof AssignRef) {
-                    // A by-reference assignment to a variable points the name at another value instead of writing through it.
-                    $how = $node instanceof AssignRef && $node->var instanceof Variable ? null : $this->getStore($node->var, $byReference, $globals, $external, $locals);
+                } elseif ($node instanceof Assign && ($node->var instanceof List_ || $node->var instanceof Array_)) {
+                    foreach ($this->getDestructuredValues($node->var, $node->expr) as [$leaf, $value]) {
+                        $leafHow = $this->getStore($leaf, $byReference, $globals, $external, $locals);
+                        $leafKind = $leafHow === null ? null : $this->getBorrowedKind($value, $environment, $owners, $resource, $scope);
+
+                        if ($leafHow !== null && $leafKind !== null) {
+                            $this->addError($errors, $node, $borrow, $leafKind, $leafHow);
+                        }
+                    }
+                } elseif ($node instanceof Assign || $node instanceof AssignRef || $node instanceof CoalesceAssign) {
+                    $how = $this->getStore($node->var, $byReference, $globals, $external, $locals);
                     $kind = $how === null ? null : $this->getBorrowedKind($node->expr, $environment, $owners, $resource, $scope);
                 } elseif ($node instanceof CallLike) {
                     $spawn = $this->getSpawn($node, $locals, $writes, $outer, $scope);
@@ -439,6 +484,24 @@ class BorrowedResourceEscapeRule implements Rule
                 }
             }
 
+            // The unset may not have run, so after the statement a name it rebuilt keeps only what it holds either way.
+            // A name bound by reference had no facts before the rebuild, so it has none again.
+            foreach ($unsetFacts as $name => $facts) {
+                if ($facts['tracked'] === null) {
+                    unset($environment['tracked'][$name]);
+                }
+
+                if ($facts['appended'] === null) {
+                    unset($environment['appended'][$name]);
+                }
+
+                $environment['callables'][$name] = array_intersect_key($environment['callables'][$name] ?? [], $facts['callables']);
+
+                if ($environment['callables'][$name] === []) {
+                    unset($environment['callables'][$name]);
+                }
+            }
+
             if ($reset !== null) {
                 $this->setFact($environment, $reset[1], $this->getFact($reset[0]->expr, $environment, $owners, $resource, $scope));
             }
@@ -446,7 +509,7 @@ class BorrowedResourceEscapeRule implements Rule
             // A reference binding lets a later write through either side change both, so neither value is known
             // after this statement. Its own escapes, such as a by-reference store, are checked above first.
             foreach ($nodes as $node) {
-                foreach ($node instanceof AssignRef ? $this->getReferenceRoots($node) : [] as $name) {
+                foreach ($this->getReferenceRoots($node) as $name) {
                     $this->setFact($environment, $name, ['tracked' => null, 'appended' => null, 'callables' => []]);
                     $environment['referenced'][$name] = true;
                 }
@@ -455,6 +518,12 @@ class BorrowedResourceEscapeRule implements Rule
             // A top-level `global` binds its names from here on. One under a condition may not run, so it binds nothing.
             foreach ($statement instanceof Global_ ? $this->getReboundNames($statement) : [] as $name) {
                 $globals[$name] = true;
+            }
+
+            if ($alias !== null && $aliasesGlobal) {
+                $globals[$alias[0]] = true;
+            } elseif ($alias !== null) {
+                $byReference[$alias[0]] = true;
             }
         }
 
@@ -568,7 +637,18 @@ class BorrowedResourceEscapeRule implements Rule
                 }
             }
 
-            if (! $node instanceof Assign && ! $node instanceof AssignRef) {
+            // A later write through either side of a reference binding changes the other, so both are written.
+            $sides = $this->getReferenceSides($node);
+
+            foreach ($this->getReferenceRoots($node) as $name) {
+                $writes[$name][] = null;
+            }
+
+            if ($sides !== [] && ($property = $this->getPropertyWriteKey($sides[count($sides) - 1])) !== null) {
+                $propertyWrites[$property] = true;
+            }
+
+            if (! $node instanceof Assign && ! $node instanceof AssignRef && ! $node instanceof CoalesceAssign) {
                 continue;
             }
 
@@ -579,33 +659,40 @@ class BorrowedResourceEscapeRule implements Rule
             if ($node->var instanceof Variable && is_string($node->var->name)) {
                 $writes[$node->var->name][] = $node->expr;
             }
-
-            // A later write through either side of a reference binding changes the other, so both are written.
-            if ($node instanceof AssignRef) {
-                foreach ($this->getReferenceRoots($node) as $name) {
-                    $writes[$name][] = null;
-                }
-
-                if (($property = $this->getPropertyWriteKey($node->expr)) !== null) {
-                    $propertyWrites[$property] = true;
-                }
-            }
         }
 
         return [$writes, $propertyWrites];
     }
 
     /**
-     * Get the variables a reference binding ties together: the root variable of each side, such as `$items`
-     * for `$items[0]` or `$holder` for `$holder->value`.
+     * Get both sides of the reference bindings the node makes, the source last: `=&`, by-reference destructuring
+     * items and the destructured value, or a by-reference foreach value and the iterated expression.
+     *
+     * @return list<Expr>
+     */
+    private function getReferenceSides(Node $node): array
+    {
+        $targets = match (true) {
+            $node instanceof AssignRef => [$node->var],
+            $node instanceof Assign => CoroutineRuleHelper::getReferenceLeaves($node->var),
+            $node instanceof Foreach_ => $node->byRef ? [$node->valueVar] : CoroutineRuleHelper::getReferenceLeaves($node->valueVar),
+            default => [],
+        };
+
+        return $targets === [] ? [] : [...$targets, $node->expr];
+    }
+
+    /**
+     * Get the variables the node's reference bindings tie together: the root variable of each side, such as
+     * `$items` for `$items[0]` or `$holder` for `$holder->value`.
      *
      * @return list<string>
      */
-    private function getReferenceRoots(AssignRef $node): array
+    private function getReferenceRoots(Node $node): array
     {
         $names = [];
 
-        foreach ([$node->var, $node->expr] as $side) {
+        foreach ($this->getReferenceSides($node) as $side) {
             while ($side instanceof ArrayDimFetch || $side instanceof PropertyFetch) {
                 $side = $side->var;
             }
@@ -619,8 +706,8 @@ class BorrowedResourceEscapeRule implements Rule
     }
 
     /**
-     * Get the targets a node writes without a value the rule follows: destructuring, compound assignments,
-     * foreach, catch, static and global variables.
+     * Get the targets a node writes without a value the rule follows: destructuring, compound assignments
+     * other than `??=`, foreach, catch, static and global variables.
      *
      * @return list<Expr>
      */
@@ -628,7 +715,7 @@ class BorrowedResourceEscapeRule implements Rule
     {
         $targets = match (true) {
             $node instanceof Assign && ($node->var instanceof List_ || $node->var instanceof Array_) => [$node->var],
-            $node instanceof AssignOp => [$node->var],
+            $node instanceof AssignOp && ! $node instanceof CoalesceAssign => [$node->var],
             $node instanceof Foreach_ => [$node->keyVar, $node->valueVar],
             $node instanceof Catch_ => [$node->var],
             $node instanceof Static_ => array_map(static fn (StaticVar $variable): Variable => $variable->var, $node->vars),
@@ -646,20 +733,18 @@ class BorrowedResourceEscapeRule implements Rule
     }
 
     /**
-     * Apply a statement's detachments to the environment: `unset()`, `static`, `global` or a by-reference assignment
-     * of a variable points its name at another binding.
+     * Apply the detachments of a statement that is itself one: a top-level `unset()`, `static`, `global` or
+     * `$variable =& …;` points its names at other bindings.
      *
-     * A closure sharing the old binding by reference keeps it, and this function can no longer reach it through the
-     * name, so the closure stops reading the name. When the statement itself is the detachment, the binding keeps
-     * what it holds before the statement: its value becomes part of the closure's fixed kind, and the closures it
-     * holds keep reading their own by-reference variables. One inside another statement may not run, or may follow
-     * a write to the binding, so its value is unknown. An unset name holds nothing afterwards, and is undefined when
-     * the statement is the unset.
+     * A closure sharing an old binding by reference keeps it, and this function can no longer reach it through
+     * the name, so the binding keeps what it holds before the statement: its value becomes part of the closure's
+     * fixed kind, and the closures it holds keep reading their own by-reference variables. A detached name read
+     * through those closures keeps its binding the same way. An unset name is undefined afterwards.
      *
      * @param list<Node> $nodes
      * @param Environment $environment
      */
-    private function applyDetachments(Node $statement, array $nodes, array &$environment): void
+    private function applyDetachments(array $nodes, array &$environment): void
     {
         $detached = [];
         $unset = [];
@@ -678,36 +763,39 @@ class BorrowedResourceEscapeRule implements Rule
             return;
         }
 
-        $direct = $statement instanceof Unset_
-            || $statement instanceof Static_
-            || $statement instanceof Global_
-            || ($statement instanceof Expression && $statement->expr instanceof AssignRef);
         $before = $environment;
 
         foreach ($before['callables'] as $variable => $closures) {
             foreach ($closures as $id => [$closure, $kind, $live]) {
-                $read = [];
+                $pending = [];
 
                 foreach ($live as $capturer => $references) {
-                    $read += array_intersect_key($references, $detached);
+                    $pending += array_intersect_key($references, $detached);
                     $live[$capturer] = array_diff_key($references, $detached);
                 }
 
-                if ($read === []) {
+                if ($pending === []) {
                     continue;
                 }
 
-                if ($direct) {
-                    $kind ??= $this->getFirstKind($read, $before, live: false);
+                // Each detached name is followed once, so closures sharing each other's bindings end.
+                $reached = [];
 
-                    // A detached name read through one of these closures in turn isn't followed.
-                    foreach (array_intersect_key($before['callables'], $read) as $held) {
+                while ($pending !== []) {
+                    $reached += $pending;
+                    $kind ??= $this->getFirstKind($pending, $before, live: false);
+                    $next = [];
+
+                    foreach (array_intersect_key($before['callables'], $pending) as $held) {
                         foreach ($held as [, , $captured]) {
                             foreach ($captured as $capturer => $references) {
                                 $live[$capturer] = ($live[$capturer] ?? []) + array_diff_key($references, $detached);
+                                $next += array_intersect_key($references, $detached);
                             }
                         }
                     }
+
+                    $pending = array_diff_key($next, $reached);
                 }
 
                 $environment['callables'][$variable][$id] = [$closure, $kind, array_filter($live)];
@@ -715,12 +803,65 @@ class BorrowedResourceEscapeRule implements Rule
         }
 
         foreach (array_keys($unset) as $name) {
-            unset($environment['tracked'][$name], $environment['appended'][$name], $environment['callables'][$name]);
+            unset(
+                $environment['tracked'][$name],
+                $environment['appended'][$name],
+                $environment['callables'][$name],
+                $environment['defined'][$name],
+                $environment['referenced'][$name],
+            );
+        }
+    }
 
-            if ($direct) {
-                unset($environment['defined'][$name], $environment['referenced'][$name]);
+    /**
+     * Apply a detachment inside a larger statement where the walk reaches it, after the statement's earlier
+     * escapes. It may not run, or may follow a write to the binding, so a closure sharing the old binding by
+     * reference only stops reading the name. An unset name keeps only what the statement's later writes give it.
+     *
+     * @param list<string> $names
+     * @param list<Node> $later the statement's nodes after the detaching one
+     * @param Environment $environment
+     * @param array<string, array{tracked: ?string, appended: ?string, callables: array<int, HeldClosure>}> $unsetFacts what each unset name held before the statement's first unset of it rebuilt it
+     * @param array<string, true> $owners
+     */
+    private function applyNestedDetachment(Node $node, array $names, array $later, array &$environment, array &$unsetFacts, array $owners, string $resource, Scope $scope): void
+    {
+        $names = array_fill_keys($names, true);
+
+        foreach ($environment['callables'] as $variable => $closures) {
+            foreach ($closures as $id => $held) {
+                $environment['callables'][$variable][$id][2] = array_map(static fn (array $references): array => array_diff_key($references, $names), $held[2]);
             }
         }
+
+        if (! $node instanceof Unset_) {
+            return;
+        }
+
+        foreach (array_keys($names) as $name) {
+            $unsetFacts[$name] ??= [
+                'tracked' => $environment['tracked'][$name] ?? null,
+                'appended' => $environment['appended'][$name] ?? null,
+                'callables' => $environment['callables'][$name] ?? [],
+            ];
+        }
+
+        // Only the unset names are rebuilt, from the later writes evaluated on a copy, so a value copied from them
+        // earlier keeps it and a write the unset discards doesn't return. Their defined and referenced flags stay,
+        // since the unset may not run.
+        $after = [
+            'tracked' => array_diff_key($environment['tracked'], $names),
+            'appended' => array_diff_key($environment['appended'], $names),
+            'callables' => array_diff_key($environment['callables'], $names),
+            'defined' => array_diff_key($environment['defined'], $names),
+            'referenced' => array_diff_key($environment['referenced'], $names),
+        ];
+
+        $this->applyWrites($later, null, $after, $owners, $resource, $scope);
+
+        $environment['tracked'] = array_diff_key($environment['tracked'], $names) + array_intersect_key($after['tracked'], $names);
+        $environment['appended'] = array_diff_key($environment['appended'], $names) + array_intersect_key($after['appended'], $names);
+        $environment['callables'] = array_diff_key($environment['callables'], $names) + array_intersect_key($after['callables'], $names);
     }
 
     /**
@@ -769,7 +910,7 @@ class BorrowedResourceEscapeRule implements Rule
                 }
             }
 
-            if ((! $node instanceof Assign && ! $node instanceof AssignRef) || $node === $reset) {
+            if ((! $node instanceof Assign && ! $node instanceof AssignRef && ! $node instanceof CoalesceAssign) || $node === $reset) {
                 continue;
             }
 
@@ -779,8 +920,9 @@ class BorrowedResourceEscapeRule implements Rule
                 $root = $root->var;
             }
 
+            // `??=` keeps a target that is already set, so the variable gets the target or the assigned value.
             if ($root instanceof Variable && is_string($root->name) && $root->name !== 'this') {
-                $writes[] = [$root->name, $node->expr, $root !== $node->var];
+                $writes[] = [$root->name, $node instanceof CoalesceAssign ? $node : $node->expr, $root !== $node->var];
             }
         }
 
@@ -833,6 +975,21 @@ class BorrowedResourceEscapeRule implements Rule
             return $this->getFact($expr->expr, $environment, $owners, $resource, $scope);
         }
 
+        $alternatives = $this->getAlternatives($expr);
+
+        if ($alternatives !== [$expr]) {
+            $fact = ['tracked' => null, 'appended' => null, 'callables' => []];
+
+            foreach ($alternatives as $alternative) {
+                $alternativeFact = $this->getFact($alternative, $environment, $owners, $resource, $scope);
+                $fact['tracked'] ??= $alternativeFact['tracked'];
+                $fact['appended'] ??= $alternativeFact['appended'];
+                $fact['callables'] += $alternativeFact['callables'];
+            }
+
+            return $fact;
+        }
+
         if ($expr instanceof Variable) {
             return [
                 'tracked' => is_string($expr->name) ? $environment['tracked'][$expr->name] ?? null : null,
@@ -858,6 +1015,55 @@ class BorrowedResourceEscapeRule implements Rule
         }
 
         return ['tracked' => $this->getBorrowedKind($expr, $environment, $owners, $resource, $scope), 'appended' => null, 'callables' => []];
+    }
+
+    /**
+     * Get the expressions a value may come from: the branches of `?:`, `??`, a ternary or a match, the target
+     * or assigned value of `??=`, through nested ones, or the expression itself.
+     *
+     * @return non-empty-list<Expr>
+     */
+    private function getAlternatives(Expr $expr): array
+    {
+        $branches = match (true) {
+            $expr instanceof Ternary => [$expr->if ?? $expr->cond, $expr->else],
+            $expr instanceof Coalesce => [$expr->left, $expr->right],
+            $expr instanceof CoalesceAssign => [$expr->var, $expr->expr],
+            $expr instanceof Match_ && $expr->arms !== [] => array_map(static fn (MatchArm $arm): Expr => $arm->body, $expr->arms),
+            default => [$expr],
+        };
+
+        return $branches === [$expr] ? $branches : array_merge(...array_map($this->getAlternatives(...), $branches));
+    }
+
+    /**
+     * Get each leaf a destructuring assignment writes with the value it gets, where an array literal without keys
+     * gives a leaf without a key the item at its position. Any other leaf's value is unknown, since the array may
+     * also hold values that aren't borrowed.
+     *
+     * @return list<array{Expr, Expr}>
+     */
+    private function getDestructuredValues(List_|Array_ $target, Expr $value): array
+    {
+        if (! $value instanceof Array_ || ! array_all($value->items, static fn (ArrayItem $item): bool => $item->key === null && ! $item->unpack)) {
+            return [];
+        }
+
+        $leaves = [];
+
+        foreach ($target->items as $position => $item) {
+            if ($item === null || $item->key !== null || ! isset($value->items[$position])) {
+                continue;
+            }
+
+            $itemValue = $value->items[$position]->value;
+
+            $leaves = [...$leaves, ...($item->value instanceof List_ || $item->value instanceof Array_
+                ? $this->getDestructuredValues($item->value, $itemValue)
+                : [[$item->value, $itemValue]])];
+        }
+
+        return $leaves;
     }
 
     /**
@@ -904,6 +1110,20 @@ class BorrowedResourceEscapeRule implements Rule
     {
         if ($expr instanceof Assign || $expr instanceof AssignRef) {
             return $this->getBorrowedKind($expr->expr, $environment, $owners, $resource, $scope);
+        }
+
+        $alternatives = $this->getAlternatives($expr);
+
+        if ($alternatives !== [$expr]) {
+            foreach ($alternatives as $alternative) {
+                $kind = $this->getBorrowedKind($alternative, $environment, $owners, $resource, $scope);
+
+                if ($kind !== null) {
+                    return $kind;
+                }
+            }
+
+            return null;
         }
 
         if ($expr instanceof Variable) {
@@ -1120,7 +1340,7 @@ class BorrowedResourceEscapeRule implements Rule
                 $values = array_map(static fn (ArrayItem $item): Expr => $item->value, $argument->value->items);
             }
 
-            foreach ($values as $value) {
+            foreach (array_merge(...array_map($this->getAlternatives(...), $values)) as $value) {
                 if ($value instanceof Closure || $value instanceof ArrowFunction) {
                     $passed[] = $this->getHeldClosure($value, $environment);
                 } elseif ($value instanceof Variable && is_string($value->name)) {

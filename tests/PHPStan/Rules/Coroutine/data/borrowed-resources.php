@@ -661,6 +661,96 @@ class GlobalStores
 
             return null;
         });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = $connection->client();
+
+            try {
+                return $client;
+            } finally {
+                unset($client);
+            }
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = $connection->client();
+            $task = function () use (&$client) {
+                $client->ping();
+            };
+
+            try {
+                go($task);
+            } finally {
+                unset($client);
+            }
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $client = $connection->client();
+
+            if ($shared) {
+                $copy = $client;
+                unset($client);
+
+                return $copy;
+            }
+
+            return null;
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $clients = [];
+
+            if ($shared) {
+                unset($clients);
+                $clients[] = $connection->client();
+
+                return $clients;
+            }
+
+            return [];
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $client = null;
+
+            if ($shared) {
+                unset($client);
+                $client = $connection->client();
+
+                return $client;
+            }
+
+            return $client;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $batch = [];
+
+            foreach ([1, 2] as $row) {
+                unset($batch);
+                $batch = [];
+                $batch[] = $connection->client();
+            }
+
+            return $batch;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $inner = function () use (&$inner, &$connection) {
+                return $connection;
+            };
+            $task = function () use (&$inner) {
+                return $inner();
+            };
+            unset($inner, $connection);
+            go($task);
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $clients = [$connection->client()];
+            $copy = $clients;
+
+            foreach ($clients as &$client) {
+                $client = null;
+            }
+
+            unset($client);
+
+            return $copy;
+        });
     }
 
     public function staysInside(bool $shared): void
@@ -792,6 +882,188 @@ class GlobalStores
             }
 
             return $client;
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            if ($shared) {
+                $clients[] = $connection->client();
+                unset($clients);
+                $clients[] = 'done';
+
+                return $clients;
+            }
+
+            return [];
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $batch = [];
+
+            foreach ([1, 2] as $row) {
+                $batch[] = $connection->client();
+                unset($batch);
+                $batch = [];
+            }
+
+            return $batch;
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $client = null;
+            $task = function () use (&$client) {
+                return $client;
+            };
+
+            if ($shared) {
+                unset($client);
+            }
+
+            $client = $connection->client();
+            go($task);
+        });
+        Redis::withConnection(function (RedisConnection $connection) use (&$out) {
+            $items = [null];
+
+            foreach ($items as &$out) {
+            }
+
+            $out = $connection;
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $other = null;
+            $client = &$other;
+
+            if ($shared) {
+                unset($client);
+                $client = $connection->client();
+            }
+
+            return $client;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $clients = [$connection->client()];
+            [&$client] = $clients;
+            $client = null;
+
+            return $clients;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $clients[] = $connection->client();
+
+            foreach ($clients as &$client) {
+                $client = null;
+            }
+
+            unset($client);
+
+            return $clients;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $clients = [$connection->client()];
+            $store = function () use (&$clients) {
+                $this->clients = $clients;
+            };
+
+            foreach ($clients as &$client) {
+                $client = null;
+            }
+
+            $store();
+        });
+    }
+}
+
+class StoreForms
+{
+    public mixed $client = null;
+
+    public mixed $name = null;
+
+    public function escapes(bool $shared): void
+    {
+        $out = null;
+
+        Redis::withConnection(function (RedisConnection $connection) {
+            $this->client ??= $connection->client();
+            $GLOBALS['held'] ??= $connection->client();
+        });
+        Redis::withConnection(function (RedisConnection $connection) use (&$out) {
+            $out ??= $connection->client();
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $client = $connection->client();
+            $this->client = $shared ? $client : null;
+            $this->client = $client ?: null;
+            $this->client = $client ?? null;
+            $this->client = match ($shared) {
+                true => $client,
+                false => null,
+            };
+            go($shared ? fn () => $connection->get('key') : fn () => null);
+            $task = $shared ? function () use ($connection) {
+                $connection->get('key');
+            } : null;
+            go($task);
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $client = $shared ? $connection->client() : null;
+            [$this->client, $local] = [$connection->client(), 'local'];
+            $this->name = $client ??= 'other';
+        });
+        Redis::withConnection(function (RedisConnection $connection) use (&$out) {
+            $alias = &$out;
+            $alias = $connection;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $alias = &$GLOBALS['held'];
+            $alias = $connection;
+            $GLOBALS['other'] = &$local;
+            $local = $connection;
+            $first = &$GLOBALS['chained'];
+            $second = &$first;
+            $second = $connection;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $alias = &$GLOBALS['held'];
+            $store = function () use (&$alias, $connection) {
+                $alias = $connection;
+            };
+            $alias = &$local;
+            $store();
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $client = $shared ? $connection->client() : null;
+            $client ??= 'other';
+
+            return $client;
+        });
+    }
+
+    public function staysInside(): void
+    {
+        Redis::withConnection(function (RedisConnection $connection) {
+            [$local, $this->name] = [$connection->client(), 'name'];
+            ['name' => $this->name] = ['client' => $connection->client(), 'name' => 'safe'];
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            global $held;
+            $held = &$local;
+            $local = $connection;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $alias = &$GLOBALS['held'];
+            unset($alias);
+            $alias = $connection;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $store = function () use (&$alias, $connection) {
+                $alias = $connection;
+            };
+            $alias = &$GLOBALS['held'];
+            $store();
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $items = [$connection];
+            global $held;
+            [&$held] = $items;
+            $held = null;
         });
     }
 }
