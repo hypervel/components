@@ -53,9 +53,11 @@ use PhpParser\Node\Stmt\Catch_;
 use PhpParser\Node\Stmt\ClassLike;
 use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Stmt\Foreach_;
+use PhpParser\Node\Stmt\Function_;
 use PhpParser\Node\Stmt\Global_;
 use PhpParser\Node\Stmt\Return_;
 use PhpParser\Node\Stmt\Static_;
+use PhpParser\Node\Stmt\Unset_;
 use PhpParser\NodeFinder;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor;
@@ -263,6 +265,7 @@ class BorrowedResourceEscapeRule implements Rule
             $owners,
             $received,
             $callback instanceof Closure ? $this->getReferenceNames($callback) : [],
+            [],
             true,
             $scope,
             $errors,
@@ -332,6 +335,7 @@ class BorrowedResourceEscapeRule implements Rule
      * @param array<string, true> $owners the variables or `$this` properties holding the pinned connection the function receives, or the DB facade
      * @param null|array<string, true> $received the variables the function receives from outside the callback, or null for every variable it doesn't own
      * @param array<string, true> $byReference the variables the function shares by reference with the code calling the lending method
+     * @param array<string, true> $globals the variables the function shares by reference with global variables
      * @param array<string, IdentifierRuleError> $errors
      */
     private function analyzeFunction(
@@ -341,6 +345,7 @@ class BorrowedResourceEscapeRule implements Rule
         array $owners,
         ?array $received,
         array $byReference,
+        array $globals,
         bool $isCallback,
         Scope $scope,
         array &$errors,
@@ -373,8 +378,8 @@ class BorrowedResourceEscapeRule implements Rule
             }
         }
 
-        // Each nested function with the environment it captured and the statement that created it, and whether each
-        // closure passed to a spawn was reported there.
+        // Each nested function with the environment it captured, the statement that created it and the bindings its names
+        // had then, and whether each closure passed to a spawn was reported there.
         $created = [];
         $spawned = [];
 
@@ -388,17 +393,25 @@ class BorrowedResourceEscapeRule implements Rule
                     ? [$statement->expr, $statement->expr->var->name]
                     : null;
 
+            $this->applyDetachments($statement, $nodes, $environment);
             $this->applyWrites($nodes, $reset[0] ?? null, $environment, $owners, $resource, $scope);
 
             foreach ($nodes as $node) {
                 $how = null;
                 $kind = null;
 
+                // Unsetting a name, or binding it to a static, a global or another variable, detaches it from the global
+                // or the caller's variable it was bound to.
+                foreach ($this->getReboundNames($node) as $name) {
+                    unset($globals[$name], $byReference[$name]);
+                }
+
                 if ($node instanceof Return_ && $isCallback && $node->expr !== null) {
                     $how = 'is returned';
                     $kind = $this->getBorrowedKind($node->expr, $environment, $owners, $resource, $scope);
                 } elseif ($node instanceof Assign || $node instanceof AssignRef) {
-                    $how = $this->getStore($node->var, $byReference, $external, $locals);
+                    // A by-reference assignment to a variable points the name at another value instead of writing through it.
+                    $how = $node instanceof AssignRef && $node->var instanceof Variable ? null : $this->getStore($node->var, $byReference, $globals, $external, $locals);
                     $kind = $how === null ? null : $this->getBorrowedKind($node->expr, $environment, $owners, $resource, $scope);
                 } elseif ($node instanceof CallLike) {
                     $spawn = $this->getSpawn($node, $locals, $writes, $outer, $scope);
@@ -418,7 +431,7 @@ class BorrowedResourceEscapeRule implements Rule
                         'callables' => $this->getCarriedCallables($node, $environment, $lastWritten, $index),
                         'defined' => $this->getCaptured($node, $environment['defined']) + $this->getParameterNames($node),
                         'referenced' => [],
-                    ], $index];
+                    ], $index, $byReference, $globals];
                 }
 
                 if ($how !== null && $kind !== null) {
@@ -438,6 +451,11 @@ class BorrowedResourceEscapeRule implements Rule
                     $environment['referenced'][$name] = true;
                 }
             }
+
+            // A top-level `global` binds its names from here on. One under a condition may not run, so it binds nothing.
+            foreach ($statement instanceof Global_ ? $this->getReboundNames($statement) : [] as $name) {
+                $globals[$name] = true;
+            }
         }
 
         if ($isCallback && $function instanceof ArrowFunction) {
@@ -448,7 +466,7 @@ class BorrowedResourceEscapeRule implements Rule
             }
         }
 
-        foreach ($created as $id => [$node, $capturedEnvironment, $index]) {
+        foreach ($created as $id => [$node, $capturedEnvironment, $index, $createdByReference, $createdGlobals]) {
             if ($spawned[$id] ?? false) {
                 continue;
             }
@@ -462,22 +480,23 @@ class BorrowedResourceEscapeRule implements Rule
                 unset($nestedOwners[DB::class]);
             }
 
+            $references = $node instanceof Closure ? $this->getReferenceNames($node) : [];
+
             // A variable captured by reference holds what it was last given when the nested function runs, so
             // a write in the statement that created the function, or after it, leaves its value unknown.
-            if ($node instanceof Closure) {
-                $rewritten = array_filter(
-                    $this->getReferenceNames($node),
-                    static fn (string $name): bool => isset($lastWritten[$name]) && $lastWritten[$name] >= $index,
-                    ARRAY_FILTER_USE_KEY,
-                );
+            $rewritten = array_filter(
+                $references,
+                static fn (string $name): bool => isset($lastWritten[$name]) && $lastWritten[$name] >= $index,
+                ARRAY_FILTER_USE_KEY,
+            );
 
-                $capturedEnvironment['tracked'] = array_diff_key($capturedEnvironment['tracked'], $rewritten);
-                $capturedEnvironment['appended'] = array_diff_key($capturedEnvironment['appended'], $rewritten);
-                $capturedEnvironment['callables'] = array_diff_key($capturedEnvironment['callables'], $rewritten);
-            }
+            $capturedEnvironment['tracked'] = array_diff_key($capturedEnvironment['tracked'], $rewritten);
+            $capturedEnvironment['appended'] = array_diff_key($capturedEnvironment['appended'], $rewritten);
+            $capturedEnvironment['callables'] = array_diff_key($capturedEnvironment['callables'], $rewritten);
 
-            // A nested function takes from outside the callback only what this function itself took from there,
-            // and shares a by-reference variable with that code only through its own by-reference `use`.
+            // A nested function takes from outside the callback what this function itself took from there, and what
+            // a global or by-reference name held when it was created, which the callback doesn't own even when
+            // captured by value. Only a by-reference `use` shares the binding itself, so assigning the name writes there.
             $captured = $this->getCapturedNames($node);
 
             $this->analyzeFunction(
@@ -485,8 +504,10 @@ class BorrowedResourceEscapeRule implements Rule
                 $borrow,
                 $capturedEnvironment,
                 $nestedOwners,
-                $external === null ? array_diff_key($captured, $locals) : array_intersect_key($captured, $external),
-                $node instanceof Closure ? array_intersect_key($this->getReferenceNames($node), $byReference) : [],
+                ($external === null ? array_diff_key($captured, $locals) : array_intersect_key($captured, $external))
+                    + array_intersect_key($captured, $createdByReference + $createdGlobals),
+                array_intersect_key($references, $createdByReference),
+                array_intersect_key($references, $createdGlobals),
                 false,
                 $scope,
                 $errors,
@@ -495,7 +516,8 @@ class BorrowedResourceEscapeRule implements Rule
     }
 
     /**
-     * Get the nodes of a function's own body: nested functions are included but not entered, and classes are skipped.
+     * Get the nodes of a function's own body: closures and arrow functions are included but not entered, and named
+     * functions and classes are skipped, since they take nothing from the function they're declared in.
      *
      * @param array<Node> $nodes
      *
@@ -509,7 +531,7 @@ class BorrowedResourceEscapeRule implements Rule
 
             public function enterNode(Node $node): ?int
             {
-                if ($node instanceof ClassLike) {
+                if ($node instanceof ClassLike || $node instanceof Function_) {
                     return NodeVisitor::DONT_TRAVERSE_CURRENT_AND_CHILDREN;
                 }
 
@@ -621,6 +643,107 @@ class BorrowedResourceEscapeRule implements Rule
         }
 
         return $leaves;
+    }
+
+    /**
+     * Apply a statement's detachments to the environment: `unset()`, `static`, `global` or a by-reference assignment
+     * of a variable points its name at another binding.
+     *
+     * A closure sharing the old binding by reference keeps it, and this function can no longer reach it through the
+     * name, so the closure stops reading the name. When the statement itself is the detachment, the binding keeps
+     * what it holds before the statement: its value becomes part of the closure's fixed kind, and the closures it
+     * holds keep reading their own by-reference variables. One inside another statement may not run, or may follow
+     * a write to the binding, so its value is unknown. An unset name holds nothing afterwards, and is undefined when
+     * the statement is the unset.
+     *
+     * @param list<Node> $nodes
+     * @param Environment $environment
+     */
+    private function applyDetachments(Node $statement, array $nodes, array &$environment): void
+    {
+        $detached = [];
+        $unset = [];
+
+        foreach ($nodes as $node) {
+            foreach ($this->getReboundNames($node) as $name) {
+                $detached[$name] = true;
+
+                if ($node instanceof Unset_) {
+                    $unset[$name] = true;
+                }
+            }
+        }
+
+        if ($detached === []) {
+            return;
+        }
+
+        $direct = $statement instanceof Unset_
+            || $statement instanceof Static_
+            || $statement instanceof Global_
+            || ($statement instanceof Expression && $statement->expr instanceof AssignRef);
+        $before = $environment;
+
+        foreach ($before['callables'] as $variable => $closures) {
+            foreach ($closures as $id => [$closure, $kind, $live]) {
+                $read = [];
+
+                foreach ($live as $capturer => $references) {
+                    $read += array_intersect_key($references, $detached);
+                    $live[$capturer] = array_diff_key($references, $detached);
+                }
+
+                if ($read === []) {
+                    continue;
+                }
+
+                if ($direct) {
+                    $kind ??= $this->getFirstKind($read, $before, live: false);
+
+                    // A detached name read through one of these closures in turn isn't followed.
+                    foreach (array_intersect_key($before['callables'], $read) as $held) {
+                        foreach ($held as [, , $captured]) {
+                            foreach ($captured as $capturer => $references) {
+                                $live[$capturer] = ($live[$capturer] ?? []) + array_diff_key($references, $detached);
+                            }
+                        }
+                    }
+                }
+
+                $environment['callables'][$variable][$id] = [$closure, $kind, array_filter($live)];
+            }
+        }
+
+        foreach (array_keys($unset) as $name) {
+            unset($environment['tracked'][$name], $environment['appended'][$name], $environment['callables'][$name]);
+
+            if ($direct) {
+                unset($environment['defined'][$name], $environment['referenced'][$name]);
+            }
+        }
+    }
+
+    /**
+     * Get the names the node points at another binding: those CoroutineRuleHelper::getDetachedNames() gives for
+     * `unset()`, `static` and a by-reference assignment of a variable, and those a `global` statement binds.
+     *
+     * @return list<string>
+     */
+    private function getReboundNames(Node $node): array
+    {
+        if (! $node instanceof Global_) {
+            return CoroutineRuleHelper::getDetachedNames($node);
+        }
+
+        $names = [];
+
+        foreach ($node->vars as $variable) {
+            if ($variable instanceof Variable && is_string($variable->name)) {
+                $names[] = $variable->name;
+            }
+        }
+
+        return $names;
     }
 
     /**
@@ -837,28 +960,34 @@ class BorrowedResourceEscapeRule implements Rule
     /**
      * Get how an assignment to the target keeps its value beyond the callback, or null when it stays local.
      *
-     * A property of $this, or of an object a variable holds from outside the callback, outlives it.
+     * A property of $this, or of an object a variable holds from outside the callback or from a global variable,
+     * outlives it, as do global variables.
      *
      * @param array<string, true> $byReference the callback's by-reference variables
+     * @param array<string, true> $globals the variables bound to global variables
      * @param null|array<string, true> $external the variables holding what they received from outside the callback, or null for every one the function doesn't own
      * @param array<string, mixed> $locals the function's parameters and assigned variables
      */
-    private function getStore(Expr $target, array $byReference, ?array $external, array $locals): ?string
+    private function getStore(Expr $target, array $byReference, array $globals, ?array $external, array $locals): ?string
     {
         while ($target instanceof ArrayDimFetch || $target instanceof PropertyFetch) {
             if ($target instanceof PropertyFetch
                 && $target->var instanceof Variable
                 && is_string($name = $target->var->name)
-                && ($name === 'this' || ($external === null ? ! isset($locals[$name]) : isset($external[$name])))) {
+                && ($name === 'this' || isset($globals[$name]) || ($external === null ? ! isset($locals[$name]) : isset($external[$name])))) {
                 return 'is stored on a property';
             }
 
             $target = $target->var;
         }
 
+        if (! $target instanceof Variable || ! is_string($target->name)) {
+            return $target instanceof StaticPropertyFetch ? 'is stored on a property' : null;
+        }
+
         return match (true) {
-            $target instanceof StaticPropertyFetch => 'is stored on a property',
-            $target instanceof Variable && is_string($target->name) && isset($byReference[$target->name]) => 'is stored in a by-reference variable',
+            $target->name === 'GLOBALS', isset($globals[$target->name]) => 'is stored in a global variable',
+            isset($byReference[$target->name]) => 'is stored in a by-reference variable',
             default => null,
         };
     }

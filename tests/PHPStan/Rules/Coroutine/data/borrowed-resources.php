@@ -559,3 +559,239 @@ class ReferencedOwners
         });
     }
 }
+
+class GlobalStores
+{
+    public function escapes(bool $shared): void
+    {
+        Redis::withConnection(function (RedisConnection $connection) {
+            global $held;
+            $held = $connection;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $GLOBALS['held'] = $connection->client();
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            global $registry;
+            $registry->client = $connection->client();
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            global $held;
+            $store = function () use (&$held, $connection) {
+                $held = $connection;
+            };
+            $store();
+        });
+
+        $out = null;
+
+        Redis::withConnection(function (RedisConnection $connection) use (&$out) {
+            $store = function () use (&$out, $connection) {
+                $out = $connection;
+            };
+            unset($out);
+            $store();
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            global $registry;
+            $store = function () use ($registry, $connection) {
+                $registry->value = $connection->client();
+            };
+            $store();
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            global $registry;
+            $store = fn () => $registry->value = $connection->client();
+            $store();
+        });
+        Redis::withConnection(function (RedisConnection $connection) use (&$out) {
+            $out = new Holder;
+            $store = function () use ($out, $connection) {
+                $out->value = $connection->client();
+            };
+            $store();
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = $connection->client();
+            $task = function () use (&$client) {
+                $client->ping();
+            };
+            unset($client);
+            go($task);
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = $connection->client();
+            $task = function () use (&$client) {
+                $client->ping();
+            };
+            $other = null;
+            $client = &$other;
+            go($task);
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = $connection->client();
+            $inner = function () use (&$client) {
+                return $client;
+            };
+            $task = function () use (&$inner) {
+                return $inner();
+            };
+            unset($inner);
+            go($task);
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = null;
+            $task = function () use (&$client) {
+                return $client;
+            };
+            global $client;
+            $client = $connection->client();
+            go($task);
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $other = null;
+            $client = &$other;
+            unset($client);
+
+            if ($shared) {
+                $client = $connection->client();
+
+                return $client;
+            }
+
+            return null;
+        });
+    }
+
+    public function staysInside(bool $shared): void
+    {
+        $out = null;
+
+        Redis::withConnection(function (RedisConnection $connection) {
+            $held = $connection;
+            global $held;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            global $held;
+            unset($held);
+            $held = $connection;
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            if ($shared) {
+                global $held;
+            }
+            $held = $connection;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            static $held;
+            $held = $connection;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            global $held;
+            $store = function () use ($connection) {
+                $held = $connection;
+            };
+            $store();
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            global $held;
+            $local = null;
+            $held = &$local;
+            $held = $connection;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            global $held;
+            static $held;
+            $held = $connection;
+        });
+        Redis::withConnection(function (RedisConnection $connection) use (&$out) {
+            $client = $connection->client();
+            $out = &$client;
+        });
+        Redis::withConnection(function (RedisConnection $connection) use (&$out) {
+            $local = null;
+            $out = &$local;
+            $out = $connection;
+        });
+        Redis::withConnection(function (RedisConnection $connection) use (&$out) {
+            unset($out);
+            $out = $connection;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            global $registry;
+            $holder = new Holder;
+            $store = function () use ($holder, $connection) {
+                $holder->value = $connection->client();
+            };
+            $store();
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = null;
+            $task = function () use (&$client) {
+                return $client;
+            };
+            unset($client);
+            $client = $connection->client();
+            go($task);
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $clients[] = $connection->client();
+            unset($clients);
+            $clients[] = 'done';
+
+            return $clients;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            global $held;
+
+            if (! function_exists(__NAMESPACE__ . '\\keepConnection')) {
+                function keepConnection(RedisConnection $connection): RedisConnection
+                {
+                    $held = $connection;
+
+                    return $connection;
+                }
+            }
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $client = $connection->client();
+            $task = function () use (&$client) {
+                return $client;
+            };
+
+            if ($shared) {
+                $client = null;
+                unset($client);
+            }
+
+            $client = null;
+            go($task);
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = $connection->client();
+            $inner = function () use (&$client) {
+                return $client;
+            };
+            $task = function () use (&$inner) {
+                return $inner();
+            };
+            unset($inner);
+            $client = null;
+            go($task);
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $other = null;
+            $client = &$other;
+
+            if ($shared) {
+                unset($client);
+            }
+
+            if ($shared) {
+                $client = $connection->client();
+            }
+
+            return $client;
+        });
+    }
+}

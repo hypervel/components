@@ -28,13 +28,16 @@ use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\FunctionLike;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
+use PhpParser\Node\StaticVar;
 use PhpParser\Node\Stmt;
 use PhpParser\Node\Stmt\Catch_;
 use PhpParser\Node\Stmt\ClassLike;
 use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Stmt\Foreach_;
 use PhpParser\Node\Stmt\If_;
+use PhpParser\Node\Stmt\Static_;
 use PhpParser\Node\Stmt\TryCatch;
+use PhpParser\Node\Stmt\Unset_;
 use PhpParser\Node\VariadicPlaceholder;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor;
@@ -51,6 +54,7 @@ use PHPStan\Type\TypeCombinator;
 use Swoole\Coroutine\CanceledException;
 
 use function array_any;
+use function array_map;
 use function count;
 use function end;
 use function in_array;
@@ -190,6 +194,33 @@ class CoroutineRuleHelper
         }
 
         return $leaves;
+    }
+
+    /**
+     * Get the variable names the node unbinds from what they were bound to, such as a global or a caller's
+     * by-reference variable: unset(), a static declaration or a by-reference assignment to the variable itself.
+     * Unsetting or by-reference assigning an offset or property writes through the binding instead.
+     *
+     * @return list<string>
+     */
+    public static function getDetachedNames(Node $node): array
+    {
+        $variables = match (true) {
+            $node instanceof Unset_ => $node->vars,
+            $node instanceof Static_ => array_map(static fn (StaticVar $variable): Variable => $variable->var, $node->vars),
+            $node instanceof AssignRef => [$node->var],
+            default => [],
+        };
+
+        $names = [];
+
+        foreach ($variables as $variable) {
+            if ($variable instanceof Variable && is_string($variable->name)) {
+                $names[] = $variable->name;
+            }
+        }
+
+        return $names;
     }
 
     /**
