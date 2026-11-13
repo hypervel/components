@@ -385,7 +385,9 @@
             "tests/PHPStan/Unit/data"
         ],
         "exclude-from-classmap": [
-            "tests/PHPStan/**/*-fixed.php"
+            "tests/PHPStan/**/*-fixed.php",
+            "tests/PHPStan/Rules/data/request-dependent-bindings.php",
+            "tests/PHPStan/Rules/data/request-dependent-bindings-local-request.php"
         ],
         "files": [
             "tests/Database/Fixtures/MigrationCreatorFakeMigration.php"
