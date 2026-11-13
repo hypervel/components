@@ -85,6 +85,9 @@ class SwallowedCancellationRuleTest extends RuleTestCase
                 478,
                 'A cleanup or callback failure in the try block can carry the cancellation as its previous exception.',
             ],
+            $swallowed('a database query', 486),
+            $swallowed('a database query', 496),
+            $swallowed('a database query', 525),
         ]);
     }
 

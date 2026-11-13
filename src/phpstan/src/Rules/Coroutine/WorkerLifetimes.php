@@ -46,6 +46,7 @@ use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobReleasedAfterException;
 use Hypervel\Queue\Events\JobTimedOut;
+use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Routing\Events\PreparingResponse;
 use Hypervel\Routing\Events\ResponsePrepared;
 use Hypervel\Routing\Events\RouteMatched;
@@ -78,6 +79,7 @@ use function is_array;
 use function is_bool;
 use function is_object;
 use function is_string;
+use function preg_match;
 use function str_contains;
 use function str_starts_with;
 use function strtolower;
@@ -165,14 +167,17 @@ class WorkerLifetimes
     /** @var null|array<string, true> lowercase names of the worker-shared classes and their parents */
     private ?array $sharedClasses = null;
 
-    /** @var array<string, array{string, bool}> lowercase "class::method" => the operation it handles and whether a shared instance handles it */
+    /** @var array<string, array{null|string, bool}> lowercase "class::method" => the operation it handles, if known, and whether a shared instance runs it */
     private array $contexts = [];
 
     /** @var array<string, array<string, true>> lowercase "class::method" => the classes of the receivers it handles an operation for */
     private array $contextReceivers = [];
 
-    /** @var list<array{string, string, string, string, bool}> the receiver, declaring class, method, operation and whether the receiver is shared, of each context still to propagate */
+    /** @var list<array{string, string, string, null|string, bool, bool}> the receiver, declaring class, method, operation, whether the receiver is shared and whether it is a clone, of each context still to propagate */
     private array $pendingContexts = [];
+
+    /** @var array<string, true> lowercase "class::method" => it handles an operation on a clone of a queued listener */
+    private array $cloned = [];
 
     /** @var array<string, null|string> lowercase "class::method::parameter" => the canonical abstract the container injects on every call it makes, or null when that is not known */
     private array $injectedParameters = [];
@@ -226,6 +231,8 @@ class WorkerLifetimes
         }
 
         // After every build, so whether a job instance is shared reflects every registration.
+        $registered = $this->contextReceivers;
+
         foreach ($queued as $class) {
             $job = $this->getClass($class);
 
@@ -234,8 +241,16 @@ class WorkerLifetimes
             }
 
             foreach (WorkerStateHelper::JOB_METHODS as $method) {
-                if ($job->hasNativeMethod($method)) {
-                    $declaringClass = $job->getNativeMethod($method)->getDeclaringClass()->getName();
+                if (! $job->hasNativeMethod($method)) {
+                    continue;
+                }
+
+                $declaringClass = $job->getNativeMethod($method)->getDeclaringClass()->getName();
+
+                // A method registered as this class's listener or observer already runs in the operation,
+                // and on the instance, its registration gives it, such as a passive observer's handle()
+                // during a request.
+                if (! isset($registered[strtolower($declaringClass . '::' . $method)][$job->getName()])) {
                     $this->addContext($job->getName(), $declaringClass, $method, 'job', isset($this->receivers[$job->getName()]));
                 }
             }
@@ -298,6 +313,17 @@ class WorkerLifetimes
     }
 
     /**
+     * Determine whether the method handles operations only on clones of a queued listener, which
+     * CallQueuedListener makes of the container's instance for each job, so its writes stay with the job.
+     */
+    public function runsOnClone(string $class, string $method): bool
+    {
+        $key = strtolower($class . '::' . $method);
+
+        return isset($this->cloned[$key]) && ! ($this->contexts[$key][1] ?? false);
+    }
+
+    /**
      * Determine whether the container injects the global configuration repository into the parameter
      * of a booted controller action, a job's handler or a constructor it runs.
      */
@@ -327,8 +353,8 @@ class WorkerLifetimes
      * Determine whether the container built every instance the method handles an operation for, so
      * the properties its constructor promotes hold what the container injected.
      *
-     * A queued class is restored from its payload, except one the dispatcher runs as a listener. A
-     * method no booted handler reaches is judged by its own class.
+     * A queued class is restored from its payload, except one the dispatcher resolves as a listener or
+     * observer. A method no booted handler reaches is judged by its own class.
      */
     public function isContainerBuilt(string $class, string $method): bool
     {
@@ -546,16 +572,21 @@ class WorkerLifetimes
     }
 
     /**
-     * Record the operation a method handles for a receiver, and whether a worker-shared instance
-     * handles it, then queue it so the helpers it calls on the receiver handle the operation too.
+     * Record the operation a method handles for a receiver, if known, whether a worker-shared instance
+     * runs it and whether it runs on a clone, then queue it so the helpers it calls on the receiver
+     * share that.
      */
-    private function addContext(string $receiver, string $declaringClass, string $method, string $context, bool $shared): void
+    private function addContext(string $receiver, string $declaringClass, string $method, ?string $context, bool $shared, bool $cloned = false): void
     {
         $key = strtolower($declaringClass . '::' . $method);
 
-        $this->contexts[$key] = [$context, $shared || ($this->contexts[$key][1] ?? false)];
+        $this->contexts[$key] = [$context ?? $this->contexts[$key][0] ?? null, $shared || ($this->contexts[$key][1] ?? false)];
         $this->contextReceivers[$key][$receiver] = true;
-        $this->pendingContexts[] = [$receiver, $declaringClass, $method, $context, $shared];
+        $this->pendingContexts[] = [$receiver, $declaringClass, $method, $context, $shared, $cloned];
+
+        if ($cloned) {
+            $this->cloned[$key] = true;
+        }
     }
 
     /**
@@ -573,12 +604,12 @@ class WorkerLifetimes
         }
 
         // Whether each receiver's method was visited as shared: a shared visit covers a later
-        // unshared one, but not the other way round.
+        // unshared one, but not the other way round. Each operation, and a visit on a clone, is separate.
         $visited = [];
 
         while (($pending = array_pop($this->pendingContexts)) !== null) {
-            [$receiver, $declaringClass, $method, $context, $shared] = $pending;
-            $key = strtolower($receiver . "\0" . $declaringClass . '::' . $method);
+            [$receiver, $declaringClass, $method, $context, $shared, $cloned] = $pending;
+            $key = strtolower($receiver . "\0" . $declaringClass . '::' . $method . "\0" . $context . ($cloned ? "\0clone" : ''));
 
             if (array_key_exists($key, $visited) && ($visited[$key] || ! $shared)) {
                 continue;
@@ -590,7 +621,7 @@ class WorkerLifetimes
                 $helper = $this->resolveHelper($receiver, $declaringClass, $callee);
 
                 if ($helper !== null) {
-                    $this->addContext($receiver, $helper->getDeclaringClass()->getName(), $helper->getName(), $context, $shared);
+                    $this->addContext($receiver, $helper->getDeclaringClass()->getName(), $helper->getName(), $context, $shared, $cloned);
                 }
             }
         }
@@ -627,8 +658,8 @@ class WorkerLifetimes
     }
 
     /**
-     * Discover the class-string event listeners, which the dispatcher resolves from the container,
-     * and the operation each handles when its event is dispatched for one.
+     * Discover the class-string event listeners and observers, which the dispatcher resolves from the
+     * container, and the operations each handles when its event is dispatched for one.
      */
     private function discoverListeners(): void
     {
@@ -638,32 +669,78 @@ class WorkerLifetimes
             return;
         }
 
-        foreach ([...$events->getRawListeners(), ...(fn (): array => $this->wildcards)->call($events)] as $event => $listeners) {
-            $context = self::EVENT_CONTEXTS[$event] ?? (is_string($event) && str_starts_with($event, 'eloquent.') ? 'operation' : null);
+        [$wildcards, $observers, $observerWildcards, $patterns] = (fn (): array => [
+            $this->wildcards,
+            $this->observers,
+            $this->observerWildcards,
+            $this->compiledWildcardPatterns,
+        ])->call($events);
 
-            foreach ($listeners as $listener) {
-                [$class, $method] = match (true) {
-                    is_string($listener) => Str::parseCallback($listener, 'handle'),
-                    is_array($listener) && is_string($listener[0] ?? null) => [$listener[0], $listener[1] ?? null],
-                    default => [null, null],
-                };
+        // Observers, which include listen('*') ones, are never queued and never fall back to __invoke().
+        $registries = [
+            [$events->getRawListeners(), false, true],
+            [$wildcards, true, true],
+            [$observers, false, false],
+            [$observerWildcards, true, false],
+        ];
 
-                $reflection = $class === null ? null : $this->getClass($class);
+        foreach ($registries as [$registry, $wildcard, $queueable]) {
+            foreach ($registry as $event => $listeners) {
+                $contexts = $this->getEventContexts($event, $wildcard ? $patterns[$event] : null);
 
-                if ($reflection === null) {
-                    continue;
+                foreach ($listeners as $listener) {
+                    [$class, $method] = match (true) {
+                        is_string($listener) => Str::parseCallback($listener, 'handle'),
+                        is_array($listener) && is_string($listener[0] ?? null) => [$listener[0], $listener[1] ?? null],
+                        default => [null, null],
+                    };
+
+                    $reflection = $class === null ? null : $this->getClass($class);
+
+                    if ($reflection === null) {
+                        continue;
+                    }
+
+                    if (! is_string($method)) {
+                        $this->make($reflection->getName(), null);
+
+                        continue;
+                    }
+
+                    // Dispatcher::createClassCallable() falls back to __invoke().
+                    if ($queueable && ! $reflection->hasNativeMethod($method)) {
+                        $method = '__invoke';
+                    }
+
+                    foreach ($contexts as $context) {
+                        $this->addHandlerContext($reflection, $method, $context, $queueable);
+                    }
                 }
-
-                if (! is_string($method)) {
-                    $this->make($reflection->getName(), null);
-
-                    continue;
-                }
-
-                // Dispatcher::createClassCallable() falls back to __invoke().
-                $this->addHandlerContext($reflection, $reflection->hasNativeMethod($method) ? $method : '__invoke', $context);
             }
         }
+    }
+
+    /**
+     * Get the operations an event name or wildcard pattern's listeners handle: those of the framework
+     * events it matches, or any operation for a model event. A listener of another event gets null.
+     *
+     * @return non-empty-list<?string>
+     */
+    private function getEventContexts(int|string $event, ?string $pattern): array
+    {
+        $contexts = [];
+
+        foreach (self::EVENT_CONTEXTS as $name => $context) {
+            if ($pattern === null ? $name === $event : preg_match($pattern, $name) === 1) {
+                $contexts[$context] = $context;
+            }
+        }
+
+        if (is_string($event) && str_starts_with($event, 'eloquent.')) {
+            $contexts['operation'] = 'operation';
+        }
+
+        return $contexts === [] ? [null] : array_values($contexts);
     }
 
     /**
@@ -681,33 +758,49 @@ class WorkerLifetimes
                 continue;
             }
 
-            // HasEvents::registerObserver() registers each event method the observer has.
+            // HasEvents::registerObserver() registers each event method the observer has as a listener.
             foreach ($events as $event) {
                 if ($reflection->hasNativeMethod($event)) {
-                    $this->addHandlerContext($reflection, $event, 'operation');
+                    $this->addHandlerContext($reflection, $event, 'operation', true);
                 }
             }
         }
     }
 
     /**
-     * Resolve a listener as the dispatcher does and give the method it runs the operation its event
-     * belongs to, when that is known.
+     * Resolve a listener or observer as the dispatcher does and give the method it runs the operation
+     * its event belongs to, when that is known.
      *
      * A queued listener runs as a job whatever its event: CallQueuedListener resolves it from the
-     * container in the queue worker and calls the same method.
+     * container in the queue worker and calls the same method, on a clone of the resolved instance
+     * when the listener uses InteractsWithQueue. An observer always runs when its event is dispatched.
      */
-    private function addHandlerContext(ClassReflection $class, string $method, ?string $context): void
+    private function addHandlerContext(ClassReflection $class, string $method, ?string $context, bool $queueable): void
     {
         [$shared, $receiver] = $this->makeHandler($class);
+        $cloned = false;
 
         if ($class->is(ShouldQueue::class)) {
-            $context = 'job';
             $this->queuedListeners[strtolower($receiver->getName())] = true;
+
+            if ($queueable) {
+                // The dispatcher calls shouldQueue() on the resolved instance while dispatching, and
+                // CallQueuedListener resolves it again for the unique and debounce lock stores.
+                foreach (['shouldQueue' => $context, 'uniqueVia' => 'job', 'debounceVia' => 'job'] as $hook => $hookContext) {
+                    if ($receiver->hasNativeMethod($hook)) {
+                        $this->addContext($receiver->getName(), $receiver->getNativeMethod($hook)->getDeclaringClass()->getName(), $hook, $hookContext, $shared);
+                    }
+                }
+
+                $context = 'job';
+                $cloned = isset($receiver->getTraits(true)[InteractsWithQueue::class]);
+            }
         }
 
         if ($context !== null && $receiver->hasNativeMethod($method)) {
-            $this->addContext($receiver->getName(), $receiver->getNativeMethod($method)->getDeclaringClass()->getName(), $method, $context, $shared);
+            $declaringClass = $receiver->getNativeMethod($method)->getDeclaringClass()->getName();
+
+            $this->addContext($receiver->getName(), $declaringClass, $method, $context, $shared && ! $cloned, $cloned);
         }
     }
 

@@ -173,7 +173,10 @@ class WorkerStateRule implements Rule
      */
     private function checkWrite(array $write, ?string $context, ?string $state, WorkerLifetimes $lifetimes): ?array
     {
-        $shared = ! $write['static'] && $lifetimes->isShared($write['class']);
+        // A queued listener's handler that runs on a clone writes to that job's copy.
+        $shared = ! $write['static']
+            && $lifetimes->isShared($write['class'])
+            && ($write['function']['method'] === null || ! $lifetimes->runsOnClone($write['class'], $write['function']['method']));
 
         if ($this->helper->checkUnboundedWorkerCaches && $write['cacheKey'] && ($write['static'] || $shared)) {
             return [

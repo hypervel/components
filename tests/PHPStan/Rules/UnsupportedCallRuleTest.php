@@ -10,6 +10,7 @@ use Hypervel\Database\Schema\ColumnDefinition;
 use Hypervel\PHPStan\Rules\UnsupportedCallRule;
 use Hypervel\PHPStan\Support\FacadeHelper;
 use Hypervel\PHPStan\Support\RuntimeInputs;
+use Hypervel\Tests\PHPStan\Rules\UnsupportedCall\ForwardingFacade;
 use Hypervel\Tests\PHPStan\Rules\UnsupportedCall\Service;
 use Hypervel\Tests\PHPStan\Rules\UnsupportedCall\ServiceContract;
 use PHPStan\Rules\Rule;
@@ -48,6 +49,7 @@ class UnsupportedCallRuleTest extends RuleTestCase
             [$bare, 183],
             [sprintf(self::MESSAGE, ColumnDefinition::class, 'whereNotNull') . "\nChain it onto an index: \$table->index(...)->whereNotNull(...).", 184],
             [$guided, 185],
+            [sprintf(self::MESSAGE, ForwardingFacade::class, 'retired'), 197],
         ]);
     }
 
@@ -68,7 +70,7 @@ class UnsupportedCallRuleTest extends RuleTestCase
         $container->bind('unsupported.chain', ServiceContract::class);
         $container->bind(ServiceContract::class, Service::class);
 
-        // An extender can return another object.
+        // The rule can't know what an extender returns, so a call through one isn't reported.
         $container->singleton('unsupported.extended', static fn (): Service => new Service);
         $container->extend('unsupported.extended', static fn (Service $service): Service => $service);
 

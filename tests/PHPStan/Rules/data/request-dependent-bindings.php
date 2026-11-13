@@ -142,6 +142,26 @@ interface LeavesContainerUncaptured
 {
 }
 
+#[BindWhen(Implementation::class, RequestContext::has(...))]
+interface NamesRequestContextRead
+{
+}
+
+#[BindWhen(Implementation::class, Auth::check(...))]
+interface NamesAuthRead
+{
+}
+
+#[BindWhen(Implementation::class, BootAuth::check(...))]
+interface NamesOverridingRead
+{
+}
+
+#[BindWhen(Implementation::class, Conditions::onRequestAbstract(...))]
+interface UsesConditionConstant
+{
+}
+
 class BootRequestContext extends RequestContext
 {
     public static function has(?int $coroutineId = null): bool
@@ -165,9 +185,16 @@ class BootAuth extends Auth
 
 class Conditions
 {
+    private const string REQUEST = 'request';
+
     public static function onApi(Container $container): bool
     {
         return $container->make('request')->is('api/*');
+    }
+
+    public static function onRequestAbstract(Container $container): bool
+    {
+        return $container->make(self::REQUEST)->is('api/*');
     }
 
     public static function inProduction(Container $container): bool

@@ -872,3 +872,25 @@ class NamedConfigJob implements ShouldQueue
         app('config', ['option' => true])->set('app.named', true);
     }
 }
+
+// Offset writes inside other expressions change configuration too.
+class NestedConfigOffsetJob implements ShouldQueue
+{
+    use Dispatchable;
+
+    public function handle(ConfigRepository $config): string
+    {
+        $locale = config()['app.locale'] = 'fr';
+        $this->report($config['app.name'] = 'Hypervel');
+
+        if ($config['app.debug'] = false) {
+            config()['app.nested'] = true;
+        }
+
+        return $config['app.timezone'] = $locale;
+    }
+
+    private function report(string $name): void
+    {
+    }
+}

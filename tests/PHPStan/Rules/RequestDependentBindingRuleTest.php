@@ -36,6 +36,9 @@ class RequestDependentBindingRuleTest extends RuleTestCase
             $error('UsesConditionFunction', 64),
             $error('ReadsInCallback', 108),
             $error('CapturesContainer', 121),
+            $error('NamesRequestContextRead', 145),
+            $error('NamesAuthRead', 150),
+            $error('UsesConditionConstant', 160),
             $error('LocalRequest\UsesHelperFromAnotherNamespace', 12),
         ]);
     }

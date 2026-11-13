@@ -11,6 +11,7 @@ use Hypervel\Support\Facades\DB;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
 use PhpParser\Node\ClosureUse;
+use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\ArrowFunction;
 use PhpParser\Node\Expr\Assign;
 use PhpParser\Node\Expr\AssignOp;
@@ -169,7 +170,8 @@ class ManagedTransactionRule implements Rule
 
     /**
      * Get the key that identifies the transaction's connection inside the callback: the DB facade, a
-     * literal DB::connection() name, or a variable the callback receives; null when it is unknown.
+     * literal DB::connection() name, or a variable or `$this` property the callback receives; null when
+     * it is unknown.
      *
      * @param array<string, true> $owners
      */
@@ -183,6 +185,12 @@ class ManagedTransactionRule implements Rule
 
         if ($receiver instanceof Variable && is_string($receiver->name) && ! isset($owners[$receiver->name])) {
             return $this->receives($callback, $receiver->name) ? '$' . $receiver->name : null;
+        }
+
+        $property = $this->getPropertyKey($receiver, $scope);
+
+        if ($property !== null) {
+            return $this->receives($callback, 'this') ? '$' . $property : null;
         }
 
         return $this->getConnectionName($receiver, $scope);
@@ -206,7 +214,7 @@ class ManagedTransactionRule implements Rule
 
     /**
      * Collect a statement's transaction-control calls in order, whether any of them runs conditionally,
-     * and the variables it assigns. Nested functions and classes are skipped.
+     * and the variables and `$this` properties it assigns. Nested functions and classes are skipped.
      *
      * @return array{list<MethodCall|NullsafeMethodCall|StaticCall>, bool, array<string, true>}
      */
@@ -218,8 +226,8 @@ class ManagedTransactionRule implements Rule
 
             public bool $conditional = false;
 
-            /** @var array<string, true> */
-            public array $written = [];
+            /** @var list<?Expr> */
+            public array $targets = [];
 
             private int $conditions = 0;
 
@@ -249,16 +257,11 @@ class ManagedTransactionRule implements Rule
                     $this->conditional = $this->conditional || $this->conditions > 0;
                 }
 
-                $targets = match (true) {
-                    $node instanceof Assign, $node instanceof AssignRef, $node instanceof AssignOp => [$node->var],
-                    $node instanceof Foreach_ => [$node->keyVar, $node->valueVar],
-                    default => [],
-                };
-
-                foreach ($targets as $target) {
-                    if ($target instanceof Variable && is_string($target->name)) {
-                        $this->written[$target->name] = true;
-                    }
+                if ($node instanceof Assign || $node instanceof AssignRef || $node instanceof AssignOp) {
+                    $this->targets[] = $node->var;
+                } elseif ($node instanceof Foreach_) {
+                    $this->targets[] = $node->keyVar;
+                    $this->targets[] = $node->valueVar;
                 }
 
                 return null;
@@ -288,7 +291,19 @@ class ManagedTransactionRule implements Rule
 
         (new NodeTraverser($visitor))->traverse([$statement]);
 
-        return [$visitor->calls, $visitor->conditional, $visitor->written];
+        $written = [];
+
+        foreach ($visitor->targets as $target) {
+            foreach ($this->getTargetLeaves($target) as $leaf) {
+                $key = $leaf instanceof Variable && is_string($leaf->name) ? $leaf->name : $this->getPropertyWriteKey($leaf);
+
+                if ($key !== null) {
+                    $written[$key] = true;
+                }
+            }
+        }
+
+        return [$visitor->calls, $visitor->conditional, $written];
     }
 
     /**
@@ -323,6 +338,8 @@ class ManagedTransactionRule implements Rule
             if (! $this->receives($callback, $receiver->name)) {
                 return false;
             }
+        } elseif (($property = $this->getPropertyKey($receiver, $scope)) !== null && $owner === '$' . $property) {
+            return $this->runsConnectionMethod($ownerType, $method, $scope);
         } elseif (($name = $this->getConnectionName($receiver, $scope)) !== null) {
             return $owner === $name && $this->runsConnectionMethod($scope->getType($receiver), $method, $scope);
         }

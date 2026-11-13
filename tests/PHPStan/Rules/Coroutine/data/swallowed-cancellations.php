@@ -480,6 +480,51 @@ class ImportJob implements ShouldQueue
         } catch (Throwable) {
             return;
         }
+
+        try {
+            DB::select('select 1');
+        } catch (Throwable $exception) {
+            if ($import->exists) {
+                throw new RuntimeException('Import failed.');
+            }
+
+            throw $exception;
+        }
+
+        try {
+            DB::select('select 1');
+        } catch (Throwable $exception) {
+            if (Coroutine::causedByCancellation($exception)) {
+                throw new RuntimeException('Import canceled.');
+            }
+
+            throw $exception;
+        }
+
+        try {
+            DB::select('select 1');
+        } catch (Throwable $exception) {
+            if ($import->exists) {
+                throw new WrappedFailure('Import failed.', $exception);
+            }
+
+            try {
+                throw new RuntimeException('Cleanup failed.');
+            } catch (RuntimeException) {
+                $cleanupFailed = true;
+            }
+
+            throw $exception;
+        }
+
+        $connection = $import->exists ? DB::connection() : null;
+
+        try {
+            $connection ??= DB::connection('replica');
+            $connection->select('select 1');
+        } catch (Throwable) {
+            return;
+        }
     }
 }
 

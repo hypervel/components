@@ -218,7 +218,7 @@ class BorrowedResourceEscapeRule implements Rule
         $owners = [];
 
         if ($resource === 'session') {
-            $owner = $this->getOwner($node);
+            $owner = $this->getOwner($node, $scope);
 
             if ($owner === null) {
                 return [];
@@ -238,7 +238,10 @@ class BorrowedResourceEscapeRule implements Rule
 
         $errors = [];
 
-        $this->analyzeFunction($callback, ['method' => $method, 'resource' => $resource], $tracked, $owners, true, $scope, $errors);
+        // A closure callback receives its `use` variables from outside; an arrow function every variable it reads.
+        $received = $callback instanceof Closure ? $this->getUseNames($callback) : null;
+
+        $this->analyzeFunction($callback, ['method' => $method, 'resource' => $resource], $tracked, $owners, $received, true, $scope, $errors);
 
         return array_values($errors);
     }
@@ -278,15 +281,16 @@ class BorrowedResourceEscapeRule implements Rule
     }
 
     /**
-     * Get the variable holding the pinned connection, or the DB facade class for its default connection.
+     * Get the variable or `$this` property holding the pinned connection, or the DB facade class for its
+     * default connection.
      */
-    private function getOwner(MethodCall|StaticCall $call): ?string
+    private function getOwner(MethodCall|StaticCall $call, Scope $scope): ?string
     {
         if ($call instanceof StaticCall) {
             return $call->class instanceof Name && ReflectionHelper::isFacade($call->class, DB::class, 'DB') ? DB::class : null;
         }
 
-        return $call->var instanceof Variable && is_string($call->var->name) ? $call->var->name : null;
+        return $call->var instanceof Variable && is_string($call->var->name) ? $call->var->name : $this->getPropertyKey($call->var, $scope);
     }
 
     /**
@@ -297,7 +301,8 @@ class BorrowedResourceEscapeRule implements Rule
      *
      * @param array{method: string, resource: string} $borrow
      * @param array<string, string> $tracked the borrowed variables the function receives: "lent", or the name of the raw handle they hold
-     * @param array<string, true> $owners the variables holding the pinned connection the function receives, or the DB facade
+     * @param array<string, true> $owners the variables or `$this` properties holding the pinned connection the function receives, or the DB facade
+     * @param null|array<string, true> $received the variables the function receives from outside the callback, or null for every variable it doesn't own
      * @param array<string, IdentifierRuleError> $errors
      */
     private function analyzeFunction(
@@ -305,25 +310,26 @@ class BorrowedResourceEscapeRule implements Rule
         array $borrow,
         array $tracked,
         array $owners,
+        ?array $received,
         bool $isCallback,
         Scope $scope,
         array &$errors,
     ): void {
         $nodes = $this->getOwnNodes($function instanceof Closure ? $function->stmts : [$function->expr]);
-        [$writes, $closures] = $this->collectWrites($nodes);
+        [$writes, $closures, $propertyWrites] = $this->collectWrites($nodes);
 
-        // A reassigned variable no longer holds the pinned connection.
-        $owners = array_diff_key($owners, $writes);
+        // A reassigned variable or property no longer holds the pinned connection.
+        $owners = array_diff_key($owners, $writes, $propertyWrites);
         $tracked = $this->followAliases($tracked, $writes, $owners, $borrow['resource'], $scope);
         $locals = $writes + $this->getParameterNames($function);
 
-        // The variables the callback receives unchanged from the lending call's scope, which knows their types:
-        // a closure's `use` variables, or every outer variable for an arrow function (null). A nested function's are unknown.
-        $outer = match (true) {
-            ! $isCallback => [],
-            $function instanceof Closure => array_diff_key($this->getUseNames($function), $locals),
-            default => null,
-        };
+        // The variables still holding what they received from outside the callback. An object they hold
+        // outlives the callback, so a property written through one keeps its value.
+        $external = $received === null ? null : array_diff_key($received, $locals);
+
+        // The callback's external variables are unchanged from the lending call's scope, which knows their
+        // types. A nested function's are unknown.
+        $outer = $isCallback ? $external : [];
 
         $byReference = [];
 
@@ -345,7 +351,7 @@ class BorrowedResourceEscapeRule implements Rule
                 $how = 'is returned';
                 $kind = $this->getBorrowedKind($node->expr, $tracked, $owners, $borrow['resource'], $scope);
             } elseif ($node instanceof Assign || $node instanceof AssignRef) {
-                $how = $this->getStore($node->var, $byReference);
+                $how = $this->getStore($node->var, $byReference, $external, $locals);
                 $kind = $how === null ? null : $this->getBorrowedKind($node->expr, $tracked, $owners, $borrow['resource'], $scope);
             } elseif ($node instanceof CallLike) {
                 $spawn = $this->getSpawn($node, $locals, $writes, $outer, $scope);
@@ -372,7 +378,19 @@ class BorrowedResourceEscapeRule implements Rule
 
         foreach ($nodes as $node) {
             if (($node instanceof Closure || $node instanceof ArrowFunction) && ! isset($spawned[spl_object_id($node)])) {
-                $this->analyzeFunction($node, $borrow, $this->getCaptured($node, $tracked), $this->getCaptured($node, $owners), false, $scope, $errors);
+                // A nested function takes from outside the callback only what this function itself took from there.
+                $captured = $this->getCapturedNames($node);
+
+                $this->analyzeFunction(
+                    $node,
+                    $borrow,
+                    $this->getCaptured($node, $tracked),
+                    $this->getCaptured($node, $owners),
+                    $external === null ? array_diff_key($captured, $locals) : array_intersect_key($captured, $external),
+                    false,
+                    $scope,
+                    $errors,
+                );
             }
         }
     }
@@ -408,17 +426,19 @@ class BorrowedResourceEscapeRule implements Rule
     }
 
     /**
-     * Collect the values each variable is assigned, null for a write whose value is not followed, and the
-     * closures each variable or its elements are assigned.
+     * Collect the values each variable is assigned, null for a write whose value is not followed, the
+     * closures each variable or its elements are assigned, directly or in an array, and the `$this`
+     * properties written.
      *
      * @param list<Node> $nodes
      *
-     * @return array{array<string, non-empty-list<?Expr>>, array<string, list<ArrowFunction|Closure>>}
+     * @return array{array<string, non-empty-list<?Expr>>, array<string, list<ArrowFunction|Closure>>, array<string, true>}
      */
     private function collectWrites(array $nodes): array
     {
         $writes = [];
         $closures = [];
+        $propertyWrites = [];
 
         foreach ($nodes as $node) {
             $targets = match (true) {
@@ -432,13 +452,21 @@ class BorrowedResourceEscapeRule implements Rule
             };
 
             foreach ($targets as $target) {
-                foreach ($this->getTargetNames($target) as $name) {
-                    $writes[$name][] = null;
+                foreach ($this->getTargetLeaves($target) as $leaf) {
+                    if ($leaf instanceof Variable && is_string($leaf->name)) {
+                        $writes[$leaf->name][] = null;
+                    } elseif (($property = $this->getPropertyWriteKey($leaf)) !== null) {
+                        $propertyWrites[$property] = true;
+                    }
                 }
             }
 
             if (! $node instanceof Assign && ! $node instanceof AssignRef) {
                 continue;
+            }
+
+            if (($property = $this->getPropertyWriteKey($node->var)) !== null) {
+                $propertyWrites[$property] = true;
             }
 
             if ($node->var instanceof Variable && is_string($node->var->name)) {
@@ -451,36 +479,22 @@ class BorrowedResourceEscapeRule implements Rule
                 $root = $root->var;
             }
 
-            if ($root instanceof Variable && is_string($root->name) && ($node->expr instanceof Closure || $node->expr instanceof ArrowFunction)) {
-                $closures[$root->name][] = $node->expr;
+            if (! $root instanceof Variable || ! is_string($root->name)) {
+                continue;
+            }
+
+            $values = $node->expr instanceof Array_
+                ? array_map(static fn (ArrayItem $item): Expr => $item->value, $node->expr->items)
+                : [$node->expr];
+
+            foreach ($values as $value) {
+                if ($value instanceof Closure || $value instanceof ArrowFunction) {
+                    $closures[$root->name][] = $value;
+                }
             }
         }
 
-        return [$writes, $closures];
-    }
-
-    /**
-     * Get the names of the variables a write target assigns, through destructuring.
-     *
-     * @return list<string>
-     */
-    private function getTargetNames(?Expr $target): array
-    {
-        if ($target instanceof Variable) {
-            return is_string($target->name) ? [$target->name] : [];
-        }
-
-        if (! $target instanceof List_ && ! $target instanceof Array_) {
-            return [];
-        }
-
-        $names = [];
-
-        foreach ($target->items as $item) {
-            $names = [...$names, ...$this->getTargetNames($item?->value)];
-        }
-
-        return $names;
+        return [$writes, $closures, $propertyWrites];
     }
 
     /**
@@ -529,7 +543,8 @@ class BorrowedResourceEscapeRule implements Rule
     }
 
     /**
-     * Get what the expression's value is: "lent" for the lent resource, the name of a raw handle, or null.
+     * Get what the expression's value is or holds: "lent" for the lent resource, the name of a raw handle,
+     * or null. An array holds what its items hold, and a closure what it captures.
      *
      * @param array<string, string> $tracked
      * @param array<string, true> $owners
@@ -542,6 +557,22 @@ class BorrowedResourceEscapeRule implements Rule
 
         if ($expr instanceof Variable) {
             return is_string($expr->name) ? $tracked[$expr->name] ?? null : null;
+        }
+
+        if ($expr instanceof Closure || $expr instanceof ArrowFunction) {
+            return $this->getCapturedKind($expr, $tracked);
+        }
+
+        if ($expr instanceof Array_) {
+            foreach ($expr->items as $item) {
+                $kind = $this->getBorrowedKind($item->value, $tracked, $owners, $resource, $scope);
+
+                if ($kind !== null) {
+                    return $kind;
+                }
+            }
+
+            return null;
         }
 
         if (! ($expr instanceof MethodCall || $expr instanceof NullsafeMethodCall || $expr instanceof StaticCall)
@@ -566,6 +597,7 @@ class BorrowedResourceEscapeRule implements Rule
                 ? new ObjectType($scope->resolveName($expr->class))
                 : null,
             $expr->var instanceof Variable && is_string($expr->var->name) && isset($owners[$expr->var->name]) => $scope->getType($expr->var),
+            ($property = $this->getPropertyWriteKey($expr->var)) !== null && isset($owners[$property]) => $scope->getType($expr->var),
             default => null,
         };
 
@@ -575,12 +607,19 @@ class BorrowedResourceEscapeRule implements Rule
     /**
      * Get how an assignment to the target keeps its value beyond the callback, or null when it stays local.
      *
+     * A property of $this, or of an object a variable holds from outside the callback, outlives it.
+     *
      * @param array<string, true> $byReference the callback's by-reference variables
+     * @param null|array<string, true> $external the variables holding what they received from outside the callback, or null for every one the function doesn't own
+     * @param array<string, mixed> $locals the function's parameters and assigned variables
      */
-    private function getStore(Expr $target, array $byReference): ?string
+    private function getStore(Expr $target, array $byReference, ?array $external, array $locals): ?string
     {
         while ($target instanceof ArrayDimFetch || $target instanceof PropertyFetch) {
-            if ($target instanceof PropertyFetch && $target->var instanceof Variable && $target->var->name === 'this') {
+            if ($target instanceof PropertyFetch
+                && $target->var instanceof Variable
+                && is_string($name = $target->var->name)
+                && ($name === 'this' || ($external === null ? ! isset($locals[$name]) : isset($external[$name])))) {
                 return 'is stored on a property';
             }
 
@@ -741,26 +780,61 @@ class BorrowedResourceEscapeRule implements Rule
      */
     private function getCapturedKind(Closure|ArrowFunction $closure, array $tracked): ?string
     {
-        $captured = $this->getCaptured($closure, $tracked);
-
-        // An arrow function captures only the outer variables it uses.
-        if ($closure instanceof ArrowFunction) {
-            $used = [];
-
-            foreach ((new NodeFinder)->findInstanceOf($closure->expr, Variable::class) as $variable) {
-                if (is_string($variable->name)) {
-                    $used[$variable->name] = true;
-                }
-            }
-
-            $captured = array_intersect_key($captured, $used);
-        }
-
-        foreach ($captured as $kind) {
+        foreach (array_intersect_key($tracked, $this->getCapturedNames($closure)) as $kind) {
             return $kind;
         }
 
         return null;
+    }
+
+    /**
+     * Get the names of the variables a nested function takes from its enclosing one: a closure's `use`
+     * variables, or the variables an arrow function's body reads other than its parameters, including
+     * those its own nested functions take. A nested class's body takes nothing.
+     *
+     * @return array<string, true>
+     */
+    private function getCapturedNames(Closure|ArrowFunction $function): array
+    {
+        if ($function instanceof Closure) {
+            return $this->getUseNames($function);
+        }
+
+        $visitor = new class($this->getCapturedNames(...)) extends NodeVisitorAbstract {
+            /** @var array<string, true> */
+            public array $names = [];
+
+            /**
+             * @param \Closure(ArrowFunction|Closure): array<string, true> $capturedNames
+             */
+            public function __construct(
+                private \Closure $capturedNames,
+            ) {
+            }
+
+            public function enterNode(Node $node): ?int
+            {
+                if ($node instanceof ClassLike) {
+                    return NodeVisitor::DONT_TRAVERSE_CURRENT_AND_CHILDREN;
+                }
+
+                if ($node instanceof Closure || $node instanceof ArrowFunction) {
+                    $this->names += ($this->capturedNames)($node);
+
+                    return NodeVisitor::DONT_TRAVERSE_CHILDREN;
+                }
+
+                if ($node instanceof Variable && is_string($node->name)) {
+                    $this->names[$node->name] = true;
+                }
+
+                return null;
+            }
+        };
+
+        (new NodeTraverser($visitor))->traverse([$function->expr]);
+
+        return array_diff_key($visitor->names, $this->getParameterNames($function));
     }
 
     /**
@@ -783,7 +857,7 @@ class BorrowedResourceEscapeRule implements Rule
         foreach ($variables as $name => $value) {
             $receives = match (true) {
                 $name === DB::class => true,
-                $name === 'this' => ! $function->static,
+                $name === 'this', str_starts_with($name, 'this->') => ! $function->static,
                 $received !== null => isset($received[$name]),
                 default => ! isset($parameters[$name]),
             };

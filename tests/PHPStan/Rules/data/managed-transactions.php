@@ -46,6 +46,10 @@ class TenantDB extends DB
 
 class Transfers
 {
+    public ConnectionInterface $current {
+        get => $this->connection;
+    }
+
     public function __construct(
         private ConnectionInterface $connection,
         private Ledger $ledger,
@@ -152,6 +156,39 @@ class Transfers
         });
         TenantDB::connection('mysql')->transaction(function () {
             TenantDB::connection('mysql')->commit();
+        });
+    }
+
+    public function properties(): void
+    {
+        $this->connection->transaction(function () {
+            $this->connection->commit();
+        });
+        $this->connection->transaction(fn () => $this->connection->rollBack());
+        $this->connection->transaction(function () {
+            $this->connection = DB::connection('other');
+            $this->connection->commit();
+        });
+        $this->connection->transaction(function () {
+            [$this->connection] = [DB::connection('other')];
+            $this->connection->commit();
+        });
+        $this->current->transaction(function () {
+            $this->current->commit();
+        });
+    }
+
+    public function destructuring(): void
+    {
+        $connection = $this->connection;
+
+        $connection->transaction(function () use ($connection) {
+            [$connection] = [DB::connection('other')];
+            $connection->commit();
+        });
+        DB::transaction(function (ConnectionInterface $connection) {
+            ['main' => $connection] = ['main' => DB::connection('other')];
+            $connection->commit();
         });
     }
 }

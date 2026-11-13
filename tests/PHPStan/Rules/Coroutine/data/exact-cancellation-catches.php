@@ -143,6 +143,40 @@ class ExactCancellationCatches
         }
     }
 
+    public function reportsOrdinaryFailuresAndRethrowsCancellation(): void
+    {
+        try {
+            $this->work();
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            if (! Coroutine::causedByCancellation($exception)) {
+                $this->report($exception);
+
+                return;
+            }
+
+            throw $exception;
+        }
+    }
+
+    public function reportsCancellationBeforeRethrowing(): void
+    {
+        try {
+            $this->work();
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            if (! Coroutine::causedByCancellation($exception)) {
+                $this->cleanUp();
+            }
+
+            $this->report($exception);
+
+            throw $exception;
+        }
+    }
+
     /**
      * @param list<int> $coroutineIds
      */

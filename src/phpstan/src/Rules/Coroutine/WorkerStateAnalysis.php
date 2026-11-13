@@ -152,8 +152,11 @@ class WorkerStateAnalysis
     }
 
     /**
-     * Get the operation the function always handles: its collected context, the route action it is,
-     * a booted handler method, or a helper such a method or a job calls.
+     * Get the operation the function always handles: the route action it is, a booted handler method,
+     * a helper such a method or a job calls, or else its collected context.
+     *
+     * A registration is better evidence than the class alone: a queueable class's handle() registered
+     * as a passive observer runs synchronously during its event.
      *
      * @param FunctionFacts $function
      */
@@ -163,11 +166,11 @@ class WorkerStateAnalysis
             return $this->findAction($function, $file) === null ? null : 'action';
         }
 
-        if ($function['context'] !== null || $function['class'] === null || $function['method'] === null) {
+        if ($function['class'] === null || $function['method'] === null) {
             return $function['context'];
         }
 
-        return $this->lifetimes->getContext($function['class'], $function['method']);
+        return $this->lifetimes->getContext($function['class'], $function['method']) ?? $function['context'];
     }
 
     /**

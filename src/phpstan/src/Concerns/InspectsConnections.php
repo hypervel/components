@@ -11,8 +11,12 @@ use Hypervel\Database\PdoConnection;
 use Hypervel\PHPStan\Reflection\ReflectionHelper;
 use Hypervel\Support\Facades\DB;
 use PhpParser\Node\Expr;
+use PhpParser\Node\Expr\Array_;
+use PhpParser\Node\Expr\List_;
 use PhpParser\Node\Expr\MethodCall;
+use PhpParser\Node\Expr\PropertyFetch;
 use PhpParser\Node\Expr\StaticCall;
+use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PhpParser\Node\Scalar\String_;
@@ -51,6 +55,69 @@ trait InspectsConnections
         }
 
         return $this->runsConnectionMethod($type, 'transaction', $scope) ? $type : null;
+    }
+
+    /**
+     * Get the key that identifies a `$this->property` holding a connection, or null for any other expression.
+     *
+     * Only an instance property the class declares without a get hook returns the same value on every read.
+     */
+    private function getPropertyKey(Expr $expr, Scope $scope): ?string
+    {
+        if (! $expr instanceof PropertyFetch
+            || ! $expr->var instanceof Variable
+            || $expr->var->name !== 'this'
+            || ! $expr->name instanceof Identifier) {
+            return null;
+        }
+
+        $class = $scope->getClassReflection();
+        $name = $expr->name->toString();
+
+        if ($class === null || ! $class->hasNativeProperty($name)) {
+            return null;
+        }
+
+        $property = $class->getNativeProperty($name);
+
+        return $property->isStatic() || ! $property->isVirtual()->no() || $property->hasHook('get') ? null : $this->getPropertyWriteKey($expr);
+    }
+
+    /**
+     * Get the key a write to `$this->property` drops, matching getPropertyKey(), or null for any other target.
+     */
+    private function getPropertyWriteKey(?Expr $target): ?string
+    {
+        return $target instanceof PropertyFetch
+            && $target->var instanceof Variable
+            && $target->var->name === 'this'
+            && $target->name instanceof Identifier
+                ? 'this->' . $target->name->toString()
+                : null;
+    }
+
+    /**
+     * Get the targets a write assigns, such as variables and properties, through destructuring.
+     *
+     * @return list<Expr>
+     */
+    private function getTargetLeaves(?Expr $target): array
+    {
+        if ($target === null) {
+            return [];
+        }
+
+        if (! $target instanceof List_ && ! $target instanceof Array_) {
+            return [$target];
+        }
+
+        $leaves = [];
+
+        foreach ($target->items as $item) {
+            $leaves = [...$leaves, ...$this->getTargetLeaves($item?->value)];
+        }
+
+        return $leaves;
     }
 
     /**

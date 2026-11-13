@@ -9,8 +9,10 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\SelfBuilding;
 use Hypervel\PHPStan\Concerns\HasContainer;
 use Hypervel\PHPStan\Rules\Coroutine\WorkerLifetimes;
+use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\Facade;
+use Hypervel\Support\Facades\Hash;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\ArrowFunction;
@@ -40,6 +42,7 @@ use ReflectionFunction;
 use function array_any;
 use function array_key_exists;
 use function count;
+use function in_array;
 use function is_object;
 
 /**
@@ -120,7 +123,7 @@ class FacadeHelper
 
     /**
      * Get the method a static call on the facade runs: the facade's own public method, else its
-     * root's, or null when the root is unknown.
+     * root's, or null when the root or the facade's forwarding is unknown.
      *
      * @param DependencyTracker&Scope $scope
      */
@@ -132,7 +135,10 @@ class FacadeHelper
 
         $root = $this->getRootClass($facade, $scope);
 
-        if ($root === null) {
+        // Another __callStatic() can forward the call anywhere. Hash's and Crypt's forward it to the
+        // root as Facade's does, keeping the arguments out of stack traces.
+        if ($root === null
+            || ! in_array($facade->getNativeMethod('__callStatic')->getDeclaringClass()->getName(), [Facade::class, Hash::class, Crypt::class], true)) {
             return null;
         }
 

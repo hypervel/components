@@ -133,10 +133,8 @@ class Bootstrapper
     }
 
     /**
-     * Get the vendor directory the runtime copy created by this process links when its skeleton has none.
-     *
-     * Static analysis tracks the copy's Composer metadata through it, because the link is
-     * deleted with the copy.
+     * Get the working package's vendor directory, which the runtime copy created by this process links
+     * when its skeleton has none.
      */
     public static function runtimeVendorPath(): ?string
     {

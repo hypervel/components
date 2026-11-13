@@ -190,6 +190,78 @@ class Repository
         DB::withPinnedSession(fn () => ExternalDB::getPdo());
         $replica->withPinnedSession(fn () => $replica->getPdo());
     }
+
+    public function escapesThroughValues(Holder $holder): void
+    {
+        Redis::withConnection(function (RedisConnection $connection) {
+            return fn () => $connection->get('key');
+        });
+        Redis::withConnection(fn (RedisConnection $connection) => [$connection, 'main']);
+        Redis::withConnection(function (RedisConnection $connection) use ($holder) {
+            $this->connection = fn () => $connection->client();
+            $holder->value = $connection;
+            $local = new Holder;
+            $local->value = $connection;
+            $lazy = fn () => $connection->get('later');
+            $this->clients = [$lazy];
+            array_map(function () use ($local, $connection) {
+                $local->value = $connection;
+            }, [1]);
+            array_map(function () use ($holder, $connection) {
+                $holder->value = $connection;
+            }, [1]);
+        });
+        Redis::withConnection(fn (RedisConnection $connection) => $holder->value = $connection);
+        Redis::withConnection(function (RedisConnection $connection) {
+            $tasks = [fn () => $connection->get('q')];
+            parallel($tasks);
+            go(fn () => array_map(fn ($connection) => $connection, ['safe']));
+            go(fn () => new class {
+                public function key(): string
+                {
+                    $connection = 'safe';
+
+                    return $connection;
+                }
+            });
+        });
+    }
+}
+
+class PinnedService
+{
+    private ?PDO $pdo = null;
+
+    public PdoConnection $hooked {
+        get => $this->database;
+    }
+
+    public function __construct(
+        private PdoConnection $database,
+        private PdoConnection $replica,
+    ) {
+    }
+
+    public function pins(): void
+    {
+        $this->database->withPinnedSession(fn () => $this->database->getPdo());
+        $this->database->withPinnedSession(function () {
+            $this->pdo = $this->database->getPdo();
+        });
+        $this->database->withPinnedSession(fn () => $this->replica->getPdo());
+        $this->database->withPinnedSession(function () {
+            $this->database = $this->replica;
+
+            return $this->database->getPdo();
+        });
+        $this->database->withPinnedSession(function () {
+            foreach ([$this->replica] as $this->database) {
+            }
+
+            return $this->database->getPdo();
+        });
+        $this->hooked->withPinnedSession(fn () => $this->hooked->getPdo());
+    }
 }
 
 class Joins

@@ -37,7 +37,7 @@ class NoNativeRequestApisRule implements Rule
 
     private const string SESSION_TIP = 'Use the session store through $request->session(), session() or the Session facade.';
 
-    private const string DISCONNECT_TIP = 'Stream through a generator callback passed to response()->stream(), or an IterableStreamedResponse, which stop when the client disconnects.';
+    private const string DISCONNECT_TIP = 'Stream through a generator callback passed to response()->stream() or an IterableStreamedResponse, which stops at the first failed write after the client disconnects. Call cancelOnDisconnect() to also stop it during a wait when the connection closes.';
 
     private const string INPUT_TIP = 'Read input from the request with its query(), input(), post(), cookie() and file() methods.';
 

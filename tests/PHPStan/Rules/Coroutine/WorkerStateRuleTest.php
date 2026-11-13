@@ -51,11 +51,16 @@ use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ScopedHelperController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\SendReportListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ServiceContract;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\SingletonBoundService;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\CatchAllObserver;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\ClonedEvent;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\ClonedListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\JobListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\Post;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\ProviderObserver;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\QueuedListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\QueuedObserver;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\RequestListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\WildcardJobListener;
 use PhpParser\Node;
 use PHPStan\Collectors\Collector;
 use PHPStan\Rules\Rule;
@@ -173,6 +178,7 @@ class WorkerStateRuleTest extends RuleTestCase
             [$static[0], 41, $static[1]],
             [sprintf(self::CONFIG, self::REQUEST), 47, self::CONFIG_TIP],
             [$static[0], 54, $static[1]],
+            [sprintf(self::CONFIG, self::REQUEST), 62, self::CONFIG_TIP],
         ]);
     }
 
@@ -185,14 +191,24 @@ class WorkerStateRuleTest extends RuleTestCase
         ];
 
         $this->analyse([__DIR__ . '/data/worker-state-listeners.php'], [
-            $write('RequestListener', 'seen', self::REQUEST, 20),
-            $write('JobListener', 'recorded', self::JOB, 33),
-            $write('QueuedListener', 'recorded', self::JOB, 46),
-            $write('ProviderObserver', 'created', self::OPERATION, 59),
-            $write('DirectObserver', 'audited', self::OPERATION, 86),
-            $write('RepeatedObserver', 'updated', self::OPERATION, 107),
-            $write('BaseObserver', 'deleted', self::OPERATION, 130),
-            $write('AuditObserver', 'archived', self::OPERATION, 143),
+            $write('RequestListener', 'seen', self::REQUEST, 23),
+            $write('JobListener', 'recorded', self::JOB, 36),
+            $write('QueuedListener', 'recorded', self::JOB, 49),
+            $write('ProviderObserver', 'created', self::OPERATION, 62),
+            $write('DirectObserver', 'audited', self::OPERATION, 89),
+            $write('RepeatedObserver', 'updated', self::OPERATION, 110),
+            $write('BaseObserver', 'deleted', self::OPERATION, 133),
+            $write('AuditObserver', 'archived', self::OPERATION, 146),
+            $write('WildcardJobListener', 'seen', self::JOB, 184),
+            $write('CatchAllObserver', 'observed', self::OPERATION, 197),
+            $write('QueuedObserver', 'observed', self::REQUEST, 214),
+            [sprintf(self::CONFIG, self::REQUEST), 215, self::CONFIG_TIP],
+            [
+                sprintf('%1$s::failed() writes $this->failures %2$s, but the container shares %1$s across concurrent requests.', self::LISTENERS_NAMESPACE . 'ClonedListener', self::JOB),
+                267,
+                self::SHARED_WRITE_TIP,
+            ],
+            [sprintf(self::SHARED_STATE, self::LISTENERS_NAMESPACE . 'ClonedListener', 'latest', 'the current request'), 275, self::SHARED_STATE_TIP],
         ]);
     }
 
@@ -299,6 +315,11 @@ class WorkerStateRuleTest extends RuleTestCase
                 [sprintf(self::CONFIG, self::JOB), 858, self::CONFIG_TIP],
                 [sprintf(self::CONFIG, self::JOB), 869, self::CONFIG_TIP],
                 [sprintf(self::CONFIG, self::JOB), 871, self::CONFIG_TIP],
+                [sprintf(self::CONFIG, self::JOB), 883, self::CONFIG_TIP],
+                [sprintf(self::CONFIG, self::JOB), 884, self::CONFIG_TIP],
+                [sprintf(self::CONFIG, self::JOB), 886, self::CONFIG_TIP],
+                [sprintf(self::CONFIG, self::JOB), 887, self::CONFIG_TIP],
+                [sprintf(self::CONFIG, self::JOB), 890, self::CONFIG_TIP],
             ],
         ];
     }
@@ -352,6 +373,10 @@ class WorkerStateRuleTest extends RuleTestCase
         $events->listen(JobProcessed::class, JobListener::class . '@record');
         $events->listen(RequestHandled::class, [QueuedListener::class, 'record']);
         $events->listen('eloquent.created: ' . Post::class, ProviderObserver::class . '@created');
+        $events->listen('Hypervel\Queue\Events\Job*', WildcardJobListener::class);
+        $events->listen('*', CatchAllObserver::class . '@observe');
+        $events->observe(RequestReceived::class, QueuedObserver::class);
+        $events->listen(ClonedEvent::class, ClonedListener::class);
         $bus->map([MappedCommand::class => MappedHandler::class]);
 
         $container->bind(BoundFreshService::class);

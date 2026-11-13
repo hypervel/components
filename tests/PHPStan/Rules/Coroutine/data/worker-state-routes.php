@@ -58,3 +58,9 @@ function registerRoutes(Router $router): void
 collect([1])->each(function (): void {
     CountingMiddleware::$seen = true;
 });
+
+Route::get('/locale', fn (): string => config()['app.locale'] = 'fr');
+
+Route::get('/nested-locale', function (): void {
+    collect([1])->each(fn (): string => config()['app.locale'] = 'fr');
+});

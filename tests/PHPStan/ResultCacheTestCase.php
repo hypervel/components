@@ -62,7 +62,8 @@ abstract class ResultCacheTestCase extends TestCase
     /**
      * Run PHPStan from the application over its app directory, with the result and migration caches
      * and the opt-in rules the fixtures exercise on, plus any extra top-level configuration and parameters.
-     * Typed getter suggestions are off, since the fixtures read config through get() to exercise its types.
+     * Typed getter suggestions are off, since the fixtures read config through config() and get() to
+     * exercise their types.
      *
      * PHPStan uses its result cache only when it analyzes a directory, and reports whether it reused
      * the cache on standard error at the very verbose level. The application's autoloader is the

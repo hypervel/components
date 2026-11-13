@@ -38,7 +38,7 @@ class MigrationColumnTypeRule implements Rule
             'Store the values in a jsonb() column cast with AsEnumCollection, or in a related table.',
         ],
         'json' => [
-            "json() creates a PostgreSQL json column, which can't be indexed or compared like jsonb.",
+            "json() creates a json column, which PostgreSQL can't index or compare like jsonb.",
             'Use jsonb() for JSON the database queries, indexes or validates, or text() for a value only read back whole.',
         ],
     ];

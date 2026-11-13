@@ -68,6 +68,17 @@ class BorrowedResourceEscapeRuleTest extends RuleTestCase
             $captured('Concurrent::create', 179),
             $captured('Parallel::add', 180),
             $captured('wait', 184),
+            $borrowed($connection, 'is returned', 197),
+            $borrowed($connection, 'is returned', 199),
+            $borrowed($connection, 'is stored on a property', 201),
+            $borrowed($connection, 'is stored on a property', 202),
+            $borrowed($connection, 'is stored on a property', 206),
+            $borrowed($connection, 'is stored on a property', 211),
+            $borrowed($connection, 'is stored on a property', 214),
+            $borrowed($connection, 'is returned', 214),
+            $captured('parallel', 217),
+            $pinned('The PDO taken inside withPinnedSession()', 'is returned', 247),
+            $pinned('The PDO taken inside withPinnedSession()', 'is stored on a property', 249),
         ]);
     }
 

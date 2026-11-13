@@ -100,6 +100,7 @@ use Swoole\Coroutine as SwooleCoroutine;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Coroutine\Channel as SwooleChannel;
 use Swoole\Coroutine\WaitGroup as SwooleWaitGroup;
+use Throwable;
 
 use function array_all;
 use function array_any;
@@ -473,7 +474,7 @@ class SwallowedCancellationCollector implements Collector
     {
         $last = end($statements);
 
-        if (! $last instanceof Expression || ! $last->expr instanceof Throw_ || $this->leaves($statements, 0)) {
+        if (! $last instanceof Expression || ! $last->expr instanceof Throw_ || $this->leaves($statements, 0, $variable, $scope)) {
             return false;
         }
 
@@ -524,13 +525,15 @@ class SwallowedCancellationCollector implements Collector
     }
 
     /**
-     * Determine whether the nodes can leave the catch without throwing: a return, or a break or continue
-     * leaving more loops and switches than the given depth plus those the nodes open. Nested functions
-     * and classes don't run here.
+     * Determine whether the nodes can leave the catch without the caught exception: a return, a break or
+     * continue leaving more loops and switches than the given depth plus those the nodes open, or a throw
+     * of another exception that no try within the nodes catches. Nested functions and classes don't run here.
      *
      * @param array<Node> $nodes
+     * @param DependencyTracker&Scope $scope
+     * @param list<Name> $caught the types caught by the tries within the nodes that enclose them
      */
-    private function leaves(array $nodes, int $depth): bool
+    private function leaves(array $nodes, int $depth, string $variable, Scope $scope, array $caught = []): bool
     {
         foreach ($nodes as $node) {
             if ($node instanceof Return_) {
@@ -549,6 +552,28 @@ class SwallowedCancellationCollector implements Collector
                 continue;
             }
 
+            if ($node instanceof Throw_
+                && ! ($node->expr instanceof Variable && $node->expr->name === $variable)
+                && ! $this->wraps($node->expr, $variable, $scope)
+                && ! $this->isCaught($node->expr, $caught, $scope)) {
+                return true;
+            }
+
+            if ($node instanceof TryCatch) {
+                $types = [];
+
+                foreach ($node->catches as $catch) {
+                    $types = [...$types, ...$catch->types];
+                }
+
+                if ($this->leaves($node->stmts, $depth, $variable, $scope, [...$caught, ...$types])
+                    || $this->leaves([...$node->catches, ...($node->finally === null ? [] : [$node->finally])], $depth, $variable, $scope, $caught)) {
+                    return true;
+                }
+
+                continue;
+            }
+
             $innerDepth = $node instanceof For_ || $node instanceof Foreach_ || $node instanceof While_ || $node instanceof Do_ || $node instanceof Switch_
                 ? $depth + 1
                 : $depth;
@@ -556,13 +581,32 @@ class SwallowedCancellationCollector implements Collector
             foreach ($node->getSubNodeNames() as $subNodeName) {
                 $children = $node->{$subNodeName};
 
-                if ($this->leaves(array_filter(is_array($children) ? $children : [$children], static fn (mixed $child): bool => $child instanceof Node), $innerDepth)) {
+                if ($this->leaves(array_filter(is_array($children) ? $children : [$children], static fn (mixed $child): bool => $child instanceof Node), $innerDepth, $variable, $scope, $caught)) {
                     return true;
                 }
             }
         }
 
         return false;
+    }
+
+    /**
+     * Determine whether one of the caught types takes the thrown exception. Only `new` names its class;
+     * any other thrown value is caught only by Throwable.
+     *
+     * @param list<Name> $caught
+     */
+    private function isCaught(Expr $thrown, array $caught, Scope $scope): bool
+    {
+        $class = $thrown instanceof New_ && $thrown->class instanceof Name ? $scope->resolveName($thrown->class) : Throwable::class;
+
+        if (! $this->reflectionProvider->hasClass($class)) {
+            return false;
+        }
+
+        $reflection = $this->reflectionProvider->getClass($class);
+
+        return array_any($caught, static fn (Name $type): bool => $reflection->is($scope->resolveName($type)));
     }
 
     /**

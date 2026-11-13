@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners;
 
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\Eloquent\Attributes\ObservedBy;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Http\Request;
+use Hypervel\Queue\InteractsWithQueue;
 
 class RequestListener
 {
@@ -166,5 +169,117 @@ class CustomEventsObserver
     public function created(): void
     {
         static::$created = true;
+    }
+}
+
+class WildcardJobListener
+{
+    public static bool $seen = false;
+
+    /**
+     * Handle any job event.
+     */
+    public function handle(): void
+    {
+        static::$seen = true;
+    }
+}
+
+class CatchAllObserver
+{
+    public static bool $observed = false;
+
+    /**
+     * Observe any event.
+     */
+    public function observe(): void
+    {
+        static::$observed = true;
+    }
+}
+
+class QueuedObserver implements ShouldQueue
+{
+    public static bool $observed = false;
+
+    public function __construct(private readonly Repository $config)
+    {
+    }
+
+    /**
+     * Observe the request, which runs synchronously even though the class is queueable.
+     */
+    public function handle(): void
+    {
+        static::$observed = true;
+        $this->config->set('app.observed', true);
+    }
+}
+
+class ClonedEvent
+{
+    public function __construct(public Request $request)
+    {
+    }
+}
+
+class ClonedListener implements ShouldQueue
+{
+    use InteractsWithQueue;
+
+    public ?Request $request = null;
+
+    public ?Request $latest = null;
+
+    /** @var array<string, bool> */
+    public array $seen = [];
+
+    public int $tracked = 0;
+
+    public int $failures = 0;
+
+    /**
+     * Decide on the container's instance whether to queue the event.
+     */
+    public function shouldQueue(ClonedEvent $event): bool
+    {
+        $this->remember($event);
+
+        return true;
+    }
+
+    /**
+     * Handle the event on the job's clone of the listener.
+     */
+    public function handle(ClonedEvent $event): void
+    {
+        $this->request = $event->request;
+        $this->seen[$event->request->ip()] = true;
+        $this->remember($event);
+        $this->track();
+    }
+
+    /**
+     * Handle the failure on the container's instance.
+     */
+    public function failed(): void
+    {
+        ++$this->failures;
+    }
+
+    /**
+     * Remember the event's request.
+     */
+    private function remember(ClonedEvent $event): void
+    {
+        $this->latest = $event->request;
+    }
+
+    /**
+     * Track the event.
+     */
+    private function track(): void
+    {
+        ++$this->tracked;
     }
 }

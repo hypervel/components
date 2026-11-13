@@ -42,6 +42,7 @@ use PHPStan\Reflection\ClassReflection;
 use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Type\MixedType;
 use PHPStan\Type\Type;
+use PHPStan\Type\TypeCombinator;
 use Swoole\Coroutine\CanceledException;
 
 use function array_any;
@@ -197,10 +198,11 @@ class CoroutineRuleHelper
      * The receiver is typed in the scope at the try's start, so it must not take a value the block may change
      * from there. A chain rooted at a local variable that the block only calls methods on keeps the variable's
      * type. One assignment, as a top-level statement before every call on the variable, gives it the assigned
-     * value, so the chain is typed with that expression in the variable's place. Any other write leaves it
-     * unknown. A call argument that reads a local the block may change is typed as unknown, so a call that
-     * selects its result's class by it, such as the container's make(), gives no class, while a fluent where()
-     * keeps its own. Any other read of such a local leaves the receiver unknown.
+     * value, so the chain is typed with that expression in the variable's place; a `??=` one gives it the
+     * non-null value it already held or the assigned one. Any other write leaves it unknown. A call argument
+     * that reads a local the block may change is typed as unknown, so a call that selects its result's class
+     * by it, such as the container's make(), gives no class, while a fluent where() keeps its own. Any other
+     * read of such a local leaves the receiver unknown.
      *
      * @param array<Node> $statements
      */
@@ -222,7 +224,7 @@ class CoroutineRuleHelper
             $statements,
             static fn (Node $node): bool => ($node instanceof Variable && $node->name === $name)
                 || self::getCalledVariable($node)?->name === $name
-                || ($node instanceof Assign && $node->var instanceof Variable && $node->var->name === $name),
+                || (($node instanceof Assign || $node instanceof Coalesce) && $node->var instanceof Variable && $node->var->name === $name),
         );
 
         $mentions = [];
@@ -232,7 +234,7 @@ class CoroutineRuleHelper
         foreach ($nodes as $node) {
             if ($node instanceof Variable) {
                 $mentions[] = $node;
-            } elseif ($node instanceof Assign) {
+            } elseif ($node instanceof Assign || $node instanceof Coalesce) {
                 $assignments[] = $node;
             } else {
                 $calls[] = $node;
@@ -258,7 +260,21 @@ class CoroutineRuleHelper
             }
         }
 
-        $typed = $this->getEntryExpression($receiver, $statements, $root, $assignment?->expr);
+        $value = $assignment?->expr;
+
+        if ($assignment instanceof Coalesce) {
+            $assigned = $this->getEntryExpression($assignment->expr, $statements);
+
+            if ($assigned === null) {
+                return null;
+            }
+
+            $value = new TypeExpr($scope->hasVariableType($name)->no()
+                ? $scope->getType($assigned)
+                : TypeCombinator::union(TypeCombinator::removeNull($scope->getType($root)), $scope->getType($assigned)));
+        }
+
+        $typed = $this->getEntryExpression($receiver, $statements, $root, $value);
 
         return $typed === null ? null : $scope->getType($typed);
     }
@@ -341,7 +357,8 @@ class CoroutineRuleHelper
 
     /**
      * Determine whether the catch only rethrows its exception, or handles cancellation behind a
-     * Coroutine::causedByCancellation() guard that throws or that is the catch's only statement.
+     * Coroutine::causedByCancellation() guard that throws, that is the catch's only statement, or
+     * that is negated and followed only by rethrowing the exception.
      */
     private function keepsCancellationApart(Catch_ $catch): bool
     {
@@ -353,10 +370,7 @@ class CoroutineRuleHelper
         $first = $catch->stmts[0] ?? null;
 
         if ($first instanceof Expression) {
-            return count($catch->stmts) === 1
-                && $first->expr instanceof Throw_
-                && $first->expr->expr instanceof Variable
-                && $first->expr->expr->name === $variable;
+            return count($catch->stmts) === 1 && $this->rethrows($first, $variable);
         }
 
         if (! $first instanceof If_) {
@@ -367,7 +381,23 @@ class CoroutineRuleHelper
 
         return $polarity !== null
             && (count($catch->stmts) === 1
-                || ($polarity && $this->endsWith($first->stmts, [Throw_::class])));
+                || ($polarity && $this->endsWith($first->stmts, [Throw_::class]))
+                || (! $polarity
+                    && $first->elseifs === []
+                    && $first->else === null
+                    && count($catch->stmts) === 2
+                    && $this->rethrows($catch->stmts[1], $variable)));
+    }
+
+    /**
+     * Determine whether the statement throws the variable unchanged.
+     */
+    private function rethrows(Stmt $statement, string $variable): bool
+    {
+        return $statement instanceof Expression
+            && $statement->expr instanceof Throw_
+            && $statement->expr->expr instanceof Variable
+            && $statement->expr->expr->name === $variable;
     }
 
     /**

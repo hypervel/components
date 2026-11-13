@@ -32,15 +32,17 @@ class ManagedTransactionRuleTest extends RuleTestCase
         ];
 
         $this->analyse([__DIR__ . '/data/managed-transactions.php'], [
-            $endedEarly('commit', 58),
-            $endedEarly('rollBack', 60),
-            $endedEarly('rollBack', 62),
-            $endedEarly('commit', 65),
-            $endedEarly('commit', 70),
+            $endedEarly('commit', 62),
+            $endedEarly('rollBack', 64),
+            $endedEarly('rollBack', 66),
+            $endedEarly('commit', 69),
             $endedEarly('commit', 74),
-            $rolledBackToZero(82),
-            $rolledBackToZero(85),
-            $endedEarly('commit', 142),
+            $endedEarly('commit', 78),
+            $rolledBackToZero(86),
+            $rolledBackToZero(89),
+            $endedEarly('commit', 146),
+            $endedEarly('commit', 165),
+            $endedEarly('rollBack', 167),
         ]);
     }
 

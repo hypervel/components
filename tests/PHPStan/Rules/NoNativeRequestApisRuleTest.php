@@ -39,7 +39,7 @@ class NoNativeRequestApisRuleTest extends RuleTestCase
             $function('header', 15, self::RESPONSE_TIP),
             $function('http_response_code', 16, self::RESPONSE_TIP),
             $function('session_start', 17, self::SESSION_TIP),
-            $function('connection_aborted', 21, 'Stream through a generator callback passed to response()->stream(), or an IterableStreamedResponse, which stop when the client disconnects.'),
+            $function('connection_aborted', 21, 'Stream through a generator callback passed to response()->stream() or an IterableStreamedResponse, which stops at the first failed write after the client disconnects. Call cancelOnDisconnect() to also stop it during a wait when the connection closes.'),
             $input('_POST', 25),
             ["\$_SESSION is not Hypervel's session.", 26, self::SESSION_TIP . ' $_SESSION is shared by every request the worker process handles.'],
             $input('_GET', 28),

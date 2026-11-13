@@ -179,6 +179,15 @@ class RequestDependentBindingRule implements Rule
             return $this->findRead($nodes, $this->getContainerVariable($condition->params), $scope)?->getStartLine();
         }
 
+        // A named method can itself be the read, such as Auth::check(...).
+        if ($condition instanceof StaticCall && $condition->isFirstClassCallable() && $condition->name instanceof Identifier) {
+            $class = $this->getStaticClass($condition, $scope);
+
+            if ($class !== null && $this->isStaticRead($class, $condition->name->toString())) {
+                return $condition->getStartLine();
+            }
+        }
+
         $declaration = match (true) {
             $condition instanceof FuncCall && $condition->isFirstClassCallable() => $this->findFunction($condition, $scope),
             $condition instanceof StaticCall && $condition->isFirstClassCallable() => $this->findStaticMethod($condition, $scope),
@@ -189,18 +198,20 @@ class RequestDependentBindingRule implements Rule
             return null;
         }
 
-        [$function, $file] = $declaration;
+        [$function, $file, $class] = $declaration;
 
         // Function bodies are not declarations, so the file the condition was read from is tracked.
         if ($file !== $scope->getFile()) {
             $scope->trackFileDependency($file);
         }
 
-        // Unqualified function names resolve in the declaration's namespace, not the attribute's.
+        // Unqualified function names resolve in the declaration's namespace, not the attribute's, and
+        // self:: in a method to its declaring class.
         $namespace = $this->getNamespace($function, $file);
         $declarationScope = $this->scopeFactory->create(ScopeContext::create($file));
 
         $declarationScope = $namespace === null ? $declarationScope : $declarationScope->enterNamespace($namespace);
+        $declarationScope = $class === null ? $declarationScope : $declarationScope->enterClass($class);
 
         return $this->findRead($function->stmts ?? [], $this->getContainerVariable($function->params), $declarationScope) === null
             ? null
@@ -429,7 +440,7 @@ class RequestDependentBindingRule implements Rule
     /**
      * Find the declaration of the function a first-class callable names, with its file.
      *
-     * @return null|array{Function_, string}
+     * @return null|array{Function_, string, null}
      */
     private function findFunction(FuncCall $callable, Scope $scope): ?array
     {
@@ -450,24 +461,27 @@ class RequestDependentBindingRule implements Rule
                 && strtolower($node->namespacedName?->toString() ?? '') === strtolower($function->getName()),
         );
 
-        return $declaration instanceof Function_ ? [$declaration, $file] : null;
+        return $declaration instanceof Function_ ? [$declaration, $file, null] : null;
     }
 
     /**
-     * Find the declaration of the static method a first-class callable names, with its file.
+     * Find the declaration of the static method a first-class callable names, with its file and the
+     * class declaring it.
      *
-     * @return null|array{ClassMethod, string}
+     * @return null|array{ClassMethod, string, ClassReflection}
      */
     private function findStaticMethod(StaticCall $callable, Scope $scope): ?array
     {
-        if (! $callable->class instanceof Name || $callable->class->isSpecialClassName() || ! $callable->name instanceof Identifier) {
+        $class = $this->getStaticClass($callable, $scope);
+
+        if ($class === null || ! $callable->name instanceof Identifier) {
             return null;
         }
 
-        $class = $scope->resolveName($callable->class);
+        $declaration = $this->constructorParser->findMethod($class, $callable->name->toString());
 
-        return $this->reflectionProvider->hasClass($class)
-            ? $this->constructorParser->findMethod($this->reflectionProvider->getClass($class), $callable->name->toString())
-            : null;
+        return $declaration === null
+            ? null
+            : [...$declaration, $class->getNativeMethod($callable->name->toString())->getDeclaringClass()];
     }
 }

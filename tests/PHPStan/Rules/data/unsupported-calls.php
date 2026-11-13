@@ -193,5 +193,35 @@ function test(
         fn () => SharedLineFacade::bare(),
         fn () => SelfBuildingFacade::bare(),
         fn () => ResolvingFacade::bare(),
+        fn () => ForwardingFacade::bare(),
+        fn () => ForwardingFacade::retired(),
     ];
+}
+
+class ForwardingFacade extends Facade
+{
+    /**
+     * Forward a static call to another implementation.
+     */
+    public static function __callStatic(string $method, array $args): mixed
+    {
+        return (new OverridingService)->{$method}(...$args);
+    }
+
+    /**
+     * Reject the facade's own operation.
+     */
+    #[Unsupported]
+    public static function retired(): never
+    {
+        throw new LogicException('Unsupported.');
+    }
+
+    /**
+     * Get the registered name of the component.
+     */
+    protected static function getFacadeAccessor(): string
+    {
+        return 'unsupported.factory';
+    }
 }

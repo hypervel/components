@@ -923,7 +923,7 @@ return response($content)->header('X-Frame-Options', 'DENY');
 
 The check covers `header`, `header_remove`, `headers_list`, `headers_sent`, `http_response_code`, `setcookie`, `setrawcookie`, `connection_aborted`, `connection_status`, `ignore_user_abort` and every `session_*` function except `session_create_id`. It also reports `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES`, `$_REQUEST` and `$_SESSION`. In particular, `$_SESSION` is shared by every request in the worker.
 
-To stop streaming when the client disconnects, pass a generator callback to `response()->stream()`, as described in [Streamed Responses](/docs/{{version}}/responses#streamed-responses).
+A generator callback passed to `response()->stream()` stops streaming at the first failed write after the client disconnects. To also stop it during a wait when the connection closes, call `cancelOnDisconnect()`, as described in [Canceling Disconnected Streams](/docs/{{version}}/responses#canceling-disconnected-streams).
 
 When code deliberately uses one of these functions outside a request, such as a console command that calls `ignore_user_abort`, ignore the diagnostic with a reason. You may disable the check using the `noNativeRequestApis` parameter.
 
@@ -962,7 +962,7 @@ $value = Redis::withConnection(function (RedisConnection $connection) {
 });
 ```
 
-Once the callback finishes, another coroutine may borrow the connection. Returning the connection itself, storing it on a property or a by-reference `use` variable, or capturing it in work that can outlive the callback is reported. This includes closures passed to `go()`, `parallel()`, `Coroutine::defer()` and `Timer::after()`.
+Once the callback finishes, another coroutine may borrow the connection. The check reports returning it, storing it outside the callback, or capturing it in work that can outlive the callback. Arrays and closures holding the connection count too. Storage includes properties on objects from outside the callback and by-reference `use` variables. This includes closures passed to `go()`, `parallel()`, `Coroutine::defer()` and `Timer::after()`.
 
 The check covers these borrowed resources, including local variables holding them:
 
@@ -1005,7 +1005,7 @@ try {
 }
 ```
 
-Use the same approach instead of `instanceof CanceledException` or storing a directly caught cancellation for later. If the value may be `null`, such as `getPrevious()`, check `instanceof Throwable` first. A `Throwable` catch that only rethrows is not reported. Neither is a `try` block containing only waits that throw cancellation directly, such as channel waits or `Coroutine::join`.
+Use the same approach instead of `instanceof CanceledException` or storing a directly caught cancellation for later. If the value may be `null`, such as `getPrevious()`, check `instanceof Throwable` first. A `Throwable` catch that only rethrows is not reported, and neither is one that handles ordinary failures inside `if (! Coroutine::causedByCancellation($exception))` and then rethrows. Neither is a `try` block containing only waits that throw cancellation directly, such as channel waits or `Coroutine::join`.
 
 When you keep the first of several failures using `??=`, a later failure carrying cancellation is lost. Use `Coroutine::preferCancellation`, which keeps the first failure unless a later one carries this coroutine's cancellation:
 
@@ -1091,7 +1091,7 @@ DB::transaction(function () use ($order) {
 
 Calling `commit()` or `rollBack()` to end that transaction inside the closure is reported, because later work in the closure would run outside it. Balanced calls to `beginTransaction()` and `commit()` or `rollBack()` are allowed for nested transactions. `rollBack(0)` is reported because it also rolls back every enclosing transaction.
 
-The check follows calls on the connection the closure receives, a connection variable it captures, the `DB` facade, and `DB::connection()` with the same connection name as the `transaction` call. Once the closure begins, commits or rolls back a transaction conditionally, such as inside an `if`, a loop or a `try`, the rest of the closure is not checked. You may disable the check using the `checkManagedTransactions` parameter.
+The check follows calls on the connection the closure receives, a connection variable it captures, a connection property of `$this`, the `DB` facade, and `DB::connection()` with the same connection name as the `transaction` call. Once the closure begins, commits or rolls back a transaction conditionally, such as inside an `if`, a loop or a `try`, the rest of the closure is not checked. You may disable the check using the `checkManagedTransactions` parameter.
 
 <a name="sleeping"></a>
 ### Sleeping
@@ -1134,7 +1134,7 @@ Pass request values to the methods that use them, or keep them in [CoroutineCont
 - A static property written while handling a request or running a job, or one that keeps any of the values above. (`hypervel.staticStateMutation`)
 - An array on a static property or shared service whose keys come from the request or user, such as `$this->visits[$request->ip()]`, since it can grow for as long as the worker runs. Use a cache store with an expiry instead. Keys limited to a small set of values, such as booleans or constants, are not reported, and neither is an array the same method has just reset. When the array is bounded in a way the analysis cannot see, ignore the diagnostic with a reason. (`hypervel.unboundedWorkerCache`)
 
-Request and job checks cover middleware, controller actions, route closures, form requests, and queued classes' `handle`, `__invoke` and `failed` methods. They also cover listeners for framework request, routing and queue job events. Queued listeners and observers are checked as jobs.
+Request and job checks cover middleware, controller actions, route closures, form requests, and queued classes' `handle`, `__invoke` and `failed` methods. They also cover listeners and [passive observers](/docs/{{version}}/events#passive-observers) for framework request, routing and queue job events, including wildcard ones whose pattern matches those events. Queued listeners and queued Eloquent observers are checked as jobs. A queued listener using `InteractsWithQueue` handles each job on its own copy, so its handler and the helpers it calls may write to its properties. Its `failed`, `shouldQueue`, `uniqueVia` and `debounceVia` methods run on the shared instance, so they and the helpers they call are still checked.
 
 Listeners for server events such as `OnReceive` and `OnClose`, and Eloquent observers registered using `observe` or `ObservedBy`, are checked as operations. These handlers can run outside HTTP requests and queued jobs. The checks also follow calls to helper methods on `$this`. Nested closures are not checked because they may run later.
 
@@ -1184,7 +1184,7 @@ A call that reaches a method marked [`Unsupported`](#method-attributes) always t
 $client->callAsync('refresh');
 ```
 
-Calls through facades are checked too. The call is judged by the method it reaches, so a call through an interface or base class whose method is not marked is not reported. Neither is a call inside another marked method, since an unsupported method may throw by calling another one.
+Calls through facades are checked too. When a facade forwards calls with its own `__callStatic` method, the calls it forwards to its root are not checked, but its own marked methods still are. The call is judged by the method it reaches, so a call through an interface or base class whose method is not marked is not reported. Neither is a call inside another marked method, since an unsupported method may throw by calling another one.
 
 <a name="runtime-configuration"></a>
 ### Runtime Configuration
@@ -1263,7 +1263,7 @@ interface Dashboard
 
 To choose an implementation for each request, register a [scoped binding](/docs/{{version}}/container#binding-scoped) instead.
 
-The check detects request reads through the `request` helper, `Request` facade, `RequestContext` and container, along with user lookups through `Auth` or `auth()`. Nested callbacks are inspected too, as are functions and static methods used as first-class callable conditions, such as `Conditions::onAdminPath(...)`. You may disable the check using the `checkBindWhenConditions` parameter.
+The check detects request reads through the `request` helper, `Request` facade, `RequestContext` and container, along with user lookups through `Auth` or `auth()`. Nested callbacks are inspected too, as are functions and static methods used as first-class callable conditions, such as `Conditions::onAdminPath(...)` or `Auth::check(...)`. You may disable the check using the `checkBindWhenConditions` parameter.
 
 <a name="model-relations"></a>
 ### Model Relations
