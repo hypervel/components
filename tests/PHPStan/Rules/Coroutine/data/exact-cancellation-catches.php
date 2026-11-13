@@ -240,6 +240,19 @@ class ExactCancellationCatches
         }
     }
 
+    public function waitsOnAssignedChannel(Channel $held): mixed
+    {
+        try {
+            $channel = $held;
+
+            return $channel->pop(1.0);
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
     private function work(): void
     {
     }

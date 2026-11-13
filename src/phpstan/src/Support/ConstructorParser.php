@@ -32,7 +32,7 @@ use function strrpos;
 use function strtolower;
 
 /**
- * Reads the constructor a class's instances run from its source.
+ * Reads a class's methods from its source, such as the constructor its instances run.
  */
 #[AutowiredService]
 class ConstructorParser
@@ -63,21 +63,44 @@ class ConstructorParser
      */
     public function findConstructor(ClassReflection $classReflection): ?array
     {
-        $native = $classReflection->getNativeReflection();
+        $constructor = $this->findMethod($classReflection, '__construct');
 
-        if (! $native->hasMethod('__construct')) {
+        if ($constructor === null) {
             return null;
         }
 
-        $constructor = $native->getMethod('__construct');
-        $fileName = $constructor->getFileName();
+        $declaringClass = $classReflection->getNativeReflection()->getMethod('__construct')->getDeclaringClass()->getName();
+
+        return [
+            $constructor[0],
+            $classReflection->getAncestorWithClassName($declaringClass)
+                ?? throw new LogicException(sprintf('Constructor declaring class [%s] is not an ancestor of [%s].', $declaringClass, $classReflection->getName())),
+        ];
+    }
+
+    /**
+     * Find the declaration of the method the class runs under the name (its own, an inherited one or a
+     * trait's), with the file declaring it. Null when the class has no such method in source.
+     *
+     * @return null|array{ClassMethod, string}
+     */
+    public function findMethod(ClassReflection $classReflection, string $name): ?array
+    {
+        $native = $classReflection->getNativeReflection();
+
+        if (! $native->hasMethod($name)) {
+            return null;
+        }
+
+        $reflection = $native->getMethod($name);
+        $fileName = $reflection->getFileName();
 
         if ($fileName === false) {
             return null;
         }
 
-        // A trait method imported as the constructor keeps its own name, so the node is found by its position.
-        $method = $constructor->getBetterReflection();
+        // A trait method imported under another name keeps its own, so the node is found by its position.
+        $method = $reflection->getBetterReflection();
         $source = $method->getLocatedSource()->getSource();
         $node = (new NodeFinder)->findFirst(
             $this->parser->parseFile($fileName),
@@ -87,16 +110,10 @@ class ConstructorParser
         );
 
         if (! $node instanceof ClassMethod) {
-            throw new LogicException(sprintf('Constructor of [%s] was not found in [%s].', $classReflection->getName(), $fileName));
+            throw new LogicException(sprintf('Method [%s::%s] was not found in [%s].', $classReflection->getName(), $name, $fileName));
         }
 
-        $declaringClass = $constructor->getDeclaringClass()->getName();
-
-        return [
-            $node,
-            $classReflection->getAncestorWithClassName($declaringClass)
-                ?? throw new LogicException(sprintf('Constructor declaring class [%s] is not an ancestor of [%s].', $declaringClass, $classReflection->getName())),
-        ];
+        return [$node, $fileName];
     }
 
     /**
