@@ -78,7 +78,6 @@ use PHPStan\Type\ObjectType;
 use Swoole\Coroutine as SwooleCoroutine;
 
 use function array_all;
-use function array_column;
 use function array_diff_key;
 use function array_fill_keys;
 use function array_filter;
@@ -827,8 +826,8 @@ class BorrowedResourceEscapeRule implements Rule
     /**
      * Apply a detachment inside a larger statement where the walk reaches it, after the statement's earlier
      * escapes. It may not run, or may follow a write to the binding, so a closure sharing the old binding by
-     * reference only stops reading the name. An unset name, and each name written after the unset, keeps only
-     * what the statement's path through the unset gives it.
+     * reference only stops reading the name. An unset name, and each name a later write gives a value read from
+     * one, keeps only what the statement's path through the unset gives it.
      *
      * @param list<string> $names
      * @param list<Node> $later the statement's nodes after the detaching one
@@ -848,9 +847,6 @@ class BorrowedResourceEscapeRule implements Rule
             return;
         }
 
-        // The unset names, and the names written after the unset, are rebuilt from the path, so a write the unset
-        // discards doesn't return and a copy made after it doesn't keep the old value, while a value copied earlier
-        // keeps it. The main environment keeps their defined and referenced flags, since the unset may not run.
         $path = [
             'tracked' => array_diff_key($path['tracked'], $names),
             'appended' => array_diff_key($path['appended'], $names),
@@ -858,9 +854,38 @@ class BorrowedResourceEscapeRule implements Rule
             'defined' => array_diff_key($path['defined'], $names),
             'referenced' => array_diff_key($path['referenced'], $names),
         ];
-        $after = $path;
+
+        // Only the unset names and the later writes that read them, directly or through each other, can change. They
+        // are rebuilt from the path, so a write the unset discards doesn't return and a copy made after it doesn't keep
+        // the old value. Every other name keeps the statement's facts, including those a loop carries between its
+        // iterations. The main environment keeps the rebuilt names' defined and referenced flags, since the unset may
+        // not run.
+        $reads = [];
+
+        foreach ($this->getWrites($later, null) as [$name, $value]) {
+            $reads[] = [$name, $value === null ? [] : $this->getReadNames($value)];
+        }
+
+        $rebuilt = $names;
+
+        do {
+            $count = count($rebuilt);
+
+            foreach ($reads as [$name, $read]) {
+                if (array_intersect_key($read, $rebuilt) !== []) {
+                    $rebuilt[$name] = true;
+                }
+            }
+        } while (count($rebuilt) !== $count);
+
+        $after = [
+            'tracked' => array_diff_key($environment['tracked'], $rebuilt) + array_intersect_key($path['tracked'], $rebuilt),
+            'appended' => array_diff_key($environment['appended'], $rebuilt) + array_intersect_key($path['appended'], $rebuilt),
+            'callables' => array_diff_key($environment['callables'], $rebuilt) + array_intersect_key($path['callables'], $rebuilt),
+            'defined' => array_diff_key($environment['defined'], $rebuilt) + array_intersect_key($path['defined'], $rebuilt),
+            'referenced' => array_diff_key($environment['referenced'], $rebuilt) + array_intersect_key($path['referenced'], $rebuilt),
+        ];
         $this->applyWrites($later, null, $after, $owners, $resource, $scope);
-        $rebuilt = $names + array_fill_keys(array_column($this->getWrites($later, null), 0), true);
 
         foreach (array_keys($rebuilt) as $name) {
             $unsetFacts[$name] ??= [
@@ -1536,6 +1561,17 @@ class BorrowedResourceEscapeRule implements Rule
             return $this->getUseNames($function);
         }
 
+        return array_diff_key($this->getReadNames($function->expr), $this->getParameterNames($function));
+    }
+
+    /**
+     * Get the names of the variables an expression reads, including those its nested functions take. A nested
+     * class's body reads nothing.
+     *
+     * @return array<string, true>
+     */
+    private function getReadNames(Expr $expr): array
+    {
         $visitor = new class($this->getCapturedNames(...)) extends NodeVisitorAbstract {
             /** @var array<string, true> */
             public array $names = [];
@@ -1568,9 +1604,9 @@ class BorrowedResourceEscapeRule implements Rule
             }
         };
 
-        (new NodeTraverser($visitor))->traverse([$function->expr]);
+        (new NodeTraverser($visitor))->traverse([$expr]);
 
-        return array_diff_key($visitor->names, $this->getParameterNames($function));
+        return $visitor->names;
     }
 
     /**

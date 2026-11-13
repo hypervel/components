@@ -763,6 +763,21 @@ class GlobalStores
 
             return $result;
         });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $clients = [];
+            $result = [];
+            $copy = [];
+            $unrelated = null;
+
+            foreach ([1, 2] as $row) {
+                $result = $clients;
+                unset($unrelated);
+                $clients[] = $connection->client();
+                $copy = $result;
+            }
+
+            return $copy;
+        });
     }
 
     public function staysInside(bool $shared): void
@@ -1037,6 +1052,39 @@ class GlobalStores
             }
 
             return null;
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $clients = [];
+            $clients[] = $connection->client();
+            $result = [];
+
+            foreach ([1, 2] as $row) {
+                if ($shared) {
+                    unset($clients);
+                    $clients = [];
+                    $result = $clients;
+                }
+            }
+
+            return $result;
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $clients = [];
+            $clients[] = $connection->client();
+            $result = [];
+            $copy = [];
+            $other = null;
+
+            while ($shared) {
+                unset($clients);
+                $clients = [];
+                $result = $clients;
+                unset($other);
+                $copy = $result;
+                $shared = false;
+            }
+
+            return $copy;
         });
     }
 }
