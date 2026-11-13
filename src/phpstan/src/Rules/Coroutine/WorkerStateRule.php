@@ -7,6 +7,7 @@ namespace Hypervel\PHPStan\Rules\Coroutine;
 use Hypervel\PHPStan\Collectors\WorkerStateCallCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateClassCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateConfigOffsetCollector;
+use Hypervel\PHPStan\Collectors\WorkerStateGlobalWriteCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateWriteCollector;
 use PhpParser\Node;
 use PHPStan\Analyser\DependencyTracker;
@@ -21,8 +22,8 @@ use function array_all;
 use function sprintf;
 
 /**
- * Reports request and operation state kept in worker-shared objects, static properties and config,
- * and request-keyed caches that grow for the worker's lifetime.
+ * Reports request and operation state kept in worker-shared objects, static properties, global variables
+ * and config, and request-keyed caches that grow for the worker's lifetime.
  *
  * One rule serves the four switches, because PHPStan cannot register a rule when any of several
  * parameters is on, and so one write gets one diagnostic: an unbounded cache before shared or static
@@ -113,6 +114,37 @@ class WorkerStateRule implements Rule
 
                 if ($diagnostic !== null) {
                     $errors[] = $this->buildError($diagnostic, $file, $write['line']);
+                }
+            }
+        }
+
+        foreach ($node->get(WorkerStateGlobalWriteCollector::class) as $file => $collected) {
+            // A write through a bound global name gets what it keeps from the request value written at the same target.
+            $states = [];
+            $globalWrites = [];
+
+            foreach ($collected as $writes) {
+                foreach ($writes as $write) {
+                    if ($write['type'] === 'value') {
+                        $states[$write['target']] = $write['state'];
+                    } else {
+                        $globalWrites[] = $write;
+                    }
+                }
+            }
+
+            foreach ($globalWrites as $write) {
+                $state = $write['state'] ?? $states[$write['target']] ?? null;
+                $context = $analysis->getContext($write['function'], $file);
+
+                $message = match (true) {
+                    $state !== null => sprintf('Global variable %s keeps %s, which the whole worker then shares.', $write['name'], self::STATE_LABELS[$state]),
+                    $context !== null => sprintf('Global variable %s is written %s, but global variables are shared by the whole worker.', $write['name'], WorkerStateAnalysis::describeContext($context)),
+                    default => null,
+                };
+
+                if ($message !== null) {
+                    $errors[] = $this->buildError(['identifier' => 'hypervel.staticStateMutation', 'message' => $message, 'tip' => self::STATIC_TIP], $file, $write['line']);
                 }
             }
         }

@@ -17,6 +17,7 @@ use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\PHPStan\Collectors\WorkerStateCallCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateClassCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateConfigOffsetCollector;
+use Hypervel\PHPStan\Collectors\WorkerStateGlobalWriteCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateParameterCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateWriteCollector;
 use Hypervel\PHPStan\Rules\Coroutine\CoroutineRuleHelper;
@@ -52,6 +53,7 @@ use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ScopedHelperController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\SendReportListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ServiceContract;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\SingletonBoundService;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateGlobals\GlobalsController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\BoundOptionListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\DebouncedByDefaultListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\DebouncedListener;
@@ -122,6 +124,12 @@ class WorkerStateRuleTest extends RuleTestCase
 
     private const string OPTIONS_NAMESPACE = 'Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\\';
 
+    private const array GLOBALS_FILES = [
+        __DIR__ . '/data/worker-state-globals.php',
+        __DIR__ . '/data/worker-state-globals-request.php',
+        __DIR__ . '/data/worker-state-globals-account.php',
+    ];
+
     /**
      * The checkWorkerSharedState, checkStaticStateMutation, checkUnboundedWorkerCaches and
      * noRuntimeConfigMutation switches.
@@ -149,6 +157,7 @@ class WorkerStateRuleTest extends RuleTestCase
             new WorkerStateClassCollector($this->createReflectionProvider(), $helper, self::getContainer()->getByType(RuntimeInputs::class)),
             new WorkerStateParameterCollector($helper),
             new WorkerStateConfigOffsetCollector($helper),
+            new WorkerStateGlobalWriteCollector($helper),
         ];
     }
 
@@ -265,6 +274,46 @@ class WorkerStateRuleTest extends RuleTestCase
             $write('DebouncedListener', 'debounced', 179),
             $write('DebouncedByDefaultListener', 'debounced', 203),
         ]);
+    }
+
+    public function testGlobalVariables(): void
+    {
+        $keeps = static fn (string $name, int $line, string $state = 'the current request'): array => [
+            sprintf('Global variable %s keeps %s, which the whole worker then shares.', $name, $state),
+            $line,
+            self::STATIC_TIP,
+        ];
+        $written = static fn (string $name, int $line): array => [
+            sprintf('Global variable %s is written while handling a request, but global variables are shared by the whole worker.', $name),
+            $line,
+            self::STATIC_TIP,
+        ];
+
+        // The traits' writes are at the same position of their own files, which are both collected under the class's.
+        $this->analyse(self::GLOBALS_FILES, [
+            $keeps("\$GLOBALS['current_request']", 14),
+            $written("\$GLOBALS['requests']", 15),
+            $written("\$GLOBALS['tenant']", 16),
+            $written('$tenant', 25),
+            $written('$settings', 31),
+            $written('$profile', 32),
+            $keeps('$settings', 33),
+            $written('$visits', 34),
+            $written("\$GLOBALS['visits']", 35),
+            $written('$previous', 36),
+            $written("\$GLOBALS['first']", 37),
+            $keeps('$held', 56),
+            $keeps("\$GLOBALS['request']", 57),
+            $keeps('$kept', 12),
+            $keeps('$kept', 12, 'a user'),
+        ]);
+    }
+
+    public function testGlobalVariablesFollowTheStaticStateSwitch(): void
+    {
+        $this->switches = [true, false, true, true];
+
+        $this->analyse(self::GLOBALS_FILES, []);
     }
 
     /**
@@ -425,6 +474,7 @@ class WorkerStateRuleTest extends RuleTestCase
         $router->get('/records', [BaseRecordingController::class, 'index']);
         $router->get('/lexical', [LexicalChildController::class, 'index']);
         $router->get('/settings', [RepositoryPropertyController::class, 'update']);
+        $router->get('/globals', [GlobalsController::class, 'index']);
 
         $events->listen(ReportEvent::class, SendReportListener::class);
         $events->listen(RequestReceived::class, RequestListener::class);

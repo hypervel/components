@@ -11,6 +11,7 @@ use Hypervel\PHPStan\Collectors\RestrictedCallCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateCallCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateClassCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateConfigOffsetCollector;
+use Hypervel\PHPStan\Collectors\WorkerStateGlobalWriteCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateParameterCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateWriteCollector;
 use Hypervel\PHPStan\Rules\Coroutine\RestrictedCallRule;
@@ -59,6 +60,7 @@ class RestrictedCallsOnlyTest extends RuleTestCase
             self::getContainer()->getByType(WorkerStateClassCollector::class),
             self::getContainer()->getByType(WorkerStateParameterCollector::class),
             self::getContainer()->getByType(WorkerStateConfigOffsetCollector::class),
+            self::getContainer()->getByType(WorkerStateGlobalWriteCollector::class),
         ];
     }
 
