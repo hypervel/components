@@ -21,6 +21,7 @@ use PhpParser\Node\Expr\List_;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\New_;
 use PhpParser\Node\Expr\NullsafeMethodCall;
+use PhpParser\Node\Expr\PropertyFetch;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Expr\Throw_;
 use PhpParser\Node\Expr\Variable;
@@ -43,6 +44,7 @@ use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Node\Expr\TypeExpr;
 use PHPStan\Reflection\ClassReflection;
 use PHPStan\Reflection\ReflectionProvider;
+use PHPStan\TrinaryLogic;
 use PHPStan\Type\MixedType;
 use PHPStan\Type\Type;
 use PHPStan\Type\TypeCombinator;
@@ -59,7 +61,8 @@ use function strtolower;
 class CoroutineRuleHelper
 {
     /**
-     * The native wait methods, keyed by declaring class, that throw cancellation directly and so may keep an exact catch.
+     * The native channel, WaitGroup, Waiter and join methods, keyed by declaring class, that a try may call and still
+     * keep an exact catch: each either doesn't wait or throws cancellation directly.
      */
     private const array NATIVE_WAITS = [
         'Swoole\Coroutine\Channel' => ['push', 'pop', 'close'],
@@ -146,14 +149,23 @@ class CoroutineRuleHelper
      */
     public function assigns(Node $node, string $variable): bool
     {
-        $targets = match (true) {
+        return array_any(self::getWriteTargets($node), static fn (Expr $target): bool => $target instanceof Variable && $target->name === $variable);
+    }
+
+    /**
+     * Get the targets the node writes, such as variables and properties: through =, =& or a compound
+     * assignment, including destructuring, a foreach key or value, or a catch binding.
+     *
+     * @return list<Expr>
+     */
+    private static function getWriteTargets(Node $node): array
+    {
+        return match (true) {
             $node instanceof Assign, $node instanceof AssignRef, $node instanceof AssignOp => self::getTargetLeaves($node->var),
             $node instanceof Foreach_ => [...self::getTargetLeaves($node->keyVar), ...self::getTargetLeaves($node->valueVar)],
             $node instanceof Catch_ => self::getTargetLeaves($node->var),
             default => [],
         };
-
-        return array_any($targets, static fn (Expr $target): bool => $target instanceof Variable && $target->name === $variable);
     }
 
     /**
@@ -238,6 +250,9 @@ class CoroutineRuleHelper
      * by it, such as the container's make(), gives no class, while a fluent where() keeps its own. Any other
      * read of such a local leaves the receiver unknown.
      *
+     * A `$this` property the block writes directly follows the same rules, and calls that change a property
+     * aren't followed. A call on null fails or doesn't run, so null is left out of the type.
+     *
      * @param array<Node> $statements
      */
     public function getReceiverType(Expr $receiver, array $statements, Scope $scope): ?Type
@@ -248,17 +263,43 @@ class CoroutineRuleHelper
             $root = $root->var;
         }
 
-        if (! $root instanceof Variable || ! is_string($name = $root->name) || $name === 'this') {
-            $typed = $this->getEntryExpression($receiver, $statements);
+        $name = $root instanceof Variable && is_string($root->name) && $root->name !== 'this' ? $root->name : null;
+        $property = $name === null ? self::getThisPropertyName($root) : null;
 
-            return $typed === null ? null : $scope->getType($typed);
+        $matches = static fn (?Node $node): bool => $name !== null
+            ? $node instanceof Variable && $node->name === $name
+            : $property !== null && self::getThisPropertyName($node) === $property;
+
+        if ($name === null) {
+            $written = $property !== null && $this->find(
+                $statements,
+                static fn (Node $node): bool => array_any(self::getWriteTargets($node), $matches),
+            ) !== [];
+
+            if (! $written) {
+                $typed = $this->getEntryExpression($receiver, $statements);
+
+                return $typed === null ? null : TypeCombinator::removeNull($scope->getType($typed));
+            }
+
+            // A hook can return or store another object than the one assigned.
+            $class = $scope->getClassReflection();
+            $reflection = $class !== null && $class->hasNativeProperty($property) ? $class->getNativeProperty($property) : null;
+
+            if ($reflection === null
+                || $reflection->isStatic()
+                || ! $reflection->isVirtual()->no()
+                || $reflection->hasHook('get')
+                || $reflection->hasHook('set')) {
+                return null;
+            }
         }
 
         $nodes = $this->find(
             $statements,
-            static fn (Node $node): bool => ($node instanceof Variable && $node->name === $name)
-                || self::getCalledVariable($node)?->name === $name
-                || (($node instanceof Assign || $node instanceof Coalesce) && $node->var instanceof Variable && $node->var->name === $name),
+            static fn (Node $node): bool => $matches($node)
+                || $matches(self::getCalledReceiver($node))
+                || (($node instanceof Assign || $node instanceof Coalesce) && $matches($node->var)),
         );
 
         $mentions = [];
@@ -266,7 +307,7 @@ class CoroutineRuleHelper
         $assignments = [];
 
         foreach ($nodes as $node) {
-            if ($node instanceof Variable) {
+            if ($matches($node)) {
                 $mentions[] = $node;
             } elseif ($node instanceof Assign || $node instanceof Coalesce) {
                 $assignments[] = $node;
@@ -297,7 +338,8 @@ class CoroutineRuleHelper
         $value = $assignment?->expr;
 
         if ($assignment instanceof Coalesce) {
-            $defined = $scope->hasVariableType($name);
+            // A typed property may be uninitialized.
+            $defined = $name !== null ? $scope->hasVariableType($name) : TrinaryLogic::createMaybe();
 
             // The assignment never runs when the variable always holds a value, so its expression is never read.
             if ($defined->yes() && $scope->getType($root)->isNull()->no()) {
@@ -317,7 +359,7 @@ class CoroutineRuleHelper
 
         $typed = $this->getEntryExpression($receiver, $statements, $root, $value);
 
-        return $typed === null ? null : $scope->getType($typed);
+        return $typed === null ? null : TypeCombinator::removeNull($scope->getType($typed));
     }
 
     /**
@@ -477,13 +519,13 @@ class CoroutineRuleHelper
     /**
      * Rebuild a call chain for typing in the scope at the try, with each call argument that reads a local the
      * block may change replaced by an unknown value. Return null when another part of it reads such a local.
-     * The chain's root variable has been checked by the caller: it keeps its value from the try, or takes the
-     * value the block assigns it. New nodes are built rather than cloned, since a clone keeps the original's
-     * cached expression key.
+     * The chain's root variable or property has been checked by the caller: it keeps its value from the try, or
+     * takes the value the block assigns it. New nodes are built rather than cloned, since a clone keeps the
+     * original's cached expression key.
      *
      * @param array<Node> $statements
      */
-    private function getEntryExpression(Expr $expression, array $statements, ?Variable $root = null, ?Expr $value = null): ?Expr
+    private function getEntryExpression(Expr $expression, array $statements, ?Expr $root = null, ?Expr $value = null): ?Expr
     {
         if ($expression === $root) {
             return $value === null ? $root : $this->getEntryExpression($value, $statements);
@@ -532,30 +574,48 @@ class CoroutineRuleHelper
 
     /**
      * Determine whether the block may change a local variable the nodes read: it mentions the variable
-     * outside them, other than to call a method on it.
+     * outside them, other than to call a method on it. A `$this` property they read changes when the block
+     * writes it directly.
      *
      * @param array<Node> $nodes
      * @param array<Node> $statements
      */
     private function mayChangeInputs(array $nodes, array $statements): bool
     {
+        $properties = [];
+
+        foreach ($this->find($nodes, static fn (Node $node): bool => $node instanceof PropertyFetch) as $fetch) {
+            $property = self::getThisPropertyName($fetch);
+
+            if ($property !== null) {
+                $properties[$property] = true;
+            }
+        }
+
+        $writesProperty = static fn (Expr $target): bool => ($property = self::getThisPropertyName($target)) !== null && isset($properties[$property]);
+
+        if ($properties !== [] && $this->find($statements, static fn (Node $node): bool => array_any(self::getWriteTargets($node), $writesProperty)) !== []) {
+            return true;
+        }
+
         $inputs = $this->find($nodes, static fn (Node $node): bool => $node instanceof Variable && is_string($node->name) && $node->name !== 'this');
 
         foreach ($inputs as $input) {
             $name = $input instanceof Variable ? $input->name : null;
             $receivers = [];
             $mentions = [];
+            $matches = static fn (?Node $node): bool => $node instanceof Variable && $node->name === $name;
 
             $nodes = $this->find(
                 $statements,
-                static fn (Node $node): bool => ($node instanceof Variable && $node->name === $name) || self::getCalledVariable($node)?->name === $name,
+                static fn (Node $node): bool => $matches($node) || $matches(self::getCalledReceiver($node)),
             );
 
             foreach ($nodes as $node) {
-                if ($node instanceof Variable) {
+                if ($matches($node)) {
                     $mentions[] = $node;
                 } else {
-                    $receivers[] = self::getCalledVariable($node);
+                    $receivers[] = self::getCalledReceiver($node);
                 }
             }
 
@@ -570,17 +630,28 @@ class CoroutineRuleHelper
     }
 
     /**
-     * Get the variable a method or static call is made on.
+     * Get the expression a method or static call is made on.
      */
-    private static function getCalledVariable(Node $node): ?Variable
+    private static function getCalledReceiver(Node $node): ?Node
     {
-        $receiver = match (true) {
+        return match (true) {
             $node instanceof MethodCall, $node instanceof NullsafeMethodCall => $node->var,
             $node instanceof StaticCall => $node->class,
             default => null,
         };
+    }
 
-        return $receiver instanceof Variable ? $receiver : null;
+    /**
+     * Get the name of the `$this` property the node reads or writes, or null for any other node.
+     */
+    private static function getThisPropertyName(?Node $node): ?string
+    {
+        return $node instanceof PropertyFetch
+            && $node->var instanceof Variable
+            && $node->var->name === 'this'
+            && $node->name instanceof Identifier
+                ? $node->name->toString()
+                : null;
     }
 
     /**

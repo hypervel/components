@@ -315,3 +315,67 @@ class PollingChannel extends Channel
         return parent::pop($timeout);
     }
 }
+
+class ChannelProperties
+{
+    public Channel $hooked {
+        set => $value;
+    }
+
+    private Channel $channel;
+
+    private Channel $secondary;
+
+    public function waitsOnReplacedProperty(PollingChannel $replacement): mixed
+    {
+        $this->channel = new Channel(1);
+
+        try {
+            $this->channel = $replacement;
+
+            return $this->channel->pop(1.0);
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    public function waitsOnHookedProperty(): mixed
+    {
+        try {
+            $this->hooked = new Channel(1);
+
+            return $this->hooked->pop(1.0);
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    public function waitsOnNullableChannel(?Channel $channel): mixed
+    {
+        try {
+            return $channel?->pop(1.0);
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    public function waitsOnPropertyReplacedThroughAnother(PollingChannel $replacement): mixed
+    {
+        try {
+            $this->secondary = $replacement;
+            $this->channel = $this->secondary;
+
+            return $this->channel->pop(1.0);
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+}

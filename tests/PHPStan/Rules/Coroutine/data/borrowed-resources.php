@@ -262,6 +262,31 @@ class PinnedService
         });
         $this->hooked->withPinnedSession(fn () => $this->hooked->getPdo());
     }
+
+    public function spawns(): void
+    {
+        $connection = $this->database;
+
+        $connection->withPinnedSession(function () use ($connection) {
+            go(function () use ($connection) {
+                $this->pdo = $connection->getPdo();
+            });
+        });
+        $this->database->withPinnedSession(function () {
+            go(function () {
+                $this->pdo = $this->database->getPdo();
+            });
+        });
+        DB::withPinnedSession(function () {
+            go(function () {
+                $this->pdo = DB::getPdo();
+            });
+            $store = function () {
+                $this->pdo = DB::getPdo();
+            };
+            $store();
+        });
+    }
 }
 
 class Joins
@@ -359,6 +384,37 @@ class OrderedEscapes
             $items = [$connection];
             $this->items = &$items;
         });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = $connection->client();
+            $inner = function () use (&$client) {
+                return $client->get('key');
+            };
+            $task = fn () => $inner();
+            array_map(function () use ($task) {
+                go($task);
+            }, [1]);
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $inner = function () use (&$connection) {
+                return $connection->get('key');
+            };
+            $task = fn () => $inner();
+            $launch = function () use ($task) {
+                go($task);
+            };
+            $launch();
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = null;
+            $task = function () use (&$client) {
+                return $client?->get('key');
+            };
+            $launch = function () use ($task, &$client, $connection) {
+                $client = $connection->client();
+                go($task);
+            };
+            $launch();
+        });
     }
 
     public function staysInside(RedisConnection $other): void
@@ -430,6 +486,45 @@ class OrderedEscapes
             $alias = &$connection;
             $alias = $other;
             $store();
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = null;
+            $inner = function () use (&$client) {
+                return $client?->get('key');
+            };
+            $task = fn () => $inner();
+            $launch = function () use ($task) {
+                go($task);
+            };
+            $client = $connection->client();
+            $launch();
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = $connection->client();
+            $task = function () use (&$client) {
+                return $client?->get('key');
+            };
+            $launch = function () use ($task, &$client) {
+                $client = null;
+                go($task);
+            };
+            $launch();
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = $connection->client();
+            $attempts = 0;
+            $task = function () use (&$client, &$attempts) {
+                ++$attempts;
+
+                return $client?->get('key');
+            };
+            $launch = function () use ($task, $client, &$attempts) {
+                if ($client !== null) {
+                    go($task);
+                }
+            };
+            $client = null;
+            $launch();
         });
     }
 

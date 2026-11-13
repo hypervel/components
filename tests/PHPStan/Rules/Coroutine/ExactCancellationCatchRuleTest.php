@@ -32,6 +32,9 @@ class ExactCancellationCatchRuleTest extends RuleTestCase
             [sprintf(self::MESSAGE, 220), 218],
             [sprintf(self::MESSAGE, 235), 233],
             [sprintf(self::MESSAGE, 248), 246],
+            [sprintf(self::MESSAGE, 339), 337],
+            [sprintf(self::MESSAGE, 352), 350],
+            [sprintf(self::MESSAGE, 377), 375],
         ]);
     }
 

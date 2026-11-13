@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\Collectors;
 
+use Hypervel\Contracts\Engine\ChannelInterface;
+use Hypervel\Coroutine\Concurrent;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ForeignCancellationException;
 use Hypervel\Coroutine\Parallel;
+use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Database\Connection;
@@ -338,10 +341,15 @@ class SwallowedCancellationCollector implements Collector
         Http::class => [self::HTTP, self::HTTP_METHODS],
         SwooleChannel::class => [self::WAIT, ['push' => true, 'pop' => true]],
         EngineChannel::class => [self::WAIT, ['push' => true, 'pop' => true]],
+        // The contract documents both as waiting.
+        ChannelInterface::class => [self::WAIT, ['push' => true, 'pop' => true]],
         SwooleWaitGroup::class => [self::WAIT, ['wait' => true]],
         WaitGroup::class => [self::WAIT, ['wait' => true]],
         Waiter::class => [self::WAIT, ['wait' => true]],
         Parallel::class => [self::WAIT, ['wait' => true]],
+        // Starting a coroutine waits for a free slot.
+        Concurrent::class => [self::WAIT, ['create' => true, 'fork' => true, 'waitforavailableslot' => true]],
+        WaitConcurrent::class => [self::WAIT, ['create' => true, 'fork' => true, 'wait' => true]],
         Concurrency::class => [self::WAIT, ['run' => true]],
         SwooleCoroutine::class => [self::WAIT, ['join' => true, 'sleep' => true]],
         Coroutine::class => [self::WAIT, ['join' => true, 'sleep' => true]],

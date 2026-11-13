@@ -93,7 +93,7 @@ use function strtolower;
  * statements: the lent parameter, the raw handles taken from it, and the local variables, arrays and
  * closures holding them are followed, but not values passed through calls.
  *
- * @phpstan-type HeldClosure array{ArrowFunction|Closure, ?string, array<int, Closure>}
+ * @phpstan-type HeldClosure array{ArrowFunction|Closure, ?string, array<int, array<string, true>>}
  * @phpstan-type Environment array{tracked: array<string, string>, appended: array<string, string>, callables: array<string, array<int, HeldClosure>>, defined: array<string, true>, referenced: array<string, true>}
  * @phpstan-type Fact array{tracked: ?string, appended: ?string, callables: array<int, HeldClosure>}
  *
@@ -361,18 +361,25 @@ class BorrowedResourceEscapeRule implements Rule
         // types. A nested function's are unknown.
         $outer = $isCallback ? $external : [];
 
-        // Each nested function with the environment it captured and the statement that created it, and the last
-        // statement writing each variable.
-        $created = [];
-        $spawned = [];
+        // Each statement's own nodes, and the last statement writing each variable.
+        $ownNodes = [];
         $lastWritten = [];
 
         foreach ($statements as $index => $statement) {
-            $nodes = $this->getOwnNodes([$statement]);
+            $ownNodes[$index] = $this->getOwnNodes([$statement]);
 
-            foreach (array_keys($this->collectWrites($nodes)[0]) as $name) {
+            foreach (array_keys($this->collectWrites($ownNodes[$index])[0]) as $name) {
                 $lastWritten[$name] = $index;
             }
+        }
+
+        // Each nested function with the environment it captured and the statement that created it, and whether each
+        // closure passed to a spawn was reported there.
+        $created = [];
+        $spawned = [];
+
+        foreach ($statements as $index => $statement) {
+            $nodes = $ownNodes[$index];
 
             $reset = $statement instanceof Expression
                 && $statement->expr instanceof Assign
@@ -398,14 +405,17 @@ class BorrowedResourceEscapeRule implements Rule
                     $how = $spawn === null ? null : sprintf('is captured by a closure passed to %s()', $spawn);
 
                     foreach ($spawn === null ? [] : $this->getPassedClosures($node, $environment) as $held) {
-                        $spawned[spl_object_id($held[0])] = true;
-                        $kind ??= $held[1] ?? $this->getLiveKind($held, $environment);
+                        $heldKind = $held[1] ?? $this->getLiveKind($held, $environment);
+                        $id = spl_object_id($held[0]);
+
+                        $spawned[$id] = ($spawned[$id] ?? false) || $heldKind !== null;
+                        $kind ??= $heldKind;
                     }
                 } elseif ($node instanceof Closure || $node instanceof ArrowFunction) {
                     $created[spl_object_id($node)] = [$node, [
                         'tracked' => $this->getCaptured($node, $environment['tracked']),
                         'appended' => $this->getCaptured($node, $environment['appended']),
-                        'callables' => $this->getCaptured($node, $environment['callables']),
+                        'callables' => $this->getCarriedCallables($node, $environment, $lastWritten, $index),
                         'defined' => $this->getCaptured($node, $environment['defined']) + $this->getParameterNames($node),
                         'referenced' => [],
                     ], $index];
@@ -439,8 +449,17 @@ class BorrowedResourceEscapeRule implements Rule
         }
 
         foreach ($created as $id => [$node, $capturedEnvironment, $index]) {
-            if (isset($spawned[$id])) {
+            if ($spawned[$id] ?? false) {
                 continue;
+            }
+
+            $nestedOwners = $this->getCaptured($node, $owners);
+
+            // A spawned closure runs in a child coroutine, which resolves its own default connection because copied
+            // contexts leave connections out, or in a deferred callback after the pin ends. A connection object it
+            // captures is still the pinned one.
+            if (isset($spawned[$id])) {
+                unset($nestedOwners[DB::class]);
             }
 
             // A variable captured by reference holds what it was last given when the nested function runs, so
@@ -465,7 +484,7 @@ class BorrowedResourceEscapeRule implements Rule
                 $node,
                 $borrow,
                 $capturedEnvironment,
-                $this->getCaptured($node, $owners),
+                $nestedOwners,
                 $external === null ? array_diff_key($captured, $locals) : array_intersect_key($captured, $external),
                 $node instanceof Closure ? array_intersect_key($this->getReferenceNames($node), $byReference) : [],
                 false,
@@ -986,8 +1005,9 @@ class BorrowedResourceEscapeRule implements Rule
 
     /**
      * Get the entry for a closure created now: the closure, what the first borrowed variable it captures by value
-     * holds, which it keeps for as long as it lives, and the closures whose by-reference variables it reads when
-     * it runs: itself and those of the closures it captures by value, even once their variables are replaced.
+     * holds, which it keeps for as long as it lives, and the by-reference variables it reads when it runs, keyed
+     * by the closure capturing them: its own and those of the closures it captures by value, even once their
+     * variables are replaced.
      *
      * @param Environment $environment
      *
@@ -999,17 +1019,57 @@ class BorrowedResourceEscapeRule implements Rule
         $live = [];
 
         if ($closure instanceof Closure) {
-            $names = array_diff_key($names, $this->getReferenceNames($closure));
-            $live[spl_object_id($closure)] = $closure;
+            $references = $this->getReferenceNames($closure);
+            $names = array_diff_key($names, $references);
+            $live[spl_object_id($closure)] = $references;
         }
 
         foreach (array_intersect_key($environment['callables'], $names) as $closures) {
             foreach ($closures as [, , $captured]) {
-                $live += $captured;
+                foreach ($captured as $id => $references) {
+                    $live[$id] = ($live[$id] ?? []) + $references;
+                }
             }
         }
 
         return [$closure, $this->getFirstKind($names, $environment, live: false), $live];
+    }
+
+    /**
+     * Get the closures a nested function created now captures.
+     *
+     * The nested function runs later without this function's variables, so what a captured closure reads by
+     * reference from them is read now, leaving out the variables this function writes in the creating statement
+     * or after it, which may hold anything by then. A variable the nested function shares by reference is the
+     * same binding, which it can change itself, so only those variables are read from its own facts when it runs.
+     *
+     * @param Environment $environment
+     * @param array<string, int> $lastWritten the last statement writing each variable
+     *
+     * @return array<string, array<int, HeldClosure>>
+     */
+    private function getCarriedCallables(Closure|ArrowFunction $function, array $environment, array $lastWritten, int $index): array
+    {
+        $shared = $function instanceof Closure ? $this->getReferenceNames($function) : [];
+        $unread = $shared + array_filter($lastWritten, static fn (int $last): bool => $last >= $index);
+
+        $now = [
+            'tracked' => array_diff_key($environment['tracked'], $unread),
+            'appended' => array_diff_key($environment['appended'], $unread),
+            'callables' => array_diff_key($environment['callables'], $unread),
+        ] + $environment;
+
+        return array_map(
+            fn (array $closures): array => array_map(
+                fn (array $held): array => [
+                    $held[0],
+                    $held[1] ?? $this->getLiveKind($held, $now),
+                    array_filter(array_map(static fn (array $references): array => array_intersect_key($references, $shared), $held[2])),
+                ],
+                $closures,
+            ),
+            $this->getCaptured($function, $environment['callables']),
+        );
     }
 
     /**
@@ -1018,17 +1078,19 @@ class BorrowedResourceEscapeRule implements Rule
      *
      * @param HeldClosure $held
      * @param Environment $environment
-     * @param array<int, true> $visited the closures already being read, which a closure capturing itself reaches again
+     * @param array<int, array<string, true>> $visited the variables already being read for each closure, which a closure capturing itself reaches again
      */
     private function getLiveKind(array $held, array $environment, array $visited = []): ?string
     {
-        foreach ($held[2] as $id => $closure) {
-            if (isset($visited[$id])) {
+        foreach ($held[2] as $id => $references) {
+            $references = array_diff_key($references, $visited[$id] ?? []);
+
+            if ($references === []) {
                 continue;
             }
 
-            $visited[$id] = true;
-            $kind = $this->getFirstKind($this->getReferenceNames($closure), $environment, $visited);
+            $visited[$id] = ($visited[$id] ?? []) + $references;
+            $kind = $this->getFirstKind($references, $environment, $visited);
 
             if ($kind !== null) {
                 return $kind;
@@ -1044,7 +1106,7 @@ class BorrowedResourceEscapeRule implements Rule
      *
      * @param array<string, true> $names
      * @param Environment $environment
-     * @param array<int, true> $visited
+     * @param array<int, array<string, true>> $visited
      */
     private function getFirstKind(array $names, array $environment, array $visited = [], bool $live = true): ?string
     {

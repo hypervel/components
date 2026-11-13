@@ -41,11 +41,7 @@ class SwallowedCancellationRuleTest extends RuleTestCase
 
     public function testRule(): void
     {
-        $swallowed = static fn (string $operation, int $line): array => [
-            "This catch swallows the cancellation of {$operation} in its try block while running a job.",
-            $line,
-            'Rethrow the exception, or rethrow it when Coroutine::causedByCancellation() is true, so the canceled work stops.',
-        ];
+        $swallowed = self::swallowed(...);
 
         $this->analyse([__DIR__ . '/data/swallowed-cancellations.php'], [
             $swallowed('a database query', 137),
@@ -99,6 +95,31 @@ class SwallowedCancellationRuleTest extends RuleTestCase
             $swallowed('a database query', 646),
             $swallowed('a wait', 658),
         ]);
+    }
+
+    public function testConcurrencyWaitsAndPropertyReceivers(): void
+    {
+        $this->analyse([__DIR__ . '/data/swallowed-cancellation-waits.php'], [
+            self::swallowed('a wait', 23),
+            self::swallowed('a wait', 30),
+            self::swallowed('a wait', 36),
+            self::swallowed('a database query', 44),
+            self::swallowed('a database query', 51),
+        ]);
+    }
+
+    /**
+     * Build the diagnostic for a catch swallowing the cancellation of the operation in a job.
+     *
+     * @return array{string, int, string}
+     */
+    private static function swallowed(string $operation, int $line): array
+    {
+        return [
+            "This catch swallows the cancellation of {$operation} in its try block while running a job.",
+            $line,
+            'Rethrow the exception, or rethrow it when Coroutine::causedByCancellation() is true, so the canceled work stops.',
+        ];
     }
 
     public static function getAdditionalConfigFiles(): array
