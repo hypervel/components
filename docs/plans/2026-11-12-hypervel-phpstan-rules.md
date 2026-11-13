@@ -713,4 +713,4 @@ Monorepo consumers: no class in `packages/hypervel/src` or `apps` implements the
 
 ## Status
 
-Done: sections 1 to 3, with all four warm-cache tests. Next step: section 4, followed by the remaining verification and section 6 guidance changes.
+Done: sections 1 to 4 and 6, with all four warm-cache tests, and section 5 apart from the benchmark. Next step: the section 5 benchmark once the owner confirms the machine is idle, then final integration review and the final report showing the owner each section 6 change. Stop after final signoff, commits and push; notify the owner and await discussion before opening PRs.
