@@ -271,7 +271,8 @@ New `src/phpstan/src/Support/FacadeHelper.php`, an `@internal` `#[AutowiredServi
 - facade accessor bodies: `RuntimeInputs::trackSources($scope, $facade, Facade::class)`;
 - classes whose declarations decide a result (facade roots, lifetime classes, Socialite parents): `trackClass()`/`trackClassDependency()`;
 - code read beyond declarations, which PHPStan's exported nodes don't cover. Track their files with `trackFileDependency()`:
-  - exception constructor chains (3.17, the files from `SourceFiles::forInstance()`);
+  - exception constructor chains (3.17, the files from `SourceFiles::forClass()`: constructor bodies only, so no property defaults);
+  - first-class-callable `#[BindWhen]` conditions (3.16), the declaration's file;
   - declared default values (`whenNotDefault`; exported nodes only record that a default exists): `SourceFiles::forParameterDefault()`, the method's file and the files of the constants the default reads;
   - attribute arguments reading constants from other files: exported nodes keep the argument expressions, not the constants' values. `SourceFiles::forAttributeArguments()` takes an optional method name for method attributes. It covers lifetime markers (3.1), `#[Unsupported]` messages (3.2) and each model ancestor's `#[ObservedBy]` (2.3).
 
@@ -532,48 +533,69 @@ A per-node rule. **Reports** `bind`/`singleton`/`scoped` on the application cont
 
 ### 3.13 Raw coroutines
 
-**Reports:**
+An exception escaping a raw coroutine, including a cancellation, is a fatal error that ends the worker process (probed).
+
+**Reports**, matched by exact declaring class (an override is silent, an inheriting subclass is reported):
 - `Swoole\Coroutine::create()`;
-- `Swoole\Coroutine\go()`;
-- `Hypervel\Engine\Coroutine::create()`.
+- `Swoole\Coroutine\go()`, by resolved function name, so an aliased import counts;
+- `Hypervel\Engine\Coroutine::create()` and `execute()`, the instance form of the same spawn.
 
-Swoole short names are already rejected by the analyzer's bootstrap. `Swoole\Coroutine\run()` isn't reported: `Hypervel\Coroutine\run()` only adds hook-flag setup around it, which isn't the safety this rule is about.
+Swoole short names are already rejected by the application's bootstrap. `Swoole\Coroutine\run()` isn't reported: `Hypervel\Coroutine\run()` only adds hook-flag setup around it, which isn't the safety this rule is about.
 
-**Tip:** use `Hypervel\Coroutine\Coroutine::create()`, `go()` or `co()`, which contain exceptions and cancellation; `Coroutine::fork()`, or the helpers' `copyContext` argument, copies the parent's context (`create()` starts with a fresh one). A direct engine coroutine is allowed when its callback contains cancellation itself (AGENTS "Contain cancellation in direct engine coroutines"): ignore with that reason.
+**Tip:** use `Hypervel\Coroutine\Coroutine::create()`, `go()` or `co()`; `Coroutine::fork()` and the helpers' `copyContext` argument copy the parent's context. A direct call stays, with an ignore, only when its callback catches every exception itself (AGENTS "Contain cancellation in direct engine coroutines").
 
-**Framework hits** (checked): the wrappers themselves (`Coroutine\Coroutine`, `Engine\Coroutine`), `Watcher\Watcher` (`:47`, its callback catches `Throwable`) and `Grpc\Client\Connection` (`:460`, `receive()` catches `CanceledException`) take inline ignores with those reasons.
+**Framework hits** (checked), each with an inline ignore:
+- `Engine\Coroutine::create()`/`execute()` and `Coroutine\Coroutine::createWithContext()`: the primitive and the wrapper;
+- `Watcher\Watcher` and `Grpc\Client\Connection::startReceiver()`: their callbacks contain cancellation and failures;
+- `Engine\SafeSocket::loop()`: the engine package sits below `hypervel/coroutine`, and its send loop catches every `Throwable`;
+- `RunTestsInCoroutine`'s deadline watchdog: it runs no application code, catches its own timeout, and nothing cancels it.
+
+**Tests:** each reported form, including an inheriting subclass; the framework helpers, `Swoole\Coroutine\run()`, an override and a first-class callable (silent).
 
 ### 3.14 Socialite properties
 
-The rule reports a read of `$this->X` in a subclass of the framework class whose getter reads X through `getContext('X', $this->X)`, covering redeclared defaults (e.g. `FacebookProvider::$scopes`):
+A per-node rule on `PropertyFetch`. It reports any `$this->X` access, read or write, in a subclass of the framework class whose getter reads X through `getContext('X', $this->X)`, covering redeclared defaults (e.g. `FacebookProvider::$scopes`). Providers are cached for the worker (`new` in `SocialiteManager`, so the worker-state checks don't see them): a read misses the request's value, and a write changes the default for every request, as Laravel's own setters (`$this->parameters = $parameters`) would if ported.
 
-| Properties | Framework class | Getter |
+| Properties | Framework class | Getter / setter |
 |---|---|---|
-| `parameters`, `stateless`, `additionalConfig` | `Socialite\AbstractProvider` | `getParameters()`, `isStateless()`, `getConfig()` |
-| `clientId`, `clientSecret`, `redirectUrl`, `scopes`, `usesPKCE` | `Socialite\Two\AbstractProvider` | `getClientId()`, `getClientSecret()`, `getRedirectUrl()`, `getScopes()` (also merges configured scopes), `usesPKCE()` |
-| `fields`, `popup`, `reRequest`, `version` | `Socialite\Two\FacebookProvider` | `getFields()`, `getPopup()`, `getReRequest()`, `getGraphVersion()` |
-| `scopeKey` | `Socialite\Two\SlackProvider` | `getScopeKey()` |
+| `parameters`, `stateless`, `additionalConfig` | `Socialite\AbstractProvider` | `getParameters()`/`with()`, `isStateless()`/`stateless()`, `getConfig()`/`setConfig()` |
+| `clientId`, `clientSecret`, `redirectUrl`, `scopes`, `usesPKCE` | `Socialite\Two\AbstractProvider` | `getClientId()`/`setConfig()`, `getClientSecret()`/`setConfig()`, `getRedirectUrl()`/`redirectUrl()`, `getScopes()` (also merges configured scopes)/`setScopes()`, `usesPKCE()`/`enablePKCE()` |
+| `fields`, `popup`, `reRequest`, `version` | `Socialite\Two\FacebookProvider` | `getFields()`/`fields()`, `getPopup()`/`asPopup()`, `getReRequest()`/`reRequest()`, `getGraphVersion()`/`usingGraphVersion()` |
+| `scopeKey` | `Socialite\Two\SlackProvider` | `getScopeKey()`/`setScopeKey()` |
 
-Property declarations and reads inside an override of that property's getter are allowed. A same-named property on an unrelated provider doesn't match. There are no framework hits today.
+**Not reported:** property declarations; the framework class itself, which owns the property (`withConfig()` writes `additionalConfig`); an override of that property's getter, which reads the default by design; a constructor, which runs once when the provider is built, so it can only set or read the default; and a same-named property on an unrelated provider. PHPStan records a class's parents as dependencies of its file, so the ancestry needs no tracking. There are no framework hits today.
+
+**Message:** "$this->scopes holds the provider's default for every request, not the current request's value." **Tip:** "Read it with getScopes() and set it with setScopes(), which use the provider's coroutine context."
+
+**Tests:** a read, an inherited base property, a write and a `FacebookProvider` property (reported); a redeclared default, a constructor write, a getter override, the non-context `scopeSeparator` and a same-named property on another provider (silent).
 
 ### 3.15 Swoole tables in providers
 
-**Reports** `new Swoole\Table` executed directly in a service provider's `register()` or `boot()` body, not inside nested closures, callbacks or deferred factories.
+A per-node rule on `New_`. **Reports** `new` of `Swoole\Table` or a subclass (it isn't final) executed in a `ServiceProvider`'s `register()` or `boot()` body, including under conditions, but not inside closures or arrow functions (singleton factories, listeners), which run later. There are no framework or monorepo hits: Reverb's tables are built in a lazy singleton factory.
 
-**Tip:** create it from a `BeforeServerStart` listener (AGENTS).
+**Message:** "A Swoole table created in a service provider's register() is allocated by every process that boots the application." **Tip:** "Create it from a BeforeServerStart listener, so only the server allocates it before starting its workers." (AGENTS).
+
+**Tests:** `register()` and a subclass under a condition in `boot()` (reported); a closure and an arrow-function factory, and a non-provider `register()` (silent).
 
 ### 3.16 Request-dependent `#[BindWhen]`
 
-**Reports** a `#[BindWhen]` condition closure, or an inspectable first-class callable, that reads request or user state:
+A rule on `InClassNode`, over the class's exact `#[BindWhen]` attributes (the container matches the name exactly). The condition (`condition`, or the second positional argument) is read as written and never executed: PHPStan analyzes attribute closures, but nothing there tells a rule it's in a condition. Names resolve through the class scope, since PHP 8.5 constant-expression closures can't capture variables. A closure or arrow function is walked whole. Nested closures and arrow functions are walked too, since predicates often run callbacks (`array_any(..., fn ($pattern) => request()->is($pattern))`). The rule finds reads in the condition's code without proving a callback runs, and its message says the condition "contains" a read. Named functions and class bodies, including anonymous classes, are declarations and are skipped. A first-class callable naming a function or static method (`Conditions::onApi(...)`) is walked through its parsed declaration (`ConstructorParser::findMethod()`, which `findConstructor()` now uses), and its file is tracked. Its names resolve in a scope for the declaration's own file and namespace (`ScopeFactory`, `enterNamespace()`), since an unqualified function name falls back from that namespace. Each condition tracks `RuntimeInputs::track()`, since the booted aliases decide which abstracts resolve the request.
+
+**Reports** the first read of request or user state. A facade or `RequestContext` subclass counts, but its own declaration of the method is an override, so it's unknown:
 - `request()`;
-- the `Request` facade;
-- `RequestContext::get()`;
-- `user()`/`check()`/`guest()`/`id()`/`hasUser()` through `auth()`, the `Auth` facade, or a guard obtained from them;
-- resolving `request` or its aliases from the container.
+- a `Request` facade call that the current request runs: not the facade's own methods (`swap()`, …) or the request's static methods (`hasMacro()`, `create()`, …);
+- `RequestContext::get()`, `getOrNull()`, `has()`, `getValue()` and `getOrSetValue()`;
+- `user()`/`check()`/`guest()`/`id()`/`hasUser()` on the `Auth` facade, or on `auth()` or a guard chained from it or `Auth::guard()`;
+- resolving an abstract that aliases to `request` from the application container (`WorkerStateHelper::getApplicationResolvedAbstracts()`), or from the condition's first parameter, which receives the resolving container (new `getContainerResolvedAbstracts()`, sharing the argument reading). The parameter's evidence follows PHP's scoping:
+  - a nested arrow function keeps it unless one of its own parameters has the same name;
+  - a nested closure keeps it only through `use`, and not when one of its parameters has that name;
+  - a body that assigns the variable (`=`, `=&` or a compound assignment) loses it, regardless of order. Each body is scanned on its own, so a nested closure's own variable of that name doesn't affect the outer body.
 
-Configuration reads such as `Auth::getDefaultDriver()` are fine. Conditions are never executed.
+Configuration reads such as `Auth::getDefaultDriver()` are fine. A guard held in a variable isn't followed. The `Context` facade and the session aren't covered.
 
-**Tip:** the binding persists for the worker, so the condition must be boot-stable; use `scoped()` for per-request selection.
+**Message** (at the read, or at the attribute for a first-class callable): "The #[BindWhen] condition on App\Payments contains a read of the current request or user, but a matched condition binds for the worker's lifetime." The docs say nested callbacks are inspected. **Tip:** "Conditions must depend only on state set while the application boots. Register a scoped() binding to choose an implementation per request."
+
+**Tests:** each read form, including a named `condition` argument, the container parameter resolving `Request::class`, and a static-method and a function first-class callable (reported); `Auth::getDefaultDriver()`, resolving `config`, a boot-stable static method, `Request::hasMacro()`, overriding `RequestContext` and `Auth` subclasses (including `guard()`), and a reassigned container parameter (silent). Nested callbacks: an `array_any()` callback reading `request()`, and a `use ($app)` closure resolving `request` after an earlier nested closure assigns its own `$app` (reported); an arrow function whose own `$app` parameter shadows the container, and a closure that doesn't capture `$app` (silent). A second fixture file in another namespace declares its own `request()`: its attribute naming the first namespace's `onAdminPath(...)` is reported, and the first file's attribute naming its `onLocalFlag(...)` is silent. The fixture uses PHP 8.5 attribute closures; it's only parsed, never loaded.
 
 ### 3.17 Swallowed cancellation
 
@@ -581,48 +603,81 @@ Configuration reads such as `Auth::getDefaultDriver()` are fine. Conditions are 
 
 **Applies** in request, job and operation contexts and their `$this` helpers, as `WorkerStateAnalysis::getContext()` gives them.
 
-**Reports** a `try` whose block (outside nested closures) directly contains one of the operations below, followed by a catch that can receive `CanceledException` (that class, `Exception` or `Throwable`) and doesn't propagate it.
+**Reports** a `try` whose block (outside nested closures) directly contains one of the operations below, when the first catch that receives `CanceledException` (a type it `is()`: that class, `Exception` or `Throwable`) doesn't propagate it. Later catches never receive it. The message names the first operation found.
 
-**Operations.** Only these exact forms count, matched by resolved declaration with overrides respected. Each runs its work during the call, can reach a cancellation point there, and lets the cancellation reach the caller (fast paths that skip I/O, fakes and pretend mode don't make swallowing safe):
+- **Nested tries.** An operation in the block of a nested `try` whose receiving catch doesn't propagate it doesn't count here; that `try` is reported itself. One whose catch propagates counts, as do the nested catch and `finally` bodies.
+- **Receivers.** The collector has the scope at the `try`, so a method call's receiver, and a static call's class expression, is typed by `CoroutineRuleHelper::getReceiverType()`, now public and shared with `ExactCancellationCatchRule`. A local the block may change is one it mentions other than inside the expression being typed or as a method or static call's receiver:
+  - a chain rooted at a local variable that the block only calls methods on keeps the variable's type at the `try`;
+  - one assignment of the variable, as a top-level statement before every call on it, types the chain with the assigned expression in the variable's place (`$query = Import::query(); $query->where(...)->get()`, `$model = Import::class; $model::create(...)`);
+  - a call argument reading a local the block may change is typed as `TypeExpr(mixed)`, so a call that selects its result's class by it gives no class (`$class = X::class; $app->make($class)->pop()`, `app($class)`), while a call whose type doesn't depend on it keeps its class (`$query->where('tenant', $tenant)`, `Import::whereIn('id', $ids)`). PHPStan's own inference, including return-type extensions, decides this, not a list of factories;
+  - any other read of such a local leaves the type unknown, such as an assigned expression reading one (`$held = new X; $alias = $held;`), as does any other write of the root variable;
+  - the chain is rebuilt as new nodes, since a clone keeps PHPStan's cached expression key;
+  - `$this` and other roots use the scope's type.
+
+  A direct construction is just one such assignment. The exact-catch rule gains the same typing, so a channel assigned from a typed variable counts as a native wait.
+
+**Operations.** Only these exact forms count, matched by resolved declaration with overrides respected. A model's or builder's forwarded method counts as the method it forwards to, read through the reflection's prototype, since PHPStan wraps extension methods. The receiver's class reflections come from its type, so they keep the type arguments a builder's model macros depend on. A trait method is declared by the class using it, so a method of a framework trait on an application model (`SoftDeletes`, `Prunable`) is matched by its declaring trait (`PhpMethodReflection::getDeclaringTrait()`) when the declaring class has no entry; a model's own override has no declaring trait. Each runs its work during the call, can reach a cancellation point there, and lets the cancellation reach the caller (fast paths that skip I/O, fakes and pretend mode don't make swallowing safe):
 - `Connection::runQueryCallback()` rethrows when `causedByCancellation()`;
 - `RedisProxy` and `PendingRequest` (`:1191`, `:1358`) propagate it;
 - `WaitGroup::wait()`, `Waiter::wait()` and `Parallel::wait()` throw `CanceledException` themselves;
-- under Hypervel's `throwException: true` cancellation, Swoole channel `push`/`pop`, `Coroutine::join()`, `Coroutine::sleep()` and hooked `sleep`/`usleep` throw `CanceledException` (probed).
+- under Hypervel's `throwException: true` cancellation, Swoole channel `push`/`pop`, Swoole `WaitGroup::wait()`, `Coroutine::join()`, `Coroutine::sleep()` and hooked `sleep`/`usleep` throw `CanceledException` (probed);
+- a discarded `Sleep` sleeps in its destructor at the end of the statement, and `then()` sleeps during the call, so a cancellation reaches the `try` (probed).
 - **Database:**
-  - `ConnectionInterface`: `select`, `selectOne`, `selectFromWriteConnection`, `scalar`, `insert`, `update`, `delete`, `statement`, `affectingStatement`, `unprepared`, `transaction`;
-  - query `Builder`, directly or through Eloquent forwarding: `get`, `first`, `sole`, `find`, `value`, `pluck`, `count`, `min`, `max`, `sum`, `avg`, `exists`, `doesntExist`, `insert`, `insertGetId`, `insertOrIgnore`, `update`, `updateOrInsert`, `upsert`, `delete`, `increment`, `decrement`, `paginate`, `simplePaginate`, `cursorPaginate`, `chunk`, `chunkById`, `each`, `eachById`;
-  - Eloquent `Builder`: those it declares itself, plus `firstOrFail`, `findOrFail`, `findMany`, `create`, `forceCreate`, `firstOrCreate`, `firstOrNew`, `updateOrCreate`, `createOrFirst`;
-  - `Model`: `save`, `saveOrFail`, `update`, `delete`, `deleteOrFail`, `forceDelete`, `refresh`, `fresh`, `push`, `touch`.
+  - `ConnectionInterface`, `Connection`, `PdoConnection`, `DatabaseManager` and the `DB` facade: `select`, `selectOne`, `selectFromWriteConnection`, `selectResultSets`, `scalar`, `insert`, `update`, `delete`, `statement`, `affectingStatement`, `unprepared`, `threadCount`, `transaction`, `beginTransaction`, `commit`, `rollBack`;
+  - query `Builder` (with its `BuildsQueries` and `ExplainsQueries` methods), directly or through Eloquent forwarding: `get`, `first`, `firstOrFail`, `sole`, `find`, `findOr`, `value`, `rawValue`, `soleValue`, `pluck`, `pluckWithColumn`, `implode`, `count`, `min`, `max`, `sum`, `avg`, `average`, `aggregate`, `numericAggregate`, `exists`, `existsOr`, `doesntExist`, `doesntExistOr`, `getCountForPagination`, `explain`, `insert`, `insertGetId`, `insertOrIgnore`, `insertOrIgnoreReturning`, `insertUsing`, `insertOrIgnoreUsing`, `update`, `updateFrom`, `updateOrInsert`, `upsert`, `delete`, `truncate`, `increment`, `incrementEach`, `decrement`, `decrementEach`, `paginate`, `simplePaginate`, `cursorPaginate`, `chunk`, `chunkMap`, `chunkById`, `chunkByIdDesc`, `orderedChunkById`, `each`, `eachById`;
+  - Eloquent `Builder`: those it declares itself, plus `firstWhere`, `firstOr`, `findSole`, `findOrFail`, `findOrNew`, `findMany`, `valueOrFail`, `getModels`, `fromQuery`, `fillAndInsert`, `fillAndInsertOrIgnore`, `fillAndInsertGetId`, `create`, `createQuietly`, `forceCreate`, `forceCreateQuietly`, `firstOrCreate`, `firstOrNew`, `updateOrCreate`, `createOrFirst`, `incrementOrCreate`, `touch`, `forceDelete`. Not `fillForInsert()`, which only prepares models;
+  - `Model`, including static calls and the protected increments its `__call()` runs: `all`, `destroy`, `forceDestroy`, `save`, `saveQuietly`, `saveOrFail`, `saveOrIgnore`, `update`, `updateQuietly`, `updateOrFail`, `push`, `pushQuietly`, `delete`, `deleteQuietly`, `deleteOrFail`, `forceDelete`, `refresh`, `refreshForUpdate`, `fresh`, `touch`, `touchQuietly`, `increment`, `decrement`, `incrementEach`, `decrementEach` and their `Quietly` forms, `load`, `loadMissing`, `loadAggregate`, `loadCount`, `loadMax`, `loadMin`, `loadSum`, `loadAvg`, `loadExists`, `loadMorph` and its `Aggregate`/`Count`/`Max`/`Min`/`Sum`/`Avg` forms;
+  - `SoftDeletes`: `restore`, `restoreQuietly`, `forceDelete`, `forceDeleteQuietly`, `forceDestroy`; its scope's builder macros `restore`, `restoreOrCreate`, `createOrRestore`, which `BuilderMacroResolver` resolves to `SoftDeletingMacros`; `Prunable`: `prune`, `pruneAll`; `MassPrunable`: `pruneAll`;
+  - Eloquent `Collection`: `load`, `loadMissing`, `loadMissingRelationshipChain`, `loadAggregate`, `loadCount`, `loadMax`, `loadMin`, `loadSum`, `loadAvg`, `loadExists`, `loadMorph`, `loadMorphCount`, `fresh`. Not its in-memory `find()`/`findOrFail()` or `toQuery()`;
+  - relations, by declaring class (calls a relation forwards to its builder match the builder's):
+    - `Relation`: `get`, `getEager`, `sole`, `touch`, `rawUpdate`; `getResults()` is abstract, so each concrete declaration counts: `HasOne`, `HasMany`, `MorphOne`, `MorphMany`, `BelongsTo`, `HasOneThrough`, `HasManyThrough`, and `BelongsToMany` below;
+    - `HasOneOrMany`: `findOrNew`, `firstOrNew`, `firstOrCreate`, `createOrFirst`, `restoreOrCreate`, `createOrRestore`, `updateOrCreate`, `incrementOrCreate`, `upsert`, `save`, `saveMany`, `create`, `createMany`, `forceCreate`, `forceCreateMany` and their `Quietly` forms; `MorphOneOrMany`: `forceCreate`, `upsert`; `MorphMany`: `forceCreate`; `BelongsTo` and `MorphTo`: `touch`; `MorphTo`: `getEager`;
+    - `BelongsToMany`: the same find-or-create and save methods (without `upsert` and `forceCreateMany`), `getResults`, `get`, `find`, `findSole`, `findMany`, `findOrFail`, `findOr`, `firstWhere`, `first`, `firstOrFail`, `firstOr`, `paginate`, `simplePaginate`, `cursorPaginate`, `chunk`, `chunkMap`, `chunkById`, `chunkByIdDesc`, `orderedChunkById`, `each`, `eachById`, `touch`, `allRelatedIds`, and its `InteractsWithPivotTable` writes, which PHPStan declares on `BelongsToMany`: `attach`, `detach`, `sync`, `syncWithoutDetaching`, `syncWithPivotValues`, `toggle`, `updateExistingPivot` and their `OrFail` transaction forms. Not `newPivot*()` or `withPivot()`;
+    - `HasOneOrManyThrough`: the find-or-create methods and `BelongsToMany`'s query methods except `getResults` and `orderedChunkById`;
+    - `Pivot` and `MorphPivot`: `delete`.
+  - the schema `Builder` and the `Schema` facade: `createDatabase`, `dropDatabaseIfExists`, `getSchemas`, `hasTable`, `hasView`, `getTables`, `getTableListing`, `getViews`, `getTypes`, `hasColumn`, `hasColumns`, `whenTableHasColumn`, `whenTableDoesntHaveColumn`, `whenTableHasIndex`, `whenTableDoesntHaveIndex`, `getColumnType`, `getColumnListing`, `getColumn`, `getColumns`, `getIndexes`, `getIndexListing`, `hasIndex`, `hasForeignKey`, `getForeignKeys`, `getPartitions`, `table`, `create`, `createRangePartition`, `createMigrationRepositoryTable`, `drop`, `dropIfExists`, `dropColumns`, `truncateTables`, `rename`, `enableForeignKeyConstraints`, `disableForeignKeyConstraints`, `withoutForeignKeyConstraints`, `ensureExtensionExists`, `ensureVectorExtensionExists`, `executeBlueprint`. The base builder's `dropAllTables`, `dropAllViews` and `dropAllTypes` only throw `LogicException`, so an inherited one doesn't count; the facade adds them, since it runs the configured driver's builder. Each driver builder's own overrides that run statements count too (`MySqlBuilder`: `dropAllTables`, `dropAllViews`; `PostgresBuilder`: those plus `executeBlueprint`, `hasView`, `dropAllTypes`, `getCurrentSchemaName`; `SQLiteBuilder`: `executeBlueprint`, `getTables`, `getViews`, `getColumns`, the `*ForSchemaState` getters, `dropAllTables`, `dropAllViews`, `pragma` and the foreign key toggles, but not its database file creation and removal).
 - **Redis**, on `RedisProxy` or through the `Redis` facade: commands it doesn't declare natively (resolved through `RedisCommandMethodsExtension`), `command`, `withConnection`, `withPinnedConnection`, `scan`, `hScan`, `sScan`, `zScan`, and `pipeline`/`transaction` with a callback argument.
 - **HTTP client**, on `PendingRequest` or through the `Http` facade: `send`, `get`, `post`, `put`, `patch`, `delete`, `head`.
-- **Waits:** `Swoole\Coroutine\Channel::push`/`pop` (including `Hypervel\Engine\Channel`), `Hypervel\Coroutine\WaitGroup::wait`, `Waiter::wait` and `wait()`, `Parallel::wait` and `parallel()`, `Concurrency::run()` (the default `coroutine` driver waits through `Parallel`), `Coroutine::join` (Hypervel and Swoole), and `Swoole\Coroutine::sleep`.
+- **Waits:** `Swoole\Coroutine\Channel::push`/`pop` (including `Hypervel\Engine\Channel`), `WaitGroup::wait` (Hypervel and Swoole), `Waiter::wait` and `wait()`, `Parallel::wait` and `parallel()`, `Concurrency::run()` (the default `coroutine` driver waits through `Parallel`), `Coroutine::join` (Hypervel, Engine and Swoole), and `Coroutine::sleep` (Hypervel and Swoole).
 - **Hooked functions:** `sleep`, `usleep`.
+- **Sleeps:** an expression statement discarding a `Sleep` it creates (`new Sleep` or `Sleep::for()`/`until()`/`usleep()`/`sleep()`, through its fluent methods, such as `Sleep::for(1)->second()`), where the creating method, the fluent methods, `__destruct()` and `goodnight()` are all the framework's declarations; and `Sleep::then()` wherever it's called, including when its result is assigned, on a class whose `goodnight()` is the framework's.
 
 Not operations:
-- **Deferred forms**, whose work doesn't run inside the `try`: `cursor()`, `lazy*()`, `pipeline()`/`transaction()` without a callback, and `Sleep` objects, which sleep on destruction.
+- **Deferred forms**, whose work doesn't run inside the `try`: `cursor()`, `lazy*()`, `pipeline()`/`transaction()` without a callback, and a `Sleep` held in a variable, which sleeps when the variable releases it. The return type alone isn't evidence, since a method may return a `Sleep` held elsewhere.
 - **Cache, filesystem, queue and mail calls.** This is a deliberate capability choice, not a correctness limit. The rule's docs say these calls aren't checked and can still deliver cancellation, so a broad catch around them needs the same handling. Application code reaches them through contracts and facades whose driver is configuration, so they stay unknown. Concrete I/O-backed classes (`RedisStore`, `RedisQueue`, …) could count, but code rarely calls them directly, so listing them would add upkeep for little coverage.
+- **Pool and session internals** (`getPdo()`, `ping()`, `reconnect()`, `executeSessionStatement()`), the conditional `touchOwners()`/`touchIfTouching()`, and model factories, which are test and seeding code.
 
 **A catch propagates when** both of these hold:
-- its body has no `return`, `break` or `continue` outside nested functions;
-- its last top-level statement is `throw $e`, or `throw new X(...)` whose argument binds to the native or inherited `$previous` parameter (an overriding constructor counts only when `ConstructorParser::findConstructor()` shows the bound parameter forwarded as the previous argument of `parent::__construct()`, followed up the chain).
+- nothing leaves its body without throwing: no `return`, and no `break`/`continue` leaving more loops and switches than the body opens around it (`break N` counts N levels; nested functions and classes are skipped). A loop-local `break` doesn't leave the catch, but a `continue` of a loop outside the `try` does;
+- its last top-level statement is `throw $e`, or `throw new X(...)` whose argument binds to the native or inherited `$previous` parameter. An overriding constructor counts only when `ConstructorParser::findConstructor()` shows a top-level `parent::__construct()` passing the bound parameter as the previous argument, with no `return` and no write to that parameter before it. This is followed up the chain;
+- `$e` reaches that throw unchanged. Every write to it (`=`, `=&`, a compound assignment, or a nested catch binding the same name) must be a top-level `$e = new X(..., $e)` that keeps it as the previous exception by the rule above.
 
-Alternatively, its first statement is a positive `Coroutine::causedByCancellation($e)` guard whose branch meets the same conditions.
+Alternatively, its first statement is a `Coroutine::causedByCancellation($e)` guard: a positive guard whose branch meets the same conditions, or a negated guard without `elseif`/`else` whose following statements meet them.
 
 `ForeignCancellationException` never counts, because `causedByCancellation()` stops at it (`Coroutine.php:251`).
 
-**No duplicate diagnostics.** Extract `ExactCancellationCatchRule`'s per-try verdict into a `CoroutineRuleHelper` method that both rules call. The new rule skips only a catch the existing rule actually reports.
+**No duplicate diagnostics.** Extract `ExactCancellationCatchRule`'s per-try verdict into `CoroutineRuleHelper::findExactCancellationMisses()`, which both rules call. The new rule skips only a catch that the existing rule reports for that try.
 
-`ExactCancellationCatchRule`'s behavior and its `NATIVE_WAITS` comment stay as they are; the comment is accurate for Hypervel's throwing cancellation mode.
+`ExactCancellationCatchRule`'s `NATIVE_WAITS` comment stays; it's accurate for Hypervel's throwing cancellation mode. Its behavior changes only through the shared receiver typing above.
 
 **Tests:**
 - a fallback `return` in a `Throwable` catch, around a query and around a channel `pop()`;
 - an exact catch returning a fallback;
 - a rethrow, a chained wrap and an unchained wrap;
+- a caught variable overwritten before `throw $e`, and wrappers whose constructor overwrites the cause or forwards it only in a branch (reported); `$e = new Wrapper(..., $e); throw $e;` (silent);
+- a query on a local builder from `Import::query()` and a pop on a locally constructed channel (reported); a typed channel replaced by a subclass overriding `pop()`, and an alias of a typed parameter that the block first replaces with that subclass (silent);
+- a `where()` value, a static `whereIn()` root's value and an assigned class-string's `$model::create()` that the block sets (reported); `$app->make($class)->pop()` and an assigned `app($class)` whose class the block changes (silent);
+- one try per database family (reported): `truncate()`, a model's `__call()` `increment()`, `load()`, a relation's own `get()` and a forwarded `count()`, a pivot `attach()`, a `SoftDeletes` `restore()`, the `onlyTrashed()->restore()` macro, an Eloquent collection's `load()`, `Schema::hasTable()` and `MySqlBuilder`'s own `dropAllTables()`; a model overriding `restore()`, `MySqlBuilder`'s inherited, throwing `dropAllTypes()`, a collection's `find()` and `toQuery()`, and a relation's `lazy()` (silent);
+- nested tries: an inner catch swallowing a wait (inner reported, outer silent), and an inner catch rethrowing it (outer reported);
+- `ExactCancellationCatchRule`: a channel assigned from a typed parameter is a native wait (silent);
 - `ForeignCancellationException`;
-- a guard with an early return;
+- a guard with an early return, and a negated guard reporting and returning before a rethrow (silent);
+- a discarded `Sleep::usleep()`, a fluent `Sleep::for(1)->second()->…`, `then()` and an assigned `then()` result (reported); a held `Sleep`'s modifier, and a subclass with a no-op `goodnight()` both discarded and through `then()` (silent);
+- a loop- and switch-local `break`/`continue 2` before a rethrow (silent), and a `continue` of a loop around the `try` (reported);
 - a try with only deferred forms (`cursor()`, `Redis::pipeline()`), silent;
 - the same try outside any context, silent;
-- the existing rule's case producing exactly one diagnostic.
+- the existing rule's case producing exactly one diagnostic;
+- the warm-cache test for a constructor forwarding `$previous` (section 2.5).
 
 ## 4. Docs
 
@@ -643,7 +698,7 @@ Run sequentially from the components root:
 5. `COMPOSER_PROCESS_TIMEOUT=0 composer lint:fix`.
 6. Once stable, measure cold and warm `composer analyse` time against `0.4`, after the owner confirms the machine is idle.
 
-Monorepo consumers: no class in `packages/hypervel/src` or `apps` implements the container contract, implements or extends a connection resolver, or subclasses the `Date` facade (checked by grep). Section 1.5 changes two package tests' connection doubles to `Connection`, reviewed with this checkpoint and committed on monorepo `main`. The monorepo's hypervel/phpstan adoption remains owner-gated.
+Monorepo consumers: no class in `packages/hypervel/src` or `apps` implements the container contract, implements or extends a connection resolver, or subclasses the `Date` facade (checked by grep). Section 1.5 changed two package tests' connection doubles to `Connection` on monorepo `main`. The monorepo's hypervel/phpstan adoption remains owner-gated.
 
 ## 6. `AGENTS.md` (agreed wording; PR 1's edits already applied)
 
@@ -658,4 +713,4 @@ Monorepo consumers: no class in `packages/hypervel/src` or `apps` implements the
 
 ## Status
 
-Done: sections 1 and 2, 3.1 to 3.12, with the warm-cache tests for a booted registration, a facade accessor body and a declared default. Section 1.5's source, docs and test doubles are done. Next step: after the 3.3–3.12 checkpoint review, section 3.13.
+Done: sections 1 to 3, with all four warm-cache tests. Next step: section 4, followed by the remaining verification and section 6 guidance changes.
