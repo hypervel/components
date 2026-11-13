@@ -466,8 +466,8 @@ class SwallowedCancellationCollector implements Collector
     /**
      * Determine whether the catch propagates the cancellation: the statements a cancellation runs end by
      * rethrowing the exception or wrapping it as the previous exception. The body's first top-level
-     * Coroutine::causedByCancellation() guard narrows them to the statements before it and its branch, or
-     * the statements around a negated guard.
+     * Coroutine::causedByCancellation() guard narrows them to the statements before it, the branch it takes
+     * for a cancellation, and the statements after it unless that branch ends by throwing.
      *
      * @param DependencyTracker&Scope $scope
      */
@@ -490,13 +490,18 @@ class SwallowedCancellationCollector implements Collector
                 continue;
             }
 
+            // A negated guard's elseif conditions run for a cancellation too, so its path is unknown.
+            if (! $polarity && $statement->elseifs !== []) {
+                return false;
+            }
+
             // The statements before the guard run for a cancellation too, so they must neither leave the catch
             // nor discard the caught exception.
-            $before = array_slice($catch->stmts, 0, $index);
+            $branch = $polarity ? $statement->stmts : ($statement->else->stmts ?? []);
+            $last = end($branch);
+            $after = $last instanceof Expression && $last->expr instanceof Throw_ ? [] : array_slice($catch->stmts, $index + 1);
 
-            return $polarity
-                ? $this->rethrows([...$before, ...$statement->stmts], $variable, $scope)
-                : $statement->elseifs === [] && $statement->else === null && $this->rethrows([...$before, ...array_slice($catch->stmts, $index + 1)], $variable, $scope);
+            return $this->rethrows([...array_slice($catch->stmts, 0, $index), ...$branch, ...$after], $variable, $scope);
         }
 
         return false;
