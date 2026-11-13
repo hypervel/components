@@ -550,7 +550,9 @@ Hypervel's `Concurrency` facade provides `coroutine`, `process`, and `sync` driv
 <a name="native-request-functions"></a>
 ### Native Request Functions
 
-PHP's native request functions act on PHP's own process state, not the request a Hypervel worker is handling. Replace `header()`, `setcookie()` and `http_response_code()` with the response's `header()`, `cookie()` and `setStatusCode()` methods, read input from the request instead of `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES` and `$_REQUEST`, and use the session store instead of PHP's session-state functions, such as `session_start()`, and `$_SESSION`, which every request in the worker shares. `connection_aborted()` does not report Swoole client disconnects. Replace loops that rely on it with a generator callback passed to `response()->stream()`, or an `IterableStreamedResponse`. See [Canceling Disconnected Streams](/docs/{{version}}/responses#canceling-disconnected-streams) to also cancel production during a wait. [Static analysis](/docs/{{version}}/static-analysis#native-request-apis) reports these functions.
+PHP's native request functions act on the worker process, not the request being handled. Replace `header()`, `setcookie()` and `http_response_code()` with the response's `header()`, `cookie()` and `setStatusCode()` methods. Read input from the request instead of `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES` and `$_REQUEST`. Use the session store instead of PHP's `session_*` functions and `$_SESSION`, which is shared by every request in the worker. The `session_create_id()` function only generates an ID and remains usable. [Static analysis](/docs/{{version}}/static-analysis#native-request-apis) reports the request-state APIs.
+
+`connection_aborted()` does not report Swoole client disconnects. Replace loops that rely on it with a generator callback passed to `response()->stream()`, or an `IterableStreamedResponse`. See [Canceling Disconnected Streams](/docs/{{version}}/responses#canceling-disconnected-streams) to also cancel production during a wait.
 
 <a name="ai-sdk"></a>
 ### AI SDK

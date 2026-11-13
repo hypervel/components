@@ -193,7 +193,7 @@ class Cache extends Facade
 
 Instead, the `Cache` facade extends the base `Facade` class and defines the method `getFacadeAccessor()`. This method's job is to return the name of a service container binding. When a user references any static method on the `Cache` facade, Hypervel resolves the `cache` binding from the [service container](/docs/{{version}}/container) and runs the requested method (in this case, `get`) against that object.
 
-A facade keeps the instance it resolves for as long as the container shares it: services the container shares, such as singletons and auto-singletons, for the lifetime of the worker, and services registered with `bind()` or marked `Transient` for the current request or job coroutine. Scoped services always resolve from the current coroutine, including when a `bind()` binding or factory returns a scoped instance. To resolve the service on every facade call, set `protected static bool $cached = false` on the facade.
+Facades reuse services the container shares, such as singletons, instance registrations and auto-singletons, for the lifetime of the worker. For services registered with `bind()`, or unbound classes marked `Transient`, a facade keeps one instance for the current request or job coroutine. Scoped services always resolve from the current coroutine, including when a `bind()` binding returns a scoped instance. To resolve the service on every facade call, set `protected static bool $cached = false` on the facade.
 
 <a name="facade-class-reference"></a>
 ## Facade Class Reference
