@@ -319,3 +319,24 @@ class SerializedRegistryJob extends RegistryListener
 {
     use Dispatchable;
 }
+
+class OptionRegistryListener implements ShouldQueue
+{
+    public function __construct(private readonly Registry $registry)
+    {
+    }
+
+    public function handle(): void
+    {
+        $this->registry->configure([]);
+    }
+
+    public function viaQueue(): string
+    {
+        // The dispatcher reads the queue from an instance made without the constructor.
+        $this->registry ??= new Registry;
+        $this->registry->configure([]);
+
+        return 'reports';
+    }
+}

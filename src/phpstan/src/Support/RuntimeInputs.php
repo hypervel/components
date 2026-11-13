@@ -213,11 +213,12 @@ class RuntimeInputs
      * Declare that the dependent depends on the declarations and code of a class the booted application selected and the analysis runs.
      *
      * Method bodies and property defaults are not declarations, so the files declaring the class and its
-     * parents below the base class, with their traits and the constants their defaults read, are tracked too.
+     * parents below the base class, or all of them without one, with their traits and the constants their
+     * defaults read, are tracked too.
      *
      * @param ClassReflection|(DependencyTracker&Scope) $dependent
      */
-    public function trackSources(Scope|ClassReflection $dependent, string $className, string $baseClass): void
+    public function trackSources(Scope|ClassReflection $dependent, string $className, ?string $baseClass): void
     {
         $this->trackClass($dependent, $className);
 

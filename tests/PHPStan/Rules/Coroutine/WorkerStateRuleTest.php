@@ -52,6 +52,13 @@ use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ScopedHelperController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\SendReportListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ServiceContract;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\SingletonBoundService;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\BoundOptionListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\DebouncedByDefaultListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\DebouncedListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\OptionListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\OverridingOptionListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\UndebouncedListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\UniqueOptionListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\BaseRegistryListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\CatchAllObserver;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\ClonedEvent;
@@ -112,6 +119,8 @@ class WorkerStateRuleTest extends RuleTestCase
     private const string OPERATION = 'during an operation';
 
     private const string LISTENERS_NAMESPACE = 'Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\\';
+
+    private const string OPTIONS_NAMESPACE = 'Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\\';
 
     /**
      * The checkWorkerSharedState, checkStaticStateMutation, checkUnboundedWorkerCaches and
@@ -230,6 +239,31 @@ class WorkerStateRuleTest extends RuleTestCase
             $request('Registry', 'request', 337),
             $request('BaseRegistry', 'request', 363),
             $request('ObservingClonedListener', 'request', 395),
+        ]);
+    }
+
+    public function testQueuedListenerOptions(): void
+    {
+        $write = static fn (string $class, string $property, int $line): array => [
+            sprintf(self::STATIC_WRITE, self::OPTIONS_NAMESPACE . $class, $property, self::REQUEST),
+            $line,
+            self::STATIC_TIP,
+        ];
+        $request = static fn (string $class, int $line): array => [
+            sprintf(self::SHARED_STATE, self::OPTIONS_NAMESPACE . $class, 'request', 'the current request'),
+            $line,
+            self::SHARED_STATE_TIP,
+        ];
+
+        $this->analyse([__DIR__ . '/data/worker-state-listener-options.php'], [
+            $write('OptionListener', 'queued', 47),
+            $write('OptionListener', 'queued', 61),
+            $request('OptionListener', 81),
+            $request('OverridingOptionListener', 114),
+            $write('UniqueOptionListener', 'locked', 136),
+            $write('UniqueOptionListener', 'locked', 146),
+            $write('DebouncedListener', 'debounced', 179),
+            $write('DebouncedByDefaultListener', 'debounced', 203),
         ]);
     }
 
@@ -407,6 +441,12 @@ class WorkerStateRuleTest extends RuleTestCase
         $events->listen(ClonedEvent::class, ObservingClonedListener::class);
         // An application event has no known operation, but the observer still runs on the shared instance.
         $events->observe('listeners.audited', ObservingClonedListener::class);
+        $events->listen(RequestHandled::class, OptionListener::class);
+        $events->listen(RequestHandled::class, BoundOptionListener::class);
+        $events->listen(RequestHandled::class, UniqueOptionListener::class);
+        $events->listen(RequestHandled::class, DebouncedListener::class);
+        $events->listen(RequestHandled::class, DebouncedByDefaultListener::class);
+        $events->listen(RequestHandled::class, UndebouncedListener::class);
         $bus->map([MappedCommand::class => MappedHandler::class]);
 
         $container->bind(BoundFreshService::class);
@@ -415,6 +455,7 @@ class WorkerStateRuleTest extends RuleTestCase
         $container->singleton(FactoryBoundService::class, static fn (): FactoryBoundService => new FactoryBoundService);
         $container->singleton(ServiceContract::class, ContractImplementation::class);
         $container->singleton(BaseRecordingController::class, OverridingRecordingController::class);
+        $container->singleton(BoundOptionListener::class, OverridingOptionListener::class);
         $container->bind(Authenticatable::class, User::class);
         $container->when(ConsumerService::class)->needs(ContextualDependency::class)->give(ContextualImplementation::class);
         $container->when(OtherConsumer::class)->needs(User::class)->give(static fn (): User => new User);

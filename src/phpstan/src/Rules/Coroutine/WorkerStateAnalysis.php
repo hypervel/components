@@ -137,6 +137,10 @@ class WorkerStateAnalysis
         foreach ($this->lifetimes->getClasses() as $class) {
             $scope->trackClassDependency($class);
         }
+
+        foreach ($this->lifetimes->getDefaultSources() as $class) {
+            $this->runtimeInputs->trackSources($scope, $class, null);
+        }
     }
 
     /**

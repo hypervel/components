@@ -175,9 +175,9 @@ class WorkerStateRule implements Rule
     {
         $method = $write['function']['method'];
 
-        // Each job's clone of a queued listener has its own properties and arrays, but shares the objects they hold.
-        $cloneOnly = $write['copied'] && $method !== null && $lifetimes->runsOnClone($write['class'], $method);
-        $shared = ! $write['static'] && ! $cloneOnly && $lifetimes->isShared($write['class']);
+        // A copy of a queued listener, for a job or for reading its options, has its own properties and arrays.
+        $copyOnly = $write['copied'] && $method !== null && $lifetimes->runsOnCopy($write['class'], $method);
+        $shared = ! $write['static'] && ! $copyOnly && $lifetimes->isShared($write['class']);
 
         if ($this->helper->checkUnboundedWorkerCaches && $write['cacheKey'] && ($write['static'] || $shared)) {
             return [
@@ -201,7 +201,7 @@ class WorkerStateRule implements Rule
             // other subclasses than the shared ones.
             $handledShared = $write['function']['closure'] || $write['function']['context'] !== null
                 ? $shared
-                : $method !== null && ! $cloneOnly && $lifetimes->isContextShared($write['class'], $method);
+                : $method !== null && ! $copyOnly && $lifetimes->isContextShared($write['class'], $method);
 
             if ($context !== null && $handledShared && $method !== null) {
                 return [

@@ -23,6 +23,7 @@ use Hypervel\Contracts\Container\ExecutionScopedAttribute;
 use Hypervel\Contracts\Container\SelfBuilding;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Http\Kernel;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Core\Events\OnClose;
@@ -39,6 +40,8 @@ use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\RequestTerminated;
 use Hypervel\HttpServer\Events\ResponseSent;
+use Hypervel\PHPStan\Reflection\ReflectionHelper;
+use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobFailed;
@@ -108,6 +111,25 @@ class WorkerLifetimes
     private const string UNKNOWN = 'unknown';
 
     /**
+     * The clone of the container's queued listener that CallQueuedListener runs a job on, which keeps what its
+     * constructor was given.
+     */
+    private const string COPY_CLONE = 'clone';
+
+    /**
+     * The instance the dispatcher makes of a queued listener without its constructor to read the job's options.
+     */
+    private const string COPY_WITHOUT_CONSTRUCTOR = 'without constructor';
+
+    /**
+     * The option methods the dispatcher calls on that instance whenever it queues a listener
+     * (Dispatcher::queueHandler() and propagateListenerOptions()).
+     */
+    private const array LISTENER_OPTION_METHODS = [
+        'viaConnection', 'viaQueue', 'withDelay', 'backoff', 'retryUntil', 'tries', 'messageGroup', 'middleware',
+    ];
+
+    /**
      * The framework events dispatched for one request, job or server operation, with the context
      * their listeners run in.
      */
@@ -173,17 +195,20 @@ class WorkerLifetimes
     /** @var array<string, array<string, true>> lowercase "class::method" => the classes of the receivers it handles an operation for */
     private array $contextReceivers = [];
 
-    /** @var list<array{string, string, string, null|string, bool, bool}> the receiver, declaring class, method, operation, whether the receiver is shared and whether it is a clone, of each context still to propagate */
+    /** @var list<array{string, string, string, null|string, bool, null|string}> the receiver, declaring class, method, operation, whether the receiver is shared and the kind of copy it is, if any, of each context still to propagate */
     private array $pendingContexts = [];
 
-    /** @var array<string, array<string, true>> lowercase "class::method" => the queued listeners it handles an operation for on a clone */
-    private array $cloned = [];
+    /** @var array<string, array<string, true>> lowercase "class::method" => the queued listeners it handles an operation for on a copy */
+    private array $copies = [];
 
     /** @var array<string, true> lowercase "class::method" => a worker-shared instance itself handles an operation with it */
     private array $direct = [];
 
-    /** @var array<string, true> lowercase "class::method" => only clones of the worker-shared instances run it */
-    private array $cloneOnly = [];
+    /** @var array<string, true> lowercase "class::method" => only copies of the worker-shared instances run it */
+    private array $copyOnly = [];
+
+    /** @var array<string, true> lowercase "class::method" => a queued listener's instance made without its constructor runs it */
+    private array $withoutConstructor = [];
 
     /** @var array<string, null|string> lowercase "class::method::parameter" => the canonical abstract the container injects on every call it makes, or null when that is not known */
     private array $injectedParameters = [];
@@ -196,6 +221,9 @@ class WorkerLifetimes
 
     /** @var array<string, true> the classes whose declarations the lifetimes depend on */
     private array $classes = [];
+
+    /** @var array<string, true> the classes whose property defaults the lifetimes depend on */
+    private array $defaultSources = [];
 
     /**
      * Discover the worker lifetimes of the booted application and the collected roots.
@@ -263,7 +291,7 @@ class WorkerLifetimes
         }
 
         $this->propagateContexts($helperCalls);
-        $this->discoverCloneOnlyMethods();
+        $this->discoverCopyOnlyMethods();
     }
 
     /**
@@ -320,13 +348,14 @@ class WorkerLifetimes
     }
 
     /**
-     * Determine whether only clones of a queued listener run the method, which CallQueuedListener makes of
-     * the container's instance for each job. The clone is shallow, so only writes that replace the clone's
-     * own properties and arrays stay with the job.
+     * Determine whether only copies of a queued listener run the method: the clone CallQueuedListener makes of
+     * the container's instance for each job, or the instance the dispatcher makes without its constructor to
+     * read the job's options. Each has its own properties and arrays, but a clone shares the objects they hold,
+     * so only writes that replace them stay with the copy.
      */
-    public function runsOnClone(string $class, string $method): bool
+    public function runsOnCopy(string $class, string $method): bool
     {
-        return isset($this->cloneOnly[strtolower($class . '::' . $method)]);
+        return isset($this->copyOnly[strtolower($class . '::' . $method)]);
     }
 
     /**
@@ -360,11 +389,18 @@ class WorkerLifetimes
      * the properties its constructor promotes hold what the container injected.
      *
      * A queued class is restored from its payload, except one the dispatcher resolves as a listener or
-     * observer. A method no booted handler reaches is judged by its own class.
+     * observer. A method no booted handler reaches is judged by its own class. One that a queued listener's
+     * instance made without its constructor runs may initialize a readonly promoted property itself.
      */
     public function isContainerBuilt(string $class, string $method): bool
     {
-        $receivers = array_keys($this->contextReceivers[strtolower($class . '::' . $method)] ?? [$class => true]);
+        $key = strtolower($class . '::' . $method);
+
+        if (isset($this->withoutConstructor[$key])) {
+            return false;
+        }
+
+        $receivers = array_keys($this->contextReceivers[$key] ?? [$class => true]);
 
         return array_all($receivers, function (string $receiver): bool {
             $reflection = $this->getClass($receiver);
@@ -412,6 +448,16 @@ class WorkerLifetimes
     public function getClasses(): array
     {
         return array_keys($this->classes);
+    }
+
+    /**
+     * Get the classes whose property defaults the lifetimes were read from, which aren't declarations.
+     *
+     * @return list<string>
+     */
+    public function getDefaultSources(): array
+    {
+        return array_keys($this->defaultSources);
     }
 
     /**
@@ -579,21 +625,27 @@ class WorkerLifetimes
 
     /**
      * Record the operation a method handles for a receiver, if known, whether a worker-shared instance
-     * runs it and whether it runs on a clone, then queue it so the helpers it calls on the receiver
-     * share that.
+     * runs it and whether it runs on a copy of a queued listener, then queue it so the helpers it calls
+     * on the receiver share that.
+     *
+     * @param null|self::COPY_* $copy
      */
-    private function addContext(string $receiver, string $declaringClass, string $method, ?string $context, bool $shared, bool $cloned = false): void
+    private function addContext(string $receiver, string $declaringClass, string $method, ?string $context, bool $shared, ?string $copy = null): void
     {
         $key = strtolower($declaringClass . '::' . $method);
 
         $this->contexts[$key] = [$context ?? $this->contexts[$key][0] ?? null, $shared || ($this->contexts[$key][1] ?? false)];
         $this->contextReceivers[$key][$receiver] = true;
-        $this->pendingContexts[] = [$receiver, $declaringClass, $method, $context, $shared, $cloned];
+        $this->pendingContexts[] = [$receiver, $declaringClass, $method, $context, $shared, $copy];
 
-        if ($cloned) {
-            $this->cloned[$key][$receiver] = true;
+        if ($copy !== null) {
+            $this->copies[$key][$receiver] = true;
         } elseif ($shared) {
             $this->direct[$key] = true;
+        }
+
+        if ($copy === self::COPY_WITHOUT_CONSTRUCTOR) {
+            $this->withoutConstructor[$key] = true;
         }
     }
 
@@ -612,12 +664,12 @@ class WorkerLifetimes
         }
 
         // Whether each receiver's method was visited as shared: a shared visit covers a later
-        // unshared one, but not the other way round. Each operation, and a visit on a clone, is separate.
+        // unshared one, but not the other way round. Each operation, and each kind of copy, is separate.
         $visited = [];
 
         while (($pending = array_pop($this->pendingContexts)) !== null) {
-            [$receiver, $declaringClass, $method, $context, $shared, $cloned] = $pending;
-            $key = strtolower($receiver . "\0" . $declaringClass . '::' . $method . "\0" . $context . ($cloned ? "\0clone" : ''));
+            [$receiver, $declaringClass, $method, $context, $shared, $copy] = $pending;
+            $key = strtolower($receiver . "\0" . $declaringClass . '::' . $method . "\0" . $context . "\0" . $copy);
 
             if (array_key_exists($key, $visited) && ($visited[$key] || ! $shared)) {
                 continue;
@@ -629,7 +681,7 @@ class WorkerLifetimes
                 $helper = $this->resolveHelper($receiver, $declaringClass, $callee);
 
                 if ($helper !== null) {
-                    $this->addContext($receiver, $helper->getDeclaringClass()->getName(), $helper->getName(), $context, $shared, $cloned);
+                    $this->addContext($receiver, $helper->getDeclaringClass()->getName(), $helper->getName(), $context, $shared, $copy);
                 }
             }
         }
@@ -666,13 +718,13 @@ class WorkerLifetimes
     }
 
     /**
-     * Find the methods only clones of queued listeners run: no worker-shared instance runs one itself, and every
+     * Find the methods only copies of queued listeners run: no worker-shared instance runs one itself, and every
      * other worker-shared class running the same declaration is one of those listeners. A parent's helper stays
      * shared when the container also shares the parent or another subclass that runs it.
      */
-    private function discoverCloneOnlyMethods(): void
+    private function discoverCopyOnlyMethods(): void
     {
-        foreach ($this->cloned as $key => $listeners) {
+        foreach ($this->copies as $key => $listeners) {
             [$class, $method] = explode('::', $key, 2);
             $declaringClass = isset($this->direct[$key]) ? null : $this->getClass($class);
 
@@ -689,7 +741,7 @@ class WorkerLifetimes
             });
 
             if (! $runsElsewhere) {
-                $this->cloneOnly[$key] = true;
+                $this->copyOnly[$key] = true;
             }
         }
     }
@@ -815,22 +867,41 @@ class WorkerLifetimes
     private function addHandlerContext(ClassReflection $class, string $method, ?string $context, bool $queueable): void
     {
         [$shared, $receiver] = $this->makeHandler($class);
-        $cloned = false;
+        $copy = null;
 
         if ($class->is(ShouldQueue::class)) {
             $this->queuedListeners[strtolower($receiver->getName())] = true;
 
             if ($queueable) {
-                // The dispatcher calls shouldQueue() on the resolved instance while dispatching, and
-                // CallQueuedListener resolves it again for the unique and debounce lock stores.
-                foreach (['shouldQueue' => $context, 'uniqueVia' => 'job', 'debounceVia' => 'job'] as $hook => $hookContext) {
-                    if ($receiver->hasNativeMethod($hook)) {
+                $unique = $class->is(ShouldBeUnique::class);
+                $debounced = $this->isDebounced($class);
+
+                // The dispatcher calls shouldQueue() on the resolved instance while dispatching. The unique and
+                // debounce locks resolve it again through CallQueuedListener for their stores, both when the
+                // dispatcher acquires them and when they're released.
+                foreach (['shouldQueue' => [$context, true], 'uniqueVia' => ['job', $unique], 'debounceVia' => ['job', $debounced]] as $hook => [$hookContext, $runs]) {
+                    if ($runs && $receiver->hasNativeMethod($hook)) {
                         $this->addContext($receiver->getName(), $receiver->getNativeMethod($hook)->getDeclaringClass()->getName(), $hook, $hookContext, $shared);
                     }
                 }
 
+                // The dispatcher reads the job's options from an instance of the registered class that it makes
+                // without the constructor, so a binding to another class doesn't apply.
+                $options = [
+                    ...self::LISTENER_OPTION_METHODS,
+                    $class->hasNativeMethod('deduplicator') ? 'deduplicator' : 'deduplicationId',
+                    ...($unique ? ['uniqueId', 'uniqueFor'] : []),
+                    ...($debounced ? ['debounceId'] : []),
+                ];
+
+                foreach ($options as $option) {
+                    if ($class->hasNativeMethod($option)) {
+                        $this->addContext($class->getName(), $class->getNativeMethod($option)->getDeclaringClass()->getName(), $option, $context, false, self::COPY_WITHOUT_CONSTRUCTOR);
+                    }
+                }
+
                 $context = 'job';
-                $cloned = isset($receiver->getTraits(true)[InteractsWithQueue::class]);
+                $copy = isset($receiver->getTraits(true)[InteractsWithQueue::class]) ? self::COPY_CLONE : null;
             }
         }
 
@@ -839,8 +910,30 @@ class WorkerLifetimes
         if ($receiver->hasNativeMethod($method)) {
             $declaringClass = $receiver->getNativeMethod($method)->getDeclaringClass()->getName();
 
-            $this->addContext($receiver->getName(), $declaringClass, $method, $context, $shared, $cloned);
+            $this->addContext($receiver->getName(), $declaringClass, $method, $context, $shared, $copy);
         }
+    }
+
+    /**
+     * Determine whether the dispatcher debounces a queued listener, as its getAttributeValue() reads it from
+     * outside the listener: a #[DebounceFor] attribute, whose value is never null, or else a non-null default
+     * of the public debounceFor property.
+     */
+    private function isDebounced(ClassReflection $class): bool
+    {
+        if (ReflectionHelper::findClassAttribute($class, DebounceFor::class) !== null) {
+            return true;
+        }
+
+        if (! $class->hasNativeProperty('debounceFor')) {
+            return false;
+        }
+
+        // A default isn't a declaration, so its sources are tracked whatever it is.
+        $this->defaultSources[$class->getName()] = true;
+        $property = $class->getNativeReflection()->getProperty('debounceFor');
+
+        return $property->isPublic() && ! $property->isStatic() && $property->getDefaultValue() !== null;
     }
 
     /**

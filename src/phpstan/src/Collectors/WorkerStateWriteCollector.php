@@ -115,8 +115,8 @@ class WorkerStateWriteCollector implements Collector
         $growingStorage = $storage->isArray()->yes() && ! $storage->isConstantArray()->yes();
 
         // A write that replaces the property, or changes only values such as arrays and strings (including an
-        // array it creates from null), changes a copy on a cloned instance. One into an object the property
-        // holds, or may hold, changes the object every clone shares.
+        // array it creates from null), changes only a copied instance's own value. One into an object the
+        // property holds, or may hold, changes the object a clone shares with the container's instance.
         $copied = true;
 
         // @phpstan-ignore phpstanApi.class (The offset chain PHPStan builds inside a property write.), phpstanApi.class (The offset chain PHPStan builds inside a property write.)

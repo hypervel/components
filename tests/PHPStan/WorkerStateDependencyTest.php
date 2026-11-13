@@ -58,6 +58,12 @@ class WorkerStateDependencyTest extends ResultCacheTestCase
             $this->diagnostics($this->analyse($applicationPath, reuseCollectedDataRuleErrors: $reuseCollectedDataRuleErrors), 1),
         );
 
+        // PHPStan spells a stub-backed class's file path differently in a cold run, so the first warm run
+        // checks this rule again whatever changed. Start from a warm run.
+        if ($reuseCollectedDataRuleErrors) {
+            $this->assertSame(['RequestCache.php:15 hypervel.workerSharedState'], $this->diagnostics($this->analyse($applicationPath, reuseCollectedDataRuleErrors: true), 1));
+        }
+
         $this->edit($applicationPath . '/bootstrap/app.php', '->create()', '->withScopedSingletons([WorkerStateDependency\RequestCache::class])->create()');
 
         $this->assertSame([], $this->diagnostics($this->analyse($applicationPath, reuseCollectedDataRuleErrors: $reuseCollectedDataRuleErrors), 0));
@@ -109,5 +115,27 @@ class WorkerStateDependencyTest extends ResultCacheTestCase
         $this->edit($applicationPath . '/app/Registry.php', 'array $map = Defaults::MAP', 'array $map = []');
 
         $this->assertSame([], $this->diagnostics($this->analyse($applicationPath, reuseCollectedDataRuleErrors: true), 0));
+    }
+
+    /**
+     * Whether the dispatcher reads a queued listener's debounce ID depends on its debounceFor default,
+     * which is not a declaration, here inherited from a parent whose collected data does not change.
+     */
+    public function testChangedListenerDefaultsRecheckUnchangedWrites(): void
+    {
+        $applicationPath = $this->copyApplication();
+
+        $this->assertSame([], $this->diagnostics($this->analyse($applicationPath, reuseCollectedDataRuleErrors: true), 0));
+
+        // PHPStan spells a stub-backed class's file path differently in a cold run, so the first warm run
+        // checks this rule again whatever changed. Start from a warm run.
+        $this->assertSame([], $this->diagnostics($this->analyse($applicationPath, reuseCollectedDataRuleErrors: true), 0));
+
+        $this->edit($applicationPath . '/app/BaseReportListener.php', '$debounceFor = null;', '$debounceFor = 0;');
+
+        $this->assertSame(
+            ['BaseReportListener.php:11 hypervel.legacyQueueProperty', 'ReportListener.php:17 hypervel.staticStateMutation'],
+            $this->diagnostics($this->analyse($applicationPath, reuseCollectedDataRuleErrors: true), 1),
+        );
     }
 }

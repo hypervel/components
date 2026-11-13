@@ -10,6 +10,7 @@ use Hypervel\Contracts\Config\Repository;
 use Hypervel\Core\Events\OnReceive;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Client\Factory;
+use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\PHPStan\Collectors\RestrictedCallCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateCallCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateClassCollector;
@@ -30,6 +31,7 @@ use Hypervel\Tests\PHPStan\Rules\Coroutine\RestrictedCalls\FactoryRegistry;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\RestrictedCalls\FreshRegistry;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\RestrictedCalls\FreshRegistryJob;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\RestrictedCalls\InheritedRegistryListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\RestrictedCalls\OptionRegistryListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\RestrictedCalls\QueuedRegistryListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\RestrictedCalls\ReceiveListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\RestrictedCalls\ReceiverController;
@@ -138,6 +140,7 @@ class RestrictedCallRuleTest extends RuleTestCase
             $configure(251, self::JOB),
             $configure(299, self::JOB),
             $configure(310, self::JOB),
+            $configure(331, self::JOB),
         ]);
     }
 
@@ -217,6 +220,7 @@ class RestrictedCallRuleTest extends RuleTestCase
         $router->get('/config', [ContextualConfigController::class, 'update']);
         $events->listen('restricted.recorded', QueuedRegistryListener::class . '@record');
         $events->listen('restricted.inherited', InheritedRegistryListener::class . '@record');
+        $events->listen(RequestHandled::class, OptionRegistryListener::class);
 
         $container->singleton('restricted.registry', static fn (): Registry => new Registry);
         $container->singleton('restricted.unknown', static function (): Registry {
