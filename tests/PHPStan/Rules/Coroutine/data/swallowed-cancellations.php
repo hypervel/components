@@ -665,6 +665,68 @@ class SyncImportJob implements ShouldQueue
         } catch (Throwable) {
             return;
         }
+
+        try {
+            DB::select('select 1');
+        } catch (Throwable $exception) {
+            report($exception);
+
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+
+            return;
+        }
+
+        try {
+            DB::select('select 1');
+        } catch (Throwable $exception) {
+            report($exception);
+
+            if (! Coroutine::causedByCancellation($exception)) {
+                return;
+            }
+
+            throw $exception;
+        }
+
+        try {
+            DB::select('select 1');
+        } catch (Throwable $exception) {
+            if ($import->exists) {
+                return;
+            }
+
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+        }
+
+        try {
+            DB::select('select 1');
+        } catch (Throwable $exception) {
+            $exception = new RuntimeException('Import failed.');
+
+            if (Coroutine::causedByCancellation($exception)) {
+                throw $exception;
+            }
+        }
+
+        try {
+            try {
+                DB::select('select 1');
+            } catch (Throwable $exception) {
+                report($exception);
+
+                if (Coroutine::causedByCancellation($exception)) {
+                    throw $exception;
+                }
+
+                return;
+            }
+        } catch (Throwable) {
+            return;
+        }
     }
 }
 

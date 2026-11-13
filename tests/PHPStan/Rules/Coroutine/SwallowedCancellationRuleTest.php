@@ -94,6 +94,9 @@ class SwallowedCancellationRuleTest extends RuleTestCase
             $swallowed('a database query', 636),
             $swallowed('a database query', 646),
             $swallowed('a wait', 658),
+            $swallowed('a database query', 695),
+            $swallowed('a database query', 707),
+            $swallowed('a database query', 727),
         ]);
     }
 

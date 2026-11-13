@@ -465,8 +465,9 @@ class SwallowedCancellationCollector implements Collector
 
     /**
      * Determine whether the catch propagates the cancellation: the statements a cancellation runs end by
-     * rethrowing the exception or wrapping it as the previous exception. A Coroutine::causedByCancellation()
-     * guard starting the body narrows them to its branch, or to the statements after a negated guard.
+     * rethrowing the exception or wrapping it as the previous exception. The body's first top-level
+     * Coroutine::causedByCancellation() guard narrows them to the statements before it and its branch, or
+     * the statements around a negated guard.
      *
      * @param DependencyTracker&Scope $scope
      */
@@ -477,21 +478,28 @@ class SwallowedCancellationCollector implements Collector
         }
 
         $variable = $catch->var->name;
-        $first = $catch->stmts[0] ?? null;
 
         if ($this->rethrows($catch->stmts, $variable, $scope)) {
             return true;
         }
 
-        if (! $first instanceof If_) {
-            return false;
+        foreach ($catch->stmts as $index => $statement) {
+            $polarity = $statement instanceof If_ ? $this->coroutineRuleHelper->guardPolarity($statement->cond, $variable) : null;
+
+            if ($polarity === null) {
+                continue;
+            }
+
+            // The statements before the guard run for a cancellation too, so they must neither leave the catch
+            // nor discard the caught exception.
+            $before = array_slice($catch->stmts, 0, $index);
+
+            return $polarity
+                ? $this->rethrows([...$before, ...$statement->stmts], $variable, $scope)
+                : $statement->elseifs === [] && $statement->else === null && $this->rethrows([...$before, ...array_slice($catch->stmts, $index + 1)], $variable, $scope);
         }
 
-        return match ($this->coroutineRuleHelper->guardPolarity($first->cond, $variable)) {
-            true => $this->rethrows($first->stmts, $variable, $scope),
-            false => $first->elseifs === [] && $first->else === null && $this->rethrows(array_slice($catch->stmts, 1), $variable, $scope),
-            null => false,
-        };
+        return false;
     }
 
     /**
