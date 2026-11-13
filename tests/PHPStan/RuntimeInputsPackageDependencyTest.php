@@ -7,6 +7,7 @@ namespace Hypervel\Tests\PHPStan;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\PHPStan\Fixtures\RuntimeInputs\Package\FrenchGreeterServiceProvider;
 use Hypervel\Tests\PHPStan\Fixtures\RuntimeInputs\Package\PackageServiceProvider;
+use PHPUnit\Framework\Attributes\Large;
 use Symfony\Component\Process\Process;
 
 use function dirname;
@@ -23,6 +24,7 @@ use function unlink;
  * A package's analysis boots a disposable Testbench copy of its skeleton in every process, so
  * what the boot decides depends on the skeleton, the Testbench YAML and the environment.
  */
+#[Large]
 class RuntimeInputsPackageDependencyTest extends ResultCacheTestCase
 {
     /**

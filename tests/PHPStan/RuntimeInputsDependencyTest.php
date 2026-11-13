@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\PHPStan;
 
 use Hypervel\Filesystem\Filesystem;
+use PHPUnit\Framework\Attributes\Large;
 use Symfony\Component\Process\Process;
 
 use function dirname;
@@ -20,13 +21,14 @@ use function unlink;
  * analyzed file references: provider and helper code, configuration, the environment, routes,
  * and the classes and views the boot selected.
  */
+#[Large]
 class RuntimeInputsDependencyTest extends ResultCacheTestCase
 {
     /**
-     * The global type alias the alias fixture uses, and one file per job, so the main process and
-     * several workers each compute the values.
+     * The global type alias the alias fixture uses, and one file per job across two workers, so the
+     * main process and each worker compute the values.
      */
-    private const string PARAMETERS = "typeAliases:\n    RenderView: 'Closure(view-string): void'\nparallel:\n    jobSize: 1";
+    private const string PARAMETERS = "typeAliases:\n    RenderView: 'Closure(view-string): void'\nparallel:\n    jobSize: 1\n    maximumNumberOfProcesses: 2";
 
     /**
      * The diagnostics of the unedited boot inputs.
