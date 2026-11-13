@@ -278,6 +278,16 @@ New `src/phpstan/src/Support/FacadeHelper.php`, an `@internal` `#[AutowiredServi
 
 Warm-cache tests go in `tests/PHPStan/WorkerStateDependencyTest.php`, one per mechanism rather than per rule: a booted registration changing a lifetime, a facade accessor body, a constructor forwarding `$previous`, and a declared default value read from another class's constant. `SourceFilesTest` covers the method-attribute lookup.
 
+**Testbench runtime copy.** A package analysis boots a Testbench copy of the skeleton that is deleted at exit. `Bootstrapper::copySkeleton()` copies or links the skeleton's `vendor`, or links the working package's when the skeleton has none.
+
+- Tracking `PackageManifest::$vendorPath`'s metadata by the copy's path made every warm run reanalyse each `track()` consumer (about a third of components).
+- `RuntimeInputs::createKey()` instead tracks two things:
+  - `composer/installed.json` and `installed.php` under the skeleton's `vendor` and under the working vendor, each by its own spelling and including absence;
+  - the skeleton `vendor` directory's presence, through a new directory-presence entry in `RuntimeInputsResultCacheValueExtension`. An empty one stops the link to the working vendor.
+- `Bootstrapper::runtimeVendorPath()` returns the working vendor path, stored and reset beside `runtimeSourcePath()`. `runtimeCopy()` resolves it with the other ownership fields.
+- Only the copy's standard `/vendor` is replaced. Any other manifest vendor keeps the `sourcePath()` handling.
+- `RuntimeInputsPackageDependencyTest` covers an unchanged rerun, a repointed working-vendor link whose old target remains, and an empty skeleton `vendor` added and removed. It also covers skeleton metadata appearing after the working vendor was used.
+
 ## 3. Rules
 
 | # | Rule class | Identifier | Switch (default) |
@@ -713,4 +723,4 @@ Monorepo consumers: no class in `packages/hypervel/src` or `apps` implements the
 
 ## Status
 
-Done: sections 1 to 4 and 6, with all four warm-cache tests, and section 5 apart from the benchmark. Next step: the section 5 benchmark once the owner confirms the machine is idle, then final integration review and the final report showing the owner each section 6 change. Stop after final signoff, commits and push; notify the owner and await discussion before opening PRs.
+Done: sections 1 to 6, including the benchmark, Testbench runtime-copy cache fix (section 2.5), and final integration review. After commits and push, report completion and each section 6 guidance change to the owner, notify them, and await discussion before opening PRs.

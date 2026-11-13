@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\PHPStan;
 
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Tests\PHPStan\Fixtures\RuntimeInputs\Package\FrenchGreeterServiceProvider;
 use Hypervel\Tests\PHPStan\Fixtures\RuntimeInputs\Package\PackageServiceProvider;
 use Symfony\Component\Process\Process;
 
@@ -12,6 +13,9 @@ use function dirname;
 use function file_get_contents;
 use function file_put_contents;
 use function json_encode;
+use function mkdir;
+use function rmdir;
+use function symlink;
 use function touch;
 use function unlink;
 
@@ -66,6 +70,43 @@ class RuntimeInputsPackageDependencyTest extends ResultCacheTestCase
         $this->assertStringNotContainsString("env-pattern\t*", (string) file_get_contents($packagePath . '/cache/resultCache.php'));
     }
 
+    public function testVendorSourceChangesReanalyzeTheirConsumers(): void
+    {
+        $packagePath = $this->createPackage();
+        $skeletonVendorPath = $packagePath . '/skeleton/vendor';
+        $unset = ['PACKAGE_GREETER' => false, 'MYSQL_DATABASE' => false, 'TEST_TOKEN' => false];
+        $englishVendorPath = $this->createVendor($this->tempDir . '/english', french: false);
+        $frenchVendorPath = $this->createVendor($this->tempDir . '/french', french: true);
+
+        // Without a skeleton vendor directory, the runtime copy links the package's.
+        symlink($englishVendorPath, $packagePath . '/vendor');
+        $this->assertSame([self::ENGLISH], $this->diagnostics($this->analysePackage($packagePath, $unset), 1));
+
+        $process = $this->analysePackage($packagePath, $unset);
+        $this->assertSame([self::ENGLISH], $this->diagnostics($process, 1));
+        $this->assertReanalyzed(0, $process);
+
+        // The package's vendor link is repointed while its old target stays.
+        unlink($packagePath . '/vendor');
+        symlink($frenchVendorPath, $packagePath . '/vendor');
+        $this->assertSame([], $this->diagnostics($this->analysePackage($packagePath, $unset), 0));
+
+        // An empty skeleton vendor directory is copied instead, so no package is discovered.
+        mkdir($skeletonVendorPath);
+        $this->assertSame([self::ENGLISH], $this->diagnostics($this->analysePackage($packagePath, $unset), 1));
+        rmdir($skeletonVendorPath);
+        $this->assertSame([], $this->diagnostics($this->analysePackage($packagePath, $unset), 0));
+
+        // Skeleton metadata appears after the package's was used.
+        unlink($packagePath . '/vendor');
+        symlink($englishVendorPath, $packagePath . '/vendor');
+        $this->assertSame([self::ENGLISH], $this->diagnostics($this->analysePackage($packagePath, $unset), 1));
+        $this->createVendor($skeletonVendorPath, french: true);
+        $this->assertSame([], $this->diagnostics($this->analysePackage($packagePath, $unset), 0));
+        (new Filesystem)->deleteDirectory($skeletonVendorPath);
+        $this->assertSame([self::ENGLISH], $this->diagnostics($this->analysePackage($packagePath, $unset), 1));
+    }
+
     /**
      * Create a package whose Testbench YAML names a copy of the default skeleton.
      */
@@ -83,6 +124,22 @@ class RuntimeInputsPackageDependencyTest extends ResultCacheTestCase
         ], JSON_THROW_ON_ERROR));
 
         return $packagePath;
+    }
+
+    /**
+     * Create a vendor directory whose Composer metadata lists the French greeter's package, or no packages.
+     */
+    private function createVendor(string $vendorPath, bool $french): string
+    {
+        $packages = $french ? [[
+            'name' => 'hypervel-phpstan/french-greeter',
+            'extra' => ['hypervel' => ['providers' => [FrenchGreeterServiceProvider::class]]],
+        ]] : [];
+
+        mkdir($vendorPath . '/composer', 0777, true);
+        file_put_contents($vendorPath . '/composer/installed.json', json_encode(['packages' => $packages], JSON_THROW_ON_ERROR));
+
+        return $vendorPath;
     }
 
     /**
