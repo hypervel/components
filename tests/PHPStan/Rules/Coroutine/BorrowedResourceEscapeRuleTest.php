@@ -85,6 +85,8 @@ class BorrowedResourceEscapeRuleTest extends RuleTestCase
             $captured('go', 329),
             $borrowed($connection, 'is stored in a by-reference variable', 336),
             $borrowed($client, 'is stored on a property', 342),
+            $borrowed($client, 'is captured by a closure passed to go()', 356),
+            $borrowed($connection, 'is stored on a property', 360),
         ]);
     }
 

@@ -894,3 +894,23 @@ class NestedConfigOffsetJob implements ShouldQueue
     {
     }
 }
+
+// Only a promoted repository property shows the global repository, so these offset writes are ordinary property writes.
+class RepositoryPropertyController
+{
+    private static ConfigRepository $defaults;
+
+    private ConfigRepository $settings;
+
+    public function __construct(ConfigRepository $config)
+    {
+        self::$defaults = $config;
+        $this->settings = $config;
+    }
+
+    public function update(): void
+    {
+        self::$defaults['app.locale'] = 'fr';
+        $this->settings['app.locale'] = 'fr';
+    }
+}

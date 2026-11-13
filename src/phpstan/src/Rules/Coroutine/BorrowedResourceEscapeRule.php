@@ -93,8 +93,8 @@ use function strtolower;
  * statements: the lent parameter, the raw handles taken from it, and the local variables, arrays and
  * closures holding them are followed, but not values passed through calls.
  *
- * @phpstan-type HeldClosure array{ArrowFunction|Closure, ?string}
- * @phpstan-type Environment array{tracked: array<string, string>, appended: array<string, string>, callables: array<string, array<int, HeldClosure>>, defined: array<string, true>}
+ * @phpstan-type HeldClosure array{ArrowFunction|Closure, ?string, array<int, Closure>}
+ * @phpstan-type Environment array{tracked: array<string, string>, appended: array<string, string>, callables: array<string, array<int, HeldClosure>>, defined: array<string, true>, referenced: array<string, true>}
  * @phpstan-type Fact array{tracked: ?string, appended: ?string, callables: array<int, HeldClosure>}
  *
  * @implements Rule<CallLike>
@@ -253,6 +253,7 @@ class BorrowedResourceEscapeRule implements Rule
             'appended' => [],
             'callables' => [],
             'defined' => ($received ?? $this->getCapturedNames($callback)) + $this->getParameterNames($callback),
+            'referenced' => [],
         ];
 
         $this->analyzeFunction(
@@ -396,9 +397,9 @@ class BorrowedResourceEscapeRule implements Rule
                     $spawn = $this->getSpawn($node, $locals, $writes, $outer, $scope);
                     $how = $spawn === null ? null : sprintf('is captured by a closure passed to %s()', $spawn);
 
-                    foreach ($spawn === null ? [] : $this->getPassedClosures($node, $environment) as [$closure, $capturedKind]) {
-                        $spawned[spl_object_id($closure)] = true;
-                        $kind ??= $capturedKind ?? $this->getReferencedKind($closure, $environment);
+                    foreach ($spawn === null ? [] : $this->getPassedClosures($node, $environment) as $held) {
+                        $spawned[spl_object_id($held[0])] = true;
+                        $kind ??= $held[1] ?? $this->getLiveKind($held, $environment);
                     }
                 } elseif ($node instanceof Closure || $node instanceof ArrowFunction) {
                     $created[spl_object_id($node)] = [$node, [
@@ -406,6 +407,7 @@ class BorrowedResourceEscapeRule implements Rule
                         'appended' => $this->getCaptured($node, $environment['appended']),
                         'callables' => $this->getCaptured($node, $environment['callables']),
                         'defined' => $this->getCaptured($node, $environment['defined']) + $this->getParameterNames($node),
+                        'referenced' => [],
                     ], $index];
                 }
 
@@ -416,6 +418,15 @@ class BorrowedResourceEscapeRule implements Rule
 
             if ($reset !== null) {
                 $this->setFact($environment, $reset[1], $this->getFact($reset[0]->expr, $environment, $owners, $resource, $scope));
+            }
+
+            // A reference binding lets a later write through either side change both, so neither value is known
+            // after this statement. Its own escapes, such as a by-reference store, are checked above first.
+            foreach ($nodes as $node) {
+                foreach ($node instanceof AssignRef ? $this->getReferenceRoots($node) : [] as $name) {
+                    $this->setFact($environment, $name, ['tracked' => null, 'appended' => null, 'callables' => []]);
+                    $environment['referenced'][$name] = true;
+                }
             }
         }
 
@@ -527,9 +538,43 @@ class BorrowedResourceEscapeRule implements Rule
             if ($node->var instanceof Variable && is_string($node->var->name)) {
                 $writes[$node->var->name][] = $node->expr;
             }
+
+            // A later write through either side of a reference binding changes the other, so both are written.
+            if ($node instanceof AssignRef) {
+                foreach ($this->getReferenceRoots($node) as $name) {
+                    $writes[$name][] = null;
+                }
+
+                if (($property = $this->getPropertyWriteKey($node->expr)) !== null) {
+                    $propertyWrites[$property] = true;
+                }
+            }
         }
 
         return [$writes, $propertyWrites];
+    }
+
+    /**
+     * Get the variables a reference binding ties together: the root variable of each side, such as `$items`
+     * for `$items[0]` or `$holder` for `$holder->value`.
+     *
+     * @return list<string>
+     */
+    private function getReferenceRoots(AssignRef $node): array
+    {
+        $names = [];
+
+        foreach ([$node->var, $node->expr] as $side) {
+            while ($side instanceof ArrayDimFetch || $side instanceof PropertyFetch) {
+                $side = $side->var;
+            }
+
+            if ($side instanceof Variable && is_string($side->name) && $side->name !== 'this') {
+                $names[] = $side->name;
+            }
+        }
+
+        return $names;
     }
 
     /**
@@ -553,7 +598,7 @@ class BorrowedResourceEscapeRule implements Rule
         $leaves = [];
 
         foreach ($targets as $target) {
-            $leaves = [...$leaves, ...$this->getTargetLeaves($target)];
+            $leaves = [...$leaves, ...CoroutineRuleHelper::getTargetLeaves($target)];
         }
 
         return $leaves;
@@ -655,7 +700,7 @@ class BorrowedResourceEscapeRule implements Rule
         }
 
         if ($expr instanceof Closure || $expr instanceof ArrowFunction) {
-            return ['tracked' => null, 'appended' => null, 'callables' => [spl_object_id($expr) => [$expr, $this->getCapturedKind($expr, $environment)]]];
+            return ['tracked' => null, 'appended' => null, 'callables' => [spl_object_id($expr) => $this->getHeldClosure($expr, $environment)]];
         }
 
         if ($expr instanceof Array_) {
@@ -674,13 +719,19 @@ class BorrowedResourceEscapeRule implements Rule
     }
 
     /**
-     * Replace what the variable holds with the fact.
+     * Replace what the variable holds with the fact. A variable bound by reference stays unknown.
      *
      * @param Environment $environment
      * @param Fact $fact
      */
     private function setFact(array &$environment, string $name, array $fact): void
     {
+        $environment['defined'][$name] = true;
+
+        if (isset($environment['referenced'][$name])) {
+            return;
+        }
+
         if ($fact['tracked'] === null) {
             unset($environment['tracked'][$name]);
         } else {
@@ -698,8 +749,6 @@ class BorrowedResourceEscapeRule implements Rule
         } else {
             $environment['callables'][$name] = $fact['callables'];
         }
-
-        $environment['defined'][$name] = true;
     }
 
     /**
@@ -720,7 +769,9 @@ class BorrowedResourceEscapeRule implements Rule
         }
 
         if ($expr instanceof Closure || $expr instanceof ArrowFunction) {
-            return $this->getCapturedKind($expr, $environment) ?? $this->getReferencedKind($expr, $environment);
+            $held = $this->getHeldClosure($expr, $environment);
+
+            return $held[1] ?? $this->getLiveKind($held, $environment);
         }
 
         if ($expr instanceof Array_) {
@@ -923,7 +974,7 @@ class BorrowedResourceEscapeRule implements Rule
 
             foreach ($values as $value) {
                 if ($value instanceof Closure || $value instanceof ArrowFunction) {
-                    $passed[] = [$value, $this->getCapturedKind($value, $environment)];
+                    $passed[] = $this->getHeldClosure($value, $environment);
                 } elseif ($value instanceof Variable && is_string($value->name)) {
                     $passed = [...$passed, ...array_values($environment['callables'][$value->name] ?? [])];
                 }
@@ -934,40 +985,68 @@ class BorrowedResourceEscapeRule implements Rule
     }
 
     /**
-     * Get what the first borrowed variable a closure captures by value holds now, or null when it captures none.
-     * A closure keeps that value for as long as it lives.
+     * Get the entry for a closure created now: the closure, what the first borrowed variable it captures by value
+     * holds, which it keeps for as long as it lives, and the closures whose by-reference variables it reads when
+     * it runs: itself and those of the closures it captures by value, even once their variables are replaced.
      *
      * @param Environment $environment
+     *
+     * @return HeldClosure
      */
-    private function getCapturedKind(Closure|ArrowFunction $closure, array $environment): ?string
+    private function getHeldClosure(Closure|ArrowFunction $closure, array $environment): array
     {
         $names = $this->getCapturedNames($closure);
+        $live = [];
 
-        return $this->getFirstKind($closure instanceof Closure ? array_diff_key($names, $this->getReferenceNames($closure)) : $names, $environment);
+        if ($closure instanceof Closure) {
+            $names = array_diff_key($names, $this->getReferenceNames($closure));
+            $live[spl_object_id($closure)] = $closure;
+        }
+
+        foreach (array_intersect_key($environment['callables'], $names) as $closures) {
+            foreach ($closures as [, , $captured]) {
+                $live += $captured;
+            }
+        }
+
+        return [$closure, $this->getFirstKind($names, $environment, live: false), $live];
     }
 
     /**
-     * Get what the first borrowed variable a closure captures by reference holds now, or null when it captures none.
+     * Get what the first borrowed variable a held closure reads by reference holds now, through itself or a
+     * closure it captured, or null when there is none.
      *
+     * @param HeldClosure $held
      * @param Environment $environment
      * @param array<int, true> $visited the closures already being read, which a closure capturing itself reaches again
      */
-    private function getReferencedKind(Closure|ArrowFunction $closure, array $environment, array $visited = []): ?string
+    private function getLiveKind(array $held, array $environment, array $visited = []): ?string
     {
-        return $closure instanceof Closure
-            ? $this->getFirstKind($this->getReferenceNames($closure), $environment, $visited + [spl_object_id($closure) => true])
-            : null;
+        foreach ($held[2] as $id => $closure) {
+            if (isset($visited[$id])) {
+                continue;
+            }
+
+            $visited[$id] = true;
+            $kind = $this->getFirstKind($this->getReferenceNames($closure), $environment, $visited);
+
+            if ($kind !== null) {
+                return $kind;
+            }
+        }
+
+        return null;
     }
 
     /**
      * Get what the first of the variables that is borrowed holds now: its value, what was appended to it, or what
-     * a closure it may hold captures.
+     * a closure it may hold captured by value. A live read also includes what such a closure reads by reference now.
      *
      * @param array<string, true> $names
      * @param Environment $environment
      * @param array<int, true> $visited
      */
-    private function getFirstKind(array $names, array $environment, array $visited = []): ?string
+    private function getFirstKind(array $names, array $environment, array $visited = [], bool $live = true): ?string
     {
         foreach ([$environment['tracked'], $environment['appended']] as $kinds) {
             foreach (array_intersect_key($kinds, $names) as $kind) {
@@ -976,8 +1055,8 @@ class BorrowedResourceEscapeRule implements Rule
         }
 
         foreach (array_intersect_key($environment['callables'], $names) as $closures) {
-            foreach ($closures as $id => [$closure, $kind]) {
-                $kind ??= isset($visited[$id]) ? null : $this->getReferencedKind($closure, $environment, $visited);
+            foreach ($closures as $held) {
+                $kind = $held[1] ?? ($live ? $this->getLiveKind($held, $environment, $visited) : null);
 
                 if ($kind !== null) {
                     return $kind;

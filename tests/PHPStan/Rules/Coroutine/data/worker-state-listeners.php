@@ -380,3 +380,18 @@ class BaseRegistryListener extends BaseRegistry implements ShouldQueue
 class SharedRegistry extends BaseRegistry
 {
 }
+
+class ObservingClonedListener implements ShouldQueue
+{
+    use InteractsWithQueue;
+
+    public ?Request $request = null;
+
+    /**
+     * Handle the event on the job's clone, and on the container's instance as a passive observer.
+     */
+    public function handle(): void
+    {
+        $this->request = request();
+    }
+}

@@ -39,7 +39,7 @@ class MigrationColumnTypeRule implements Rule
         ],
         'json' => [
             "json() creates a json column, which PostgreSQL can't index or compare like jsonb.",
-            'Use jsonb() for JSON the database queries, indexes or validates, or text() for a value only read back whole.',
+            'Use jsonb() for JSON the database queries, indexes or validates, or text() for a value only read back whole. jsonb() uses the appropriate type for each database.',
         ],
     ];
 

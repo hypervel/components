@@ -7,6 +7,7 @@ namespace Hypervel\PHPStan\Rules;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\PHPStan\Concerns\InspectsConnections;
 use Hypervel\PHPStan\Reflection\ReflectionHelper;
+use Hypervel\PHPStan\Rules\Coroutine\CoroutineRuleHelper;
 use Hypervel\Support\Facades\DB;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
@@ -294,7 +295,7 @@ class ManagedTransactionRule implements Rule
         $written = [];
 
         foreach ($visitor->targets as $target) {
-            foreach ($this->getTargetLeaves($target) as $leaf) {
+            foreach (CoroutineRuleHelper::getTargetLeaves($target) as $leaf) {
                 $key = $leaf instanceof Variable && is_string($leaf->name) ? $leaf->name : $this->getPropertyWriteKey($leaf);
 
                 if ($key !== null) {

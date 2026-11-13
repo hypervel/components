@@ -1134,7 +1134,7 @@ Pass request values to the methods that use them, or keep them in [CoroutineCont
 - A static property written while handling a request or running a job, or one that keeps any of the values above. (`hypervel.staticStateMutation`)
 - An array on a static property or shared service whose keys come from the request or user, such as `$this->visits[$request->ip()]`, since it can grow for as long as the worker runs. Use a cache store with an expiry instead. Keys limited to a small set of values, such as booleans or constants, are not reported, and neither is an array the same method has just reset. When the array is bounded in a way the analysis cannot see, ignore the diagnostic with a reason. (`hypervel.unboundedWorkerCache`)
 
-Request and job checks cover middleware, controller actions, route closures, form requests, and queued classes' `handle`, `__invoke` and `failed` methods. They also cover listeners and [passive observers](/docs/{{version}}/events#passive-observers) for framework request, routing and queue job events, including wildcard ones whose pattern matches those events. Queued listeners and queued Eloquent observers are checked as jobs. A queued listener using `InteractsWithQueue` handles each job on its own copy, so its handler and the helpers it calls may replace its properties and write into the arrays and strings they hold. The copy shares objects such as collections with the shared instance, so changes made through them are still checked. So are inherited methods that a shared instance of the parent class, or of another subclass, also runs. Its `failed`, `shouldQueue`, `uniqueVia` and `debounceVia` methods run on the shared instance, so they and the helpers they call are still checked.
+Request and job checks cover middleware, controller actions, route closures, form requests, and queued classes' `handle`, `__invoke` and `failed` methods. They also cover listeners and [passive observers](/docs/{{version}}/events#passive-observers) for framework request, routing and queue job events, including wildcard ones whose pattern matches those events. Queued listeners and queued Eloquent observers are checked as jobs. A queued listener using `InteractsWithQueue` handles each job on its own copy, so its handler and the helpers it calls may replace its properties and write into the arrays and strings they hold. The copy shares objects such as collections with the shared instance, so changes made through them are still checked. So are inherited methods that a shared instance of the parent class, or of another subclass, also runs. Its `failed`, `shouldQueue`, `uniqueVia` and `debounceVia` methods run on the shared instance, so they and the helpers they call are still checked. A change made through an object the handler has just put in a property is still reported, so ignore a safe one with a reason.
 
 Listeners for server events such as `OnReceive` and `OnClose`, and Eloquent observers registered using `observe` or `ObservedBy`, are checked as operations. These handlers can run outside HTTP requests and queued jobs. The checks also follow calls to helper methods on `$this`. Nested closures are not checked because they may run later.
 
@@ -1253,7 +1253,9 @@ use Hypervel\Container\Attributes\BindWhen;
 #[BindWhen(
     AdminDashboard::class,
     // Reported: this choice depends on the current request.
-    static fn (): bool => request()->is('admin/*'),
+    static function (): bool {
+        return request()->is('admin/*');
+    },
 )]
 interface Dashboard
 {
@@ -1448,7 +1450,7 @@ Until the dump is fixed, the tables it defines are unknown, so their attributes 
 <a name="migration-column-types"></a>
 ### Migration Column Types
 
-For JSON that the database queries, indexes or validates, use [`jsonb`](/docs/{{version}}/migrations#column-method-jsonb). PostgreSQL's `json` type does not support the same indexing and comparisons:
+For JSON that the database queries, indexes or validates, use [`jsonb`](/docs/{{version}}/migrations#column-method-jsonb), which uses the appropriate type for each database. PostgreSQL's `json` type does not support the same indexing and comparisons:
 
 ```php
 Schema::create('flights', function (Blueprint $table) {

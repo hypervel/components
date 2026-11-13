@@ -343,6 +343,22 @@ class OrderedEscapes
             };
             $store();
         });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = null;
+            $inner = function () use (&$client) {
+                return $client?->get('key');
+            };
+            $task = function () use ($inner) {
+                return $inner();
+            };
+            $inner = static fn () => null;
+            $client = $connection->client();
+            go($task);
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $items = [$connection];
+            $this->items = &$items;
+        });
     }
 
     public function staysInside(RedisConnection $other): void
@@ -383,9 +399,68 @@ class OrderedEscapes
             $connection = $other;
             $store();
         });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = $connection->client();
+            $inner = function () use (&$client) {
+                return $client?->get('key');
+            };
+            $task = function () use ($inner) {
+                return $inner();
+            };
+            $client = null;
+            go($task);
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($other) {
+            $alias = &$connection;
+            $connection = $other;
+
+            return $alias;
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($other) {
+            $alias = &$connection;
+            $second = &$alias;
+            $connection = $other;
+
+            return $second;
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($other) {
+            $store = function () use (&$connection) {
+                $this->items = [$connection];
+            };
+            $alias = &$connection;
+            $alias = $other;
+            $store();
+        });
     }
 
     private function consume(array $items): void
     {
+    }
+}
+
+class ReferencedOwners
+{
+    public function __construct(
+        private PdoConnection $database,
+        private PdoConnection $replica,
+    ) {
+    }
+
+    public function pins(): void
+    {
+        $connection = $this->database;
+
+        $connection->withPinnedSession(function () use ($connection) {
+            $alias = &$connection;
+            $alias = $this->replica;
+
+            return $connection->getPdo();
+        });
+        $this->database->withPinnedSession(function () {
+            $alias = &$this->database;
+            $alias = $this->replica;
+
+            return $this->database->getPdo();
+        });
     }
 }

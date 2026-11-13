@@ -45,6 +45,7 @@ use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\OtherConsumer;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\OverridingRecordingController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ReportController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ReportEvent;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\RepositoryPropertyController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ScopedBoundService;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ScopedController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ScopedHelperController;
@@ -57,6 +58,7 @@ use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\ClonedEvent;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\ClonedListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\CollectingListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\JobListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\ObservingClonedListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\Post;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\ProviderObserver;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\QueuedListener;
@@ -227,6 +229,7 @@ class WorkerStateRuleTest extends RuleTestCase
             $jobWrite('CollectingListener', 'count', 'values', 324),
             $request('Registry', 'request', 337),
             $request('BaseRegistry', 'request', 363),
+            $request('ObservingClonedListener', 'request', 395),
         ]);
     }
 
@@ -299,6 +302,7 @@ class WorkerStateRuleTest extends RuleTestCase
                 $sharedWrite('HelperController', 'track', 'tracked', 750),
                 $sharedWrite('OverridingRecordingController', 'record', 'overridden', 812),
                 $sharedWrite('LexicalParentController', 'resolve', 'resolved', 830),
+                $sharedWrite('RepositoryPropertyController', 'update', 'settings', 914),
             ],
             'static' => [
                 [sprintf(self::STATIC_STATE, self::NAMESPACE . 'SharedService', 'current', 'the current request'), 87, self::STATIC_TIP],
@@ -306,6 +310,7 @@ class WorkerStateRuleTest extends RuleTestCase
                 $staticWrite('StoreReportRequest', 'validated', self::REQUEST, 588),
                 $staticWrite('ProcessReport', 'runs', self::JOB, 603),
                 $staticWrite('RebuildReport', 'rebuilt', self::JOB, 857),
+                $staticWrite('RepositoryPropertyController', 'defaults', self::REQUEST, 913),
             ],
             'cache' => [
                 $cache('Property', 'SharedService', 'visits', 88),
@@ -385,6 +390,7 @@ class WorkerStateRuleTest extends RuleTestCase
         $router->get('/scoped-helpers', [ScopedHelperController::class, 'index']);
         $router->get('/records', [BaseRecordingController::class, 'index']);
         $router->get('/lexical', [LexicalChildController::class, 'index']);
+        $router->get('/settings', [RepositoryPropertyController::class, 'update']);
 
         $events->listen(ReportEvent::class, SendReportListener::class);
         $events->listen(RequestReceived::class, RequestListener::class);
@@ -398,6 +404,9 @@ class WorkerStateRuleTest extends RuleTestCase
         $events->listen(ClonedEvent::class, CollectingListener::class);
         $events->listen(ClonedEvent::class, RegistryListener::class);
         $events->listen(ClonedEvent::class, BaseRegistryListener::class);
+        $events->listen(ClonedEvent::class, ObservingClonedListener::class);
+        // An application event has no known operation, but the observer still runs on the shared instance.
+        $events->observe('listeners.audited', ObservingClonedListener::class);
         $bus->map([MappedCommand::class => MappedHandler::class]);
 
         $container->bind(BoundFreshService::class);

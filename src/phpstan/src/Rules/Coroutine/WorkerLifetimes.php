@@ -834,7 +834,9 @@ class WorkerLifetimes
             }
         }
 
-        if ($context !== null && $receiver->hasNativeMethod($method)) {
+        // A visit with no known operation still records that the method runs, such as a passive observer
+        // of an application event running directly on the shared instance.
+        if ($receiver->hasNativeMethod($method)) {
             $declaringClass = $receiver->getNativeMethod($method)->getDeclaringClass()->getName();
 
             $this->addContext($receiver->getName(), $declaringClass, $method, $context, $shared, $cloned);

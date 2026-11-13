@@ -106,6 +106,7 @@ use function array_all;
 use function array_any;
 use function array_filter;
 use function array_slice;
+use function array_values;
 use function count;
 use function end;
 use function in_array;
@@ -503,11 +504,12 @@ class SwallowedCancellationCollector implements Collector
         // it as their previous exception. A nested catch binding the same name replaces it too.
         $writes = $this->coroutineRuleHelper->find(
             $statements,
-            fn (Node $node): bool => $this->coroutineRuleHelper->assigns($node, $variable) || ($node instanceof Catch_ && $node->var?->name === $variable),
+            fn (Node $node): bool => $this->coroutineRuleHelper->assigns($node, $variable),
         );
 
         foreach ($writes as $write) {
             if (! $write instanceof Assign
+                || ! $write->var instanceof Variable
                 || ! array_any($statements, static fn (Stmt $statement): bool => $statement instanceof Expression && $statement->expr === $write)
                 || ! $this->wraps($write->expr, $variable, $scope)
             ) {
@@ -542,7 +544,7 @@ class SwallowedCancellationCollector implements Collector
 
         // Coroutine::causedByCancellation() stops at a foreign cancellation, so wrapping in one hides it.
         return ! $exception->is(ForeignCancellationException::class)
-            && $this->forwardsAsPrevious($exception, $expr->getArgs(), $variable);
+            && $this->forwardsAsPrevious($exception, $expr->getArgs(), [$variable]);
     }
 
     /**
@@ -631,13 +633,14 @@ class SwallowedCancellationCollector implements Collector
     }
 
     /**
-     * Determine whether the constructor the arguments are passed to makes the variable the previous
-     * exception: it binds to a native constructor's $previous, or an overriding constructor passes the
-     * parameter it binds to on to parent::__construct() as the previous exception.
+     * Determine whether the constructor the arguments are passed to makes one of the variables the previous
+     * exception: one binds to a native constructor's $previous, or an overriding constructor passes a
+     * parameter one binds to on to parent::__construct() as the previous exception.
      *
      * @param array<Arg> $args
+     * @param list<string> $variables
      */
-    private function forwardsAsPrevious(ClassReflection $exception, array $args, string $variable): bool
+    private function forwardsAsPrevious(ClassReflection $exception, array $args, array $variables): bool
     {
         if (! $exception->hasConstructor()) {
             return false;
@@ -645,26 +648,29 @@ class SwallowedCancellationCollector implements Collector
 
         $constructor = $exception->getConstructor();
         $parameters = $constructor->getOnlyVariant()->getParameters();
-        $parameter = null;
+        $bound = [];
 
         foreach ($args as $position => $argument) {
+            // An unpacked argument makes the bindings after it unknown.
             if ($argument->unpack) {
-                return false;
+                break;
             }
 
-            if ($argument->value instanceof Variable && $argument->value->name === $variable) {
+            if ($argument->value instanceof Variable && in_array($argument->value->name, $variables, true)) {
                 $parameter = $argument->name?->toString() ?? ($parameters[$position] ?? null)?->getName();
 
-                break;
+                if ($parameter !== null) {
+                    $bound[] = $parameter;
+                }
             }
         }
 
-        if ($parameter === null) {
+        if ($bound === []) {
             return false;
         }
 
         if ($constructor->getDeclaringClass()->isBuiltin()) {
-            return $parameter === 'previous';
+            return in_array('previous', $bound, true);
         }
 
         [$constructorNode, $declaringClass] = $this->constructorParser->findConstructor($exception) ?? [null, null];
@@ -676,7 +682,7 @@ class SwallowedCancellationCollector implements Collector
 
         $statements = $constructorNode->stmts ?? [];
 
-        // Only a top-level parent::__construct() runs on every construction, and the parameter must reach it
+        // Only a top-level parent::__construct() runs on every construction, and a parameter must reach it
         // unchanged, with no return before it.
         foreach ($statements as $statement) {
             $call = $statement instanceof Expression ? $statement->expr : null;
@@ -690,13 +696,16 @@ class SwallowedCancellationCollector implements Collector
                 continue;
             }
 
-            $earlier = $this->coroutineRuleHelper->find(
-                $statements,
-                fn (Node $node): bool => $node->getStartFilePos() < $call->getStartFilePos()
-                    && ($node instanceof Return_ || $this->coroutineRuleHelper->assigns($node, $parameter)),
+            $unchanged = array_filter(
+                $bound,
+                fn (string $parameter): bool => $this->coroutineRuleHelper->find(
+                    $statements,
+                    fn (Node $node): bool => $node->getStartFilePos() < $call->getStartFilePos()
+                        && ($node instanceof Return_ || $this->coroutineRuleHelper->assigns($node, $parameter)),
+                ) === [],
             );
 
-            return $earlier === [] && $this->forwardsAsPrevious($parent, $call->getArgs(), $parameter);
+            return $unchanged !== [] && $this->forwardsAsPrevious($parent, $call->getArgs(), array_values($unchanged));
         }
 
         return false;
@@ -823,8 +832,8 @@ class SwallowedCancellationCollector implements Collector
             } elseif ($consumed && isset(self::LAZY_QUERIES[$declaringClass][$lowercase])) {
                 $classOperation = self::DATABASE;
             } elseif (! isset($methods[$lowercase])
-                // Sleep::then() sleeps through goodnight(), which a subclass may override.
-                || ($declaringClass === Sleep::class && ! $this->runsFrameworkSleep($class, ['goodnight']))
+                // Sleep::then() sleeps through goodnight(), which a subclass may override, or its constructor may turn off.
+                || ($declaringClass === Sleep::class && ! $this->runsFrameworkSleep($class, ['__construct', 'goodnight']))
             ) {
                 $classOperation = null;
             }
@@ -846,20 +855,19 @@ class SwallowedCancellationCollector implements Collector
      */
     private function sleepsWhenDiscarded(Expr $expr, Scope $scope): bool
     {
-        // The creating method, the fluent methods, the destructor and the sleep it runs must all be the framework's.
-        $methods = ['__destruct', 'goodnight'];
+        // The creating method, the constructor, the fluent methods, the destructor and the sleep it runs must all
+        // be the framework's. The factories build with new static, so a subclass's constructor runs there too.
+        $methods = ['__construct', '__destruct', 'goodnight'];
         $root = $expr;
 
-        while ($root instanceof MethodCall && $root->name instanceof Identifier) {
+        while (($root instanceof MethodCall || $root instanceof NullsafeMethodCall) && $root->name instanceof Identifier) {
             $methods[] = $root->name->toString();
             $root = $root->var;
         }
 
-        if ($root instanceof New_) {
-            $methods[] = '__construct';
-        } elseif ($root instanceof StaticCall && $root->name instanceof Identifier && isset(self::SLEEP_FACTORIES[$root->name->toLowerString()])) {
+        if ($root instanceof StaticCall && $root->name instanceof Identifier && isset(self::SLEEP_FACTORIES[$root->name->toLowerString()])) {
             $methods[] = $root->name->toString();
-        } else {
+        } elseif (! $root instanceof New_) {
             return false;
         }
 

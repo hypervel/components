@@ -11,8 +11,6 @@ use Hypervel\Database\PdoConnection;
 use Hypervel\PHPStan\Reflection\ReflectionHelper;
 use Hypervel\Support\Facades\DB;
 use PhpParser\Node\Expr;
-use PhpParser\Node\Expr\Array_;
-use PhpParser\Node\Expr\List_;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\PropertyFetch;
 use PhpParser\Node\Expr\StaticCall;
@@ -94,30 +92,6 @@ trait InspectsConnections
             && $target->name instanceof Identifier
                 ? 'this->' . $target->name->toString()
                 : null;
-    }
-
-    /**
-     * Get the targets a write assigns, such as variables and properties, through destructuring.
-     *
-     * @return list<Expr>
-     */
-    private function getTargetLeaves(?Expr $target): array
-    {
-        if ($target === null) {
-            return [];
-        }
-
-        if (! $target instanceof List_ && ! $target instanceof Array_) {
-            return [$target];
-        }
-
-        $leaves = [];
-
-        foreach ($target->items as $item) {
-            $leaves = [...$leaves, ...$this->getTargetLeaves($item?->value)];
-        }
-
-        return $leaves;
     }
 
     /**

@@ -174,10 +174,9 @@ class RequestDependentBindingRule implements Rule
      */
     private function findRequestRead(Expr $condition, Scope $scope): ?int
     {
-        if ($condition instanceof Closure || $condition instanceof ArrowFunction) {
-            $nodes = $condition instanceof ArrowFunction ? [$condition->expr] : $condition->stmts;
-
-            return $this->findRead($nodes, $this->getContainerVariable($condition->params), $scope)?->getStartLine();
+        // PHP allows only static closures and first-class callables in attributes, not arrow functions.
+        if ($condition instanceof Closure) {
+            return $this->findRead($condition->stmts, $this->getContainerVariable($condition->params), $scope)?->getStartLine();
         }
 
         // A named method can itself be the read, such as Auth::check(...).

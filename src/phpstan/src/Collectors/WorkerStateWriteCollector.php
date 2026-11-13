@@ -102,11 +102,12 @@ class WorkerStateWriteCollector implements Collector
         $cacheKey = false;
         $storage = $scope->getType($fetch);
 
-        // An offset write on a configuration repository changes configuration, as its set() does, which
-        // noRuntimeConfigMutation owns.
+        // An offset write on a property WorkerStateConfigOffsetCollector recognizes as the global repository
+        // changes configuration, as its set() does, which noRuntimeConfigMutation owns. Other repository
+        // properties are ordinary object properties.
         // @phpstan-ignore phpstanApi.class (The offset chain PHPStan builds inside a property write.), phpstanApi.class (The offset chain PHPStan builds inside a property write.), phpstanApi.class (The offset chain PHPStan builds inside a property write.)
         if (($value instanceof SetOffsetValueTypeExpr || $value instanceof SetExistingOffsetValueTypeExpr || $value instanceof UnsetOffsetExpr)
-            && $this->helper->isConfigRepositoryType($storage)) {
+            && $this->helper->getConfigReceiver($fetch, $scope) !== null) {
             return null;
         }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\PHPStan\Rules\Coroutine\SwallowedCancellations;
 
+use DateInterval;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Coroutine\Coroutine;
@@ -629,5 +630,68 @@ class SyncImportJob implements ShouldQueue
         } catch (Throwable) {
             return;
         }
+
+        try {
+            DB::select('select 1');
+        } catch (Throwable $exception) {
+            foreach ([new RuntimeException('Import failed.')] as $exception) {
+                report($exception);
+            }
+
+            throw $exception;
+        }
+
+        try {
+            DB::select('select 1');
+        } catch (Throwable $exception) {
+            throw new DestructuredCause($exception);
+        }
+
+        try {
+            DB::select('select 1');
+        } catch (Throwable $exception) {
+            throw new RepeatedCause($exception, 'Import failed.', $exception);
+        }
+
+        try {
+            Sleep::for(1)?->second();
+        } catch (Throwable) {
+            return;
+        }
+
+        try {
+            QuietSleep::for(1)->second();
+            QuietSleep::for(1)->then(static fn (): null => null);
+        } catch (Throwable) {
+            return;
+        }
+    }
+}
+
+class DestructuredCause extends RuntimeException
+{
+    public function __construct(Throwable $previous)
+    {
+        [$previous] = [new RuntimeException('Hidden.')];
+
+        parent::__construct('Import failed.', 0, $previous);
+    }
+}
+
+class RepeatedCause extends RuntimeException
+{
+    public function __construct(Throwable $cause, string $message, ?Throwable $previous = null)
+    {
+        parent::__construct($message, 0, $previous);
+    }
+}
+
+class QuietSleep extends Sleep
+{
+    public function __construct(DateInterval|float|int $duration)
+    {
+        parent::__construct($duration);
+
+        $this->shouldSleep = false;
     }
 }

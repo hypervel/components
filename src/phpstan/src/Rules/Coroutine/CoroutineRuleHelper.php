@@ -9,6 +9,7 @@ use Hypervel\Coroutine\Coroutine;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr;
+use PhpParser\Node\Expr\Array_;
 use PhpParser\Node\Expr\Assign;
 use PhpParser\Node\Expr\AssignOp;
 use PhpParser\Node\Expr\AssignOp\Coalesce;
@@ -16,6 +17,7 @@ use PhpParser\Node\Expr\AssignRef;
 use PhpParser\Node\Expr\BooleanNot;
 use PhpParser\Node\Expr\CallLike;
 use PhpParser\Node\Expr\FuncCall;
+use PhpParser\Node\Expr\List_;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\New_;
 use PhpParser\Node\Expr\NullsafeMethodCall;
@@ -29,6 +31,7 @@ use PhpParser\Node\Stmt;
 use PhpParser\Node\Stmt\Catch_;
 use PhpParser\Node\Stmt\ClassLike;
 use PhpParser\Node\Stmt\Expression;
+use PhpParser\Node\Stmt\Foreach_;
 use PhpParser\Node\Stmt\If_;
 use PhpParser\Node\Stmt\TryCatch;
 use PhpParser\Node\VariadicPlaceholder;
@@ -138,13 +141,43 @@ class CoroutineRuleHelper
     }
 
     /**
-     * Determine whether the node assigns the variable directly: =, =& or a compound assignment.
+     * Determine whether the node writes the variable: =, =& or a compound assignment, including through
+     * destructuring, a foreach key or value, or a catch binding.
      */
     public function assigns(Node $node, string $variable): bool
     {
-        return ($node instanceof Assign || $node instanceof AssignRef || $node instanceof AssignOp)
-            && $node->var instanceof Variable
-            && $node->var->name === $variable;
+        $targets = match (true) {
+            $node instanceof Assign, $node instanceof AssignRef, $node instanceof AssignOp => self::getTargetLeaves($node->var),
+            $node instanceof Foreach_ => [...self::getTargetLeaves($node->keyVar), ...self::getTargetLeaves($node->valueVar)],
+            $node instanceof Catch_ => self::getTargetLeaves($node->var),
+            default => [],
+        };
+
+        return array_any($targets, static fn (Expr $target): bool => $target instanceof Variable && $target->name === $variable);
+    }
+
+    /**
+     * Get the targets a write assigns, such as variables and properties, through destructuring.
+     *
+     * @return list<Expr>
+     */
+    public static function getTargetLeaves(?Expr $target): array
+    {
+        if ($target === null) {
+            return [];
+        }
+
+        if (! $target instanceof List_ && ! $target instanceof Array_) {
+            return [$target];
+        }
+
+        $leaves = [];
+
+        foreach ($target->items as $item) {
+            $leaves = [...$leaves, ...self::getTargetLeaves($item?->value)];
+        }
+
+        return $leaves;
     }
 
     /**

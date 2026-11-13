@@ -17,17 +17,17 @@ class Implementation
 {
 }
 
-#[BindWhen(Implementation::class, static fn (): bool => request()->is('api/*'))]
+#[BindWhen(Implementation::class, static function (): bool { return request()->is('api/*'); })]
 interface UsesRequestHelper
 {
 }
 
-#[BindWhen(Implementation::class, static fn (): bool => RequestFacade::is('api/*'))]
+#[BindWhen(Implementation::class, static function (): bool { return RequestFacade::is('api/*'); })]
 interface UsesRequestFacade
 {
 }
 
-#[BindWhen(Implementation::class, static fn (): bool => RequestContext::has())]
+#[BindWhen(Implementation::class, static function (): bool { return RequestContext::has(); })]
 interface UsesRequestContext
 {
 }
@@ -41,17 +41,17 @@ interface UsesAuthFacade
 {
 }
 
-#[BindWhen(Implementation::class, static fn (): bool => auth()->guard('web')->user() !== null)]
+#[BindWhen(Implementation::class, static function (): bool { return auth()->guard('web')->user() !== null; })]
 interface UsesGuard
 {
 }
 
-#[BindWhen(Implementation::class, static fn (Container $app): bool => $app->make(Request::class)->is('api/*'))]
+#[BindWhen(Implementation::class, static function (Container $app): bool { return $app->make(Request::class)->is('api/*'); })]
 interface ResolvesRequestAlias
 {
 }
 
-#[BindWhen(condition: static fn (): bool => app('request')->is('api/*'), concrete: Implementation::class)]
+#[BindWhen(condition: static function (): bool { return app('request')->is('api/*'); }, concrete: Implementation::class)]
 interface ResolvesRequestByName
 {
 }
@@ -66,12 +66,12 @@ interface UsesConditionFunction
 {
 }
 
-#[BindWhen(Implementation::class, static fn (): bool => Auth::getDefaultDriver() === 'web')]
+#[BindWhen(Implementation::class, static function (): bool { return Auth::getDefaultDriver() === 'web'; })]
 interface ReadsAuthConfiguration
 {
 }
 
-#[BindWhen(Implementation::class, static fn (Container $app): bool => $app->make('config')->get('app.env') === 'production')]
+#[BindWhen(Implementation::class, static function (Container $app): bool { return $app->make('config')->get('app.env') === 'production'; })]
 interface ReadsConfiguration
 {
 }
@@ -81,12 +81,12 @@ interface UsesBootStableMethod
 {
 }
 
-#[BindWhen(Implementation::class, static fn (): bool => RequestFacade::hasMacro('feature'))]
+#[BindWhen(Implementation::class, static function (): bool { return RequestFacade::hasMacro('feature'); })]
 interface ReadsRequestMacros
 {
 }
 
-#[BindWhen(Implementation::class, static fn (): bool => BootRequestContext::has() || BootAuth::check() || BootAuth::guard()->check())]
+#[BindWhen(Implementation::class, static function (): bool { return BootRequestContext::has() || BootAuth::check() || BootAuth::guard()->check(); })]
 interface UsesOverridingReaders
 {
 }
@@ -105,7 +105,7 @@ interface UsesLocalFunctionInAnotherNamespace
 {
 }
 
-#[BindWhen(Implementation::class, static fn (): bool => array_any(['api/*', 'v2/*'], static fn (string $pattern): bool => request()->is($pattern)))]
+#[BindWhen(Implementation::class, static function (): bool { return array_any(['api/*', 'v2/*'], static fn (string $pattern): bool => request()->is($pattern)); })]
 interface ReadsInCallback
 {
 }
@@ -125,10 +125,10 @@ interface CapturesContainer
 {
 }
 
-#[BindWhen(Implementation::class, static fn (Container $app): bool => array_any(
+#[BindWhen(Implementation::class, static function (Container $app): bool { return array_any(
     [new ContainerImplementation],
     static fn (ContainerImplementation $app): bool => $app->make('request')->is('api/*'),
-))]
+); })]
 interface ShadowsContainer
 {
 }
@@ -222,7 +222,7 @@ abstract class SelectsWithParentMethod extends SelectsWithOwnMethod
 {
 }
 
-#[BindWhen(Implementation::class, static fn (): bool => RoutedAuth::check() || RoutedAuth::guard()->check() || RoutedRequest::is('api/*'))]
+#[BindWhen(Implementation::class, static function (): bool { return RoutedAuth::check() || RoutedAuth::guard()->check() || RoutedRequest::is('api/*'); })]
 interface UsesFacadesWithOwnForwarding
 {
 }
@@ -241,4 +241,13 @@ class RoutedRequest extends RequestFacade
     {
         return false;
     }
+}
+
+#[BindWhen(Implementation::class, static function (Container $app): bool {
+    [$app] = [new ContainerImplementation];
+
+    return $app->make('request')->is('api/*');
+})]
+interface DestructuresContainer
+{
 }
