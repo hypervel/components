@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Engine;
 
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Engine\SocketInterface;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Exceptions\SocketClosedException;
@@ -11,7 +13,9 @@ use Hypervel\Engine\Exceptions\SocketConnectException;
 use Hypervel\Engine\SafeSocket;
 use Hypervel\Engine\Socket;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use Psr\Log\LoggerInterface;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine as SwooleCoroutine;
@@ -363,6 +367,42 @@ class SocketTest extends TestCase
         );
     }
 
+    public function testSafeSocketClosesAndReportsWhenItsLoggerFails(): void
+    {
+        $sendFailure = new RuntimeException('Send failed.');
+        $loggingFailure = new RuntimeException('Logging failed.');
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldReceive('report')->once()->with($loggingFailure);
+        $container = new Container;
+        $container->instance(ExceptionHandler::class, $handler);
+        Container::setInstance($container);
+        $logger = m::mock(LoggerInterface::class);
+        $logger->shouldReceive('critical')->once()->with((string) $sendFailure)->andThrow($loggingFailure);
+        $nativeSocket = new FailingSendSocket($sendFailure);
+        $socket = new SafeSocket($nativeSocket, logger: $logger);
+        /** @var Channel $channel */
+        $channel = (new ReflectionProperty($socket, 'channel'))->getValue($socket);
+        $loop = new ReflectionProperty($socket, 'loop');
+
+        try {
+            $socket->sendAll('payload');
+
+            $deadline = hrtime(true) + 500_000_000;
+
+            while ($loop->getValue($socket) === true && hrtime(true) < $deadline) {
+                usleep(100);
+            }
+
+            $this->assertFalse($loop->getValue($socket));
+            $this->assertTrue($channel->isClosing());
+
+            // Closing an already closed native socket fails.
+            $this->assertFalse($nativeSocket->close());
+        } finally {
+            $nativeSocket->close();
+        }
+    }
+
     public function testSafeSocketPreservesAZeroStringPayload(): void
     {
         $nativeSocket = new ZeroPayloadSocket;
@@ -505,6 +545,19 @@ class SocketTest extends TestCase
         }
 
         $this->assertFalse($loop->getValue($socket));
+    }
+}
+
+class FailingSendSocket extends SwooleSocket
+{
+    public function __construct(private Throwable $failure)
+    {
+        parent::__construct(AF_INET, SOCK_STREAM, 0);
+    }
+
+    public function sendAll(string $data, float $timeout = 0): false|int
+    {
+        throw $this->failure;
     }
 }
 
