@@ -69,9 +69,13 @@ class ProcessResultTest extends TestCase
      */
     private function processResultFor(array $payload): ProcessResult
     {
+        $key = 'test-envelope-key';
+        $encoded = base64_encode(json_encode($payload, JSON_THROW_ON_ERROR));
+        $signature = hash_hmac('sha256', $encoded, $key);
         $process = m::mock(Process::class);
-        $process->shouldReceive('getOutput')->once()->andReturn(json_encode($payload, JSON_THROW_ON_ERROR));
+        $process->shouldReceive('getOutput')->once()->andReturn("\n@@HYPERVEL-CONCURRENCY-V1@@{$encoded}@@{$signature}@@\n");
+        $process->shouldReceive('getEnv')->once()->andReturn(['HYPERVEL_CONCURRENCY_HMAC_KEY' => $key]);
 
-        return new ProcessResult($process, static fn () => null);
+        return new ProcessResult($process, static fn (): null => null);
     }
 }

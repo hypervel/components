@@ -92,7 +92,10 @@ final class ProcessResult
             return $output;
         }
 
-        return SerializedClosureResult::decode($output);
+        return SerializedClosureResult::decode(SerializedClosureResult::parseEnvelope(
+            $output,
+            $this->process->getEnv()[SerializedClosureResult::KEY_ENVIRONMENT_VARIABLE],
+        ));
     }
 
     /**
