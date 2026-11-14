@@ -592,7 +592,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile a primary key command.
      */
-    public function compilePrimary(Blueprint $blueprint, Fluent $command): ?string
+    public function compilePrimary(Blueprint $blueprint, Fluent $command): null
     {
         // Handled on table creation or alteration...
         return null;
