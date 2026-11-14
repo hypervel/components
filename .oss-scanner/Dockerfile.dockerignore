@@ -1,0 +1,14 @@
+.cache
+.tmp
+.phpunit*
+/phpunit.xml
+testing
+**/vendor
+**/node_modules
+**/composer.lock
+**/.env
+**/.env.*
+!**/.env.example
+
+# Test fixtures intentionally include vendor metadata, lockfiles and environment files.
+!tests/**
