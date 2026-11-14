@@ -18,24 +18,25 @@ class RelationResolverTest extends TestCase
         $first = new RelationResolverTestModel(['id' => 1]);
         $second = new RelationResolverTestModel(['id' => 2]);
 
-        $resolver = new RelationResolver('comments', fn () => RelationResolverTestResource::collection([$first, $second]));
+        $resources = RelationResolverTestResource::collection([$first, $second]);
+        $resolver = new RelationResolver('comments', fn () => $resources);
 
         $resolved = $resolver->handle(new RelationResolverTestModel);
 
-        $this->assertInstanceOf(EloquentCollection::class, $resolved);
-        $this->assertSame([$first, $second], $resolved->all());
+        $this->assertSame($resources->collection, $resolved);
         $this->assertSame(RelationResolverTestResource::class, $resolver->resourceClass());
     }
 
     public function testResolvesClosureReturningSingleResource(): void
     {
         $model = new RelationResolverTestModel(['id' => 1]);
+        $resource = new RelationResolverTestResource($model);
 
-        $resolver = new RelationResolver('author', fn () => new RelationResolverTestResource($model));
+        $resolver = new RelationResolver('author', fn () => $resource);
 
         $resolved = $resolver->handle(new RelationResolverTestModel);
 
-        $this->assertSame($model, $resolved);
+        $this->assertSame($resource, $resolved);
         $this->assertSame(RelationResolverTestResource::class, $resolver->resourceClass());
     }
 

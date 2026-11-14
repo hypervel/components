@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Http\Resources\JsonApi;
 
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Http\Resources\JsonApi\AnonymousResourceCollection;
 use Hypervel\Http\Resources\JsonApi\JsonApiRequest;
 use Hypervel\Support\Collection;
@@ -16,6 +17,9 @@ use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Profile;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Team;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\User;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\UserResource;
+use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\UserWithIdentifierMetaResource;
+use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\UserWithLazyTeamAttributeResource;
+use LogicException;
 use Override;
 use PHPUnit\Framework\Attributes\TestWith;
 
@@ -84,8 +88,6 @@ class JsonApiCollectionTest extends TestCase
 
     public function testItCanGenerateJsonApiResponseWithRelationshipsUsingSparseIncluded(): void
     {
-        $now = $this->freezeSecond();
-
         $users = User::factory()->times(4)->create();
         $user = User::factory()->create();
 
@@ -149,7 +151,6 @@ class JsonApiCollectionTest extends TestCase
                             'teams' => [
                                 'data' => [
                                     ['id' => (string) $team->getKey(), 'type' => 'teams'],
-                                    ['id' => (string) $team->getKey(), 'type' => 'teams'],
                                 ],
                             ],
                         ],
@@ -189,33 +190,139 @@ class JsonApiCollectionTest extends TestCase
                             'user_id' => $team->user_id,
                             'name' => 'Hypervel Team',
                             'personal_team' => true,
-                            'membership' => [
-                                'user_id' => $user->getKey(),
-                                'team_id' => $team->getKey(),
-                                'role' => 'Admin',
-                                'created_at' => $now->toISOString(),
-                                'updated_at' => $now->toISOString(),
-                            ],
-                        ],
-                    ],
-                    [
-                        'id' => (string) $team->getKey(),
-                        'type' => 'teams',
-                        'attributes' => [
-                            'user_id' => $team->user_id,
-                            'name' => 'Hypervel Team',
-                            'personal_team' => true,
-                            'membership' => [
-                                'user_id' => $user->getKey(),
-                                'team_id' => $team->getKey(),
-                                'role' => 'Member',
-                                'created_at' => $now->toISOString(),
-                                'updated_at' => $now->toISOString(),
-                            ],
                         ],
                     ],
                 ]
             );
+    }
+
+    #[TestWith([1])]
+    #[TestWith([0])]
+    public function testItIncludesIdenticalBelongsToManyResourcesOnce(int $identifier): void
+    {
+        $users = User::factory()->times(2)->create();
+
+        $team = Team::factory()->create([
+            'id' => $identifier,
+            'name' => 'Hypervel Team',
+        ]);
+
+        $users->each(fn ($user) => $user->teams()->attach($team, ['role' => 'Member']));
+
+        $this->getJson('/users?' . http_build_query(['include' => 'teams', 'fields' => ['teams' => 'name']]))
+            ->assertJsonPath('data.0.relationships.teams.data', [['id' => (string) $team->getKey(), 'type' => 'teams']])
+            ->assertJsonPath('data.1.relationships.teams.data', [['id' => (string) $team->getKey(), 'type' => 'teams']])
+            ->assertJsonPath('included', [
+                [
+                    'id' => (string) $team->getKey(),
+                    'type' => 'teams',
+                    'attributes' => [
+                        'name' => 'Hypervel Team',
+                    ],
+                ],
+            ]);
+    }
+
+    public function testItIncludesIdenticalBelongsToManyResourcesWithLazyAttributesOnce(): void
+    {
+        $users = User::factory()->times(2)->create();
+
+        $team = Team::factory()->create([
+            'name' => 'Hypervel Team',
+        ]);
+
+        $users->each(fn ($user) => $user->teams()->attach($team, ['role' => 'Member']));
+
+        Route::get('users-with-lazy-team-attributes', function (): AnonymousResourceCollection {
+            return UserWithLazyTeamAttributeResource::collection(User::all());
+        });
+
+        $this->getJson('/users-with-lazy-team-attributes?' . http_build_query(['include' => 'teams']))
+            ->assertOk()
+            ->assertJsonPath('included', [
+                [
+                    'id' => (string) $team->getKey(),
+                    'type' => 'teams',
+                    'attributes' => [
+                        'name' => 'Hypervel Team',
+                        'tags' => ['php'],
+                    ],
+                ],
+            ]);
+    }
+
+    public function testIdentifierMetadataPreservesEachAssociationWhenIncludedResourcesMerge(): void
+    {
+        [$administrator, $member] = User::factory()->count(2)->create();
+        $team = Team::factory()->create(['name' => 'Hypervel Team']);
+        $administrator->teams()->attach($team, ['role' => 'Admin']);
+        $member->teams()->attach($team, ['role' => 'Member']);
+
+        $data = UserWithIdentifierMetaResource::collection([$administrator, $member])
+            ->toResponse(JsonApiRequest::create('/?include=teams.users'))
+            ->getData(true);
+
+        $this->assertSame([
+            ['id' => (string) $team->getKey(), 'type' => 'teams', 'meta' => ['role' => 'Admin']],
+        ], $data['data'][0]['relationships']['teams']['data']);
+        $this->assertSame([
+            ['id' => (string) $team->getKey(), 'type' => 'teams', 'meta' => ['role' => 'Member']],
+        ], $data['data'][1]['relationships']['teams']['data']);
+        $this->assertSame([
+            [
+                'id' => (string) $team->getKey(),
+                'type' => 'teams',
+                'attributes' => ['name' => 'Hypervel Team'],
+                'relationships' => ['users' => ['data' => [
+                    ['id' => (string) $administrator->getKey(), 'type' => 'users', 'meta' => ['role' => 'Admin']],
+                    ['id' => (string) $member->getKey(), 'type' => 'users', 'meta' => ['role' => 'Member']],
+                ]]],
+            ],
+        ], $data['included']);
+        $this->assertSame('Admin', $administrator->getRelation('teams')->first()->getRelation('membership')->role);
+    }
+
+    public function testRepeatedAssociationsWithIdentifierMetadataAreRejectedAfterConstrainedLoading(): void
+    {
+        $user = User::factory()->create();
+        $team = Team::factory()->create();
+        $user->teams()->attach($team, ['role' => 'Admin']);
+        $user->teams()->attach($team, ['role' => 'Member']);
+        $user->load(['teams' => fn (BelongsToMany $query): BelongsToMany => $query->wherePivot('role', 'Admin')]);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Expose the associations as separate resources.');
+
+        (new UserWithIdentifierMetaResource($user))->toResponse(JsonApiRequest::create('/?include=teams.users'));
+    }
+
+    public function testPreviouslyLoadedManyToManyCyclesRetainOriginalModelIdentity(): void
+    {
+        $user = User::factory()->create();
+        $team = Team::factory()->create(['name' => 'Hypervel Team']);
+        $user->setRelation('teams', $user->newCollection([$team]));
+        $team->setRelation('users', $team->newCollection([$user]));
+        $request = JsonApiRequest::create('/');
+        $resolutions = 0;
+        $request->attributes->set('jsonapi.resolutionGuard', function () use (&$resolutions): void {
+            $this->assertLessThan(3, ++$resolutions, 'The included-resource walk did not stop at a visited model.');
+        });
+
+        $data = (new UserWithIdentifierMetaResource($user))
+            ->includePreviouslyLoadedRelationships()
+            ->toResponse($request)
+            ->getData(true);
+
+        $this->assertSame([
+            [
+                'id' => (string) $team->getKey(),
+                'type' => 'teams',
+                'attributes' => ['name' => 'Hypervel Team'],
+                'relationships' => ['users' => ['data' => [
+                    ['id' => (string) $user->getKey(), 'type' => 'users'],
+                ]]],
+            ],
+        ], $data['included']);
     }
 
     public function testItEagerLoadsIncludesForAllResourcesAtOnce(): void

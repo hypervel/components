@@ -144,6 +144,14 @@ class JsonApiResource extends JsonResource
     }
 
     /**
+     * Get metadata for this resource's relationship identifier.
+     */
+    public function toIdentifierMeta(Request $request): array
+    {
+        return [];
+    }
+
+    /**
      * Get any additional data that should be returned with the resource array.
      */
     #[Override]

@@ -17,6 +17,8 @@ Hypervel creates requests from Swoole's server request instead of `Request::capt
 
 JSON:API resources load requested relationships before attribute callbacks run; default attributes exclude reserved fields and declared relationship names. See the [porting guide](https://hypervel.org/docs/porting-from-laravel#jsonapi-resources).
 
+JSON:API resources and relationship identifiers are unique by type and ID. Expose pivot data through `toIdentifierMeta()`; represent repeated associations as separate resources. `loadedRelationshipsMap` is protected internal state, and Laravel's `includedResourceHash()` hook is not provided. See [relationship identifier metadata](https://hypervel.org/docs/eloquent-resources#jsonapi-identifier-meta).
+
 Laravel's `Http::pool()` and `Http::batch()` APIs are intentionally not ported. They are built around Guzzle promise concurrency, while Hypervel uses Swoole coroutine-native concurrency through `parallel`, `Hypervel\Coroutine\Parallel`, and `defer`. See the [concurrent requests documentation](https://hypervel.org/docs/http-client#concurrent-requests).
 
 Pending Guzzle promises and active cURL multi-handlers belong to the coroutine that created their work. Create and finish each operation in that coroutine, then share completed results. See [Guzzle promises](https://hypervel.org/docs/http-client#guzzle-promises).
