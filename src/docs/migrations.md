@@ -90,6 +90,8 @@ When prohibited, `schema:dump` exits without dumping the schema or pruning migra
 > [!WARNING]
 > Migration squashing is only available for the MariaDB, MySQL, PostgreSQL, and SQLite databases and utilizes the database's command-line client.
 
+For MySQL 26 or later, use MySQL's own command-line tools for schema dumps. MariaDB's dump client currently sends unsupported statements to these servers.
+
 <a name="schema-dump-tls"></a>
 #### TLS Connections
 
