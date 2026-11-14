@@ -967,7 +967,7 @@ class Arr
      * If no key is given to the method, the entire array will be replaced.
      *
      * @param-out ($key is null ? ($value is ArrayAccess ? ArrayAccess : array) : ($array is array ? array : ArrayAccess)) $array
-     * @return ($key is null ? ($value is ArrayAccess ? ArrayAccess : array) : ($array is array ? array : array|ArrayAccess))
+     * @return ($key is null ? ($value is ArrayAccess ? ArrayAccess : array) : array|ArrayAccess)
      */
     public static function set(ArrayAccess|array &$array, string|int|float|null $key, mixed $value): ArrayAccess|array
     {
@@ -980,12 +980,15 @@ class Arr
             [$segment, $path] = explode('.', (string) $key, 2);
             $nested = $array[$segment] ?? null;
 
-            if (! is_array($nested)) {
+            if (! static::accessible($nested)) {
                 $nested = [];
             }
 
             $result = static::set($nested, $path, $value);
-            $array[$segment] = $nested;
+
+            if (is_array($nested)) {
+                $array[$segment] = $nested;
+            }
 
             return $result;
         }
@@ -1002,8 +1005,13 @@ class Arr
             // If the key doesn't exist at this depth, we will just create an empty array
             // to hold the next value, allowing us to create the arrays to hold final
             // values at the correct depth. Then we'll keep digging into the array.
-            if (! isset($array[$key]) || ! is_array($array[$key])) {
+            if (! isset($array[$key]) || ! static::accessible($array[$key])) {
                 $array[$key] = [];
+            }
+
+            if ($array[$key] instanceof ArrayAccess) {
+                // Preserve the child object's identity and other entries when updating its offsets.
+                return static::set($array[$key], implode('.', $keys), $value);
             }
 
             $array = &$array[$key];
@@ -1018,10 +1026,18 @@ class Arr
      * Push an item into an array using "dot" notation.
      *
      * @param-out ($array is array ? array : ArrayAccess) $array
-     * @return ($array is array ? array : array|ArrayAccess)
      */
     public static function push(ArrayAccess|array &$array, string|int|null $key, mixed ...$values): ArrayAccess|array
     {
+        if ($key === null && $array instanceof ArrayAccess) {
+            // Arr::array() only reads arrays, so append to an ArrayAccess root through its offsets.
+            foreach ($values as $value) {
+                $array[] = $value;
+            }
+
+            return $array;
+        }
+
         $target = static::array($array, $key, []);
 
         array_push($target, ...$values);

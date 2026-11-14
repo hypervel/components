@@ -26,6 +26,7 @@ use Hypervel\Tests\Support\Fixtures\TestStringBackedEnum;
 use Hypervel\Tests\Support\Fixtures\TestTraversableAndJsonSerializableObject;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use SortDirection;
 use stdClass;
@@ -131,6 +132,35 @@ class SupportArrTest extends TestCase
 
         $this->assertSame(['tags' => ['first']], Arr::push($array, 'missing.tags', 'first'));
         $this->assertSame(['tags' => ['first']], $array['missing']);
+    }
+
+    #[TestWith([false, Collection::class])]
+    #[TestWith([true, Collection::class])]
+    #[TestWith([false, ArrayObject::class])]
+    #[TestWith([true, ArrayObject::class])]
+    public function testPushPreservesNestedArrayAccess(bool $objectRoot, string $container): void
+    {
+        $profile = new $container(['tags' => ['php'], 'name' => 'Taylor']);
+        $array = ['profile' => $profile];
+
+        if ($objectRoot) {
+            $array = new $container($array);
+        }
+
+        $this->assertSame($profile, Arr::push($array, 'profile.tags', 'hypervel'));
+        $this->assertSame($profile, $array['profile']);
+        $this->assertSame(['php', 'hypervel'], $profile['tags']);
+        $this->assertSame('Taylor', $profile['name']);
+    }
+
+    #[TestWith([Collection::class])]
+    #[TestWith([ArrayObject::class])]
+    public function testPushAppendsToArrayAccessRoot(string $container): void
+    {
+        $array = new $container(['php']);
+
+        $this->assertSame($array, Arr::push($array, null, 'hypervel', 'symfony'));
+        $this->assertSame(['php', 'hypervel', 'symfony'], iterator_to_array($array));
     }
 
     public function testCollapse(): void
