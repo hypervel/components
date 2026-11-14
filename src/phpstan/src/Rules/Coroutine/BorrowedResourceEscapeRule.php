@@ -56,13 +56,17 @@ use PhpParser\Node\Name;
 use PhpParser\Node\StaticVar;
 use PhpParser\Node\Stmt\Catch_;
 use PhpParser\Node\Stmt\ClassLike;
+use PhpParser\Node\Stmt\Do_;
 use PhpParser\Node\Stmt\Expression;
+use PhpParser\Node\Stmt\For_;
 use PhpParser\Node\Stmt\Foreach_;
 use PhpParser\Node\Stmt\Function_;
 use PhpParser\Node\Stmt\Global_;
+use PhpParser\Node\Stmt\Goto_;
 use PhpParser\Node\Stmt\Return_;
 use PhpParser\Node\Stmt\Static_;
 use PhpParser\Node\Stmt\Unset_;
+use PhpParser\Node\Stmt\While_;
 use PhpParser\NodeFinder;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor;
@@ -91,6 +95,7 @@ use function class_basename;
 use function count;
 use function in_array;
 use function is_string;
+use function max;
 use function spl_object_id;
 use function sprintf;
 use function str_starts_with;
@@ -421,12 +426,14 @@ class BorrowedResourceEscapeRule implements Rule
                 $this->applyDetachments($nodes, $environment);
             }
 
+            $repeats = $this->repeatsWrites($nodes);
+
             // The environment before the statement, with its writes and nested detachments applied in node order up to
             // the walk's position, which a nested unset() rebuilds names from. Node order isn't proven execution order.
             $path = $environment;
             $pathPosition = 0;
 
-            $this->applyWrites($nodes, $reset[0] ?? null, $environment, $owners, $resource, $scope);
+            $this->applyWrites($nodes, $reset[0] ?? null, $repeats, $environment, $owners, $resource, $scope);
 
             // What each name a nested unset() rebuilt held before the rebuild.
             $unsetFacts = [];
@@ -445,12 +452,12 @@ class BorrowedResourceEscapeRule implements Rule
                 }
 
                 if (! $detaches && $rebound !== []) {
-                    $this->applyWrites(array_slice($nodes, $pathPosition, $position - $pathPosition), null, $path, $owners, $resource, $scope);
+                    $this->applyWrites(array_slice($nodes, $pathPosition, $position - $pathPosition), null, $repeats, $path, $owners, $resource, $scope);
                     // The detaching node's own write, such as `=&` giving the name another value, applies with the next
                     // segment, after its detachment.
                     $pathPosition = $position;
 
-                    $this->applyNestedDetachment($node, $rebound, array_slice($nodes, $position + 1), $path, $environment, $unsetFacts, $owners, $resource, $scope);
+                    $this->applyNestedDetachment($node, $rebound, array_slice($nodes, $position + 1), $repeats, $path, $environment, $unsetFacts, $owners, $resource, $scope);
                 }
 
                 if ($node instanceof Return_ && $isCallback && $node->expr !== null) {
@@ -836,7 +843,7 @@ class BorrowedResourceEscapeRule implements Rule
      * @param array<string, array{tracked: ?string, appended: ?string, callables: array<int, HeldClosure>}> $unsetFacts what each name a nested unset rebuilt held before its first rebuild
      * @param array<string, true> $owners
      */
-    private function applyNestedDetachment(Node $node, array $names, array $later, array &$path, array &$environment, array &$unsetFacts, array $owners, string $resource, Scope $scope): void
+    private function applyNestedDetachment(Node $node, array $names, array $later, bool $repeats, array &$path, array &$environment, array &$unsetFacts, array $owners, string $resource, Scope $scope): void
     {
         $names = array_fill_keys($names, true);
 
@@ -856,10 +863,10 @@ class BorrowedResourceEscapeRule implements Rule
         ];
 
         // Only the unset names and the later writes that read them, directly or through each other, can change. They
-        // are rebuilt from the path, so a write the unset discards doesn't return and a copy made after it doesn't keep
-        // the old value. Every other name keeps the statement's facts, including those a loop carries between its
-        // iterations. The main environment keeps the rebuilt names' defined and referenced flags, since the unset may
-        // not run.
+        // are rebuilt from the later writes evaluated on the path, so a write the unset discards doesn't return, a copy
+        // made after it doesn't keep the old value, and a value rebuilt after it reads its other inputs as they are at
+        // that point. Every other name keeps the statement's facts. The main environment keeps the rebuilt names'
+        // defined and referenced flags, since the unset may not run.
         $reads = [];
 
         foreach ($this->getWrites($later, null) as [$name, $value]) {
@@ -878,14 +885,28 @@ class BorrowedResourceEscapeRule implements Rule
             }
         } while (count($rebuilt) !== $count);
 
-        $after = [
-            'tracked' => array_diff_key($environment['tracked'], $rebuilt) + array_intersect_key($path['tracked'], $rebuilt),
-            'appended' => array_diff_key($environment['appended'], $rebuilt) + array_intersect_key($path['appended'], $rebuilt),
-            'callables' => array_diff_key($environment['callables'], $rebuilt) + array_intersect_key($path['callables'], $rebuilt),
-            'defined' => array_diff_key($environment['defined'], $rebuilt) + array_intersect_key($path['defined'], $rebuilt),
-            'referenced' => array_diff_key($environment['referenced'], $rebuilt) + array_intersect_key($path['referenced'], $rebuilt),
-        ];
-        $this->applyWrites($later, null, $after, $owners, $resource, $scope);
+        $after = $path;
+        $this->applyWrites($later, null, $repeats, $after, $owners, $resource, $scope);
+
+        // When the writes repeat, as in a loop, an earlier pass may have left any of the statement's values, so a rebuilt
+        // value may also take what its other inputs hold over the whole statement.
+        if ($repeats) {
+            $carried = [
+                'tracked' => array_diff_key($environment['tracked'], $rebuilt) + array_intersect_key($path['tracked'], $rebuilt),
+                'appended' => array_diff_key($environment['appended'], $rebuilt) + array_intersect_key($path['appended'], $rebuilt),
+                'callables' => array_diff_key($environment['callables'], $rebuilt) + array_intersect_key($path['callables'], $rebuilt),
+                'defined' => array_diff_key($environment['defined'], $rebuilt) + array_intersect_key($path['defined'], $rebuilt),
+                'referenced' => array_diff_key($environment['referenced'], $rebuilt) + array_intersect_key($path['referenced'], $rebuilt),
+            ];
+            $this->applyWrites($later, null, true, $carried, $owners, $resource, $scope);
+
+            $after['tracked'] += array_intersect_key($carried['tracked'], $rebuilt);
+            $after['appended'] += array_intersect_key($carried['appended'], $rebuilt);
+
+            foreach (array_intersect_key($carried['callables'], $rebuilt) as $name => $closures) {
+                $after['callables'][$name] = $this->mergeCallables($after['callables'][$name] ?? [], $closures);
+            }
+        }
 
         foreach (array_keys($rebuilt) as $name) {
             $unsetFacts[$name] ??= [
@@ -898,6 +919,34 @@ class BorrowedResourceEscapeRule implements Rule
         $environment['tracked'] = array_diff_key($environment['tracked'], $rebuilt) + array_intersect_key($after['tracked'], $rebuilt);
         $environment['appended'] = array_diff_key($environment['appended'], $rebuilt) + array_intersect_key($after['appended'], $rebuilt);
         $environment['callables'] = array_diff_key($environment['callables'], $rebuilt) + array_intersect_key($after['callables'], $rebuilt);
+    }
+
+    /**
+     * Merge the closures two values may hold. A closure both hold, from the same node, keeps the first borrowed
+     * kind either captured by value and every name either reads by reference.
+     *
+     * @param array<int, HeldClosure> $closures
+     * @param array<int, HeldClosure> $others
+     *
+     * @return array<int, HeldClosure>
+     */
+    private function mergeCallables(array $closures, array $others): array
+    {
+        foreach ($others as $id => $held) {
+            if (! isset($closures[$id])) {
+                $closures[$id] = $held;
+
+                continue;
+            }
+
+            $closures[$id][1] ??= $held[1];
+
+            foreach ($held[2] as $capturer => $references) {
+                $closures[$id][2][$capturer] = ($closures[$id][2][$capturer] ?? []) + $references;
+            }
+        }
+
+        return $closures;
     }
 
     /**
@@ -943,18 +992,52 @@ class BorrowedResourceEscapeRule implements Rule
     }
 
     /**
+     * Determine whether a statement's writes may run more than once or out of node order: it holds a loop or a
+     * goto, or a value it assigns holds another assignment, which the value may read before or after. Otherwise
+     * each write runs at most once, in node order.
+     *
+     * @param list<Node> $nodes the statement's own nodes, which leave out nested function and class bodies
+     */
+    private function repeatsWrites(array $nodes): bool
+    {
+        // The nodes are in preorder, so an assignment visited before an assigned value ends lies inside it.
+        $values = [];
+        $valueEnd = -1;
+
+        foreach ($nodes as $node) {
+            if ($node instanceof Foreach_ || $node instanceof For_ || $node instanceof While_ || $node instanceof Do_ || $node instanceof Goto_) {
+                return true;
+            }
+
+            if (isset($values[spl_object_id($node)])) {
+                $valueEnd = max($valueEnd, $node->getEndFilePos());
+            }
+
+            if ($node instanceof Assign || $node instanceof AssignRef || $node instanceof AssignOp) {
+                if ($node->getStartFilePos() <= $valueEnd) {
+                    return true;
+                }
+
+                $values[spl_object_id($node->expr)] = true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Apply a statement's writes, other than its reset, to the environment.
      *
-     * They may run in any order, any number of times or not at all. A defined variable stays borrowed only
-     * when its old and new values both are, an array keeps what was appended to it until a reset, and a
-     * variable may hold any closure assigned to it. Repeated passes follow alias chains, including those
-     * a loop carries into its next iteration.
+     * They may not run. A defined variable stays borrowed only when its old and new values both are, an array
+     * keeps what was appended to it until a reset, and a variable may hold any closure assigned to it. Unless they
+     * repeat (repeatsWrites()), they run at most once each, in node order; otherwise they may run in any order, any
+     * number of times, so repeated passes follow the alias chains a loop carries into its next iteration.
      *
      * @param list<Node> $nodes
      * @param Environment $environment
      * @param array<string, true> $owners
      */
-    private function applyWrites(array $nodes, ?Assign $reset, array &$environment, array $owners, string $resource, Scope $scope): void
+    private function applyWrites(array $nodes, ?Assign $reset, bool $repeats, array &$environment, array $owners, string $resource, Scope $scope): void
     {
         $writes = $this->getWrites($nodes, $reset);
 
@@ -985,11 +1068,11 @@ class BorrowedResourceEscapeRule implements Rule
                 }
 
                 $fact['appended'] = $environment['appended'][$name] ?? $fact['appended'];
-                $fact['callables'] = ($environment['callables'][$name] ?? []) + $fact['callables'];
+                $fact['callables'] = $this->mergeCallables($environment['callables'][$name] ?? [], $fact['callables']);
 
                 $this->setFact($environment, $name, $fact);
             }
-        } while ($environment !== $previous);
+        } while ($repeats && $environment !== $previous);
     }
 
     /**
@@ -1054,7 +1137,7 @@ class BorrowedResourceEscapeRule implements Rule
                 $alternativeFact = $this->getFact($alternative, $environment, $owners, $resource, $scope);
                 $fact['tracked'] ??= $alternativeFact['tracked'];
                 $fact['appended'] ??= $alternativeFact['appended'];
-                $fact['callables'] += $alternativeFact['callables'];
+                $fact['callables'] = $this->mergeCallables($fact['callables'], $alternativeFact['callables']);
             }
 
             return $fact;
@@ -1078,7 +1161,7 @@ class BorrowedResourceEscapeRule implements Rule
             foreach ($expr->items as $item) {
                 $itemFact = $this->getFact($item->value, $environment, $owners, $resource, $scope);
                 $fact['tracked'] ??= $itemFact['tracked'] ?? $itemFact['appended'];
-                $fact['callables'] += $itemFact['callables'];
+                $fact['callables'] = $this->mergeCallables($fact['callables'], $itemFact['callables']);
             }
 
             return $fact;

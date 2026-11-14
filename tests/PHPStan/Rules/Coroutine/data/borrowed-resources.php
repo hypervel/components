@@ -778,6 +778,57 @@ class GlobalStores
 
             return $copy;
         });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $client = $connection->client();
+            $label = null;
+
+            if ($shared) {
+                unset($label);
+                $label = 'main';
+                $task = fn () => [$label, $client];
+                $client = null;
+
+                return $task;
+            }
+
+            return null;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = $connection->client();
+            $tasks = [];
+
+            foreach ([1, 2] as $row) {
+                unset($label);
+                $label = 'main';
+                $tasks[] = fn () => [$label, $client];
+                $client = null;
+            }
+
+            return $tasks;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $clients = [];
+            $label = null;
+
+            foreach ([1, 2] as $row) {
+                unset($label);
+                $label = 'main';
+                $task = fn () => [$label, $clients];
+                $clients[] = $connection->client();
+            }
+
+            return $task;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $clients = [];
+
+            foreach ([1, 2] as $row) {
+                $task = fn () => $clients;
+                $clients[] = $connection->client();
+            }
+
+            return $task;
+        });
     }
 
     public function staysInside(bool $shared): void
@@ -1085,6 +1136,36 @@ class GlobalStores
             }
 
             return $copy;
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $clients = [];
+            $result = [];
+            $copy = [];
+            $unrelated = null;
+
+            if ($shared) {
+                $result = $clients;
+                unset($unrelated);
+                $clients[] = $connection->client();
+                $copy = $result;
+                $reset = function (): void {
+                    $local = null;
+                };
+                $clear = fn () => $local = null;
+            }
+
+            return $copy;
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($shared) {
+            $client = $connection->client();
+
+            if ($shared) {
+                $copy = [($client = null), $client];
+
+                return $copy;
+            }
+
+            return null;
         });
     }
 }
