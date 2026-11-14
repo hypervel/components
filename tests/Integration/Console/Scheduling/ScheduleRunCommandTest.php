@@ -13,6 +13,7 @@ use Hypervel\Console\Scheduling\CacheSchedulingMutex;
 use Hypervel\Console\Scheduling\Event as ScheduledEvent;
 use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Console\Scheduling\ScheduledTaskSkipReason;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Carbon;
@@ -239,11 +240,26 @@ class ScheduleRunCommandTest extends TestCase
         $this->runSchedule($task);
 
         Event::assertDispatched(ScheduledTaskSkipped::class, function (ScheduledTaskSkipped $event) use ($task): bool {
-            return $event->task === $task;
+            return $event->task === $task
+                   && $event->reason === ScheduledTaskSkipReason::RanOnAnotherServer;
         });
         Event::assertNotDispatched(ScheduledTaskStarting::class);
         Event::assertNotDispatched(ScheduledTaskFinished::class);
         $this->assertFalse($ran);
+    }
+
+    public function testTaskSkippedEventIsDispatchedWhenConditionIsNotMet(): void
+    {
+        Event::fake([ScheduledTaskSkipped::class]);
+
+        $task = $this->app->make(Schedule::class)->call(fn () => null)->everyMinute()->when(fn () => false);
+
+        $this->runSchedule($task);
+
+        Event::assertDispatched(ScheduledTaskSkipped::class, function (ScheduledTaskSkipped $event) use ($task): bool {
+            return $event->task === $task
+                   && $event->reason === ScheduledTaskSkipReason::ConditionNotMet;
+        });
     }
 
     /**

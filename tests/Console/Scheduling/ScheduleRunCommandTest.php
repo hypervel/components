@@ -18,6 +18,7 @@ use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Console\Scheduling\ScheduledTaskSkipReason;
 use Hypervel\Console\View\Components\Factory;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Repository as Cache;
@@ -1032,6 +1033,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertCount(1, $this->dispatched);
         $this->assertInstanceOf(ScheduledTaskSkipped::class, $this->dispatched[0]);
         $this->assertSame($callbackEvent, $this->dispatched[0]->task);
+        $this->assertSame(ScheduledTaskSkipReason::Paused, $this->dispatched[0]->reason);
     }
 
     public function testPausedTaskListenerDefersWorkWithinItsOwnCoroutine(): void
