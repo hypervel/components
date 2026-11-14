@@ -105,6 +105,33 @@ class ValidationEmailRuleTest extends TestCase
         $this->assertSame([], $validator->messages()->toArray());
     }
 
+    #[TestWith(['email'])]
+    #[TestWith(['email:rfc'])]
+    public function testEmailLengthLimit(string $rule): void
+    {
+        $localPart = str_repeat('a', 64);
+        $domainAtMaximumLength = implode('.', [
+            str_repeat('a', 62),
+            str_repeat('b', 62),
+            str_repeat('c', 60),
+            str_repeat('d', 2),
+        ]);
+        $domainOverMaximumLength = implode('.', [
+            str_repeat('a', 62),
+            str_repeat('b', 62),
+            str_repeat('c', 62),
+            'd',
+        ]);
+
+        $this->passes($rule, $localPart . '@' . $domainAtMaximumLength);
+
+        $this->fails(
+            $rule,
+            $localPart . '@' . $domainOverMaximumLength,
+            ['The ' . self::ATTRIBUTE_REPLACED . ' must be a valid email address.']
+        );
+    }
+
     /**
      * Assert that values fail the email rule.
      *
@@ -112,7 +139,7 @@ class ValidationEmailRuleTest extends TestCase
      * @param list<string> $expectedMessages
      */
     protected function fails(
-        Email $rule,
+        Email|string $rule,
         array|int|string|null $values,
         array $expectedMessages,
         ?string $customValidationMessage = null
@@ -127,7 +154,7 @@ class ValidationEmailRuleTest extends TestCase
      * @param list<string> $expectedMessages
      */
     protected function assertValidationRules(
-        Email $rule,
+        Email|string $rule,
         array|int|string|null $values,
         bool $expectToPass,
         array $expectedMessages = [],
@@ -141,7 +168,7 @@ class ValidationEmailRuleTest extends TestCase
             $validator = new Validator(
                 $translator,
                 [self::ATTRIBUTE => $value],
-                [self::ATTRIBUTE => clone $rule],
+                [self::ATTRIBUTE => is_object($rule) ? clone $rule : $rule],
                 $customValidationMessage ? [self::ATTRIBUTE . '.email' => $customValidationMessage] : []
             );
 
@@ -164,7 +191,7 @@ class ValidationEmailRuleTest extends TestCase
      *
      * @param null|int|list<string>|string $values
      */
-    protected function passes(Email $rule, array|int|string|null $values): void
+    protected function passes(Email|string $rule, array|int|string|null $values): void
     {
         $this->assertValidationRules($rule, $values, true);
     }

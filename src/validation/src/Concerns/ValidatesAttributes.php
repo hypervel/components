@@ -1006,6 +1006,10 @@ trait ValidatesAttributes
             return false;
         }
 
+        if (strlen((string) $value) > 254) {
+            return false;
+        }
+
         if (preg_match('/[\r\n]/', (string) $value) > 0) {
             return false;
         }
@@ -1041,6 +1045,10 @@ trait ValidatesAttributes
      */
     protected function isValidEmail(string $value): bool
     {
+        if (strlen($value) > 254) {
+            return false;
+        }
+
         if (preg_match('/[\r\n]/', $value) > 0) {
             return false;
         }
