@@ -6,6 +6,7 @@ namespace Hypervel\Database;
 
 use ErrorException;
 use Hypervel\Contracts\Database\LostConnectionDetector as LostConnectionDetectorContract;
+use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Str;
 use PDOException;
 use Throwable;
@@ -13,10 +14,22 @@ use Throwable;
 class LostConnectionDetector implements LostConnectionDetectorContract
 {
     /**
+     * The callback that should be used to detect additional lost connections.
+     *
+     * @var null|(callable(Throwable): bool)
+     */
+    protected static mixed $detectUsingCallback = null;
+
+    /**
      * Determine if the given exception was caused by a lost connection.
      */
     public function causedByLostConnection(Throwable $e): bool
     {
+        // Callbacks receive the caller's exception; only the default classification ignores query context.
+        if (static::$detectUsingCallback !== null && (static::$detectUsingCallback)($e)) {
+            return true;
+        }
+
         // Query context includes application SQL and bindings, not just the failure message.
         while ($e instanceof QueryException && $e->getPrevious() !== null) {
             $e = $e->getPrevious();
@@ -128,5 +141,26 @@ class LostConnectionDetector implements LostConnectionDetectorContract
             'failed to read startup message',
             'canceling statement due to conflict with recovery',
         ]);
+    }
+
+    /**
+     * Register a callback to detect additional lost connections.
+     *
+     * The callback persists for the worker lifetime and affects every detector instance.
+     *
+     * @param null|(callable(Throwable): bool) $callback
+     */
+    #[BootOnly]
+    public static function detectUsing(?callable $callback): void
+    {
+        static::$detectUsingCallback = $callback;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$detectUsingCallback = null;
     }
 }
