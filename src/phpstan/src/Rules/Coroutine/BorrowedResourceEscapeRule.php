@@ -138,7 +138,7 @@ use function strtolower;
  * @phpstan-type Environment array{tracked: array<string, string>, appended: array<string, string>, callables: array<string, array<int, HeldClosure>>, referenced: array<string, true>, globals: array<string, true>, byReference: array<string, true>, nonNull: array<string, true>, nonEmpty: array<string, true>}
  * @phpstan-type Fact array{tracked: ?string, appended: ?string, callables: array<int, HeldClosure>}
  * @phpstan-type Flow array{normal: ?Environment, breaks: array<int, Environment>, continues: array<int, Environment>, exit: ?Environment}
- * @phpstan-type Walk array{borrow: array{method: string, resource: string}, owners: array<string, true>, locals: array<string, mixed>, external: ?array<string, true>, outer: ?array<string, true>, writes: array<string, non-empty-list<?Expr>>, positions: array<string, list<int>>, loops: list<array{int, int}>, isCallback: bool, generator: bool, used: ?string, raised: ?Environment, catching: bool, thrown: ?Environment, created: array<int, array{ArrowFunction|Closure, Environment, int}>, spawned: array<int, bool>, errors: array<string, IdentifierRuleError>}
+ * @phpstan-type Walk array{borrow: array{method: string, resource: string}, owners: array<string, true>, locals: array<string, mixed>, external: ?array<string, true>, outer: ?array<string, true>, writes: array<string, non-empty-list<?Expr>>, positions: array<string, list<int>>, loops: list<array{int, int}>, isCallback: bool, generator: bool, used: ?string, catching: bool, thrown: ?Environment, created: array<int, array{ArrowFunction|Closure, Environment, int}>, spawned: array<int, bool>, errors: array<string, IdentifierRuleError>}
  *
  * @implements Rule<CallLike>
  *
@@ -426,7 +426,6 @@ class BorrowedResourceEscapeRule implements Rule
             // body uses anything borrowed.
             'generator' => $isCallback && array_any($nodes, static fn (Node $node): bool => $node instanceof Yield_ || $node instanceof YieldFrom),
             'used' => null,
-            'raised' => null,
             'catching' => false,
             'thrown' => null,
             'created' => [],
@@ -537,11 +536,7 @@ class BorrowedResourceEscapeRule implements Rule
      */
     private function walkStatement(Stmt $statement, array $environment, array &$walk, Scope $scope): array
     {
-        // A throw in the statement's own expressions leaves through its exit.
-        $raised = $walk['raised'];
-        $walk['raised'] = null;
-
-        $flow = match (true) {
+        return match (true) {
             $statement instanceof Expression => $this->flow($this->evaluate($statement->expr, $environment, $walk, $scope)[0]),
             $statement instanceof Echo_ => $this->flow($this->evaluateAll($statement->exprs, $environment, $walk, $scope)),
             $statement instanceof Return_ => $this->walkReturn($statement, $environment, $walk, $scope),
@@ -552,18 +547,13 @@ class BorrowedResourceEscapeRule implements Rule
             $statement instanceof Break_ => ['normal' => null, 'breaks' => [$this->getLevel($statement) => $environment], 'continues' => [], 'exit' => null],
             $statement instanceof Continue_ => ['normal' => null, 'breaks' => [], 'continues' => [$this->getLevel($statement) => $environment], 'exit' => null],
             $statement instanceof Unset_ => $this->flow($this->walkUnset($statement, $environment, $walk, $scope)),
-            $statement instanceof Static_ => $this->flow($this->detach($environment, CoroutineRuleHelper::getDetachedNames($statement), 'static')),
+            $statement instanceof Static_ => $this->flow($this->walkStatic($statement, $environment, $walk, $scope)),
             $statement instanceof Global_ => $this->flow($this->detach($environment, $this->getGlobalNames($statement), 'global')),
             $statement instanceof Block, $statement instanceof Declare_ => $this->walkStatements($statement->stmts ?? [], $environment, $walk, $scope),
             // A goto isn't followed, so nothing after it is known to be reached.
             $statement instanceof Goto_ => $this->flow(null),
             default => $this->flow($environment),
         };
-
-        $flow['exit'] = $this->join($flow['exit'], $walk['raised']);
-        $walk['raised'] = $raised;
-
-        return $flow;
     }
 
     /**
@@ -757,7 +747,7 @@ class BorrowedResourceEscapeRule implements Rule
         $entry = match (true) {
             $loop instanceof While_ => $this->evaluate($loop->cond, $head, $walk, $scope)[0],
             $loop instanceof For_ => $this->evaluateAll($loop->cond, $head, $walk, $scope),
-            default => $this->assignForeach($loop, $head),
+            default => $this->assignForeach($loop, $head, $walk, $scope),
         };
 
         // A foreach leaves at its head once it runs out of values; the others when their condition fails.
@@ -782,11 +772,22 @@ class BorrowedResourceEscapeRule implements Rule
      * follow, and a by-reference value binds the target to an element of the iterated array.
      *
      * @param Environment $environment
+     * @param Walk $walk
      *
-     * @return Environment
+     * @return ?Environment
      */
-    private function assignForeach(Foreach_ $foreach, array $environment): array
+    private function assignForeach(Foreach_ $foreach, array $environment, array &$walk, Scope $scope): ?array
     {
+        foreach ([$foreach->keyVar, $foreach->valueVar] as $target) {
+            if ($target !== null) {
+                $environment = $this->evaluateTargets($target, $environment, $walk, $scope);
+
+                if ($environment === null) {
+                    return null;
+                }
+            }
+        }
+
         $environment = $this->detach($environment, CoroutineRuleHelper::getDetachedNames($foreach), 'reference');
 
         foreach ([...CoroutineRuleHelper::getTargetLeaves($foreach->keyVar), ...CoroutineRuleHelper::getTargetLeaves($foreach->valueVar)] as $leaf) {
@@ -819,9 +820,13 @@ class BorrowedResourceEscapeRule implements Rule
         $flow = $this->walkStatements($try->stmts, $environment, $walk, $scope);
         $thrown = $walk['thrown'];
 
-        // An exception may match no catch, and a catch may throw, so both leave with what they had at the throw. A try
-        // block that can't throw runs no catch.
-        $escaping = $thrown;
+        // An exception may match no catch unless one takes every Throwable, and a catch may throw, so both leave with
+        // what they had at the throw. A try block that can't throw runs no catch.
+        $catchesAll = array_any($try->catches, static fn (Catch_ $catch): bool => array_any(
+            $catch->types,
+            static fn (Name $type): bool => strtolower($scope->resolveName($type)) === 'throwable',
+        ));
+        $escaping = $catchesAll ? null : $thrown;
 
         foreach ($thrown === null ? [] : $try->catches as $catch) {
             $entry = $thrown;
@@ -1232,6 +1237,30 @@ class BorrowedResourceEscapeRule implements Rule
     }
 
     /**
+     * Apply a `static` declaration: each variable in turn gets its initializer, which only runs the first time the
+     * closure reaches it, then a binding of its own.
+     *
+     * @param Environment $environment
+     * @param Walk $walk
+     *
+     * @return Environment
+     */
+    private function walkStatic(Static_ $static, array $environment, array &$walk, Scope $scope): array
+    {
+        foreach ($static->vars as $variable) {
+            if ($variable->default !== null) {
+                $environment = $this->join($environment, $this->evaluate($variable->default, $environment, $walk, $scope)[0]) ?? $environment;
+            }
+
+            if (is_string($variable->var->name)) {
+                $environment = $this->detach($environment, [$variable->var->name], 'static');
+            }
+        }
+
+        return $environment;
+    }
+
+    /**
      * Get the names a `global` statement binds.
      *
      * @return list<string>
@@ -1620,7 +1649,6 @@ class BorrowedResourceEscapeRule implements Rule
             [$after] = $this->evaluate($expr->expr, $environment, $walk, $scope);
 
             if ($after !== null) {
-                $walk['raised'] = $this->join($walk['raised'], $after);
                 $this->recordThrow($walk, $after);
             }
 
@@ -1729,9 +1757,13 @@ class BorrowedResourceEscapeRule implements Rule
             [$after] = $callee instanceof Expr ? $this->evaluate($callee, $environment, $walk, $scope) : [$environment];
         }
 
-        // A nullsafe call's arguments and invocation don't run when its receiver is null.
+        // A nullsafe call's name, arguments and invocation don't run when its receiver is null.
         $skipped = $call instanceof NullsafeMethodCall ? $after : null;
         $passed = [];
+
+        if (($call instanceof MethodCall || $call instanceof NullsafeMethodCall || $call instanceof StaticCall) && $call->name instanceof Expr && $after !== null) {
+            [$after] = $this->evaluate($call->name, $after, $walk, $scope);
+        }
 
         foreach ($call->isFirstClassCallable() ? [] : $call->getArgs() as $argument) {
             if ($after === null) {
@@ -1793,6 +1825,7 @@ class BorrowedResourceEscapeRule implements Rule
     {
         $leaves = [];
         [$after, $fact] = $this->evaluateDestructured($target, $assign->expr, $environment, $walk, $scope, $leaves);
+        $after = $after === null ? null : $this->evaluateTargets($target, $after, $walk, $scope);
 
         if ($after === null) {
             return [null, self::NO_FACT];
@@ -1854,6 +1887,40 @@ class BorrowedResourceEscapeRule implements Rule
         }
 
         return [$environment, $fact];
+    }
+
+    /**
+     * Evaluate what a write target reads before it's written, through destructuring: each item's key, then its own
+     * target. An empty slot reads nothing.
+     *
+     * @param Environment $environment
+     * @param Walk $walk
+     *
+     * @return ?Environment
+     */
+    private function evaluateTargets(Expr $target, array $environment, array &$walk, Scope $scope): ?array
+    {
+        if (! $target instanceof List_ && ! $target instanceof Array_) {
+            return $this->evaluateTarget($target, $environment, $walk, $scope);
+        }
+
+        foreach ($target->items as $item) {
+            if ($item === null) {
+                continue;
+            }
+
+            if ($item->key !== null) {
+                [$environment] = $this->evaluate($item->key, $environment, $walk, $scope);
+            }
+
+            $environment = $environment === null ? null : $this->evaluateTargets($item->value, $environment, $walk, $scope);
+
+            if ($environment === null) {
+                return null;
+            }
+        }
+
+        return $environment;
     }
 
     /**

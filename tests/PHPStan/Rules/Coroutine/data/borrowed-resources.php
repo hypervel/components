@@ -1582,6 +1582,26 @@ class ControlFlow
             }
         });
         Redis::withConnection(function (RedisConnection $connection) {
+            $value = $connection;
+
+            try {
+                $value = $connection->get('key');
+            } catch (LogicException) {
+                $value = null;
+            } finally {
+                $this->client = $value;
+            }
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $value = $connection;
+
+            try {
+                throw new LogicException();
+            } finally {
+                $this->client = $value;
+            }
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
             $client = null;
             $client ??= $connection->client();
 
@@ -1617,6 +1637,22 @@ class ControlFlow
             }
 
             return null;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            static $child = go(fn () => $connection->get('key'));
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $this->{go(fn () => $connection)}();
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $items = [];
+            [$items[go(fn () => $connection)]] = ['item'];
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($rows) {
+            $items = [];
+
+            foreach ($rows as $items[go(fn () => $connection)]) {
+            }
         });
         Redis::withConnection(function (RedisConnection $connection) {
             yield $connection->get('key');
@@ -1804,6 +1840,28 @@ class ControlFlow
                 $client = null;
             } finally {
                 $this->client = $client;
+            }
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $value = $connection;
+
+            try {
+                $value = $connection->get('key');
+            } catch (Throwable) {
+                $value = null;
+            } finally {
+                $this->client = $value;
+            }
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $value = $connection;
+
+            try {
+                throw new LogicException();
+            } catch (Throwable) {
+                $value = null;
+            } finally {
+                $this->client = $value;
             }
         });
         Redis::withConnection(function (RedisConnection $connection) {
