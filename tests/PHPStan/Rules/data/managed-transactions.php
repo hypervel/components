@@ -191,4 +191,20 @@ class Transfers
             $connection->commit();
         });
     }
+
+    public function generators(RetryingConnection $retrying): void
+    {
+        DB::transaction(function () {
+            yield DB::table('transfers')->get();
+        });
+        $this->connection->transaction(fn () => yield DB::table('transfers')->count());
+        DB::transaction(function () {
+            return (function () {
+                yield DB::table('transfers')->get();
+            })();
+        });
+        $retrying->transaction(function () {
+            yield DB::table('transfers')->get();
+        });
+    }
 }

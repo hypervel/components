@@ -32,6 +32,8 @@ use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Expr\Ternary;
 use PhpParser\Node\Expr\Throw_;
 use PhpParser\Node\Expr\Variable;
+use PhpParser\Node\Expr\Yield_;
+use PhpParser\Node\Expr\YieldFrom;
 use PhpParser\Node\FunctionLike;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
@@ -69,7 +71,8 @@ use function substr;
  * so a commit() or rollBack() that ends that level leaves the callback's remaining work outside the
  * transaction, and transaction() then throws because the level is gone. The callback's top-level
  * statements are walked in order, counting the transactions it begins itself, and the walk goes
- * silent at anything it cannot follow.
+ * silent at anything it cannot follow. A generator callback is reported on its own: its body only
+ * runs once the generator it returns is iterated, after transaction() commits.
  *
  * @implements Rule<CallLike>
  *
@@ -112,6 +115,17 @@ class ManagedTransactionRule implements Rule
 
         if ($ownerType === null || (! $callback instanceof Closure && ! $callback instanceof ArrowFunction)) {
             return [];
+        }
+
+        // Calling a generator only creates it, so transaction() commits before any of the callback's body runs.
+        if ($this->isGenerator($callback)) {
+            return [
+                RuleErrorBuilder::message('The transaction() callback is a generator, so none of its body runs until after transaction() commits.')
+                    ->line($callback->getStartLine())
+                    ->identifier('hypervel.transactionEndedEarly')
+                    ->tip('Run the database work in the callback itself, and return the results instead of yielding them.')
+                    ->build(),
+            ];
         }
 
         // transaction() passes the connection itself to the callback, so its first parameter is always the owner.
@@ -211,6 +225,35 @@ class ManagedTransactionRule implements Rule
         }
 
         return array_any($callback->uses, static fn (ClosureUse $use): bool => $use->var->name === $name);
+    }
+
+    /**
+     * Determine whether the callback is a generator: it yields in its own body, not in a function or class nested in it.
+     */
+    private function isGenerator(Closure|ArrowFunction $callback): bool
+    {
+        $visitor = new class extends NodeVisitorAbstract {
+            public bool $yields = false;
+
+            public function enterNode(Node $node): ?int
+            {
+                if ($node instanceof FunctionLike || $node instanceof ClassLike) {
+                    return NodeVisitor::DONT_TRAVERSE_CURRENT_AND_CHILDREN;
+                }
+
+                if ($node instanceof Yield_ || $node instanceof YieldFrom) {
+                    $this->yields = true;
+
+                    return NodeVisitor::STOP_TRAVERSAL;
+                }
+
+                return null;
+            }
+        };
+
+        (new NodeTraverser($visitor))->traverse($callback instanceof Closure ? $callback->stmts : [$callback->expr]);
+
+        return $visitor->yields;
     }
 
     /**

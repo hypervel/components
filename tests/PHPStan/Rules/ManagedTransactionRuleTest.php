@@ -30,6 +30,11 @@ class ManagedTransactionRuleTest extends RuleTestCase
             $line,
             self::TIP,
         ];
+        $generator = static fn (int $line): array => [
+            'The transaction() callback is a generator, so none of its body runs until after transaction() commits.',
+            $line,
+            'Run the database work in the callback itself, and return the results instead of yielding them.',
+        ];
 
         $this->analyse([__DIR__ . '/data/managed-transactions.php'], [
             $endedEarly('commit', 62),
@@ -43,6 +48,8 @@ class ManagedTransactionRuleTest extends RuleTestCase
             $endedEarly('commit', 146),
             $endedEarly('commit', 165),
             $endedEarly('rollBack', 167),
+            $generator(197),
+            $generator(200),
         ]);
     }
 

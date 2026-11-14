@@ -971,7 +971,9 @@ The check covers these borrowed resources, including local variables holding the
 - Drivers, adapters and clients lent by a [pooled disk's](/docs/{{version}}/filesystem#driver-pools) `withDriver()`, `withAdapter()` and `withClient()` methods.
 - PDO handles obtained inside `DB::withPinnedSession()`, whose session may return to the pool when the [pin](/docs/{{version}}/database#releasing-and-pinning-connections) ends.
 
-If a child coroutine must use a borrowed connection, call `wait()` with `waitForChildTermination: true`. This waits for the child to finish even when the caller is canceled. Values passed to other functions are not followed. You may disable the check using the `checkBorrowedResources` parameter.
+A generator callback that uses a borrowed resource is reported too. Calling a generator only creates it, so its body runs once it is iterated, after the borrow has ended. Return the results instead of yielding them.
+
+If a child coroutine must use a borrowed connection, call `wait()` with `waitForChildTermination: true`. This waits for the child to finish even when the caller is canceled. Values passed to other functions are not followed, and neither are variables once they are bound by reference. You may disable the check using the `checkBorrowedResources` parameter.
 
 <a name="cancellation"></a>
 ### Cancellation
@@ -1090,6 +1092,8 @@ DB::transaction(function () use ($order) {
 ```
 
 Calling `commit()` or `rollBack()` to end that transaction inside the closure is reported, because later work in the closure would run outside it. Balanced calls to `beginTransaction()` and `commit()` or `rollBack()` are allowed for nested transactions. `rollBack(0)` is reported because it also rolls back every enclosing transaction.
+
+A closure that uses `yield` is reported too. Calling it only creates a generator, so `transaction` commits before any of the closure's work runs. Do the database work in the closure and return the results instead of yielding them.
 
 The check follows calls on the connection the closure receives, a connection variable it captures, a connection property of `$this`, the `DB` facade, and `DB::connection()` with the same connection name as the `transaction` call. Once the closure begins, commits or rolls back a transaction conditionally, such as inside an `if`, a loop or a `try`, the rest of the closure is not checked. You may disable the check using the `checkManagedTransactions` parameter.
 
