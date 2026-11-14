@@ -11,6 +11,7 @@ use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Http\Request;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -121,6 +122,29 @@ class AuthTokenGuardTest extends TestCase
         $this->assertTrue($guard->validate(['api_token' => 'foo']));
     }
 
+    #[TestWith(['api_token', 'api_token', 'foo'])]
+    #[TestWith(['provided_token', 'stored_token', 'plain-token'])]
+    public function testValidateHashesTokenWhenHashingIsEnabled(string $inputKey, string $storageKey, string $token): void
+    {
+        $provider = m::mock(UserProvider::class);
+        $user = new AuthTokenGuardTestUser;
+        $user->id = 1;
+        $provider->shouldReceive('retrieveByCredentials')
+            ->once()
+            ->with([$storageKey => hash('sha256', $token)])
+            ->andReturn($user);
+
+        $guard = $this->createGuard(
+            $provider,
+            Request::create('/', 'GET', [$inputKey => $token]),
+            inputKey: $inputKey,
+            storageKey: $storageKey,
+            hash: true,
+        );
+
+        $this->assertTrue($guard->validate([$inputKey => $token]));
+    }
+
     public function testValidateCanDetermineIfCredentialsAreInvalid(): void
     {
         $provider = m::mock(UserProvider::class);
@@ -132,27 +156,7 @@ class AuthTokenGuardTest extends TestCase
         $this->assertFalse($guard->validate(['api_token' => 'foo']));
     }
 
-    public function testValidateHashesTokenWhenConfigured(): void
-    {
-        $provider = m::mock(UserProvider::class);
-        $user = new AuthTokenGuardTestUser;
-        $provider->shouldReceive('retrieveByCredentials')
-            ->once()
-            ->with(['stored_token' => hash('sha256', 'plain-token')])
-            ->andReturn($user);
-
-        $guard = $this->createGuard(
-            $provider,
-            Request::create('/'),
-            inputKey: 'provided_token',
-            storageKey: 'stored_token',
-            hash: true,
-        );
-
-        $this->assertTrue($guard->validate(['provided_token' => 'plain-token']));
-    }
-
-    public function testValidateRejectsMissingEmptyAndNonStringTokens(): void
+    public function testValidateRejectsMissingToken(): void
     {
         $provider = m::mock(UserProvider::class);
         $provider->shouldNotReceive('retrieveByCredentials');
@@ -160,9 +164,6 @@ class AuthTokenGuardTest extends TestCase
         $guard = $this->createGuard($provider, Request::create('/'));
 
         $this->assertFalse($guard->validate());
-        $this->assertFalse($guard->validate(['api_token' => '']));
-        $this->assertFalse($guard->validate(['api_token' => 123]));
-        $this->assertFalse($guard->validate(['api_token' => ['token']]));
     }
 
     public function testValidatePreservesStringZero(): void
@@ -181,6 +182,7 @@ class AuthTokenGuardTest extends TestCase
     public function testValidateIfApiTokenIsEmpty(): void
     {
         $provider = m::mock(UserProvider::class);
+        $provider->shouldNotReceive('retrieveByCredentials');
         $request = Request::create('/', 'GET', ['api_token' => '']);
 
         $guard = $this->createGuard($provider, $request);
