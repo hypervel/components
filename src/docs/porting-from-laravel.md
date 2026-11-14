@@ -782,7 +782,9 @@ The framework binds `date` to `DateFactory`, so a `Date` facade subclass that ov
 <a name="uuids"></a>
 ### UUIDs
 
-Hypervel's `Str` UUID methods, factories, sequences, and freeze callbacks use `Symfony\Component\Uid\Uuid` values. Laravel uses `Ramsey\Uuid\UuidInterface`. Review concrete UUID type declarations and calls to package-specific methods instead of changing only the framework namespace.
+Hypervel's `Str` UUID methods, factories, sequences, freeze callbacks, and `uuid()` input helpers use `Symfony\Component\Uid\Uuid` values. Laravel uses `Ramsey\Uuid\UuidInterface`. Review concrete UUID type declarations and calls to package-specific methods instead of changing only the framework namespace.
+
+UUID input helpers and validation require hyphenated text, in either letter case. Normalize compact, braced, or `urn:uuid:` input before use. See [UUID input](/docs/{{version}}/requests#retrieving-uuid-input-values).
 
 Hypervel's `Str::orderedUuid()` returns a UUIDv7, while Laravel returns a timestamp-first COMB UUIDv4. Review code that validates UUID versions or depends on the exact ordering produced by this method.
 

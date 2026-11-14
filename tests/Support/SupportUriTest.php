@@ -533,6 +533,16 @@ class SupportUriTest extends TestCase
         $this->assertDataIntervalContract();
     }
 
+    public function testUuidMethod(): void
+    {
+        $this->assertDataUuidContract();
+    }
+
+    public function testUlidMethod(): void
+    {
+        $this->assertDataUlidContract();
+    }
+
     public function testEnumMethod(): void
     {
         $this->assertDataEnumContract();
