@@ -394,11 +394,11 @@ class Arr
 
     /**
      * Remove one or many array items from a given array using "dot" notation.
+     *
+     * @param-out ($array is array ? array : ArrayAccess) $array
      */
-    public static function forget(array &$array, array|string|int|float|null $keys): void
+    public static function forget(ArrayAccess|array &$array, array|string|int|float|null $keys): void
     {
-        $original = &$array;
-
         $keys = (array) $keys;
 
         if ($keys === []) {
@@ -406,9 +406,6 @@ class Arr
         }
 
         foreach ($keys as $key) {
-            // clean up before each pass
-            $array = &$original;
-
             // if the exact key exists in the top-level, remove it
             if (static::exists($array, $key)) {
                 unset($array[$key]);
@@ -416,20 +413,44 @@ class Arr
                 continue;
             }
 
-            $parts = explode('.', (string) $key);
+            static::forgetPath($array, explode('.', (string) $key));
+        }
+    }
 
-            while (count($parts) > 1) {
-                $part = array_shift($parts);
+    /**
+     * Remove an item along a segmented path without matching nested literal-dot keys.
+     *
+     * @param list<string> $parts
+     * @param-out ($array is array ? array : ArrayAccess) $array
+     */
+    protected static function forgetPath(ArrayAccess|array &$array, array $parts): void
+    {
+        while (count($parts) > 1) {
+            $part = array_shift($parts);
 
-                if (isset($array[$part]) && static::accessible($array[$part])) {
-                    $array = &$array[$part];
-                } else {
-                    continue 2;
+            if ($array instanceof ArrayAccess) {
+                $nested = $array[$part] ?? null;
+
+                if (static::accessible($nested)) {
+                    static::forgetPath($nested, $parts);
+
+                    // ArrayAccess reads may return arrays by value; object children mutate in place.
+                    if (is_array($nested)) {
+                        $array[$part] = $nested;
+                    }
                 }
+
+                return;
             }
 
-            unset($array[array_shift($parts)]);
+            if (isset($array[$part]) && static::accessible($array[$part])) {
+                $array = &$array[$part];
+            } else {
+                return;
+            }
         }
+
+        unset($array[array_shift($parts)]);
     }
 
     /**
@@ -944,11 +965,29 @@ class Arr
      * Set an array item to a given value using "dot" notation.
      *
      * If no key is given to the method, the entire array will be replaced.
+     *
+     * @param-out ($key is null ? ($value is ArrayAccess ? ArrayAccess : array) : ($array is array ? array : ArrayAccess)) $array
+     * @return ($key is null ? ($value is ArrayAccess ? ArrayAccess : array) : ($array is array ? array : array|ArrayAccess))
      */
-    public static function set(array &$array, string|int|float|null $key, mixed $value): array
+    public static function set(ArrayAccess|array &$array, string|int|float|null $key, mixed $value): ArrayAccess|array
     {
         if (is_null($key)) {
             return $array = $value;
+        }
+
+        if ($array instanceof ArrayAccess && str_contains((string) $key, '.')) {
+            // Userland offsetGet() may return arrays by value, so nested changes need writeback.
+            [$segment, $path] = explode('.', (string) $key, 2);
+            $nested = $array[$segment] ?? null;
+
+            if (! is_array($nested)) {
+                $nested = [];
+            }
+
+            $result = static::set($nested, $path, $value);
+            $array[$segment] = $nested;
+
+            return $result;
         }
 
         $keys = explode('.', (string) $key);
@@ -978,9 +1017,10 @@ class Arr
     /**
      * Push an item into an array using "dot" notation.
      *
-     * ArrayAccess cannot support the nested by-reference mutation required by dot notation.
+     * @param-out ($array is array ? array : ArrayAccess) $array
+     * @return ($array is array ? array : array|ArrayAccess)
      */
-    public static function push(array &$array, string|int|null $key, mixed ...$values): array
+    public static function push(ArrayAccess|array &$array, string|int|null $key, mixed ...$values): ArrayAccess|array
     {
         $target = static::array($array, $key, []);
 

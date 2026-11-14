@@ -66,7 +66,7 @@ class AnonymousResourceCollection extends BaseAnonymousResourceCollection
         if ($resource instanceof JsonApiResource && ! $resource->usesDefaultRelationshipLoading()) {
             $resource->loadMissingRequestedRelationshipsOn(
                 $request,
-                $this->collection->pluck('resource')->whereInstanceOf(Model::class)
+                $this->collection->map(fn ($resource) => $resource->resource)->whereInstanceOf(Model::class)
             );
         }
 

@@ -344,7 +344,7 @@ When this option is omitted, scheduled tasks use the application timezone.
 > [!WARNING]
 > Remember that some timezones utilize daylight saving time. When daylight saving time changes occur, your scheduled task may run twice or even not run at all. For this reason, we recommend avoiding timezone scheduling when possible.
 
-When using `schedule:list --timezone`, the next due date is displayed in the requested timezone while the cron expression remains in the timezone in which it is evaluated. If these timezones differ, the CLI displays the expression timezone beside the expression. JSON output provides the display timezone as `timezone` and the expression timezone as `expression_timezone`.
+Without `--timezone`, `schedule:list --json` displays each task's next due date in the task's own timezone. When using `schedule:list --timezone`, the next due date is displayed in the requested timezone while the cron expression remains in the timezone in which it is evaluated. If these timezones differ, the CLI displays the expression timezone beside the expression. JSON output provides the display timezone as `timezone` and the expression timezone as `expression_timezone`.
 
 <a name="preventing-task-overlaps"></a>
 ### Preventing Task Overlaps
@@ -787,6 +787,8 @@ Hypervel dispatches a variety of [events](/docs/{{version}}/events) during the s
 | `Hypervel\Console\Events\ScheduledTaskCanceled`           |
 
 </div>
+
+The `ScheduledTaskSkipped` event's `reason` property identifies why a task was skipped using the `Hypervel\Console\Scheduling\ScheduledTaskSkipReason` enum: `Paused`, `ConditionNotMet`, or `RanOnAnotherServer`. You may use `$event->reason?->value` when logging the reason.
 
 The `ScheduledTaskFailed` event's `runtime` property contains the elapsed execution time in seconds, or `null` when the runtime is unavailable. A failure before the task runs, such as an exception thrown by a `ScheduledTaskStarting` listener, dispatches `ScheduledTaskFailed` without a runtime and still stops `schedule:run`.
 

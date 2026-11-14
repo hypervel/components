@@ -79,10 +79,5 @@ parameters:
     - identifier: method.childParameterType
       path: src/database/*
 
-    # BelongsToMany pivot intersection type - PHPDoc uses object{pivot: ...}&TRelatedModel
-    # to document that models get a pivot property attached, but PHPStan can't track dynamic attachment
-    - message: '#object\{pivot:#'
-      path: src/database/*
-
     # Laravel's fluent factory pattern (Collection::make, Model::create, etc.) relies on new static() throughout
     - '#Unsafe usage of new static#'

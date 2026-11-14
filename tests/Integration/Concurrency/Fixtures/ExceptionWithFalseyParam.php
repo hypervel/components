@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Concurrency\Fixtures;
+namespace Hypervel\Tests\Integration\Concurrency\Fixtures;
 
 use Exception;
 

@@ -643,33 +643,26 @@ Custom query builders may declare their binding-slot names through the third `Qu
 
 The default lost-connection and concurrency detectors recognize PDO failures. The lost-connection detector also recognizes the framework's `LostConnectionException` and native mysqlnd protocol warnings, which can occur even in exception mode. An application or HTTP exception does not become a database failure merely because its message contains database error text.
 
-For a non-PDO driver, bind a detector that recognizes that driver's failures. Extend the default detector to preserve recovery for built-in databases. For example, if your driver reports lost sessions using a `ConnectionLostException`, your application detector could be:
+You may recognize additional lost connections by registering a callback with `LostConnectionDetector::detectUsing` in a service provider's `boot` method. Returning `true` identifies a lost connection; returning `false` lets the default checks run. For example, a custom driver may report lost sessions using a `ConnectionLostException`:
 
 ```php
-namespace App\Database;
-
-use Hypervel\Database\LostConnectionDetector as BaseLostConnectionDetector;
+use Hypervel\Database\LostConnectionDetector;
 use Hypervel\Database\QueryException;
 use Throwable;
 use Vendor\Database\ConnectionLostException;
 
-class LostConnectionDetector extends BaseLostConnectionDetector
-{
-    /**
-     * Determine if the exception represents a lost database connection.
-     */
-    public function causedByLostConnection(Throwable $e): bool
-    {
-        while ($e instanceof QueryException && $e->getPrevious() !== null) {
-            $e = $e->getPrevious();
-        }
-
-        return $e instanceof ConnectionLostException || parent::causedByLostConnection($e);
+LostConnectionDetector::detectUsing(function (Throwable $e): bool {
+    while ($e instanceof QueryException && $e->getPrevious() !== null) {
+        $e = $e->getPrevious();
     }
-}
+
+    return $e instanceof ConnectionLostException;
+});
 ```
 
-Replace the example vendor exception with your driver's exception type. Register the detector in your service provider's `register` method:
+Replace the example vendor exception with your driver's exception type. The callback receives the exception supplied by the caller, which may be a `QueryException`. Unwrap it before matching a driver's exception or message: the SQL and bindings in the query wrapper are not evidence of a database failure. The callback is shared by all instances of the default detector for the worker's lifetime; pass `null` to remove it.
+
+To replace the detection policy, bind your own implementation of `Hypervel\Contracts\Database\LostConnectionDetector` in a service provider's `register` method. Extend the default detector and call its parent method to retain its callback and built-in checks:
 
 ```php
 $this->app->singleton(
@@ -678,7 +671,7 @@ $this->app->singleton(
 );
 ```
 
-Use the same approach with `Hypervel\Contracts\Database\ConcurrencyErrorDetector` and the default `Hypervel\Database\ConcurrencyErrorDetector` for retryable concurrency failures. Detectors may receive a query exception or the failure it wraps, so unwrap query exceptions before checking your driver's exception. The SQL and bindings in a query exception are not evidence of a database failure.
+Use the binding approach with `Hypervel\Contracts\Database\ConcurrencyErrorDetector` and the default `Hypervel\Database\ConcurrencyErrorDetector` for retryable concurrency failures. Custom detectors should also unwrap query exceptions before matching driver failures.
 
 A connection's protected recovery methods can customize its own behavior, but shared consumers such as queue workers and cache locks use the bound detectors. Queue workers only consult the detector for database exceptions and their causes, not every exception thrown by a job.
 

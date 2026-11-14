@@ -18,6 +18,8 @@ jobs:
     services:
       mysql:
         image: mysql:innovation
+        volumes:
+          - database-socket:/var/run/mysqld
         env:
           MYSQL_ROOT_PASSWORD: password
           MYSQL_DATABASE: testing
@@ -30,6 +32,8 @@ jobs:
 
     container:
       image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
+      volumes:
+        - database-socket:/var/run/mysqld
 
     name: MySQL Innovation
 
@@ -48,6 +52,7 @@ jobs:
       - name: Execute integration tests
         env:
           DB_HOST: mysql
+          DB_SOCKET: /var/run/mysqld/mysqld.sock
           DB_PORT: 3306
           DB_DATABASE: testing
           DB_USERNAME: root
@@ -63,6 +68,8 @@ jobs:
     services:
       mariadb:
         image: quay.io/mariadb-foundation/mariadb-devel:verylatest
+        volumes:
+          - database-socket:/var/run/mysqld
         env:
           MARIADB_ROOT_PASSWORD: password
           MARIADB_DATABASE: testing
@@ -74,6 +81,8 @@ jobs:
 
     container:
       image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
+      volumes:
+        - database-socket:/var/run/mysqld
 
     name: MariaDB Very Latest
 
@@ -92,6 +101,7 @@ jobs:
       - name: Execute integration tests
         env:
           DB_HOST: mariadb
+          DB_SOCKET: /var/run/mysqld/mysqld.sock
           DB_PORT: 3306
           DB_DATABASE: testing
           DB_USERNAME: root

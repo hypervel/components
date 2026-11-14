@@ -4,14 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Http\Resources\JsonApi;
 
+use Hypervel\Http\Resources\JsonApi\AnonymousResourceCollection;
 use Hypervel\Http\Resources\JsonApi\JsonApiRequest;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Comment;
+use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\ObjectBackedJsonApiResource;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Post;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Profile;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Team;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\User;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\UserResource;
+use Override;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class JsonApiCollectionTest extends TestCase
@@ -232,6 +237,29 @@ class JsonApiCollectionTest extends TestCase
         $this->assertCount(4, DB::getQueryLog());
     }
 
+    #[TestWith([ObjectBackedJsonApiResource::class])]
+    #[TestWith([ObjectBackedResourceWithCustomRelationshipLoading::class])]
+    public function testItCanGenerateJsonApiResponseForObjectBackedResources(string $resourceClass): void
+    {
+        Route::get('things', function () use ($resourceClass): AnonymousResourceCollection {
+            return $resourceClass::collection([(object) ['id' => 99, 'name' => 'test']]);
+        });
+
+        $this->getJson('/things')
+            ->assertHeader('Content-type', 'application/vnd.api+json')
+            ->assertExactJson([
+                'data' => [
+                    [
+                        'id' => '99',
+                        'type' => 'things',
+                        'attributes' => [
+                            'name' => 'test',
+                        ],
+                    ],
+                ],
+            ]);
+    }
+
     #[TestWith([false])]
     #[TestWith([true])]
     public function testNestedRelationshipsAreBatchedAcrossThePageWithoutReorderingIncludedResources(bool $includeProfile): void
@@ -284,5 +312,21 @@ class JsonApiCollectionTest extends TestCase
 
         $this->assertSame(['data' => [], 'included' => []], $data);
         $this->assertSame(['data' => []], UserResource::collection([])->toResponse(JsonApiRequest::create('/'))->getData(true));
+    }
+}
+
+class ObjectBackedResourceWithCustomRelationshipLoading extends ObjectBackedJsonApiResource
+{
+    /**
+     * Load relationships through the resource's custom hook.
+     */
+    #[Override]
+    protected function loadMissingRequestedRelationships(
+        JsonApiRequest $request,
+        Collection $relatedModels,
+        ?string $resourceClass,
+        array $requestedRelationships
+    ): void {
+        parent::loadMissingRequestedRelationships($request, $relatedModels, $resourceClass, $requestedRelationships);
     }
 }

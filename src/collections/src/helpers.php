@@ -149,7 +149,20 @@ if (! function_exists('data_set')) {
                 $target = [];
             }
 
-            if ($segments) {
+            if ($target instanceof ArrayAccess && $target instanceof Traversable) {
+                // Iterators may yield array copies; write changes through the original offsets.
+                foreach ($target as $innerKey => $inner) {
+                    if ($segments) {
+                        data_set($inner, $segments, $value, $overwrite);
+
+                        if (! is_object($inner)) {
+                            $target[$innerKey] = $inner;
+                        }
+                    } elseif ($overwrite) {
+                        $target[$innerKey] = $value;
+                    }
+                }
+            } elseif ($segments) {
                 foreach ($target as &$inner) {
                     data_set($inner, $segments, $value, $overwrite);
                 }
@@ -160,11 +173,21 @@ if (! function_exists('data_set')) {
             }
         } elseif (Arr::accessible($target)) {
             if ($segments) {
-                if (! Arr::exists($target, $segment)) {
-                    $target[$segment] = [];
-                }
+                if ($target instanceof ArrayAccess) {
+                    $inner = Arr::exists($target, $segment) ? $target[$segment] : [];
+                    data_set($inner, $segments, $value, $overwrite);
 
-                data_set($target[$segment], $segments, $value, $overwrite);
+                    // Objects mutate in place; assigning a model relation back would create an attribute.
+                    if (! is_object($inner)) {
+                        $target[$segment] = $inner;
+                    }
+                } else {
+                    if (! Arr::exists($target, $segment)) {
+                        $target[$segment] = [];
+                    }
+
+                    data_set($target[$segment], $segments, $value, $overwrite);
+                }
             } elseif ($overwrite || ! Arr::exists($target, $segment)) {
                 $target[$segment] = $value;
             }
@@ -207,13 +230,33 @@ if (! function_exists('data_forget')) {
         // Unlike upstream, wildcards also remove values from stdClass properties.
         if (($segment = array_shift($segments)) === '*' && (Arr::accessible($target) || $target instanceof stdClass)) {
             if ($segments) {
-                foreach ($target as &$inner) {
-                    data_forget($inner, $segments);
+                // ArrayAccess reads and iterators may copy arrays; write changes back while objects mutate in place.
+                if ($target instanceof ArrayAccess && $target instanceof Traversable) {
+                    foreach ($target as $innerKey => $inner) {
+                        data_forget($inner, $segments);
+
+                        if (is_array($inner)) {
+                            $target[$innerKey] = $inner;
+                        }
+                    }
+                } else {
+                    foreach ($target as &$inner) {
+                        data_forget($inner, $segments);
+                    }
                 }
             }
         } elseif (Arr::accessible($target)) {
             if ($segments && Arr::exists($target, $segment)) {
-                data_forget($target[$segment], $segments);
+                if ($target instanceof ArrayAccess) {
+                    $inner = $target[$segment];
+                    data_forget($inner, $segments);
+
+                    if (is_array($inner)) {
+                        $target[$segment] = $inner;
+                    }
+                } else {
+                    data_forget($target[$segment], $segments);
+                }
             } else {
                 Arr::forget($target, $segment);
             }

@@ -15,6 +15,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\GuardsProcessOutput;
+use Hypervel\Support\Traits\Macroable;
 use LogicException;
 use RuntimeException;
 use Stringable;
@@ -27,6 +28,7 @@ class PendingProcess
 {
     use Conditionable;
     use GuardsProcessOutput;
+    use Macroable;
 
     /**
      * The process factory instance.
@@ -449,5 +451,13 @@ class PendingProcess
         }
 
         throw new LogicException('Unsupported asynchronous process fake result provided.');
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
     }
 }

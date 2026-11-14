@@ -608,6 +608,7 @@ class Str
             return false;
         }
 
+        // Require hyphenated text even for versioned checks, unlike Ramsey's parser.
         if (preg_match('/^[\da-fA-F]{8}-[\da-fA-F]{4}-[\da-fA-F]{4}-[\da-fA-F]{4}-[\da-fA-F]{12}$/D', $value) !== 1) {
             return false;
         }
@@ -624,7 +625,7 @@ class Str
             return strtolower($value) === 'ffffffff-ffff-ffff-ffff-ffffffffffff';
         }
 
-        return (int) $value[14] === $version;
+        return (int) $value[14] === $version && str_contains('89abAB', $value[19]);
     }
 
     /**

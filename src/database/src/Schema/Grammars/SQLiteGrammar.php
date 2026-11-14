@@ -592,7 +592,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile a primary key command.
      */
-    public function compilePrimary(Blueprint $blueprint, Fluent $command): ?string
+    public function compilePrimary(Blueprint $blueprint, Fluent $command): null
     {
         // Handled on table creation or alteration...
         return null;
@@ -723,7 +723,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile a drop primary key command.
      */
-    public function compileDropPrimary(Blueprint $blueprint, Fluent $command): ?string
+    public function compileDropPrimary(Blueprint $blueprint, Fluent $command): null
     {
         // Handled on table alteration...
         return null;
@@ -767,7 +767,7 @@ class SQLiteGrammar extends Grammar
      *
      * @throws RuntimeException
      */
-    public function compileDropForeign(Blueprint $blueprint, Fluent $command): ?array
+    public function compileDropForeign(Blueprint $blueprint, Fluent $command): null
     {
         if (empty($command->columns)) {
             throw new RuntimeException('This database driver does not support dropping foreign keys by name.');

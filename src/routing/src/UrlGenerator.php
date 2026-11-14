@@ -24,6 +24,7 @@ use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
+use Symfony\Component\HttpFoundation\HeaderUtils;
 use Symfony\Component\Routing\Exception\RouteNotFoundException;
 
 class UrlGenerator implements UrlGeneratorContract
@@ -464,6 +465,16 @@ class UrlGenerator implements UrlGeneratorContract
     public function signatureHasNotExpired(Request $request): bool
     {
         $expires = $request->query('expires');
+
+        if ($expires === null) {
+            // Read the raw query verified by hasCorrectSignature(), avoiding a parse/sort/rebuild before parsing again.
+            // REMOVED: Vapor's VAPOR_RAW_QUERY_STRING override; Swoole supplies the raw QUERY_STRING.
+            $queries = HeaderUtils::parseQuery((string) $request->server->get('QUERY_STRING'));
+
+            if (isset($queries['expires'])) {
+                $expires = $queries['expires'];
+            }
+        }
 
         if ($expires !== null && ! is_string($expires)) {
             return false;

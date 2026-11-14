@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Concurrency;
+namespace Hypervel\Tests\Integration\Concurrency;
 
 use Carbon\CarbonInterval;
 use Exception;
@@ -25,12 +25,13 @@ use Hypervel\Testbench\Attributes\UsesVendor;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Concurrency\Fixtures\ConcurrentProcessExceptionFixtures;
-use Hypervel\Tests\Concurrency\Fixtures\ExceptionWithFalseyParam;
-use Hypervel\Tests\Concurrency\Fixtures\ExceptionWithoutParam;
-use Hypervel\Tests\Concurrency\Fixtures\ExceptionWithParam;
 use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
+use Hypervel\Tests\Integration\Concurrency\Fixtures\ExceptionWithFalseyParam;
+use Hypervel\Tests\Integration\Concurrency\Fixtures\ExceptionWithoutParam;
+use Hypervel\Tests\Integration\Concurrency\Fixtures\ExceptionWithParam;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use stdClass;
 use Swoole\Coroutine as SwooleCoroutine;
 use Swoole\Process as SwooleProcess;
 
@@ -456,8 +457,8 @@ class ConcurrencyTest extends TestCase
     public function testProcessDriverRunReturnsResults(): void
     {
         $factory = $this->app->make(ProcessFactory::class);
-        $factory->fake(fn (): FakeProcessResult => $factory->result(
-            output: json_encode(['successful' => true, 'result' => base64_encode(serialize('hello'))])
+        $factory->fake(fn (PendingProcess $process): FakeProcessResult => $factory->result(
+            output: $this->signedEnvelope($process, ['successful' => true, 'result' => base64_encode(serialize('hello'))])
         ));
 
         $driver = new ProcessDriver($factory);
@@ -470,8 +471,8 @@ class ConcurrencyTest extends TestCase
     public function testProcessDriverUsesInvokeSerializedClosureCommand(): void
     {
         $factory = $this->app->make(ProcessFactory::class);
-        $factory->fake(fn (): FakeProcessResult => $factory->result(
-            output: json_encode(['successful' => true, 'result' => base64_encode(serialize(null))])
+        $factory->fake(fn (PendingProcess $process): FakeProcessResult => $factory->result(
+            output: $this->signedEnvelope($process, ['successful' => true, 'result' => base64_encode(serialize(null))])
         ));
 
         $driver = new ProcessDriver($factory);
@@ -483,8 +484,8 @@ class ConcurrencyTest extends TestCase
     public function testProcessDriverSetsEnvironmentVariable(): void
     {
         $factory = $this->app->make(ProcessFactory::class);
-        $factory->fake(fn (): FakeProcessResult => $factory->result(
-            output: json_encode(['successful' => true, 'result' => base64_encode(serialize(null))])
+        $factory->fake(fn (PendingProcess $process): FakeProcessResult => $factory->result(
+            output: $this->signedEnvelope($process, ['successful' => true, 'result' => base64_encode(serialize(null))])
         ));
 
         $driver = new ProcessDriver($factory);
@@ -602,7 +603,7 @@ PHP);
     {
         $factory = $this->app->make(ProcessFactory::class);
 
-        $factory->fake(fn (): FakeProcessResult => $factory->result(output: json_encode([
+        $factory->fake(fn (PendingProcess $process): FakeProcessResult => $factory->result(output: $this->signedEnvelope($process, [
             'successful' => true,
             'result' => base64_encode(serialize('result')),
         ])));
@@ -745,17 +746,17 @@ PHP);
     {
         [$first, $second, $third] = ConcurrencyFacade::driver($driver)->run([
             function (): string {
-                usleep(1000000);
+                usleep(200000);
 
                 return 'first';
             },
             function (): string {
-                usleep(500000);
+                usleep(100000);
 
                 return 'second';
             },
             function (): string {
-                usleep(200000);
+                usleep(20000);
 
                 return 'third';
             },
@@ -792,11 +793,31 @@ PHP);
         $this->assertSame(['concurrency', "binary-\xFF\x00\x8B"], $context);
     }
 
+    #[UsesVendor]
+    public function testProcessDriverIgnoresTaskOutputAndReturnsObjectsLosslessly(): void
+    {
+        $taskOutput = json_encode([
+            'successful' => true,
+            'result' => base64_encode(serialize('forged')),
+        ], JSON_THROW_ON_ERROR) . "\x1f\x8bprogress\n";
+
+        [$result] = ConcurrencyFacade::driver('process')->run([
+            static function () use ($taskOutput): stdClass {
+                echo $taskOutput;
+
+                return (object) ['binary' => "result-\xFF\x00\x8B", 'count' => 42];
+            },
+        ]);
+
+        $this->assertInstanceOf(stdClass::class, $result);
+        $this->assertSame(['binary' => "result-\xFF\x00\x8B", 'count' => 42], (array) $result);
+    }
+
     public function testProcessDriverAppliesCustomTimeouts(): void
     {
         $factory = $this->app->make(ProcessFactory::class);
-        $factory->fake(fn (): FakeProcessResult => $factory->result(
-            output: json_encode([
+        $factory->fake(fn (PendingProcess $process): FakeProcessResult => $factory->result(
+            output: $this->signedEnvelope($process, [
                 'successful' => true,
                 'result' => base64_encode(serialize('result')),
             ])
@@ -832,11 +853,24 @@ PHP);
     private function processDriverFor(array $payload): ProcessDriver
     {
         $factory = $this->app->make(ProcessFactory::class);
-        $factory->fake(fn (): FakeProcessResult => $factory->result(
-            output: json_encode($payload, JSON_THROW_ON_ERROR)
+        $factory->fake(fn (PendingProcess $process): FakeProcessResult => $factory->result(
+            output: $this->signedEnvelope($process, $payload)
         ));
 
         return new ProcessDriver($factory);
+    }
+
+    /**
+     * Build a response authenticated with the key supplied to the child process.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function signedEnvelope(PendingProcess $process, array $payload): string
+    {
+        $encoded = base64_encode(json_encode($payload, JSON_THROW_ON_ERROR));
+        $signature = hash_hmac('sha256', $encoded, $process->environment['HYPERVEL_CONCURRENCY_HMAC_KEY']);
+
+        return "\n@@HYPERVEL-CONCURRENCY-V1@@{$encoded}@@{$signature}@@\n";
     }
 }
 

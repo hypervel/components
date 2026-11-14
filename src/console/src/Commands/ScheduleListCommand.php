@@ -91,6 +91,12 @@ class ScheduleListCommand extends Command
     {
         // Formatting would strip console style tags, and backslashes before < or >, from shell commands.
         $this->output->writeln($events->map(function ($event) use ($timezone) {
+            $expressionTimezone = $this->getExpressionTimezone($event);
+
+            $timezone = $this->option('timezone') === null
+                ? new DateTimeZone($expressionTimezone)
+                : $timezone;
+
             $nextDueDate = $this->getNextDueDateForEvent($event, $timezone);
 
             $command = $event->command ?? '';
@@ -116,7 +122,7 @@ class ScheduleListCommand extends Command
                 'next_due_date' => $nextDueDate->format('Y-m-d H:i:s P'),
                 'next_due_date_human' => $nextDueDate->diffForHumans(),
                 'timezone' => $timezone->getName(),
-                'expression_timezone' => $this->getExpressionTimezone($event),
+                'expression_timezone' => $expressionTimezone,
                 'has_mutex' => $event->mutex->exists($event),
                 'repeat_seconds' => $event->isRepeatable() ? $event->repeatSeconds : null,
                 'environments' => $event->environments,
@@ -290,7 +296,8 @@ class ScheduleListCommand extends Command
 
         return $now
             ->endOfSecond()
-            ->ceilSeconds($event->repeatSeconds);
+            ->ceilSeconds($event->repeatSeconds)
+            ->setTimezone($timezone);
     }
 
     /**

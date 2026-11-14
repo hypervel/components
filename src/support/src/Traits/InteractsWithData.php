@@ -15,8 +15,11 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Number;
 use Hypervel\Support\Stringable;
+use InvalidArgumentException;
 use stdClass;
 use Stringable as BaseStringable;
+use Symfony\Component\Uid\Ulid;
+use Symfony\Component\Uid\Uuid;
 use UnitEnum;
 
 use function Hypervel\Support\enum_try_from;
@@ -395,6 +398,36 @@ trait InteractsWithData
         $unit = $unit instanceof Unit ? $unit : Unit::fromName($unit);
 
         return CarbonInterval::fromString(number_format((float) $value, 10, '.', '') . ' ' . $unit->name);
+    }
+
+    /**
+     * Retrieve data from the instance as a UUID instance.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function uuid(string $key): ?Uuid
+    {
+        if ($this->isNotFilled($key)) {
+            return null;
+        }
+
+        // Require hyphenated UUIDs to match validation. Symfony's fromString()
+        // also accepts ULID, base58 and binary representations.
+        return Uuid::fromRfc4122($this->data($key));
+    }
+
+    /**
+     * Retrieve data from the instance as a ULID instance.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function ulid(string $key): ?Ulid
+    {
+        if ($this->isNotFilled($key)) {
+            return null;
+        }
+
+        return new Ulid($this->data($key));
     }
 
     /**

@@ -64,6 +64,13 @@ class RedisBroadcasterTest extends TestCase
         $this->broadcaster->auth($request);
     }
 
+    public function testAuthRejectsArrayChannelName(): void
+    {
+        $this->expectException(AccessDeniedHttpException::class);
+
+        $this->broadcaster->auth($this->getMockRequestWithUserForChannel(['private-test']));
+    }
+
     public function testAuthThrowAccessDeniedHttpExceptionWithPrivateChannelWhenCallbackReturnFalse(): void
     {
         $this->expectException(AccessDeniedHttpException::class);
@@ -384,7 +391,7 @@ class RedisBroadcasterTest extends TestCase
     /**
      * Create a channel request with an authenticated user.
      */
-    protected function getMockRequestWithUserForChannel(string $channel): Request
+    protected function getMockRequestWithUserForChannel(string|array $channel): Request
     {
         $request = Request::create('/', 'POST', ['channel_name' => $channel]);
 

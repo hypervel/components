@@ -17,6 +17,8 @@ jobs:
     services:
       mysql:
         image: mysql:5.7
+        volumes:
+          - database-socket:/var/run/mysqld
         env:
           MYSQL_ROOT_PASSWORD: password
           MYSQL_DATABASE: testing
@@ -29,6 +31,8 @@ jobs:
 
     container:
       image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      volumes:
+        - database-socket:/var/run/mysqld
 
     strategy:
       fail-fast: false
@@ -52,6 +56,7 @@ jobs:
       - name: Execute integration tests
         env:
           DB_HOST: mysql
+          DB_SOCKET: /var/run/mysqld/mysqld.sock
           DB_PORT: 3306
           DB_DATABASE: testing
           DB_USERNAME: root
@@ -60,6 +65,7 @@ jobs:
           bin/run-database-tests.sh mysql
           vendor/bin/phpunit --no-progress tests/Integration/Auth/ApiAuthenticationWithEloquentTest.php
 
+  # Keep TCP coverage for coroutine transport and password authentication.
   mysql_84:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -134,6 +140,8 @@ jobs:
     services:
       mysql:
         image: mysql:9.7
+        volumes:
+          - database-socket:/var/run/mysqld
         env:
           MYSQL_ROOT_PASSWORD: password
           MYSQL_DATABASE: testing
@@ -146,6 +154,8 @@ jobs:
 
     container:
       image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      volumes:
+        - database-socket:/var/run/mysqld
 
     strategy:
       fail-fast: false
@@ -169,6 +179,7 @@ jobs:
       - name: Execute integration tests
         env:
           DB_HOST: mysql
+          DB_SOCKET: /var/run/mysqld/mysqld.sock
           DB_PORT: 3306
           DB_DATABASE: testing
           DB_USERNAME: root
@@ -184,6 +195,8 @@ jobs:
     services:
       mariadb:
         image: mariadb:10.11
+        volumes:
+          - database-socket:/var/run/mysqld
         command: --log-bin --server-id=1
         env:
           MARIADB_ROOT_PASSWORD: password
@@ -196,6 +209,8 @@ jobs:
 
     container:
       image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      volumes:
+        - database-socket:/var/run/mysqld
 
     strategy:
       fail-fast: false
@@ -219,6 +234,7 @@ jobs:
       - name: Execute integration tests
         env:
           DB_HOST: mariadb
+          DB_SOCKET: /var/run/mysqld/mysqld.sock
           DB_PORT: 3306
           DB_DATABASE: testing
           DB_USERNAME: root
@@ -232,6 +248,8 @@ jobs:
     services:
       mariadb:
         image: mariadb:11
+        volumes:
+          - database-socket:/var/run/mysqld
         command: --log-bin --server-id=1
         env:
           MARIADB_ROOT_PASSWORD: password
@@ -244,6 +262,8 @@ jobs:
 
     container:
       image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      volumes:
+        - database-socket:/var/run/mysqld
 
     strategy:
       fail-fast: false
@@ -267,6 +287,7 @@ jobs:
       - name: Execute integration tests
         env:
           DB_HOST: mariadb
+          DB_SOCKET: /var/run/mysqld/mysqld.sock
           DB_PORT: 3306
           DB_DATABASE: testing
           DB_USERNAME: root
@@ -280,6 +301,8 @@ jobs:
     services:
       mariadb:
         image: mariadb:12.3
+        volumes:
+          - database-socket:/var/run/mysqld
         command: --log-bin --server-id=1
         env:
           MARIADB_ROOT_PASSWORD: password
@@ -292,6 +315,8 @@ jobs:
 
     container:
       image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      volumes:
+        - database-socket:/var/run/mysqld
 
     strategy:
       fail-fast: false
@@ -315,6 +340,7 @@ jobs:
       - name: Execute integration tests
         env:
           DB_HOST: mariadb
+          DB_SOCKET: /var/run/mysqld/mysqld.sock
           DB_PORT: 3306
           DB_DATABASE: testing
           DB_USERNAME: root
@@ -328,6 +354,8 @@ jobs:
     services:
       postgres:
         image: pgvector/pgvector:0.8.7-pg17
+        volumes:
+          - database-socket:/var/run/postgresql
         env:
           POSTGRES_PASSWORD: password
           POSTGRES_DB: testing
@@ -339,6 +367,8 @@ jobs:
 
     container:
       image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      volumes:
+        - database-socket:/var/run/postgresql
 
     strategy:
       fail-fast: false
@@ -361,13 +391,14 @@ jobs:
 
       - name: Execute integration tests
         env:
-          DB_HOST: postgres
+          DB_HOST: /var/run/postgresql
           DB_PORT: 5432
           DB_DATABASE: testing
           DB_USERNAME: postgres
           DB_PASSWORD: password
         run: bin/run-database-tests.sh pgsql
 
+  # Keep TCP coverage for coroutine transport and password authentication.
   pgsql_18:
     runs-on: ubuntu-latest
     timeout-minutes: 10

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Console\Scheduling\ScheduleListCommandTest;
 
+use DateTimeZone;
 use Hypervel\Console\Command;
 use Hypervel\Console\Commands\ScheduleListCommand;
 use Hypervel\Console\Scheduling\Schedule;
@@ -11,8 +12,10 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\ProcessUtils;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class ScheduleListCommandTest extends TestCase
 {
@@ -253,6 +256,124 @@ class ScheduleListCommandTest extends TestCase
         $this->assertSame('UTC', $data[0]['expression_timezone']);
         $this->assertStringContainsString('-06:00', $data[0]['next_due_date']);
         $this->assertSame('php artisan inspire', $data[0]['command']);
+    }
+
+    public function testDisplayScheduleAsJsonUsesTheEventsOwnExpressionAndTimezone(): void
+    {
+        $this->schedule->command('inspire')->cron('0 9 * * *')->timezone('Europe/Zurich');
+        $this->schedule->command('inspire')->cron('0 9 * * *')->timezone(new DateTimeZone('America/New_York'));
+        $this->schedule->command('inspire')->cron('0 9 * * *');
+
+        $this->withoutMockingConsoleOutput()->artisan(ScheduleListCommand::class, ['--json' => true]);
+        $data = json_decode(Artisan::output(), true);
+
+        $this->assertCount(3, $data);
+
+        $this->assertSame('0 9 * * *', $data[0]['expression']);
+        $this->assertSame('Europe/Zurich', $data[0]['timezone']);
+        $this->assertSame('2023-01-01 09:00:00 +01:00', $data[0]['next_due_date']);
+
+        $this->assertSame('0 9 * * *', $data[1]['expression']);
+        $this->assertSame('America/New_York', $data[1]['timezone']);
+        $this->assertSame('2023-01-01 09:00:00 -05:00', $data[1]['next_due_date']);
+
+        $this->assertSame('0 9 * * *', $data[2]['expression']);
+        $this->assertSame('UTC', $data[2]['timezone']);
+        $this->assertSame('2023-01-01 09:00:00 +00:00', $data[2]['next_due_date']);
+    }
+
+    #[DataProvider('daylightSavingTimeDatesProvider')]
+    public function testDisplayScheduleAsJsonExpressionDoesNotChangeAcrossDaylightSavingTime(string $now): void
+    {
+        CarbonImmutable::setTestNow($now);
+
+        $this->schedule->command('inspire')->cron('5 0 1-28 * *')->timezone('Europe/Amsterdam');
+        $this->schedule->command('inspire')->cron('0 9 * * *')->timezone('Europe/Zurich');
+
+        $this->withoutMockingConsoleOutput()->artisan(ScheduleListCommand::class, ['--json' => true]);
+        $data = json_decode(Artisan::output(), true);
+
+        $this->assertSame(['5 0 1-28 * *', '0 9 * * *'], array_column($data, 'expression'));
+        $this->assertSame(['Europe/Amsterdam', 'Europe/Zurich'], array_column($data, 'timezone'));
+    }
+
+    /**
+     * Provide dates on either side of daylight saving time.
+     */
+    public static function daylightSavingTimeDatesProvider(): array
+    {
+        return [
+            'summer time' => ['2026-09-30 12:00:00 UTC'],
+            'winter time' => ['2026-10-28 12:00:00 UTC'],
+        ];
+    }
+
+    #[WithConfig('app.schedule_timezone', 'Europe/Zurich')]
+    public function testDisplayScheduleAsJsonUsesTheScheduleTimezone(): void
+    {
+        $this->schedule->command('inspire')->cron('0 9 * * *');
+
+        $this->withoutMockingConsoleOutput()->artisan(ScheduleListCommand::class, ['--json' => true]);
+        $data = json_decode(Artisan::output(), true);
+
+        $this->assertSame('0 9 * * *', $data[0]['expression']);
+        $this->assertSame('Europe/Zurich', $data[0]['timezone']);
+    }
+
+    #[WithConfig('app.timezone', 'Europe/Zurich')]
+    public function testDisplayScheduleAsJsonIgnoresTheAppTimezoneForEventsWithTheirOwnTimezone(): void
+    {
+        $this->schedule->command('inspire')->cron('0 9 * * *')->timezone('America/New_York');
+
+        $this->withoutMockingConsoleOutput()->artisan(ScheduleListCommand::class, ['--json' => true]);
+        $data = json_decode(Artisan::output(), true);
+
+        $this->assertSame('0 9 * * *', $data[0]['expression']);
+        $this->assertSame('America/New_York', $data[0]['timezone']);
+    }
+
+    public function testDisplayScheduleAsJsonDoesNotSplitEventsIntoMultipleRows(): void
+    {
+        $this->schedule->command('inspire')->cron('0 0 1 1-12/3 *')->timezone('Asia/Tokyo');
+
+        $this->withoutMockingConsoleOutput()->artisan(ScheduleListCommand::class, ['--json' => true]);
+        $data = json_decode(Artisan::output(), true);
+
+        $this->assertCount(1, $data);
+        $this->assertSame('0 0 1 1-12/3 *', $data[0]['expression']);
+        $this->assertSame('Asia/Tokyo', $data[0]['timezone']);
+    }
+
+    public function testDisplayScheduleAsJsonConvertsEventsToTheTimezoneOption(): void
+    {
+        $this->schedule->command('inspire')->cron('0 9 * * *')->timezone('Europe/Zurich');
+        $this->schedule->command('inspire')->daily();
+
+        $this->withoutMockingConsoleOutput()->artisan(ScheduleListCommand::class, [
+            '--timezone' => 'UTC',
+            '--json' => true,
+        ]);
+        $data = json_decode(Artisan::output(), true);
+
+        // Hypervel preserves cron expressions in their evaluation timezone.
+        $this->assertSame(['0 9 * * *', '0 0 * * *'], array_column($data, 'expression'));
+        $this->assertSame(['Europe/Zurich', 'UTC'], array_column($data, 'expression_timezone'));
+        $this->assertSame(['UTC', 'UTC'], array_column($data, 'timezone'));
+        $this->assertSame('2023-01-01 08:00:00 +00:00', $data[0]['next_due_date']);
+    }
+
+    public function testDisplayScheduleSubMinuteUsesTheRequestedTimezone(): void
+    {
+        $this->schedule->command('inspire')->everyTenSeconds()->timezone('Europe/Zurich');
+
+        $this->withoutMockingConsoleOutput()->artisan(ScheduleListCommand::class, [
+            '--timezone' => 'America/Chicago',
+            '--json' => true,
+        ]);
+        $data = json_decode(Artisan::output(), true);
+
+        $this->assertSame('2022-12-31 18:00:10 -06:00', $data[0]['next_due_date']);
+        $this->assertSame('America/Chicago', $data[0]['timezone']);
     }
 
     public function testDisplayScheduleFallsBackToApplicationTimezoneWhenScheduleHasNone(): void
