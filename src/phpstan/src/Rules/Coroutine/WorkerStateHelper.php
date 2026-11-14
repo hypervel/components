@@ -4,17 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\Rules\Coroutine;
 
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Config\Repository;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Http\FormRequest;
+use Hypervel\PHPStan\Concerns\HasContainer;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Facades\App;
 use Hypervel\Support\Facades\Auth;
+use Hypervel\Support\Facades\Config;
 use Hypervel\Support\Facades\Request as RequestFacade;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
@@ -22,6 +27,7 @@ use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\CallLike;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\MethodCall;
+use PhpParser\Node\Expr\PropertyFetch;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Identifier;
@@ -29,6 +35,7 @@ use PhpParser\Node\Name;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredParameter;
 use PHPStan\DependencyInjection\AutowiredService;
+use PHPStan\Node\CollectedDataNode;
 use PHPStan\Reflection\AttributeReflection;
 use PHPStan\Reflection\ExtendedMethodReflection;
 use PHPStan\Reflection\FunctionReflection;
@@ -53,17 +60,19 @@ use function is_string;
 use function strtolower;
 
 /**
- * Collects the boot-independent facts of the worker-state checks; WorkerStateRule applies the booted
- * lifetimes to them.
+ * Collects the boot-independent facts of the checks that judge code by the request, job or operation
+ * it runs in, and builds the shared model the rules apply the booted lifetimes with.
  *
  * @phpstan-type FunctionFacts array{class: null|string, method: null|string, closure: bool, context: null|string, position: int}
- * @phpstan-type ConfigWrite array{type: 'config', line: int, abstracts: null|list<string>, parameter: null|string, function: FunctionFacts}
+ * @phpstan-type ConfigWrite array{type: 'config', line: int, abstracts: null|list<string>, parameter: null|string, property: null|array{string, string}, function: FunctionFacts}
  * @phpstan-type RouteAction array{type: 'action', start: int, end: int, nested: list<array{int, int}>, configParameters: array<string, string>}
  * @phpstan-type HelperCall array{type: 'call', class: string, method: string, callee: string}
  */
 #[AutowiredService]
 class WorkerStateHelper
 {
+    use HasContainer;
+
     /**
      * The lowercase names of the methods that run a queued class as a job.
      */
@@ -96,11 +105,24 @@ class WorkerStateHelper
     private const array LIFETIME_ATTRIBUTES = [BootOnly::class, TestsOnly::class, BootOrTestsOnly::class];
 
     /**
+     * The lowercase repository methods that change configuration.
+     */
+    private const array CONFIG_WRITES = ['set', 'push', 'prepend', 'offsetset', 'offsetunset'];
+
+    /**
+     * The last collected data analyzed, and its model.
+     *
+     * @var null|array{CollectedDataNode, WorkerStateAnalysis}
+     */
+    private ?array $analysis = null;
+
+    /**
      * Create a new worker state helper instance.
      */
     public function __construct(
         private ReflectionProvider $reflectionProvider,
         private CoroutineRuleHelper $coroutineRuleHelper,
+        private RuntimeInputs $runtimeInputs,
         #[AutowiredParameter(ref: '%checkWorkerSharedState%')]
         public readonly bool $checkWorkerSharedState,
         #[AutowiredParameter(ref: '%checkStaticStateMutation%')]
@@ -109,18 +131,47 @@ class WorkerStateHelper
         public readonly bool $checkUnboundedWorkerCaches,
         #[AutowiredParameter(ref: '%noRuntimeConfigMutation%')]
         public readonly bool $noRuntimeConfigMutation,
+        #[AutowiredParameter(ref: '%checkRestrictedCalls%')]
+        public readonly bool $checkRestrictedCalls,
+        #[AutowiredParameter(ref: '%checkCancellationHandling%')]
+        public readonly bool $checkCancellationHandling,
     ) {
     }
 
     /**
-     * Determine whether any worker-state check is enabled.
+     * Determine whether any check that judges code by the operation it runs in is enabled, so the
+     * shared model's facts are collected.
      */
     public function isEnabled(): bool
+    {
+        return $this->hasStateChecks() || $this->checkRestrictedCalls || $this->checkCancellationHandling;
+    }
+
+    /**
+     * Determine whether any check of the state code keeps for the worker is enabled.
+     */
+    public function hasStateChecks(): bool
     {
         return $this->checkWorkerSharedState
             || $this->checkStaticStateMutation
             || $this->checkUnboundedWorkerCaches
             || $this->noRuntimeConfigMutation;
+    }
+
+    /**
+     * Get the worker-state model of the collected data, built once for all the rules that share it.
+     */
+    public function analyze(CollectedDataNode $node): WorkerStateAnalysis
+    {
+        if ($this->analysis === null || $this->analysis[0] !== $node) {
+            // The analysis always runs on the framework container: the booted application or a test's own.
+            /** @var Container $container */
+            $container = $this->getContainer();
+
+            $this->analysis = [$node, new WorkerStateAnalysis($node, $this->reflectionProvider, $container, $this->runtimeInputs)];
+        }
+
+        return $this->analysis[1];
     }
 
     /**
@@ -138,7 +189,7 @@ class WorkerStateHelper
     {
         $function = $scope->getFunction();
 
-        if ($function !== null && ($function->getName() === 'flushState' || $this->hasLifetimeAttribute($function))) {
+        if ($function !== null && ($function->getName() === 'flushState' || $this->getLifetimeAttribute($function) !== null)) {
             return null;
         }
 
@@ -163,11 +214,11 @@ class WorkerStateHelper
     }
 
     /**
-     * Determine whether the function is marked as running only while the application boots or in tests.
+     * Get the attribute marking the function as running only while the application boots or in tests.
      */
-    public function hasLifetimeAttribute(FunctionReflection|ExtendedMethodReflection $function): bool
+    public function getLifetimeAttribute(FunctionReflection|ExtendedMethodReflection $function): ?AttributeReflection
     {
-        return array_any(
+        return array_find(
             $function->getAttributes(),
             static fn (AttributeReflection $attribute): bool => in_array($attribute->getName(), self::LIFETIME_ATTRIBUTES, true),
         );
@@ -192,31 +243,96 @@ class WorkerStateHelper
     }
 
     /**
+     * Determine whether the call changes configuration: config() with an array, a Config facade write,
+     * or a repository write method.
+     */
+    public function isConfigWrite(CallLike $call, Scope $scope): bool
+    {
+        if ($call instanceof FuncCall) {
+            $key = $call->getArg('key', 0);
+
+            return $this->isConfigFunction($call, $scope)
+                && $key !== null
+                && $scope->getType($key->value)->isArray()->yes();
+        }
+
+        if (! $call instanceof MethodCall && ! $call instanceof StaticCall
+            || ! $call->name instanceof Identifier
+            || ! in_array($call->name->toLowerString(), self::CONFIG_WRITES, true)) {
+            return false;
+        }
+
+        // A method call writes configuration when its receiver is the repository, which the caller checks.
+        return ! $call instanceof StaticCall
+            || ($call->class instanceof Name
+                && (new ObjectType(Config::class))->isSuperTypeOf(new ObjectType($scope->resolveName($call->class)))->yes());
+    }
+
+    /**
      * Describe the expression a configuration write goes through when it may be the global repository:
-     * config() without arguments, a constant container resolution (its names, which the rule resolves
-     * with the booted aliases), or a parameter of the innermost function typed as a repository (its
-     * name, which the rule checks the container injects). Null for any other expression.
+     * config() without arguments, a constant resolution from the application container (its names,
+     * which the rule resolves with the booted aliases), a parameter of the innermost function typed
+     * as a repository (its name, which the rule checks the container injects), or a repository
+     * property the constructor promotes (which the rule checks the same way). Null for any other
+     * expression.
      *
-     * @return null|array{abstracts: null|list<string>, parameter: null|string}
+     * @return null|array{abstracts: null|list<string>, parameter: null|string, property: null|array{string, string}}
      */
     public function getConfigReceiver(Expr $expr, Scope $scope): ?array
     {
         if ($expr instanceof FuncCall && $expr->getArgs() === [] && $this->isConfigFunction($expr, $scope)) {
-            return ['abstracts' => null, 'parameter' => null];
+            return ['abstracts' => null, 'parameter' => null, 'property' => null];
         }
 
-        $abstracts = $expr instanceof CallLike ? $this->getResolvedAbstracts($expr, $scope) : null;
+        $abstracts = $expr instanceof CallLike ? $this->getApplicationResolvedAbstracts($expr, $scope) : null;
 
         if ($abstracts !== null) {
-            return ['abstracts' => $abstracts, 'parameter' => null];
+            return ['abstracts' => $abstracts, 'parameter' => null, 'property' => null];
         }
 
         $parameter = $expr instanceof Variable && is_string($expr->name)
             ? array_find($this->getParameters($scope), static fn (ParameterReflection $parameter): bool => $parameter->getName() === $expr->name)
             : null;
 
-        return $parameter !== null && $this->isConfigRepositoryType($parameter->getType())
-            ? ['abstracts' => null, 'parameter' => $parameter->getName()]
+        if ($parameter !== null && $this->isConfigRepositoryType($parameter->getType())) {
+            return ['abstracts' => null, 'parameter' => $parameter->getName(), 'property' => null];
+        }
+
+        $property = $this->isConfigRepositoryType($scope->getType($expr)) ? $this->getPromotedProperty($expr, $scope) : null;
+
+        return $property === null ? null : ['abstracts' => null, 'parameter' => null, 'property' => $property];
+    }
+
+    /**
+     * Get the constructor's declaring class and the property name when the expression reads $this's
+     * readonly property that constructor promotes, outside closures. The property then holds what
+     * the container injected into the constructor, when the container built the instance.
+     *
+     * @return null|array{string, string}
+     */
+    public function getPromotedProperty(Expr $expr, Scope $scope): ?array
+    {
+        if (! $expr instanceof PropertyFetch
+            || ! $expr->var instanceof Variable
+            || $expr->var->name !== 'this'
+            || ! $expr->name instanceof Identifier
+            || $scope->isInAnonymousFunction()) {
+            return null;
+        }
+
+        $class = $scope->getClassReflection();
+        $name = $expr->name->toString();
+
+        if ($class === null || ! $class->hasNativeProperty($name) || ! $class->hasConstructor()) {
+            return null;
+        }
+
+        $property = $class->getNativeProperty($name);
+        $constructor = $class->getConstructor()->getDeclaringClass()->getName();
+
+        // Only the constructor that runs for the class sets the property it promotes.
+        return $property->isPromoted() && $property->isReadOnly() && $property->getDeclaringClass()->getName() === $constructor
+            ? [$constructor, $name]
             : null;
     }
 
@@ -239,16 +355,12 @@ class WorkerStateHelper
      */
     public function getResolvedAbstracts(CallLike $call, Scope $scope): ?array
     {
-        if ($call->isFirstClassCallable()) {
-            return null;
-        }
-
         $signature = match (true) {
             $call instanceof FuncCall => $call->name instanceof Name
                 ? self::RESOLVING_FUNCTIONS[strtolower($this->reflectionProvider->resolveFunctionName($call->name, $scope) ?? '')] ?? null
                 : null,
             $call instanceof MethodCall => $call->name instanceof Identifier
-                && (new ObjectType(Container::class))->isSuperTypeOf($scope->getType($call->var))->yes()
+                && (new ObjectType(ContainerContract::class))->isSuperTypeOf($scope->getType($call->var))->yes()
                 ? self::RESOLVING_METHODS[$call->name->toLowerString()] ?? null
                 : null,
             $call instanceof StaticCall => $call->class instanceof Name
@@ -259,7 +371,32 @@ class WorkerStateHelper
             default => null,
         };
 
-        if ($signature === null || array_any($call->getArgs(), static fn (Arg $argument): bool => $argument->unpack)) {
+        return $signature === null ? null : $this->getRequestedAbstracts($call, $signature, $scope);
+    }
+
+    /**
+     * Get the abstracts a resolution without parameters requests from a receiver known to be the
+     * container, such as the container a #[BindWhen] condition receives, or null for any other call.
+     *
+     * @return null|list<string>
+     */
+    public function getContainerResolvedAbstracts(MethodCall $call, Scope $scope): ?array
+    {
+        $signature = $call->name instanceof Identifier ? self::RESOLVING_METHODS[$call->name->toLowerString()] ?? null : null;
+
+        return $signature === null ? null : $this->getRequestedAbstracts($call, $signature, $scope);
+    }
+
+    /**
+     * Get the abstracts a resolving call with the given signature requests, or null when it may pass parameters or its abstract isn't a constant string.
+     *
+     * @param array{string, bool} $signature
+     *
+     * @return null|list<string>
+     */
+    private function getRequestedAbstracts(CallLike $call, array $signature, Scope $scope): ?array
+    {
+        if ($call->isFirstClassCallable() || array_any($call->getArgs(), static fn (Arg $argument): bool => $argument->unpack)) {
             return null;
         }
 
@@ -275,6 +412,50 @@ class WorkerStateHelper
         $abstracts = $scope->getType($abstract->value)->getConstantStrings();
 
         return $abstracts === [] ? null : array_map(static fn ($abstract): string => $abstract->getValue(), $abstracts);
+    }
+
+    /**
+     * Get the abstracts a resolution from the application container requests, or null for any other
+     * call: the resolving helpers, the App facade, or the framework's resolving method called on the
+     * application, such as app() or an injected application, or on Container::getInstance().
+     *
+     * Another container, or one overriding the method, may hold other bindings than the booted ones.
+     *
+     * @return null|list<string>
+     */
+    public function getApplicationResolvedAbstracts(CallLike $call, Scope $scope): ?array
+    {
+        if ($call instanceof MethodCall && ! $this->isApplicationContainerCall($call, $scope)) {
+            return null;
+        }
+
+        return $this->getResolvedAbstracts($call, $scope);
+    }
+
+    /**
+     * Determine whether the call runs the framework container's own method on the application: any
+     * application instance, such as app() or an injected application, or Container::getInstance().
+     *
+     * Another container, or one overriding the method, may hold other bindings than the booted ones.
+     */
+    public function isApplicationContainerCall(MethodCall $call, Scope $scope): bool
+    {
+        $receiver = $call->var;
+        $type = $scope->getType($receiver);
+
+        // A worker runs one application, so any application instance is the booted one.
+        $application = (new ObjectType(Application::class))->isSuperTypeOf($type)->yes()
+            || ($receiver instanceof StaticCall
+                && $receiver->class instanceof Name
+                && $receiver->name instanceof Identifier
+                && $receiver->name->toLowerString() === 'getinstance'
+                && (new ObjectType(Container::class))->isSuperTypeOf(new ObjectType($scope->resolveName($receiver->class)))->yes());
+
+        $method = $application && $call->name instanceof Identifier
+            ? $scope->getMethodReflection($type, $call->name->name)
+            : null;
+
+        return $method !== null && (new ObjectType($method->getDeclaringClass()->getName()))->isSuperTypeOf(new ObjectType(Container::class))->yes();
     }
 
     /**

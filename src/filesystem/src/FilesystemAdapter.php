@@ -1101,6 +1101,12 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Run a callback with the Flysystem driver, as pooled disks do with a borrowed one.
+     *
+     * @template TDriver of FilesystemOperator
+     * @template T
+     *
+     * @param Closure(TDriver): T $callback
+     * @return T
      */
     public function withDriver(Closure $callback): mixed
     {
@@ -1109,6 +1115,12 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Run a callback with the Flysystem adapter, as pooled disks do with a borrowed one.
+     *
+     * @template TAdapter of FlysystemAdapter
+     * @template T
+     *
+     * @param Closure(TAdapter): T $callback
+     * @return T
      */
     public function withAdapter(Closure $callback): mixed
     {

@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\Reflection;
 
+use PhpParser\Node\Name;
 use PHPStan\Reflection\AttributeReflection;
 use PHPStan\Reflection\ClassReflection;
 use PHPStan\Reflection\Mixin\MixinMethodsClassReflectionExtension;
 use PHPStan\Reflection\Mixin\MixinPropertiesClassReflectionExtension;
+use PHPStan\Type\ObjectType;
 
 use function array_key_exists;
 use function array_values;
@@ -89,6 +91,23 @@ class ReflectionHelper
         // @phpstan-ignore phpstanApi.constructor (Reuses PHPStan's mixin lookup, which also checks traits and parents.), phpstanApi.method (Same mixin lookup.)
         return (new MixinMethodsClassReflectionExtension([$classReflection->getName()]))
             ->hasMethod($classReflection, $methodName);
+    }
+
+    /**
+     * Determine whether the static call target names the given facade.
+     *
+     * Matches the facade itself, a subclass of it, and the root namespace alias
+     * Hypervel registers for it (`\Bus`, `\DB`, ...).
+     */
+    public static function isFacade(Name $class, string $facade, string $alias): bool
+    {
+        $className = $class->toString();
+
+        if ($className === $facade || $className === $alias) {
+            return true;
+        }
+
+        return (new ObjectType($facade))->isSuperTypeOf(new ObjectType($className))->yes();
     }
 
     /**

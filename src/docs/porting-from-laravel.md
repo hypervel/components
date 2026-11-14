@@ -28,7 +28,7 @@
     - [Scheduling](#scheduling)
     - [Maintenance Mode](#maintenance-mode)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
-    - [Streamed Responses](#streamed-responses)
+    - [Native Request Functions](#native-request-functions)
     - [AI SDK](#ai-sdk)
     - [MCP](#mcp)
     - [Saloon](#saloon)
@@ -435,8 +435,6 @@ Container lifecycles are adapted for Swoole:
 > [!WARNING]
 > Unbound concrete classes are automatically cached for the worker lifetime after their first resolution. If an unbound class captures the current user, tenant, request, or other mutable per-request data in its constructor, ordinary tests may pass while concurrent requests receive another request's state. Register the class with `bind()` for a fresh instance, use `scoped()` for one instance per request or job coroutine, call `makeTransient()` for one normal resolution without implicit auto-singletoning or constructor-derived execution scope, construct a guaranteed fresh instance with `build()`, or implement `Transient` when every subclass must always be fresh. Hypervel's intrinsically fresh model, value, builder, pending-request, pipeline, and response families already implement `Transient`; see [Transient Classes](/docs/{{version}}/container#transient-classes) for the current list and binding behavior.
 
-Facades cache non-scoped services for the worker lifetime, including `bind()` bindings; use `scoped()` for request or job state. Disabling the facade's cache resolves the service on every call, returning fresh instances only for `bind()` bindings and `Transient` classes; singletons and auto-singletons still return the same instance. See [how facades work](/docs/{{version}}/facades#how-facades-work).
-
 Hypervel treats a contextual attribute's resolved value as authoritative, including `null`. Laravel constructor injection may fall through from `null` to class or primitive resolution, a contextual binding, or a declared default. Move that fallback into the attribute resolver when porting code that relies on this behavior.
 
 On PHP 8.5 and later, `#[BindWhen]` conditions must depend only on boot-stable state. A matching condition becomes a normal worker-lifetime binding in Hypervel, while an unmatched condition may be evaluated again on a later resolution. Do not read the current request, user, or tenant from the condition.
@@ -549,8 +547,10 @@ Hypervel installs `hypervel/guzzle`, a Guzzle 8 fork that replaces `guzzlehttp/g
 
 Hypervel's `Concurrency` facade provides `coroutine`, `process`, and `sync` drivers. Laravel's `fork` driver is not available because coroutines are Hypervel's native lightweight execution model. Use the default `coroutine` driver for normal concurrent application work and reserve `process` for work that requires operating system process isolation. See the [concurrency documentation](/docs/{{version}}/concurrency#choosing-a-driver).
 
-<a name="streamed-responses"></a>
-### Streamed Responses
+<a name="native-request-functions"></a>
+### Native Request Functions
+
+PHP's native request functions act on the worker process, not the request being handled. Replace `header()`, `setcookie()` and `http_response_code()` with the response's `header()`, `cookie()` and `setStatusCode()` methods. Read input and headers from the request instead of `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES`, `$_REQUEST`, `getallheaders()` and the `filter_input()` functions. Use the session store instead of PHP's `session_*` functions and `$_SESSION`, which is shared by every request in the worker. The `session_create_id()` function only generates an ID and remains usable. [Static analysis](/docs/{{version}}/static-analysis#native-request-apis) reports the request-state APIs.
 
 `connection_aborted()` does not report Swoole client disconnects. Replace loops that rely on it with a generator callback passed to `response()->stream()`, or an `IterableStreamedResponse`. See [Canceling Disconnected Streams](/docs/{{version}}/responses#canceling-disconnected-streams) to also cancel production during a wait.
 
@@ -777,6 +777,8 @@ $expiresAt = $expiresAt->addMinutes(5);
 
 Review concrete `Hypervel\Support\Carbon` type declarations that receive factory-created values. Use `Carbon\CarbonInterface` at boundaries that may receive mutable or immutable dates, or `CarbonImmutable` when immutability is required. An application that deliberately requires mutable dates may configure the date factory during application boot. See the [date and time documentation](/docs/{{version}}/helpers#dates).
 
+The framework binds `date` to `DateFactory`, so a `Date` facade subclass that overrides `DEFAULT_FACADE` no longer supplies the factory in a booted application. Bind `date` to your factory in a service provider instead.
+
 <a name="uuids"></a>
 ### UUIDs
 
@@ -847,6 +849,8 @@ Framework operations release idle database sessions at the boundaries listed in 
 Do not manually commit or roll back the transaction owned by a `DB::transaction()` closure; Hypervel throws when that closure returns. Let `transaction()` manage completion, or use the [manual transaction API](/docs/{{version}}/database#manually-using-transactions) separately. Balanced nested transactions remain supported.
 
 If your extension inspects transaction records or registers callbacks directly with `DatabaseTransactionsManager`, use the resolved connection's `getNameWithReadWriteType()` instead of `getName()`. Base, `::read`, and `::write` connections can have independent transactions. Always resolve the connection before reading its name; aliases for a shared in-memory SQLite connection resolve to the same session. Ordinary `afterCommit()` and `afterRollBack()` calls already use the correct connection.
+
+Custom `ConnectionResolverInterface` implementations must return a `Connection` from `connection()`, not any `ConnectionInterface`. In tests, mock `Connection` for the connections a mocked resolver, database manager or `DB::shouldReceive('connection')` returns.
 
 When a package constructs `DatabaseStore`, `DatabaseSessionHandler`, `DatabaseQueue`, or `DatabaseBatchRepository` directly, pass the database connection resolver and configured connection name instead of retaining a resolved connection. Framework-configured drivers already use this form.
 

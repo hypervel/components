@@ -11,6 +11,7 @@ use Carbon\Factory;
 use Carbon\FactoryImmutable;
 use DateTime;
 use DateTimeInterface;
+use Hypervel\Container\Container;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\DateFactory;
@@ -43,6 +44,15 @@ class DateFacadeTest extends TestCase
         $this->assertSame(CarbonImmutable::class, now()::class);
         $this->assertSame(CarbonImmutable::class, today()::class);
         self::assertBetweenStartAndNow($start, Date::now()->getTimestamp());
+    }
+
+    public function testUnboundDateUsesTheDefaultFactoryWithoutBindingIt(): void
+    {
+        $container = new Container;
+        Date::setFacadeApplication($container);
+
+        $this->assertSame(DateFactory::class, Date::getFacadeRoot()::class);
+        $this->assertFalse($container->bound('date'));
     }
 
     public function testMutableClassIsAnExplicitOptOutAcrossDateRoutes(): void

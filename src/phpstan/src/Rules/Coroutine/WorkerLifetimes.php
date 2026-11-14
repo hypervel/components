@@ -23,9 +23,37 @@ use Hypervel\Contracts\Container\ExecutionScopedAttribute;
 use Hypervel\Contracts\Container\SelfBuilding;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Http\Kernel;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Routing\UrlRoutable;
+use Hypervel\Core\Events\OnClose;
+use Hypervel\Core\Events\OnConnect;
+use Hypervel\Core\Events\OnFinish;
+use Hypervel\Core\Events\OnPacket;
+use Hypervel\Core\Events\OnPipeMessage;
+use Hypervel\Core\Events\OnReceive;
+use Hypervel\Core\Events\OnTask;
 use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Foundation\Bus\Dispatchable;
+use Hypervel\HttpServer\Events\RequestCanceled;
+use Hypervel\HttpServer\Events\RequestHandled;
+use Hypervel\HttpServer\Events\RequestReceived;
+use Hypervel\HttpServer\Events\RequestTerminated;
+use Hypervel\HttpServer\Events\ResponseSent;
+use Hypervel\PHPStan\Reflection\ReflectionHelper;
+use Hypervel\Queue\Attributes\DebounceFor;
+use Hypervel\Queue\Events\JobAttempted;
+use Hypervel\Queue\Events\JobExceptionOccurred;
+use Hypervel\Queue\Events\JobFailed;
+use Hypervel\Queue\Events\JobProcessed;
+use Hypervel\Queue\Events\JobProcessing;
+use Hypervel\Queue\Events\JobReleasedAfterException;
+use Hypervel\Queue\Events\JobTimedOut;
+use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Routing\Events\PreparingResponse;
+use Hypervel\Routing\Events\ResponsePrepared;
+use Hypervel\Routing\Events\RouteMatched;
+use Hypervel\Routing\Events\Routing;
 use Hypervel\Routing\MiddlewareNameResolver;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\Router;
@@ -33,17 +61,18 @@ use Hypervel\Support\Str;
 use PHPStan\Reflection\ClassReflection;
 use PHPStan\Reflection\ExtendedMethodReflection;
 use PHPStan\Reflection\ReflectionProvider;
+use PHPStan\TrinaryLogic;
 use ReflectionAttribute;
 use ReflectionFunction;
 use ReflectionNamedType;
 use ReflectionParameter;
 
+use function array_all;
 use function array_any;
 use function array_filter;
 use function array_intersect;
 use function array_key_exists;
 use function array_keys;
-use function array_merge;
 use function array_pop;
 use function array_unique;
 use function array_values;
@@ -53,12 +82,14 @@ use function is_array;
 use function is_bool;
 use function is_object;
 use function is_string;
+use function preg_match;
 use function str_contains;
+use function str_starts_with;
 use function strtolower;
 
 /**
  * The worker lifetimes of one analysis: which classes the booted container shares across requests,
- * which methods handle a request or run a job, and which constructor parameters it fills with fresh values.
+ * which methods handle a request or run a job, and which parameters it fills with fresh or shared values.
  *
  * Roots come from the booted routes, middleware, listeners and Bus handlers, and from the collected
  * resolutions, singletons and jobs. Each class they build is walked the way the container resolves it.
@@ -78,6 +109,55 @@ class WorkerLifetimes
     private const string DEFAULT = 'default';
 
     private const string UNKNOWN = 'unknown';
+
+    /**
+     * The clone of the container's queued listener that CallQueuedListener runs a job on, which keeps what its
+     * constructor was given.
+     */
+    private const string COPY_CLONE = 'clone';
+
+    /**
+     * The instance the dispatcher makes of a queued listener without its constructor to read the job's options.
+     */
+    private const string COPY_WITHOUT_CONSTRUCTOR = 'without constructor';
+
+    /**
+     * The option methods the dispatcher calls on that instance whenever it queues a listener
+     * (Dispatcher::queueHandler() and propagateListenerOptions()).
+     */
+    private const array LISTENER_OPTION_METHODS = [
+        'viaConnection', 'viaQueue', 'withDelay', 'backoff', 'retryUntil', 'tries', 'messageGroup', 'middleware',
+    ];
+
+    /**
+     * The framework events dispatched for one request, job or server operation, with the context
+     * their listeners run in.
+     */
+    private const array EVENT_CONTEXTS = [
+        RequestReceived::class => 'request',
+        RequestHandled::class => 'request',
+        RequestTerminated::class => 'request',
+        ResponseSent::class => 'request',
+        RequestCanceled::class => 'request',
+        Routing::class => 'request',
+        RouteMatched::class => 'request',
+        PreparingResponse::class => 'request',
+        ResponsePrepared::class => 'request',
+        JobProcessing::class => 'job',
+        JobProcessed::class => 'job',
+        JobFailed::class => 'job',
+        JobExceptionOccurred::class => 'job',
+        JobAttempted::class => 'job',
+        JobReleasedAfterException::class => 'job',
+        JobTimedOut::class => 'job',
+        OnReceive::class => 'operation',
+        OnPacket::class => 'operation',
+        OnTask::class => 'operation',
+        OnFinish::class => 'operation',
+        OnPipeMessage::class => 'operation',
+        OnConnect::class => 'operation',
+        OnClose::class => 'operation',
+    ];
 
     /** @var array<string, array{concrete: Closure, shared: bool}> */
     private array $bindings;
@@ -109,20 +189,41 @@ class WorkerLifetimes
     /** @var null|array<string, true> lowercase names of the worker-shared classes and their parents */
     private ?array $sharedClasses = null;
 
-    /** @var array<string, array{string, bool}> lowercase "class::method" => the operation it handles and whether a shared instance handles it */
+    /** @var array<string, array{null|string, bool}> lowercase "class::method" => the operation it handles, if known, and whether a shared instance, or a clone of one, runs it */
     private array $contexts = [];
 
-    /** @var list<array{string, string, string, string, bool}> the receiver, declaring class, method, operation and whether the receiver is shared, of each context still to propagate */
+    /** @var array<string, array<string, true>> lowercase "class::method" => the classes of the receivers it handles an operation for */
+    private array $contextReceivers = [];
+
+    /** @var list<array{string, string, string, null|string, bool, null|string}> the receiver, declaring class, method, operation, whether the receiver is shared and the kind of copy it is, if any, of each context still to propagate */
     private array $pendingContexts = [];
 
-    /** @var array<string, true> lowercase "class::method::parameter" => the global configuration repository is injected */
-    private array $configParameters = [];
+    /** @var array<string, array<string, true>> lowercase "class::method" => the queued listeners it handles an operation for on a copy */
+    private array $copies = [];
+
+    /** @var array<string, true> lowercase "class::method" => a worker-shared instance itself handles an operation with it */
+    private array $direct = [];
+
+    /** @var array<string, true> lowercase "class::method" => only copies of the worker-shared instances run it */
+    private array $copyOnly = [];
+
+    /** @var array<string, true> lowercase "class::method" => a queued listener's instance made without its constructor runs it */
+    private array $withoutConstructor = [];
+
+    /** @var array<string, null|string> lowercase "class::method::parameter" => the canonical abstract the container injects on every call it makes, or null when that is not known */
+    private array $injectedParameters = [];
 
     /** @var array<string, bool> lowercase "class::parameter" => whether every shared instance gets its default or a fresh value */
     private array $freshParameters = [];
 
+    /** @var array<string, true> lowercase names of the queued classes the dispatcher resolves from the container as listeners */
+    private array $queuedListeners = [];
+
     /** @var array<string, true> the classes whose declarations the lifetimes depend on */
     private array $classes = [];
+
+    /** @var array<string, true> the classes whose property defaults the lifetimes depend on */
+    private array $defaultSources = [];
 
     /**
      * Discover the worker lifetimes of the booted application and the collected roots.
@@ -131,6 +232,7 @@ class WorkerLifetimes
      * @param list<string> $singletons the classes declaring #[Singleton]
      * @param list<string> $queued the concrete queued classes
      * @param list<HelperCall> $helperCalls the direct calls methods make on their own instance
+     * @param array<string, list<string>> $observers the #[ObservedBy] observer classes, each with the model events it can handle
      */
     public function __construct(
         private ReflectionProvider $reflectionProvider,
@@ -139,6 +241,7 @@ class WorkerLifetimes
         array $singletons,
         array $queued,
         array $helperCalls,
+        array $observers,
     ) {
         $this->bindings = $container->getBindings();
         [$this->instances, $this->scopedInstances, $this->contextual, $this->abstractAliases] = (fn (): array => [
@@ -151,6 +254,7 @@ class WorkerLifetimes
         $this->discoverBusHandlers();
         $this->discoverHttpRoots();
         $this->discoverListeners();
+        $this->discoverObservers($observers);
 
         foreach ([...array_keys($this->bindings), ...array_keys($this->instances), ...$abstracts, ...$singletons] as $abstract) {
             $this->make($abstract, null);
@@ -161,6 +265,8 @@ class WorkerLifetimes
         }
 
         // After every build, so whether a job instance is shared reflects every registration.
+        $registered = $this->contextReceivers;
+
         foreach ($queued as $class) {
             $job = $this->getClass($class);
 
@@ -169,14 +275,23 @@ class WorkerLifetimes
             }
 
             foreach (WorkerStateHelper::JOB_METHODS as $method) {
-                if ($job->hasNativeMethod($method)) {
-                    $declaringClass = $job->getNativeMethod($method)->getDeclaringClass()->getName();
+                if (! $job->hasNativeMethod($method)) {
+                    continue;
+                }
+
+                $declaringClass = $job->getNativeMethod($method)->getDeclaringClass()->getName();
+
+                // A method registered as this class's listener or observer already runs in the operation,
+                // and on the instance, its registration gives it, such as a passive observer's handle()
+                // during a request.
+                if (! isset($registered[strtolower($declaringClass . '::' . $method)][$job->getName()])) {
                     $this->addContext($job->getName(), $declaringClass, $method, 'job', isset($this->receivers[$job->getName()]));
                 }
             }
         }
 
         $this->propagateContexts($helperCalls);
+        $this->discoverCopyOnlyMethods();
     }
 
     /**
@@ -200,7 +315,23 @@ class WorkerLifetimes
     }
 
     /**
-     * Get the operation a booted middleware or controller action method handles, or null.
+     * Determine whether resolving the abstract without parameters returns the instance the container
+     * shares for the worker.
+     *
+     * A bind() factory may return a shared object, so its resolution is unknown.
+     */
+    public function sharesAbstract(string $abstract): TrinaryLogic
+    {
+        return match ($this->getLifetime($this->container->getAlias($abstract), true)[0]) {
+            self::SHARED => TrinaryLogic::createYes(),
+            self::UNKNOWN => TrinaryLogic::createMaybe(),
+            default => TrinaryLogic::createNo(),
+        };
+    }
+
+    /**
+     * Get the operation a booted middleware, controller action, job, listener or observer method
+     * handles, or null.
      */
     public function getContext(string $class, string $method): ?string
     {
@@ -208,8 +339,8 @@ class WorkerLifetimes
     }
 
     /**
-     * Determine whether a worker-shared instance handles the booted middleware or controller action
-     * method, rather than only scoped or fresh ones.
+     * Determine whether a worker-shared instance handles the booted handler method, rather than only
+     * scoped or fresh ones.
      */
     public function isContextShared(string $class, string $method): bool
     {
@@ -217,12 +348,66 @@ class WorkerLifetimes
     }
 
     /**
+     * Determine whether only copies of a queued listener run the method: the clone CallQueuedListener makes of
+     * the container's instance for each job, or the instance the dispatcher makes without its constructor to
+     * read the job's options. Each has its own properties and arrays, but a clone shares the objects they hold,
+     * so only writes that replace them stay with the copy.
+     */
+    public function runsOnCopy(string $class, string $method): bool
+    {
+        return isset($this->copyOnly[strtolower($class . '::' . $method)]);
+    }
+
+    /**
      * Determine whether the container injects the global configuration repository into the parameter
-     * of a booted controller action or a job's handler.
+     * of a booted controller action, a job's handler or a constructor it runs.
      */
     public function isConfigParameter(string $class, string $method, string $parameter): bool
     {
-        return isset($this->configParameters[strtolower($class . '::' . $method . '::' . $parameter)]);
+        $abstract = $this->injectedParameters[strtolower($class . '::' . $method . '::' . $parameter)] ?? null;
+
+        return $abstract !== null && $this->isGlobalConfig($abstract);
+    }
+
+    /**
+     * Determine whether the container injects the instance it shares for the worker into the parameter
+     * of a booted controller action, a job's handler or a constructor it runs.
+     */
+    public function sharesInjectedParameter(string $class, string $method, string $parameter): TrinaryLogic
+    {
+        $key = strtolower($class . '::' . $method . '::' . $parameter);
+
+        if (! array_key_exists($key, $this->injectedParameters)) {
+            return TrinaryLogic::createNo();
+        }
+
+        return $this->injectedParameters[$key] === null ? TrinaryLogic::createMaybe() : $this->sharesAbstract($this->injectedParameters[$key]);
+    }
+
+    /**
+     * Determine whether the container built every instance the method handles an operation for, so
+     * the properties its constructor promotes hold what the container injected.
+     *
+     * A queued class is restored from its payload, except one the dispatcher resolves as a listener or
+     * observer. A method no booted handler reaches is judged by its own class. One that a queued listener's
+     * instance made without its constructor runs may initialize a readonly promoted property itself.
+     */
+    public function isContainerBuilt(string $class, string $method): bool
+    {
+        $key = strtolower($class . '::' . $method);
+
+        if (isset($this->withoutConstructor[$key])) {
+            return false;
+        }
+
+        $receivers = array_keys($this->contextReceivers[$key] ?? [$class => true]);
+
+        return array_all($receivers, function (string $receiver): bool {
+            $reflection = $this->getClass($receiver);
+
+            return $reflection !== null
+                && (! $reflection->is(ShouldQueue::class) || isset($this->queuedListeners[strtolower($reflection->getName())]));
+        });
     }
 
     /**
@@ -263,6 +448,16 @@ class WorkerLifetimes
     public function getClasses(): array
     {
         return array_keys($this->classes);
+    }
+
+    /**
+     * Get the classes whose property defaults the lifetimes were read from, which aren't declarations.
+     *
+     * @return list<string>
+     */
+    public function getDefaultSources(): array
+    {
+        return array_keys($this->defaultSources);
     }
 
     /**
@@ -395,20 +590,23 @@ class WorkerLifetimes
             // ResolvesRouteDependencies::transformDependency() skips a class a route binding may supply,
             // and never resolves a parameter with a default. ImplicitRouteBinding only binds a
             // UrlRoutable parameter named like a route parameter, or its snake case.
-            if ($class === null
+            $injected = $class === null
                 || $this->getContextualAttribute($parameter) !== null
                 || $parameter->isDefaultValueAvailable()
                 || $bound
                 || ($this->getClass($class)?->is(UrlRoutable::class) === true
-                    && array_intersect([$parameter->getName(), Str::snake($parameter->getName())], $names) !== [])) {
-                continue;
+                    && array_intersect([$parameter->getName(), Str::snake($parameter->getName())], $names) !== [])
+                ? null
+                : $class;
+
+            // Another route may run the same action with other bindings.
+            if ($actionClass !== null) {
+                $this->recordInjection($actionClass, $method, $parameter->getName(), $injected);
             }
 
-            if ($actionClass !== null && $this->isGlobalConfig($class)) {
-                $this->configParameters[strtolower($actionClass . '::' . $method . '::' . $parameter->getName())] = true;
+            if ($injected !== null) {
+                $this->make($injected, null);
             }
-
-            $this->make($class, null);
         }
     }
 
@@ -426,15 +624,29 @@ class WorkerLifetimes
     }
 
     /**
-     * Record the operation a method handles for a receiver, and whether a worker-shared instance
-     * handles it, then queue it so the helpers it calls on the receiver handle the operation too.
+     * Record the operation a method handles for a receiver, if known, whether a worker-shared instance
+     * runs it and whether it runs on a copy of a queued listener, then queue it so the helpers it calls
+     * on the receiver share that.
+     *
+     * @param null|self::COPY_* $copy
      */
-    private function addContext(string $receiver, string $declaringClass, string $method, string $context, bool $shared): void
+    private function addContext(string $receiver, string $declaringClass, string $method, ?string $context, bool $shared, ?string $copy = null): void
     {
         $key = strtolower($declaringClass . '::' . $method);
 
-        $this->contexts[$key] = [$context, $shared || ($this->contexts[$key][1] ?? false)];
-        $this->pendingContexts[] = [$receiver, $declaringClass, $method, $context, $shared];
+        $this->contexts[$key] = [$context ?? $this->contexts[$key][0] ?? null, $shared || ($this->contexts[$key][1] ?? false)];
+        $this->contextReceivers[$key][$receiver] = true;
+        $this->pendingContexts[] = [$receiver, $declaringClass, $method, $context, $shared, $copy];
+
+        if ($copy !== null) {
+            $this->copies[$key][$receiver] = true;
+        } elseif ($shared) {
+            $this->direct[$key] = true;
+        }
+
+        if ($copy === self::COPY_WITHOUT_CONSTRUCTOR) {
+            $this->withoutConstructor[$key] = true;
+        }
     }
 
     /**
@@ -452,12 +664,12 @@ class WorkerLifetimes
         }
 
         // Whether each receiver's method was visited as shared: a shared visit covers a later
-        // unshared one, but not the other way round.
+        // unshared one, but not the other way round. Each operation, and each kind of copy, is separate.
         $visited = [];
 
         while (($pending = array_pop($this->pendingContexts)) !== null) {
-            [$receiver, $declaringClass, $method, $context, $shared] = $pending;
-            $key = strtolower($receiver . "\0" . $declaringClass . '::' . $method);
+            [$receiver, $declaringClass, $method, $context, $shared, $copy] = $pending;
+            $key = strtolower($receiver . "\0" . $declaringClass . '::' . $method . "\0" . $context . "\0" . $copy);
 
             if (array_key_exists($key, $visited) && ($visited[$key] || ! $shared)) {
                 continue;
@@ -469,7 +681,7 @@ class WorkerLifetimes
                 $helper = $this->resolveHelper($receiver, $declaringClass, $callee);
 
                 if ($helper !== null) {
-                    $this->addContext($receiver, $helper->getDeclaringClass()->getName(), $helper->getName(), $context, $shared);
+                    $this->addContext($receiver, $helper->getDeclaringClass()->getName(), $helper->getName(), $context, $shared, $copy);
                 }
             }
         }
@@ -506,7 +718,37 @@ class WorkerLifetimes
     }
 
     /**
-     * Discover the class-string event listeners, which the dispatcher resolves from the container.
+     * Find the methods only copies of queued listeners run: no worker-shared instance runs one itself, and every
+     * other worker-shared class running the same declaration is one of those listeners. A parent's helper stays
+     * shared when the container also shares the parent or another subclass that runs it.
+     */
+    private function discoverCopyOnlyMethods(): void
+    {
+        foreach ($this->copies as $key => $listeners) {
+            [$class, $method] = explode('::', $key, 2);
+            $declaringClass = isset($this->direct[$key]) ? null : $this->getClass($class);
+
+            if ($declaringClass === null) {
+                continue;
+            }
+
+            $runsElsewhere = array_any(array_keys($this->receivers), function (string $receiver) use ($listeners, $declaringClass, $method): bool {
+                $reflection = isset($listeners[$receiver]) ? null : $this->getClass($receiver);
+
+                return $reflection !== null
+                    && $reflection->is($declaringClass->getName())
+                    && $this->resolveHelper($receiver, $declaringClass->getName(), $method)?->getDeclaringClass()->getName() === $declaringClass->getName();
+            });
+
+            if (! $runsElsewhere) {
+                $this->copyOnly[$key] = true;
+            }
+        }
+    }
+
+    /**
+     * Discover the class-string event listeners and observers, which the dispatcher resolves from the
+     * container, and the operations each handles when its event is dispatched for one.
      */
     private function discoverListeners(): void
     {
@@ -516,19 +758,182 @@ class WorkerLifetimes
             return;
         }
 
-        $listeners = [...$events->getRawListeners(), ...(fn (): array => $this->wildcards)->call($events)];
+        [$wildcards, $observers, $observerWildcards, $patterns] = (fn (): array => [
+            $this->wildcards,
+            $this->observers,
+            $this->observerWildcards,
+            $this->compiledWildcardPatterns,
+        ])->call($events);
 
-        foreach (array_merge(...array_values($listeners)) as $listener) {
-            $class = match (true) {
-                is_string($listener) => explode('@', $listener, 2)[0],
-                is_array($listener) && is_string($listener[0] ?? null) => $listener[0],
-                default => null,
-            };
+        // Observers, which include listen('*') ones, are never queued and never fall back to __invoke().
+        $registries = [
+            [$events->getRawListeners(), false, true],
+            [$wildcards, true, true],
+            [$observers, false, false],
+            [$observerWildcards, true, false],
+        ];
 
-            if ($class !== null && $this->getClass($class) !== null) {
-                $this->make($class, null);
+        foreach ($registries as [$registry, $wildcard, $queueable]) {
+            foreach ($registry as $event => $listeners) {
+                $contexts = $this->getEventContexts($event, $wildcard ? $patterns[$event] : null);
+
+                foreach ($listeners as $listener) {
+                    [$class, $method] = match (true) {
+                        is_string($listener) => Str::parseCallback($listener, 'handle'),
+                        is_array($listener) && is_string($listener[0] ?? null) => [$listener[0], $listener[1] ?? null],
+                        default => [null, null],
+                    };
+
+                    $reflection = $class === null ? null : $this->getClass($class);
+
+                    if ($reflection === null) {
+                        continue;
+                    }
+
+                    if (! is_string($method)) {
+                        $this->make($reflection->getName(), null);
+
+                        continue;
+                    }
+
+                    // Dispatcher::createClassCallable() falls back to __invoke().
+                    if ($queueable && ! $reflection->hasNativeMethod($method)) {
+                        $method = '__invoke';
+                    }
+
+                    foreach ($contexts as $context) {
+                        $this->addHandlerContext($reflection, $method, $context, $queueable);
+                    }
+                }
             }
         }
+    }
+
+    /**
+     * Get the operations an event name or wildcard pattern's listeners handle: those of the framework
+     * events it matches, or any operation for a model event. A listener of another event gets null.
+     *
+     * @return non-empty-list<?string>
+     */
+    private function getEventContexts(int|string $event, ?string $pattern): array
+    {
+        $contexts = [];
+
+        foreach (self::EVENT_CONTEXTS as $name => $context) {
+            if ($pattern === null ? $name === $event : preg_match($pattern, $name) === 1) {
+                $contexts[$context] = $context;
+            }
+        }
+
+        if (is_string($event) && str_starts_with($event, 'eloquent.')) {
+            $contexts['operation'] = 'operation';
+        }
+
+        return $contexts === [] ? [null] : array_values($contexts);
+    }
+
+    /**
+     * Discover the observers models register through #[ObservedBy] when they boot, whose event methods
+     * run during any operation that persists models.
+     *
+     * @param array<string, list<string>> $observers each observer class with the model events it can handle
+     */
+    private function discoverObservers(array $observers): void
+    {
+        foreach ($observers as $observer => $events) {
+            $reflection = $this->getClass($observer);
+
+            if ($reflection === null) {
+                continue;
+            }
+
+            // HasEvents::registerObserver() registers each event method the observer has as a listener.
+            foreach ($events as $event) {
+                if ($reflection->hasNativeMethod($event)) {
+                    $this->addHandlerContext($reflection, $event, 'operation', true);
+                }
+            }
+        }
+    }
+
+    /**
+     * Resolve a listener or observer as the dispatcher does and give the method it runs the operation
+     * its event belongs to, when that is known.
+     *
+     * A queued listener runs as a job whatever its event: CallQueuedListener resolves it from the
+     * container in the queue worker and calls the same method, on a clone of the resolved instance
+     * when the listener uses InteractsWithQueue. An observer always runs when its event is dispatched.
+     */
+    private function addHandlerContext(ClassReflection $class, string $method, ?string $context, bool $queueable): void
+    {
+        [$shared, $receiver] = $this->makeHandler($class);
+        $copy = null;
+
+        if ($class->is(ShouldQueue::class)) {
+            $this->queuedListeners[strtolower($receiver->getName())] = true;
+
+            if ($queueable) {
+                $unique = $class->is(ShouldBeUnique::class);
+                $debounced = $this->isDebounced($class);
+
+                // The dispatcher calls shouldQueue() on the resolved instance while dispatching. The unique and
+                // debounce locks resolve it again through CallQueuedListener for their stores, both when the
+                // dispatcher acquires them and when they're released.
+                foreach (['shouldQueue' => [$context, true], 'uniqueVia' => ['job', $unique], 'debounceVia' => ['job', $debounced]] as $hook => [$hookContext, $runs]) {
+                    if ($runs && $receiver->hasNativeMethod($hook)) {
+                        $this->addContext($receiver->getName(), $receiver->getNativeMethod($hook)->getDeclaringClass()->getName(), $hook, $hookContext, $shared);
+                    }
+                }
+
+                // The dispatcher reads the job's options from an instance of the registered class that it makes
+                // without the constructor, so a binding to another class doesn't apply.
+                $options = [
+                    ...self::LISTENER_OPTION_METHODS,
+                    $class->hasNativeMethod('deduplicator') ? 'deduplicator' : 'deduplicationId',
+                    ...($unique ? ['uniqueId', 'uniqueFor'] : []),
+                    ...($debounced ? ['debounceId'] : []),
+                ];
+
+                foreach ($options as $option) {
+                    if ($class->hasNativeMethod($option)) {
+                        $this->addContext($class->getName(), $class->getNativeMethod($option)->getDeclaringClass()->getName(), $option, $context, false, self::COPY_WITHOUT_CONSTRUCTOR);
+                    }
+                }
+
+                $context = 'job';
+                $copy = isset($receiver->getTraits(true)[InteractsWithQueue::class]) ? self::COPY_CLONE : null;
+            }
+        }
+
+        // A visit with no known operation still records that the method runs, such as a passive observer
+        // of an application event running directly on the shared instance.
+        if ($receiver->hasNativeMethod($method)) {
+            $declaringClass = $receiver->getNativeMethod($method)->getDeclaringClass()->getName();
+
+            $this->addContext($receiver->getName(), $declaringClass, $method, $context, $shared, $copy);
+        }
+    }
+
+    /**
+     * Determine whether the dispatcher debounces a queued listener, as its getAttributeValue() reads it from
+     * outside the listener: a #[DebounceFor] attribute, whose value is never null, or else a non-null default
+     * of the public debounceFor property.
+     */
+    private function isDebounced(ClassReflection $class): bool
+    {
+        if (ReflectionHelper::findClassAttribute($class, DebounceFor::class) !== null) {
+            return true;
+        }
+
+        if (! $class->hasNativeProperty('debounceFor')) {
+            return false;
+        }
+
+        // A default isn't a declaration, so its sources are tracked whatever it is.
+        $this->defaultSources[$class->getName()] = true;
+        $property = $class->getNativeReflection()->getProperty('debounceFor');
+
+        return $property->isPublic() && ! $property->isStatic() && $property->getDefaultValue() !== null;
     }
 
     /**
@@ -560,16 +965,16 @@ class WorkerLifetimes
             if ($dependency === null
                 || $this->getContextualAttribute($parameter) !== null
                 || (! $parameter->isVariadic() && $parameter->isDefaultValueAvailable() && ! $this->container->bound($dependency))) {
+                $this->recordInjection($declaringClass, $method, $parameter->getName(), null);
+
                 continue;
             }
 
-            // A contextual binding for the job may replace the repository with another one.
+            // A contextual binding for the job replaces the dependency; a closure's result is unknown.
+            // Another job inheriting the handler may inject something else.
             $concrete = $this->getContextualConcrete($reflection->getName(), $this->container->getAlias($dependency));
 
-            if ($this->isGlobalConfig($dependency) && ($concrete === null || (is_string($concrete) && $this->isGlobalConfig($concrete)))) {
-                $this->configParameters[strtolower($declaringClass . '::' . $method . '::' . $parameter->getName())] = true;
-            }
-
+            $this->recordInjection($declaringClass, $method, $parameter->getName(), $concrete === null ? $dependency : (is_string($concrete) ? $concrete : null));
             $this->make($dependency, $reflection->getName());
         }
     }
@@ -586,7 +991,13 @@ class WorkerLifetimes
 
         if ($consumer !== null && ($concrete = $this->getContextualConcrete($consumer, $abstract)) !== null) {
             // A contextual build is never cached; a class name is resolved on its own, a closure is unknown.
-            return is_string($concrete) ? $this->make($concrete, null) : [self::UNKNOWN, null];
+            if (is_string($concrete)) {
+                return $this->make($concrete, null);
+            }
+
+            $this->addFactoryBuild($abstract);
+
+            return [self::UNKNOWN, null];
         }
 
         [$lifetime, $class, $knownArguments] = $this->getLifetime($abstract, true);
@@ -629,7 +1040,7 @@ class WorkerLifetimes
     private function computeLifetime(string $abstract, bool $implicit): array
     {
         $binding = $this->bindings[$abstract] ?? null;
-        $concrete = $binding === null ? null : $this->getBindingConcrete($binding['concrete']);
+        $concrete = $binding === null ? null : self::getBindingConcrete($binding['concrete']);
 
         if (array_key_exists($abstract, $this->instances)) {
             $instance = $this->instances[$abstract];
@@ -641,26 +1052,33 @@ class WorkerLifetimes
         }
 
         if ($binding !== null) {
-            if ($concrete === null) {
-                return [self::UNKNOWN, null, false];
-            }
-
             $lifetime = match (true) {
                 isset($this->scopedInstances[$abstract]) => self::SCOPED,
                 $binding['shared'] => self::SHARED,
                 default => self::FRESH,
             };
 
+            // The container caches whatever a shared or scoped binding builds, even when the class it
+            // builds is unknown. A bind() binding's lifetime is the built class's, and a factory may
+            // return a shared object.
+            $unknown = [$lifetime === self::FRESH ? self::UNKNOWN : $lifetime, null, false];
+
+            if ($concrete === null) {
+                $this->addFactoryBuild($abstract);
+
+                return $unknown;
+            }
+
             if ($concrete === $abstract) {
                 $class = $this->getBuildableClass($concrete);
 
-                return $class === null ? [self::UNKNOWN, null, false] : [$lifetime, $class->getName(), ! $class->is(SelfBuilding::class)];
+                return $class === null ? $unknown : [$lifetime, $class->getName(), ! $class->is(SelfBuilding::class)];
             }
 
             [$concreteLifetime, $class, $knownArguments] = $this->getLifetime($this->container->getAlias($concrete), false);
 
             if ($concreteLifetime === self::UNKNOWN) {
-                return [self::UNKNOWN, null, false];
+                return $unknown;
             }
 
             return [$lifetime === self::FRESH ? $concreteLifetime : $lifetime, $class, $knownArguments];
@@ -716,7 +1134,9 @@ class WorkerLifetimes
         $declaringClass = $constructor->getDeclaringClass()->getName();
 
         foreach ($constructor->getParameters() as $parameter) {
-            $outcome = $knownArguments ? $this->resolveConstructorParameter($parameter, $class) : self::UNKNOWN;
+            [$outcome, $injected] = $knownArguments ? $this->resolveConstructorParameter($parameter, $class) : [self::UNKNOWN, null];
+
+            $this->recordInjection($declaringClass, '__construct', $parameter->getName(), $injected);
 
             if ($shared) {
                 $parameterKey = strtolower($declaringClass . '::' . $parameter->getName());
@@ -727,44 +1147,78 @@ class WorkerLifetimes
     }
 
     /**
-     * Resolve a constructor parameter as Container::resolveRecipeParameters() does for the class being
-     * built, and return what it receives.
+     * Record that a factory may run the class's constructor, with arguments the analysis cannot see.
      */
-    private function resolveConstructorParameter(ReflectionParameter $parameter, string $consumer): string
+    private function addFactoryBuild(string $class): void
+    {
+        $constructor = $this->getClass($class)?->getNativeReflection()->getConstructor();
+
+        if ($constructor === null) {
+            return;
+        }
+
+        foreach ($constructor->getParameters() as $parameter) {
+            $this->recordInjection($constructor->getDeclaringClass()->getName(), '__construct', $parameter->getName(), null);
+        }
+    }
+
+    /**
+     * Record the abstract the container injects into a parameter on one of the calls it makes. Calls
+     * that inject different abstracts, or an unknown one, leave it unknown.
+     */
+    private function recordInjection(string $class, string $method, string $parameter, ?string $abstract): void
+    {
+        $key = strtolower($class . '::' . $method . '::' . $parameter);
+        $abstract = $abstract === null ? null : $this->container->getAlias($abstract);
+
+        $this->injectedParameters[$key] = ! array_key_exists($key, $this->injectedParameters) || $this->injectedParameters[$key] === $abstract
+            ? $abstract
+            : null;
+    }
+
+    /**
+     * Resolve a constructor parameter as Container::resolveRecipeParameters() does for the class being
+     * built, and return what it receives with the abstract injected, when it is one known abstract.
+     *
+     * @return array{string, null|string}
+     */
+    private function resolveConstructorParameter(ReflectionParameter $parameter, string $consumer): array
     {
         if ($this->getContextualAttribute($parameter) !== null) {
-            return self::UNKNOWN;
+            return [self::UNKNOWN, null];
         }
 
         $class = $this->getParameterClass($parameter);
 
         if ($class === null) {
-            return $parameter->isDefaultValueAvailable() && ! isset($this->contextual[$consumer]['$' . $parameter->getName()])
-                ? self::DEFAULT
-                : self::UNKNOWN;
+            return [
+                $parameter->isDefaultValueAvailable() && ! isset($this->contextual[$consumer]['$' . $parameter->getName()])
+                    ? self::DEFAULT
+                    : self::UNKNOWN,
+                null,
+            ];
         }
 
         if ($parameter->isDefaultValueAvailable()
             && ! $this->container->bound($class)
             && ! isset($this->contextual[$consumer][$class])) {
-            return self::DEFAULT;
+            return [self::DEFAULT, null];
         }
 
-        if ($parameter->isVariadic()) {
-            $concrete = $this->getContextualConcrete($consumer, $this->container->getAlias($class));
+        $concrete = $this->getContextualConcrete($consumer, $this->container->getAlias($class));
 
-            if (is_array($concrete)) {
-                foreach ($concrete as $abstract) {
-                    if (is_string($abstract)) {
-                        $this->make($abstract, $consumer);
-                    }
+        if ($parameter->isVariadic() && is_array($concrete)) {
+            foreach ($concrete as $abstract) {
+                if (is_string($abstract)) {
+                    $this->make($abstract, $consumer);
                 }
-
-                return self::UNKNOWN;
             }
+
+            return [self::UNKNOWN, null];
         }
 
-        return $this->make($class, $consumer)[0];
+        // A contextual class name replaces the dependency; a contextual closure's result is unknown.
+        return [$this->make($class, $consumer)[0], $concrete === null ? $class : (is_string($concrete) ? $concrete : null)];
     }
 
     /**
@@ -786,7 +1240,7 @@ class WorkerLifetimes
     /**
      * Get the class a binding's closure builds when it was registered with a class name.
      */
-    private function getBindingConcrete(Closure $closure): ?string
+    public static function getBindingConcrete(Closure $closure): ?string
     {
         $reflection = new ReflectionFunction($closure);
         $concrete = $reflection->getStaticVariables()['concrete'] ?? null;
@@ -798,20 +1252,28 @@ class WorkerLifetimes
     }
 
     /**
-     * Get the class the container can build for the name, or null when it is unknown, not
-     * instantiable, or bound by its own Bind or BindWhen attributes.
+     * Determine whether the container builds the class itself: an instantiable class without its own
+     * Bind or BindWhen attributes.
+     */
+    public static function isBuildableClass(ClassReflection $class): bool
+    {
+        if (! $class->isClass() || $class->isAbstract()) {
+            return false;
+        }
+
+        $native = $class->getNativeReflection();
+
+        return $native->getAttributes(Bind::class) === [] && $native->getAttributes(BindWhen::class) === [];
+    }
+
+    /**
+     * Get the class the container can build for the name, or null when it is unknown or not buildable.
      */
     private function getBuildableClass(string $name): ?ClassReflection
     {
         $class = $this->getClass($name);
 
-        if ($class === null || ! $class->isClass() || $class->isAbstract()) {
-            return null;
-        }
-
-        $native = $class->getNativeReflection();
-
-        return $native->getAttributes(Bind::class) === [] && $native->getAttributes(BindWhen::class) === [] ? $class : null;
+        return $class !== null && self::isBuildableClass($class) ? $class : null;
     }
 
     /**

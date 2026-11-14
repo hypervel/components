@@ -872,3 +872,45 @@ class NamedConfigJob implements ShouldQueue
         app('config', ['option' => true])->set('app.named', true);
     }
 }
+
+// Offset writes inside other expressions change configuration too.
+class NestedConfigOffsetJob implements ShouldQueue
+{
+    use Dispatchable;
+
+    public function handle(ConfigRepository $config): string
+    {
+        $locale = config()['app.locale'] = 'fr';
+        $this->report($config['app.name'] = 'Hypervel');
+
+        if ($config['app.debug'] = false) {
+            config()['app.nested'] = true;
+        }
+
+        return $config['app.timezone'] = $locale;
+    }
+
+    private function report(string $name): void
+    {
+    }
+}
+
+// Only a promoted repository property shows the global repository, so these offset writes are ordinary property writes.
+class RepositoryPropertyController
+{
+    private static ConfigRepository $defaults;
+
+    private ConfigRepository $settings;
+
+    public function __construct(ConfigRepository $config)
+    {
+        self::$defaults = $config;
+        $this->settings = $config;
+    }
+
+    public function update(): void
+    {
+        self::$defaults['app.locale'] = 'fr';
+        $this->settings['app.locale'] = 'fr';
+    }
+}

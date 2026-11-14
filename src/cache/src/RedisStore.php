@@ -360,6 +360,11 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
      *
      * All Redis operations inside the callback reuse the same connection,
      * avoiding multiple pool checkouts.
+     *
+     * @template T
+     *
+     * @param callable(): T $callback
+     * @return T
      */
     public function withPinnedConnection(callable $callback): mixed
     {

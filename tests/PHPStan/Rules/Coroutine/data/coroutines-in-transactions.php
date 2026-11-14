@@ -98,6 +98,13 @@ class CoroutinesInTransactions
         });
     }
 
+    public function spawnsThroughNullsafeCall(?WaitConcurrent $waitConcurrent): void
+    {
+        DB::transaction(function () use ($waitConcurrent): void {
+            $waitConcurrent?->fork(fn () => null);
+        });
+    }
+
     /**
      * @return Closure(): void
      */

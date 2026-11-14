@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\PHPStan;
 
 use Hypervel\Filesystem\Filesystem;
+use PHPUnit\Framework\Attributes\Large;
 
 /**
  * The in-process suite boots a package, whose analysis leaves the values packages merge
  * unknown, so an application's own analysis checks how merged package files compose.
  */
+#[Large]
 class ConfigCompositionTest extends ResultCacheTestCase
 {
     protected string $fixture = 'ConfigComposition';

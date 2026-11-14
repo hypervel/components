@@ -1605,6 +1605,7 @@ trait HasAttributes
     {
         return $date instanceof DateTimeImmutable
             ? CarbonImmutable::instance($date)->toJSON()
+            // @phpstan-ignore hypervel.mutableDate (copies the date only to serialize it, keeping a mutable Carbon subclass's toJSON())
             : Carbon::instance($date)->toJSON();
     }
 

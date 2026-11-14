@@ -2,7 +2,6 @@
 
 namespace ConfigProviderSources;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Support\Facades\Config;
 
 use function PHPStan\Testing\assertType;
@@ -12,12 +11,12 @@ use function PHPStan\Testing\assertType;
  * the applications using the package replace them. ConfigCompositionTest checks how an
  * application's analysis composes the same sources.
  */
-function test(Repository $config): void
+function test(): void
 {
     assertType('mixed', config('package.key'));
     assertType('mixed', config('package.env'));
     assertType('mixed', config('property.key'));
-    assertType('string', $config->string('package.key'));
+    assertType('string', config()->string('package.key'));
 
     // The Testbench application's files stay known, and a key only a package file sets is unknown rather than absent.
     assertType("array{shared: 'app', app: 'app', ...<int|string, mixed>}", config('merged'));

@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Foundation\Testing;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Foundation\Application;
@@ -457,7 +457,7 @@ class RefreshDatabaseTest extends TestCase
         $this->migrateRefresh = false;
         $this->runTestsInCoroutine = true;
 
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
 
         $database = m::mock(DatabaseManager::class);
         $database->expects('connection')->with(null)->andReturn($connection);
@@ -489,7 +489,7 @@ class RefreshDatabaseTest extends TestCase
     public function testRestoreInMemoryDatabaseRequiresPdoConnection(): void
     {
         $pdo = m::mock(PDO::class);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $database = m::mock(DatabaseManager::class);
         $database->expects('connection')->with(null)->andReturn($connection);
         RefreshDatabaseState::$inMemoryConnections = ['default' => $pdo];
@@ -617,7 +617,7 @@ class RefreshDatabaseTest extends TestCase
     {
         $failure = new RuntimeException('Transaction begin failed.');
         $dispatcher = m::mock(Dispatcher::class);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $connection->expects('setTransactionManager');
         $connection->expects('getEventDispatcher')->andReturn($dispatcher);
         $connection->expects('unsetEventDispatcher')->ordered();
@@ -668,7 +668,7 @@ class RefreshDatabaseTest extends TestCase
      */
     protected function getMockedDatabase(): DatabaseManager
     {
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $connection->expects('getNameWithReadWriteType')->andReturn('default');
         $eventDispatcher = m::mock(Dispatcher::class);
         $connection->expects('getEventDispatcher')
@@ -679,6 +679,7 @@ class RefreshDatabaseTest extends TestCase
         $connection->expects('beginTransaction')->andReturnUsing(
             fn () => $this->app->make('db.transactions')->begin('default', 1)
         );
+        $connection->expects('forgetRecordModificationState');
         $connection->expects('rollback');
         $connection->expects('setEventDispatcher')
             ->twice()

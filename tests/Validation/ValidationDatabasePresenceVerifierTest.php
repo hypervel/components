@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Closure;
-use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Support\Collection;
@@ -21,7 +21,7 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
         $db = m::mock(ConnectionResolverInterface::class);
         $verifier = new DatabasePresenceVerifier($db);
         $verifier->setConnection('connection');
-        $conn = m::mock(ConnectionInterface::class);
+        $conn = m::mock(Connection::class);
         $db->expects('connection')->with('connection')->andReturn($conn);
         $builder = m::mock(Builder::class);
         $conn->expects('table')->with('table')->andReturn($builder);
@@ -43,7 +43,7 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
         $db = m::mock(ConnectionResolverInterface::class);
         $verifier = new DatabasePresenceVerifier($db);
         $verifier->setConnection('connection');
-        $conn = m::mock(ConnectionInterface::class);
+        $conn = m::mock(Connection::class);
         $db->expects('connection')->with('connection')->andReturn($conn);
         $builder = m::mock(Builder::class);
         $conn->expects('table')->with('table')->andReturn($builder);
@@ -74,7 +74,7 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
         $db = m::mock(ConnectionResolverInterface::class);
         $verifier = new DatabasePresenceVerifier($db);
         $verifier->setConnection('connection');
-        $conn = m::mock(ConnectionInterface::class);
+        $conn = m::mock(Connection::class);
         $db->expects('connection')->with('connection')->andReturn($conn);
         $builder = m::mock(Builder::class);
         $conn->expects('table')->with('table')->andReturn($builder);
@@ -91,7 +91,7 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
     {
         $verifier = new DatabasePresenceVerifier($db = m::mock(ConnectionResolverInterface::class));
         $verifier->setConnection('stateful-connection');
-        $db->expects('connection')->with($connection)->andReturn($database = m::mock(ConnectionInterface::class));
+        $db->expects('connection')->with($connection)->andReturn($database = m::mock(Connection::class));
         $database->expects('table')->with('table')->andReturn($builder = m::mock(Builder::class));
         $builder->expects('useWritePdo')->andReturnSelf();
         $builder->expects('whereIn')->with('column', ['first', 'second'])->andReturnSelf();

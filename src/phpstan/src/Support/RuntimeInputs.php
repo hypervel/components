@@ -113,9 +113,9 @@ class RuntimeInputs
     private ?string $viewsKey = null;
 
     /**
-     * The owned runtime copy and the skeleton it was made from, or false when there is none.
+     * The owned runtime copy, the skeleton it was made from and the working vendor directory, or false when there is none.
      *
-     * @var null|array{string, string}|false
+     * @var null|array{string, string, string}|false
      */
     private array|false|null $runtimeCopy = null;
 
@@ -213,11 +213,12 @@ class RuntimeInputs
      * Declare that the dependent depends on the declarations and code of a class the booted application selected and the analysis runs.
      *
      * Method bodies and property defaults are not declarations, so the files declaring the class and its
-     * parents below the base class, with their traits and the constants their defaults read, are tracked too.
+     * parents below the base class, or all of them without one, with their traits and the constants their
+     * defaults read, are tracked too.
      *
      * @param ClassReflection|(DependencyTracker&Scope) $dependent
      */
-    public function trackSources(Scope|ClassReflection $dependent, string $className, string $baseClass): void
+    public function trackSources(Scope|ClassReflection $dependent, string $className, ?string $baseClass): void
     {
         $this->trackClass($dependent, $className);
 
@@ -377,7 +378,23 @@ class RuntimeInputs
             $scannedFiles[] = $file;
         }
 
-        foreach (array_keys([$vendorPath => true, $app->make(PackageManifest::class)->vendorPath => true]) as $vendor) {
+        $manifestVendorPath = $app->make(PackageManifest::class)->vendorPath;
+        $runtimeCopy = $this->runtimeCopy();
+        $vendors = [$vendorPath => true];
+        $presenceDirectories = [];
+
+        // Testbench copies or links the skeleton's vendor directory into the runtime copy, or links
+        // the working one when the skeleton has none. The copy's own directory goes with the copy,
+        // so both sources are tracked in its place, including while their metadata is missing.
+        if ($runtimeCopy !== false && $manifestVendorPath === $runtimeCopy[0] . '/vendor') {
+            $presenceDirectories[] = $runtimeCopy[1] . '/vendor';
+            $vendors[$runtimeCopy[1] . '/vendor'] = true;
+            $vendors[$runtimeCopy[2]] = true;
+        } else {
+            $vendors[$manifestVendorPath] = true;
+        }
+
+        foreach (array_keys($vendors) as $vendor) {
             $files[] = $vendor . '/composer/installed.json';
             $files[] = $vendor . '/composer/installed.php';
         }
@@ -422,6 +439,7 @@ class RuntimeInputs
         return $this->valueExtension->createKey(
             files: $trackedFiles,
             presenceFiles: $this->presenceFiles($app),
+            presenceDirectories: $presenceDirectories,
             directories: $directories,
             variables: [...$variables['names'], ...$this->interpolatedVariables($app)],
             variablePatterns: $variables['patterns'],
@@ -661,9 +679,10 @@ class RuntimeInputs
     }
 
     /**
-     * Get the realpaths of the runtime copy this process owns and of the skeleton it was made from.
+     * Get the realpaths of the runtime copy this process owns and of the skeleton it was made from,
+     * and the working vendor directory the copy links when the skeleton has none, as Testbench spells it.
      *
-     * @return array{string, string}|false
+     * @return array{string, string, string}|false
      */
     private function runtimeCopy(): array|false
     {
@@ -677,12 +696,13 @@ class RuntimeInputs
 
         $basePath = $this->application()->basePath();
         $sourcePath = Bootstrapper::runtimeSourcePath();
+        $vendorPath = Bootstrapper::runtimeVendorPath();
 
-        if ($sourcePath === null || ! Bootstrapper::ownsRuntimePath($basePath)) {
+        if ($sourcePath === null || $vendorPath === null || ! Bootstrapper::ownsRuntimePath($basePath)) {
             return $this->runtimeCopy = false;
         }
 
-        return $this->runtimeCopy = [(string) realpath($basePath), (string) realpath($sourcePath)];
+        return $this->runtimeCopy = [(string) realpath($basePath), (string) realpath($sourcePath), $vendorPath];
     }
 
     /**

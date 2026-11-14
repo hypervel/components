@@ -7,6 +7,6 @@ Documentation: https://hypervel.org/docs/contracts
 
 ## Differences From Laravel
 
-The `Container` contract also requires `isScoped()`, `isScopedInstance()`, `forgetInstance()`, `makeTransient()`, `build()`, `buildWith()`, `resolveContextualParameters()`, and `rebinding()`. Custom implementations must provide these methods; extending `Hypervel\Container\Container` supplies them. Scope inspection lets consumers preserve coroutine-local lifetimes instead of caching scoped services across requests.
+The `Container` contract also requires `isScoped()`, `isScopedInstance()`, `resolvedShared()`, `forgetInstance()`, `makeTransient()`, `build()`, `buildWith()`, `resolveContextualParameters()`, and `rebinding()`. Custom implementations must provide these methods; extending `Hypervel\Container\Container` supplies them. Lifetime inspection lets consumers cache only the instances the container shares for the worker, instead of caching scoped or fresh services across requests.
 
 Ported from: https://github.com/laravel/framework/tree/13.x/src/Illuminate/Contracts

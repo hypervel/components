@@ -110,18 +110,46 @@ class SourceFiles
     }
 
     /**
-     * Get the files of the constants the arguments of a class's or trait's attribute read.
+     * Get the files of the constants the arguments of a class's or trait's attribute read, or those of
+     * the attribute on one of its methods.
      *
      * @return list<string>
      */
-    public static function forAttributeArguments(ReflectionProvider $reflectionProvider, ClassReflection $classReflection, string $attributeClass): array
+    public static function forAttributeArguments(ReflectionProvider $reflectionProvider, ClassReflection $classReflection, string $attributeClass, ?string $method = null): array
     {
         $files = [];
         $constants = [];
+        $reflection = $classReflection->getNativeReflection();
+        $attributes = $method === null ? $reflection->getAttributes($attributeClass) : $reflection->getMethod($method)->getAttributes($attributeClass);
 
-        foreach ($classReflection->getNativeReflection()->getAttributes($attributeClass) as $attribute) {
+        foreach ($attributes as $attribute) {
             foreach ($attribute->getArgumentsExpressions() as $expression) {
                 self::addExpressionFiles($reflectionProvider, $classReflection, $expression, $files, $constants);
+            }
+        }
+
+        return array_keys($files);
+    }
+
+    /**
+     * Get the files a method parameter's declared default comes from: the one declaring the method and
+     * those of the constants the default reads.
+     *
+     * @return list<string>
+     */
+    public static function forParameterDefault(ReflectionProvider $reflectionProvider, ClassReflection $classReflection, string $method, string $parameter): array
+    {
+        $files = [];
+        $constants = [];
+        $reflection = $classReflection->getNativeReflection()->getMethod($method);
+
+        if ($reflection->getFileName() !== false) {
+            $files[$reflection->getFileName()] = true;
+        }
+
+        foreach ($reflection->getParameters() as $candidate) {
+            if ($candidate->getName() === $parameter && $candidate->isDefaultValueAvailable()) {
+                self::addExpressionFiles($reflectionProvider, $classReflection, $candidate->getDefaultValueExpression(), $files, $constants);
             }
         }
 

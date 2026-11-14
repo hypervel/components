@@ -20,7 +20,8 @@ use function is_string;
 
 /**
  * Collects the reassigned parameters whose injected values the worker-state checks rely on: a
- * constructor's request or operation state, and a configuration repository.
+ * constructor's request or operation state, a configuration repository, and, for restricted calls,
+ * any method parameter that may hold an object.
  *
  * @phpstan-import-type FunctionFacts from WorkerStateHelper
  *
@@ -85,8 +86,10 @@ class WorkerStateParameterCollector implements Collector
 
         $constructor = ! $function['closure'] && $function['method'] === '__construct';
 
+        // A method's object parameter may be the evidence that a restricted call reaches the worker-shared instance.
         if (! $this->helper->isConfigRepositoryType($parameter->getType())
-            && ! ($constructor && $this->helper->getState($parameter->getType()) !== null)) {
+            && ! ($constructor && $this->helper->getState($parameter->getType()) !== null)
+            && ! ($this->helper->checkRestrictedCalls && ! $function['closure'] && ! $parameter->getType()->isObject()->no())) {
             return null;
         }
 

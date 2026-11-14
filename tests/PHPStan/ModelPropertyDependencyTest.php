@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\PHPStan;
 
+use PHPUnit\Framework\Attributes\Large;
+
 use function file_get_contents;
 use function file_put_contents;
 use function mkdir;
 use function str_replace;
 
+#[Large]
 class ModelPropertyDependencyTest extends ResultCacheTestCase
 {
     protected string $fixture = 'ModelPropertyDependency';

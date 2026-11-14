@@ -2569,7 +2569,6 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function resolveConnection(UnitEnum|string|null $connection = null): Connection
     {
-        // @phpstan-ignore return.type (resolver interface returns ConnectionInterface, but concrete always returns Connection)
         return static::$resolver->connection($connection);
     }
 

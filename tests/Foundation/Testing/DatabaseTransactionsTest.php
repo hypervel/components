@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Foundation\Testing;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
-use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
@@ -22,7 +21,7 @@ class DatabaseTransactionsTest extends TestCase
     {
         $failure = new RuntimeException('Transaction begin failed.');
         $dispatcher = m::mock(Dispatcher::class);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $connection->shouldReceive('setTransactionManager')->once();
         $connection->shouldReceive('getEventDispatcher')->once()->andReturn($dispatcher);
         $connection->shouldReceive('unsetEventDispatcher')->once()->ordered();
@@ -77,7 +76,7 @@ class DatabaseTransactionsTest extends TestCase
     /**
      * Create a test case for the given connection.
      */
-    private function createTestCase(ConnectionInterface $connection): DatabaseTransactionsTestCase
+    private function createTestCase(Connection $connection): DatabaseTransactionsTestCase
     {
         $database = m::mock(DatabaseManager::class);
         $database->shouldReceive('connection')->once()->with(null)->andReturn($connection);

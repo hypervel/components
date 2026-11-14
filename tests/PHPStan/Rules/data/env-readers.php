@@ -19,3 +19,14 @@ TestbenchEnv::get('foo');
 
 // Other Env methods do not read a variable
 Env::getRepository();
+
+// A subclass's own reader runs its own body
+CachedEnv::get('foo');
+
+class CachedEnv extends Env
+{
+    public static function get(string $key, mixed $default = null): mixed
+    {
+        return $default;
+    }
+}

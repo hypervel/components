@@ -4,6 +4,7 @@
          beStrictAboutTestsThatDoNotTestAnything="false"
          colors="true"
          defaultTimeLimit="60"
+         timeoutForLargeTests="180"
          enforceTimeLimit="true"
          failOnRisky="true"
          failOnWarning="true"

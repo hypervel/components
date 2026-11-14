@@ -12,7 +12,6 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\CachedConnectionResolver;
 use Hypervel\Database\Connection;
-use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\Pool\DatabasePool;
@@ -35,7 +34,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
     /**
      * Connections for testing environment.
      *
-     * @var array<string, ConnectionInterface>
+     * @var array<string, Connection>
      */
     protected static array $connections = [];
 
@@ -86,15 +85,13 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
         $exception = null;
 
         foreach (static::$connections as $cacheKey => $connection) {
-            if ($connection instanceof Connection) {
-                $connection->resetForPool();
+            $connection->resetForPool();
 
-                if (! $connection->isReusable()) {
-                    try {
-                        static::discardCachedConnection($cacheKey);
-                    } catch (Throwable $throwable) {
-                        $exception = Coroutine::preferCancellation($exception, $throwable);
-                    }
+            if (! $connection->isReusable()) {
+                try {
+                    static::discardCachedConnection($cacheKey);
+                } catch (Throwable $throwable) {
+                    $exception = Coroutine::preferCancellation($exception, $throwable);
                 }
             }
         }
@@ -137,7 +134,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
         // canonical key avoids the mismatch.
         $container->rebinding(Dispatcher::class, function ($app, $dispatcher) {
             foreach (static::$connections as $connection) {
-                if ($connection instanceof Connection && $dispatcher instanceof Dispatcher) {
+                if ($dispatcher instanceof Dispatcher) {
                     $connection->setEventDispatcher($dispatcher);
                 }
             }
@@ -149,7 +146,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
     /**
      * Get an already resolved connection from the cache.
      */
-    public function getResolvedConnection(string $name): ?ConnectionInterface
+    public function getResolvedConnection(string $name): ?Connection
     {
         if ($connection = static::$connections[$name] ?? null) {
             return $connection;
@@ -161,7 +158,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
     /**
      * Get the connection owned by the active testing mode without borrowing one.
      */
-    public function getHeldConnection(UnitEnum|string|null $name = null): ?ConnectionInterface
+    public function getHeldConnection(UnitEnum|string|null $name = null): ?Connection
     {
         $name = $this->connectionName($name);
 
@@ -173,7 +170,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
     /**
      * Get the connections shared across the test's setup, requests and assertions.
      *
-     * @return array<string, ConnectionInterface>
+     * @return array<string, Connection>
      */
     public function getRetainedConnections(): array
     {
@@ -193,7 +190,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
 
         $connection = $this->getResolvedConnection($name);
 
-        return $connection instanceof Connection
+        return $connection !== null
             ? $connection->hasApplicableTransaction()
             : parent::hasApplicableTransaction($name);
     }
@@ -248,7 +245,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
      * Borrows connections through the pool manager and retains their owning
      * wrappers until terminal test teardown.
      */
-    public function connection(UnitEnum|string|null $name = null): ConnectionInterface
+    public function connection(UnitEnum|string|null $name = null): Connection
     {
         $connectionName = ConnectionName::parse($this->connectionName($name));
 
@@ -258,11 +255,11 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
         }
 
         if ($connection = static::$connections[$connectionName->requested] ?? null) {
-            if ($connectionName->role !== null && $connection instanceof Connection) {
+            if ($connectionName->role !== null) {
                 $connection->setReadWriteType($connectionName->role);
             }
 
-            if ($connectionName->isWrite() && $connection instanceof Connection) {
+            if ($connectionName->isWrite()) {
                 // resetCachedConnections() runs resetForPool() between tests and clears this flag.
                 $connection->useWriteConnectionWhenReading();
             }
@@ -276,7 +273,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
         if ($cacheKey !== $connectionName->requested
             && $connection = static::$connections[$cacheKey] ?? null
         ) {
-            if ($connectionName->isWrite() && $connection instanceof Connection) {
+            if ($connectionName->isWrite()) {
                 $connection->useWriteConnectionWhenReading();
             }
 

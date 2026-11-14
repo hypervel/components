@@ -95,6 +95,7 @@ use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Composer;
+use Hypervel\Support\DateFactory;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\URL;
@@ -150,6 +151,8 @@ class FoundationServiceProvider extends ServiceProvider
             $app->make('files'),
             $app->basePath()
         ));
+
+        $this->app->singletonIf('date', DateFactory::class);
 
         $this->registerDeferHandler();
         $this->registerClock();

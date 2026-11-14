@@ -76,11 +76,14 @@ class IntegrationTest extends PHPStanTestCase
 
         yield 'bug-2582' => [__DIR__ . '/data/bug-2582.php'];
 
-        // Hypervel: a date attribute accepts what HasAttributes::fromDateTime() converts.
+        // Hypervel: a date attribute accepts what HasAttributes::fromDateTime() converts, and mutable dates are reported.
         yield 'bug-1744' => [
             __DIR__ . '/data/bug-1744.php',
             [
+                11 => ['Carbon\Carbon::now() creates a mutable date.'],
                 13 => ['Property App\ModelWithDateColumnCasts::$created_at (DateTimeInterface|float|int|string|null) does not accept array<string, string|null>.'],
+                15 => ['Carbon\Carbon::now() creates a mutable date.'],
+                18 => ['Carbon\Carbon::now() creates a mutable date.'],
             ],
         ];
 
@@ -187,12 +190,14 @@ class IntegrationTest extends PHPStanTestCase
         ];
 
         // Hypervel: User's public email() accessor reads as mixed; date attributes read as CarbonInterface; SQLite
-        // has no unsigned columns; AsEnumCollection also stores the enum's backing values.
+        // has no unsigned columns; AsEnumCollection also stores the enum's backing values; mutable dates are reported.
         yield [
             __DIR__ . '/data/model-properties.php',
             [
+                31 => ['Carbon\Carbon::now() creates a mutable date.'],
                 71 => ['Expected type string, actual: mixed'],
                 74 => ['Function testDateCast() should return Carbon\Carbon|null but returns Carbon\CarbonInterface|null.'],
+                87 => ['Carbon\Carbon::now() creates a mutable date.'],
                 100 => ['Property App\User::$decimal (float|int|numeric-string) does not accept \'foo\'.'],
                 101 => ['Property App\User::$decimal (float|int|numeric-string) does not accept array{}.'],
                 110 => ['Property App\User::$nullable_decimal (float|int|numeric-string|null) does not accept \'foo\'.'],

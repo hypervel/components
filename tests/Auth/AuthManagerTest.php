@@ -30,7 +30,7 @@ use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Hashing\Hasher as HashContract;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Query\Builder;
@@ -370,7 +370,7 @@ class AuthManagerTest extends TestCase
 
         $query = m::mock(Builder::class);
         $query->shouldReceive('find')->once()->with(1)->andReturn(null);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $connection->shouldReceive('table')->once()->with('users')->andReturn($query);
         $resolutions = 0;
         $database = m::mock(ConnectionResolverInterface::class);
@@ -402,7 +402,7 @@ class AuthManagerTest extends TestCase
         ]);
         $query = m::mock(Builder::class);
         $query->shouldReceive('find')->once()->with(1)->andReturn(null);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $connection->shouldReceive('table')->once()->with('users')->andReturn($query);
         $database = m::mock(ConnectionResolverInterface::class);
         $database->shouldReceive('connection')

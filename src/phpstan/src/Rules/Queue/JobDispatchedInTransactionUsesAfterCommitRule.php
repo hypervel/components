@@ -13,6 +13,7 @@ use Hypervel\Database\ConnectionName;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\PHPStan\Concerns\HasContainer;
+use Hypervel\PHPStan\Concerns\InspectsConnections;
 use Hypervel\PHPStan\Concerns\InspectsQueuedJobs;
 use Hypervel\PHPStan\Reflection\ReflectionHelper;
 use Hypervel\PHPStan\Reflection\SourceFiles;
@@ -61,7 +62,6 @@ use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Rules\IdentifierRuleError;
 use PHPStan\Rules\Rule;
 use PHPStan\Rules\RuleErrorBuilder;
-use PHPStan\Type\ObjectType;
 use PHPStan\Type\Type;
 
 use function array_key_exists;
@@ -119,6 +119,7 @@ use function strtolower;
 class JobDispatchedInTransactionUsesAfterCommitRule implements Rule
 {
     use HasContainer;
+    use InspectsConnections;
     use InspectsQueuedJobs;
 
     /**
@@ -213,7 +214,7 @@ class JobDispatchedInTransactionUsesAfterCommitRule implements Rule
      */
     public function processNode(Node $node, Scope $scope): array
     {
-        if (! ($node instanceof StaticCall || $node instanceof MethodCall) || ! $this->isTransactionCall($node, $scope)) {
+        if (! ($node instanceof StaticCall || $node instanceof MethodCall) || $this->getTransactionReceiverType($node, $scope) === null) {
             return [];
         }
 
@@ -282,20 +283,6 @@ class JobDispatchedInTransactionUsesAfterCommitRule implements Rule
     }
 
     /**
-     * Determine whether the call runs a transaction: `DB::transaction()` or a connection's `transaction()`.
-     */
-    private function isTransactionCall(StaticCall|MethodCall $node, Scope $scope): bool
-    {
-        if (! $node->name instanceof Identifier || $node->name->toLowerString() !== 'transaction') {
-            return false;
-        }
-
-        return $node instanceof StaticCall
-            ? $node->class instanceof Name && $this->isFacade($node->class, DB::class, 'DB')
-            : (new ObjectType(ConnectionInterface::class))->isSuperTypeOf($scope->getType($node->var))->yes();
-    }
-
-    /**
      * Get the database connection the transaction runs on, or null when it is unknown.
      *
      * @param DependencyTracker&Scope $scope
@@ -308,13 +295,7 @@ class JobDispatchedInTransactionUsesAfterCommitRule implements Rule
 
         $receiver = $node->var;
 
-        if (
-            ! $receiver instanceof StaticCall
-            || ! $receiver->class instanceof Name
-            || ! $receiver->name instanceof Identifier
-            || $receiver->name->toLowerString() !== 'connection'
-            || ! $this->isFacade($receiver->class, DB::class, 'DB')
-        ) {
+        if (! $this->isFacadeConnectionCall($receiver, $scope)) {
             return null;
         }
 
@@ -450,7 +431,7 @@ class JobDispatchedInTransactionUsesAfterCommitRule implements Rule
         }
 
         // Unlike upstream, Bus::dispatch() is checked too: it queues the job the same way.
-        if ($this->isFacade($node->class, Bus::class, 'Bus')) {
+        if (ReflectionHelper::isFacade($node->class, Bus::class, 'Bus')) {
             return $node->name->toLowerString() === 'dispatch';
         }
 
@@ -481,7 +462,7 @@ class JobDispatchedInTransactionUsesAfterCommitRule implements Rule
 
             if (($receiver instanceof FuncCall || $receiver instanceof StaticCall) && $this->isDispatchCall($receiver, $scope)) {
                 // Bus::dispatch() returns the handler's result, not a pending dispatch.
-                return $receiver instanceof StaticCall && $receiver->class instanceof Name && $this->isFacade($receiver->class, Bus::class, 'Bus')
+                return $receiver instanceof StaticCall && $receiver->class instanceof Name && ReflectionHelper::isFacade($receiver->class, Bus::class, 'Bus')
                     ? null
                     : $receiver;
             }
@@ -500,7 +481,7 @@ class JobDispatchedInTransactionUsesAfterCommitRule implements Rule
      */
     private function getDispatchedJob(FuncCall|StaticCall $dispatch, Scope $scope): ?ClassReflection
     {
-        if ($dispatch instanceof StaticCall && $dispatch->class instanceof Name && ! $this->isFacade($dispatch->class, Bus::class, 'Bus')) {
+        if ($dispatch instanceof StaticCall && $dispatch->class instanceof Name && ! ReflectionHelper::isFacade($dispatch->class, Bus::class, 'Bus')) {
             return $this->reflectionProvider->getClass($scope->resolveName($dispatch->class));
         }
 

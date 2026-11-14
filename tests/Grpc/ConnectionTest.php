@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Grpc;
 
 use Closure;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Engine\Http\V2\ClientFactoryInterface;
 use Hypervel\Contracts\Engine\Http\V2\ClientInterface;
 use Hypervel\Contracts\Engine\Http\V2\RequestInterface;
@@ -28,6 +30,7 @@ use Hypervel\Grpc\Protocol\Timeout;
 use Hypervel\Grpc\StatusCode;
 use Hypervel\Tests\TestCase;
 use LogicException;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
 use RuntimeException;
@@ -545,10 +548,23 @@ class ConnectionTest extends TestCase
         $this->assertSame(1, $client->closeCount);
     }
 
-    public function testNativeWriteCancellationTerminatesTheConnectionAndPreservesTheCaller(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testNativeWriteCancellationTerminatesTheConnectionAndPreservesTheCaller(bool $closeFails): void
     {
         $cancellation = new CanceledException;
         $client = new ConnectionTestClient;
+
+        // A close failure carrying its own cancellation must not replace the caller's.
+        $closeFailure = $closeFails ? new RuntimeException('Close failed.', previous: new CanceledException) : null;
+        $this->expectReported($closeFailure);
+
+        if ($closeFailure !== null) {
+            $client->closeUsing(static function () use ($closeFailure): void {
+                throw $closeFailure;
+            });
+        }
+
         $connection = $this->connection(new ConnectionTestClientFactory($client));
         $state = $this->state();
         $this->start($connection, $this->request(pipeline: true), $state);
@@ -997,6 +1013,35 @@ class ConnectionTest extends TestCase
         $this->assertTrue($connection->isClosed());
     }
 
+    public function testReceiverReportsANativeCloseFailureCarryingCancellation(): void
+    {
+        $closeFailure = new RuntimeException('Close failed.', previous: new CanceledException);
+        $this->expectReported($closeFailure);
+        $client = new ConnectionTestClient;
+        $client->closeUsing(static function () use ($closeFailure): void {
+            throw $closeFailure;
+        });
+        $connection = $this->connection(new ConnectionTestClientFactory($client));
+        $state = $this->state();
+        $this->start($connection, $this->request(), $state);
+        $receiverCoroutineId = (new ReflectionProperty(Connection::class, 'receiverCoroutineId'))
+            ->getValue($connection);
+
+        $client->failReceive(new HttpClientException('socket lost', 104));
+
+        $this->assertIsInt($receiverCoroutineId);
+        $this->assertFalse(Coroutine::exists($receiverCoroutineId));
+        $this->assertTrue($connection->isClosed());
+        $this->assertSame(1, $client->closeCount);
+
+        try {
+            $state->status();
+            $this->fail('Expected the receive failure to fail the call.');
+        } catch (ConnectionException $exception) {
+            $this->assertSame('socket lost', $exception->getMessage());
+        }
+    }
+
     public function testWriteFailureFailsEveryStreamAndIsReportedToTheWriter(): void
     {
         $client = new ConnectionTestClient;
@@ -1121,6 +1166,24 @@ class ConnectionTest extends TestCase
         $this->connections[] = $connection;
 
         return $connection;
+    }
+
+    /**
+     * Expect the failure to be reported through the exception handler, or nothing when it is null.
+     */
+    private function expectReported(?Throwable $failure): void
+    {
+        $handler = m::mock(ExceptionHandler::class);
+
+        if ($failure === null) {
+            $handler->shouldNotReceive('report');
+        } else {
+            $handler->shouldReceive('report')->once()->with($failure);
+        }
+
+        $container = new Container;
+        $container->instance(ExceptionHandler::class, $handler);
+        Container::setInstance($container);
     }
 
     private function state(

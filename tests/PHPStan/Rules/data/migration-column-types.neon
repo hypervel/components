@@ -1,0 +1,4 @@
+includes:
+    - ../phpstan-rules.neon
+parameters:
+    checkMigrationColumnTypes: true

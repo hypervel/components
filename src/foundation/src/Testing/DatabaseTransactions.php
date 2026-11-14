@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
-use Hypervel\Database\Connection as DatabaseConnection;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 
@@ -90,9 +89,7 @@ trait DatabaseTransactions
             $connection->unsetEventDispatcher();
 
             try {
-                if ($connection instanceof DatabaseConnection) {
-                    $connection->forgetRecordModificationState();
-                }
+                $connection->forgetRecordModificationState();
 
                 // Laravel disconnects after rolling back one level. Hypervel keeps the connection
                 // open, so roll back every level, including transactions the test left open.

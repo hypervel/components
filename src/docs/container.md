@@ -404,7 +404,9 @@ use Hypervel\Contracts\Container\Container;
 
 #[BindWhen(
     RedisEventPusher::class,
-    static fn (Container $container): bool => $container->bound('redis'),
+    static function (Container $container): bool {
+        return $container->bound('redis');
+    },
 )]
 interface EventPusher
 {

@@ -94,7 +94,7 @@ class DatabaseManager implements ConnectionResolverInterface
      * Resolves the default connection name here (checking Context for usingConnection override)
      * before passing to the resolver.
      */
-    public function connection(UnitEnum|string|null $name = null): ConnectionInterface
+    public function connection(UnitEnum|string|null $name = null): Connection
     {
         if ($name instanceof UnitEnum) {
             $name = (string) enum_value($name);
@@ -112,7 +112,7 @@ class DatabaseManager implements ConnectionResolverInterface
      *
      * Resolvers without connection inspection support resolve normally.
      */
-    public function getHeldConnection(UnitEnum|string|null $name = null): ?ConnectionInterface
+    public function getHeldConnection(UnitEnum|string|null $name = null): ?Connection
     {
         if ($name instanceof UnitEnum) {
             $name = (string) enum_value($name);
@@ -148,10 +148,7 @@ class DatabaseManager implements ConnectionResolverInterface
             return $resolver->hasApplicableTransaction($name);
         }
 
-        /** @var Connection $connection */
-        $connection = $resolver->connection($name);
-
-        return $connection->hasApplicableTransaction();
+        return $resolver->connection($name)->hasApplicableTransaction();
     }
 
     /**
@@ -176,10 +173,7 @@ class DatabaseManager implements ConnectionResolverInterface
             return $resolver->connectionDateFormat($name);
         }
 
-        /** @var Connection $connection */
-        $connection = $resolver->connection($name);
-
-        return $connection->getQueryGrammar()->getDateFormat();
+        return $resolver->connection($name)->getQueryGrammar()->getDateFormat();
     }
 
     /**
@@ -191,7 +185,7 @@ class DatabaseManager implements ConnectionResolverInterface
      *
      * @internal For use by SimpleConnectionResolver only
      */
-    public function resolveConnectionDirectly(string $name): ConnectionInterface
+    public function resolveConnectionDirectly(string $name): Connection
     {
         $connectionName = ConnectionName::parse($name);
 
@@ -409,7 +403,7 @@ class DatabaseManager implements ConnectionResolverInterface
         $resolver = $this->app->make('db.resolver');
 
         if ($resolver instanceof CachedConnectionResolver
-            && ($connection = $resolver->getResolvedConnection($connectionName->requested)) instanceof Connection
+            && ($connection = $resolver->getResolvedConnection($connectionName->requested)) !== null
         ) {
             $connection->disconnect();
         }
@@ -467,7 +461,7 @@ class DatabaseManager implements ConnectionResolverInterface
         $resolver = $this->app->make('db.resolver');
 
         if ($resolver instanceof CachedConnectionResolver
-            && ($connection = $resolver->getResolvedConnection($name)) instanceof Connection
+            && ($connection = $resolver->getResolvedConnection($name)) !== null
         ) {
             $connection->reconnect();
 
@@ -475,7 +469,6 @@ class DatabaseManager implements ConnectionResolverInterface
         }
 
         // No existing connection — get a fresh one
-        // @phpstan-ignore return.type (connection() returns ConnectionInterface but concrete Connection in practice)
         return $this->connection($name);
     }
 

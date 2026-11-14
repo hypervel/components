@@ -420,6 +420,7 @@ class BootstrapperTest extends TestCase
 
                 $this->assertTrue(is_link($runtimePath . '/vendor'));
                 $this->assertSame(realpath($packagePath . '/vendor'), realpath($runtimePath . '/vendor'));
+                $this->assertSame(readlink($runtimePath . '/vendor'), Bootstrapper::runtimeVendorPath());
                 $this->assertFileExists($runtimePath . '/vendor/dependency/file.php');
                 $this->assertFalse(is_link($runtimePath . '/config'));
                 $this->assertSame('config', file_get_contents($runtimePath . '/config/app.php'));
@@ -1168,6 +1169,7 @@ class BootstrapperTest extends TestCase
         $previousProcessPackageTester = getenv('TESTBENCH_PACKAGE_TESTER');
         $previousRuntimePath = $reflection->getStaticPropertyValue('runtimePath');
         $previousRuntimeSourcePath = $reflection->getStaticPropertyValue('runtimeSourcePath');
+        $previousRuntimeVendorPath = $reflection->getStaticPropertyValue('runtimeVendorPath');
 
         try {
             $this->setTestToken($token);
@@ -1184,6 +1186,7 @@ class BootstrapperTest extends TestCase
             $this->restorePackageTester($previousServerPackageTester, $previousEnvironmentPackageTester, $previousProcessPackageTester);
             $reflection->setStaticPropertyValue('runtimePath', $previousRuntimePath);
             $reflection->setStaticPropertyValue('runtimeSourcePath', $previousRuntimeSourcePath);
+            $reflection->setStaticPropertyValue('runtimeVendorPath', $previousRuntimeVendorPath);
         }
     }
 

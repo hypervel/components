@@ -6,13 +6,18 @@ namespace Hypervel\PHPStan\Internal;
 
 use Closure;
 use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Config\Repository;
+use Hypervel\PHPStan\Rules\Coroutine\WorkerStateHelper;
 use Hypervel\PHPStan\Support\ConfigParser;
+use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Config;
 use InvalidArgumentException;
 use PhpParser\Node\Arg;
+use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\CallLike;
+use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
@@ -38,6 +43,7 @@ use PHPStan\Type\TypeCombinator;
 use PHPStan\Type\TypeTraverser;
 use PHPStan\Type\UnionType;
 
+use function array_all;
 use function array_any;
 use function in_array;
 use function sprintf;
@@ -55,8 +61,11 @@ class ConfigHelper
     /**
      * Create a new helper instance.
      */
-    public function __construct(private ConfigParser $configParser)
-    {
+    public function __construct(
+        private ConfigParser $configParser,
+        private RuntimeInputs $runtimeInputs,
+        private WorkerStateHelper $workerStateHelper,
+    ) {
     }
 
     /**
@@ -163,8 +172,11 @@ class ConfigHelper
     }
 
     /**
-     * Get the name of the standard repository or Config facade value method the call makes,
-     * or null when it calls another method or a custom implementation.
+     * Get the name of the standard repository or Config facade value method the call makes on the
+     * application's configuration, or null when it calls another method, a custom implementation,
+     * or a repository that may not be the application's.
+     *
+     * @param DependencyTracker&Scope $scope
      */
     public function getMethodName(CallLike $call, Scope $scope): ?string
     {
@@ -179,6 +191,10 @@ class ConfigHelper
         }
 
         if ($call instanceof MethodCall) {
+            if (! $this->isApplicationRepository($call->var, $scope)) {
+                return null;
+            }
+
             [$calledOnType, $receiverClass] = [$scope->getType($call->var), Repository::class];
         } elseif ($call->class instanceof Name) {
             [$calledOnType, $receiverClass] = [new ObjectType($scope->resolveName($call->class)), Config::class];
@@ -208,6 +224,37 @@ class ConfigHelper
         }
 
         return $methodName;
+    }
+
+    /**
+     * Determine whether the expression is the application's repository: config() without arguments,
+     * or a constant resolution of it from the application container.
+     *
+     * The application's values say nothing about another repository, such as one built directly or
+     * received as a parameter or property, which may hold other values.
+     *
+     * @param DependencyTracker&Scope $scope
+     */
+    private function isApplicationRepository(Expr $expr, Scope $scope): bool
+    {
+        if ($expr instanceof FuncCall && $this->workerStateHelper->isConfigFunction($expr, $scope)) {
+            return $expr->getRawArgs() === [];
+        }
+
+        $abstracts = $expr instanceof CallLike ? $this->workerStateHelper->getApplicationResolvedAbstracts($expr, $scope) : null;
+
+        if ($abstracts === null) {
+            return false;
+        }
+
+        // The booted aliases decide which abstracts name the repository.
+        $this->runtimeInputs->track($scope);
+
+        // The analysis always runs on the framework container: the booted application or a test's own.
+        /** @var Container $container */
+        $container = $this->workerStateHelper->getContainer();
+
+        return array_all($abstracts, static fn (string $abstract): bool => $container->getAlias($abstract) === 'config');
     }
 
     /**

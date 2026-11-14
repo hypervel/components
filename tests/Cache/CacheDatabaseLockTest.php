@@ -8,7 +8,7 @@ use Closure;
 use Exception;
 use Hypervel\Cache\DatabaseLock;
 use Hypervel\Contracts\Cache\RefreshableLock;
-use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\QueryException;
@@ -484,7 +484,7 @@ class CacheDatabaseLockTest extends TestCase
     protected function getLock(int $seconds = 10, ?array $lockLottery = [0, 1], ?string $connectionName = 'default', string $driver = 'pgsql', array $tables = []): array
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $table = m::mock(Builder::class);
         $table->shouldReceive('useWritePdo')->andReturnSelf()->byDefault();
 

@@ -104,6 +104,7 @@ namespace Hypervel\Support\Facades;
  * @method static void registered(callable $callback)
  * @method static array<string, mixed> resolveContextualParameters(string $concrete, null|array<int, string> $names = null)
  * @method static bool resolvedScoped(string $abstract)
+ * @method static bool resolvedShared(string $abstract)
  * @method static void resolveEnvironmentUsing(null|callable $callback)
  * @method static mixed resolveFromAttribute(\ReflectionAttribute $attribute, \ReflectionParameter $parameter)
  * @method static \Hypervel\Support\ServiceProvider resolveProvider(string $provider)

@@ -424,6 +424,7 @@ class ContainerTest extends TestCase
         $this->assertTrue($container->has('nullable'));
         $this->assertTrue($container->resolved('nullable'));
         $this->assertTrue($container->isShared('nullable'));
+        $this->assertTrue($container->resolvedShared('nullable'));
         $this->assertNull($container->make('nullable'));
         $this->assertNull($container->get('nullable'));
     }
@@ -817,6 +818,52 @@ class ContainerTest extends TestCase
         $this->assertFalse($second->resolvedScoped(ContainerConcreteStub::class));
         $this->assertFalse($second->isScopedInstance($instance));
         $this->assertNotSame($instance, $second->make(ContainerConcreteStub::class));
+    }
+
+    public function testResolvedSharedReportsWorkerSharedInstances(): void
+    {
+        $container = new Container;
+        $container->singleton('singleton', fn (): stdClass => new stdClass);
+        $container->alias(ContainerConcreteStub::class, 'stub');
+
+        $this->assertFalse($container->resolvedShared('singleton'));
+        $this->assertFalse($container->resolvedShared(ContainerConcreteStub::class));
+
+        $container->make('singleton');
+        $container->make(ContainerConcreteStub::class);
+
+        $this->assertTrue($container->resolvedShared('singleton'));
+        $this->assertTrue($container->resolvedShared(ContainerConcreteStub::class));
+        $this->assertTrue($container->resolvedShared('stub'));
+    }
+
+    public function testResolvedSharedIsFalseForResolutionsTheWorkerDoesNotKeep(): void
+    {
+        $container = new Container;
+        $container->bind('transient', fn (): stdClass => new stdClass);
+        $container->scoped('scoped', fn (): stdClass => new stdClass);
+        $container->singleton('shared', fn (): stdClass => new stdClass);
+        $container->bind('selector', fn (Container $container): stdClass => $container->make('shared'));
+
+        $container->make('transient');
+        $container->make('scoped');
+        $container->make(TransientStub::class);
+        $container->make('selector');
+
+        $this->assertFalse($container->resolvedShared('transient'));
+        $this->assertFalse($container->resolvedShared('scoped'));
+        $this->assertFalse($container->resolvedShared(TransientStub::class));
+        $this->assertFalse($container->resolvedShared('selector'));
+        $this->assertTrue($container->resolvedShared('shared'));
+    }
+
+    public function testResolvedSharedSeesAnInstanceReplacingAScopedBinding(): void
+    {
+        $container = new Container;
+        $container->scoped(ContainerConcreteStub::class);
+        $container->instance(ContainerConcreteStub::class, new ContainerConcreteStub);
+
+        $this->assertTrue($container->resolvedShared(ContainerConcreteStub::class));
     }
 
     /**

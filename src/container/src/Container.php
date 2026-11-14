@@ -441,6 +441,18 @@ class Container implements ContainerContract
     }
 
     /**
+     * Determine if the container holds a worker-shared instance for the given type.
+     */
+    public function resolvedShared(string $abstract): bool
+    {
+        $abstract = $this->getAlias($abstract);
+
+        return isset($this->instances[$abstract])
+            || array_key_exists($abstract, $this->instances)
+            || isset($this->autoSingletons[$abstract]);
+    }
+
+    /**
      * Determine if a ReflectionClass has scoping attributes applied.
      *
      * @param ReflectionClass<object>|string $reflection

@@ -25,6 +25,7 @@ use Hypervel\ObjectPool\Lease;
 use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Attributes\Unsupported;
 use Hypervel\Support\Traits\Conditionable;
+use League\Flysystem\FilesystemAdapter as FlysystemAdapter;
 use League\Flysystem\FilesystemOperator;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
@@ -534,6 +535,12 @@ trait InteractsWithPooledFilesystem
 
     /**
      * Run a callback with borrow-scoped access to the Flysystem driver.
+     *
+     * @template TDriver of FilesystemOperator
+     * @template T
+     *
+     * @param Closure(TDriver): T $callback
+     * @return T
      */
     public function withDriver(Closure $callback): mixed
     {
@@ -570,6 +577,12 @@ trait InteractsWithPooledFilesystem
 
     /**
      * Run a callback with borrow-scoped access to the Flysystem adapter.
+     *
+     * @template TAdapter of FlysystemAdapter
+     * @template T
+     *
+     * @param Closure(TAdapter): T $callback
+     * @return T
      */
     public function withAdapter(Closure $callback): mixed
     {
@@ -578,6 +591,12 @@ trait InteractsWithPooledFilesystem
 
     /**
      * Run a callback with borrow-scoped access to the driver client.
+     *
+     * @template TClient
+     * @template T
+     *
+     * @param Closure(TClient): T $callback
+     * @return T
      */
     public function withClient(Closure $callback): mixed
     {

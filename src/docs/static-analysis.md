@@ -25,29 +25,46 @@
     - [The `relation-of` Type](#relation-of)
 - [Fixing and Ignoring Diagnostics](#fixing-and-ignoring-diagnostics)
     - [Environment Variables](#environment-variables)
+    - [Casting Environment Variables](#casting-environment-variables)
     - [Configuration Values](#configuration-values)
+    - [Typed Configuration Getters](#typed-configuration-getters)
     - [Array Keys](#array-keys)
     - [Value and With Helpers](#value-and-with-helpers)
     - [Converting Collections to Arrays](#converting-collections-to-arrays)
+    - [Mutable Dates](#mutable-dates)
+    - [Discarded Dates](#discarded-dates)
     - [Translations](#translations)
     - [Views](#views)
     - [Console Input](#console-input)
+    - [Native Request APIs](#native-request-apis)
     - [Authentication in Requests](#authentication-in-requests)
     - [Redis Connections](#redis-connections)
+    - [Borrowed Resources](#borrowed-resources)
     - [Cancellation](#cancellation)
+    - [Swallowed Cancellation](#swallowed-cancellation)
+    - [Raw Coroutines](#raw-coroutines)
     - [Coroutines in Transactions](#coroutines-in-transactions)
+    - [Managed Transactions](#managed-transactions)
     - [Sleeping](#sleeping)
     - [Worker State](#worker-state)
+    - [Restricted Methods](#restricted-methods)
+    - [Unsupported Methods](#unsupported-methods)
     - [Runtime Configuration](#runtime-configuration)
+    - [Socialite Providers](#socialite-providers)
+    - [Swoole Tables](#swoole-tables)
+    - [Binding Cycles](#binding-cycles)
+    - [Conditional Bindings](#conditional-bindings)
     - [Model Relations](#model-relations)
     - [Model Columns](#model-columns)
     - [Model Scopes and Accessors](#model-scopes-and-accessors)
     - [Model Configuration](#model-configuration)
+    - [Model Observers](#model-observers)
     - [Appended Attributes](#appended-attributes)
     - [Creating Models](#creating-models)
     - [Query Results](#query-results)
     - [Starting Queries](#starting-queries)
     - [Schema Dumps](#schema-dumps)
+    - [Migration Column Types](#migration-column-types)
     - [Dispatching Jobs and Events](#dispatching-jobs-and-events)
     - [Dispatching Jobs in Transactions](#dispatching-jobs-in-transactions)
     - [Models in Queued Jobs](#models-in-queued-jobs)
@@ -118,23 +135,36 @@ Parameters that accept directories take absolute paths, or paths relative to the
 | Parameter | Default | Described In |
 |---|---|---|
 | `noEnvCallsOutsideOfConfig` | `true` | [Environment Variables](#environment-variables) |
+| `checkConfigEnvCasts` | `true` | [Casting Environment Variables](#casting-environment-variables) |
 | `checkConfigTypes` | `true` | [Configuration Values](#configuration-values) |
 | `configDirectories` | `[]` | [Configuration Values](#configuration-values) |
+| `checkTypedConfigGetters` | `true` | [Typed Configuration Getters](#typed-configuration-getters) |
 | `noUnnecessaryEnumerableToArrayCalls` | `true` | [Converting Collections to Arrays](#converting-collections-to-arrays) |
+| `noMutableDates` | `true` | [Mutable Dates](#mutable-dates) |
+| `checkDiscardedDates` | `true` | [Discarded Dates](#discarded-dates) |
 | `checkMissingTranslations` | `true` | [Translations](#translations) |
 | `translationDirectories` | `[]` | [Translations](#translations) |
 | `checkUnusedViews` | `false` | [Views](#views) |
 | `viewDirectories` | `[]` | [Views](#views) |
+| `noNativeRequestApis` | `true` | [Native Request APIs](#native-request-apis) |
 | `checkAuthCallsWhenInRequestScope` | `false` | [Authentication in Requests](#authentication-in-requests) |
 | `checkRedisConnectionBoundMethods` | `true` | [Redis Connections](#redis-connections) |
-| `checkCancellationHandling` | `true` | [Cancellation](#cancellation) |
+| `checkBorrowedResources` | `true` | [Borrowed Resources](#borrowed-resources) |
+| `checkCancellationHandling` | `true` | [Cancellation](#cancellation) and [Swallowed Cancellation](#swallowed-cancellation) |
 | `checkCancellationPrecedence` | `true` | [Cancellation](#cancellation) |
+| `noRawCoroutines` | `true` | [Raw Coroutines](#raw-coroutines) |
 | `noCoroutinesInTransactions` | `true` | [Coroutines in Transactions](#coroutines-in-transactions) |
+| `checkManagedTransactions` | `true` | [Managed Transactions](#managed-transactions) |
 | `noRawSleepCalls` | `true` | [Sleeping](#sleeping) |
 | `checkWorkerSharedState` | `true` | [Worker State](#worker-state) |
 | `checkStaticStateMutation` | `true` | [Worker State](#worker-state) |
 | `checkUnboundedWorkerCaches` | `true` | [Worker State](#worker-state) |
+| `checkRestrictedCalls` | `true` | [Restricted Methods](#restricted-methods) |
 | `noRuntimeConfigMutation` | `true` | [Runtime Configuration](#runtime-configuration) |
+| `checkSocialiteProviders` | `true` | [Socialite Providers](#socialite-providers) |
+| `checkSwooleTables` | `true` | [Swoole Tables](#swoole-tables) |
+| `checkBindingCycles` | `true` | [Binding Cycles](#binding-cycles) |
+| `checkBindWhenConditions` | `true` | [Conditional Bindings](#conditional-bindings) |
 | `databaseMigrationsPath` | `[]` | [Migrations and Schema Dumps](#migrations-and-schema-dumps) |
 | `squashedMigrationsPath` | `[]` | [Migrations and Schema Dumps](#migrations-and-schema-dumps) |
 | `disableMigrationScan` | `false` | [Migrations and Schema Dumps](#migrations-and-schema-dumps) |
@@ -146,12 +176,14 @@ Parameters that accept directories take absolute paths, or paths relative to the
 | `noLegacyModelScopes` | `true` | [Model Scopes and Accessors](#model-scopes-and-accessors) |
 | `checkModelMethodVisibility` | `true` | [Model Scopes and Accessors](#model-scopes-and-accessors) |
 | `noLegacyModelProperties` | `true` | [Model Configuration](#model-configuration) |
+| `checkObserverAttributes` | `true` | [Model Observers](#model-observers) |
 | `checkModelAppends` | `true` | [Appended Attributes](#appended-attributes) |
 | `noModelMake` | `true` | [Creating Models](#creating-models) |
 | `noUnnecessaryCollectionCall` | `true` | [Query Results](#query-results) |
 | `noUnnecessaryCollectionCallOnly` | `[]` | [Query Results](#query-results) |
 | `noUnnecessaryCollectionCallExcept` | `[]` | [Query Results](#query-results) |
 | `noImplicitQueryBuilderCall` | `false` | [Starting Queries](#starting-queries) |
+| `checkMigrationColumnTypes` | `false` | [Migration Column Types](#migration-column-types) |
 | `checkDispatchInTransactionAfterCommit` | `true` | [Dispatching Jobs in Transactions](#dispatching-jobs-in-transactions) |
 | `checkJobSerializesModels` | `true` | [Models in Queued Jobs](#models-in-queued-jobs) |
 | `checkBatchedJobIsBatchable` | `true` | [Batched Jobs](#batched-jobs) |
@@ -180,7 +212,7 @@ return ['enabled' => (bool) env('FEATURE_ENABLED', false)];
 $enabled = config('feature.enabled');
 ```
 
-Configuration types assume you are reading your application's configuration repository. If you build a separate repository, such as `new Repository($items)`, add a PHPDoc type to the values you read from it, or ignore a reported call with a reason when needed.
+PHPStan infers configuration value types through the `config` helper, the `Config` facade and calls such as `app('config')->get('app.name')` that resolve the application's repository. A repository received as a parameter or property, or created with `new Repository($items)`, may hold different values. Those reads keep the repository's declared return types.
 
 PHPStan boots your application to discover its services, authentication guards, commands, views and translations. Run analysis with the same environment locally and in CI, since settings such as `DB_CONNECTION` and `AUTH_MODEL` affect the inferred types. Package analysis uses your Testbench application's registrations.
 
@@ -515,7 +547,7 @@ public function callAsync(string $method, array $arguments = []): never
 }
 ```
 
-These attributes describe intended usage. They are not enforced at runtime, and the analysis does not check calls to marked methods.
+These attributes are not enforced at runtime. Instead, the analysis reports calls to boot-time and test-only methods from request, job and operation code, applying the attribute's conditions, as described in [Restricted Methods](#restricted-methods). It also reports calls that reach an unsupported method, along with the attribute's message, as described in [Unsupported Methods](#unsupported-methods).
 
 <a name="custom-phpdoc-types"></a>
 ## Custom PHPDoc Types
@@ -642,29 +674,46 @@ The following sections explain the diagnostics and their remedies. Use this tabl
 | Topic | Identifiers |
 |---|---|
 | [Environment Variables](#environment-variables) | `hypervel.noEnvCallsOutsideOfConfig` |
+| [Casting Environment Variables](#casting-environment-variables) | `hypervel.uncastEnvValue` |
 | [Configuration Values](#configuration-values) | `hypervel.configType`, `hypervel.configCollection` |
+| [Typed Configuration Getters](#typed-configuration-getters) | `hypervel.typedConfigGetter` |
 | [Array Keys](#array-keys) | `offsetAccess.notFound` |
 | [Value and With Helpers](#value-and-with-helpers) | `hypervel.uselessConstructs.value`, `hypervel.uselessConstructs.with` |
 | [Converting Collections to Arrays](#converting-collections-to-arrays) | `hypervel.unnecessaryEnumerableToArrayCall` |
+| [Mutable Dates](#mutable-dates) | `hypervel.mutableDate` |
+| [Discarded Dates](#discarded-dates) | `hypervel.discardedDate` |
 | [Translations](#translations) | `hypervel.missingTranslations`, `hypervel.invalidTranslationLocale` |
 | [Views](#views) | `hypervel.unusedViews`, `argument.type` for view names |
 | [Console Input](#console-input) | `hypervel.console.undefinedArgument`, `hypervel.console.undefinedOption` |
+| [Native Request APIs](#native-request-apis) | `hypervel.nativeRequestApi` |
 | [Authentication in Requests](#authentication-in-requests) | `hypervel.noAuthFacadeInRequestScope`, `hypervel.noAuthHelperInRequestScope` |
 | [Redis Connections](#redis-connections) | `hypervel.redisConnectionBoundMethod` |
+| [Borrowed Resources](#borrowed-resources) | `hypervel.borrowedResourceEscape` |
 | [Cancellation](#cancellation) | `hypervel.cancellation.exactType`, `hypervel.cancellation.precedence` |
+| [Swallowed Cancellation](#swallowed-cancellation) | `hypervel.cancellation.swallowed` |
+| [Raw Coroutines](#raw-coroutines) | `hypervel.rawCoroutine` |
 | [Coroutines in Transactions](#coroutines-in-transactions) | `hypervel.coroutineInTransaction` |
+| [Managed Transactions](#managed-transactions) | `hypervel.transactionEndedEarly` |
 | [Sleeping](#sleeping) | `hypervel.rawSleep` |
 | [Worker State](#worker-state) | `hypervel.workerSharedState`, `hypervel.staticStateMutation`, `hypervel.unboundedWorkerCache` |
+| [Restricted Methods](#restricted-methods) | `hypervel.restrictedCall`, `hypervel.restrictedAttribute` |
+| [Unsupported Methods](#unsupported-methods) | `hypervel.unsupportedCall` |
 | [Runtime Configuration](#runtime-configuration) | `hypervel.runtimeConfigMutation` |
+| [Socialite Providers](#socialite-providers) | `hypervel.socialiteProperty` |
+| [Swoole Tables](#swoole-tables) | `hypervel.swooleTableInProvider` |
+| [Binding Cycles](#binding-cycles) | `hypervel.bindingCycle` |
+| [Conditional Bindings](#conditional-bindings) | `hypervel.requestDependentBinding` |
 | [Model Relations](#model-relations) | `hypervel.relationExistence` |
 | [Model Columns](#model-columns) | `argument.type` for column names, `method.notFound` and `staticMethod.notFound` for dynamic wheres |
 | [Model Scopes and Accessors](#model-scopes-and-accessors) | `hypervel.legacyModelScope`, `hypervel.noPublicModelScopeMethod`, `hypervel.noPublicModelAccessorMethod` |
 | [Model Configuration](#model-configuration) | `hypervel.legacyModelProperty` |
+| [Model Observers](#model-observers) | `hypervel.observerAttribute` |
 | [Appended Attributes](#appended-attributes) | `hypervel.modelAppends` |
 | [Creating Models](#creating-models) | `hypervel.noModelMake` |
 | [Query Results](#query-results) | `hypervel.noUnnecessaryCollectionCall` |
 | [Starting Queries](#starting-queries) | `hypervel.noImplicitQueryBuilderCall` |
 | [Schema Dumps](#schema-dumps) | `hypervel.schemaDump` |
+| [Migration Column Types](#migration-column-types) | `hypervel.migrationColumnType` |
 | [Dispatching Jobs and Events](#dispatching-jobs-and-events) | `hypervel.jobs.noConstructor`, `hypervel.events.noConstructor`, `argument.type` and the other argument identifiers |
 | [Dispatching Jobs in Transactions](#dispatching-jobs-in-transactions) | `hypervel.dispatchInTransactionAfterCommit` |
 | [Models in Queued Jobs](#models-in-queued-jobs) | `hypervel.jobSerializesModels` |
@@ -692,6 +741,19 @@ $key = config('services.billing.key');
 The check covers direct calls to `env`, `env_array`, `env_or_fail`, `app_id`, `Env::get`, `Env::getArray` and `Env::getOrFail`. Configuration files, including those merged or published by packages, are allowed. Dynamic calls, `getenv()` and `$_ENV` are not checked.
 
 Some infrastructure code genuinely needs the process environment, such as code that runs before configuration loads, values passed to child processes, or settings provided by a test runner. Ignore those calls individually, with a reason. You may disable the rule using the `noEnvCallsOutsideOfConfig` parameter.
+
+<a name="casting-environment-variables"></a>
+### Casting Environment Variables
+
+The `env` helper converts [reserved values](/docs/{{version}}/configuration#environment-variable-types) such as `true` and `null`, but otherwise reads environment values as strings. Passing a numeric or boolean default does not convert them. Cast these values in your configuration files:
+
+```php
+'port' => (int) env('DB_PORT', 3306),
+```
+
+The check reports unconverted `env()` and `Env::get()` reads with boolean, integer or float defaults used directly as configuration values, including nested defaults such as `env('CACHE_TTL', env('DEFAULT_TTL', 60))`. Casts and conversions such as `filter_var()` are allowed. Values held in variables are not followed. When an environment variable holds a name or other text, use a string default instead.
+
+When a setting accepts several types, such as `false` or a URL, ignore the diagnostic with a reason. You may disable the check using the `checkConfigEnvCasts` parameter.
 
 <a name="configuration-values"></a>
 ### Configuration Values
@@ -724,6 +786,19 @@ parameters:
         - config
         - modules/*/config
 ```
+
+<a name="typed-configuration-getters"></a>
+### Typed Configuration Getters
+
+When a configuration key always holds a string, integer, float, boolean or array, read it using the matching [typed getter](/docs/{{version}}/configuration#typed-configuration-values). The getter returns that type and throws an exception if the configured value has another type:
+
+```php
+$name = config()->string('app.name');
+```
+
+Reading such a key using `config('key')`, `Config::get()` or a repository's `get` method is reported, even when the call supplies a default. Keep using `get()` for values that may be `null` or several types, and for keys your configuration may not define.
+
+Only your application's configuration repository is checked, as described in [Configuration and Services](#configuration-and-services). The check does not run when you analyze a package, since the applications using it may give its keys other values. You may disable the check using the `checkTypedConfigGetters` parameter.
 
 <a name="array-keys"></a>
 ### Array Keys
@@ -776,6 +851,32 @@ $ids = collect([1, 2, 3])->all();
 
 Keep `toArray()` when the items are, or may be, `Arrayable`, such as models. Collections that override `toArray()`, `all()` or `map()` are not checked. You may disable the rule using the `noUnnecessaryEnumerableToArrayCalls` parameter.
 
+<a name="mutable-dates"></a>
+### Mutable Dates
+
+Hypervel uses [immutable dates](/docs/{{version}}/helpers#dates) by default. Create dates using the `Date` facade, the `now` and `today` helpers, or `CarbonImmutable`:
+
+```php
+$startsAt = now();
+```
+
+The check reports `new Carbon` and static calls that return a mutable date, such as `now`, `parse` and `create`, on `Carbon\Carbon` and `Hypervel\Support\Carbon`. When code needs a mutable date, such as to work with a library that expects one, ignore the diagnostic with a reason. You may disable the check using the `noMutableDates` parameter.
+
+<a name="discarded-dates"></a>
+### Discarded Dates
+
+Immutable date methods such as `addDays` and `startOfMonth` return a new date. Assign the result to keep the change:
+
+```php
+$deadline = now();
+
+$deadline = $deadline->addDays(7);
+```
+
+Discarding the result of a Carbon modifier or setter, such as `setTime`, `timezone` or `year(2026)`, is reported. Methods such as `dayOfYear()` read a value when called without an argument and are reported only when they set one, as in `dayOfYear(100)`.
+
+For a `CarbonImmutable`, the diagnostic says the date is unchanged. For a `CarbonInterface`, including the result of `now()`, it says the change may be lost because the date could be mutable or immutable. Mutable `Carbon` dates change in place and are not reported. You may disable the check using the `checkDiscardedDates` parameter.
+
 <a name="translations"></a>
 ### Translations
 
@@ -811,6 +912,21 @@ if ($this->hasOption('force') && $this->option('force')) {
 }
 ```
 
+<a name="native-request-apis"></a>
+### Native Request APIs
+
+Use Hypervel's [request](/docs/{{version}}/requests), [response](/docs/{{version}}/responses) and [session](/docs/{{version}}/session) APIs when handling a request. PHP's native request APIs act on process state instead, so calls such as `header()` are reported. Set the header on the response:
+
+```php
+return response($content)->header('X-Frame-Options', 'DENY');
+```
+
+The check covers `header`, `header_remove`, `headers_list`, `headers_sent`, `http_response_code`, `setcookie`, `setrawcookie`, `getallheaders`, `apache_request_headers`, `connection_aborted`, `connection_status`, `ignore_user_abort` and every `session_*` function except `session_create_id`. It also reports `filter_input`, `filter_input_array` and `filter_has_var` when they read `INPUT_GET`, `INPUT_POST` or `INPUT_COOKIE`, and `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES`, `$_REQUEST` and `$_SESSION`. In particular, `$_SESSION` is shared by every request in the worker.
+
+A generator callback passed to `response()->stream()` stops streaming at the first failed write after the client disconnects. To also stop it during a wait when the connection closes, call `cancelOnDisconnect()`, as described in [Canceling Disconnected Streams](/docs/{{version}}/responses#canceling-disconnected-streams).
+
+When code deliberately uses one of these functions outside a request, such as a console command that calls `ignore_user_abort`, ignore the diagnostic with a reason. You may disable the check using the `noNativeRequestApis` parameter.
+
 <a name="authentication-in-requests"></a>
 ### Authentication in Requests
 
@@ -831,6 +947,33 @@ Redis::withConnection(function (RedisConnection $connection) {
 ```
 
 These checks may be disabled using the `checkRedisConnectionBoundMethods` parameter.
+
+<a name="borrowed-resources"></a>
+### Borrowed Resources
+
+Methods such as `Redis::withConnection()` lend a pooled connection to a callback. Finish using the connection inside that callback, and return the result of your work:
+
+```php
+use Hypervel\Redis\RedisConnection;
+use Hypervel\Support\Facades\Redis;
+
+$value = Redis::withConnection(function (RedisConnection $connection) {
+    return $connection->get('key');
+});
+```
+
+Once the callback finishes, another coroutine may borrow the connection. The check reports returning it, storing it outside the callback, or capturing it in work that can outlive the callback. Arrays and closures holding the connection count too. Storage includes properties on objects from outside the callback, by-reference `use` variables and global variables. This includes closures passed to `go()`, `parallel()`, `Coroutine::defer()` and `Timer::after()`.
+
+The check covers these borrowed resources, including local variables holding them:
+
+- Redis connections lent by `withConnection()` and their `client()` handles.
+- Queues lent by a [pooled SQS connection's](/docs/{{version}}/queues#connection-pools) `withConnection()` and their `getSqs()` clients.
+- Drivers, adapters and clients lent by a [pooled disk's](/docs/{{version}}/filesystem#driver-pools) `withDriver()`, `withAdapter()` and `withClient()` methods.
+- PDO handles obtained inside `DB::withPinnedSession()`, whose session may return to the pool when the [pin](/docs/{{version}}/database#releasing-and-pinning-connections) ends.
+
+A generator callback that uses a borrowed resource is reported too. Calling a generator only creates it, so its body runs once it is iterated, after the borrow has ended. Return the results instead of yielding them.
+
+If a child coroutine must use a borrowed connection, call `wait()` with `waitForChildTermination: true`. This waits for the child to finish even when the caller is canceled. Values passed to other functions are not followed, and neither are variables once they are bound by reference. You may disable the check using the `checkBorrowedResources` parameter.
 
 <a name="cancellation"></a>
 ### Cancellation
@@ -864,7 +1007,7 @@ try {
 }
 ```
 
-Use the same approach instead of `instanceof CanceledException` or storing a directly caught cancellation for later. If the value may be `null`, such as `getPrevious()`, check `instanceof Throwable` first. A `Throwable` catch that only rethrows is not reported. Neither is a `try` block containing only waits that throw cancellation directly, such as channel waits or `Coroutine::join`.
+Use the same approach instead of `instanceof CanceledException` or storing a directly caught cancellation for later. If the value may be `null`, such as `getPrevious()`, check `instanceof Throwable` first. A `Throwable` catch that only rethrows is not reported, and neither is one that handles ordinary failures inside `if (! Coroutine::causedByCancellation($exception))` and then rethrows. Neither is a `try` block containing only waits that throw cancellation directly, such as channel waits or `Coroutine::join`.
 
 When you keep the first of several failures using `??=`, a later failure carrying cancellation is lost. Use `Coroutine::preferCancellation`, which keeps the first failure unless a later one carries this coroutine's cancellation:
 
@@ -873,6 +1016,52 @@ $failure = Coroutine::preferCancellation($failure, $exception);
 ```
 
 The check allows `??=` when no earlier failure can exist or the branch excludes cancellation. You may disable these checks using the `checkCancellationHandling` and `checkCancellationPrecedence` parameters.
+
+<a name="swallowed-cancellation"></a>
+### Swallowed Cancellation
+
+When a coroutine is [canceled](/docs/{{version}}/coroutines#coroutine-cancellation), an operation such as a database query or channel wait can throw a cancellation exception. Treating it as an ordinary failure lets canceled work continue. Rethrow the exception, or check for cancellation before handling other failures:
+
+```php
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Facades\DB;
+
+try {
+    $rates = DB::table('rates')->get();
+} catch (Throwable $exception) {
+    if (Coroutine::causedByCancellation($exception)) {
+        throw $exception;
+    }
+
+    $rates = collect();
+}
+```
+
+A catch that ends by throwing a new exception also propagates the cancellation when it passes the caught exception as the new exception's previous exception, such as `throw new RatesUnavailable('Rates are unavailable.', previous: $exception)`. A `ForeignCancellationException` does not count, since `causedByCancellation` treats it as another coroutine's cancellation.
+
+The check reports the first catch that receives cancellation, such as a `Throwable` or `Exception` catch, if it swallows cancellation from one of these operations directly inside its `try` block:
+
+- Database queries through a connection, the `DB` facade, the query and Eloquent builders, models, relationships, an Eloquent collection's `load` methods, or the schema builder. Calls such as `cursor()` and `lazy()` run their queries when their results are iterated, so they count when the `try` block iterates them directly with `foreach` or `each()`. A lazy result held in a variable or passed through other collection methods is not followed.
+- Redis commands through the `Redis` facade or `Redis::connection()`, including pipelines and transactions given a callback.
+- [HTTP client](/docs/{{version}}/http-client) requests.
+- Waits: channel `push` and `pop`, `WaitGroup::wait`, `wait()`, `parallel()`, `Concurrency::run()`, starting a coroutine through `Concurrent` or `WaitConcurrent`, which waits for a free slot, `WaitConcurrent::wait`, `Coroutine::join`, `Coroutine::sleep`, PHP's `sleep` and `usleep` functions, a [`Sleep`](/docs/{{version}}/helpers#sleep) expression whose result is discarded, and `Sleep::then()`. A `Sleep` held in a variable is not followed.
+
+Cache, filesystem, queue and mail calls are not checked, since their driver is configuration. They can still throw a cancellation, so a broad catch around them needs the same handling.
+
+Only request, job and operation code is checked, as described in [Worker State](#worker-state). An operation inside a nested `try` whose catch swallows the cancellation is reported at that `try` instead. When a catch propagates the cancellation in a way the analysis cannot follow, such as through a helper method, ignore the diagnostic with a reason. You may disable the check using the `checkCancellationHandling` parameter, which also disables the `CanceledException` checks described in [Cancellation](#cancellation).
+
+<a name="raw-coroutines"></a>
+### Raw Coroutines
+
+An exception escaping a coroutine started directly through Swoole or Hypervel's engine layer, including cancellation, stops the worker process. Use Hypervel's [coroutine helpers](/docs/{{version}}/coroutines#creating-a-child-coroutine), which [report](/docs/{{version}}/coroutines#reporting-unhandled-exceptions) unhandled exceptions:
+
+```php
+use function Hypervel\Coroutine\go;
+
+go(fn () => $this->refreshRates());
+```
+
+The check covers `Swoole\Coroutine::create()`, `Swoole\Coroutine\go()`, and `Hypervel\Engine\Coroutine::create()` and `execute()`. To copy the parent's [coroutine context](/docs/{{version}}/coroutines#copying-coroutine-context), use `Coroutine::fork()` or the helpers' `copyContext` argument. Keep a direct call only when its callback catches every exception itself, and ignore the diagnostic with a reason. You may disable the check using the `noRawCoroutines` parameter.
 
 <a name="coroutines-in-transactions"></a>
 ### Coroutines in Transactions
@@ -889,6 +1078,24 @@ DB::transaction(function () use ($order) {
 ```
 
 Start the coroutine from a `DB::afterCommit` callback, or do the work in the transaction's own coroutine. The check covers `go`, `co`, `parallel`, `wait`, `Coroutine::create`, `Coroutine::createOwned`, `Coroutine::fork`, `Coroutine::forkOwned`, `Parallel`, `Concurrent`, `WaitConcurrent` and `Waiter`. It also covers `Concurrency::run` when the selected driver is known to be `coroutine`. You may disable it using the `noCoroutinesInTransactions` parameter.
+
+<a name="managed-transactions"></a>
+### Managed Transactions
+
+Let the [`transaction`](/docs/{{version}}/database#database-transactions) method manage its transaction. It commits when the closure returns and rolls back when the closure throws an exception:
+
+```php
+DB::transaction(function () use ($order) {
+    $order->save();
+    $order->items()->update(['status' => 'confirmed']);
+});
+```
+
+Calling `commit()` or `rollBack()` to end that transaction inside the closure is reported, because later work in the closure would run outside it. Balanced calls to `beginTransaction()` and `commit()` or `rollBack()` are allowed for nested transactions. `rollBack(0)` is reported because it also rolls back every enclosing transaction.
+
+A closure that uses `yield` is reported too. Calling it only creates a generator, so `transaction` commits before any of the closure's work runs. Do the database work in the closure and return the results instead of yielding them.
+
+The check follows calls on the connection the closure receives, a connection variable it captures, a connection property of `$this`, the `DB` facade, and `DB::connection()` with the same connection name as the `transaction` call. Once the closure begins, commits or rolls back a transaction conditionally, such as inside an `if`, a loop or a `try`, the rest of the closure is not checked. You may disable the check using the `checkManagedTransactions` parameter.
 
 <a name="sleeping"></a>
 ### Sleeping
@@ -928,16 +1135,60 @@ Pass request values to the methods that use them, or keep them in [CoroutineCont
 
 - A property of a shared service that keeps the current request, a response, a user, an uploaded file or a model, whether a method assigns it or the constructor receives it. (`hypervel.workerSharedState`)
 - A shared middleware, controller or job that writes to its own properties while handling a request or running a job. (`hypervel.workerSharedState`)
-- A static property written while handling a request or running a job, or one that keeps any of the values above. (`hypervel.staticStateMutation`)
+- A static property or global variable written while handling a request or running a job, or one that keeps any of the values above. Global variables are `$GLOBALS` entries, and names a function binds with a `global` statement that isn't inside a condition or loop. The unbounded-cache check does not inspect global arrays. (`hypervel.staticStateMutation`)
 - An array on a static property or shared service whose keys come from the request or user, such as `$this->visits[$request->ip()]`, since it can grow for as long as the worker runs. Use a cache store with an expiry instead. Keys limited to a small set of values, such as booleans or constants, are not reported, and neither is an array the same method has just reset. When the array is bounded in a way the analysis cannot see, ignore the diagnostic with a reason. (`hypervel.unboundedWorkerCache`)
 
-Request and job checks cover middleware, controller actions, route closures, form requests, and queued classes' `handle`, `__invoke` and `failed` methods, along with the methods they call directly on `$this`. Nested closures are not checked because they may run later.
+Request and job checks cover middleware, controller actions, route closures, form requests, and queued classes' `handle`, `__invoke` and `failed` methods. They also cover listeners and [passive observers](/docs/{{version}}/events#passive-observers) for framework request, routing and queue job events, including wildcard ones whose pattern matches those events. Queued listeners and queued Eloquent observers are checked as jobs. A queued listener using `InteractsWithQueue` handles each job on its own copy, so its handler and the helpers it calls may replace its properties and write into the arrays and strings they hold. The copy shares objects such as collections with the shared instance, so changes made through them are still checked. So are inherited methods that a shared instance of the parent class, or of another subclass, also runs. Its `failed`, `shouldQueue`, `uniqueVia` and `debounceVia` methods run on the shared instance, so they and the helpers they call are still checked. Option methods such as `viaQueue`, `backoff` and `uniqueId` run when the event is dispatched, on an instance made without the constructor, so they may set that instance's own properties and are otherwise checked like the event's listeners. A change made through an object the handler has just put in a property is still reported, so ignore a safe one with a reason.
+
+Listeners for server events such as `OnReceive` and `OnClose`, and Eloquent observers registered using `observe` or `ObservedBy`, are checked as operations. These handlers can run outside HTTP requests and queued jobs. The checks also follow calls to helper methods on `$this`. Nested closures are not checked because they may run later.
 
 Shared services are identified from your application's container registrations, resolved classes, handlers and constructor dependencies, following the container's [resolution lifecycles](/docs/{{version}}/container#resolution-lifecycles). A constructor-injected model used as a fresh prototype is allowed. Objects created inside binding closures are not inspected, and job `handle` dependencies are followed only for jobs using `Dispatchable`.
 
 Writes in methods marked as [boot-time or test-only](#method-attributes), and in `flushState` methods, are not reported.
 
 Other worker state, such as a lazily created connection or a registry filled while the application boots, is not reported. When a reported write is intended, ignore it with a reason. You may disable these checks using the `checkWorkerSharedState`, `checkStaticStateMutation` and `checkUnboundedWorkerCaches` parameters.
+
+<a name="restricted-methods"></a>
+### Restricted Methods
+
+Methods marked as [boot-time or test-only](#method-attributes) are intended for those contexts. For example, configure an Eloquent morph map in a service provider's `boot` method, before requests begin:
+
+```php
+use App\Models\Post;
+use Hypervel\Database\Eloquent\Relations\Relation;
+
+public function boot(): void
+{
+    Relation::morphMap(['post' => Post::class]);
+}
+```
+
+Calling a restricted method from the request, job or operation code described in [Worker State](#worker-state) is reported when the attribute's conditions apply. Call test-only methods from tests, and keep per-request state in [CoroutineContext](/docs/{{version}}/coroutine-context) or a [scoped binding](/docs/{{version}}/container#binding-scoped).
+
+A `whenShared` restriction applies only to an instance shared by the worker. For example, `Http::globalOptions()` changes the shared HTTP client factory, while a factory you create yourself may be configured independently:
+
+```php
+use Hypervel\Http\Client\Factory;
+
+$factory = (new Factory)->globalOptions(['timeout' => 5]);
+```
+
+The analysis recognizes shared instances reached through facades, calls such as `app('router')`, and dependencies the container supplies to controller actions, job handlers and readonly promoted constructor properties. Other receivers are not reported for `whenShared` restrictions. Configuration writes, such as `Config::set()`, are reported as [runtime configuration](#runtime-configuration) changes instead.
+
+If a restriction depends on an argument, choose either `whenNotDefault` or `whenProvided` and name a parameter with a default value. Use `whenShared` only on instance methods. Invalid combinations are reported as `hypervel.restrictedAttribute`. You may disable these checks using the `checkRestrictedCalls` parameter.
+
+<a name="unsupported-methods"></a>
+### Unsupported Methods
+
+A call that reaches a method marked [`Unsupported`](#method-attributes) always throws, so it is reported along with the attribute's message:
+
+```php
+// App\Clients\SyncClient::callAsync() is not supported by this implementation and always throws.
+// Use call() instead.
+$client->callAsync('refresh');
+```
+
+Calls through facades are checked too. When a facade forwards calls with its own `__callStatic` method, the calls it forwards to its root are not checked, but its own marked methods still are. The call is judged by the method it reaches, so a call through an interface or base class whose method is not marked is not reported. Neither is a call inside another marked method, since an unsupported method may throw by calling another one.
 
 <a name="runtime-configuration"></a>
 ### Runtime Configuration
@@ -954,9 +1205,71 @@ public function handle(Request $request, Closure $next): Response
 }
 ```
 
-Set configuration during application boot and keep per-request values in [CoroutineContext](/docs/{{version}}/coroutine-context). The check reports writes through the `config` helper, `Config` facade, container-resolved repository and supported method-injected parameters in the [request and job methods](#worker-state) described above.
+Set configuration during application boot and keep per-request values in [CoroutineContext](/docs/{{version}}/coroutine-context). The check reports writes through the `config` helper, `Config` facade, container-resolved repository and supported method-injected parameters in the [request, job and operation code](#worker-state) described above.
 
-Only writes known to target the shared configuration are reported. Repositories you construct yourself or store in properties are not checked. You may disable the rule using the `noRuntimeConfigMutation` parameter.
+Writes through a readonly promoted constructor property are reported when the container builds the class and injects your application's repository. Only writes known to target the shared configuration are reported, so repositories you construct yourself, and other properties, are not checked. You may disable the rule using the `noRuntimeConfigMutation` parameter.
+
+<a name="socialite-providers"></a>
+### Socialite Providers
+
+Socialite providers are shared by the worker. Their properties hold defaults, while each request's settings live in [coroutine context](/docs/{{version}}/coroutine-context). In a [custom provider](/docs/{{version}}/socialite#custom-providers), use the provider's methods to read and change the current settings:
+
+```php
+protected function getAuthUrl(?string $state): string
+{
+    $scopes = $this->getScopes();
+
+    // ...
+}
+```
+
+Direct reads and writes of request-specific properties are reported. Use pairs such as `getScopes()` and `setScopes()`, `getRedirectUrl()` and `redirectUrl()`, or `getParameters()` and `with()`. Constructors may set defaults, and a getter override may read them; these uses are not reported. You may disable the check using the `checkSocialiteProviders` parameter.
+
+<a name="swoole-tables"></a>
+### Swoole Tables
+
+Create shared Swoole tables from a `Hypervel\Core\Events\BeforeServerStart` listener, before the server starts its workers. Creating a table directly in a service provider's `register` or `boot` method is reported because those methods also run in queue workers and console commands that never use the table.
+
+The check does not inspect closures, such as singleton factories. Resolve table-creating factories from a `BeforeServerStart` listener too; wrapping construction in a factory does not help if a provider immediately resolves it. You may disable the check using the `checkSwooleTables` parameter.
+
+<a name="binding-cycles"></a>
+### Binding Cycles
+
+When a class is already an alias of a container key, bind a closure that constructs the class. Binding the key directly to that class name creates a resolution cycle. For example, `AuthManager` is an alias of `auth`, so use:
+
+```php
+use Hypervel\Auth\AuthManager;
+
+$this->app->singleton('auth', fn ($app) => new AuthManager($app));
+```
+
+The check uses your application's registered aliases and covers `bind`, `singleton` and `scoped` on the application container and `App` facade. The `bindIf`, `singletonIf` and `scopedIf` methods are not checked, since the key may already be bound. You may disable the check using the `checkBindingCycles` parameter.
+
+<a name="conditional-bindings"></a>
+### Conditional Bindings
+
+[`BindWhen`](/docs/{{version}}/container#bind-when-attribute) conditions must depend on state set during application boot, such as configuration. Once a condition matches, the binding remains for the worker's lifetime. A condition that reads the current request or user would apply that request's choice to later requests:
+
+```php
+use App\Dashboards\AdminDashboard;
+use Hypervel\Container\Attributes\BindWhen;
+
+#[BindWhen(
+    AdminDashboard::class,
+    // Reported: this choice depends on the current request.
+    static function (): bool {
+        return request()->is('admin/*');
+    },
+)]
+interface Dashboard
+{
+    // ...
+}
+```
+
+To choose an implementation for each request, register a [scoped binding](/docs/{{version}}/container#binding-scoped) instead.
+
+The check detects request reads through the `request` helper, `Request` facade, `RequestContext` and container, along with user lookups through `Auth` or `auth()`. Nested callbacks are inspected too, as are functions and static methods used as first-class callable conditions, such as `Conditions::onAdminPath(...)` or `Auth::check(...)`. You may disable the check using the `checkBindWhenConditions` parameter.
 
 <a name="model-relations"></a>
 ### Model Relations
@@ -1041,6 +1354,25 @@ Review subclasses before converting a model. Attributes and properties have diff
 
 Keep properties when consumers rely on this behavior, especially on models that applications extend, and ignore the diagnostic with a reason. You may disable the check using `noLegacyModelProperties`.
 
+<a name="model-observers"></a>
+### Model Observers
+
+Register a model's [observers](/docs/{{version}}/eloquent#defining-observers) using the `ObservedBy` attribute on the model:
+
+```php
+use App\Observers\InvoiceObserver;
+use Hypervel\Database\Eloquent\Attributes\ObservedBy;
+use Hypervel\Database\Eloquent\Model;
+
+#[ObservedBy([InvoiceObserver::class])]
+class Invoice extends Model
+{
+    // ...
+}
+```
+
+The check reports `observe` calls with observer class names in a service provider's `register` and `boot` methods. Models from installed packages, which you cannot add an attribute to, are not reported, and neither are observer instances, conditional registrations or calls inside closures. Subclasses inherit the observers an attribute registers, so when the observers are meant for the model itself only, keep `observe` and ignore the diagnostic with a reason. You may disable the check using the `checkObserverAttributes` parameter.
+
 <a name="appended-attributes"></a>
 ### Appended Attributes
 
@@ -1118,6 +1450,21 @@ database/schema/pgsql-schema.dump:1: Model property types cannot use this schema
 ```
 
 Until the dump is fixed, the tables it defines are unknown, so their attributes read as `mixed`. Regenerate the dump using the `schema:dump` Artisan command, which writes plain SQL. A dump is only reported when the analyzed code reads a model attribute on its connection. You may stop reading schema dumps using the `disableSchemaScan` parameter.
+
+<a name="migration-column-types"></a>
+### Migration Column Types
+
+For JSON that the database queries, indexes or validates, use [`jsonb`](/docs/{{version}}/migrations#column-method-jsonb), which uses the appropriate type for each database. PostgreSQL's `json` type does not support the same indexing and comparisons:
+
+```php
+Schema::create('flights', function (Blueprint $table) {
+    $table->jsonb('options');
+});
+```
+
+Use `text` for opaque values that are only read back whole. Prefer a string column with a PHP enum cast over a database `enum`, which requires a migration to add values. Instead of `set`, store values in a `jsonb` column cast using `AsEnumCollection`, or in a related table.
+
+The `checkMigrationColumnTypes` parameter enables reports for `json`, `enum` and `set` columns. It is disabled by default, since existing migrations should not be edited.
 
 <a name="dispatching-jobs-and-events"></a>
 ### Dispatching Jobs and Events

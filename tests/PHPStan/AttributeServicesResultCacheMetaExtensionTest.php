@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\PHPStan;
 
+use PHPUnit\Framework\Attributes\Large;
+
 use function copy;
 use function mkdir;
 
+#[Large]
 class AttributeServicesResultCacheMetaExtensionTest extends ResultCacheTestCase
 {
     protected string $fixture = 'AttributeServices';

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Closure;
-use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
@@ -399,7 +399,7 @@ class InteractsWithParallelDatabaseTest extends TestCase
             ->once()
             ->with('analytics_test_data_test_7')
             ->andReturn(true);
-        $databaseConnection = m::mock(ConnectionInterface::class);
+        $databaseConnection = m::mock(Connection::class);
         $databaseConnection->shouldReceive('getSchemaBuilder')
             ->twice()
             ->andReturn($schemaBuilder);
@@ -413,7 +413,7 @@ class InteractsWithParallelDatabaseTest extends TestCase
                 $config,
                 $configurationPath,
                 $databaseConnection
-            ): ConnectionInterface {
+            ): Connection {
                 ++$connectionCalls;
 
                 if ($connectionCalls === 2) {

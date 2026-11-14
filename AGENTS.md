@@ -215,7 +215,7 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 - **Prefer union types over `mixed` when all types are known** — `mixed` is only for truly unconstrained values or cases that cannot be safely narrowed after control-flow analysis.
 - **Type decisions must be evidence-based** — check corresponding Laravel/Hyperf signatures and docblocks as a reference, then trace the real control flow through method bodies across all callers and callees to confirm the types are correct.
 - **Fail fast with framework and PHP exceptions** — don't add guards, wrapping, or defensive checks unless they handle a reachable invalid case or materially improve the error, and never swallow exceptions. If code would fail anyway (e.g. null passed to a typed parameter), let it fail naturally instead of adding a check that throws a custom exception — the stack trace is enough to diagnose.
-- **Mark intentionally unsupported methods** — when a public method must be retained but intentionally rejects every call, mark it with `#[Unsupported]` from `Hypervel\Support\Attributes`, passing the supported alternative as its message when one exists. Exclude base defaults that supporting implementations override, extension hooks, deliberate control-flow throws, and conditional rejections.
+- **Mark intentionally unsupported methods** — when a public method must be retained but intentionally rejects every call, mark it with `#[Unsupported]` from `Hypervel\Support\Attributes`, passing the supported alternative as its message when one exists. Exclude base defaults that supporting implementations override, extension hooks, deliberate control-flow throws, and conditional rejections. PHPStan reports calls that reach a marked method.
 - **Use semantic column types in migrations** — `uuid()` / `foreignUuid()` / `uuidMorphs()` for UUIDs, `ipAddress()` / `macAddress()` for network addresses, and `jsonb()` for JSON the database queries, indexes or validates. Use `text()` for opaque serialized values that are only read back whole. PostgreSQL gets the real types (`jsonb`, `uuid`, `inet`, `macaddr`); the other supported databases fall back automatically to compatible types.
 - **No arbitrary string lengths** — use `->string('name')`, not `->string('name', 100)`. Don't invent limits; specify a length only when the domain or protocol defines one — exact (UUID: 36, ULID: 26, sha-256 hex token: 64) or a defined maximum (IPv6 address: 45).
 - **No database enums** — use string columns plus PHP enums. Adding a value to a database enum requires a migration.
@@ -300,20 +300,13 @@ $this->app->singleton('auth', fn ($app) => new AuthManager($app));
 $this->app->singleton(FormatterInterface::class, DefaultFormatter::class);
 ```
 
-**3. Abstract and concrete are the same class — do not bind merely to share it.** Hypervel's container auto-singletons unbound concrete classes on first resolution. An explicit `singleton(Foo::class)` is redundant unless the class declares an intrinsic fresh lifetime through `Transient` or `SelfBuilding`:
-
-```php
-// Wrong: redundant; auto-singleton handles this.
-$this->app->singleton(BroadcastManager::class);
-
-// Correct: do not bind it. The first make(BroadcastManager::class) auto-singletons it.
-```
+**3. Abstract and concrete are the same class — do not bind merely to share it.** Unbound concrete classes without a different declared lifetime are auto-singletons. Explicit registration can change lifetimes, `bound()`, optional constructor injection and rebinding; retain it when those effects are intended.
 
 ### Aliases and canonical keys
 
 Before binding core framework services, check `Application::registerCoreContainerAliases()`.
 
-If the abstract or concrete participates in the alias table, choose the binding key carefully. `bind()` and `singleton()` store bindings under the exact abstract key passed; `resolve()` resolves aliases before lookup. Binding an alias instead of the canonical key can orphan the binding.
+If the abstract or concrete participates in the alias table, choose the binding key carefully. `bind()` and `singleton()` store bindings under the exact abstract key passed; `resolve()` resolves aliases before lookup. Binding an alias removes its mapping to the canonical key; the two keys can then resolve differently.
 
 When adding a core alias, use the string key as the canonical abstract:
 
@@ -395,7 +388,7 @@ Decide where state lives before writing code:
   - `#[TestsOnly]` — test fakes, swaps, and overrides
   - `#[BootOrTestsOnly]` — configuration or cleanup allowed in either context
 
-  Use `whenNotDefault: 'parameter'` only when the restriction applies to values differing from that parameter's declared default, `whenProvided: 'parameter'` when it applies whenever the argument is passed, and `whenShared: true` when it applies only to a worker-shared receiver. Keep a concise docblock explaining the runtime harm. If an API is intended for runtime use, fix unsafe shared-state behavior through a peer second opinion rather than restricting it to boot or tests.
+  PHPStan checks marked calls in recognized runtime contexts. Use `whenNotDefault: 'parameter'` only when the restriction applies to values differing from that parameter's declared default, `whenProvided: 'parameter'` when it applies whenever the argument is passed, and `whenShared: true` when it applies only to a worker-shared receiver. Keep a concise docblock explaining the runtime harm. If an API is intended for runtime use, fix unsafe shared-state behavior through a peer second opinion rather than restricting it to boot or tests.
 - **Assess static caching opportunities** — if a path repeatedly computes expensive stable metadata and worker-lifetime static caching would be a clear win, reach consensus with your peer agent through a second-opinion loop on what to cache, the expected benefit, bounded memory use, and correctness across requests before implementing.
 
 Classes that use static caching need a `flushState()` method for test cleanup — see "Static state and test cleanup" under Writing Tests.

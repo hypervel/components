@@ -8,7 +8,6 @@ use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\Connection;
-use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
 use Hypervel\Database\Migrations\MigrationRepositoryInterface;
@@ -812,7 +811,7 @@ class DatabaseMigratorTestResolver implements Resolver
     /**
      * Get a database connection instance.
      */
-    public function connection(UnitEnum|string|null $name = null): ConnectionInterface
+    public function connection(UnitEnum|string|null $name = null): Connection
     {
         return $this->connections[$name ?? $this->default];
     }

@@ -8,7 +8,7 @@ use __PHP_Incomplete_Class;
 use Closure;
 use Hypervel\Cache\DatabaseStore;
 use Hypervel\Cache\SerializableClassPolicy;
-use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\Query\Builder;
@@ -332,7 +332,7 @@ class CacheDatabaseStoreTest extends TestCase
     public function testLocksMayBeFlushedFromCache(): void
     {
         [$store, , , $resolver] = $this->getStore();
-        $lockConnection = m::mock(ConnectionInterface::class);
+        $lockConnection = m::mock(Connection::class);
         $lockTable = m::mock(Builder::class);
         $resolver->shouldReceive('connection')->with('locks')->andReturn($lockConnection);
         $lockConnection->expects('table')->with('cache_locks')->andReturn($lockTable);
@@ -514,7 +514,7 @@ class CacheDatabaseStoreTest extends TestCase
         ?SerializableClassPolicy $serializableClassPolicy = null,
     ): array {
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $table = m::mock(Builder::class);
 
         $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
@@ -572,7 +572,7 @@ class CacheDatabaseStoreTest extends TestCase
     protected function getMocks(): array
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->with('default')->andReturn(m::mock(ConnectionInterface::class));
+        $resolver->shouldReceive('connection')->with('default')->andReturn(m::mock(Connection::class));
 
         return [$resolver, 'default', 'table', 'prefix'];
     }

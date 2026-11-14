@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue\Outbox;
 
 use Closure;
-use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\TransactionBeginning;
@@ -94,7 +94,8 @@ class DatabaseOutboxRepositoryTest extends TestCase
     public function testCustomNonPdoConnectionsUseTheConditionalClaimAndBindingFallback(): void
     {
         $database = DB::connection();
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('supportsSkipLocked')->andReturnFalse();
         $connection->shouldReceive('table')->with('job_outbox')->andReturnUsing(fn (): Builder => $database->table('job_outbox'));
         $connection->shouldReceive('transaction')->andReturnUsing(fn (Closure $callback): mixed => $database->transaction($callback));
         $resolver = m::mock(ConnectionResolverInterface::class);

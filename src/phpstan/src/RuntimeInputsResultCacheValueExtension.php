@@ -46,6 +46,8 @@ class RuntimeInputsResultCacheValueExtension implements ResultCacheValueExtensio
 
     private const string PRESENCE = 'exists';
 
+    private const string DIRECTORY_PRESENCE = 'directory-exists';
+
     private const string DIRECTORY = 'directory';
 
     private const string LINKED_DIRECTORY = 'linked-directory';
@@ -77,6 +79,7 @@ class RuntimeInputsResultCacheValueExtension implements ResultCacheValueExtensio
      *
      * @param list<string> $files files compared by content
      * @param list<string> $presenceFiles files compared only by whether they exist
+     * @param list<string> $presenceDirectories directories compared only by whether they exist
      * @param array<string, string> $directories directories mapped to the fnmatch() pattern of the files compared in them, recursively
      * @param array<string, string> $linkedDirectories directories compared as $directories are, also through their symlinked directories
      * @param list<string> $listings directories compared by the names of the files in them, recursively, also through their symlinked directories
@@ -86,6 +89,7 @@ class RuntimeInputsResultCacheValueExtension implements ResultCacheValueExtensio
     public function createKey(
         array $files = [],
         array $presenceFiles = [],
+        array $presenceDirectories = [],
         array $directories = [],
         array $linkedDirectories = [],
         array $listings = [],
@@ -97,6 +101,7 @@ class RuntimeInputsResultCacheValueExtension implements ResultCacheValueExtensio
         foreach ([
             self::FILE => array_map($this->relativePath(...), $files),
             self::PRESENCE => array_map($this->relativePath(...), $presenceFiles),
+            self::DIRECTORY_PRESENCE => array_map($this->relativePath(...), $presenceDirectories),
             self::DIRECTORY => $this->directoryEntries($directories),
             self::LINKED_DIRECTORY => $this->directoryEntries($linkedDirectories),
             self::LISTING => array_map($this->relativePath(...), $listings),
@@ -169,6 +174,7 @@ class RuntimeInputsResultCacheValueExtension implements ResultCacheValueExtensio
             match ($type) {
                 self::FILE => $parts[] = $entry . "\t" . self::fileDigest($this->absolutePath($entry)),
                 self::PRESENCE => $parts[] = $entry . "\t" . (is_file($this->absolutePath($entry)) ? 'present' : 'missing'),
+                self::DIRECTORY_PRESENCE => $parts[] = $entry . "\t" . (is_dir($this->absolutePath($entry)) ? 'present' : 'missing'),
                 self::DIRECTORY, self::LINKED_DIRECTORY => $parts[] = $entry . "\t" . $this->directoryEntryDigest($entry, $type === self::LINKED_DIRECTORY),
                 self::LISTING => $parts[] = $entry . "\t" . self::listingDigest($this->absolutePath($entry)),
                 self::VARIABLE => $variables[] = $entry,
@@ -267,7 +273,7 @@ class RuntimeInputsResultCacheValueExtension implements ResultCacheValueExtensio
     /**
      * Get the typed entries of a key.
      *
-     * @return list<array{self::DIRECTORY|self::FILE|self::LINKED_DIRECTORY|self::LISTING|self::PRESENCE|self::VARIABLE|self::VARIABLE_PATTERN, string}>
+     * @return list<array{self::DIRECTORY|self::DIRECTORY_PRESENCE|self::FILE|self::LINKED_DIRECTORY|self::LISTING|self::PRESENCE|self::VARIABLE|self::VARIABLE_PATTERN, string}>
      */
     private function entries(string $key): array
     {
@@ -278,7 +284,7 @@ class RuntimeInputsResultCacheValueExtension implements ResultCacheValueExtensio
         $entries = [];
 
         foreach (explode("\n", $key) as $line) {
-            /** @var array{self::DIRECTORY|self::FILE|self::LINKED_DIRECTORY|self::LISTING|self::PRESENCE|self::VARIABLE|self::VARIABLE_PATTERN, string} $entry createKey() writes each line as a type and an entry */
+            /** @var array{self::DIRECTORY|self::DIRECTORY_PRESENCE|self::FILE|self::LINKED_DIRECTORY|self::LISTING|self::PRESENCE|self::VARIABLE|self::VARIABLE_PATTERN, string} $entry createKey() writes each line as a type and an entry */
             $entry = explode("\t", $line, 2);
             $entries[] = $entry;
         }

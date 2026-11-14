@@ -30,13 +30,19 @@ class NoEnvCallsOutsideOfConfigRuleTest extends RuleTestCase
 
     protected function getRule(): Rule
     {
+        $container = self::getContainer();
+
         return new NoEnvCallsOutsideOfConfigRule(
-            self::getContainer()->getByType(ConfigSourceResolver::class),
-            $this->getFileHelper(),
+            new ConfigSourceResolver(
+                $this->getFileHelper(),
+                $container->getService('currentPhpVersionSimpleDirectParser'),
+                $this->createReflectionProvider(),
+                $container->getParameter('configDirectories'),
+                $this->singleReflectionFile,
+                $this->singleReflectionInsteadOfFile,
+            ),
             $this->createReflectionProvider(),
-            self::getContainer()->getByType(RuntimeInputs::class),
-            $this->singleReflectionFile,
-            $this->singleReflectionInsteadOfFile,
+            $container->getByType(RuntimeInputs::class),
         );
     }
 

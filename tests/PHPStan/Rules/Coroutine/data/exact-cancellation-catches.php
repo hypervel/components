@@ -143,6 +143,40 @@ class ExactCancellationCatches
         }
     }
 
+    public function reportsOrdinaryFailuresAndRethrowsCancellation(): void
+    {
+        try {
+            $this->work();
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            if (! Coroutine::causedByCancellation($exception)) {
+                $this->report($exception);
+
+                return;
+            }
+
+            throw $exception;
+        }
+    }
+
+    public function reportsCancellationBeforeRethrowing(): void
+    {
+        try {
+            $this->work();
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            if (! Coroutine::causedByCancellation($exception)) {
+                $this->cleanUp();
+            }
+
+            $this->report($exception);
+
+            throw $exception;
+        }
+    }
+
     /**
      * @param list<int> $coroutineIds
      */
@@ -240,6 +274,19 @@ class ExactCancellationCatches
         }
     }
 
+    public function waitsOnAssignedChannel(Channel $held): mixed
+    {
+        try {
+            $channel = $held;
+
+            return $channel->pop(1.0);
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
     private function work(): void
     {
     }
@@ -266,5 +313,69 @@ class PollingChannel extends Channel
     public function pop(float $timeout = -1): mixed
     {
         return parent::pop($timeout);
+    }
+}
+
+class ChannelProperties
+{
+    public Channel $hooked {
+        set => $value;
+    }
+
+    private Channel $channel;
+
+    private Channel $secondary;
+
+    public function waitsOnReplacedProperty(PollingChannel $replacement): mixed
+    {
+        $this->channel = new Channel(1);
+
+        try {
+            $this->channel = $replacement;
+
+            return $this->channel->pop(1.0);
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    public function waitsOnHookedProperty(): mixed
+    {
+        try {
+            $this->hooked = new Channel(1);
+
+            return $this->hooked->pop(1.0);
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    public function waitsOnNullableChannel(?Channel $channel): mixed
+    {
+        try {
+            return $channel?->pop(1.0);
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    public function waitsOnPropertyReplacedThroughAnother(PollingChannel $replacement): mixed
+    {
+        try {
+            $this->secondary = $replacement;
+            $this->channel = $this->secondary;
+
+            return $this->channel->pop(1.0);
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            return null;
+        }
     }
 }

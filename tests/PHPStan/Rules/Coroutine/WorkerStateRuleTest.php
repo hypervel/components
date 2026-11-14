@@ -12,15 +12,19 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Events\Dispatcher;
+use Hypervel\HttpServer\Events\RequestHandled;
+use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\PHPStan\Collectors\WorkerStateCallCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateClassCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateConfigOffsetCollector;
+use Hypervel\PHPStan\Collectors\WorkerStateGlobalWriteCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateParameterCollector;
 use Hypervel\PHPStan\Collectors\WorkerStateWriteCollector;
 use Hypervel\PHPStan\Rules\Coroutine\CoroutineRuleHelper;
 use Hypervel\PHPStan\Rules\Coroutine\WorkerStateHelper;
 use Hypervel\PHPStan\Rules\Coroutine\WorkerStateRule;
 use Hypervel\PHPStan\Support\RuntimeInputs;
+use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Routing\Router;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\BaseRecordingController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\BinderController;
@@ -42,12 +46,37 @@ use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\OtherConsumer;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\OverridingRecordingController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ReportController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ReportEvent;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\RepositoryPropertyController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ScopedBoundService;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ScopedController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ScopedHelperController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\SendReportListener;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\ServiceContract;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerState\SingletonBoundService;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateGlobals\GlobalsController;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\BoundOptionListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\DebouncedByDefaultListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\DebouncedListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\OptionListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\OverridingOptionListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\UndebouncedListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\UniqueOptionListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\BaseRegistryListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\CatchAllObserver;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\ClonedEvent;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\ClonedListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\CollectingListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\JobListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\ObservingClonedListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\Post;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\ProviderObserver;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\QueuedListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\QueuedObserver;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\Registry;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\RegistryListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\RequestListener;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\SharedRegistry;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\WildcardJobListener;
 use PhpParser\Node;
 use PHPStan\Collectors\Collector;
 use PHPStan\Rules\Rule;
@@ -89,6 +118,18 @@ class WorkerStateRuleTest extends RuleTestCase
 
     private const string JOB = 'while running a job';
 
+    private const string OPERATION = 'during an operation';
+
+    private const string LISTENERS_NAMESPACE = 'Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListeners\\';
+
+    private const string OPTIONS_NAMESPACE = 'Hypervel\Tests\PHPStan\Rules\Coroutine\WorkerStateListenerOptions\\';
+
+    private const array GLOBALS_FILES = [
+        __DIR__ . '/data/worker-state-globals.php',
+        __DIR__ . '/data/worker-state-globals-request.php',
+        __DIR__ . '/data/worker-state-globals-account.php',
+    ];
+
     /**
      * The checkWorkerSharedState, checkStaticStateMutation, checkUnboundedWorkerCaches and
      * noRuntimeConfigMutation switches.
@@ -99,10 +140,10 @@ class WorkerStateRuleTest extends RuleTestCase
 
     protected function getRule(): Rule
     {
-        $rule = new WorkerStateRule($this->createReflectionProvider(), $this->createHelper(), self::getContainer()->getByType(RuntimeInputs::class));
-        $rule->setContainer($this->createApplication());
+        $helper = $this->createHelper();
+        $helper->setContainer($this->createApplication());
 
-        return $rule;
+        return new WorkerStateRule($helper);
     }
 
     /** @return array<Collector<Node, mixed>> */
@@ -113,9 +154,10 @@ class WorkerStateRuleTest extends RuleTestCase
         return [
             new WorkerStateWriteCollector($helper),
             new WorkerStateCallCollector($this->createReflectionProvider(), $helper),
-            new WorkerStateClassCollector($helper),
+            new WorkerStateClassCollector($this->createReflectionProvider(), $helper, self::getContainer()->getByType(RuntimeInputs::class)),
             new WorkerStateParameterCollector($helper),
             new WorkerStateConfigOffsetCollector($helper),
+            new WorkerStateGlobalWriteCollector($helper),
         ];
     }
 
@@ -161,7 +203,134 @@ class WorkerStateRuleTest extends RuleTestCase
             [$static[0], 41, $static[1]],
             [sprintf(self::CONFIG, self::REQUEST), 47, self::CONFIG_TIP],
             [$static[0], 54, $static[1]],
+            [sprintf(self::CONFIG, self::REQUEST), 62, self::CONFIG_TIP],
         ]);
+    }
+
+    public function testListenerAndObserverContexts(): void
+    {
+        $write = static fn (string $class, string $property, string $context, int $line): array => [
+            sprintf(self::STATIC_WRITE, self::LISTENERS_NAMESPACE . $class, $property, $context),
+            $line,
+            self::STATIC_TIP,
+        ];
+
+        $jobWrite = static fn (string $class, string $method, string $property, int $line): array => [
+            sprintf('%1$s::%2$s() writes $this->%3$s %4$s, but the container shares %1$s across concurrent requests.', self::LISTENERS_NAMESPACE . $class, $method, $property, self::JOB),
+            $line,
+            self::SHARED_WRITE_TIP,
+        ];
+        $request = static fn (string $class, string $property, int $line): array => [
+            sprintf(self::SHARED_STATE, self::LISTENERS_NAMESPACE . $class, $property, 'the current request'),
+            $line,
+            self::SHARED_STATE_TIP,
+        ];
+
+        $this->analyse([__DIR__ . '/data/worker-state-listeners.php'], [
+            $write('RequestListener', 'seen', self::REQUEST, 24),
+            $write('JobListener', 'recorded', self::JOB, 37),
+            $write('QueuedListener', 'recorded', self::JOB, 50),
+            $write('ProviderObserver', 'created', self::OPERATION, 63),
+            $write('DirectObserver', 'audited', self::OPERATION, 90),
+            $write('RepeatedObserver', 'updated', self::OPERATION, 111),
+            $write('BaseObserver', 'deleted', self::OPERATION, 134),
+            $write('AuditObserver', 'archived', self::OPERATION, 147),
+            $write('WildcardJobListener', 'seen', self::JOB, 185),
+            $write('CatchAllObserver', 'observed', self::OPERATION, 198),
+            $write('QueuedObserver', 'observed', self::REQUEST, 215),
+            [sprintf(self::CONFIG, self::REQUEST), 216, self::CONFIG_TIP],
+            $jobWrite('ClonedListener', 'failed', 'failures', 275),
+            $request('ClonedListener', 'latest', 283),
+            $request('CollectingListener', 'values', 313),
+            $jobWrite('CollectingListener', 'handle', 'groups', 314),
+            $jobWrite('CollectingListener', 'handle', 'totals', 315),
+            $jobWrite('CollectingListener', 'count', 'values', 324),
+            $request('Registry', 'request', 337),
+            $request('BaseRegistry', 'request', 363),
+            $request('ObservingClonedListener', 'request', 395),
+        ]);
+    }
+
+    public function testQueuedListenerOptions(): void
+    {
+        $write = static fn (string $class, string $property, int $line): array => [
+            sprintf(self::STATIC_WRITE, self::OPTIONS_NAMESPACE . $class, $property, self::REQUEST),
+            $line,
+            self::STATIC_TIP,
+        ];
+        $request = static fn (string $class, int $line): array => [
+            sprintf(self::SHARED_STATE, self::OPTIONS_NAMESPACE . $class, 'request', 'the current request'),
+            $line,
+            self::SHARED_STATE_TIP,
+        ];
+
+        $this->analyse([__DIR__ . '/data/worker-state-listener-options.php'], [
+            $write('OptionListener', 'queued', 47),
+            $write('OptionListener', 'queued', 61),
+            $request('OptionListener', 81),
+            $request('OverridingOptionListener', 114),
+            $write('UniqueOptionListener', 'locked', 136),
+            $write('UniqueOptionListener', 'locked', 146),
+            $write('DebouncedListener', 'debounced', 179),
+            $write('DebouncedByDefaultListener', 'debounced', 203),
+        ]);
+    }
+
+    public function testGlobalVariables(): void
+    {
+        $keeps = static fn (string $name, int $line, string $state = 'the current request'): array => [
+            sprintf('Global variable %s keeps %s, which the whole worker then shares.', $name, $state),
+            $line,
+            self::STATIC_TIP,
+        ];
+        $written = static fn (string $name, int $line): array => [
+            sprintf('Global variable %s is written while handling a request, but global variables are shared by the whole worker.', $name),
+            $line,
+            self::STATIC_TIP,
+        ];
+
+        // The traits' writes are at the same position of their own files, which are both collected under the class's.
+        $this->analyse(self::GLOBALS_FILES, [
+            $keeps("\$GLOBALS['current_request']", 25),
+            $written("\$GLOBALS['requests']", 26),
+            $written("\$GLOBALS['tenant']", 27),
+            $written('$tenant', 36),
+            $written('$settings', 42),
+            $written('$profile', 43),
+            $keeps('$settings', 44),
+            $written('$visits', 45),
+            $written("\$GLOBALS['visits']", 46),
+            $written('$previous', 47),
+            $written("\$GLOBALS['first']", 48),
+            $keeps('$current', 51),
+            $written('$position', 51),
+            $written('$listed', 54),
+            $keeps("\$GLOBALS['loop']", 57),
+            $written('$settings', 66),
+            $written('$failure', 70),
+            $written('$matches', 74),
+            $written("\$GLOBALS['list']", 75),
+            $written('$matches', 79),
+            $written("\$GLOBALS['filled']", 80),
+            $written('$profile', 81),
+            $keeps('$held', 100),
+            $keeps("\$GLOBALS['request']", 101),
+            $keeps('$forward', 127),
+            $keeps('$reverse', 129),
+            $keeps('$item', 132),
+            $keeps('$second', 135),
+            $keeps('$memo', 146),
+            $keeps("\$GLOBALS['memo']", 147),
+            $keeps('$kept', 12),
+            $keeps('$kept', 12, 'a user'),
+        ]);
+    }
+
+    public function testGlobalVariablesFollowTheStaticStateSwitch(): void
+    {
+        $this->switches = [true, false, true, true];
+
+        $this->analyse(self::GLOBALS_FILES, []);
     }
 
     /**
@@ -233,6 +402,7 @@ class WorkerStateRuleTest extends RuleTestCase
                 $sharedWrite('HelperController', 'track', 'tracked', 750),
                 $sharedWrite('OverridingRecordingController', 'record', 'overridden', 812),
                 $sharedWrite('LexicalParentController', 'resolve', 'resolved', 830),
+                $sharedWrite('RepositoryPropertyController', 'update', 'settings', 914),
             ],
             'static' => [
                 [sprintf(self::STATIC_STATE, self::NAMESPACE . 'SharedService', 'current', 'the current request'), 87, self::STATIC_TIP],
@@ -240,6 +410,7 @@ class WorkerStateRuleTest extends RuleTestCase
                 $staticWrite('StoreReportRequest', 'validated', self::REQUEST, 588),
                 $staticWrite('ProcessReport', 'runs', self::JOB, 603),
                 $staticWrite('RebuildReport', 'rebuilt', self::JOB, 857),
+                $staticWrite('RepositoryPropertyController', 'defaults', self::REQUEST, 913),
             ],
             'cache' => [
                 $cache('Property', 'SharedService', 'visits', 88),
@@ -267,6 +438,11 @@ class WorkerStateRuleTest extends RuleTestCase
                 [sprintf(self::CONFIG, self::JOB), 858, self::CONFIG_TIP],
                 [sprintf(self::CONFIG, self::JOB), 869, self::CONFIG_TIP],
                 [sprintf(self::CONFIG, self::JOB), 871, self::CONFIG_TIP],
+                [sprintf(self::CONFIG, self::JOB), 883, self::CONFIG_TIP],
+                [sprintf(self::CONFIG, self::JOB), 884, self::CONFIG_TIP],
+                [sprintf(self::CONFIG, self::JOB), 886, self::CONFIG_TIP],
+                [sprintf(self::CONFIG, self::JOB), 887, self::CONFIG_TIP],
+                [sprintf(self::CONFIG, self::JOB), 890, self::CONFIG_TIP],
             ],
         ];
     }
@@ -279,7 +455,10 @@ class WorkerStateRuleTest extends RuleTestCase
         return new WorkerStateHelper(
             $this->createReflectionProvider(),
             self::getContainer()->getByType(CoroutineRuleHelper::class),
+            self::getContainer()->getByType(RuntimeInputs::class),
             ...$this->switches,
+            checkRestrictedCalls: false,
+            checkCancellationHandling: false,
         );
     }
 
@@ -311,8 +490,30 @@ class WorkerStateRuleTest extends RuleTestCase
         $router->get('/scoped-helpers', [ScopedHelperController::class, 'index']);
         $router->get('/records', [BaseRecordingController::class, 'index']);
         $router->get('/lexical', [LexicalChildController::class, 'index']);
+        $router->get('/settings', [RepositoryPropertyController::class, 'update']);
+        $router->get('/globals', [GlobalsController::class, 'index']);
 
         $events->listen(ReportEvent::class, SendReportListener::class);
+        $events->listen(RequestReceived::class, RequestListener::class);
+        $events->listen(JobProcessed::class, JobListener::class . '@record');
+        $events->listen(RequestHandled::class, [QueuedListener::class, 'record']);
+        $events->listen('eloquent.created: ' . Post::class, ProviderObserver::class . '@created');
+        $events->listen('Hypervel\Queue\Events\Job*', WildcardJobListener::class);
+        $events->listen('*', CatchAllObserver::class . '@observe');
+        $events->observe(RequestReceived::class, QueuedObserver::class);
+        $events->listen(ClonedEvent::class, ClonedListener::class);
+        $events->listen(ClonedEvent::class, CollectingListener::class);
+        $events->listen(ClonedEvent::class, RegistryListener::class);
+        $events->listen(ClonedEvent::class, BaseRegistryListener::class);
+        $events->listen(ClonedEvent::class, ObservingClonedListener::class);
+        // An application event has no known operation, but the observer still runs on the shared instance.
+        $events->observe('listeners.audited', ObservingClonedListener::class);
+        $events->listen(RequestHandled::class, OptionListener::class);
+        $events->listen(RequestHandled::class, BoundOptionListener::class);
+        $events->listen(RequestHandled::class, UniqueOptionListener::class);
+        $events->listen(RequestHandled::class, DebouncedListener::class);
+        $events->listen(RequestHandled::class, DebouncedByDefaultListener::class);
+        $events->listen(RequestHandled::class, UndebouncedListener::class);
         $bus->map([MappedCommand::class => MappedHandler::class]);
 
         $container->bind(BoundFreshService::class);
@@ -321,10 +522,14 @@ class WorkerStateRuleTest extends RuleTestCase
         $container->singleton(FactoryBoundService::class, static fn (): FactoryBoundService => new FactoryBoundService);
         $container->singleton(ServiceContract::class, ContractImplementation::class);
         $container->singleton(BaseRecordingController::class, OverridingRecordingController::class);
+        $container->singleton(BoundOptionListener::class, OverridingOptionListener::class);
         $container->bind(Authenticatable::class, User::class);
         $container->when(ConsumerService::class)->needs(ContextualDependency::class)->give(ContextualImplementation::class);
         $container->when(OtherConsumer::class)->needs(User::class)->give(static fn (): User => new User);
         $container->when(ContextualConfigJob::class)->needs(Repository::class)->give(LocalConfig::class);
+        // Shared on their own as well as through the cloned listeners that extend them.
+        $container->singleton(Registry::class);
+        $container->singleton(SharedRegistry::class);
 
         return $container;
     }

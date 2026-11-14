@@ -1,0 +1,9 @@
+includes:
+    - ../../phpstan-rules.neon
+parameters:
+    checkWorkerSharedState: false
+    checkStaticStateMutation: false
+    checkUnboundedWorkerCaches: false
+    noRuntimeConfigMutation: false
+    checkCancellationHandling: false
+    checkRestrictedCalls: true

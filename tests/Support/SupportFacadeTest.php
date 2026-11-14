@@ -7,7 +7,9 @@ namespace Hypervel\Tests\Support\SupportFacadeTest;
 use Closure;
 use Hypervel\Container\Attributes\Scoped;
 use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\ReplicableContext;
+use Hypervel\Engine\Channel;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Testing\Fakes\Fake;
 use Hypervel\Tests\TestCase;
@@ -287,6 +289,110 @@ class SupportFacadeTest extends TestCase
         $this->assertSame(FacadeStub::getFacadeRoot(), FacadeStub::getFacadeRoot());
     }
 
+    public function testFacadeKeepsEachCoroutinesSelectionFromABoundFactory(): void
+    {
+        $app = new Container;
+        $app->singleton('first', static fn (): stdClass => new stdClass);
+        $app->singleton('second', static fn (): stdClass => new stdClass);
+        $app->bind('foo', static fn (Container $app): stdClass => $app->make(CoroutineContext::get('facade_test.selection')));
+        FacadeStub::setFacadeApplication($app);
+
+        $resolve = static function (string $selection): array {
+            CoroutineContext::set('facade_test.selection', $selection);
+            $root = FacadeStub::getFacadeRoot();
+            usleep(1000);
+
+            return [$root, FacadeStub::getFacadeRoot()];
+        };
+
+        [[$first, $firstAgain], [$second, $secondAgain]] = parallel([
+            static fn (): array => $resolve('first'),
+            static fn (): array => $resolve('second'),
+        ]);
+
+        $this->assertSame($app->make('first'), $first);
+        $this->assertSame($first, $firstAgain);
+        $this->assertSame($app->make('second'), $second);
+        $this->assertSame($second, $secondAgain);
+    }
+
+    public function testCopiedChildCoroutineResolvesItsOwnFacadeRoot(): void
+    {
+        $app = new Container;
+        $app->bind('foo', static fn (): stdClass => new stdClass);
+        FacadeStub::setFacadeApplication($app);
+        $parent = FacadeStub::getFacadeRoot();
+
+        [$child] = parallel([static fn (): stdClass => FacadeStub::getFacadeRoot()], copyContext: true);
+
+        $this->assertNotSame($parent, $child);
+        $this->assertSame($parent, FacadeStub::getFacadeRoot());
+    }
+
+    #[DataProvider('facadeClears')]
+    public function testClearingFacadeRootsResolvesAgainInLiveCoroutines(Closure $clear): void
+    {
+        $app = new Container;
+        $app->bind('foo', static fn (): stdClass => new stdClass);
+        FacadeStub::setFacadeApplication($app);
+
+        // Both coroutines resolve before the clear and resolve again only after it. A bounded wait keeps a failure
+        // in one coroutine from leaving the others waiting.
+        $resolved = new Channel(2);
+        $cleared = new Channel(2);
+
+        $resolve = function () use ($resolved, $cleared): array {
+            $before = FacadeStub::getFacadeRoot();
+            $resolved->push(true);
+            $this->assertTrue($cleared->pop(5.0));
+
+            return [$before, FacadeStub::getFacadeRoot()];
+        };
+
+        [[$firstBefore, $firstAfter], [$secondBefore, $secondAfter]] = parallel([
+            $resolve,
+            $resolve,
+            function () use ($clear, $resolved, $cleared): void {
+                $this->assertTrue($resolved->pop(5.0));
+                $this->assertTrue($resolved->pop(5.0));
+                $clear();
+                $cleared->push(true);
+                $cleared->push(true);
+            },
+        ]);
+
+        $this->assertNotSame($firstBefore, $firstAfter);
+        $this->assertNotSame($secondBefore, $secondAfter);
+    }
+
+    /**
+     * Provide the ways to clear resolved facade roots.
+     */
+    public static function facadeClears(): iterable
+    {
+        yield 'one accessor' => [static function (): void {
+            FacadeStub::clearResolvedInstance();
+        }];
+
+        yield 'all accessors' => [static function (): void {
+            Facade::clearResolvedInstances();
+        }];
+    }
+
+    public function testUncachedFacadeIgnoresTheCoroutineRootOfACachedFacade(): void
+    {
+        $app = new Container;
+        $app->bind('foo', static fn (): stdClass => new stdClass);
+        FacadeStub::setFacadeApplication($app);
+
+        $cached = FacadeStub::getFacadeRoot();
+        $uncached = UncachedFooFacadeStub::getFacadeRoot();
+
+        $this->assertNotSame($cached, $uncached);
+        $this->assertNotSame($uncached, UncachedFooFacadeStub::getFacadeRoot());
+        $this->assertSame($cached, FacadeStub::getFacadeRoot());
+    }
+
     public function testCachedFacadeResolvesOnce(): void
     {
         $app = new CountingApplicationStub;
@@ -372,6 +478,11 @@ class UncachedFacadeStub extends Facade
     {
         return 'uncached';
     }
+}
+
+class UncachedFooFacadeStub extends FacadeStub
+{
+    protected static bool $cached = false;
 }
 
 class CountingApplicationStub extends ApplicationStub

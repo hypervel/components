@@ -49,7 +49,23 @@ parameters:
     checkStaticStateMutation: true
     checkUnboundedWorkerCaches: true
     noRuntimeConfigMutation: true
+    checkRestrictedCalls: true
     noCoroutinesInTransactions: true
+    checkBorrowedResources: true
+    checkManagedTransactions: true
+    noNativeRequestApis: true
+    checkDiscardedDates: true
+    noMutableDates: true
+    checkConfigEnvCasts: true
+    checkTypedConfigGetters: true
+    checkObserverAttributes: true
+    # Off by default: existing migrations should not be edited.
+    checkMigrationColumnTypes: false
+    checkBindingCycles: true
+    noRawCoroutines: true
+    checkSocialiteProviders: true
+    checkSwooleTables: true
+    checkBindWhenConditions: true
     noRawSleepCalls: true
     noLegacyModelScopes: true
     noLegacyModelProperties: true
@@ -99,7 +115,22 @@ parametersSchema:
     checkStaticStateMutation: bool()
     checkUnboundedWorkerCaches: bool()
     noRuntimeConfigMutation: bool()
+    checkRestrictedCalls: bool()
     noCoroutinesInTransactions: bool()
+    checkBorrowedResources: bool()
+    checkManagedTransactions: bool()
+    noNativeRequestApis: bool()
+    checkDiscardedDates: bool()
+    noMutableDates: bool()
+    checkConfigEnvCasts: bool()
+    checkTypedConfigGetters: bool()
+    checkObserverAttributes: bool()
+    checkMigrationColumnTypes: bool()
+    checkBindingCycles: bool()
+    noRawCoroutines: bool()
+    checkSocialiteProviders: bool()
+    checkSwooleTables: bool()
+    checkBindWhenConditions: bool()
     noRawSleepCalls: bool()
     noLegacyModelScopes: bool()
     noLegacyModelProperties: bool()
