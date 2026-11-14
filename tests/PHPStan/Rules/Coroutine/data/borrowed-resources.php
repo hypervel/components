@@ -1655,6 +1655,23 @@ class ControlFlow
             }
         });
         Redis::withConnection(function (RedisConnection $connection) {
+            $items = [];
+            [$this->client, $items[throw new LogicException()]] = [$connection, 'item'];
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($rows) {
+            $client = $connection->client();
+            $items = [];
+
+            foreach ($rows as $client => $items[go(fn () => $client)]) {
+            }
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = $connection->client();
+            $items = [];
+            $source = ['first', 'second'];
+            [$items[go(fn () => $client)], &$client] = $source;
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
             yield $connection->get('key');
         });
         Redis::withConnection(fn (RedisConnection $connection) => yield $connection->get('key'));
@@ -1863,6 +1880,36 @@ class ControlFlow
             } finally {
                 $this->client = $value;
             }
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = $connection->client();
+            $items = [];
+            [$client, $items[go(fn () => $client?->ping())]] = [null, 'item'];
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($rows) {
+            $client = $connection->client();
+            $items = [];
+
+            foreach ($rows as [$client, $items[go(fn () => $client)]]) {
+            }
+        });
+        Redis::withConnection(function (RedisConnection $connection) use ($rows) {
+            $client = $connection->client();
+            $items = [];
+
+            foreach ($rows as $items[go(fn () => $client)] => $client) {
+            }
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = $connection->client();
+            $items = [];
+            unset($client, $items[go(fn () => $client)]);
+        });
+        Redis::withConnection(function (RedisConnection $connection) {
+            $client = $connection->client();
+            $items = [];
+            $source = ['first', 'second'];
+            [&$client, $items[go(fn () => $client)]] = $source;
         });
         Redis::withConnection(function (RedisConnection $connection) {
             yield 'value';

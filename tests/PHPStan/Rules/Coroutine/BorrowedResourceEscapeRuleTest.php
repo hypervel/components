@@ -182,9 +182,12 @@ class BorrowedResourceEscapeRuleTest extends RuleTestCase
             $borrowed($connection, 'is captured by a closure passed to go()', 1645),
             $borrowed($connection, 'is captured by a closure passed to go()', 1649),
             $borrowed($connection, 'is captured by a closure passed to go()', 1654),
-            $borrowed($connection, 'is used in a generator callback', 1657),
-            $borrowed($connection, 'is used in a generator callback', 1660),
-            $pinned('The PDO taken inside withPinnedSession()', 'is used in a generator callback', 1661),
+            $borrowed($connection, 'is stored on a property', 1659),
+            $borrowed($client, 'is captured by a closure passed to go()', 1665),
+            $borrowed($client, 'is captured by a closure passed to go()', 1672),
+            $borrowed($connection, 'is used in a generator callback', 1674),
+            $borrowed($connection, 'is used in a generator callback', 1677),
+            $pinned('The PDO taken inside withPinnedSession()', 'is used in a generator callback', 1678),
         ]);
     }
 

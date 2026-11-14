@@ -768,8 +768,9 @@ class BorrowedResourceEscapeRule implements Rule
     }
 
     /**
-     * Apply a foreach's writes at the head of each iteration: its key and value targets get values the rule doesn't
-     * follow, and a by-reference value binds the target to an element of the iterated array.
+     * Apply a foreach's writes at the head of each iteration: its value target, then its key target, as PHP assigns
+     * them. They get values the rule doesn't follow, and a by-reference value binds the target to an element of the
+     * iterated array.
      *
      * @param Environment $environment
      * @param Walk $walk
@@ -778,25 +779,11 @@ class BorrowedResourceEscapeRule implements Rule
      */
     private function assignForeach(Foreach_ $foreach, array $environment, array &$walk, Scope $scope): ?array
     {
-        foreach ([$foreach->keyVar, $foreach->valueVar] as $target) {
-            if ($target !== null) {
-                $environment = $this->evaluateTargets($target, $environment, $walk, $scope);
+        $environment = $this->assignTarget($foreach->valueVar, $foreach->byRef, $environment, [], $foreach, $walk, $scope);
 
-                if ($environment === null) {
-                    return null;
-                }
-            }
-        }
-
-        $environment = $this->detach($environment, CoroutineRuleHelper::getDetachedNames($foreach), 'reference');
-
-        foreach ([...CoroutineRuleHelper::getTargetLeaves($foreach->keyVar), ...CoroutineRuleHelper::getTargetLeaves($foreach->valueVar)] as $leaf) {
-            if ($leaf instanceof Variable && is_string($leaf->name)) {
-                $this->setFact($environment, $leaf->name, self::NO_FACT);
-            }
-        }
-
-        return $this->bindReferences($foreach, $environment);
+        return $environment === null || $foreach->keyVar === null
+            ? $environment
+            : $this->assignTarget($foreach->keyVar, false, $environment, [], $foreach, $walk, $scope);
     }
 
     /**
@@ -1029,7 +1016,7 @@ class BorrowedResourceEscapeRule implements Rule
             // A later write through either side of a reference binding changes the other, so both are written.
             $sides = $this->getReferenceSides($node);
 
-            foreach ($this->getReferenceRoots($node) as $name) {
+            foreach ($this->getRootNames($sides) as $name) {
                 $writes[$name][] = null;
                 $positions[$name][] = $node->getEndFilePos();
             }
@@ -1074,16 +1061,18 @@ class BorrowedResourceEscapeRule implements Rule
     }
 
     /**
-     * Get the variables the node's reference bindings tie together: the root variable of each side, such as
-     * `$items` for `$items[0]` or `$holder` for `$holder->value`.
+     * Get the variables reference sides tie together: the root variable of each side, such as `$items` for
+     * `$items[0]` or `$holder` for `$holder->value`.
+     *
+     * @param list<Expr> $sides
      *
      * @return list<string>
      */
-    private function getReferenceRoots(Node $node): array
+    private function getRootNames(array $sides): array
     {
         $names = [];
 
-        foreach ($this->getReferenceSides($node) as $side) {
+        foreach ($sides as $side) {
             while ($side instanceof ArrayDimFetch || $side instanceof PropertyFetch) {
                 $side = $side->var;
             }
@@ -1195,13 +1184,14 @@ class BorrowedResourceEscapeRule implements Rule
      * Make the variables a reference binding ties together unknown: a later write through either side changes both,
      * so neither value is followed from here on, including on paths that join this one.
      *
+     * @param list<Expr> $sides
      * @param Environment $environment
      *
      * @return Environment
      */
-    private function bindReferences(Node $node, array $environment): array
+    private function bindReferences(array $sides, array $environment): array
     {
-        foreach ($this->getReferenceRoots($node) as $name) {
+        foreach ($this->getRootNames($sides) as $name) {
             unset($environment['tracked'][$name], $environment['appended'][$name], $environment['callables'][$name], $environment['nonNull'][$name], $environment['nonEmpty'][$name]);
             $environment['referenced'][$name] = true;
         }
@@ -1220,20 +1210,25 @@ class BorrowedResourceEscapeRule implements Rule
      */
     private function walkUnset(Unset_ $unset, array $environment, array &$walk, Scope $scope): ?array
     {
+        // PHP unsets left to right, so a later target sees what an earlier one did.
         foreach ($unset->vars as $variable) {
-            if (! $variable instanceof Variable) {
-                $environment = $this->evaluateTarget($variable, $environment, $walk, $scope);
+            if ($variable instanceof Variable && is_string($variable->name)) {
+                $environment = $this->detach($environment, [$variable->name], 'unset');
 
-                if ($environment === null) {
-                    return null;
-                }
-
-                // Removing an offset changes the array without adding to it.
-                $environment = $this->write($environment, $variable, self::NO_FACT);
+                continue;
             }
+
+            $environment = $this->evaluateTarget($variable, $environment, $walk, $scope);
+
+            if ($environment === null) {
+                return null;
+            }
+
+            // Removing an offset changes the array without adding to it.
+            $environment = $this->write($environment, $variable, self::NO_FACT);
         }
 
-        return $this->detach($environment, CoroutineRuleHelper::getDetachedNames($unset), 'unset');
+        return $environment;
     }
 
     /**
@@ -1539,7 +1534,7 @@ class BorrowedResourceEscapeRule implements Rule
                     $after[$global ? 'globals' : 'byReference'][$alias[0]] = true;
                 }
 
-                return [$this->bindReferences($expr, $after), $fact];
+                return [$this->bindReferences([$expr->var, $expr->expr], $after), $fact];
             }
 
             if ($expr->var instanceof Variable && is_string($expr->var->name)) {
@@ -1813,8 +1808,9 @@ class BorrowedResourceEscapeRule implements Rule
     }
 
     /**
-     * Evaluate a destructuring assignment. A keyless array literal gives each keyless leaf the item at its position,
-     * whose store is checked; the leaves themselves get values the rule doesn't follow.
+     * Evaluate a destructuring assignment: the value, then each target in order. A keyless array literal gives each
+     * keyless leaf the item at its position, whose store is checked; the leaves themselves get values the rule doesn't
+     * follow.
      *
      * @param Environment $environment
      * @param Walk $walk
@@ -1823,40 +1819,24 @@ class BorrowedResourceEscapeRule implements Rule
      */
     private function evaluateDestructuring(Assign $assign, List_|Array_ $target, array $environment, array &$walk, Scope $scope): array
     {
-        $leaves = [];
-        [$after, $fact] = $this->evaluateDestructured($target, $assign->expr, $environment, $walk, $scope, $leaves);
-        $after = $after === null ? null : $this->evaluateTargets($target, $after, $walk, $scope);
+        $facts = [];
+        [$after, $fact] = $this->evaluateDestructured($target, $assign->expr, $environment, $walk, $scope, $facts);
+        $after = $after === null ? null : $this->assignTarget($target, false, $after, $facts, $assign, $walk, $scope);
 
-        if ($after === null) {
-            return [null, self::NO_FACT];
-        }
-
-        $after = $this->detach($after, CoroutineRuleHelper::getDetachedNames($assign), 'reference');
-
-        foreach ($leaves as [$leaf, $leafFact]) {
-            $this->checkStore($leaf, $leafFact, $after, $walk, $assign);
-        }
-
-        foreach (CoroutineRuleHelper::getTargetLeaves($target) as $leaf) {
-            if ($leaf instanceof Variable && is_string($leaf->name)) {
-                $this->setFact($after, $leaf->name, self::NO_FACT);
-            }
-        }
-
-        return [$this->bindReferences($assign, $after), $fact];
+        return $after === null ? [null, self::NO_FACT] : [$after, $fact];
     }
 
     /**
-     * Evaluate a destructured value, collecting each keyless leaf that a keyless array literal gives the item at its
-     * position, through nested destructuring.
+     * Evaluate a destructured value, collecting what a keyless array literal gives each keyless leaf at its position,
+     * through nested destructuring.
      *
      * @param Environment $environment
      * @param Walk $walk
-     * @param list<array{Expr, Fact}> $leaves
+     * @param array<int, Fact> $facts the facts by leaf node
      *
      * @return array{?Environment, Fact}
      */
-    private function evaluateDestructured(List_|Array_ $target, Expr $value, array $environment, array &$walk, Scope $scope, array &$leaves): array
+    private function evaluateDestructured(List_|Array_ $target, Expr $value, array $environment, array &$walk, Scope $scope, array &$facts): array
     {
         if (! $value instanceof Array_ || ! array_all($value->items, static fn (ArrayItem $item): bool => $item->key === null && ! $item->unpack)) {
             return $this->evaluate($value, $environment, $walk, $scope);
@@ -1868,12 +1848,12 @@ class BorrowedResourceEscapeRule implements Rule
             $leaf = $target->items[$position] ?? null;
 
             if ($leaf !== null && $leaf->key === null && ($leaf->value instanceof List_ || $leaf->value instanceof Array_)) {
-                [$after, $itemFact] = $this->evaluateDestructured($leaf->value, $item->value, $environment, $walk, $scope, $leaves);
+                [$after, $itemFact] = $this->evaluateDestructured($leaf->value, $item->value, $environment, $walk, $scope, $facts);
             } else {
                 [$after, $itemFact] = $this->evaluate($item->value, $environment, $walk, $scope);
 
                 if ($leaf !== null && $leaf->key === null) {
-                    $leaves[] = [$leaf->value, $itemFact];
+                    $facts[spl_object_id($leaf->value)] = $itemFact;
                 }
             }
 
@@ -1890,37 +1870,58 @@ class BorrowedResourceEscapeRule implements Rule
     }
 
     /**
-     * Evaluate what a write target reads before it's written, through destructuring: each item's key, then its own
-     * target. An empty slot reads nothing.
+     * Assign a destructuring or foreach target in PHP's order: a list item by item, each item's key and then its own
+     * target, and a leaf once its offsets and objects are evaluated. A leaf a keyless array literal gives a value has
+     * its store checked against it, then gets a value the rule doesn't follow; a by-reference leaf is bound to an
+     * element of the assigned or iterated value.
      *
      * @param Environment $environment
+     * @param array<int, Fact> $facts what a keyless array literal gives each leaf, by leaf node
      * @param Walk $walk
      *
      * @return ?Environment
      */
-    private function evaluateTargets(Expr $target, array $environment, array &$walk, Scope $scope): ?array
+    private function assignTarget(Expr $target, bool $byReference, array $environment, array $facts, Assign|Foreach_ $node, array &$walk, Scope $scope): ?array
     {
-        if (! $target instanceof List_ && ! $target instanceof Array_) {
-            return $this->evaluateTarget($target, $environment, $walk, $scope);
+        if ($target instanceof List_ || $target instanceof Array_) {
+            foreach ($target->items as $item) {
+                if ($item === null) {
+                    continue;
+                }
+
+                if ($item->key !== null) {
+                    [$environment] = $this->evaluate($item->key, $environment, $walk, $scope);
+                }
+
+                $environment = $environment === null ? null : $this->assignTarget($item->value, $item->byRef, $environment, $facts, $node, $walk, $scope);
+
+                if ($environment === null) {
+                    return null;
+                }
+            }
+
+            return $environment;
         }
 
-        foreach ($target->items as $item) {
-            if ($item === null) {
-                continue;
-            }
+        $environment = $this->evaluateTarget($target, $environment, $walk, $scope);
 
-            if ($item->key !== null) {
-                [$environment] = $this->evaluate($item->key, $environment, $walk, $scope);
-            }
-
-            $environment = $environment === null ? null : $this->evaluateTargets($item->value, $environment, $walk, $scope);
-
-            if ($environment === null) {
-                return null;
-            }
+        if ($environment === null) {
+            return null;
         }
 
-        return $environment;
+        if ($byReference) {
+            if ($target instanceof Variable && is_string($target->name)) {
+                $environment = $this->detach($environment, [$target->name], 'reference');
+            }
+
+            return $this->bindReferences([$target, $node->expr], $environment);
+        }
+
+        if (isset($facts[spl_object_id($target)])) {
+            $this->checkStore($target, $facts[spl_object_id($target)], $environment, $walk, $node);
+        }
+
+        return $this->write($environment, $target, self::NO_FACT);
     }
 
     /**
