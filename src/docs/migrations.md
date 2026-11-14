@@ -1887,6 +1887,7 @@ For convenience, each migration operation will dispatch an [event](/docs/{{versi
 | `Hypervel\Database\Events\MigrationsEnded`     | A batch of migrations has finished.                                                              |
 | `Hypervel\Database\Events\MigrationStarted`    | A single migration is about to be executed.                                                      |
 | `Hypervel\Database\Events\MigrationEnded`      | A single migration has finished.                                                                 |
+| `Hypervel\Database\Events\MigrationFailed`     | A single migration has failed.                                                                   |
 | `Hypervel\Database\Events\MigrationSkipped`    | A single migration has been skipped.                                                             |
 | `Hypervel\Database\Events\NoPendingMigrations` | A migration command found no pending migrations.                                                 |
 | `Hypervel\Database\Events\SchemaDumped`        | A database schema dump has finished.                                                             |
@@ -1895,4 +1896,4 @@ For convenience, each migration operation will dispatch an [event](/docs/{{versi
 
 </div>
 
-The `MigrationStarted` and `MigrationEnded` events expose the migration filename through their `$name` property. The `MigrationEnded` event also exposes how long the migration took to run, in milliseconds, through its `$duration` property.
+The `MigrationStarted`, `MigrationEnded`, and `MigrationFailed` events expose the migration filename through their `$name` property. The `MigrationEnded` event also exposes how long the migration took to run, in milliseconds, through its `$duration` property. The `MigrationFailed` event exposes the exception through its `$exception` property.

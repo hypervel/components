@@ -19,6 +19,7 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
 use Hypervel\Database\Events\MigrationEnded;
+use Hypervel\Database\Events\MigrationFailed;
 use Hypervel\Database\Events\MigrationsEnded;
 use Hypervel\Database\Events\MigrationSkipped;
 use Hypervel\Database\Events\MigrationsStarted;
@@ -33,6 +34,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use ReflectionClass;
+use Throwable;
 use WeakReference;
 
 class Migrator
@@ -454,10 +456,18 @@ class Migrator
             }
         };
 
-        $this->getSchemaGrammar($connection)->supportsSchemaTransactions()
-            && $migration->withinTransaction
-                ? $connection->transaction($callback)
-                : $callback();
+        try {
+            $this->getSchemaGrammar($connection)->supportsSchemaTransactions()
+                && $migration->withinTransaction
+                    ? $connection->transaction($callback)
+                    : $callback();
+        } catch (Throwable $exception) {
+            if ($this->hasMigrationEventListeners(MigrationFailed::class)) {
+                $this->fireMigrationEvent(new MigrationFailed($migration, $method, $name, $exception));
+            }
+
+            throw $exception;
+        }
     }
 
     /**

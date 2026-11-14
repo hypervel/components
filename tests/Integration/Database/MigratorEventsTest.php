@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Events\MigrationEnded;
+use Hypervel\Database\Events\MigrationFailed;
 use Hypervel\Database\Events\MigrationsEnded;
 use Hypervel\Database\Events\MigrationSkipped;
 use Hypervel\Database\Events\MigrationsStarted;
@@ -15,6 +16,7 @@ use Hypervel\Database\Migrations\Migration;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
+use RuntimeException;
 
 class MigratorEventsTest extends TestCase
 {
@@ -191,6 +193,33 @@ class MigratorEventsTest extends TestCase
 
         Event::assertDispatched(MigrationSkipped::class, function (MigrationSkipped $event): bool {
             return $event->name === '2014_10_13_000000_skipped_migration';
+        });
+    }
+
+    public function testMigrationFailedEventIsFired(): void
+    {
+        Event::fake();
+
+        try {
+            $this->artisan('migrate', [
+                '--path' => realpath(__DIR__ . '/Fixtures/FailingMigrations'),
+                '--realpath' => true,
+            ]);
+
+            $this->fail('The migration exception was not rethrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Jack ruined this migration', $exception->getMessage());
+        }
+
+        Event::assertDispatched(MigrationStarted::class, 1);
+        Event::assertNotDispatched(MigrationEnded::class);
+        Event::assertNotDispatched(MigrationsEnded::class);
+
+        Event::assertDispatched(MigrationFailed::class, function (MigrationFailed $event) use ($exception): bool {
+            return $event->method === 'up'
+                && $event->migration instanceof Migration
+                && $event->name === '2014_10_14_000000_failing_migration'
+                && $event->exception === $exception;
         });
     }
 }
