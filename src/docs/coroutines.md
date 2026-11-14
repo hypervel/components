@@ -374,6 +374,8 @@ try {
 
 `Coroutine::causedByCancellation` also recognizes cancellation when a `finally` block throws another exception while unwinding it. Rethrowing preserves any cleanup error for the caller to report. A cancellation wrapped in `Hypervel\Coroutine\Exceptions\ForeignCancellationException` came from another coroutine, such as the owner of a shared operation this code was waiting for. If the chain reaches that exception before it reaches a cancellation, `causedByCancellation` returns `false`, so you can handle it as an ordinary failure. `ChildCancellationException` extends it for independently canceled children.
 
+When work is shared, store its result or failure before waking waiting coroutines, and retain failures that later callers need to read. When passing cancellation to another coroutine, wrap it in `ForeignCancellationException`, or `ChildCancellationException` for an independently canceled child. Rethrow the original only in the canceled coroutine. Canceled work must not appear to have succeeded with an empty result.
+
 Libraries may wrap cancellation in a more specific exception, such as Flysystem's `UnableToReadFile`. Check for cancellation before translating these exceptions, so callers do not treat canceled work as an ordinary application failure.
 
 A direct `CanceledException` catch only matches cancellation thrown directly. Check the whole `try` block: if it also runs callbacks, listeners, or `DB::releaseIdleConnections()`, use `causedByCancellation` to recognize cancellation carried by another exception.
@@ -392,7 +394,7 @@ try {
 }
 ```
 
-When collecting failures from several cleanup steps, `Coroutine::preferCancellation($kept, $next)` keeps the first failure, replacing an ordinary failure when a later one carries this coroutine's cancellation.
+When collecting failures from several cleanup steps, or ignoring a cleanup failure to keep the original one, use `Coroutine::preferCancellation($kept, $next)`. It keeps the first failure, replacing an ordinary failure when a later one carries this coroutine's cancellation.
 
 Cleanup that does not wait should remain in `finally` as usual. Code that owns child coroutines should use `wait`, `parallel`, or `WaitConcurrent` so Hypervel can cancel active children when their parent is canceled.
 
