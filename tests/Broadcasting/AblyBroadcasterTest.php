@@ -75,6 +75,13 @@ class AblyBroadcasterTest extends TestCase
         );
     }
 
+    public function testAuthRejectsArrayChannelName(): void
+    {
+        $this->expectException(AccessDeniedHttpException::class);
+
+        $this->broadcaster->auth($this->getMockRequestWithUserForChannel(['private-test']));
+    }
+
     public function testAuthThrowAccessDeniedHttpExceptionWithPrivateChannelWhenRequestUserNotFound(): void
     {
         $this->expectException(AccessDeniedHttpException::class);
@@ -304,7 +311,7 @@ class AblyBroadcasterTest extends TestCase
     /**
      * Create an authenticated channel request.
      */
-    protected function getMockRequestWithUserForChannel(string $channel): Request
+    protected function getMockRequestWithUserForChannel(string|array $channel): Request
     {
         $request = m::mock(Request::class);
         $request->shouldReceive('input')->with('channel_name')->andReturn($channel);

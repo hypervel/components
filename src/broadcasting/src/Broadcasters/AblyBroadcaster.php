@@ -51,7 +51,7 @@ class AblyBroadcaster extends Broadcaster
     {
         $channelName = $request->input('channel_name');
 
-        if (empty($channelName)) {
+        if (! is_string($channelName) || empty($channelName)) {
             throw new AccessDeniedHttpException;
         }
 
