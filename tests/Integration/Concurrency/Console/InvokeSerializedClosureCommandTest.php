@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Concurrency\Console;
+namespace Hypervel\Tests\Integration\Concurrency\Console;
 
 use Closure;
 use ErrorException;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Concurrency;
+namespace Hypervel\Tests\Integration\Concurrency;
 
 use Carbon\CarbonInterval;
 use Exception;
@@ -25,10 +25,10 @@ use Hypervel\Testbench\Attributes\UsesVendor;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Concurrency\Fixtures\ConcurrentProcessExceptionFixtures;
-use Hypervel\Tests\Concurrency\Fixtures\ExceptionWithFalseyParam;
-use Hypervel\Tests\Concurrency\Fixtures\ExceptionWithoutParam;
-use Hypervel\Tests\Concurrency\Fixtures\ExceptionWithParam;
 use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
+use Hypervel\Tests\Integration\Concurrency\Fixtures\ExceptionWithFalseyParam;
+use Hypervel\Tests\Integration\Concurrency\Fixtures\ExceptionWithoutParam;
+use Hypervel\Tests\Integration\Concurrency\Fixtures\ExceptionWithParam;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
