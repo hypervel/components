@@ -34,6 +34,10 @@ class AblyBroadcasterTest extends TestCase
     {
         parent::setUp();
 
+        if (! class_exists(AblyRest::class)) {
+            $this->markTestSkipped(sprintf('%s class is not available.', AblyRest::class));
+        }
+
         $this->container = m::mock(Container::class);
         $this->container->shouldReceive('bound')->with(BindingRegistrar::class)->andReturnFalse()->byDefault();
         $this->ably = m::mock(AblyRest::class, ['abcd:efg']);
