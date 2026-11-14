@@ -4,6 +4,7 @@
 - [Invoking Processes](#invoking-processes)
     - [Array Commands](#array-commands)
     - [Process Options](#process-options)
+    - [Extending Pending Processes](#extending-pending-processes)
     - [Process Output](#process-output)
     - [Pipelines](#process-pipelines)
 - [Asynchronous Processes](#asynchronous-processes)
@@ -197,6 +198,30 @@ if (Process::supportsTty()) {
 
 > [!WARNING]
 > TTY mode is not supported on Windows.
+
+<a name="extending-pending-processes"></a>
+### Extending Pending Processes
+
+You may add custom methods to `Hypervel\Process\PendingProcess` using macros. Register them in the `boot` method of your application's `App\Providers\AppServiceProvider` class:
+
+```php
+use Hypervel\Process\PendingProcess;
+
+public function boot(): void
+{
+    PendingProcess::macro('withEnvironment', function (string $environment): PendingProcess {
+        return $this->env(['APP_ENV' => $environment]);
+    });
+}
+```
+
+These methods may be called after configuring other process options:
+
+```php
+Process::timeout(10)->withEnvironment('testing')->run('php artisan reports:generate');
+```
+
+Register macros only during worker boot, since they are shared for the worker lifetime.
 
 <a name="process-output"></a>
 ### Process Output
