@@ -256,5 +256,18 @@ Arr::sortDesc($users, [['name', true]]);
 Arr::sort($users, fn (array $user, int $key): string => $user['name']);
 Arr::sort($users, [fn (array $user, int $key): int => $key]); // @phpstan-ignore argument.type (asserts a comparison list rejects a value-and-key callback)
 
-$target = [];
-assertType('array', Arr::push($target, 'items', new stdClass));
+$pushArray = ['tags' => ['php']];
+assertType('array', Arr::push($pushArray, 'tags', 'hypervel'));
+
+$pushObject = new ArrayObject(['tags' => ['php']]);
+assertType('array|ArrayAccess', Arr::push($pushObject, 'tags', 'hypervel'));
+
+$pushNumericObject = new ArrayObject([0 => ['php']]);
+assertType('array|ArrayAccess', Arr::push($pushNumericObject, 0, 'hypervel'));
+
+assertType('array', Arr::set($pushArray, 'tags', []));
+assertType('array|ArrayAccess', Arr::set($pushObject, 'tags', []));
+
+$replacement = new ArrayObject;
+assertType('ArrayAccess', Arr::set($pushArray, null, $replacement));
+assertType('ArrayAccess', $pushArray);
