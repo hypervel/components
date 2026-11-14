@@ -39,9 +39,7 @@ use function Hypervel\Support\enum_value;
  * @template TPivotModel of Pivot = Pivot
  * @template TAccessor of string = 'pivot'
  *
- * @extends Relation<TRelatedModel, TDeclaringModel, EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>>
- *
- * @todo use TAccessor when PHPStan bug is fixed: https://github.com/phpstan/phpstan/issues/12756
+ * @extends Relation<TRelatedModel, TDeclaringModel, EloquentCollection<int, object{TAccessor: TPivotModel}&TRelatedModel>>
  */
 class BelongsToMany extends Relation
 {
@@ -621,7 +619,7 @@ class BelongsToMany extends Relation
      * @return (
      *     $id is Model ? TRelatedModel : (
      *         $id is (Arrayable<array<array-key, mixed>>|array<mixed>)
-     *         ? EloquentCollection<int, TRelatedModel&object{pivot: TPivotModel}>
+     *         ? EloquentCollection<int, TRelatedModel&object{TAccessor: TPivotModel}>
      *         : TRelatedModel
      *     )
      * )
@@ -791,10 +789,10 @@ class BelongsToMany extends Relation
      * Find a related model by its primary key.
      *
      * @return (
-     *     $id is Model ? (TRelatedModel&object{pivot: TPivotModel})|null : (
+     *     $id is Model ? (TRelatedModel&object{TAccessor: TPivotModel})|null : (
      *         $id is (Arrayable<array<array-key, mixed>>|array<mixed>)
-     *         ? EloquentCollection<int, TRelatedModel&object{pivot: TPivotModel}>
-     *         : (TRelatedModel&object{pivot: TPivotModel})|null
+     *         ? EloquentCollection<int, TRelatedModel&object{TAccessor: TPivotModel}>
+     *         : (TRelatedModel&object{TAccessor: TPivotModel})|null
      *     )
      * )
      */
@@ -814,7 +812,7 @@ class BelongsToMany extends Relation
     /**
      * Find a sole related model by its primary key.
      *
-     * @return object{pivot: TPivotModel}&TRelatedModel
+     * @return object{TAccessor: TPivotModel}&TRelatedModel
      *
      * @throws ModelNotFoundException<TRelatedModel>
      * @throws MultipleRecordsFoundException
@@ -832,7 +830,7 @@ class BelongsToMany extends Relation
      * Find multiple related models by their primary keys.
      *
      * @param array<mixed>|Arrayable<array<array-key, mixed>> $ids
-     * @return EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @return EloquentCollection<int, object{TAccessor: TPivotModel}&TRelatedModel>
      */
     public function findMany(Arrayable|array $ids, array $columns = ['*']): EloquentCollection
     {
@@ -849,10 +847,10 @@ class BelongsToMany extends Relation
      * Find a related model by its primary key or throw an exception.
      *
      * @return (
-     *     $id is Model ? TRelatedModel&object{pivot: TPivotModel} : (
+     *     $id is Model ? TRelatedModel&object{TAccessor: TPivotModel} : (
      *         $id is (Arrayable<array<array-key, mixed>>|array<mixed>)
-     *         ? EloquentCollection<int, TRelatedModel&object{pivot: TPivotModel}>
-     *         : TRelatedModel&object{pivot: TPivotModel}
+     *         ? EloquentCollection<int, TRelatedModel&object{TAccessor: TPivotModel}>
+     *         : TRelatedModel&object{TAccessor: TPivotModel}
      *     )
      * )
      *
@@ -885,10 +883,10 @@ class BelongsToMany extends Relation
      * @param (Closure(): TValue)|list<string>|string $columns
      * @param null|(Closure(): TValue) $callback
      * @return (
-     *     $id is Model ? (TRelatedModel&object{pivot: TPivotModel})|TValue : (
+     *     $id is Model ? (TRelatedModel&object{TAccessor: TPivotModel})|TValue : (
      *         $id is (Arrayable<array<array-key, mixed>>|array<mixed>)
-     *         ? EloquentCollection<int, TRelatedModel&object{pivot: TPivotModel}>|TValue
-     *         : (TRelatedModel&object{pivot: TPivotModel})|TValue
+     *         ? EloquentCollection<int, TRelatedModel&object{TAccessor: TPivotModel}>|TValue
+     *         : (TRelatedModel&object{TAccessor: TPivotModel})|TValue
      *     )
      * )
      */
@@ -939,7 +937,7 @@ class BelongsToMany extends Relation
     /**
      * Add a basic where clause to the query, and return the first result.
      *
-     * @return null|(object{pivot: TPivotModel}&TRelatedModel)
+     * @return null|(object{TAccessor: TPivotModel}&TRelatedModel)
      */
     public function firstWhere(Closure|string|array $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): ?Model
     {
@@ -949,7 +947,7 @@ class BelongsToMany extends Relation
     /**
      * Execute the query and get the first result.
      *
-     * @return null|(object{pivot: TPivotModel}&TRelatedModel)
+     * @return null|(object{TAccessor: TPivotModel}&TRelatedModel)
      */
     public function first(array $columns = ['*']): ?Model
     {
@@ -961,7 +959,7 @@ class BelongsToMany extends Relation
     /**
      * Execute the query and get the first result or throw an exception.
      *
-     * @return object{pivot: TPivotModel}&TRelatedModel
+     * @return object{TAccessor: TPivotModel}&TRelatedModel
      *
      * @throws ModelNotFoundException<TRelatedModel>
      */
@@ -981,7 +979,7 @@ class BelongsToMany extends Relation
      *
      * @param (Closure(): TValue)|list<string> $columns
      * @param null|(Closure(): TValue) $callback
-     * @return (object{pivot: TPivotModel}&TRelatedModel)|TValue
+     * @return (object{TAccessor: TPivotModel}&TRelatedModel)|TValue
      */
     public function firstOr(Closure|array $columns = ['*'], ?Closure $callback = null): mixed
     {
@@ -1001,7 +999,7 @@ class BelongsToMany extends Relation
     /**
      * Get the results of the relationship.
      *
-     * @return EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @return EloquentCollection<int, object{TAccessor: TPivotModel}&TRelatedModel>
      */
     public function getResults(): BaseCollection
     {
@@ -1013,7 +1011,7 @@ class BelongsToMany extends Relation
     /**
      * Execute the query as a "select" statement.
      *
-     * @return EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @return EloquentCollection<int, object{TAccessor: TPivotModel}&TRelatedModel>
      */
     public function get(array $columns = ['*']): BaseCollection
     {
@@ -1075,7 +1073,7 @@ class BelongsToMany extends Relation
      * Get a paginator for the "select" statement.
      *
      * @param null|(Closure(): ?int)|int $total
-     * @return LengthAwarePaginator<int, object{pivot: TPivotModel}&TRelatedModel, EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>>
+     * @return LengthAwarePaginator<int, object{TAccessor: TPivotModel}&TRelatedModel, EloquentCollection<int, object{TAccessor: TPivotModel}&TRelatedModel>>
      */
     public function paginate(?int $perPage = null, array $columns = ['*'], string $pageName = 'page', ?int $page = null, Closure|int|null $total = null): mixed
     {
@@ -1089,7 +1087,7 @@ class BelongsToMany extends Relation
     /**
      * Paginate the given query into a simple paginator.
      *
-     * @return Paginator<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @return Paginator<int, object{TAccessor: TPivotModel}&TRelatedModel>
      */
     public function simplePaginate(?int $perPage = null, array $columns = ['*'], string $pageName = 'page', ?int $page = null): mixed
     {
@@ -1103,7 +1101,7 @@ class BelongsToMany extends Relation
     /**
      * Paginate the given query into a cursor paginator.
      *
-     * @return CursorPaginator<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @return CursorPaginator<int, object{TAccessor: TPivotModel}&TRelatedModel>
      */
     public function cursorPaginate(
         ?int $perPage = null,
@@ -1130,7 +1128,7 @@ class BelongsToMany extends Relation
     /**
      * Chunk the results of the query.
      *
-     * @param callable(EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>, int): mixed $callback
+     * @param callable(EloquentCollection<int, object{TAccessor: TPivotModel}&TRelatedModel>, int): mixed $callback
      */
     public function chunk(int $count, callable $callback): bool
     {
@@ -1144,7 +1142,7 @@ class BelongsToMany extends Relation
     /**
      * Chunk the results of a query by comparing numeric IDs.
      *
-     * @param callable(EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>, int): mixed $callback
+     * @param callable(EloquentCollection<int, object{TAccessor: TPivotModel}&TRelatedModel>, int): mixed $callback
      */
     public function chunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
@@ -1154,7 +1152,7 @@ class BelongsToMany extends Relation
     /**
      * Chunk the results of a query by comparing IDs in descending order.
      *
-     * @param callable(EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>, int): mixed $callback
+     * @param callable(EloquentCollection<int, object{TAccessor: TPivotModel}&TRelatedModel>, int): mixed $callback
      */
     public function chunkByIdDesc(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
@@ -1164,7 +1162,7 @@ class BelongsToMany extends Relation
     /**
      * Execute a callback over each item while chunking by ID.
      *
-     * @param callable(object{pivot: TPivotModel}&TRelatedModel, int): mixed $callback
+     * @param callable(object{TAccessor: TPivotModel}&TRelatedModel, int): mixed $callback
      */
     public function eachById(callable $callback, int $count = 1000, ?string $column = null, ?string $alias = null): bool
     {
@@ -1180,7 +1178,7 @@ class BelongsToMany extends Relation
     /**
      * Chunk the results of a query by comparing IDs in a given order.
      *
-     * @param callable(EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>, int): mixed $callback
+     * @param callable(EloquentCollection<int, object{TAccessor: TPivotModel}&TRelatedModel>, int): mixed $callback
      */
     public function orderedChunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null, SortDirection|bool $descending = false): bool
     {
@@ -1200,7 +1198,7 @@ class BelongsToMany extends Relation
     /**
      * Execute a callback over each item while chunking.
      *
-     * @param callable(object{pivot: TPivotModel}&TRelatedModel, int): mixed $callback
+     * @param callable(object{TAccessor: TPivotModel}&TRelatedModel, int): mixed $callback
      */
     public function each(callable $callback, int $count = 1000): bool
     {
@@ -1218,7 +1216,7 @@ class BelongsToMany extends Relation
      *
      * @template TReturn
      *
-     * @param callable(object{pivot: TPivotModel}&TRelatedModel): TReturn $callback
+     * @param callable(object{TAccessor: TPivotModel}&TRelatedModel): TReturn $callback
      * @return BaseCollection<int, TReturn>
      */
     public function chunkMap(callable $callback, int $count = 1000): BaseCollection
@@ -1237,7 +1235,7 @@ class BelongsToMany extends Relation
     /**
      * Query lazily, by chunks of the given size.
      *
-     * @return LazyCollection<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @return LazyCollection<int, object{TAccessor: TPivotModel}&TRelatedModel>
      */
     public function lazy(int $chunkSize = 1000): mixed
     {
@@ -1251,7 +1249,7 @@ class BelongsToMany extends Relation
     /**
      * Query lazily, by chunking the results of a query by comparing IDs.
      *
-     * @return LazyCollection<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @return LazyCollection<int, object{TAccessor: TPivotModel}&TRelatedModel>
      */
     public function lazyById(int $chunkSize = 1000, ?string $column = null, ?string $alias = null): mixed
     {
@@ -1271,7 +1269,7 @@ class BelongsToMany extends Relation
     /**
      * Query lazily, by chunking the results of a query by comparing IDs in descending order.
      *
-     * @return LazyCollection<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @return LazyCollection<int, object{TAccessor: TPivotModel}&TRelatedModel>
      */
     public function lazyByIdDesc(int $chunkSize = 1000, ?string $column = null, ?string $alias = null): mixed
     {
@@ -1291,7 +1289,7 @@ class BelongsToMany extends Relation
     /**
      * Get a lazy collection for the given query.
      *
-     * @return LazyCollection<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @return LazyCollection<int, object{TAccessor: TPivotModel}&TRelatedModel>
      */
     public function cursor(): mixed
     {

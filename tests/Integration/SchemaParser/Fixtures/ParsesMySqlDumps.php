@@ -55,7 +55,13 @@ trait ParsesMySqlDumps
                 SQL);
 
             $path = $directory . '/schema.sql';
-            $connection->getSchemaState(processFactory: static fn (string $command): Process => Process::fromShellCommandline($command)->setIdleTimeout(20))
+            // MariaDB's dump client assumes servers numbered >=10.3 support SHOW PACKAGE STATUS.
+            // MySQL 26+ needs Oracle's tools; keep this override local to the dump subprocesses.
+            $environment = ! $connection->isMaria() && version_compare($connection->getServerVersion(), '26', '>=')
+                ? ['PATH' => '/opt/mysql/bin:' . getenv('PATH')]
+                : null;
+
+            $connection->getSchemaState(processFactory: static fn (string $command): Process => Process::fromShellCommandline($command, env: $environment)->setIdleTimeout(20))
                 ->withMigrationTable(null)
                 ->dump($connection, $path);
 

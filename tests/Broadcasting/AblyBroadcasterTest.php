@@ -34,6 +34,10 @@ class AblyBroadcasterTest extends TestCase
     {
         parent::setUp();
 
+        if (! class_exists(AblyRest::class)) {
+            $this->markTestSkipped(sprintf('%s class is not available.', AblyRest::class));
+        }
+
         $this->container = m::mock(Container::class);
         $this->container->shouldReceive('bound')->with(BindingRegistrar::class)->andReturnFalse()->byDefault();
         $this->ably = m::mock(AblyRest::class, ['abcd:efg']);
@@ -69,6 +73,13 @@ class AblyBroadcasterTest extends TestCase
         $this->broadcaster->auth(
             $this->getMockRequestWithUserForChannel('private-test')
         );
+    }
+
+    public function testAuthRejectsArrayChannelName(): void
+    {
+        $this->expectException(AccessDeniedHttpException::class);
+
+        $this->broadcaster->auth($this->getMockRequestWithUserForChannel(['private-test']));
     }
 
     public function testAuthThrowAccessDeniedHttpExceptionWithPrivateChannelWhenRequestUserNotFound(): void
@@ -300,7 +311,7 @@ class AblyBroadcasterTest extends TestCase
     /**
      * Create an authenticated channel request.
      */
-    protected function getMockRequestWithUserForChannel(string $channel): Request
+    protected function getMockRequestWithUserForChannel(string|array $channel): Request
     {
         $request = m::mock(Request::class);
         $request->shouldReceive('input')->with('channel_name')->andReturn($channel);

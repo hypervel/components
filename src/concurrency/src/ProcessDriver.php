@@ -15,10 +15,15 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Facades\Context;
 use Laravel\SerializableClosure\SerializableClosure;
+use RuntimeException;
+use SensitiveParameter;
 use Throwable;
 
 use function Hypervel\Support\defer;
 
+/**
+ * @phpstan-import-type ResultEnvelope from SerializedClosureResult
+ */
 class ProcessDriver implements Driver
 {
     /**
@@ -38,9 +43,14 @@ class ProcessDriver implements Driver
     {
         $command = Application::formatCommandString('invoke-serialized-closure');
 
-        $results = $this->processFactory->pool(function (Pool $pool) use ($tasks, $command, $timeout) {
+        $envelopeKeys = [];
+
+        $results = $this->processFactory->pool(function (Pool $pool) use ($tasks, $command, $timeout, &$envelopeKeys) {
             foreach (Arr::wrap($tasks) as $key => $task) {
+                $envelopeKeys[$key] = bin2hex(random_bytes(32));
+
                 $process = $pool->as((string) $key)->path(base_path())->env([
+                    SerializedClosureResult::KEY_ENVIRONMENT_VARIABLE => $envelopeKeys[$key],
                     '__HYPERVEL_CONTEXT' => base64_encode(serialize(Context::dehydrate())),
                     'HYPERVEL_INVOKABLE_CLOSURE' => base64_encode(
                         serialize(new SerializableClosure($task))
@@ -53,13 +63,25 @@ class ProcessDriver implements Driver
             }
         })->start()->wait();
 
-        return $results->collect()->mapWithKeys(function ($result, $key) {
+        return $results->collect()->mapWithKeys(function ($result, $key) use ($envelopeKeys) {
             if ($result->failed()) {
                 throw new Exception('Concurrent process failed with exit code [' . $result->exitCode() . ']. Message: ' . $result->errorOutput());
             }
 
-            return [$key => SerializedClosureResult::decode($result->output())];
+            return [$key => SerializedClosureResult::decode($this->parseEnvelope($result->output(), $envelopeKeys[$key]))];
         })->all();
+    }
+
+    /**
+     * Extract the signed result envelope from the given process output.
+     *
+     * @return ResultEnvelope
+     *
+     * @throws RuntimeException
+     */
+    protected function parseEnvelope(string $output, #[SensitiveParameter] string $key): array
+    {
+        return SerializedClosureResult::parseEnvelope($output, $key);
     }
 
     /**

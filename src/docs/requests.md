@@ -547,6 +547,19 @@ $delay = $request->interval('delay', Unit::Minute);
 
 If the input value is present but has an invalid format, an `InvalidArgumentException` will be thrown; therefore, it is recommended that you validate the input before invoking the `interval` method.
 
+<a name="retrieving-uuid-input-values"></a>
+#### Retrieving UUID and ULID Input Values
+
+Input values containing UUIDs or ULIDs may be retrieved using the `uuid` and `ulid` methods, which return `Symfony\Component\Uid\Uuid` and `Symfony\Component\Uid\Ulid` instances respectively. If the input is missing or empty, `null` will be returned:
+
+```php
+$orderId = $request->uuid('order_id');
+
+$eventId = $request->ulid('event_id');
+```
+
+UUID input must use the hyphenated format, in either letter case. If an input string is not a valid UUID or ULID, an `InvalidArgumentException` will be thrown; therefore, it is recommended that you validate the input before invoking these methods.
+
 <a name="retrieving-enum-input-values"></a>
 #### Retrieving Enum Input Values
 

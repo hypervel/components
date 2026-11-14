@@ -178,6 +178,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Database\Eloquent\Model::flushState();
         \Hypervel\Database\Eloquent\Relations\Relation::flushState();
         \Hypervel\Database\Grammar::flushState();
+        \Hypervel\Database\LostConnectionDetector::flushState();
         \Hypervel\Database\Migrations\Migrator::flushState();
         \Hypervel\Database\Query\Builder::flushState();
         \Hypervel\Database\Query\Grammars\PostgresGrammar::flushState();
@@ -243,6 +244,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Pipeline\Pipeline::flushState();
         \Hypervel\Process\Factory::flushState();
         \Hypervel\Process\InvokedProcess::flushState();
+        \Hypervel\Process\PendingProcess::flushState();
         \Hypervel\Prompts\Prompt::flushState();
         \Hypervel\Prompts\Terminal::flushState();
         \Hypervel\Queue\Capsule\Manager::flushState();

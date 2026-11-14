@@ -68,7 +68,9 @@ class RemoteCommandTest extends TestCase
 
             $this->assertInstanceOf(ProcessDecorator::class, $process);
             $this->assertInstanceOf(ProcessResult::class, $result);
-            $this->assertSame('{"successful":true,"result":"aToyOw=="}', $process->getOutput());
+            $encoded = base64_encode('{"successful":true,"result":"aToyOw=="}');
+            $signature = hash_hmac('sha256', $encoded, $this->processEnvironment($process)['HYPERVEL_CONCURRENCY_HMAC_KEY']);
+            $this->assertSame("\n@@HYPERVEL-CONCURRENCY-V1@@{$encoded}@@{$signature}@@\n", $process->getOutput());
             $this->assertSame(2, $result->output());
         });
     }

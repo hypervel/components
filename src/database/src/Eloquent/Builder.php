@@ -478,12 +478,14 @@ class Builder implements BuilderContract
     public function hydrate(array $items): Collection
     {
         $instance = $this->newModelInstance();
+        $preventsLazyLoading = count($items) > 1 && Model::preventsLazyLoading();
 
-        return $instance->newCollection(array_map(function ($item) use ($items, $instance) {
+        return $instance->newCollection(array_map(function ($item) use ($instance, $preventsLazyLoading) {
             $model = $instance->newFromBuilder($item);
 
-            if (count($items) > 1) {
-                $model->preventsLazyLoading = Model::preventsLazyLoading();
+            // Preserve a model's own lazy-loading opt-in when the global default is off.
+            if ($preventsLazyLoading) {
+                $model->preventsLazyLoading = true;
             }
 
             return $model;
@@ -1069,9 +1071,15 @@ class Builder implements BuilderContract
         $builder = $this->applyScopes();
         // Scopes can replace the model when adding query-time casts.
         $instance = $builder->newModelInstance();
+        $preventsLazyLoading = Model::preventsLazyLoading();
 
-        return $builder->query->cursor()->map(function ($record) use ($instance) {
+        return $builder->query->cursor()->map(function ($record) use ($instance, $preventsLazyLoading) {
             $model = $instance->newFromBuilder($record);
+
+            // Preserve a model's own lazy-loading opt-in when the global default is off.
+            if ($preventsLazyLoading) {
+                $model->preventsLazyLoading = true;
+            }
 
             return $this->applyAfterQueryCallbacks($instance->newCollection([$model]))->first();
         })->reject(fn ($model) => is_null($model));

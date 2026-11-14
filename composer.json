@@ -120,6 +120,7 @@
     },
     "require-dev": {
         "ably/ably-php": "^1.1.10",
+        "ably/pubsub-server": "^2.0",
         "algolia/algoliasearch-client-php": "^4.49.0",
         "brianium/paratest": "^7.27.2",
         "composer/composer": "^2.10.3",

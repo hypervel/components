@@ -24,6 +24,7 @@ use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
+use Symfony\Component\HttpFoundation\HeaderUtils;
 use Symfony\Component\Routing\Exception\RouteNotFoundException;
 
 class UrlGenerator implements UrlGeneratorContract
@@ -351,14 +352,29 @@ class UrlGenerator implements UrlGeneratorContract
         ksort($parameters);
 
         $key = call_user_func($this->keyResolver);
+        $signature = hash_hmac(
+            'sha256',
+            $this->route($name, $parameters, $absolute),
+            is_array($key) ? $key[0] : $key
+        );
+        $url = $this->route($name, $parameters + ['signature' => $signature], $absolute);
 
-        return $this->route($name, $parameters + [
-            'signature' => hash_hmac(
-                'sha256',
-                $this->route($name, $parameters, $absolute),
-                is_array($key) ? $key[0] : $key
-            ),
-        ], $absolute);
+        // Positional values can replace reserved query values, while placeholders can consume the signature or expiry.
+        $query = HeaderUtils::parseQuery(parse_url($url, PHP_URL_QUERY) ?? '');
+
+        if (($query['signature'] ?? null) !== $signature) {
+            throw new InvalidArgumentException(
+                '"Signature" is a reserved parameter when generating signed routes. Please rename your route parameter.'
+            );
+        }
+
+        if (($query['expires'] ?? null) !== (isset($parameters['expires']) ? (string) $parameters['expires'] : null)) {
+            throw new InvalidArgumentException(
+                '"Expires" is a reserved parameter when generating signed routes. Please rename your route parameter.'
+            );
+        }
+
+        return $url;
     }
 
     /**
@@ -465,11 +481,21 @@ class UrlGenerator implements UrlGeneratorContract
     {
         $expires = $request->query('expires');
 
-        if ($expires !== null && ! is_string($expires)) {
+        if ($expires === null) {
+            // Read the raw query verified by hasCorrectSignature(), avoiding a parse/sort/rebuild before parsing again.
+            // REMOVED: Vapor's VAPOR_RAW_QUERY_STRING override; Swoole supplies the raw QUERY_STRING.
+            $queries = HeaderUtils::parseQuery((string) $request->server->get('QUERY_STRING'));
+
+            if (isset($queries['expires'])) {
+                $expires = $queries['expires'];
+            }
+        }
+
+        if ($expires !== null && (! is_string($expires) || ! ctype_digit($expires))) {
             return false;
         }
 
-        return ! ($expires && CarbonImmutable::now()->getTimestamp() > $expires);
+        return $expires === null || CarbonImmutable::now()->getTimestamp() <= $expires;
     }
 
     /**

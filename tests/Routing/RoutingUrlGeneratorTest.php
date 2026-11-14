@@ -14,6 +14,7 @@ use Hypervel\Routing\Exceptions\UrlGenerationException;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\UrlGenerator;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Routing\Fixtures\CategoryBackedEnum;
 use Hypervel\Tests\Routing\Fixtures\CategoryEnum;
@@ -1235,6 +1236,93 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $this->assertTrue($url->hasValidSignature($request, ignoreQuery: fn ($parameter) => $parameter === 'tampered'));
     }
 
+    public function testNumericQueryParametersAreUrlEncoded(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now()->startOfSecond());
+
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('http://www.foo.com/')
+        );
+        $url->setKeyResolver(fn (): string => 'secret');
+
+        $routes->add(new Route(['GET'], 'foo', ['as' => 'foo', fn (): string => '']));
+
+        $this->assertSame('http://www.foo.com/foo?a=1&expires%3D', $url->route('foo', ['a' => 1, 'expires=']));
+
+        $request = Request::create($url->temporarySignedRoute('foo', $now->addSecond(), [0 => 'expires=']));
+
+        $this->assertNotSame('', $request->query('expires'));
+        $this->assertTrue($url->hasValidSignature($request));
+
+        CarbonImmutable::setTestNow($now->addSeconds(2));
+
+        $this->assertFalse($url->hasValidSignature($request));
+    }
+
+    #[TestWith(['foo', ['expires'], true])]
+    #[TestWith(['foo', ['expires'], false])]
+    #[TestWith(['foo', ['signature'], false])]
+    #[TestWith(['foo/{expires}', [], true])]
+    #[TestWith(['foo/{signature}', ['abc'], false])]
+    public function testSignedUrlRejectsReservedNamesAfterSubstitution(string $path, array $parameters, bool $temporary): void
+    {
+        $url = new UrlGenerator($routes = new RouteCollection, Request::create('http://www.foo.com/'));
+        $url->setKeyResolver(fn (): string => 'secret');
+        $routes->add(new Route(['GET'], $path, ['as' => 'foo', fn (): string => '']));
+
+        $this->expectExceptionObject(new InvalidArgumentException('reserved'));
+
+        $url->signedRoute('foo', $parameters, $temporary ? CarbonImmutable::now()->addMinute() : null);
+    }
+
+    public function testSignedUrlAllowsReservedTextInPositionalRouteValues(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now()->startOfSecond());
+
+        $url = new UrlGenerator($routes = new RouteCollection, Request::create('http://www.foo.com/'));
+        $url->setKeyResolver(fn (): string => 'secret');
+        $routes->add(new Route(['GET'], 'foo/{slug}', ['as' => 'foo', fn (): string => '']));
+
+        $request = Request::create($url->temporarySignedRoute('foo', $now->addSecond(), ['expires']));
+
+        $this->assertSame('/foo/expires', $request->getPathInfo());
+        $this->assertTrue($url->hasValidSignature($request));
+
+        CarbonImmutable::setTestNow($now->addSeconds(2));
+
+        $this->assertFalse($url->hasValidSignature($request));
+    }
+
+    // REMOVED: Vapor raw-query datasets; Swoole supplies QUERY_STRING directly.
+    public function testSignatureExpirationIsReadFromTheRawQueryString(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+
+        $request = Request::create('http://www.foo.com/foo');
+        $request->server->set('QUERY_STRING', sprintf('expires=%d', $now->addMinutes(10)->timestamp));
+
+        $url = new UrlGenerator(new RouteCollection, $request);
+
+        $this->assertNull($request->query('expires'));
+        $this->assertTrue($url->signatureHasNotExpired($request));
+
+        CarbonImmutable::setTestNow($now->addMinutes(11));
+
+        $this->assertFalse($url->signatureHasNotExpired($request));
+    }
+
+    public function testSignatureExpirationRejectsArraysFromTheRawQueryString(): void
+    {
+        $request = Request::create('http://www.foo.com/foo');
+        $request->server->set('QUERY_STRING', 'expires[]=99999999999');
+
+        $url = new UrlGenerator(new RouteCollection, $request);
+
+        $this->assertNull($request->query('expires'));
+        $this->assertFalse($url->signatureHasNotExpired($request));
+    }
+
     public function testSignedUrlDoesNotTrustForwardedPrefixToChangeThePathBeingVerified(): void
     {
         $url = new UrlGenerator(
@@ -1560,7 +1648,11 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         }
     }
 
-    public function testSignedUrlWithArrayExpiresReturnsFalse(): void
+    #[TestWith(['expires[]=99999999999'])]
+    #[TestWith(['expires=99999999999&expires'])]
+    #[TestWith(['expires=abc'])]
+    #[TestWith(['expires=0'])]
+    public function testSignedUrlWithInvalidExpiresReturnsFalse(string $query): void
     {
         $url = new UrlGenerator(
             new RouteCollection,
@@ -1570,9 +1662,6 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
             return 'secret';
         });
 
-        // ?expires[]=99999999999 is truthy but comparing timestamp > array is always
-        // false in PHP, so without the guard the URL would never appear expired.
-        $query = 'expires[]=99999999999';
         $signature = hash_hmac('sha256', 'http://www.foo.com/foo?' . $query, 'secret');
         $request = Request::create('http://www.foo.com/foo?' . $query . '&signature=' . $signature);
 

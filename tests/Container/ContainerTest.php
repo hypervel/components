@@ -1525,9 +1525,7 @@ class ContainerTest extends TestCase
         $this->expectException(BindingResolutionException::class);
         $container = new Container;
 
-        $instance = $container->make(WildcardOnlyInterface::class);
-
-        $this->assertInstanceOf(WildcardConcrete::class, $instance);
+        $container->make(WildcardOnlyInterface::class);
     }
 
     public function testBindAttributeIsRecheckedAfterEnvironmentResolverIsSet(): void

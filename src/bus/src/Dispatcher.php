@@ -262,11 +262,12 @@ class Dispatcher implements QueueingDispatcher
     public function dispatchAfterResponse(mixed $command, mixed $handler = null): void
     {
         if (! $this->allowsDispatchingAfterResponses) {
-            $this->dispatchSync($command, $handler);
+            rescue(fn () => $this->dispatchSync($command, $handler), report: true);
 
             return;
         }
 
+        // Coroutine::defer already reports uncaught exceptions without rendering a response.
         Coroutine::defer(function () use ($command, $handler): void {
             if (is_object($command)) {
                 DispatchLockContext::claim($command);

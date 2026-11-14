@@ -2,35 +2,38 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Concurrency\Console;
+namespace Hypervel\Tests\Integration\Concurrency\Console;
 
 use Closure;
 use ErrorException;
+use Hypervel\Concurrency\ProcessDriver;
 use Hypervel\Concurrency\SerializedClosureResult;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Support\Facades\Artisan;
-use Hypervel\Support\Json;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Concurrency\Fixtures\ConcurrentProcessExceptionFixtures;
 use Laravel\SerializableClosure\SerializableClosure;
 use Mockery as m;
+use ReflectionMethod;
 use RuntimeException;
 use Symfony\Component\Console\Output\BufferedOutput;
 
 class InvokeSerializedClosureCommandTest extends TestCase
 {
+    private const string KEY = 'test-envelope-key';
+
     public function testItCanInvokeSerializedClosureFromArgument(): void
     {
         $serializedClosure = serialize(new SerializableClosure(static fn () => 'Hello, World!'));
 
         $output = new BufferedOutput;
 
-        Artisan::call('invoke-serialized-closure', [
+        $this->callSerializedClosure([
             'code' => $serializedClosure,
         ], $output);
 
         /** @var array{successful: bool, result: string} $result */
-        $result = Json::decode($output->fetch());
+        $result = $this->envelopeFrom($output->fetch());
 
         $this->assertTrue($result['successful']);
         $this->assertSame('Hello, World!', $this->decodeResult($result));
@@ -48,10 +51,10 @@ class InvokeSerializedClosureCommandTest extends TestCase
 
             $output = new BufferedOutput;
 
-            Artisan::call('invoke-serialized-closure', [], $output);
+            $this->callSerializedClosure([], $output);
 
             /** @var array{successful: bool, result: string} $result */
-            $result = Json::decode($output->fetch());
+            $result = $this->envelopeFrom($output->fetch());
 
             $this->assertTrue($result['successful']);
             $this->assertSame('From Environment', $this->decodeResult($result));
@@ -68,10 +71,10 @@ class InvokeSerializedClosureCommandTest extends TestCase
     {
         $output = new BufferedOutput;
 
-        Artisan::call('invoke-serialized-closure', [], $output);
+        $this->callSerializedClosure([], $output);
 
         /** @var array{successful: bool, result: string} $result */
-        $result = Json::decode($output->fetch());
+        $result = $this->envelopeFrom($output->fetch());
 
         $this->assertTrue($result['successful']);
         $this->assertNull($this->decodeResult($result));
@@ -85,12 +88,12 @@ class InvokeSerializedClosureCommandTest extends TestCase
 
         $output = new BufferedOutput;
 
-        Artisan::call('invoke-serialized-closure', [
+        $this->callSerializedClosure([
             'code' => $serializedClosure,
         ], $output);
 
         /** @var array{successful: bool, exception: string, message: string, parameters: array<string, mixed>} $result */
-        $result = Json::decode($output->fetch());
+        $result = $this->envelopeFrom($output->fetch());
 
         $this->assertFalse($result['successful']);
         $this->assertSame(RuntimeException::class, $result['exception']);
@@ -106,17 +109,38 @@ class InvokeSerializedClosureCommandTest extends TestCase
 
         $output = new BufferedOutput;
 
-        Artisan::call('invoke-serialized-closure', [
+        $this->callSerializedClosure([
             'code' => $serializedClosure,
         ], $output);
 
         /** @var array{successful: bool, exception: string, parameters: array<string, mixed>} $result */
-        $result = Json::decode($output->fetch());
+        $result = $this->envelopeFrom($output->fetch());
 
         $this->assertFalse($result['successful']);
         $this->assertSame(InvokeSerializedClosureCustomParameterException::class, $result['exception']);
         $this->assertSame('Test param', $result['parameters']['customParam'] ?? null);
         $this->assertSame('', $result['parameters']['message'] ?? null);
+    }
+
+    public function testEnvelopeKeyIsRemovedFromTheEnvironmentBeforeTheTaskRuns(): void
+    {
+        $this->withEnvironmentValue('HYPERVEL_CONCURRENCY_HMAC_KEY', self::KEY, function (): void {
+            $_SERVER['HYPERVEL_CONCURRENCY_HMAC_KEY'] = self::KEY;
+            $_ENV['HYPERVEL_CONCURRENCY_HMAC_KEY'] = self::KEY;
+
+            $closure = static fn (): array => [
+                $_SERVER['HYPERVEL_CONCURRENCY_HMAC_KEY'] ?? null,
+                $_ENV['HYPERVEL_CONCURRENCY_HMAC_KEY'] ?? null,
+                getenv('HYPERVEL_CONCURRENCY_HMAC_KEY'),
+            ];
+            $output = new BufferedOutput;
+
+            Artisan::call('invoke-serialized-closure', [
+                'code' => serialize(new SerializableClosure($closure)),
+            ], $output);
+
+            $this->assertSame([null, null, false], $this->decodeResult($this->envelopeFrom($output->fetch())));
+        });
     }
 
     public function testItTransportsBinaryResultsLosslessly(): void
@@ -241,7 +265,7 @@ class InvokeSerializedClosureCommandTest extends TestCase
         $caught = null;
 
         try {
-            SerializedClosureResult::decode($output);
+            SerializedClosureResult::decode($this->envelopeFrom($output));
         } catch (RuntimeException $exception) {
             $caught = $exception;
         }
@@ -391,7 +415,7 @@ class InvokeSerializedClosureCommandTest extends TestCase
      */
     private function invokeSerializedClosure(Closure $closure): array
     {
-        return Json::decode($this->invokeSerializedClosureOutput($closure));
+        return $this->envelopeFrom($this->invokeSerializedClosureOutput($closure));
     }
 
     /**
@@ -401,11 +425,39 @@ class InvokeSerializedClosureCommandTest extends TestCase
     {
         $output = new BufferedOutput;
 
-        Artisan::call('invoke-serialized-closure', [
+        $this->callSerializedClosure([
             'code' => serialize(new SerializableClosure($closure)),
         ], $output);
 
         return $output->fetch();
+    }
+
+    /**
+     * Invoke the command with a temporary envelope key.
+     *
+     * @param array<string, string> $arguments
+     */
+    private function callSerializedClosure(array $arguments, BufferedOutput $output): void
+    {
+        $this->withEnvironmentValue(
+            'HYPERVEL_CONCURRENCY_HMAC_KEY',
+            self::KEY,
+            fn (): int => Artisan::call('invoke-serialized-closure', $arguments, $output),
+        );
+    }
+
+    /**
+     * Extract the signed result envelope using the process driver's parser.
+     *
+     * @return array<string, mixed>
+     */
+    private function envelopeFrom(string $output): array
+    {
+        return (new ReflectionMethod(ProcessDriver::class, 'parseEnvelope'))->invoke(
+            $this->app->make(ProcessDriver::class),
+            $output,
+            self::KEY,
+        );
     }
 
     /**

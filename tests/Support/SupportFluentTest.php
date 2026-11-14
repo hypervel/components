@@ -416,6 +416,16 @@ class SupportFluentTest extends TestCase
         $this->assertDataIntervalContract();
     }
 
+    public function testUuidMethod(): void
+    {
+        $this->assertDataUuidContract();
+    }
+
+    public function testUlidMethod(): void
+    {
+        $this->assertDataUlidContract();
+    }
+
     public function testOnlyMethod(): void
     {
         $this->assertDataOnlyContract();

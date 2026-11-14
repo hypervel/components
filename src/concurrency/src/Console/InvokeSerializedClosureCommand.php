@@ -6,9 +6,12 @@ namespace Hypervel\Concurrency\Console;
 
 use Error;
 use Exception;
+use Hypervel\Concurrency\SerializedClosureResult;
 use Hypervel\Console\Command;
+use Hypervel\Support\Env;
 use ReflectionClass;
 use RuntimeException;
+use SensitiveParameter;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
@@ -29,14 +32,17 @@ class InvokeSerializedClosureCommand extends Command
      */
     public function handle(): int
     {
+        $key = $this->pullEnvelopeKey();
+
         try {
             // The parent process decodes this envelope, so console formatting must not alter it.
-            $this->output->write(json_encode([
+            $this->output->write($this->frameEnvelope($key, json_encode([
                 'successful' => true,
+                // Serialized results can contain bytes that JSON cannot carry as UTF-8.
                 'result' => base64_encode(serialize(
                     $this->hypervel->call($this->resolveSerializedClosure())
                 )),
-            ], JSON_THROW_ON_ERROR), false, OutputInterface::OUTPUT_RAW);
+            ], JSON_THROW_ON_ERROR)), false, OutputInterface::OUTPUT_RAW);
         } catch (Throwable $exception) {
             try {
                 report($exception);
@@ -90,10 +96,36 @@ class InvokeSerializedClosureCommand extends Command
                 ], JSON_THROW_ON_ERROR);
             }
 
-            $this->output->write($payload, false, OutputInterface::OUTPUT_RAW);
+            $this->output->write($this->frameEnvelope($key, $payload), false, OutputInterface::OUTPUT_RAW);
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Get the envelope key passed by the parent process and remove it from the environment.
+     */
+    protected function pullEnvelopeKey(): string
+    {
+        // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the parent passes a one-use result authentication key through the child process environment)
+        $key = Env::get(SerializedClosureResult::KEY_ENVIRONMENT_VARIABLE);
+
+        Env::deleteMany([SerializedClosureResult::KEY_ENVIRONMENT_VARIABLE]);
+        // Clear the native environment even when Env's putenv adapter is disabled.
+        putenv(SerializedClosureResult::KEY_ENVIRONMENT_VARIABLE);
+
+        return is_string($key) && $key !== '' ? $key : bin2hex(random_bytes(32));
+    }
+
+    /**
+     * Frame the given result payload with a marker and an HMAC signature.
+     */
+    protected function frameEnvelope(#[SensitiveParameter] string $key, string $payload): string
+    {
+        $encoded = base64_encode($payload);
+        $signature = hash_hmac('sha256', $encoded, $key);
+
+        return "\n" . SerializedClosureResult::ENVELOPE_MARKER . "{$encoded}@@{$signature}@@\n";
     }
 
     /**
@@ -103,29 +135,10 @@ class InvokeSerializedClosureCommand extends Command
     {
         return match (true) {
             is_string($code = $this->argument('code')) && $code !== '' => unserialize($code),
-            isset($_SERVER['HYPERVEL_INVOKABLE_CLOSURE']) => unserialize($this->decodeEnvironmentClosure(
-                $_SERVER['HYPERVEL_INVOKABLE_CLOSURE']
-            )),
+            // @phpstan-ignore hypervel.noEnvCallsOutsideOfConfig (the parent transports the serialized task through the child process environment)
+            is_string($code = Env::get('HYPERVEL_INVOKABLE_CLOSURE')) => unserialize(base64_decode($code)),
             default => static fn () => null,
         };
-    }
-
-    /**
-     * Decode the serialized closure stored in the environment.
-     */
-    protected function decodeEnvironmentClosure(mixed $value): string
-    {
-        if (! is_string($value)) {
-            throw new RuntimeException('Missing serialized closure payload.');
-        }
-
-        $decodedValue = base64_decode($value, true);
-
-        if ($decodedValue === false) {
-            throw new RuntimeException('Unable to decode serialized closure payload.');
-        }
-
-        return $decodedValue;
     }
 
     /**

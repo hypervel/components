@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Foundation\Process;
 
 use Closure;
+use Hypervel\Concurrency\SerializedClosureResult;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Container\Container;
 use Hypervel\Support\ProcessUtils;
@@ -83,6 +84,7 @@ final class RemoteCommand
         }
 
         if ($command instanceof Closure) {
+            $env[SerializedClosureResult::KEY_ENVIRONMENT_VARIABLE] = bin2hex(random_bytes(32));
             $env['HYPERVEL_INVOKABLE_CLOSURE'] = base64_encode(
                 serialize(new SerializableClosure($command))
             );

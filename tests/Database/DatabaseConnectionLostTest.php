@@ -47,6 +47,38 @@ class DatabaseConnectionLostTest extends TestCase
         $this->assertFalse($detector->causedByLostConnection(new PDOException('Unexpected EOF while parsing application data')));
     }
 
+    public function testLostConnectionDetectorCanDetectUsingCallback(): void
+    {
+        $detector = new LostConnectionDetector;
+
+        $this->assertFalse($detector->causedByLostConnection(new PDOException('Proxy hiccup')));
+
+        LostConnectionDetector::detectUsing(fn (Throwable $e): bool => str_contains($e->getMessage(), 'Proxy hiccup'));
+
+        $this->assertTrue($detector->causedByLostConnection(new PDOException('SQLSTATE[HY000]: Proxy hiccup')));
+        $this->assertTrue($detector->causedByLostConnection(new PDOException('SQLSTATE[HY000]: General error: 2006 MySQL server has gone away')));
+        $this->assertFalse($detector->causedByLostConnection(new PDOException('Syntax error')));
+
+        LostConnectionDetector::detectUsing(null);
+
+        $this->assertFalse($detector->causedByLostConnection(new PDOException('Proxy hiccup')));
+    }
+
+    public function testCustomCallbackReceivesTheOriginalQueryException(): void
+    {
+        $failure = new QueryException('custom', 'select 1', [], new RuntimeException('Custom driver lost its session'));
+        $received = null;
+
+        LostConnectionDetector::detectUsing(function (Throwable $e) use (&$received): bool {
+            $received = $e;
+
+            return $e instanceof QueryException && $e->getConnectionName() === 'custom';
+        });
+
+        $this->assertTrue((new LostConnectionDetector)->causedByLostConnection($failure));
+        $this->assertSame($failure, $received);
+    }
+
     public function testQueryContextCannotForgeALostConnection(): void
     {
         $failure = new QueryException('test', 'insert into logs values (?)', ['Connection reset by peer'], new PDOException('Unique violation'));

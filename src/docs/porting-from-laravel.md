@@ -782,7 +782,9 @@ The framework binds `date` to `DateFactory`, so a `Date` facade subclass that ov
 <a name="uuids"></a>
 ### UUIDs
 
-Hypervel's `Str` UUID methods, factories, sequences, and freeze callbacks use `Symfony\Component\Uid\Uuid` values. Laravel uses `Ramsey\Uuid\UuidInterface`. Review concrete UUID type declarations and calls to package-specific methods instead of changing only the framework namespace.
+Hypervel's `Str` UUID methods, factories, sequences, freeze callbacks, and `uuid()` input helpers use `Symfony\Component\Uid\Uuid` values. Laravel uses `Ramsey\Uuid\UuidInterface`. Review concrete UUID type declarations and calls to package-specific methods instead of changing only the framework namespace.
+
+UUID input helpers and validation require hyphenated text, in either letter case. Normalize compact, braced, or `urn:uuid:` input before use. See [UUID input](/docs/{{version}}/requests#retrieving-uuid-input-values).
 
 Hypervel's `Str::orderedUuid()` returns a UUIDv7, while Laravel returns a timestamp-first COMB UUIDv4. Review code that validates UUID versions or depends on the exact ordering produced by this method.
 
@@ -824,7 +826,7 @@ Hypervel requires a newer MariaDB version than Laravel. Check the [supported dat
 
 Remove any warning or silent `PDO::ATTR_ERRMODE` setting; PDO connections require exception mode. Custom connectors and supplied PDO handles must also use it. See [PDO error mode](/docs/{{version}}/database#pdo-error-mode).
 
-Custom non-PDO drivers that relied on generic exception messages for recovery must provide an explicit detector policy. Extend the default detectors and bind them to the existing contracts to preserve recovery for built-in drivers; see [detecting database failures](/docs/{{version}}/database#detecting-database-failures).
+Custom non-PDO drivers that relied on generic exception messages for recovery must provide an explicit detector policy. Register a `LostConnectionDetector::detectUsing()` callback for lost connections, or extend the default detectors and bind them to the existing contracts to preserve recovery for built-in drivers; see [detecting database failures](/docs/{{version}}/database#detecting-database-failures).
 
 MySQL and MariaDB connection configs must specify `strict` or `modes`; they cannot inherit the server's SQL mode implicitly. See [SQL mode configuration](/docs/{{version}}/database#mysql-and-mariadb-sql-modes).
 

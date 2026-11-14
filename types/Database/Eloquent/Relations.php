@@ -193,6 +193,32 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('42', Relation::noConstraints(fn () => 42));
 }
 
+function customPivotAccessors(User $user, Post $post, string $accessor, bool $condition): void
+{
+    $roles = $user->customTenantRoles();
+
+    assertType("Hypervel\\Database\\Eloquent\\Relations\\BelongsToMany<Hypervel\\Types\\Relations\\Role, Hypervel\\Types\\Relations\\User, Hypervel\\Types\\Relations\\Tenant, 'tenant'>", $roles);
+    assertType('Hypervel\Types\Relations\Tenant', $roles->firstOrFail()->tenant);
+    assertType('(Hypervel\Types\Relations\Role&object{tenant: Hypervel\Types\Relations\Tenant})|null', $roles->first());
+    assertType('Hypervel\Types\Relations\Tenant', $roles->findOrFail(1)->tenant);
+    // These methods do not guarantee a hydrated pivot on the returned model.
+    assertType('Hypervel\Types\Relations\Role', $roles->firstOrNew());
+    assertType('Hypervel\Types\Relations\Role', $roles->create());
+    assertType('Hypervel\Types\Relations\Role', $roles->save(new Role));
+    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{tenant: Hypervel\Types\Relations\Tenant}>', $roles->get());
+    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{tenant: Hypervel\Types\Relations\Tenant}>', $roles->getResults());
+    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{tenant: Hypervel\Types\Relations\Tenant}>', $roles->findMany([1, 2]));
+    assertType('Hypervel\Pagination\LengthAwarePaginator<int, Hypervel\Types\Relations\Role&object{tenant: Hypervel\Types\Relations\Tenant}, Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{tenant: Hypervel\Types\Relations\Tenant}>>', $roles->paginate());
+    assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Relations\Role&object{tenant: Hypervel\Types\Relations\Tenant}>', $roles->cursor());
+    assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Relations\Role&object{tenant: Hypervel\Types\Relations\Tenant}>', $roles->lazy());
+    assertType('Hypervel\Types\Relations\Tenant', $user->tenantRoles()->as('tenant')->firstOrFail()->tenant);
+    assertType('Hypervel\Database\Eloquent\Relations\MorphPivot', $post->tags()->as('tagging')->firstOrFail()->tagging);
+    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Tag&object{tagging: Hypervel\Database\Eloquent\Relations\MorphPivot}>', $post->tags()->as('tagging')->get());
+
+    assertType('Hypervel\Types\Relations\Role|null', $user->roles()->as($accessor)->first());
+    assertType('(Hypervel\Types\Relations\Role&object{one?: Hypervel\Database\Eloquent\Relations\Pivot, two?: Hypervel\Database\Eloquent\Relations\Pivot})|null', $user->roles()->as($condition ? 'one' : 'two')->first());
+}
+
 class User extends Model
 {
     /** @return HasOne<Address, $this> */
@@ -246,6 +272,16 @@ class User extends Model
         assertType('Hypervel\Database\Eloquent\Relations\BelongsToMany<Hypervel\Types\Relations\Role, $this(Hypervel\Types\Relations\User), Hypervel\Types\Relations\Tenant, \'pivot\'>', $belongsToManyShorthand);
 
         return $belongsToMany;
+    }
+
+    /**
+     * Get the roles with a custom pivot accessor.
+     *
+     * @return BelongsToMany<Role, $this, Tenant, 'tenant'>
+     */
+    public function customTenantRoles(): BelongsToMany
+    {
+        return $this->tenantRoles()->as('tenant');
     }
 
     /** @return HasOne<Mechanic, $this> */

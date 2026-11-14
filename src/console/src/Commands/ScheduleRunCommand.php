@@ -16,6 +16,7 @@ use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Console\Scheduling\ScheduledTaskSkipReason;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Repository as Cache;
@@ -265,13 +266,13 @@ class ScheduleRunCommand extends Command
                 $this->runTaskInCoroutine(function () use ($event, $paused): void {
                     if ($paused && ! $event->runsWhenPaused()) {
                         $event->lastChecked = Date::now();
-                        $this->dispatchTaskSkipped($event);
+                        $this->dispatchTaskSkipped($event, ScheduledTaskSkipReason::Paused);
 
                         return;
                     }
 
                     if (! $event->filtersPass($this->hypervel)) {
-                        $this->dispatchTaskSkipped($event);
+                        $this->dispatchTaskSkipped($event, ScheduledTaskSkipReason::ConditionNotMet);
 
                         return;
                     }
@@ -309,13 +310,13 @@ class ScheduleRunCommand extends Command
             $this->runTaskInCoroutine(function () use ($event, $startedAt, $paused): void {
                 if ($paused && ! $event->runsWhenPaused()) {
                     $event->lastChecked = Date::now();
-                    $this->dispatchTaskSkipped($event);
+                    $this->dispatchTaskSkipped($event, ScheduledTaskSkipReason::Paused);
 
                     return;
                 }
 
                 if (! $event->filtersPass($this->hypervel)) {
-                    $this->dispatchTaskSkipped($event);
+                    $this->dispatchTaskSkipped($event, ScheduledTaskSkipReason::ConditionNotMet);
 
                     return;
                 }
@@ -450,7 +451,7 @@ class ScheduleRunCommand extends Command
         if ($this->schedule->serverShouldRun($event, $startedAt)) {
             $this->runEvent($event);
         } else {
-            $this->dispatchTaskSkipped($event);
+            $this->dispatchTaskSkipped($event, ScheduledTaskSkipReason::RanOnAnotherServer);
 
             $this->components->info(sprintf(
                 'Skipping [%s] because the command already ran on another server.',
@@ -718,10 +719,10 @@ class ScheduleRunCommand extends Command
     /**
      * Dispatch the scheduled task skipped event when listeners are registered.
      */
-    protected function dispatchTaskSkipped(Event $event): void
+    protected function dispatchTaskSkipped(Event $event, ScheduledTaskSkipReason $reason): void
     {
         if ($this->dispatcher->hasListeners(ScheduledTaskSkipped::class)) {
-            $this->dispatcher->dispatch(new ScheduledTaskSkipped($event));
+            $this->dispatcher->dispatch(new ScheduledTaskSkipped($event, $reason));
         }
     }
 }

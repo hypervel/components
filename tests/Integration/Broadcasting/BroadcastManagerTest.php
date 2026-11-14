@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Broadcasting;
 
 use Ably\AblyRest;
+use Ably\PubSub\Server as AblyServer;
 use Closure;
 use Exception;
+use Hypervel\Broadcasting\Broadcasters\Ably2Broadcaster;
 use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster as BaseBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\MercureBroadcaster;
@@ -840,7 +842,7 @@ class BroadcastManagerTest extends TestCase
         $ablyBroadcaster = $manager->connection('ably');
 
         $this->assertInstanceOf(PusherBroadcaster::class, $pusherBroadcaster);
-        $this->assertInstanceOf(AblyBroadcaster::class, $ablyBroadcaster);
+        $this->assertInstanceOf(Ably2Broadcaster::class, $ablyBroadcaster);
         $this->assertSame([], $app->make(PoolFactory::class)->getPools());
         $this->assertSame([], $manager->getPoolableDrivers());
 
@@ -849,10 +851,24 @@ class BroadcastManagerTest extends TestCase
         $manager->setPusher($replacementPusher);
         $this->assertSame($replacementPusher, $manager->getPusher());
 
-        $replacementAbly = new AblyRest('replacement:key');
+        $replacementAbly = AblyServer::createHttpClient('replacement:key');
         $manager->setDefaultDriver('ably');
         $manager->setAbly($replacementAbly);
         $this->assertSame($replacementAbly, $manager->getAbly());
+    }
+
+    public function testAblyDriverAcceptsAnSdkOneClientFromAnOverriddenFactory(): void
+    {
+        $config = ['driver' => 'ably', 'key' => 'abcd:efg'];
+        $app = $this->poolingApplication(['ably' => $config]);
+        $ably = new AblyRest($config);
+        $manager = m::mock(BroadcastManager::class, [$app])->makePartial();
+        $manager->shouldReceive('ably')->once()->with($config)->andReturn($ably);
+
+        $broadcaster = $manager->connection('ably');
+
+        $this->assertSame(AblyBroadcaster::class, $broadcaster::class);
+        $this->assertSame($ably, $broadcaster->getAbly());
     }
 
     public function testPublicPusherFactoryAcceptsAPartialRecord(): void

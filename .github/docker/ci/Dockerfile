@@ -36,6 +36,7 @@ RUN set -eux; \
         libjpeg-dev \
         libtool \
         libmagickwand-dev \
+        libncurses6 \
         libpng-dev \
         libpq-dev \
         libsqlite3-dev \
@@ -43,6 +44,7 @@ RUN set -eux; \
         mariadb-client-compat \
         procps \
         sqlite3 \
+        sqv \
         unzip; \
     rm -rf /var/lib/apt/lists/*
 
@@ -57,6 +59,31 @@ RUN set -eux; \
     apt-get update; \
     apt-get install --yes --no-install-recommends postgresql-client-18; \
     rm -rf /var/lib/apt/lists/*
+
+# The release key expires on 2027-10-23; update its URL when Oracle renews it.
+# Resolve patch releases from signed APT metadata while keeping Oracle's tools separate.
+RUN set -eux; \
+    curl --fail --location --retry 5 --retry-all-errors --retry-max-time 180 \
+        https://repo.mysql.com/RPM-GPG-KEY-mysql-2025 \
+        --output /tmp/mysql-release-key.asc; \
+    . /etc/os-release; \
+    printf 'Types: deb\nURIs: https://repo.mysql.com/apt/debian/\nSuites: %s\nComponents: mysql-8.4-lts\nSigned-By: /tmp/mysql-release-key.asc\n' "$VERSION_CODENAME" \
+        > /etc/apt/sources.list.d/mysql-client.sources; \
+    apt-get update; \
+    mysql_package_version="$(apt-cache show --no-all-versions mysql-community-client | sed -n 's/^Version: //p')"; \
+    mysql_version="${mysql_package_version%%-*}"; \
+    mysql_archive="mysql-${mysql_version}-linux-glibc2.28-x86_64-minimal.tar.xz"; \
+    curl --fail --location --retry 5 --retry-all-errors --retry-max-time 180 \
+        "https://cdn.mysql.com/Downloads/MySQL-8.4/${mysql_archive}" \
+        --output /tmp/mysql.tar.xz; \
+    curl --fail --location --retry 5 --retry-all-errors --retry-max-time 180 \
+        "https://cdn.mysql.com/Downloads/MySQL-8.4/${mysql_archive}.asc" \
+        --output /tmp/mysql.tar.xz.asc; \
+    sqv --keyring /tmp/mysql-release-key.asc /tmp/mysql.tar.xz.asc /tmp/mysql.tar.xz; \
+    mkdir -p /opt/mysql; \
+    tar -xJf /tmp/mysql.tar.xz --strip-components=1 -C /opt/mysql; \
+    rm /etc/apt/sources.list.d/mysql-client.sources /tmp/mysql-release-key.asc /tmp/mysql.tar.xz /tmp/mysql.tar.xz.asc; \
+    rm -r /var/lib/apt/lists
 
 RUN set -eux; \
     bundled_extensions=(pcntl intl gmp pdo_pgsql pdo_mysql pdo_sqlite sqlite3 bcmath fileinfo); \
@@ -122,9 +149,11 @@ RUN set -eux; \
     fswatch --version; \
     git --version; \
     ps --version; \
-    mysql --version; \
-    mysqldump --version; \
+    mysql --version | grep MariaDB; \
+    mysqldump --version | grep MariaDB; \
     mariadb --version; \
     mariadb-dump --version; \
+    /opt/mysql/bin/mysql --version | grep 'MySQL Community Server'; \
+    /opt/mysql/bin/mysqldump --version | grep 'MySQL Community Server'; \
     pg_dump --version; \
     sqlite3 --version

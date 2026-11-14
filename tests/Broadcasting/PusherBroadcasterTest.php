@@ -73,6 +73,15 @@ class PusherBroadcasterTest extends TestCase
         );
     }
 
+    public function testAuthRejectsArrayChannelName(): void
+    {
+        $this->expectException(AccessDeniedHttpException::class);
+
+        $request = $this->getMockRequestWithUserForChannel(['private-test']);
+
+        $this->broadcaster->auth($request);
+    }
+
     public function testAuthThrowAccessDeniedHttpExceptionWithPrivateChannelWhenRequestUserNotFound(): void
     {
         $this->expectException(AccessDeniedHttpException::class);
@@ -342,7 +351,7 @@ class PusherBroadcasterTest extends TestCase
     /**
      * Create a channel request with an authenticated user.
      */
-    protected function getMockRequestWithUserForChannel(string $channel): Request
+    protected function getMockRequestWithUserForChannel(string|array $channel): Request
     {
         $request = Request::create('/', 'POST', ['channel_name' => $channel, 'socket_id' => 'abcd.1234']);
 

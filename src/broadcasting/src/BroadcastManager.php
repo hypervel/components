@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Broadcasting;
 
 use Ably\AblyRest;
+use Ably\PubSub\PubSubHttpClient;
+use Ably\PubSub\Server as AblyServer;
 use Closure;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Multiplexing;
+use Hypervel\Broadcasting\Broadcasters\Ably2Broadcaster;
 use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster as BaseBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\LogBroadcaster;
@@ -503,15 +506,23 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     protected function createAblyDriver(array $config): Broadcaster
     {
-        return new AblyBroadcaster($this->app, $this->ably($config));
+        $ably = $this->ably($config);
+
+        return match (true) {
+            $ably instanceof AblyRest => new AblyBroadcaster($this->app, $ably),
+            default => new Ably2Broadcaster($this->app, $ably),
+        };
     }
 
     /**
      * Get an Ably instance for the given configuration.
      */
-    public function ably(array $config): AblyRest
+    public function ably(array $config): AblyRest|PubSubHttpClient
     {
-        return new AblyRest($config);
+        return match (true) {
+            class_exists(AblyServer::class) => AblyServer::createHttpClient($config),
+            default => new AblyRest($config),
+        };
     }
 
     /**

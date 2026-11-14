@@ -8,7 +8,7 @@ Documentation: https://hypervel.org/docs/database
 ## Differences From Laravel
 
 - PDO connections require exception mode so failed statements cannot silently continue. Warning and silent options are rejected when connecting; custom connectors and supplied handles must honor the same requirement. See [PDO error mode](https://hypervel.org/docs/database#pdo-error-mode).
-- Default retry and lost-connection detection recognizes PDO failures, not arbitrary exception text. Non-PDO drivers provide their own policies through the existing detector bindings; see [detecting database failures](https://hypervel.org/docs/database#detecting-database-failures).
+- Default retry and lost-connection detection recognizes PDO failures, not arbitrary exception text. Non-PDO drivers provide their own policies through `LostConnectionDetector::detectUsing()` for lost connections or the existing detector bindings; see [detecting database failures](https://hypervel.org/docs/database#detecting-database-failures).
 - `DB::transaction()` throws if its closure manually ends the transaction it owns. Let `transaction()` manage completion, or use the manual transaction API separately. Balanced nested transactions remain supported; see [database transactions](https://hypervel.org/docs/database#database-transactions).
 - Transaction records use the resolved connection's `getNameWithReadWriteType()`, not its base `getName()`, so distinct base, read and write sessions own separate callbacks. Extensions inspecting transaction records must compare against the resolved owner's full name.
 - SQLite requires 3.32.0 or later rather than Laravel's 3.26.0 minimum, so framework code assumes the newer default limit of 32,766 bindings per statement.

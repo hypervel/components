@@ -2315,6 +2315,22 @@ class ProcessTest extends TestCase
         }, 2);
     }
 
+    public function testPendingProcessIsMacroable(): void
+    {
+        PendingProcess::macro('withTestEnvironment', function (): PendingProcess {
+            return $this->env(['TEST_VAR' => 'test_value']);
+        });
+
+        $factory = new Factory;
+        $factory->fake();
+
+        $factory->timeout(10)->withTestEnvironment()->run('printenv TEST_VAR');
+
+        $factory->assertRan(function (PendingProcess $process): bool {
+            return $process->environment === ['TEST_VAR' => 'test_value'] && $process->timeout === 10;
+        });
+    }
+
     public function testFakeInvokedProcessCommand(): void
     {
         $factory = new Factory;
