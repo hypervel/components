@@ -352,14 +352,29 @@ class UrlGenerator implements UrlGeneratorContract
         ksort($parameters);
 
         $key = call_user_func($this->keyResolver);
+        $signature = hash_hmac(
+            'sha256',
+            $this->route($name, $parameters, $absolute),
+            is_array($key) ? $key[0] : $key
+        );
+        $url = $this->route($name, $parameters + ['signature' => $signature], $absolute);
 
-        return $this->route($name, $parameters + [
-            'signature' => hash_hmac(
-                'sha256',
-                $this->route($name, $parameters, $absolute),
-                is_array($key) ? $key[0] : $key
-            ),
-        ], $absolute);
+        // Positional values can replace reserved query values, while placeholders can consume the signature or expiry.
+        $query = HeaderUtils::parseQuery(parse_url($url, PHP_URL_QUERY) ?? '');
+
+        if (($query['signature'] ?? null) !== $signature) {
+            throw new InvalidArgumentException(
+                '"Signature" is a reserved parameter when generating signed routes. Please rename your route parameter.'
+            );
+        }
+
+        if (($query['expires'] ?? null) !== (isset($parameters['expires']) ? (string) $parameters['expires'] : null)) {
+            throw new InvalidArgumentException(
+                '"Expires" is a reserved parameter when generating signed routes. Please rename your route parameter.'
+            );
+        }
+
+        return $url;
     }
 
     /**
@@ -476,11 +491,11 @@ class UrlGenerator implements UrlGeneratorContract
             }
         }
 
-        if ($expires !== null && ! is_string($expires)) {
+        if ($expires !== null && (! is_string($expires) || ! ctype_digit($expires))) {
             return false;
         }
 
-        return ! ($expires && CarbonImmutable::now()->getTimestamp() > $expires);
+        return $expires === null || CarbonImmutable::now()->getTimestamp() <= $expires;
     }
 
     /**
