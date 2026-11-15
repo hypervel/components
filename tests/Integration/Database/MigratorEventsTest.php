@@ -29,6 +29,30 @@ class MigratorEventsTest extends TestCase
 {
     use DatabaseMigrations;
 
+    protected string $errorLogDirectory;
+
+    /**
+     * Prepare an isolated directory for reporter failures.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->errorLogDirectory = ParallelTesting::tempDir('MigratorEventsTest');
+        (new Filesystem)->deleteDirectory($this->errorLogDirectory);
+        mkdir($this->errorLogDirectory, recursive: true);
+    }
+
+    /**
+     * Remove the owned reporter output directory.
+     */
+    protected function tearDown(): void
+    {
+        (new Filesystem)->deleteDirectory($this->errorLogDirectory);
+
+        parent::tearDown();
+    }
+
     protected function migrateOptions()
     {
         return [
@@ -247,10 +271,7 @@ class MigratorEventsTest extends TestCase
                 ->shouldReceive('report')->once()->with($listenerException)
                 ->andThrow(new RuntimeException('The exception reporter failed.'));
 
-            $errorLogDirectory = ParallelTesting::tempDir('MigratorEventsTest');
-            (new Filesystem)->deleteDirectory($errorLogDirectory);
-            mkdir($errorLogDirectory, recursive: true);
-            $previousErrorLog = ini_set('error_log', $errorLogDirectory . '/report.log');
+            $previousErrorLog = ini_set('error_log', $this->errorLogDirectory . '/report.log');
         }
 
         Event::listen(MigrationFailed::class, function (MigrationFailed $event) use ($listenerException, &$migrationException): void {
@@ -272,7 +293,7 @@ class MigratorEventsTest extends TestCase
             }
 
             if ($case === 'reporter failure') {
-                $this->assertStringContainsString($listenerException->getMessage(), file_get_contents($errorLogDirectory . '/report.log'));
+                $this->assertStringContainsString($listenerException->getMessage(), file_get_contents($this->errorLogDirectory . '/report.log'));
             } else {
                 $reportedException = $case === 'listener cancellation' ? $migrationException : $listenerException;
                 Exceptions::assertReported(fn (RuntimeException $exception): bool => $exception === $reportedException);
@@ -280,7 +301,6 @@ class MigratorEventsTest extends TestCase
         } finally {
             if ($previousErrorLog !== null) {
                 ini_set('error_log', $previousErrorLog);
-                (new Filesystem)->deleteDirectory($errorLogDirectory);
             }
         }
     }
