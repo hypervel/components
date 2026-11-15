@@ -272,7 +272,7 @@ trait ResolvesJsonApiElements
             if (! empty($requestedRelationships) && ! $this->usesDefaultRelationshipLoading()) {
                 $this->loadMissingRequestedRelationships(
                     $request,
-                    $relatedModels->map(fn ($relatedModel) => $relatedModel instanceof JsonApiResource ? $relatedModel->resource : $relatedModel),
+                    $relatedModels->map(fn ($related) => $related instanceof JsonApiResource ? $related->resource : $related),
                     $resourceClass,
                     $requestedRelationships,
                 );
@@ -284,8 +284,8 @@ trait ResolvesJsonApiElements
             $identifiers = [];
             $seen = [];
 
-            foreach ($relatedModels as $relatedModel) {
-                $relatedResource = $relatedModel instanceof JsonApiResource ? $relatedModel : $this->makeRelatedResource($relatedModel, $resourceClass);
+            foreach ($relatedModels as $related) {
+                $relatedResource = $related instanceof JsonApiResource ? $related : $this->makeRelatedResource($related, $resourceClass);
 
                 $relatedResource->requestedRelationships = $requestedRelationships;
 
