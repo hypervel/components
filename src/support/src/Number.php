@@ -80,13 +80,13 @@ class Number
             return (string) $number;
         }
 
-        // PHP's default serialize_precision=-1 preserves finite floats on a round trip.
+        if (is_finite($number)) {
+            // PHP's default serialize_precision=-1 preserves finite floats on a round trip.
+            return (string) json_encode($number);
+        }
+
         // Keep non-finite values printable so each consumer retains its own rejection policy.
-        return match (true) {
-            is_nan($number) => 'NAN',
-            is_infinite($number) => $number > 0 ? 'INF' : '-INF',
-            default => (string) json_encode($number),
-        };
+        return is_nan($number) ? 'NAN' : ($number > 0 ? 'INF' : '-INF');
     }
 
     /**
