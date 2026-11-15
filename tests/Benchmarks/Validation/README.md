@@ -2,12 +2,14 @@
 
 This developer-only harness uses the real validation factory and a disposable file-backed SQLite database. It is not an application command or part of the PHPUnit suite. SQLite isolates framework and query preparation costs; these numbers do not predict a remote database's throughput.
 
+See [recorded measurements](results.md) for the native-rule comparison.
+
 Run from the components root on an idle machine:
 
 ```shell
 php tests/Benchmarks/Validation/benchmark.php --verify
 php -d opcache.enable_cli=1 -d opcache.jit=disable tests/Benchmarks/Validation/benchmark.php \
-    --operations=20000 --samples=11 --warmup=1000 --json=/tmp/validation.json
+    --operations=1000 --samples=3 --warmup=100 --json=/tmp/validation.json
 php -d opcache.enable_cli=1 -d opcache.jit=disable tests/Benchmarks/Validation/benchmark.php \
     --scenarios=retention --json=/tmp/validation-retention.json
 ```
@@ -40,6 +42,6 @@ Retention runs last under `all`; run it alone for comparisons. It releases valid
 
 Use the exact starting revision of the change, not a moving branch tip. Create a temporary worktree under `/tmp`, copy this harness and its fixtures, copy the current `composer.lock`, and independently run `composer install` there. Never share vendor directories. Both revisions must receive identical harness files, inputs, dependencies and PHP settings. The JSON records revision, source and working-tree status, harness and lockfile hashes, runtime configuration and raw timing samples.
 
-Use `--samples=1` and alternate baseline/current order for at least ten pairs per scenario, sequentially on the same idle machine. Keep sufficient operations to amortize timer overhead. Compare medians and spread across the paired reports; investigate sustained regressions. Incorrect old behavior is not a fast baseline: mark those rows noncomparable and report current correctness separately. Do not adapt production code or add compatibility shims to make an old revision pass.
+Start with short alternating baseline/current pairs, sequentially on the same idle machine. Increase operations or samples only when needed to distinguish a meaningful difference from noise; do not repeat the whole suite to investigate a few workloads. Keep sufficient operations to amortize timer overhead. Compare medians and spread, and weigh practical impact against correctness, memory use and maintenance cost. Incorrect old behavior is not a fast baseline: mark those rows noncomparable and report current correctness separately. Do not adapt production code or add compatibility shims to make an old revision pass.
 
 Also run [the Data harness](../Data/README.md) on both revisions with identical settings and the same copied script. Its validation and collection controls include static membership/presence attributes and class-level `rules()` declarations; the latter exercises per-item rule comparison before wildcard sharing. Retain raw reports for future comparisons and remove the temporary worktree after use. There is no simulated legacy implementation.

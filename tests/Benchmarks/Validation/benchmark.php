@@ -285,14 +285,14 @@ function main(): int
         throw new InvalidArgumentException('Unable to parse options.');
     }
     if (isset($options['help'])) {
-        echo "Usage: php tests/Benchmarks/Validation/benchmark.php [--scenarios=all] [--operations=20000] [--samples=11] [--warmup=1000] [--json=PATH] [--verify]\n";
+        echo "Usage: php tests/Benchmarks/Validation/benchmark.php [--scenarios=all] [--operations=1000] [--samples=3] [--warmup=100] [--json=PATH] [--verify]\n";
 
         return 0;
     }
     try {
-        $operations = integerOption($options, 'operations', 20000, 1, 1000000);
-        $samples = integerOption($options, 'samples', 11, 1, 100);
-        $warmup = integerOption($options, 'warmup', 1000, 0, 100000);
+        $operations = integerOption($options, 'operations', 1000, 1, 1000000);
+        $samples = integerOption($options, 'samples', 3, 1, 100);
+        $warmup = integerOption($options, 'warmup', 100, 0, 100000);
         $names = array_values(array_unique(array_map(trim(...), explode(',', $options['scenarios'] ?? 'all'))));
         $verify = array_key_exists('verify', $options);
         $report = ['environment' => benchmarkEnvironment(), 'options' => compact('operations', 'samples', 'warmup', 'verify')];
