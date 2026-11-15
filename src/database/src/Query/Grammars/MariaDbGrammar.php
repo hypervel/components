@@ -82,4 +82,21 @@ class MariaDbGrammar extends MySqlGrammar
 
         return 'json_value(' . $field . $path . ')';
     }
+
+    /**
+     * Wrap the given JSON selector for boolean values.
+     */
+    protected function wrapJsonBooleanSelector(string $value): string
+    {
+        // Unlike Laravel's inherited MySQL selector, prevent MariaDB from unquoting and coercing JSON values.
+        return 'cast(' . parent::wrapJsonBooleanSelector($value) . ' as binary)';
+    }
+
+    /**
+     * Wrap the given JSON boolean value.
+     */
+    protected function wrapJsonBooleanValue(string $value): string
+    {
+        return $this->quoteString($value);
+    }
 }
