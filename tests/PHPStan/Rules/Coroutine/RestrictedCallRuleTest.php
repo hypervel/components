@@ -152,12 +152,12 @@ class RestrictedCallRuleTest extends RuleTestCase
         ];
 
         $this->analyse([__DIR__ . '/Fixtures/form-request-injection.php'], [
-            self::configurationMutationError(23),
-            $factory(24),
-            self::configurationMutationError(31),
-            $factory(38),
-            self::configurationMutationError(39),
-            self::configurationMutationError(47),
+            self::configurationMutationError(24),
+            $factory(25),
+            self::configurationMutationError(32),
+            $factory(42),
+            self::configurationMutationError(43),
+            self::configurationMutationError(51),
         ]);
     }
 

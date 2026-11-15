@@ -9,6 +9,7 @@ use Hypervel\Container\Attributes\Give;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Validation\Factory as FactoryContract;
 use Hypervel\Contracts\Validation\Validator;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Http\FormRequest;
@@ -32,7 +33,10 @@ class SharedRequest extends FormRequest
 
         return true;
     }
+}
 
+class CustomValidatorRequest extends FormRequest
+{
     public function validator(#[Give(Factory::class)] Factory $factory, Repository $config): Validator
     {
         $factory->includeUnvalidatedArrayKeys();
@@ -98,6 +102,36 @@ class OverriddenRequest extends DispatcherBaseRequest
     protected function validationRules(): array
     {
         return $this->rules(new ConfigRepository);
+    }
+}
+
+class CustomFactoryRequest extends FormRequest
+{
+    public function rules(Repository $config): array
+    {
+        $config->set('local', true);
+
+        return [];
+    }
+
+    protected function createDefaultValidator(FactoryContract $factory): Validator
+    {
+        return $factory->make($this->all(), $this->rules(new ConfigRepository));
+    }
+}
+
+class CustomRulesRequest extends FormRequest
+{
+    public function rules(Repository $config): array
+    {
+        $config->set('local', true);
+
+        return [];
+    }
+
+    public function validator(FactoryContract $factory): Validator
+    {
+        return $factory->make($this->all(), $this->rules(new ConfigRepository));
     }
 }
 

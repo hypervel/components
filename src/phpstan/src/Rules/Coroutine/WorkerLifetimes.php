@@ -979,18 +979,20 @@ class WorkerLifetimes
         }
 
         foreach ([
-            'rules' => 'validationRules',
-            'authorize' => 'passesAuthorization',
-            'validator' => 'getValidatorInstance',
-            'after' => 'getValidatorInstance',
-        ] as $method => $dispatcher) {
+            'rules' => ['getValidatorInstance', 'createDefaultValidator', 'validationRules'],
+            'authorize' => ['passesAuthorization'],
+            'validator' => ['getValidatorInstance'],
+            'after' => ['getValidatorInstance'],
+        ] as $method => $dispatchers) {
             if (! $reflection->hasNativeMethod($method)) {
                 continue;
             }
 
             // FormRequest uses array callables for rules/authorize, which honor bindMethod().
             // Its validator/after hooks are first-class closures, which bypass method bindings.
-            $unknown = $reflection->getNativeMethod($dispatcher)->getDeclaringClass()->getName() !== FormRequest::class
+            // A custom validator() hook also bypasses the default rules dispatch.
+            $unknown = array_any($dispatchers, static fn (string $dispatcher): bool => $reflection->getNativeMethod($dispatcher)->getDeclaringClass()->getName() !== FormRequest::class)
+                || ($method === 'rules' && $reflection->hasNativeMethod('validator'))
                 || (in_array($method, ['rules', 'authorize'], true) && $this->container->hasMethodBinding($class . '@' . $method));
 
             // getValidatorInstance() supplies these arguments by name before normal injection.
