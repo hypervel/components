@@ -88,6 +88,7 @@ class PostgresGrammar extends Grammar
             . 'join pg_namespace pn on pn.oid = pc.relnamespace '
             . 'where c.relispartition and i.inhrelid = c.oid) as partition_of from pg_class c, pg_namespace n '
             . "where c.relkind in ('r', 'p') and n.oid = c.relnamespace and "
+            . "not exists (select 1 from pg_depend d where d.objid = c.oid and d.deptype = 'e') and "
             . $this->compileSchemaWhereClause($schema, 'n.nspname')
             . ' order by n.nspname, c.relname';
     }
@@ -98,6 +99,7 @@ class PostgresGrammar extends Grammar
     public function compileViews(string|array|null $schema): string
     {
         return 'select viewname as name, schemaname as schema, definition from pg_views where '
+            . "not exists (select 1 from pg_depend d where d.objid = format('%I.%I', schemaname, viewname)::regclass and d.deptype = 'e') and "
             . $this->compileSchemaWhereClause($schema, 'schemaname')
             . ' order by schemaname, viewname';
     }
