@@ -317,6 +317,8 @@ class FormRequestCastingTest extends TestCase
             'explicit long decimal preserved' => [str_repeat('9', 1002) . '.125', str_repeat('9', 1002) . '.13'],
             'fraction preserved' => ['1/4', '0.25'],
             'integer precision preserved' => [9007199254740993, '9007199254740993.00'],
+            'float rounded only to declared scale' => [1234567890123.455, '1234567890123.46'],
+            'float arithmetic rounded to declared scale' => [0.1 + 0.2, '0.30'],
             'NAN rejected without warnings' => [NAN, null],
         ];
     }

@@ -444,8 +444,7 @@ trait HasCasts
      */
     protected function asDecimal(mixed $value, int $decimals): string
     {
-        // Avoid PHP 8.5's warning when stringifying NAN before Brick rejects it.
-        $value = is_float($value) && is_nan($value) ? 'NAN' : (string) $value;
+        $value = is_float($value) ? Number::toString($value) : (string) $value;
 
         // Validated numeric input can still contain exponents that exhaust worker memory.
         if (Number::exceedsMaxExponent($value)) {
