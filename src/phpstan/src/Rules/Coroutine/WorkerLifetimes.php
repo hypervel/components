@@ -26,6 +26,7 @@ use Hypervel\Contracts\Http\Kernel;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Routing\UrlRoutable;
+use Hypervel\Contracts\Validation\Factory as ValidationFactory;
 use Hypervel\Core\Events\OnClose;
 use Hypervel\Core\Events\OnConnect;
 use Hypervel\Core\Events\OnFinish;
@@ -35,6 +36,7 @@ use Hypervel\Core\Events\OnReceive;
 use Hypervel\Core\Events\OnTask;
 use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Foundation\Bus\Dispatchable;
+use Hypervel\Foundation\Http\FormRequest;
 use Hypervel\HttpServer\Events\RequestCanceled;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
@@ -92,7 +94,7 @@ use function strtolower;
  * which methods handle a request or run a job, and which parameters it fills with fresh or shared values.
  *
  * Roots come from the booted routes, middleware, listeners and Bus handlers, and from the collected
- * resolutions, singletons and jobs. Each class they build is walked the way the container resolves it.
+ * resolutions, singletons, jobs and form requests. Each dependency is walked the way the container resolves it.
  * Classes are read through PHPStan reflection and factories are never called: resolving or loading an
  * analyzed class at runtime would run its code.
  *
@@ -233,6 +235,7 @@ class WorkerLifetimes
      * @param list<string> $queued the concrete queued classes
      * @param list<HelperCall> $helperCalls the direct calls methods make on their own instance
      * @param array<string, list<string>> $observers the #[ObservedBy] observer classes, each with the model events it can handle
+     * @param list<string> $formRequests the concrete form requests whose hooks receive injected dependencies
      */
     public function __construct(
         private ReflectionProvider $reflectionProvider,
@@ -242,6 +245,7 @@ class WorkerLifetimes
         array $queued,
         array $helperCalls,
         array $observers,
+        array $formRequests,
     ) {
         $this->bindings = $container->getBindings();
         [$this->instances, $this->scopedInstances, $this->contextual, $this->abstractAliases] = (fn (): array => [
@@ -262,6 +266,10 @@ class WorkerLifetimes
 
         foreach ($queued as $class) {
             $this->discoverJob($class);
+        }
+
+        foreach ($formRequests as $class) {
+            $this->discoverFormRequest($class);
         }
 
         // After every build, so whether a job instance is shared reflects every registration.
@@ -360,7 +368,7 @@ class WorkerLifetimes
 
     /**
      * Determine whether the container injects the global configuration repository into the parameter
-     * of a booted controller action, a job's handler or a constructor it runs.
+     * of a booted controller action, job handler, form request hook or constructor it runs.
      */
     public function isConfigParameter(string $class, string $method, string $parameter): bool
     {
@@ -371,7 +379,7 @@ class WorkerLifetimes
 
     /**
      * Determine whether the container injects the instance it shares for the worker into the parameter
-     * of a booted controller action, a job's handler or a constructor it runs.
+     * of a booted controller action, job handler, form request hook or constructor it runs.
      */
     public function sharesInjectedParameter(string $class, string $method, string $parameter): TrinaryLogic
     {
@@ -956,9 +964,69 @@ class WorkerLifetimes
             return;
         }
 
+        $this->discoverMethodParameters($reflection, $method, $this->container->hasMethodBinding($class . '@' . $method));
+    }
+
+    /**
+     * Discover the dependencies FormRequest's own dispatch methods supply to its hooks.
+     */
+    private function discoverFormRequest(string $class): void
+    {
+        $reflection = $this->getClass($class);
+
+        if ($reflection === null) {
+            return;
+        }
+
+        foreach ([
+            'rules' => 'validationRules',
+            'authorize' => 'passesAuthorization',
+            'validator' => 'getValidatorInstance',
+            'after' => 'getValidatorInstance',
+        ] as $method => $dispatcher) {
+            if (! $reflection->hasNativeMethod($method)) {
+                continue;
+            }
+
+            // FormRequest uses array callables for rules/authorize, which honor bindMethod().
+            // Its validator/after hooks are first-class closures, which bypass method bindings.
+            $unknown = $reflection->getNativeMethod($dispatcher)->getDeclaringClass()->getName() !== FormRequest::class
+                || (in_array($method, ['rules', 'authorize'], true) && $this->container->hasMethodBinding($class . '@' . $method));
+
+            // getValidatorInstance() supplies these arguments by name before normal injection.
+            $supplied = match ($method) {
+                'validator' => ['factory' => ValidationFactory::class],
+                'after' => ['validator' => null],
+                default => [],
+            };
+
+            $this->discoverMethodParameters($reflection, $method, $unknown, $supplied);
+        }
+    }
+
+    /**
+     * Record the dependencies Container::call() injects into the method's parameters.
+     *
+     * @param bool $unknown whether an overridden dispatcher or method binding controls the arguments
+     * @param array<string, null|string> $supplied the framework's named arguments and their known service abstracts
+     */
+    private function discoverMethodParameters(ClassReflection $reflection, string $method, bool $unknown, array $supplied = []): void
+    {
         $declaringClass = $reflection->getNativeMethod($method)->getDeclaringClass()->getName();
 
         foreach ($reflection->getNativeReflection()->getMethod($method)->getParameters() as $parameter) {
+            if ($unknown || array_key_exists($parameter->getName(), $supplied)) {
+                // Unknown calls must also erase facts collected from siblings inheriting this method.
+                $abstract = $unknown ? null : $supplied[$parameter->getName()];
+                $this->recordInjection($declaringClass, $method, $parameter->getName(), $abstract);
+
+                if ($abstract !== null) {
+                    $this->make($abstract, null);
+                }
+
+                continue;
+            }
+
             $dependency = $this->getParameterClass($parameter);
 
             // BoundMethod uses a default whenever the class is unbound, without checking contextual bindings.
@@ -970,8 +1038,7 @@ class WorkerLifetimes
                 continue;
             }
 
-            // A contextual binding for the job replaces the dependency; a closure's result is unknown.
-            // Another job inheriting the handler may inject something else.
+            // Container::call uses the concrete consumer, including for inherited first-class callables.
             $concrete = $this->getContextualConcrete($reflection->getName(), $this->container->getAlias($dependency));
 
             $this->recordInjection($declaringClass, $method, $parameter->getName(), $concrete === null ? $dependency : (is_string($concrete) ? $concrete : null));

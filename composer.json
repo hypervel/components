@@ -379,6 +379,7 @@
         "classmap": [
             "tests/PHPStan/Integration/data",
             "tests/PHPStan/Rules/Coroutine/data",
+            "tests/PHPStan/Rules/Coroutine/Fixtures",
             "tests/PHPStan/Rules/data",
             "tests/PHPStan/Rules/Queue/data",
             "tests/PHPStan/Rules/Validation/data",
