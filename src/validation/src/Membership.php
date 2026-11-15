@@ -22,6 +22,7 @@ class Membership
     public static function normalize(string|int|float|bool|Stringable|null $value): ?string
     {
         return match (true) {
+            is_string($value) => $value,
             $value === null => null,
             is_bool($value) => (string) (int) $value,
             is_float($value) => Number::toString($value),
