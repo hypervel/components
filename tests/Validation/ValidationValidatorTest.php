@@ -4742,6 +4742,96 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
+    #[DataProvider('membershipComparisons')]
+    public function testMembershipRulesUseTheSameValueComparisons(mixed $parameter, mixed $value, bool $matches): void
+    {
+        $translator = $this->getArrayTranslator();
+
+        foreach ([false, true] as $delegated) {
+            foreach (['in', 'notIn', 'contains', 'doesntContain'] as $method) {
+                $rule = ValidationRule::{$method}([$parameter]);
+                $forms = [$rule, $rule->toArray()];
+
+                if ($parameter !== null) {
+                    $forms[] = (string) $rule;
+                }
+
+                foreach ($forms as $form) {
+                    $arguments = [$translator, ['values' => [$value]], ['values' => ['array', $form]]];
+                    $validator = $delegated ? new class(...$arguments) extends Validator {} : new Validator(...$arguments);
+
+                    $this->assertSame(
+                        in_array($method, ['notIn', 'doesntContain'], true) ? ! $matches : $matches,
+                        $validator->passes(),
+                        $method,
+                    );
+                }
+            }
+
+            foreach (['in', 'notIn'] as $method) {
+                $arguments = [$translator, ['value' => $value], ['value' => ValidationRule::{$method}([$parameter])]];
+                $validator = $delegated ? new class(...$arguments) extends Validator {} : new Validator(...$arguments);
+
+                // Normal field gating still skips an empty string; array elements above are compared.
+                $this->assertSame($value === '' || ($method === 'in' ? $matches : ! $matches), $validator->passes(), $method);
+            }
+        }
+    }
+
+    /**
+     * Provide shared membership comparisons across form, JSON and native values.
+     */
+    public static function membershipComparisons(): array
+    {
+        return [
+            'false and form zero' => [false, '0', true],
+            'false and JSON zero' => [false, 0, true],
+            'false and false' => [false, false, true],
+            'true and form one' => [true, '1', true],
+            'true and JSON one' => [true, 1, true],
+            'true and true' => [true, true, true],
+            'opposite booleans' => [true, false, false],
+            'false and empty string' => [false, '', false],
+            'empty string and false' => ['', false, false],
+            'null and null' => [null, null, true],
+            'null and empty string' => [null, '', false],
+            'empty string and null' => ['', null, false],
+            'null and false' => [null, false, false],
+            'false and null' => [false, null, false],
+            'integer and form value' => [1, '1', true],
+            'string and JSON integer' => ['1', 1, true],
+            'integer and integral float' => [1, 1.0, true],
+            'leading zero' => [1, '01', false],
+            'decimal spelling' => [1, '1.0', false],
+            'leading whitespace' => [1, ' 1', false],
+            'numeric exponent string' => ['0', '0e123', false],
+            'named value and true' => ['admin', true, false],
+            'true and named value' => [true, 'admin', false],
+            'Stringable parameter' => [new Stringable('admin'), 'admin', true],
+            'Stringable input' => ['admin', new Stringable('admin'), true],
+            'nested array input' => ['admin', ['admin'], false],
+            'non-Stringable input' => ['admin', new stdClass, false],
+        ];
+    }
+
+    #[TestWith([['admin', 'editor'], false])]
+    #[TestWith([['admin'], false])]
+    #[TestWith([['editor'], true])]
+    #[TestWith([[], true])]
+    #[TestWith([[['nested'], 'admin'], false])]
+    #[TestWith([[['nested'], 'editor'], true])]
+    public function testNotInRejectsAnyForbiddenArrayMember(array $values, bool $expected): void
+    {
+        $translator = $this->getArrayTranslator();
+
+        foreach ([false, true] as $delegated) {
+            $arguments = [$translator, ['values' => $values], ['values' => ['array', ValidationRule::notIn(['admin'])]]];
+            $validator = $delegated ? new class(...$arguments) extends Validator {} : new Validator(...$arguments);
+
+            $this->assertSame($expected, $validator->passes());
+        }
+    }
+
     public function testValidateNotIn(): void
     {
         $trans = $this->getArrayTranslator();

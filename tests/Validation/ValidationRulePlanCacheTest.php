@@ -20,6 +20,7 @@ use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use stdClass;
+use WeakMap;
 use WeakReference;
 
 class ValidationRulePlanCacheTest extends TestCase
@@ -57,18 +58,20 @@ class ValidationRulePlanCacheTest extends TestCase
 
     public function testCanonicalFluentRulesShareCachedPlans(): void
     {
+        $firstRule = Rule::in([true, false]);
+        $secondRule = Rule::in(['1', '0']);
         $firstRules = (new ValidationRuleParser(['state' => 'active']))->explode([
-            'state' => ['required', Rule::in(['active', 'inactive'])],
+            'state' => ['required', $firstRule],
         ])->rules['state'];
         $secondRules = (new ValidationRuleParser(['state' => 'inactive']))->explode([
-            'state' => ['required', Rule::in(['active', 'inactive'])],
+            'state' => ['required', $secondRule],
         ])->rules['state'];
         $plan = $this->compile($firstRules);
 
         RulePlanCache::put($this->key($firstRules), $plan);
 
-        $this->assertSame(['required', 'in:"active","inactive"'], $firstRules);
-        $this->assertSame($firstRules, $secondRules);
+        $this->assertSame(['required', $firstRule], $firstRules);
+        $this->assertSame(['required', $secondRule], $secondRules);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[1]);
         $this->assertSame(CheckType::In, $plan->checks[1]->type);
         $this->assertSame($plan, RulePlanCache::get($this->key($secondRules)));
@@ -189,17 +192,17 @@ class ValidationRulePlanCacheTest extends TestCase
             }
         };
         $rule = Rule::exists('users', 'id')->whereIn('tenant', $members);
-        [$prepared, $key] = RuleCompiler::prepare([$rule]);
+        [$prepared, $key] = RuleCompiler::prepare([$rule], new WeakMap);
         $plan = RuleCompiler::compile($prepared, self::NUMERIC_RULES);
         RulePlanCache::put($key, $plan);
 
         $this->assertSame(1, $members->reads);
-        [, $sameKey] = RuleCompiler::prepare([$rule]);
+        [, $sameKey] = RuleCompiler::prepare([$rule], new WeakMap);
         $this->assertSame($plan, RulePlanCache::get($sameKey));
         $this->assertSame(2, $members->reads);
 
         $members->values = [IntegerStatus::Done];
-        [$prepared, $changedKey] = RuleCompiler::prepare([$rule]);
+        [$prepared, $changedKey] = RuleCompiler::prepare([$rule], new WeakMap);
         $changedPlan = RuleCompiler::compile($prepared, self::NUMERIC_RULES);
 
         $this->assertSame(3, $members->reads);
@@ -341,7 +344,7 @@ class ValidationRulePlanCacheTest extends TestCase
      */
     private function compile(array $rules): AttributePlan
     {
-        [$prepared] = RuleCompiler::prepare($rules);
+        [$prepared] = RuleCompiler::prepare($rules, new WeakMap);
 
         return RuleCompiler::compile($prepared, self::NUMERIC_RULES);
     }
@@ -351,6 +354,6 @@ class ValidationRulePlanCacheTest extends TestCase
      */
     private function key(array $rules): ?string
     {
-        return RuleCompiler::prepare($rules)[1];
+        return RuleCompiler::prepare($rules, new WeakMap)[1];
     }
 }

@@ -19,6 +19,7 @@ use Hypervel\Validation\Rules\Confirmed;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
 use Stringable;
+use WeakMap;
 
 class ValidationRuleCompilerTest extends TestCase
 {
@@ -407,7 +408,7 @@ class ValidationRuleCompilerTest extends TestCase
 
         $this->assertCount(2, $plan->checks);
         $this->assertContainsOnlyInstancesOf(InlineCheck::class, $plan->checks);
-        $this->assertSame(['a', '2'], $plan->checks[0]->param);
+        $this->assertSame(['a' => true, 2 => true], $plan->checks[0]->param);
     }
 
     public function testDateFormatStoresAllFormats(): void
@@ -543,7 +544,7 @@ class ValidationRuleCompilerTest extends TestCase
             'string',
             'max:255',
             $builder,
-        ]);
+        ], new WeakMap);
 
         foreach ($plan->checks as $check) {
             $this->assertInstanceOf(DelegatedCheck::class, $check);
@@ -735,7 +736,7 @@ class ValidationRuleCompilerTest extends TestCase
      */
     private function compile(array $rules): AttributePlan
     {
-        [$prepared] = RuleCompiler::prepare($rules);
+        [$prepared] = RuleCompiler::prepare($rules, new WeakMap);
 
         return RuleCompiler::compile($prepared, self::NUMERIC_RULES);
     }

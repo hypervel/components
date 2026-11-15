@@ -70,9 +70,9 @@ class In extends ObjectValidationAttribute
     }
 
     /**
-     * Create the attribute from parsed string parameters.
+     * Create the attribute from normalized membership parameters.
      */
-    public static function create(string ...$parameters): static
+    public static function create(?string ...$parameters): static
     {
         return new static(new BaseIn($parameters));
     }

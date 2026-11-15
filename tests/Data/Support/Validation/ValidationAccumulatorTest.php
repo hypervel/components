@@ -6,11 +6,13 @@ namespace Hypervel\Tests\Data\Support\Validation;
 
 use Closure;
 use Hypervel\Contracts\Validation\Rule;
+use Hypervel\Contracts\Validation\ValidationRule as ValidationRuleContract;
 use Hypervel\Data\Support\Validation\ValidationAccumulator;
 use Hypervel\Data\Support\Validation\ValidationPath;
 use Hypervel\Tests\TestCase;
 use Hypervel\Validation\Rule as ValidationRule;
 use Hypervel\Validation\Rules\Exists;
+use Hypervel\Validation\Rules\In;
 use Hypervel\Validation\Rules\Unique;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Stringable;
@@ -155,9 +157,9 @@ class ValidationAccumulatorTest extends TestCase
     /**
      * Test Validator rule objects compare by identity unless Validation stringifies them.
      */
-    public function testComparesOrdinaryRuleObjectsByIdentity(): void
+    #[DataProvider('identityRules')]
+    public function testComparesOrdinaryRuleObjectsByIdentity(Rule|ValidationRuleContract $rule): void
     {
-        $rule = new IdentityRuleFixture;
         $accumulator = new ValidationAccumulator;
         $accumulator->rules = ['name' => [$rule]];
         $other = new ValidationAccumulator;
@@ -165,9 +167,45 @@ class ValidationAccumulatorTest extends TestCase
 
         $this->assertTrue($accumulator->equals($other));
 
-        $other->rules = ['name' => [new IdentityRuleFixture]];
+        $other->rules = ['name' => [clone $rule]];
 
         $this->assertFalse($accumulator->equals($other));
+    }
+
+    /**
+     * Provide executable rules whose declarations cannot describe their custom behavior.
+     */
+    public static function identityRules(): array
+    {
+        return [
+            'ordinary rule' => [new IdentityRuleFixture],
+            'membership subclass' => [new class(['allowed']) extends In implements ValidationRuleContract {
+                /**
+                 * Reject a value independently of the inherited membership declaration.
+                 */
+                public function validate(string $attribute, mixed $value, Closure $fail): void
+                {
+                    $fail('Custom membership rejected this value.');
+                }
+            }],
+            'database subclass' => [new class('users') extends Exists implements Rule {
+                /**
+                 * Reject a value independently of the inherited database declaration.
+                 */
+                public function passes(string $attribute, mixed $value): bool
+                {
+                    return false;
+                }
+
+                /**
+                 * Get the custom validation message.
+                 */
+                public function message(): string
+                {
+                    return 'Custom database validation rejected this value.';
+                }
+            }],
+        ];
     }
 
     /**

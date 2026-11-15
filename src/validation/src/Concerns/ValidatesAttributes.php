@@ -29,6 +29,7 @@ use Hypervel\Support\Str;
 use Hypervel\Validation\DatabaseConditions;
 use Hypervel\Validation\DatabaseRulePlan;
 use Hypervel\Validation\FakeDnsGetRecordWrapper;
+use Hypervel\Validation\Membership;
 use Hypervel\Validation\PresenceQuery;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
@@ -535,7 +536,7 @@ trait ValidatesAttributes
     /**
      * Validate an attribute contains a list of values.
      *
-     * @param array<int, int|string> $parameters
+     * @param array<int, mixed> $parameters
      */
     public function validateContains(string $attribute, mixed $value, mixed $parameters): bool
     {
@@ -543,9 +544,11 @@ trait ValidatesAttributes
             return false;
         }
 
-        // Keep this loop to avoid an extra callback per item.
+        [$lookup, $hasNull] = Membership::lookup($value);
+
+        // Match form and JSON values consistently without PHP's loose truthiness.
         foreach ($parameters as $parameter) {
-            if (! in_array($parameter, $value)) {
+            if (! Membership::contains($lookup, $hasNull, $parameter)) {
                 return false;
             }
         }
@@ -556,7 +559,7 @@ trait ValidatesAttributes
     /**
      * Validate an attribute does not contain a list of values.
      *
-     * @param array<int, int|string> $parameters
+     * @param array<int, mixed> $parameters
      */
     public function validateDoesntContain(string $attribute, mixed $value, mixed $parameters): bool
     {
@@ -564,9 +567,10 @@ trait ValidatesAttributes
             return false;
         }
 
-        // Keep this loop to avoid an extra callback per item.
+        [$lookup, $hasNull] = Membership::lookup($value);
+
         foreach ($parameters as $parameter) {
-            if (in_array($parameter, $value, true)) {
+            if (Membership::contains($lookup, $hasNull, $parameter)) {
                 return false;
             }
         }
@@ -1565,29 +1569,24 @@ trait ValidatesAttributes
     /**
      * Validate an attribute is contained within a list of values.
      *
-     * @param array<int, int|string> $parameters
+     * @param array<int, mixed> $parameters
      */
     public function validateIn(string $attribute, mixed $value, mixed $parameters): bool
     {
+        // Share the typed membership policy with contains instead of stringifying null and false.
+        [$lookup, $hasNull] = Membership::lookup($parameters);
+
         if (is_array($value) && $this->hasRule($attribute, 'Array')) {
             foreach ($value as $element) {
-                if (is_array($element) || (is_object($element) && ! $element instanceof Stringable)) {
+                if (! Membership::contains($lookup, $hasNull, $element)) {
                     return false;
                 }
             }
 
-            return array_diff($value, $parameters) === [];
+            return true;
         }
 
-        $parameters = array_map(
-            static fn (mixed $parameter): mixed => is_scalar($parameter) || $parameter instanceof Stringable
-                ? (string) $parameter
-                : $parameter,
-            $parameters,
-        );
-
-        return (is_scalar($value) || $value instanceof Stringable)
-            && in_array((string) $value, $parameters, true);
+        return Membership::contains($lookup, $hasNull, $value);
     }
 
     /**
@@ -1988,10 +1987,23 @@ trait ValidatesAttributes
     /**
      * Validate an attribute is not contained within a list of values.
      *
-     * @param array<int, int|string> $parameters
+     * @param array<int, mixed> $parameters
      */
     public function validateNotIn(string $attribute, mixed $value, mixed $parameters): bool
     {
+        if (is_array($value) && $this->hasRule($attribute, 'Array')) {
+            // Negating the whole in check would allow a forbidden item beside an allowed one.
+            [$lookup, $hasNull] = Membership::lookup($parameters);
+
+            foreach ($value as $element) {
+                if (Membership::contains($lookup, $hasNull, $element)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         return ! $this->validateIn($attribute, $value, $parameters);
     }
 

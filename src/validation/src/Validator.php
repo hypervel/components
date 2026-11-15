@@ -31,7 +31,11 @@ use stdClass;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Throwable;
 use ValueError;
+use WeakMap;
 
+/**
+ * @phpstan-import-type RuleDeclarations from RuleCompiler
+ */
 class Validator implements ValidatorContract
 {
     use Concerns\FormatsMessages;
@@ -74,6 +78,13 @@ class Validator implements ValidatorContract
      * The initial rules provided.
      */
     protected array $initialRules = [];
+
+    /**
+     * Structured declarations captured for the active validation run.
+     *
+     * @var null|RuleDeclarations
+     */
+    private ?WeakMap $ruleDeclarations = null;
 
     /**
      * The rules to be applied to the data.
@@ -455,29 +466,29 @@ class Validator implements ValidatorContract
         $this->originalPresenceVerifier = null;
         $this->parsedTables = [];
 
-        $this->compiledPlans = $this->compileRules();
-        $preExcludedAttributes = [];
-
-        if (static::class === self::class) {
-            [$preExcludedAttributes, $unresolvedExclusionAttributes] = $this->preEvaluateExclusions();
-
-            $activeVerifier = $this->presenceVerifier;
-            // A failed speculative PostgreSQL query aborts the caller's transaction
-            // even when caught, so global early-stop must use ordered presence queries.
-            if ($activeVerifier !== null
-                && $activeVerifier::class === DatabasePresenceVerifier::class
-                && ! $this->stopOnFirstFailure
-                && $this->databasePresenceCheckCount >= 2
-            ) {
-                $this->maybeBatchDatabaseChecks(
-                    $activeVerifier,
-                    $preExcludedAttributes,
-                    $unresolvedExclusionAttributes,
-                );
-            }
-        }
-
         try {
+            $this->compiledPlans = $this->compileRules();
+            $preExcludedAttributes = [];
+
+            if (static::class === self::class) {
+                [$preExcludedAttributes, $unresolvedExclusionAttributes] = $this->preEvaluateExclusions();
+
+                $activeVerifier = $this->presenceVerifier;
+                // A failed speculative PostgreSQL query aborts the caller's transaction
+                // even when caught, so global early-stop must use ordered presence queries.
+                if ($activeVerifier !== null
+                    && $activeVerifier::class === DatabasePresenceVerifier::class
+                    && ! $this->stopOnFirstFailure
+                    && $this->databasePresenceCheckCount >= 2
+                ) {
+                    $this->maybeBatchDatabaseChecks(
+                        $activeVerifier,
+                        $preExcludedAttributes,
+                        $unresolvedExclusionAttributes,
+                    );
+                }
+            }
+
             if (static::class === self::class) {
                 $this->executeCompiledPlans($this->compiledPlans, $preExcludedAttributes);
             } else {
@@ -497,6 +508,8 @@ class Validator implements ValidatorContract
 
             return $this->messages->isEmpty();
         } finally {
+            $this->ruleDeclarations = null;
+
             if ($this->originalPresenceVerifier !== null) {
                 $this->presenceVerifier = $this->originalPresenceVerifier;
                 $this->originalPresenceVerifier = null;
@@ -515,6 +528,8 @@ class Validator implements ValidatorContract
      */
     protected function compileRules(): array
     {
+        // Wildcard attributes share rule instances, so read each declaration once per run.
+        $declarations = $this->ruleDeclarations = new WeakMap;
         $plans = [];
         $isBaseValidator = static::class === self::class;
         $this->databasePresenceCheckCount = 0;
@@ -529,7 +544,7 @@ class Validator implements ValidatorContract
             $key = null;
 
             if ($isBaseValidator) {
-                [$rules, $key] = RuleCompiler::prepare($rules);
+                [$rules, $key] = RuleCompiler::prepare($rules, $declarations);
             }
 
             $plan = $isBaseValidator ? RulePlanCache::get($key) : null;
@@ -537,7 +552,7 @@ class Validator implements ValidatorContract
             if ($plan === null) {
                 $plan = $isBaseValidator
                     ? RuleCompiler::compile($rules, $this->defaultNumericRules)
-                    : RuleCompiler::compileAllDelegated($rules);
+                    : RuleCompiler::compileAllDelegated($rules, $declarations);
 
                 if ($isBaseValidator) {
                     RulePlanCache::put($key, $plan);
@@ -1106,7 +1121,7 @@ class Validator implements ValidatorContract
     {
         $this->currentRule = $rule;
 
-        [$rule, $parameters] = ValidationRuleParser::parse($rule);
+        [$rule, $parameters] = $this->parseRuleDeclaration($rule);
 
         if ($rule === '') {
             return;
@@ -1588,7 +1603,7 @@ class Validator implements ValidatorContract
                 continue;
             }
 
-            [$rule, $parameters] = ValidationRuleParser::parse($rule);
+            [$rule, $parameters] = $this->parseRuleDeclaration($rule);
 
             if (in_array($rule, $rules)) {
                 return [$rule, $parameters];
@@ -1596,6 +1611,18 @@ class Validator implements ValidatorContract
         }
 
         return null;
+    }
+
+    /**
+     * Parse a rule using its captured declaration during validation.
+     */
+    private function parseRuleDeclaration(array|object|string $rule): array
+    {
+        if ($this->ruleDeclarations !== null && ValidationRuleParser::ruleUsesParameterizedDeclaration($rule)) {
+            return RuleCompiler::prepareParameterizedRule($rule, $this->ruleDeclarations)['parsed'];
+        }
+
+        return ValidationRuleParser::parse($rule);
     }
 
     /**

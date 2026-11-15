@@ -20,6 +20,7 @@ use Hypervel\Validation\PresenceQuery;
 use Hypervel\Validation\PresenceVerifierInterface;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Rules\Exists;
+use Hypervel\Validation\Rules\In;
 use Hypervel\Validation\Validator;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -1048,8 +1049,8 @@ class ValidationCompiledExecutionTest extends TestCase
             }
         };
         $validator = $this->makeValidator(
-            ['trigger' => 'present', 'email' => 'user@example.com'],
-            ['trigger' => 'mutate', 'email' => ['nullable', $rule]],
+            ['trigger' => 'present', 'emails' => ['user@example.com', 'user@example.com']],
+            ['trigger' => 'mutate', 'emails.*' => ['nullable', $rule]],
         );
         $validator->addExtension('mutate', static function () use ($rule): bool {
             $rule->status = 'during validation';
@@ -1058,7 +1059,7 @@ class ValidationCompiledExecutionTest extends TestCase
         });
         $conditions = [];
         $verifier = m::mock(PresenceVerifierInterface::class);
-        $verifier->expects('getCount')->times(3)->andReturnUsing(function (PresenceQuery $query, mixed $value) use (&$conditions): int {
+        $verifier->expects('getCount')->times(6)->andReturnUsing(function (PresenceQuery $query, mixed $value) use (&$conditions): int {
             $this->assertSame('users', $query->collection);
             $this->assertSame('custom_email', $query->column);
             $this->assertSame('user@example.com', $value);
@@ -1073,7 +1074,9 @@ class ValidationCompiledExecutionTest extends TestCase
         foreach (['active', 'active', 'inactive'] as $status) {
             $rule->status = $status;
             $this->assertSame($status === 'active', $validator->passes());
-            $plans[] = $compiledPlans->getValue($validator)['email'];
+            $currentPlans = $compiledPlans->getValue($validator);
+            $plans[] = $currentPlans['emails.0'];
+            $this->assertSame($currentPlans['emails.0'], $currentPlans['emails.1']);
         }
 
         $this->assertSame(3, $rule->parameterReads);
@@ -1081,10 +1084,67 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertSame([
             [['status', '=', 'active']],
             [['status', '=', 'active']],
+            [['status', '=', 'active']],
+            [['status', '=', 'active']],
+            [['status', '=', 'inactive']],
             [['status', '=', 'inactive']],
         ], $conditions);
         $this->assertSame($plans[0], $plans[1]);
         $this->assertNotSame($plans[0], $plans[2]);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testWildcardDeclarationsAreExportedOncePerRunAndDetachedFromReferences(bool $delegated): void
+    {
+        $rule = new class([]) extends In {
+            public int $exports = 0;
+
+            public string $allowed = 'before';
+
+            /**
+             * Export a referenced parameter to exercise run-start capture.
+             */
+            public function toArray(): array
+            {
+                ++$this->exports;
+
+                return ['in', &$this->allowed];
+            }
+        };
+        $arguments = [
+            new Translator(new ArrayLoader, 'en'),
+            ['trigger' => 'present', 'values' => ['before', 'before']],
+            ['trigger' => 'mutate', 'values.*' => [$rule]],
+        ];
+        $validator = $delegated ? new class(...$arguments) extends Validator {
+            public array $seenRules = [];
+
+            /**
+             * Inspect the original rule while executing its captured parameters.
+             */
+            public function validateIn(string $attribute, mixed $value, mixed $parameters): bool
+            {
+                $this->seenRules[] = $this->currentRule;
+
+                return parent::validateIn($attribute, $value, $parameters);
+            }
+        } : new Validator(...$arguments);
+        $validator->addExtension('mutate', static function () use ($rule): bool {
+            $rule->allowed = 'after';
+
+            return true;
+        });
+
+        $this->assertTrue($validator->passes());
+        $this->assertSame(1, $rule->exports);
+        $this->assertFalse($validator->passes());
+        $this->assertSame(2, $rule->exports);
+        $this->assertSame(['values.0', 'values.1'], array_keys($validator->failed()));
+
+        if ($delegated) {
+            $this->assertSame([$rule, $rule, $rule, $rule], $validator->seenRules);
+        }
     }
 
     #[TestWith([false])]

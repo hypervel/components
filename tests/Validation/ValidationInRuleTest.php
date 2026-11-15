@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Tests\TestCase;
 use Hypervel\Tests\Validation\Fixtures\IntegerStatus;
 use Hypervel\Tests\Validation\Fixtures\PureEnum;
@@ -92,6 +93,61 @@ class ValidationInRuleTest extends TestCase
 
         $v = new Validator($trans, ['x' => 'foo'], ['x' => ['required', Rule::in('foo', 'bar')]]);
         $this->assertTrue($v->passes());
+
+        $number = 1.234567890123456;
+        $v = new Validator($trans, ['x' => $number], ['x' => Rule::in([$number])]);
+        $this->assertTrue($v->passes());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCustomRuleExecutionTakesPrecedenceOverTheInheritedDeclaration(bool $delegated): void
+    {
+        $rule = new class(['allowed']) extends In implements RuleContract {
+            public int $calls = 0;
+
+            /**
+             * Reject a value that the inherited membership declaration would allow.
+             */
+            public function passes(string $attribute, mixed $value): bool
+            {
+                ++$this->calls;
+
+                return false;
+            }
+
+            /**
+             * Get the custom validation message.
+             */
+            public function message(): string
+            {
+                return 'The custom rule rejected this value.';
+            }
+        };
+        $arguments = [new Translator(new ArrayLoader, 'en'), ['value' => 'allowed'], ['value' => [$rule]]];
+        $validator = $delegated ? new class(...$arguments) extends Validator {} : new Validator(...$arguments);
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame(1, $rule->calls);
+        $this->assertSame('The custom rule rejected this value.', $validator->errors()->first('value'));
+    }
+
+    public function testCanonicalExportControlsRenderingAndValidation(): void
+    {
+        $rule = new class(['original']) extends In {
+            /**
+             * Export the effective values instead of the constructor's defaults.
+             */
+            public function toArray(): array
+            {
+                return ['in', 'replacement'];
+            }
+        };
+        $translator = new Translator(new ArrayLoader, 'en');
+
+        $this->assertSame('in:"replacement"', (string) $rule);
+        $this->assertTrue((new Validator($translator, ['value' => 'replacement'], ['value' => $rule]))->passes());
+        $this->assertFalse((new Validator($translator, ['value' => 'original'], ['value' => $rule]))->passes());
     }
 
     #[TestWith([' 1', false])]

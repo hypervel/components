@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Support\Validation;
 
-use Hypervel\Contracts\Validation\ParameterizedRule;
+use Hypervel\Contracts\Validation\Rule as RuleContract;
+use Hypervel\Contracts\Validation\ValidationRule as ValidationRuleContract;
 use Hypervel\Validation\Rules\Enum;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
@@ -152,8 +153,8 @@ class ValidationAccumulator
                 && $this->rulesEqual($rule, $otherRule);
         }
 
-        if ($rule instanceof ParameterizedRule) {
-            return $otherRule instanceof ParameterizedRule && $rule->toArray() === $otherRule->toArray();
+        if (ValidationRuleParser::ruleUsesParameterizedDeclaration($rule)) {
+            return ValidationRuleParser::ruleUsesParameterizedDeclaration($otherRule) && $rule->toArray() === $otherRule->toArray();
         }
 
         // Each item compiles its own inferred enum rule, so equal rules compare by their type and case restrictions.
@@ -161,7 +162,10 @@ class ValidationAccumulator
             return $otherRule instanceof Enum && $rule == $otherRule;
         }
 
-        if ($rule instanceof Exists || $rule instanceof Unique) {
+        if (($rule instanceof Exists || $rule instanceof Unique)
+            && ! $rule instanceof RuleContract
+            && ! $rule instanceof ValidationRuleContract
+        ) {
             return is_object($otherRule)
                 && $otherRule::class === $rule::class
                 && $rule->queryParameters() === $otherRule->queryParameters()

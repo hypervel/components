@@ -703,15 +703,11 @@ class ValidationRuleParserTest extends TestCase
     {
         $results = (new ValidationRuleParser(['value' => 'allowed']))->explode([
             'value' => [
-                Rule::in(['allowed', 'other']),
-                Rule::notIn(['blocked']),
                 Rule::dimensions()->maxWidth(100),
             ],
         ]);
 
         $this->assertSame([
-            'in:"allowed","other"',
-            'not_in:"blocked"',
             'dimensions:max_width=100',
         ], $results->rules['value']);
     }

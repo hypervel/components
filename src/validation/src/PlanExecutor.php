@@ -343,9 +343,9 @@ trait PlanExecutor
                 && ! Str::endsWith((string) $value, $check->param),
 
             CheckType::In => (is_scalar($value) || $value instanceof Stringable)
-                && in_array((string) $value, $check->param, true),
+                && isset($check->param[Membership::normalize($value)]),
             CheckType::NotIn => ! ((is_scalar($value) || $value instanceof Stringable)
-                && in_array((string) $value, $check->param, true)),
+                && isset($check->param[Membership::normalize($value)])),
 
             CheckType::IsDate => $this->isValidDate($value),
             CheckType::DateFormat => $this->inlineMatchesDateFormat($value, $check->param),

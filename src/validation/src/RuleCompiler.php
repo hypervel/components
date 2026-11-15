@@ -9,6 +9,7 @@ use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Validation\Enums\CheckType;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
+use WeakMap;
 
 /**
  * Compile pipe-string or array rules into an AttributePlan.
@@ -17,15 +18,19 @@ use Hypervel\Validation\Rules\Unique;
  * DelegatedCheck (calls existing validate*() methods). The compiler resolves
  * sibling context (numeric semantics, date format, array presence) to bake
  * compile-time decisions into check params.
+ *
+ * @phpstan-type PreparedParameterizedRule array{export: array, parsed: array{object|string, array}, cacheable: bool}
+ * @phpstan-type RuleDeclarations WeakMap<object, array{plan: DatabaseRulePlan, cacheData: ?array}|PreparedParameterizedRule>
  */
 final class RuleCompiler
 {
     /**
      * Capture declarations once and produce their plain cache key.
      *
+     * @param RuleDeclarations $declarations
      * @return array{list<mixed>, ?string}
      */
-    public static function prepare(array $rules): array
+    public static function prepare(array $rules, WeakMap $declarations): array
     {
         $prepared = [];
         $key = [];
@@ -33,16 +38,20 @@ final class RuleCompiler
 
         foreach ($rules as $rule) {
             if (! $rule instanceof RuleContract && ($rule instanceof Exists || $rule instanceof Unique)) {
-                $rule = DatabaseRulePlan::fromRule($rule);
-                $data = $rule->cacheData();
+                if (! isset($declarations[$rule])) {
+                    $plan = DatabaseRulePlan::fromRule($rule);
+                    $declarations[$rule] = ['plan' => $plan, 'cacheData' => $plan->cacheData()];
+                }
+
+                ['plan' => $rule, 'cacheData' => $data] = $declarations[$rule];
                 $cacheable = $cacheable && $data !== null;
                 $key[] = ['database', $data];
             } else {
-                if ($rule instanceof ParameterizedRule) {
-                    $rule = $rule->toArray();
-                }
-
-                if (! is_string($rule)
+                if (ValidationRuleParser::ruleUsesParameterizedDeclaration($rule)) {
+                    $declaration = self::prepareParameterizedRule($rule, $declarations);
+                    $rule = $declaration['export'];
+                    $cacheable = $cacheable && $declaration['cacheable'];
+                } elseif (! is_string($rule)
                     && (! is_array($rule)
                         || ! array_all($rule, static fn (mixed $parameter): bool => is_scalar($parameter) || $parameter === null))
                 ) {
@@ -56,6 +65,28 @@ final class RuleCompiler
         }
 
         return [$prepared, $cacheable ? serialize($key) : null];
+    }
+
+    /**
+     * Capture a structured declaration and its parse for the current validation run.
+     *
+     * @param RuleDeclarations $declarations
+     * @return PreparedParameterizedRule
+     */
+    public static function prepareParameterizedRule(ParameterizedRule $rule, WeakMap $declarations): array
+    {
+        if (isset($declarations[$rule])) {
+            return $declarations[$rule];
+        }
+
+        // Custom Validators execute the captured parse without passing through compile().
+        $export = array_map(static fn (mixed $parameter): mixed => $parameter, $rule->toArray());
+
+        return $declarations[$rule] = [
+            'export' => $export,
+            'parsed' => ValidationRuleParser::parse($export),
+            'cacheable' => array_all($export, static fn (mixed $parameter): bool => is_scalar($parameter) || $parameter === null),
+        ];
     }
 
     /**
@@ -116,13 +147,20 @@ final class RuleCompiler
      * gating while keeping every declared rule available to delegated execution.
      *
      * @param list<mixed> $rules As produced by ValidationRuleParser::explode()
+     * @param RuleDeclarations $declarations
      */
-    public static function compileAllDelegated(array $rules): AttributePlan
+    public static function compileAllDelegated(array $rules, WeakMap $declarations): AttributePlan
     {
         $plan = new AttributePlan;
 
         foreach ($rules as $rule) {
-            self::compileRuleDelegated($rule, $plan);
+            self::compileRuleDelegated(
+                $rule,
+                $plan,
+                ValidationRuleParser::ruleUsesParameterizedDeclaration($rule)
+                    ? self::prepareParameterizedRule($rule, $declarations)['parsed']
+                    : null,
+            );
         }
 
         return $plan;
@@ -378,20 +416,14 @@ final class RuleCompiler
                 ? null
                 : new InlineCheck(
                     CheckType::In,
-                    array_map(
-                        static fn (mixed $parameter): string => (string) $parameter,
-                        $parameters,
-                    ),
+                    Membership::lookup($parameters)[0],
                     parameters: $parameters,
                 ),
             'NotIn' => $context['hasSiblingArrayRule']
                 ? null
                 : new InlineCheck(
                     CheckType::NotIn,
-                    array_map(
-                        static fn (mixed $parameter): string => (string) $parameter,
-                        $parameters,
-                    ),
+                    Membership::lookup($parameters)[0],
                     parameters: $parameters,
                 ),
 
