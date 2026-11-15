@@ -27,6 +27,7 @@ use JsonSerializable;
 use LogicException;
 use ReflectionMethod;
 use RuntimeException;
+use stdClass;
 use WeakMap;
 
 trait ResolvesJsonApiElements
@@ -271,7 +272,7 @@ trait ResolvesJsonApiElements
             // Default loading stays batched across parents in prepareResourceRelationships().
             if (! empty($requestedRelationships) && ! $this->usesDefaultRelationshipLoading()) {
                 $models = $relatedModels
-                    ->map(fn ($related) => $related instanceof JsonApiResource ? $related->resource : $related)
+                    ->map(fn (JsonApiResource|Model $related): mixed => $related instanceof JsonApiResource ? $related->resource : $related)
                     ->whereInstanceOf(Model::class);
 
                 if ($models->isNotEmpty()) {
@@ -595,7 +596,7 @@ trait ResolvesJsonApiElements
         $relations = new Collection;
         $index = 0;
 
-        // Track original instances and types to stop cycles while retaining distinct loaded descendants.
+        // Map each original instance and type to true for primary data, or to loaded relationship names per resource class.
         $visitedObjects = new WeakMap;
         $expandedRelationships = new WeakMap;
 
@@ -613,15 +614,20 @@ trait ResolvesJsonApiElements
             $requested = array_fill_keys($resourceInstance->requestedRelationships ?? [], true);
 
             if ($visited) {
-                // Prepared occurrences may add descendants, but identical origins and tails need no second walk.
-                if ($resourceInstance->loadedRelationshipsMap === null
-                    || array_diff_key($requested, $expandedRelationships[$expansionOwner][$resourceInstance::class][$type] ?? []) === []) {
+                if ($resourceInstance->loadedRelationshipsMap !== null) {
+                    // Requested paths retain each occurrence's resolvers; repeated tails need no second walk.
+                    if (array_diff_key($requested, $expandedRelationships[$expansionOwner][$resourceInstance::class][$type] ?? []) === []) {
+                        ++$index;
+                        continue;
+                    }
+                } elseif ($origin === null || ! $underlyingResource instanceof Model || $visitedObjects[$underlyingResource][$type] === true) {
+                    // Keep primary linkage authoritative and avoid rediscovering synthesized or non-model resources.
                     ++$index;
                     continue;
                 }
             } elseif (is_object($underlyingResource)) {
                 $visitedObjects[$underlyingResource] ??= [];
-                $visitedObjects[$underlyingResource][$type] = true;
+                $visitedObjects[$underlyingResource][$type] = [];
             }
 
             $expandedRelationships[$expansionOwner] ??= [];
@@ -634,9 +640,31 @@ trait ResolvesJsonApiElements
                 $resourceInstance->resource = (clone $underlyingResource)->unsetRelation($pivotAccessor);
             }
 
+            if ($visited && $resourceInstance->loadedRelationshipsMap === null) {
+                $resourceInstance->includePreviouslyLoadedRelationships();
+                $names = array_fill_keys($resourceInstance->getResourceRelationships($request)->keys()->all(), true);
+                $known = $visitedObjects[$underlyingResource][$type][$resourceInstance::class] ?? [];
+                $names = array_diff_key($names, $known);
+
+                if ($names === []) {
+                    ++$index;
+                    continue;
+                }
+
+                // Implicit linkage expands once per name; re-running inverse closures can make chaperone graphs quadratic.
+                $resourceInstance->requestedRelationships = array_keys($names);
+                $resourceInstance->includesPreviouslyLoadedRelationships = false;
+            }
+
             $relationsData = $visited
                 ? ['data' => ['relationships' => $resourceInstance->resolveResourceRelationshipIdentifiers($request)]]
                 : $resourceInstance->includePreviouslyLoadedRelationships()->resolve($request);
+
+            if ($underlyingResource instanceof Model && $visitedObjects[$underlyingResource][$type] !== true) {
+                $visitedObjects[$underlyingResource][$type][$resourceInstance::class]
+                    = ($visitedObjects[$underlyingResource][$type][$resourceInstance::class] ?? [])
+                    + array_fill_keys(array_keys($resourceInstance->loadedRelationshipIdentifiers), true);
+            }
 
             array_push($this->loadedRelationshipsMap, ...($resourceInstance->loadedRelationshipsMap ?? []));
 
@@ -747,24 +775,38 @@ trait ResolvesJsonApiElements
 
             $incoming = $incoming instanceof Collection ? $incoming->all() : $incoming;
 
-            if ($incoming === null || ! array_is_list($data)) {
+            if ($incoming === null) {
                 continue;
             }
+
+            $isList = array_is_list($data);
 
             if (! isset($identifiers[$name])) {
                 $identifiers[$name] = [];
 
-                foreach ($data as $identifier) {
+                foreach ($isList ? $data : [$data] as $identifier) {
                     $identifiers[$name][$identifier['type']][$identifier['id']] = $identifier['meta'] ?? null;
                 }
             }
 
-            // Metadata is compared by value, since separate objects can describe the same association.
-            foreach ($incoming as $identifier) {
+            foreach ($isList ? $incoming : [$incoming] as $identifier) {
                 if (! array_key_exists($identifier['id'], $identifiers[$name][$identifier['type']] ?? [])) {
-                    $identifiers[$name][$identifier['type']][$identifier['id']] = $identifier['meta'] ?? null;
-                    $data[] = $identifier;
-                } elseif ($identifiers[$name][$identifier['type']][$identifier['id']] != ($identifier['meta'] ?? null)) {
+                    if ($isList) {
+                        $identifiers[$name][$identifier['type']][$identifier['id']] = $identifier['meta'] ?? null;
+                        $data[] = $identifier;
+                    }
+
+                    continue;
+                }
+
+                $known = $identifiers[$name][$identifier['type']][$identifier['id']];
+                $meta = $identifier['meta'] ?? null;
+
+                // Compare emitted values without scalar coercion, object identity or member-order differences.
+                if ($known !== $meta && ! static::jsonValuesEqual(
+                    json_decode(json_encode($known, JSON_THROW_ON_ERROR), flags: JSON_THROW_ON_ERROR),
+                    json_decode(json_encode($meta, JSON_THROW_ON_ERROR), flags: JSON_THROW_ON_ERROR),
+                )) {
                     throw new LogicException(sprintf(
                         'Relationship [%s] contains conflicting metadata for resource [%s:%s]. Expose the associations as separate resources.',
                         $name,
@@ -774,6 +816,35 @@ trait ResolvesJsonApiElements
                 }
             }
         }
+    }
+
+    /**
+     * Compare decoded JSON values while preserving scalar types and list order.
+     */
+    protected static function jsonValuesEqual(mixed $left, mixed $right): bool
+    {
+        if ($left === $right) {
+            return true;
+        }
+
+        if ($left instanceof stdClass && $right instanceof stdClass) {
+            $left = get_object_vars($left);
+            $right = get_object_vars($right);
+        } elseif (! is_array($left) || ! is_array($right)) {
+            return false;
+        }
+
+        if (count($left) !== count($right)) {
+            return false;
+        }
+
+        foreach ($left as $key => $value) {
+            if (! array_key_exists($key, $right) || ! static::jsonValuesEqual($value, $right[$key])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

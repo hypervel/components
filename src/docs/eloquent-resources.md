@@ -1266,6 +1266,8 @@ return $post->load('author', 'comments')
     ->includePreviouslyLoadedRelationships();
 ```
 
+When several resources of the same class wrap the same model instance, each previously loaded relationship keeps its first result. Relationships requested through the `include` query parameter are resolved by each resource.
+
 <a name="jsonapi-links-and-meta"></a>
 ### Links and Meta
 

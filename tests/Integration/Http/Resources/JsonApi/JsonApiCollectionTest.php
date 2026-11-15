@@ -23,6 +23,7 @@ use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\UserWithIdentifie
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\UserWithLazyTeamAttributeResource;
 use LogicException;
 use Override;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class JsonApiCollectionTest extends TestCase
@@ -209,7 +210,9 @@ class JsonApiCollectionTest extends TestCase
             'name' => 'Hypervel Team',
         ]);
 
-        $users->each(fn ($user) => $user->teams()->attach($team, ['role' => 'Member']));
+        $users->each(function (User $user) use ($team): void {
+            $user->teams()->attach($team, ['role' => 'Member']);
+        });
 
         $this->getJson('/users?' . http_build_query(['include' => 'teams', 'fields' => ['teams' => 'name']]))
             ->assertJsonPath('data.0.relationships.teams.data', [['id' => (string) $team->getKey(), 'type' => 'teams']])
@@ -233,7 +236,9 @@ class JsonApiCollectionTest extends TestCase
             'name' => 'Hypervel Team',
         ]);
 
-        $users->each(fn ($user) => $user->teams()->attach($team, ['role' => 'Member']));
+        $users->each(function (User $user) use ($team): void {
+            $user->teams()->attach($team, ['role' => 'Member']);
+        });
 
         Route::get('users-with-lazy-team-attributes', function (): AnonymousResourceCollection {
             return UserWithLazyTeamAttributeResource::collection(User::all());
@@ -284,15 +289,17 @@ class JsonApiCollectionTest extends TestCase
         $this->assertSame('Admin', $administrator->getRelation('teams')->first()->getRelation('membership')->role);
     }
 
-    public function testConflictingIdentifierMetadataIsRejectedWhenIncludedResourcesMerge(): void
+    #[TestWith(['Admin', 'Member'])]
+    #[TestWith(['01', '1'])]
+    public function testConflictingIdentifierMetadataIsRejectedWhenIncludedResourcesMerge(string $firstRole, string $secondRole): void
     {
         $author = User::factory()->create();
         $team = Team::factory()->create();
-        $author->teams()->attach($team, ['role' => 'Admin']);
-        $author->teams()->attach($team, ['role' => 'Member']);
+        $author->teams()->attach($team, ['role' => $firstRole]);
+        $author->teams()->attach($team, ['role' => $secondRole]);
         $posts = [];
 
-        foreach (['Admin', 'Member'] as $role) {
+        foreach ([$firstRole, $secondRole] as $role) {
             $post = Post::factory()->create(['user_id' => $author->getKey()]);
             $post->load(['author.teams' => fn (BelongsToMany $query): BelongsToMany => $query->wherePivot('role', $role)]);
             $posts[] = $post;
@@ -302,6 +309,59 @@ class JsonApiCollectionTest extends TestCase
         $this->expectExceptionMessage('contains conflicting metadata');
 
         PostWithIdentifierMetaAuthorResource::collection($posts)->toResponse(JsonApiRequest::create('/?include=author.teams'));
+    }
+
+    #[DataProvider('identifierMetadataValues')]
+    public function testToOneIdentifierMetadataUsesJsonValueEquality(array $first, array $second, bool $conflicts): void
+    {
+        $author = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $author->getKey()]);
+        $resources = [];
+
+        foreach ([$first, $second] as $metadata) {
+            $post = Post::factory()->create(['user_id' => $author->getKey()]);
+            $authorCopy = clone $author;
+            $authorCopy->setRelation('profile', $profile);
+            $post->setRelation('author', $authorCopy);
+
+            $profileResource = new IdentifierMetadataResource($profile);
+            $profileResource->identifierMeta = $metadata;
+            $authorResource = new IdentifierMetadataResource($authorCopy);
+            $authorResource->relationships = ['profile' => fn (): IdentifierMetadataResource => $profileResource];
+            $postResource = new IdentifierMetadataResource($post);
+            $postResource->relationships = ['author' => fn (): IdentifierMetadataResource => $authorResource];
+            $resources[] = $postResource;
+        }
+
+        if ($conflicts) {
+            $this->expectException(LogicException::class);
+            $this->expectExceptionMessage('contains conflicting metadata');
+        }
+
+        $data = IdentifierMetadataResource::collection($resources)
+            ->toResponse(JsonApiRequest::create('/?include=author.profile'))->getData(true);
+
+        $this->assertSame(
+            json_decode(json_encode($first, JSON_THROW_ON_ERROR), true, flags: JSON_THROW_ON_ERROR),
+            collect($data['included'])->firstWhere('type', 'users')['relationships']['profile']['data']['meta'],
+        );
+    }
+
+    /**
+     * Provide distinct and equivalent JSON association values.
+     */
+    public static function identifierMetadataValues(): array
+    {
+        return [
+            'scalar types' => [['code' => 1], ['code' => '1'], true],
+            'equal reordered objects' => [
+                ['permissions' => (object) ['read' => true, 'write' => false]],
+                ['permissions' => (object) ['write' => false, 'read' => true]],
+                false,
+            ],
+            'object and list' => [['options' => (object) []], ['options' => []], true],
+            'list order' => [['priority' => ['read', 'write']], ['priority' => ['write', 'read']], true],
+        ];
     }
 
     public function testRepeatedAssociationsWithIdentifierMetadataAreRejectedAfterConstrainedLoading(): void
@@ -455,6 +515,31 @@ class PostWithIdentifierMetaAuthorResource extends JsonApiResource
     public function toType(Request $request): string
     {
         return 'posts';
+    }
+}
+
+class IdentifierMetadataResource extends JsonApiResource
+{
+    public array $relationships = [];
+
+    public array $identifierMeta = [];
+
+    /**
+     * Keep the model's resource type while supplying association metadata.
+     */
+    #[Override]
+    public function toType(Request $request): string
+    {
+        return $this->resource->getTable();
+    }
+
+    /**
+     * Get metadata supplied for this relationship occurrence.
+     */
+    #[Override]
+    public function toIdentifierMeta(Request $request): array
+    {
+        return $this->identifierMeta;
     }
 }
 
