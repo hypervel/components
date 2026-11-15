@@ -532,6 +532,28 @@ class ContainerCallTest extends TestCase
         $this->assertInstanceOf(ContainerCallContextualImplB::class, $result);
     }
 
+    public function testInheritedCallablesUseTheConcreteClassContextualBindings(): void
+    {
+        $container = new Container;
+        $container->when(ContainerCallInheritedChildStub::class)
+            ->needs(ContainerCallConcreteStub::class)
+            ->give(ContainerCallContextualConcreteStub::class);
+
+        $stub = new ContainerCallInheritedChildStub;
+
+        foreach ([
+            [$stub, '__invoke'],
+            $stub,
+            $stub->__invoke(...),
+            Closure::fromCallable([$stub, '__invoke']),
+            [ContainerCallInheritedChildStub::class, 'handle'],
+            ContainerCallInheritedChildStub::class . '::handle',
+            ContainerCallInheritedChildStub::handle(...),
+        ] as $callback) {
+            $this->assertInstanceOf(ContainerCallContextualConcreteStub::class, $container->call($callback));
+        }
+    }
+
     public function testFirstClassCallableCleansUpBuildStackAfterException(): void
     {
         $container = new Container;
@@ -762,4 +784,21 @@ class ContainerCallContextualStub
     {
         return $dependency;
     }
+}
+
+class ContainerCallInheritedParentStub
+{
+    public function __invoke(ContainerCallConcreteStub $dependency): ContainerCallConcreteStub
+    {
+        return $dependency;
+    }
+
+    public static function handle(ContainerCallConcreteStub $dependency): ContainerCallConcreteStub
+    {
+        return $dependency;
+    }
+}
+
+class ContainerCallInheritedChildStub extends ContainerCallInheritedParentStub
+{
 }

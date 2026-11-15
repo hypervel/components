@@ -441,6 +441,8 @@ $this->app->when([VideoController::class, UploadController::class])
     });
 ```
 
+When `call()` invokes an inherited method, contextual bindings belong to the concrete class being called. For example, a binding registered with `when(ChildJob::class)` applies to its inherited `handle()` method.
+
 <a name="contextual-attributes"></a>
 ### Contextual Attributes
 

@@ -1017,7 +1017,7 @@ class Container implements ContainerContract
             }
 
             // Anonymous closures do not contribute their scope class to contextual bindings,
-            // even when declared in a method or rebound. First-class callables do, matching Laravel.
+            // even when declared in a method or rebound.
             if ($reflection->isAnonymous()) {
                 return BoundMethod::call($this, $callback, $parameters, null, $reflection);
             }
@@ -1025,7 +1025,9 @@ class Container implements ContainerContract
             $pushedToBuildStack = false;
             $resolutionState = $this->getOrCreateResolutionState();
 
-            if (($className = $reflection->getClosureScopeClass()?->name)
+            // Unlike Laravel's declaring scope, the called class honors a concrete subclass's
+            // contextual bindings for inherited methods, just like constructors and array callables.
+            if (($className = $reflection->getClosureCalledClass()?->name)
                 && ! in_array($className, $resolutionState->buildStack, true)
             ) {
                 $resolutionState->buildStack[] = $className;
