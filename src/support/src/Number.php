@@ -70,6 +70,26 @@ class Number
     }
 
     /**
+     * Convert a number to a non-localized string without rounding to PHP's display precision.
+     *
+     * @internal
+     */
+    public static function toString(int|float|string $number): string
+    {
+        if (! is_float($number)) {
+            return (string) $number;
+        }
+
+        // PHP's default serialize_precision=-1 preserves finite floats on a round trip.
+        // Keep non-finite values printable so each consumer retains its own rejection policy.
+        return match (true) {
+            is_nan($number) => 'NAN',
+            is_infinite($number) => $number > 0 ? 'INF' : '-INF',
+            default => (string) json_encode($number),
+        };
+    }
+
+    /**
      * Get the exponent of a numeric string written in scientific notation.
      *
      * @internal
