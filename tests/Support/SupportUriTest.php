@@ -13,6 +13,7 @@ use Hypervel\Support\Stringable as HypervelStringable;
 use Hypervel\Support\Uri;
 use Hypervel\Tests\Support\Concerns\TestsInteractsWithDataContract;
 use Hypervel\Tests\TestCase;
+use League\Uri\Contracts\UriInterface;
 use League\Uri\Uri as LeagueUri;
 use Mockery as m;
 use stdClass;
@@ -50,6 +51,7 @@ class SupportUriTest extends TestCase
     {
         $uri = Uri::of($originalUri = 'https://hypervel.org/docs/installation');
 
+        $this->assertSame('https://hypervel.org', $uri->origin());
         $this->assertSame('https', $uri->scheme());
         $this->assertNull($uri->user());
         $this->assertNull($uri->password());
@@ -64,6 +66,7 @@ class SupportUriTest extends TestCase
 
         $uri = Uri::of('https://taylor:password@hypervel.org/docs/installation?version=1#hello');
 
+        $this->assertSame('https://hypervel.org', $uri->origin());
         $this->assertSame('taylor', $uri->user());
         $this->assertSame('password', $uri->password());
         $this->assertSame('hello', $uri->fragment());
@@ -79,6 +82,24 @@ class SupportUriTest extends TestCase
 
         $this->assertFalse(Uri::of('https://hypervel.org')->isEmpty());
         $this->assertTrue(Uri::of('https://hypervel.org')->isNotEmpty());
+    }
+
+    public function testOrigin(): void
+    {
+        $this->assertSame('https://github.com:80', Uri::of('https://github.com:80/a/b#x')->origin());
+        $this->assertSame('https://a.com', Uri::of('https://A.com:443/x')->origin());
+        $this->assertSame('http://a.com', Uri::of('http://a.com:80')->origin());
+        $this->assertSame('wss://a.com:8080', Uri::of('wss://a.com:8080/socket')->origin());
+
+        $this->assertNull(Uri::of('/rel')->origin());
+        $this->assertNull(Uri::of('mailto:x@y.z')->origin());
+        $this->assertNull(Uri::of('file:///etc/hosts')->origin());
+        $this->assertNull(Uri::of('')->origin());
+
+        $customUri = m::mock(UriInterface::class);
+        $customUri->shouldReceive('toString')->once()->andReturn('https://example.com:8443/path');
+
+        $this->assertSame('https://example.com:8443', Uri::of($customUri)->origin());
     }
 
     public function testWithoutFragment(): void
