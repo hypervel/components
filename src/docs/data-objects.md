@@ -1119,6 +1119,8 @@ There is no need to add `Required` or `StringType` here; they are inferred from 
 
 To skip validation for one property, add `#[WithoutValidation]`. Its input is still used during creation, so use this only when that value does not need validation.
 
+Membership attributes use the same [value comparisons as their validation rules](/docs/{{version}}/validation#membership-comparisons). Pass a values array to include null, such as `#[In([null, 'active'])]`.
+
 Database-aware `Exists` and `Unique` attributes support the familiar fluent constraints. Within an attribute, use constraint classes such as `WhereConstraint`, `WhereInConstraint`, or `WhereNullConstraint` to add conditions:
 
 ```php

@@ -437,6 +437,8 @@ Container lifecycles are adapted for Swoole:
 
 Hypervel treats a contextual attribute's resolved value as authoritative, including `null`. Laravel constructor injection may fall through from `null` to class or primitive resolution, a contextual binding, or a declared default. Move that fallback into the attribute resolver when porting code that relies on this behavior.
 
+For inherited methods invoked through `call()`, register contextual bindings against the concrete called class, rather than the parent that declares the method. See [Contextual Binding](/docs/{{version}}/container#contextual-binding).
+
 On PHP 8.5 and later, `#[BindWhen]` conditions must depend only on boot-stable state. A matching condition becomes a normal worker-lifetime binding in Hypervel, while an unmatched condition may be evaluated again on a later resolution. Do not read the current request, user, or tenant from the condition.
 
 <a name="coroutine-aware-dependencies"></a>
@@ -716,7 +718,13 @@ When porting schemas that place sibling assertions beside a local `$ref` or use 
 <a name="validation"></a>
 ### Validation
 
+Adapt custom presence verifiers and `Exists`/`Unique` subclasses to [typed database conditions and presence queries](/docs/{{version}}/validation#customizing-database-rules); verifier `prepareValue()` overrides also take the column first. Use `queryParameters()` instead of overriding the final `__toString()`, and `using()` callbacks for conditions that must change during a validation run. Code inspecting `getRules()` receives database-rule builders as objects.
+
 Handwritten validation parameters use standard CSV quoting. Replace backslash-escaped quotes inside quoted parameters with doubled quotes; backslashes are literal. Fluent rule builders handle quoting for you. See [rule parameters](/docs/{{version}}/validation#rule-parameters).
+
+For membership-rule subclasses, override `toArray()` instead of the final `__toString()`. The validator retains these builders in `getRules()`; see [extending fluent rules](/docs/{{version}}/validation#extending-fluent-rules).
+
+Membership checks preserve float precision and equate booleans with `0`/`1` and their string forms, while null and empty strings remain distinct. Check mixed-type allowlists and denylists against the [comparison rules](/docs/{{version}}/validation#membership-comparisons).
 
 `FailOnUnknownFields` accepts the contents of `array` fields without child rules. Add child rules or allowed keys (`array:name,email`) when those contents must be restricted. See [unknown fields](/docs/{{version}}/validation#request-failing-on-unknown-fields).
 
@@ -825,6 +833,8 @@ Hypervel's drivers are designed around its Swoole runtime and do not mirror ever
 Hypervel supports MySQL, MariaDB, PostgreSQL, and SQLite database connections. SQL Server, MongoDB, and DynamoDB database integrations are not supported.
 
 Hypervel requires a newer MariaDB version than Laravel. Check the [supported database versions](/docs/{{version}}/database#introduction) and upgrade older servers before porting.
+
+PDO float bindings preserve precision instead of using PHP's rounded string conversion. Review decimal equality comparisons that relied on that implicit rounding; see [floating-point bindings](/docs/{{version}}/database#binding-floating-point-values).
 
 Remove any warning or silent `PDO::ATTR_ERRMODE` setting; PDO connections require exception mode. Custom connectors and supplied PDO handles must also use it. See [PDO error mode](/docs/{{version}}/database#pdo-error-mode).
 

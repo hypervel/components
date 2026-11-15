@@ -97,5 +97,9 @@ class ValidationNotInRuleTest extends TestCase
 
         $v = new Validator($trans, ['x' => 'foo'], ['x' => ['required', Rule::notIn('bar', 'baz')]]);
         $this->assertTrue($v->passes());
+
+        $number = 1.234567890123456;
+        $v = new Validator($trans, ['x' => $number], ['x' => Rule::notIn([$number])]);
+        $this->assertFalse($v->passes());
     }
 }

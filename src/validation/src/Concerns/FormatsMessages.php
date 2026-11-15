@@ -495,12 +495,16 @@ trait FormatsMessages
     {
         $attribute = $this->replacePlaceholderInString($attribute);
 
-        if (isset($this->customValues[$attribute][$value])) {
-            return $this->customValues[$attribute][$value];
-        }
-
         if (is_array($value)) {
             return 'array';
+        }
+
+        if (is_float($value)) {
+            $value = Number::toString($value);
+        }
+
+        if (isset($this->customValues[$attribute][$value])) {
+            return $this->customValues[$attribute][$value];
         }
 
         $key = "validation.values.{$attribute}.{$value}";

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules\Concerns;
 
+use Hypervel\Support\Number;
+
 trait FormatsParameters
 {
     /**
@@ -28,8 +30,7 @@ trait FormatsParameters
             is_null($value) => 'null',
             $value === true => 'true',
             $value === false => 'false',
-            // JSON preserves finite precision but cannot encode INF, and casting NAN warns on PHP 8.5.
-            is_float($value) => is_nan($value) ? 'NAN' : (json_encode($value) ?: (string) $value),
+            is_float($value) => Number::toString($value),
             default => (string) $value,
         }, array_values($values));
     }

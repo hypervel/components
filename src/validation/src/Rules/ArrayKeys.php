@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Validation\Rules;
 
 use Hypervel\Contracts\Support\Arrayable;
-use Stringable;
+use Hypervel\Contracts\Validation\ParameterizedRule;
+use Hypervel\Validation\Rules\Concerns\FormatsMembershipRule;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
-class ArrayKeys implements Stringable
+class ArrayKeys implements ParameterizedRule
 {
+    use FormatsMembershipRule;
+
     /**
      * The accepted keys.
      */
@@ -30,15 +33,13 @@ class ArrayKeys implements Stringable
     }
 
     /**
-     * Convert the rule to a validation string.
+     * Get the rule name followed by its parameters.
      */
-    public function __toString(): string
+    public function toArray(): array
     {
-        $keys = array_map(
-            static fn ($key): string => '"' . str_replace('"', '""', (string) enum_value($key)) . '"',
+        return ['array_keys', ...array_map(
+            static fn (mixed $value): string => (string) enum_value($value),
             $this->keys,
-        );
-
-        return 'array_keys:' . implode(',', $keys);
+        )];
     }
 }

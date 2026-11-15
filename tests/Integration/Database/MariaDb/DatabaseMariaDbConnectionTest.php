@@ -71,7 +71,7 @@ class DatabaseMariaDbConnectionTest extends MariaDbTestCase
         ];
     }
 
-    #[DataProvider('jsonBooleanComparisons')]
+    #[DataProvider('jsonBooleanComparisonsDataProvider')]
     public function testJsonBooleanComparison(bool $value, string $operator, array $expected): void
     {
         $rows = [];
@@ -95,7 +95,7 @@ class DatabaseMariaDbConnectionTest extends MariaDbTestCase
     /**
      * Provide JSON boolean comparisons and matching row identifiers.
      */
-    public static function jsonBooleanComparisons(): array
+    public static function jsonBooleanComparisonsDataProvider(): array
     {
         return [
             'equals true' => [true, '=', [0.0, 10.0]],

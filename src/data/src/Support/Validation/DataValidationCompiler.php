@@ -8,7 +8,6 @@ use BackedEnum;
 use Closure;
 use DateTimeInterface;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Validation\ParameterizedRule;
 use Hypervel\Data\Attributes\Validation\ArrayType;
 use Hypervel\Data\Attributes\Validation\BooleanType;
 use Hypervel\Data\Attributes\Validation\Enum;
@@ -36,6 +35,7 @@ use Hypervel\Data\Support\Types\NamedType;
 use Hypervel\Data\Support\Validation\References\FieldReference;
 use Hypervel\Validation\Rules\RequiredIf as NativeRequiredIf;
 use Hypervel\Validation\Rules\RequiredUnless as NativeRequiredUnless;
+use Hypervel\Validation\ValidationRuleParser;
 use TypeError;
 use UnitEnum;
 
@@ -749,7 +749,9 @@ class DataValidationCompiler
                 $denormalizedRules = $this->ruleDenormalizer->execute($attribute, $nodePath, $resolveField);
                 $hasPresenceRule = $hasPresenceRule
                     || $attribute instanceof RequiringRule
-                    || $this->hasPresenceRule($denormalizedRules);
+                    || ($attribute instanceof ValidationAttribute
+                        ? in_array($attribute::keyword(), self::PRESENCE_RULES, true)
+                        : $this->hasPresenceRule($denormalizedRules));
                 $hasEnumAttribute = $hasEnumAttribute || $attribute instanceof Enum;
                 array_push($attributeRules, ...$denormalizedRules);
             }
@@ -1645,7 +1647,7 @@ class DataValidationCompiler
      */
     protected function ruleKeyword(mixed $rule): ?string
     {
-        if ($rule instanceof ParameterizedRule) {
+        if (ValidationRuleParser::ruleUsesParameterizedDeclaration($rule)) {
             $rule = $rule->toArray()[0];
         }
 

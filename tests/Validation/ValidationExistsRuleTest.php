@@ -38,6 +38,16 @@ class ValidationExistsRuleTest extends TestCase
         $rule->where('foo', 'bar');
         $this->assertSame('exists:table,NULL,foo,"bar"', (string) $rule);
 
+        $rule = (new Exists('table', 'id'))
+            ->where('data->active', false)
+            ->whereNot('data->hidden', false);
+        $this->assertSame('exists:table,id,data->active,"0",data->hidden,"!0"', (string) $rule);
+
+        $rule = (new Exists('table', 'id'))
+            ->where('score', 1.234567890123456)
+            ->whereNot('score', 1.234567890123457);
+        $this->assertSame('exists:table,id,score,"1.234567890123456",score,"!1.234567890123457"', (string) $rule);
+
         $rule = new Exists(User::class);
         $rule->where('foo', 'bar');
         $this->assertSame('exists:table,NULL,foo,"bar"', (string) $rule);

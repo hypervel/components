@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Conditionable;
 use Stringable;
 
-class StringRule implements Stringable
+class StringRule implements Stringable, Transient
 {
     use Conditionable;
 

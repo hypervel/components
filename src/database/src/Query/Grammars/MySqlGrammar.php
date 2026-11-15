@@ -249,6 +249,16 @@ class MySqlGrammar extends Grammar
     }
 
     /**
+     * Compile one JSON boolean membership comparison.
+     */
+    protected function compileJsonBooleanInValue(string $column, bool $value): string
+    {
+        // Keep the indexed scalar expression; the type check excludes JSON strings and numbers.
+        return '(' . $this->wrap($column) . ' = ' . $this->quoteString($value ? 'true' : 'false')
+            . ' and json_type(' . $this->wrapJsonBooleanSelector($column) . ") = 'BOOLEAN')";
+    }
+
+    /**
      * Compile a "JSON contains" statement into SQL.
      */
     protected function compileJsonContains(string $column, string $value): string

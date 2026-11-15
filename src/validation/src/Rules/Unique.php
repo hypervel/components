@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Number;
 use Hypervel\Support\Traits\Conditionable;
 use Stringable;
 
-class Unique implements Stringable
+class Unique implements Stringable, Transient
 {
     use Conditionable;
     use DatabaseRule;
@@ -56,15 +58,33 @@ class Unique implements Stringable
     /**
      * Convert the rule to a validation string.
      */
-    public function __toString(): string
+    final public function __toString(): string
     {
+        [$table, $column, $ignore, $idColumn] = $this->queryParameters();
+
         return rtrim(sprintf(
             'unique:%s,%s,%s,%s,%s',
-            $this->table,
-            $this->column,
-            $this->ignore !== null ? '"' . str_replace('"', '""', (string) $this->ignore) . '"' : 'NULL',
-            $this->idColumn,
+            $table,
+            $column,
+            $ignore !== null ? '"' . str_replace('"', '""', $ignore) . '"' : 'NULL',
+            $idColumn,
             $this->formatWheres()
         ), ',');
+    }
+
+    /**
+     * Get the table, column and exclusion used by validation and string rendering.
+     *
+     * @return array{string, string, ?string, string}
+     */
+    public function queryParameters(): array
+    {
+        $ignore = match (true) {
+            $this->ignore === null => null,
+            is_float($this->ignore) => Number::toString($this->ignore),
+            default => (string) $this->ignore,
+        };
+
+        return [$this->table, $this->column, $ignore, $this->idColumn];
     }
 }

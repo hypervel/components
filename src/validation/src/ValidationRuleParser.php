@@ -157,25 +157,26 @@ class ValidationRuleParser
             || $rule instanceof RuleContract
             || $rule instanceof ParameterizedRule
             || $rule instanceof CompilableRules
+            || $rule instanceof Exists
+            || $rule instanceof Unique
         ) {
             return false;
         }
 
-        if ($rule instanceof Exists || $rule instanceof Unique) {
-            $conditions = $rule->queryConditions();
-
-            // Lossless native rules stay cacheable strings; subclasses may override their conditions.
-            if (in_array($rule::class, [Exists::class, Unique::class], true)) {
-                return ! array_any($conditions, static fn (mixed $condition): bool => $condition instanceof Closure);
-            }
-
-            // The string can still carry stored wheres that a subclass's empty override removed.
-            // Exists starts with table/column; Unique also includes the ignored ID and its column.
-            return $conditions === []
-                && count(static::parse((string) $rule)[1]) === ($rule instanceof Exists ? 2 : 4);
-        }
-
         return true;
+    }
+
+    /**
+     * Determine if validation uses a rule's parameter declaration.
+     *
+     * @phpstan-assert-if-true =ParameterizedRule $rule
+     */
+    public static function ruleUsesParameterizedDeclaration(mixed $rule): bool
+    {
+        // Custom validation takes precedence over an inherited declarative builder.
+        return $rule instanceof ParameterizedRule
+            && ! $rule instanceof RuleContract
+            && ! $rule instanceof ValidationRule;
     }
 
     /**
@@ -400,15 +401,25 @@ class ValidationRuleParser
 
     /**
      * Extract the rule name and parameters from a rule.
+     *
+     * @return array{object|string, array}
      */
     public static function parse(array|object|string $rule): array
     {
-        if ($rule instanceof ParameterizedRule) {
+        if ($rule instanceof RuleContract || $rule instanceof ValidationRule || $rule instanceof CompilableRules) {
+            return [$rule, []];
+        }
+
+        if (static::ruleUsesParameterizedDeclaration($rule)) {
             $rule = $rule->toArray();
         }
 
-        if ($rule instanceof RuleContract || $rule instanceof CompilableRules) {
-            return [$rule, []];
+        if ($rule instanceof DatabaseRulePlan) {
+            return [$rule->name, $rule->parameters];
+        }
+
+        if ($rule instanceof Exists || $rule instanceof Unique) {
+            return [$rule instanceof Exists ? 'Exists' : 'Unique', $rule->queryParameters()];
         }
 
         if (is_array($rule)) {
@@ -439,6 +450,8 @@ class ValidationRuleParser
 
     /**
      * Parse an array based rule.
+     *
+     * @return array{string, array}
      */
     protected static function parseArrayRule(array $rule): array
     {
@@ -447,6 +460,8 @@ class ValidationRuleParser
 
     /**
      * Parse a string based rule.
+     *
+     * @return array{string, array}
      */
     protected static function parseStringRule(string|Stringable $rule): array
     {
@@ -500,7 +515,7 @@ class ValidationRuleParser
      * Behavioral callers must attempt literal parsing first. Compiler callers may
      * conservatively delegate because false positives only select the full path.
      *
-     * @phpstan-assert-if-true string $argument
+     * @phpstan-assert-if-true =string $argument
      */
     public static function looksLikeDateFieldReference(mixed $argument): bool
     {

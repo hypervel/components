@@ -37,6 +37,65 @@ class QueryBuilderTest extends DatabaseTestCase
         ]);
     }
 
+    public function testFloatDefaultsAndArithmeticPreservePrecision(): void
+    {
+        Schema::create('precise_balances', function (Blueprint $table): void {
+            $table->id();
+            $table->double('balance')->default(1.234567890123456);
+        });
+        $identifier = DB::table('precise_balances')->insertGetId([]);
+        $account = DB::table('precise_balances')->where('id', $identifier);
+
+        $this->assertSame(1.234567890123456, (float) $account->value('balance'));
+
+        $account->update(['balance' => 0]);
+        $account->increment('balance', 1.234567890123456);
+        $this->assertSame(1.234567890123456, (float) $account->value('balance'));
+
+        $account->decrement('balance', 1.234567890123456);
+        $this->assertSame(0.0, (float) $account->value('balance'));
+    }
+
+    public function testJsonBooleanMembershipPreservesTypesAndNullSemantics(): void
+    {
+        Schema::create('json_membership', function (Blueprint $table): void {
+            $table->integer('id')->primary();
+            $table->jsonb('payload')->nullable();
+        });
+
+        $rows = [];
+
+        foreach ([true, false, 1, 0, 'true', 'false', '1', '0', 'x', null, ['other' => 1], [true]] as $index => $value) {
+            $rows[] = ['id' => $index + 1, 'payload' => json_encode(['flag' => $value], JSON_THROW_ON_ERROR)];
+        }
+
+        $rows[] = ['id' => 13, 'payload' => '{}'];
+        $rows[] = ['id' => 14, 'payload' => null];
+        DB::table('json_membership')->insert($rows);
+
+        $query = DB::table('json_membership')->orderBy('id');
+
+        $this->assertSame($this->driver === 'sqlite' ? [1, 3] : [1], (clone $query)->whereIn('payload->flag', [true])->pluck('id')->all());
+        $this->assertSame($this->driver === 'sqlite' ? [2, 4] : [2], (clone $query)->whereIn('payload->flag', [false])->pluck('id')->all());
+        $this->assertSame($this->driver === 'sqlite' ? [1, 3, 9] : [1, 9], (clone $query)->whereIn('payload->flag', [true, 'x'])->pluck('id')->all());
+
+        $this->assertSame(
+            $this->driver === 'sqlite' ? [2, 4, 5, 6, 7, 8, 9, 11, 12] : [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+            (clone $query)->whereNotIn('payload->flag', [true])->pluck('id')->all(),
+        );
+
+        // Ordinary IN retains each driver's scalar extraction behavior for JSON null, objects and arrays.
+        $this->assertSame(
+            match ($this->driver) {
+                'sqlite' => [2, 4, 5, 6, 7, 8, 11, 12],
+                'mariadb' => [2, 3, 4, 5, 6, 7, 8],
+                'pgsql' => [2, 3, 4, 5, 6, 7, 8, 11, 12],
+                default => [2, 3, 4, 5, 6, 7, 8, 10, 11, 12],
+            },
+            (clone $query)->whereNotIn('payload->flag', [true, 'x'])->pluck('id')->all(),
+        );
+    }
+
     public function testIncrement(): void
     {
         Schema::create('accounting', function (Blueprint $table) {

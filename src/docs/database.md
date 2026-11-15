@@ -799,6 +799,13 @@ Instead of using `?` to represent your parameter bindings, you may execute a que
 $results = DB::select('select * from users where id = :id', ['id' => 1]);
 ```
 
+<a name="binding-floating-point-values"></a>
+#### Binding Floating-Point Values
+
+PDO connections preserve finite floating-point values when converting them to query parameters, using PHP's default `serialize_precision=-1`. For example, `1.234567890123456` retains its digits instead of being rounded to PHP's display precision. SQL escaping uses the same conversion.
+
+Floating-point arithmetic remains approximate: `0.1 + 0.2` is sent as `0.30000000000000004`. Use decimal strings for exact decimal values, and round computed values explicitly when your application requires a fixed number of decimal places, including before equality comparisons. Eloquent's `decimal:2` cast rounds attributes when reading them; it does not round outgoing bindings.
+
 <a name="binding-binary-values"></a>
 #### Binding Binary Values
 

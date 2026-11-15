@@ -14,6 +14,7 @@ use Hypervel\Data\Attributes\Validation\StringValidationAttribute;
 use Hypervel\Data\Support\Validation\References\ExternalReference;
 use Hypervel\Data\Support\Validation\References\FieldReference;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Number;
 
 class RuleDenormalizer
 {
@@ -120,8 +121,7 @@ class RuleDenormalizer
         }
 
         if (is_float($parameter)) {
-            // String casts round finite floats, JSON cannot encode INF, and casting NAN warns on PHP 8.5.
-            return is_nan($parameter) ? 'NAN' : (json_encode($parameter) ?: (string) $parameter);
+            return Number::toString($parameter);
         }
 
         if (is_string($parameter) || is_numeric($parameter)) {

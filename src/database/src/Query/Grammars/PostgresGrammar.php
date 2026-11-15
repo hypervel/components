@@ -247,6 +247,16 @@ class PostgresGrammar extends Grammar
     }
 
     /**
+     * Compile one JSON boolean membership comparison.
+     */
+    protected function compileJsonBooleanInValue(string $column, bool $value): string
+    {
+        // Keep text-expression indexes usable without equating JSON booleans with strings.
+        return '(' . $this->wrap($column) . ' = ' . $this->quoteString($value ? 'true' : 'false')
+            . ' and jsonb_typeof(' . $this->wrapJsonBooleanSelector($column) . ") = 'boolean')";
+    }
+
+    /**
      * Compile a "JSON contains" statement into SQL.
      */
     protected function compileJsonContains(string $column, string $value): string
@@ -595,7 +605,8 @@ class PostgresGrammar extends Grammar
     {
         // A ctid is unique only within one physical table, and the partitions of a
         // partitioned table reuse them, so rows are matched by table and ctid.
-        $selectSql = $this->compileSelectQuery($query->select([
+        // Selecting row identifiers must not replace a reusable builder's columns or select bindings.
+        $selectSql = $this->compileSelectQuery((clone $query)->select([
             $this->qualifyRowIdentifier($query, 'tableoid'),
             $this->qualifyRowIdentifier($query, 'ctid'),
         ]));

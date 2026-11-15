@@ -74,6 +74,17 @@ class MariaDbGrammar extends MySqlGrammar
     }
 
     /**
+     * Compile one JSON boolean membership comparison.
+     */
+    protected function compileJsonBooleanInValue(string $column, bool $value): string
+    {
+        // JSON_VALUE exposes booleans as 1/0. Retain its index while checking the original JSON type.
+        // JSON_TYPE needs the raw JSON value, without this grammar's binary cast.
+        return '(' . $this->wrap($column) . ' = ' . $this->quoteString($value ? '1' : '0')
+            . ' and json_type(' . parent::wrapJsonBooleanSelector($column) . ") = 'BOOLEAN')";
+    }
+
+    /**
      * Wrap the given JSON selector.
      */
     protected function wrapJsonSelector(string $value): string

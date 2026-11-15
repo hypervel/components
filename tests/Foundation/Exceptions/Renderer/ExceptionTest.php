@@ -25,7 +25,7 @@ class ExceptionTest extends TestCase
         $listener = new Listener;
         $listener->onQueryExecuted(new QueryExecuted(
             'select * from t where a = ? and b = ? and c = ? and d = ? and e = ?',
-            ['$1 off?', 'next \1', 7, 1.5, null],
+            ['$1 off?', 'next \1', 7, 1.234567890123456, null],
             null,
             $connection,
         ));
@@ -40,7 +40,7 @@ class ExceptionTest extends TestCase
         $this->assertSame([[
             'connectionName' => null,
             'time' => null,
-            'sql' => "select * from t where a = '$1 off?' and b = 'next \\1' and c = 7 and d = 1.5 and e = NULL",
+            'sql' => "select * from t where a = '$1 off?' and b = 'next \\1' and c = 7 and d = 1.234567890123456 and e = NULL",
         ]], $exception->applicationQueries());
     }
 }

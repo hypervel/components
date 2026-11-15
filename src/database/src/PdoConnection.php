@@ -11,6 +11,7 @@ use Generator;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Events\StatementPrepared;
 use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\Number;
 use Hypervel\Support\Str;
 use PDO;
 use PDOException;
@@ -296,6 +297,11 @@ class PdoConnection extends Connection
     {
         foreach ($bindings as $key => $value) {
             $parameter = $value instanceof BinaryParameter ? $value->value : $value;
+
+            // Unlike Laravel's implicit PDO conversion, preserve float precision before binding as text.
+            if (is_float($parameter) && is_finite($parameter)) {
+                $parameter = Number::toString($parameter);
+            }
 
             $statement->bindValue(
                 is_string($key) ? $key : $key + 1,

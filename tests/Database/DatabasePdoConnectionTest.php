@@ -746,6 +746,21 @@ class DatabasePdoConnectionTest extends TestCase
         }
     }
 
+    #[TestWith([1.234567890123456, '1.234567890123456'])]
+    #[TestWith([0.1 + 0.2, '0.30000000000000004'])]
+    public function testFloatBindingsPreservePrecisionAndMatchRawSql(float $value, string $expected): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $connection->statement('create table numeric_values (value text)');
+        $connection->table('numeric_values')->insert(['value' => $value]);
+
+        $this->assertSame($expected, $connection->table('numeric_values')->value('value'));
+        $this->assertSame(
+            'select * from "numeric_values" where "value" = ' . $expected,
+            $connection->table('numeric_values')->where('value', $value)->toRawSql(),
+        );
+    }
+
     public function testStatementProperlyCallsPDO(): void
     {
         $pdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['prepare'])->getMock();

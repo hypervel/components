@@ -339,28 +339,28 @@ class ValidationPlanExecutorTest extends TestCase
     {
         $validator = $this->makeValidator();
 
-        $check = new InlineCheck(CheckType::In, ['a', 'b', 'c']);
+        $check = new InlineCheck(CheckType::In, ['a' => true, 'b' => true, 'c' => true]);
         $this->assertTrue($validator->publicExecuteInline($check, 'a', 'field'));
         $this->assertFalse($validator->publicExecuteInline($check, 'd', 'field'));
         $this->assertFalse($validator->publicExecuteInline($check, ['a'], 'field'));
 
-        $check = new InlineCheck(CheckType::NotIn, ['a', 'b']);
+        $check = new InlineCheck(CheckType::NotIn, ['a' => true, 'b' => true]);
         $this->assertTrue($validator->publicExecuteInline($check, 'c', 'field'));
         $this->assertFalse($validator->publicExecuteInline($check, 'a', 'field'));
         $this->assertTrue($validator->publicExecuteInline($check, ['a'], 'field'));
 
         $this->assertFalse($validator->publicExecuteInline(
-            new InlineCheck(CheckType::In, ['0e123']),
+            new InlineCheck(CheckType::In, ['0e123' => true]),
             '0e456',
             'field'
         ));
         $this->assertTrue($validator->publicExecuteInline(
-            new InlineCheck(CheckType::NotIn, ['0e123']),
+            new InlineCheck(CheckType::NotIn, ['0e123' => true]),
             '0e456',
             'field'
         ));
         $this->assertTrue($validator->publicExecuteInline(
-            new InlineCheck(CheckType::In, ['1']),
+            new InlineCheck(CheckType::In, [1 => true]),
             1,
             'field'
         ));

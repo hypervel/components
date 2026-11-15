@@ -7,6 +7,7 @@ namespace Hypervel\Validation\Rules;
 use ArrayIterator;
 use Closure;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Validation\DataAwareRule;
 use Hypervel\Contracts\Validation\ImplicitRule;
 use Hypervel\Contracts\Validation\Rule;
@@ -23,7 +24,7 @@ use IteratorAggregate;
 use Traversable;
 
 // @phpstan-ignore class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.), class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
-class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, ValidatorAwareRule
+class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, ValidatorAwareRule, Transient
 {
     use Conditionable;
     use ClonesCustomRules;

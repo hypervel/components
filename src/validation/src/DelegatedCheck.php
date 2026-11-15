@@ -20,7 +20,8 @@ final readonly class DelegatedCheck
      * @param array<int, mixed> $parameters parsed rule parameters
      * @param mixed $originalRule The exploded rule, or its plain structured values in a cached base plan.
      *                            Set as $this->currentRule before dispatch so validateExists/
-     *                            validateUnique can check `$this->currentRule instanceof Exists`.
+     *                            validateUnique can read the captured DatabaseRulePlan. Validator
+     *                            subclasses retain their original rule objects instead.
      */
     public function __construct(
         public string $ruleName,

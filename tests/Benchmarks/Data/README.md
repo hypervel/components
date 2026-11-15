@@ -10,6 +10,8 @@ Run it from the components repository root:
 php tests/Benchmarks/Data/benchmark.php
 ```
 
+Use `--verify` to execute each workload once without timing. The validation workloads include 1,000-item collections with static membership/database attributes and equivalent class-level `rules()` declarations. The latter exercises per-item declaration comparison before sharing wildcard rules; both use the same seeded database rows.
+
 To compare the lightweight Support `DataObject` with full Hypervel Data across supported construction, transformation, memory, and first-use shapes, run:
 
 ```shell
@@ -23,6 +25,8 @@ BENCHMARK_REVERSE=1 php tests/Benchmarks/Data/compare-data-object.php
 ```
 
 The harness warms each scenario, records repeated samples, and reports operations per second, median and p95 nanoseconds per operation, database queries per operation, and peak allocated memory. Its heading records the commit, PHP version, operating system, loaded extensions, OPcache/JIT state, and workload size. Expensive 1,000- and 5,000-item scenarios scale their operation counts from the requested baseline.
+
+For cross-revision validation comparisons, follow the [Validation harness procedure](../Validation/README.md#comparing-revisions), copying this script into both independently installed worktrees. Keep CLI opcache/JIT settings identical. Percentiles describe sample-average latency, not individual-request tails.
 
 Raw reports are opt-in and should be written outside the repository so local measurements cannot be committed accidentally:
 

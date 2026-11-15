@@ -9,10 +9,10 @@ interface PresenceVerifierInterface
     /**
      * Count the number of objects in a collection having the given value.
      */
-    public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int;
+    public function getCount(PresenceQuery $query, mixed $value): int;
 
     /**
-     * Count the number of objects in a collection with the given values.
+     * Count the distinct matching values in a collection.
      */
-    public function getMultiCount(string $collection, string $column, array $values, array $extra = []): int;
+    public function getMultiCount(PresenceQuery $query, array $values): int;
 }

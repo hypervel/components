@@ -29,9 +29,15 @@ use Hypervel\Support\Fluent;
 use Hypervel\Support\Json;
 use Hypervel\Support\Stringable;
 use Hypervel\Tests\TestCase;
+use Hypervel\Tests\Validation\Fixtures\PureEnum;
+use Hypervel\Tests\Validation\Fixtures\StringStatus;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
-use Hypervel\Validation\DatabasePresenceVerifierInterface;
+use Hypervel\Validation\DatabaseCondition;
+use Hypervel\Validation\DatabaseConditionOperator;
+use Hypervel\Validation\DatabaseConditions;
+use Hypervel\Validation\PresenceQuery;
+use Hypervel\Validation\PresenceVerifierInterface;
 use Hypervel\Validation\Rule as ValidationRule;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\ProhibitedIf;
@@ -41,6 +47,7 @@ use Hypervel\Validation\ValidationException;
 use Hypervel\Validation\Validator;
 use InvalidArgumentException;
 use Mockery as m;
+use Mockery\Matcher\Closure as ClosureMatcher;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -842,6 +849,13 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
         $v->messages()->setFormat(':message');
         $this->assertSame('type must be included in Short, Long.', $v->messages()->first('type'));
+
+        $v->setValueNames(['type' => ['1.5' => 'One and a half']]);
+        $this->assertSame('One and a half', $v->getDisplayableValue('type', 1.5));
+        $this->assertSame('array', $v->getDisplayableValue('type', ['value']));
+
+        $trans->addLines(['validation.values.type.1.234567890123456' => 'Precise'], 'en');
+        $this->assertSame('Precise', $v->getDisplayableValue('type', 1.234567890123456));
     }
 
     public function testCapitalizedDisplayableValuesAreReplaced(): void
@@ -4737,6 +4751,96 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
+    #[DataProvider('membershipComparisons')]
+    public function testMembershipRulesUseTheSameValueComparisons(mixed $parameter, mixed $value, bool $matches): void
+    {
+        $translator = $this->getArrayTranslator();
+
+        foreach ([false, true] as $delegated) {
+            foreach (['in', 'notIn', 'contains', 'doesntContain'] as $method) {
+                $rule = ValidationRule::{$method}([$parameter]);
+                $forms = [$rule, $rule->toArray()];
+
+                if ($parameter !== null) {
+                    $forms[] = (string) $rule;
+                }
+
+                foreach ($forms as $form) {
+                    $arguments = [$translator, ['values' => [$value]], ['values' => ['array', $form]]];
+                    $validator = $delegated ? new class(...$arguments) extends Validator {} : new Validator(...$arguments);
+
+                    $this->assertSame(
+                        in_array($method, ['notIn', 'doesntContain'], true) ? ! $matches : $matches,
+                        $validator->passes(),
+                        $method,
+                    );
+                }
+            }
+
+            foreach (['in', 'notIn'] as $method) {
+                $arguments = [$translator, ['value' => $value], ['value' => ValidationRule::{$method}([$parameter])]];
+                $validator = $delegated ? new class(...$arguments) extends Validator {} : new Validator(...$arguments);
+
+                // Normal field gating still skips an empty string; array elements above are compared.
+                $this->assertSame($value === '' || ($method === 'in' ? $matches : ! $matches), $validator->passes(), $method);
+            }
+        }
+    }
+
+    /**
+     * Provide shared membership comparisons across form, JSON and native values.
+     */
+    public static function membershipComparisons(): array
+    {
+        return [
+            'false and form zero' => [false, '0', true],
+            'false and JSON zero' => [false, 0, true],
+            'false and false' => [false, false, true],
+            'true and form one' => [true, '1', true],
+            'true and JSON one' => [true, 1, true],
+            'true and true' => [true, true, true],
+            'opposite booleans' => [true, false, false],
+            'false and empty string' => [false, '', false],
+            'empty string and false' => ['', false, false],
+            'null and null' => [null, null, true],
+            'null and empty string' => [null, '', false],
+            'empty string and null' => ['', null, false],
+            'null and false' => [null, false, false],
+            'false and null' => [false, null, false],
+            'integer and form value' => [1, '1', true],
+            'string and JSON integer' => ['1', 1, true],
+            'integer and integral float' => [1, 1.0, true],
+            'leading zero' => [1, '01', false],
+            'decimal spelling' => [1, '1.0', false],
+            'leading whitespace' => [1, ' 1', false],
+            'numeric exponent string' => ['0', '0e123', false],
+            'named value and true' => ['admin', true, false],
+            'true and named value' => [true, 'admin', false],
+            'Stringable parameter' => [new Stringable('admin'), 'admin', true],
+            'Stringable input' => ['admin', new Stringable('admin'), true],
+            'nested array input' => ['admin', ['admin'], false],
+            'non-Stringable input' => ['admin', new stdClass, false],
+        ];
+    }
+
+    #[TestWith([['admin', 'editor'], false])]
+    #[TestWith([['admin'], false])]
+    #[TestWith([['editor'], true])]
+    #[TestWith([[], true])]
+    #[TestWith([[['nested'], 'admin'], false])]
+    #[TestWith([[['nested'], 'editor'], true])]
+    public function testNotInRejectsAnyForbiddenArrayMember(array $values, bool $expected): void
+    {
+        $translator = $this->getArrayTranslator();
+
+        foreach ([false, true] as $delegated) {
+            $arguments = [$translator, ['values' => $values], ['values' => ['array', ValidationRule::notIn(['admin'])]]];
+            $validator = $delegated ? new class(...$arguments) extends Validator {} : new Validator(...$arguments);
+
+            $this->assertSame($expected, $validator->passes());
+        }
+    }
+
     public function testValidateNotIn(): void
     {
         $trans = $this->getArrayTranslator();
@@ -4765,6 +4869,12 @@ class ValidationValidatorTest extends TestCase
 
         $v = new Validator($trans, ['foo' => ['1', '11']], ['foo.*' => 'distinct:ignore_case']);
         $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => ['1.2345678901235', 1.234567890123456]], ['foo.*' => 'distinct:ignore_case']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => ['1.234567890123456', 1.234567890123456]], ['foo.*' => 'distinct:ignore_case']);
+        $this->assertFalse($v->passes());
 
         $v = new Validator($trans, ['foo' => ['hello', "HELLO\n"]], ['foo.*' => 'distinct:ignore_case']);
         $this->assertTrue($v->passes());
@@ -4967,65 +5077,77 @@ class ValidationValidatorTest extends TestCase
     {
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['email' => 'foo'], ['email' => 'Unique:users']);
-        $mock = m::mock(DatabasePresenceVerifierInterface::class);
-        $mock->expects('setConnection')->with(null);
-        $mock->expects('getCount')->with('users', 'email', 'foo', null, null, [])->andReturn(0);
+        $mock = m::mock(PresenceVerifierInterface::class);
+        $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email', new DatabaseConditions)), 'foo')->andReturn(0);
         $v->setPresenceVerifier($mock);
         $this->assertTrue($v->passes());
 
         $v = new Validator($trans, ['email' => 'foo'], ['email' => 'Unique:connection.users']);
-        $mock = m::mock(DatabasePresenceVerifierInterface::class);
-        $mock->expects('setConnection')->with('connection');
-        $mock->expects('getCount')->with('users', 'email', 'foo', null, null, [])->andReturn(0);
+        $mock = m::mock(PresenceVerifierInterface::class);
+        $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery('connection', 'users', 'email', new DatabaseConditions)), 'foo')->andReturn(0);
         $v->setPresenceVerifier($mock);
         $this->assertTrue($v->passes());
 
         $v = new Validator($trans, ['email' => 'foo'], ['email' => 'Unique:users,email_addr,1']);
-        $mock = m::mock(DatabasePresenceVerifierInterface::class);
-        $mock->expects('setConnection')->with(null);
-        $mock->expects('getCount')->with('users', 'email_addr', 'foo', '1', 'id', [])->andReturn(1);
+        $mock = m::mock(PresenceVerifierInterface::class);
+        $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email_addr', new DatabaseConditions, '1', 'id')), 'foo')->andReturn(1);
         $v->setPresenceVerifier($mock);
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, ['email' => 'foo'], ['email' => 'Unique:users,email_addr,1,id_col']);
-        $mock = m::mock(DatabasePresenceVerifierInterface::class);
-        $mock->expects('setConnection')->with(null);
-        $mock->expects('getCount')->with('users', 'email_addr', 'foo', '1', 'id_col', [])->andReturn(2);
+        $mock = m::mock(PresenceVerifierInterface::class);
+        $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email_addr', new DatabaseConditions, '1', 'id_col')), 'foo')->andReturn(2);
         $v->setPresenceVerifier($mock);
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, ['users' => [['id' => 1, 'email' => 'foo']]], ['users.*.email' => 'Unique:users,email,[users.*.id]']);
-        $mock = m::mock(DatabasePresenceVerifierInterface::class);
-        $mock->expects('setConnection')->with(null);
-        $mock->expects('getCount')->with('users', 'email', 'foo', '1', 'id', [])->andReturn(1);
+        $mock = m::mock(PresenceVerifierInterface::class);
+        $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email', new DatabaseConditions, '1', 'id')), 'foo')->andReturn(1);
         $v->setPresenceVerifier($mock);
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, ['email' => 'foo'], ['email' => 'Unique:users,email_addr,NULL,id_col,foo,bar']);
-        $mock = m::mock(DatabasePresenceVerifierInterface::class);
-        $mock->expects('setConnection')->with(null);
-        $mock->expects('getCount')->withArgs(function (): bool {
-            return func_get_args() === ['users', 'email_addr', 'foo', null, 'id_col', ['foo' => 'bar']];
-        })->andReturn(2);
+        $mock = m::mock(PresenceVerifierInterface::class);
+        $mock->expects('getCount')->with(
+            $this->matchingPresenceQuery(new PresenceQuery(
+                null,
+                'users',
+                'email_addr',
+                new DatabaseConditions(new DatabaseCondition('foo', DatabaseConditionOperator::Equals, 'bar')),
+                null,
+                'id_col'
+            )),
+            'foo',
+        )->andReturn(2);
         $v->setPresenceVerifier($mock);
         $this->assertFalse($v->passes());
     }
 
-    public function testValidateUniquePreservesZeroIgnoredId(): void
+    public function testValidateUniquePreservesNullAndZeroIgnoredIds(): void
     {
-        $validator = new Validator(
-            $this->getArrayTranslator(),
-            ['email' => 'foo'],
-            ['email' => (new Unique('users', 'email'))->ignore(0)],
-        );
-        $verifier = m::mock(DatabasePresenceVerifierInterface::class);
-        $verifier->expects('setConnection')->with(null);
-        $verifier->expects('getCount')
-            ->with('users', 'email', 'foo', '0', 'id', [])
-            ->andReturn(0);
-        $validator->setPresenceVerifier($verifier);
+        foreach ([null, 0] as $ignoredId) {
+            foreach ([(new Unique('users', 'email'))->ignore($ignoredId), ['unique', 'users', 'email', $ignoredId]] as $rule) {
+                $validator = new Validator(
+                    $this->getArrayTranslator(),
+                    ['email' => 'foo'],
+                    ['email' => [$rule]],
+                );
+                $verifier = m::mock(PresenceVerifierInterface::class);
+                $verifier->expects('getCount')
+                    ->with($this->matchingPresenceQuery(new PresenceQuery(
+                        null,
+                        'users',
+                        'email',
+                        new DatabaseConditions,
+                        $ignoredId === null ? null : '0',
+                        'id',
+                    )), 'foo')
+                    ->andReturn(0);
+                $validator->setPresenceVerifier($verifier);
 
-        $this->assertTrue($validator->passes());
+                $this->assertTrue($validator->passes());
+            }
+        }
     }
 
     public function testValidateUniqueAndExistsSendsCorrectFieldNameToDBWithArrays(): void
@@ -5034,10 +5156,9 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, [['email' => 'foo', 'type' => 'bar']], [
             '*.email' => 'unique:users', '*.type' => 'exists:user_types',
         ]);
-        $mock = m::mock(DatabasePresenceVerifierInterface::class);
-        $mock->expects('setConnection')->twice()->with(null);
-        $mock->expects('getCount')->with('users', 'email', 'foo', null, null, [])->andReturn(0);
-        $mock->expects('getCount')->with('user_types', 'type', 'bar', null, null, [])->andReturn(1);
+        $mock = m::mock(PresenceVerifierInterface::class);
+        $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email', new DatabaseConditions)), 'foo')->andReturn(0);
+        $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'user_types', 'type', new DatabaseConditions)), 'bar')->andReturn(1);
         $v->setPresenceVerifier($mock);
         $this->assertTrue($v->passes());
 
@@ -5048,10 +5169,13 @@ class ValidationValidatorTest extends TestCase
             '*.email' => (new Unique('users'))->where($closure),
             '*.type' => (new Exists('user_types'))->where($closure),
         ]);
-        $mock = m::mock(DatabasePresenceVerifierInterface::class);
-        $mock->expects('setConnection')->twice()->with(null);
-        $mock->expects('getCount')->with('users', 'email', 'foo', null, 'id', [$closure])->andReturn(0);
-        $mock->expects('getCount')->with('user_types', 'type', 'bar', null, null, [$closure])->andReturn(1);
+        $mock = m::mock(PresenceVerifierInterface::class);
+        $mock->expects('getCount')->with($this->matchingPresenceQuery(
+            new PresenceQuery(null, 'users', 'email', new DatabaseConditions($closure), null, 'id'),
+        ), 'foo')->andReturn(0);
+        $mock->expects('getCount')->with($this->matchingPresenceQuery(
+            new PresenceQuery(null, 'user_types', 'type', new DatabaseConditions($closure)),
+        ), 'bar')->andReturn(1);
         $v->setPresenceVerifier($mock);
         $this->assertTrue($v->passes());
     }
@@ -5060,45 +5184,39 @@ class ValidationValidatorTest extends TestCase
     {
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['email' => 'foo'], ['email' => 'Exists:users']);
-        $mock = m::mock(DatabasePresenceVerifierInterface::class);
-        $mock->expects('setConnection')->with(null);
-        $mock->expects('getCount')->with('users', 'email', 'foo', null, null, [])->andReturn(1);
+        $mock = m::mock(PresenceVerifierInterface::class);
+        $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email', new DatabaseConditions)), 'foo')->andReturn(1);
         $v->setPresenceVerifier($mock);
         $this->assertTrue($v->passes());
 
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['email' => 'foo'], ['email' => 'Exists:users,email,account_id,1,name,taylor']);
-        $mock = m::mock(DatabasePresenceVerifierInterface::class);
-        $mock->expects('setConnection')->with(null);
-        $mock->expects('getCount')->with('users', 'email', 'foo', null, null, ['account_id' => 1, 'name' => 'taylor'])->andReturn(1);
+        $mock = m::mock(PresenceVerifierInterface::class);
+        $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email', new DatabaseConditions(new DatabaseCondition('account_id', DatabaseConditionOperator::Equals, 1), new DatabaseCondition('name', DatabaseConditionOperator::Equals, 'taylor')))), 'foo')->andReturn(1);
         $v->setPresenceVerifier($mock);
         $this->assertTrue($v->passes());
 
         $v = new Validator($trans, ['email' => 'foo'], ['email' => 'Exists:users,email_addr']);
-        $mock = m::mock(DatabasePresenceVerifierInterface::class);
-        $mock->expects('setConnection')->with(null);
-        $mock->expects('getCount')->with('users', 'email_addr', 'foo', null, null, [])->andReturn(0);
+        $mock = m::mock(PresenceVerifierInterface::class);
+        $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email_addr', new DatabaseConditions)), 'foo')->andReturn(0);
         $v->setPresenceVerifier($mock);
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, ['email' => ['foo']], ['email' => 'Exists:users,email_addr']);
-        $mock = m::mock(DatabasePresenceVerifierInterface::class);
-        $mock->expects('setConnection')->with(null);
-        $mock->expects('getMultiCount')->with('users', 'email_addr', ['foo'], [])->andReturn(0);
+        $mock = m::mock(PresenceVerifierInterface::class);
+        $mock->expects('getMultiCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email_addr', new DatabaseConditions)), ['foo'])->andReturn(0);
         $v->setPresenceVerifier($mock);
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, ['email' => 'foo'], ['email' => 'Exists:connection.users']);
-        $mock = m::mock(DatabasePresenceVerifierInterface::class);
-        $mock->expects('setConnection')->with('connection');
-        $mock->expects('getCount')->with('users', 'email', 'foo', null, null, [])->andReturn(1);
+        $mock = m::mock(PresenceVerifierInterface::class);
+        $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery('connection', 'users', 'email', new DatabaseConditions)), 'foo')->andReturn(1);
         $v->setPresenceVerifier($mock);
         $this->assertTrue($v->passes());
 
         $v = new Validator($trans, ['email' => ['foo', 'foo']], ['email' => 'exists:users,email_addr']);
-        $mock = m::mock(DatabasePresenceVerifierInterface::class);
-        $mock->expects('setConnection')->with(null);
-        $mock->expects('getMultiCount')->with('users', 'email_addr', ['foo', 'foo'], [])->andReturn(1);
+        $mock = m::mock(PresenceVerifierInterface::class);
+        $mock->expects('getMultiCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email_addr', new DatabaseConditions)), ['foo', 'foo'])->andReturn(1);
         $v->setPresenceVerifier($mock);
         $this->assertTrue($v->passes());
 
@@ -5107,22 +5225,39 @@ class ValidationValidatorTest extends TestCase
 
         $v = new Validator($trans, ['email' => [new stdClass, new stdClass]], ['email' => 'exists:users,email_addr']);
         $this->assertFalse($v->passes());
+
+        foreach ([
+            ['amount', [1.234567890123456, 1.234567890123457], false],
+            ['amount', [false, null], false],
+            ['payload->active', [true, 1], false],
+            ['amount', [1, 1.0, '1', new Stringable('1')], true],
+            ['status', [StringStatus::Pending, 'pending'], true],
+            ['status', [PureEnum::one, 'one'], true],
+        ] as [$column, $values, $passes]) {
+            $validator = new Validator($trans, ['values' => $values], ['values' => [new Exists('records', $column)]]);
+            $verifier = m::mock(PresenceVerifierInterface::class);
+            $verifier->expects('getMultiCount')
+                ->with($this->matchingPresenceQuery(new PresenceQuery(null, 'records', $column, new DatabaseConditions)), $values)
+                ->andReturn(1);
+            $validator->setPresenceVerifier($verifier);
+
+            $this->assertSame($passes, $validator->passes());
+        }
     }
 
     public function testValidationExistsIsNotCalledUnnecessarily(): void
     {
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['id' => 'foo'], ['id' => 'Integer|Exists:users,id']);
-        $mock = m::mock(DatabasePresenceVerifierInterface::class);
+        $mock = m::mock(PresenceVerifierInterface::class);
         $mock->shouldReceive('getCount')->never();
         $v->setPresenceVerifier($mock);
         $this->assertFalse($v->passes());
 
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['id' => '1'], ['id' => 'Integer|Exists:users,id']);
-        $mock = m::mock(DatabasePresenceVerifierInterface::class);
-        $mock->expects('setConnection')->with(null);
-        $mock->expects('getCount')->with('users', 'id', '1', null, null, [])->andReturn(1);
+        $mock = m::mock(PresenceVerifierInterface::class);
+        $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'id', new DatabaseConditions)), '1')->andReturn(1);
         $v->setPresenceVerifier($mock);
         $this->assertTrue($v->passes());
     }
@@ -11421,6 +11556,22 @@ class ValidationValidatorTest extends TestCase
     protected function getTranslator()
     {
         return m::mock(TranslatorContract::class);
+    }
+
+    /**
+     * Match a presence query without coercing native values or callback identities.
+     */
+    private function matchingPresenceQuery(PresenceQuery $expected): ClosureMatcher
+    {
+        return m::on(static function (PresenceQuery $actual) use ($expected): bool {
+            $expectedValues = get_object_vars($expected);
+            $expectedValues['conditions'] = $expected->conditions->toArray();
+            $actualValues = get_object_vars($actual);
+            $actualValues['conditions'] = $actual->conditions->toArray();
+            self::assertSame($expectedValues, $actualValues);
+
+            return true;
+        });
     }
 
     public function getArrayTranslator()

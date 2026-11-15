@@ -16,6 +16,8 @@ final class AttributePlan
 {
     public bool $nullable = false;
 
+    public bool $boolean = false;
+
     public bool $bail = false;
 
     public bool $sometimes = false;
