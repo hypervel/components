@@ -799,6 +799,18 @@ class ValidationRuleParserTest extends TestCase
         $this->assertTrue(ValidationRuleParser::ruleReducesToString(
             Rule::exists('users', 'email'),
         ));
+        $this->assertTrue(ValidationRuleParser::ruleReducesToString(
+            Rule::exists('users', 'email')->where('active', true),
+        ));
+        $this->assertTrue(ValidationRuleParser::ruleReducesToString(
+            Rule::unique('users', 'email')->withoutTrashed(),
+        ));
+        $this->assertFalse(ValidationRuleParser::ruleReducesToString(
+            Rule::exists('users', 'email')->where('type', 'NULL'),
+        ));
+        $this->assertFalse(ValidationRuleParser::ruleReducesToString(
+            Rule::exists('users', 'email')->whereNot('type', 'foo')->whereNot('type', 'bar'),
+        ));
         $this->assertTrue(ValidationRuleParser::ruleReducesToString(Rule::date()));
         $this->assertFalse(ValidationRuleParser::ruleReducesToString($callbackExists));
         $this->assertFalse(ValidationRuleParser::ruleReducesToString(

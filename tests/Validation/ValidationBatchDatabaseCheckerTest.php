@@ -15,7 +15,7 @@ use Stringable;
 
 class ValidationBatchDatabaseCheckerTest extends TestCase
 {
-    public function testUsesTheCompleteQueryShapeAndRetainsRawSqlBindings(): void
+    public function testUsesTheCompleteQueryShapeAndRetainsCandidateValues(): void
     {
         $meta = $this->metadata([
             'connection' => 'named',
@@ -28,10 +28,7 @@ class ValidationBatchDatabaseCheckerTest extends TestCase
             ->once()
             ->with('users', 'id', [1, 2.5], 'named', 'ignored', 'uuid', ['status' => 'active'])
             ->andReturn(['1', '2.5']);
-        $presenceVerifier->shouldReceive('getCount')
-            ->once()
-            ->with('users', 'id', '1', 'ignored', 'uuid', ['status' => 'active'])
-            ->andReturn(0);
+        $presenceVerifier->shouldNotReceive('getCount');
         $presenceVerifier->shouldReceive('setConnection')->once()->with('named');
 
         $verifier = BatchDatabaseChecker::buildVerifier($this->batchGroups($meta, [1, 2.5]), $presenceVerifier);
@@ -40,7 +37,7 @@ class ValidationBatchDatabaseCheckerTest extends TestCase
         $verifier->setConnection('named');
         $this->assertSame(1, $verifier->getCount('users', 'id', 1, 'ignored', 'uuid', ['status' => 'active']));
         $this->assertSame(1, $verifier->getCount('users', 'id', 2.5, 'ignored', 'uuid', ['status' => 'active']));
-        $this->assertSame(0, $verifier->getCount('users', 'id', '1', 'ignored', 'uuid', ['status' => 'active']));
+        $this->assertSame(1, $verifier->getCount('users', 'id', '1', 'ignored', 'uuid', ['status' => 'active']));
     }
 
     public function testNormalizesNativeArraysAndDelegatesStringableValuesWithoutCasting(): void
@@ -114,12 +111,12 @@ class ValidationBatchDatabaseCheckerTest extends TestCase
         $this->assertSame(0, $casts);
     }
 
-    public function testEqualLookingIntegerAndStringCandidatesRetainBothBindings(): void
+    public function testEqualLookingIntegerAndStringCandidatesShareOneBinding(): void
     {
         $presenceVerifier = m::mock(DatabasePresenceVerifier::class);
         $presenceVerifier->shouldReceive('getExistingValues')
             ->once()
-            ->with('users', 'id', ['1', 1], null, null, null, [])
+            ->with('users', 'id', ['1'], null, null, null, [])
             ->andReturn(['1']);
 
         $verifier = BatchDatabaseChecker::buildVerifier(

@@ -8,6 +8,7 @@ use BackedEnum;
 use Closure;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Support\Collection;
 
 use function Hypervel\Support\enum_value;
@@ -89,7 +90,7 @@ trait DatabaseRule
 
         $value = $this->normalizeWhereValue($value);
 
-        $this->wheres[] = ['column' => $column, 'value' => $value];
+        $this->wheres[] = ['column' => $column, 'operator' => '=', 'value' => (string) $value];
 
         return $this;
     }
@@ -107,7 +108,9 @@ trait DatabaseRule
 
         $value = $this->normalizeWhereValue($value);
 
-        return $this->where($column, '!' . $value);
+        $this->wheres[] = ['column' => $column, 'operator' => '!=', 'value' => (string) $value];
+
+        return $this;
     }
 
     /**
@@ -117,7 +120,9 @@ trait DatabaseRule
      */
     public function whereNull(string $column): static
     {
-        return $this->where($column, 'NULL');
+        $this->wheres[] = ['column' => $column, 'operator' => 'NULL', 'value' => null];
+
+        return $this;
     }
 
     /**
@@ -127,7 +132,9 @@ trait DatabaseRule
      */
     public function whereNotNull(string $column): static
     {
-        return $this->where($column, 'NOT_NULL');
+        $this->wheres[] = ['column' => $column, 'operator' => 'NOT_NULL', 'value' => null];
+
+        return $this;
     }
 
     /**
@@ -199,6 +206,42 @@ trait DatabaseRule
     }
 
     /**
+     * Get the extra conditions for the presence verifier.
+     */
+    public function queryConditions(): array
+    {
+        $conditions = [];
+
+        foreach ($this->wheres as ['column' => $column, 'operator' => $operator, 'value' => $value]) {
+            if ($operator === '=' && ($value === 'NULL' || $value === 'NOT_NULL' || str_starts_with($value, '!'))) {
+                $conditions[] = fn (Builder $query): Builder => $query->where($column, '=', $value);
+            } elseif (array_key_exists($column, $conditions)) {
+                $conditions[] = fn (Builder $query): Builder => match ($operator) {
+                    'NULL' => $query->whereNull($column),
+                    'NOT_NULL' => $query->whereNotNull($column),
+                    default => $query->where($column, $operator, $value),
+                };
+            } else {
+                $conditions[$column] = $this->formatWhereValue($operator, $value);
+            }
+        }
+
+        return array_merge($conditions, $this->using);
+    }
+
+    /**
+     * Format a "where" clause value as the presence verifier reads it.
+     */
+    protected function formatWhereValue(string $operator, ?string $value): string
+    {
+        return match ($operator) {
+            '=' => (string) $value,
+            '!=' => '!' . $value,
+            default => $operator,
+        };
+    }
+
+    /**
      * Normalize a where value for string serialization.
      */
     protected function normalizeWhereValue(mixed $value): mixed
@@ -214,7 +257,7 @@ trait DatabaseRule
     protected function formatWheres(): string
     {
         return (new Collection($this->wheres))
-            ->map(fn ($where) => $where['column'] . ',"' . str_replace('"', '""', (string) $where['value']) . '"')
+            ->map(fn ($where) => $where['column'] . ',"' . str_replace('"', '""', $this->formatWhereValue($where['operator'], $where['value'])) . '"')
             ->implode(',');
     }
 }

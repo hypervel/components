@@ -2,27 +2,24 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Testbench\Foundation;
+namespace Hypervel\Support;
 
 use JsonSerializable;
 
-/**
- * @api
- */
-final class UndefinedValue implements JsonSerializable
+class UndefinedValue implements JsonSerializable
 {
     /**
      * Determine if value is equivalent to "undefined" or "null".
      */
     public static function equalsTo(mixed $value): bool
     {
-        return $value instanceof self || $value === null;
+        return $value instanceof UndefinedValue || $value === null;
     }
 
     /**
      * Get the value for JSON serialization.
      */
-    public function jsonSerialize(): mixed
+    public function jsonSerialize(): null
     {
         return null;
     }

@@ -191,6 +191,18 @@ class ValidationAccumulatorTest extends TestCase
         ];
 
         $this->assertFalse($accumulator->equals($other));
+
+        $literal = (new Exists('users', 'email'))->where('type', 'NULL')->using($callback);
+        $accumulator->rules = ['email' => [$literal]];
+        $other->rules = [
+            'email' => [(new Exists('users', 'email'))->whereNull('type')->using($callback)],
+        ];
+
+        $this->assertFalse($accumulator->equals($other));
+
+        $other->rules = ['email' => [$literal]];
+
+        $this->assertTrue($accumulator->equals($other));
     }
 
     /**

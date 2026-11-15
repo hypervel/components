@@ -142,6 +142,10 @@ class ValidationAccumulator
      */
     protected function ruleValueEquals(mixed $rule, mixed $otherRule): bool
     {
+        if ($rule === $otherRule) {
+            return true;
+        }
+
         if (is_array($rule) || is_array($otherRule)) {
             return is_array($rule)
                 && is_array($otherRule)
@@ -157,16 +161,18 @@ class ValidationAccumulator
             return $otherRule instanceof Enum && $rule == $otherRule;
         }
 
+        $reducesToString = ValidationRuleParser::ruleReducesToString($rule);
+
         if (($rule instanceof Exists || $rule instanceof Unique)
-            && $rule->queryCallbacks() !== []
+            && ! $reducesToString
         ) {
             return is_object($otherRule)
                 && $otherRule::class === $rule::class
                 && (string) $rule === (string) $otherRule
-                && $rule->queryCallbacks() === $otherRule->queryCallbacks();
+                && $rule->queryConditions() === $otherRule->queryConditions();
         }
 
-        if (ValidationRuleParser::ruleReducesToString($rule)) {
+        if ($reducesToString) {
             $rule = (string) $rule;
         }
 

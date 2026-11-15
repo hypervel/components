@@ -30,7 +30,7 @@ class DatabasePresenceVerifier implements DatabasePresenceVerifierInterface
      */
     public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int
     {
-        $query = $this->table($collection)->where($column, '=', $value);
+        $query = $this->table($collection)->where($column, '=', $this->prepareValue($value));
 
         if (! is_null($excludeId) && $excludeId !== 'NULL') {
             $query->where($idColumn ?: 'id', '<>', $excludeId);
@@ -44,7 +44,7 @@ class DatabasePresenceVerifier implements DatabasePresenceVerifierInterface
      */
     public function getMultiCount(string $collection, string $column, array $values, array $extra = []): int
     {
-        $query = $this->table($collection)->whereIn($column, $values);
+        $query = $this->table($collection)->whereIn($column, array_map($this->prepareValue(...), $values));
 
         return $this->addConditions($query, $extra)->distinct()->count($column);
     }
@@ -68,7 +68,7 @@ class DatabasePresenceVerifier implements DatabasePresenceVerifierInterface
         $query = $this->db->connection($connection)
             ->table($collection)
             ->useWritePdo()
-            ->whereIn($column, $values);
+            ->whereIn($column, array_map($this->prepareValue(...), $values));
 
         if (! is_null($excludeId) && $excludeId !== 'NULL') {
             $query->where($idColumn ?: 'id', '<>', $excludeId);
@@ -76,6 +76,18 @@ class DatabasePresenceVerifier implements DatabasePresenceVerifierInterface
 
         /** @var array<int, mixed> */
         return $this->addConditions($query, $extra)->distinct()->pluck($column)->all();
+    }
+
+    /**
+     * Prepare a value for comparison with a database column.
+     */
+    protected function prepareValue(mixed $value): mixed
+    {
+        return match (true) {
+            is_bool($value) => (string) (int) $value,
+            is_int($value) => (string) $value,
+            default => $value,
+        };
     }
 
     /**

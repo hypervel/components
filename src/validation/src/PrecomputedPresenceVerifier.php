@@ -148,7 +148,7 @@ final class PrecomputedPresenceVerifier implements DatabasePresenceVerifierInter
             return $this->fallback->getMultiCount($collection, $column, $values, $extra);
         }
 
-        $bindingValues = [];
+        $bindingKeys = [];
 
         foreach ($values as $value) {
             $bindingKey = self::bindingKey($value);
@@ -157,20 +157,20 @@ final class PrecomputedPresenceVerifier implements DatabasePresenceVerifierInter
                 return $this->fallback->getMultiCount($collection, $column, $values, $extra);
             }
 
-            $bindingValues[$bindingKey] = substr($bindingKey, 1);
+            $bindingKeys[$bindingKey] = true;
         }
 
         $lookup = $this->lookups[$lookupKey];
-        $distinctValueCount = count(array_unique($bindingValues, SORT_STRING));
-        $presentValues = [];
+        $distinctValueCount = count($bindingKeys);
+        $presentCount = 0;
 
-        foreach ($bindingValues as $bindingKey => $normalizedValue) {
+        foreach ($bindingKeys as $bindingKey => $_) {
             if (isset($lookup['exactHits'][$bindingKey])) {
                 if (! $lookup['stageOneSingleChunk']) {
                     return $this->fallback->getMultiCount($collection, $column, $values, $extra);
                 }
 
-                $presentValues[$normalizedValue] = true;
+                ++$presentCount;
                 continue;
             }
 
@@ -179,7 +179,7 @@ final class PrecomputedPresenceVerifier implements DatabasePresenceVerifierInter
                     return $this->fallback->getMultiCount($collection, $column, $values, $extra);
                 }
 
-                $presentValues[$normalizedValue] = true;
+                ++$presentCount;
                 continue;
             }
 
@@ -188,7 +188,7 @@ final class PrecomputedPresenceVerifier implements DatabasePresenceVerifierInter
             }
         }
 
-        return count($presentValues);
+        return $presentCount;
     }
 
     /**
@@ -211,27 +211,15 @@ final class PrecomputedPresenceVerifier implements DatabasePresenceVerifierInter
     /**
      * Build a key for the PDO binding identity of a supported presence value.
      *
-     * The one-character prefix preserves integer/string PDO binding identity
-     * and prevents PHP from coercing numeric-string array keys to integers.
+     * Presence queries bind integers as strings, so equal string forms share a key.
+     * The prefix prevents PHP from coercing numeric-string array keys to integers.
      */
     public static function bindingKey(mixed $value): ?string
-    {
-        $normalizedValue = self::normalizeValue($value);
-
-        return $normalizedValue === null
-            ? null
-            : (is_int($value) ? 'i' : 's') . $normalizedValue;
-    }
-
-    /**
-     * Normalize a supported presence value for lookup comparisons.
-     */
-    public static function normalizeValue(mixed $value): ?string
     {
         if (! is_string($value) && ! is_int($value) && ! is_float($value)) {
             return null;
         }
 
-        return (string) $value;
+        return 's' . $value;
     }
 }

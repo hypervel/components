@@ -22,6 +22,8 @@ use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
 use Hypervel\Support\StrCache;
 use Hypervel\Support\ValidatedInput;
+use Hypervel\Validation\Rules\Exists;
+use Hypervel\Validation\Rules\Unique;
 use InvalidArgumentException;
 use LogicException;
 use RuntimeException;
@@ -823,7 +825,7 @@ class Validator implements ValidatorContract
      *     connection: ?string,
      *     table: string,
      *     column: string,
-     *     wheres: array<string, mixed>,
+     *     wheres: array<int|string, mixed>,
      *     ignore: null|int|string,
      *     idColumn: ?string
      * }
@@ -836,9 +838,10 @@ class Validator implements ValidatorContract
             return null;
         }
 
-        if (($check->originalRule instanceof Rules\Exists || $check->originalRule instanceof Rules\Unique)
-            && $check->originalRule->queryCallbacks() !== []
-        ) {
+        $usesRuleConditions = $check->originalRule instanceof Exists || $check->originalRule instanceof Unique;
+        $wheres = $usesRuleConditions ? $check->originalRule->queryConditions() : [];
+
+        if (array_any($wheres, static fn (mixed $condition): bool => $condition instanceof Closure)) {
             return null;
         }
 
@@ -864,10 +867,9 @@ class Validator implements ValidatorContract
 
         $ignore = null;
         $idColumn = null;
-        $wheres = [];
 
         if ($type === 'exists') {
-            if (isset($parameters[2])) {
+            if (! $usesRuleConditions && isset($parameters[2])) {
                 $wheres = $this->getExtraConditions(array_values(array_slice($parameters, 2)));
             }
         } else {
@@ -885,7 +887,7 @@ class Validator implements ValidatorContract
                     $ignore = (string) $ignore;
                 }
             }
-            if (isset($parameters[4])) {
+            if (! $usesRuleConditions && isset($parameters[4])) {
                 $wheres = $this->getExtraConditions(array_slice($parameters, 4));
             }
         }

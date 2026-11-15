@@ -73,26 +73,15 @@ final class BatchDatabaseChecker
             $meta,
             array_values($representativeValues),
         );
-        $comparisonIndex = [];
-
-        foreach (array_keys($representativeValues) as $bindingKey) {
-            $comparisonIndex[substr($bindingKey, 1)][] = $bindingKey;
-        }
-
         $exactHits = [];
         $knownPresent = [];
         $provenAbsent = [];
 
         foreach ($stageOneValues as $value) {
-            $normalizedValue = PrecomputedPresenceVerifier::normalizeValue($value);
+            $bindingKey = PrecomputedPresenceVerifier::bindingKey($value);
 
-            if ($normalizedValue === null) {
-                continue;
-            }
-
-            // Query success proves each retained PDO binding was accepted. A returned
-            // equal string form is therefore exact for every matching submitted binding.
-            foreach ($comparisonIndex[$normalizedValue] ?? [] as $bindingKey) {
+            // A returned equal string form proves the normalized presence binding matched.
+            if ($bindingKey !== null && isset($representativeValues[$bindingKey])) {
                 $exactHits[$bindingKey] = true;
             }
         }
@@ -111,16 +100,10 @@ final class BatchDatabaseChecker
                 $provenAbsent = array_fill_keys(array_keys($misses), true);
             } else {
                 foreach ($stageTwoValues as $value) {
-                    $normalizedValue = PrecomputedPresenceVerifier::normalizeValue($value);
+                    $bindingKey = PrecomputedPresenceVerifier::bindingKey($value);
 
-                    if ($normalizedValue === null) {
-                        continue;
-                    }
-
-                    foreach ($comparisonIndex[$normalizedValue] ?? [] as $bindingKey) {
-                        if (isset($misses[$bindingKey])) {
-                            $knownPresent[$bindingKey] = true;
-                        }
+                    if ($bindingKey !== null && isset($misses[$bindingKey])) {
+                        $knownPresent[$bindingKey] = true;
                     }
                 }
 
@@ -176,7 +159,7 @@ final class BatchDatabaseChecker
     }
 
     /**
-     * Normalize candidates while retaining the first raw SQL binding.
+     * Normalize binding identities while retaining the first candidate value.
      *
      * An unsupported array item rejects only that concrete array candidate;
      * safe siblings in the same query-shape group remain batchable.
