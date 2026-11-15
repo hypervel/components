@@ -1499,8 +1499,7 @@ trait HasAttributes
      */
     protected function asDecimal(float|int|string $value, int $decimals): string
     {
-        // Keep integers exact and avoid PHP 8.5's warning when stringifying NAN.
-        $value = is_float($value) && is_nan($value) ? 'NAN' : (string) $value;
+        $value = is_float($value) ? Number::toString($value) : (string) $value;
 
         // Bound scientific-notation expansion without restricting explicit decimal precision.
         if (Number::exceedsMaxExponent($value)) {
