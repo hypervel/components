@@ -8,33 +8,25 @@ The owner approved the API departures below. Further Laravel or tracked-package 
 
 Read root `CLAUDE.md`, the authoritative components `AGENTS.md`, this plan and the affected package READMEs after compaction, following their read rules. This plan owns the final design; implementation tracking should contain only remaining work and blockers.
 
-### Immediate execution boundary
+### Execution and review
 
 - Worktree: `components-validation`; branch: `improve/validation-native-rules`, created from `0.4` with independently installed dependencies.
-- First finish self-review and peer plan review, then commit this plan alone. Do not transfer source changes before that commit.
-- Then bring across the existing validation-related work from `components-upstream-sync`, branch `upstream-sync-2026-11-14-2`, using the transfer scope below. This is preparation, not implementation of the new design.
-- After verifying that transfer, stop and notify the owner. Implementation workflow and orchestration must be discussed before starting the implementation sections below.
-- Leave the sync branch unchanged during preparation. Removing its transferred scope and resuming publishing are subsequent coordinated work. Do not publish the validation PR yet.
+- The plan is reviewed and committed, and the existing validation scope below is transferred and verified. The owner has authorized implementation with the same combined orchestrator/implementer and independent peer workflows.
+- Implement coherent slices, self-review and verify each, and obtain peer code review at meaningful checkpoints. Make as many focused commits as reasonably useful, staging whole files only. Every commit needs a detailed body describing the problem, result, relevant design decisions and verification.
+- After the complete validation implementation receives code-review signoff, investigate PHPStan changes against the finished code on this branch. Reach peer consensus, then present the concise proposal to the owner and notify them. Do not implement unapproved new analyzer rules.
+- Leave the sync branch unchanged during validation implementation. Removing its transferred scope and resuming publishing are subsequent coordinated work. Do not publish the validation PR yet.
 - After the sync PR lands, merge updated `0.4` into this branch, resolve and verify the combined behavior, and publish a separate validation-improvement PR. If the initial PR exceeds 100 files, present the actual count and loss of free automatic CodeRabbit review for the required exception; do not split coherent work merely to meet the limit.
 
-## Existing work to transfer
+## Transferred scope and sync ownership
 
-Transfer the complete existing fixes, tests and documentation, without importing unrelated sync changes or scratch prototypes. The source branch contains five focused commits identified by these subjects:
-
-1. `Enforce the email address length limit on both validation paths`.
-2. `Preserve validation semantics while retaining safe database batching`.
-3. `Avoid backtracking in decimal validation`.
-4. `Preserve database rule overrides and typed JSON presence candidates`.
-5. `Compare MariaDB JSON booleans without string or numeric coercion`.
-
-Inspect their complete diffs and dependencies before transferring them in order. They include:
+The complete existing validation fixes, tests and documentation have been transferred from `components-upstream-sync`, branch `upstream-sync-2026-11-14-2`. Their ownership includes:
 
 - Validation source and unit/integration tests; Data's `ValidationAccumulator`, its tests and `DataValidationAsserter` fixture.
 - The email-length sentence in `src/docs/validation.md`.
 - Moving `Testbench\Foundation\UndefinedValue` to `Support\UndefinedValue`, with `ValidationData` and all three Testbench consumers: `Foundation/Env.php`, `Foundation/Application.php`, and `Concerns/CreatesApplication.php`.
 - `Database/Query/Grammars/MariaDbGrammar.php` and `tests/Integration/Database/MariaDb/DatabaseMariaDbConnectionTest.php`.
 
-Do not transfer the JSON:API porting-guide addition, unrelated Foundation changes, Testbench bcrypt assertions, CI edits or other batch work. Compare the resulting owning-file diffs against the source branch to catch omissions, not just commit subjects. Preserve whole-file commits. Existing tests may need no changes during the transfer itself; do not begin typed-design edits to make the baseline look final.
+The JSON:API porting-guide addition, unrelated Foundation changes, Testbench bcrypt assertions, CI edits and other batch work remain with the sync PR.
 
 When later removing these changes from the sync PR, reverse only this ownership scope with new commits, preserving unrelated edits in shared files. Update the private sync queue so these upstream items remain assigned and unfinished until this PR lands; do not claim they landed in the sync PR.
 
@@ -209,7 +201,7 @@ Regression example: `Rule::numeric()->max(1.234567890123456)` must reject `'1.23
 
 ### Caller-owned lifetimes and repeated runs
 
-- Implement `Transient` on intrinsically caller-owned mutable rule families, checking their subclasses. The concrete families include ArrayRule, Confirmed, Date, Dimensions, Distinct, Email, File (covering ImageFile), IpAddress, Numeric, StringRule, Url, Uuid, Exists, Unique, AnyOf, Can, Enum, Password, and the mutable RequiredIf/ExcludeIf/ProhibitedIf rules. Audit the validation wrappers/Validator and other affected families by ownership, not by property count or constructor arity.
+- Implement `Transient` on intrinsically caller-owned mutable rule families, checking their subclasses. The concrete families include ArrayRule, Confirmed, CurrentPassword, Date, Dimensions, Distinct, Email, File (covering ImageFile), IpAddress, Numeric, StringRule, Url, Uuid, Exists, Unique, AnyOf, Can, Enum, Password, and the mutable RequiredIf/ExcludeIf/ProhibitedIf rules. Classify container-resolved objects by ownership, not by property count or constructor arity. The internal Validator, closure/invokable wrappers and precomputed verifier are constructed explicitly on the supported execution paths; do not mark them merely because they hold execution state.
 - Required constructor arguments do not prevent sharing: contextual primitive bindings can satisfy them while the outer unbound class is auto-singletoned. Cover both FormRequest method-injected Numeric and a required-argument rule resolved through contextual binding.
 - Keep factories, stateless verifiers, worker-owned metadata caches and other legitimately shared services shared. Do not mark every validation class Transient or add service bindings unnecessarily.
 - Clear accumulated messages as well as the failed flag at the start of `ClosureValidationRule::passes()` and `InvokableValidationRule::passes()`. Reusing a validator for a second input must not retain the first input's messages. Add a brief adjacent explanation that the same rule can validate new input on a later run, so a future upstream sync preserves the reset. Keep this a direct reset; do not add deferred-message lifecycle machinery.
@@ -225,9 +217,9 @@ Regression example: `Rule::numeric()->max(1.234567890123456)` must reject `'1.23
 - Remove obsolete connection warnings/fields, encoded-extra decoders, generated-condition closures, duplicate scalar normalization, unused helpers/imports, stale type aliases/docblocks and outdated tests of removed contracts. Preserve generic string-rule parsing, legitimate callbacks and applicable upstream behavior tests.
 - Regenerate affected facade documentation only if an exposed signature changes. Do not change instruction files without separate owner approval.
 
-### PHPStan assessment after the design is settled
+### PHPStan assessment after implementation signoff
 
-Assess `hypervel/phpstan` against this settled plan, separately from the validation design discussion. Native signatures and final methods already diagnose unported verifier/rule overrides; do not duplicate those checks with custom rules.
+After full validation implementation and code-review signoff, assess `hypervel/phpstan` against the finished code on the same branch. Native signatures and final methods already diagnose unported verifier/rule overrides; do not duplicate those checks with custom rules.
 
 Check existing validation analyzer assumptions and inference fixtures for the new builder types. For the worker-state defects, investigate whether method-injected mutable builders and calls that mutate a shared verifier expose a reliable gap in `WorkerStateRule` and its collectors. Compare realistic positive cases with legitimate worker-owned caches and setters. Propose an extension only if detection is reliable and complexity proportionate; obtain peer consensus and owner approval before adding a rule. Otherwise record the concrete limitation and add no speculative machinery. Fix analyzer defects rather than rewriting correct validation code to satisfy them.
 
