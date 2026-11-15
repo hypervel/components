@@ -463,7 +463,8 @@ class Migrator
                     : $callback();
         } catch (Throwable $exception) {
             if ($this->hasMigrationEventListeners(MigrationFailed::class)) {
-                $this->fireMigrationEvent(new MigrationFailed($migration, $method, $name, $exception));
+                // Report notification failures without hiding the original migration error.
+                rescue(fn () => $this->fireMigrationEvent(new MigrationFailed($migration, $method, $name, $exception)));
             }
 
             throw $exception;

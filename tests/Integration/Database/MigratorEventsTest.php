@@ -15,6 +15,7 @@ use Hypervel\Database\Events\NoPendingMigrations;
 use Hypervel\Database\Migrations\Migration;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
 
@@ -221,5 +222,31 @@ class MigratorEventsTest extends TestCase
                 && $event->name === '2014_10_14_000000_failing_migration'
                 && $event->exception === $exception;
         });
+    }
+
+    public function testFailingMigrationListenerDoesNotReplaceTheMigrationException(): void
+    {
+        Exceptions::fake();
+        $listenerException = new RuntimeException('The failure notification could not be delivered.');
+        $migrationException = null;
+
+        Event::listen(MigrationFailed::class, function (MigrationFailed $event) use ($listenerException, &$migrationException): void {
+            $migrationException = $event->exception;
+
+            throw $listenerException;
+        });
+
+        try {
+            $this->artisan('migrate', [
+                '--path' => realpath(__DIR__ . '/Fixtures/FailingMigrations'),
+                '--realpath' => true,
+            ]);
+
+            $this->fail('The migration exception was not rethrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($migrationException, $exception);
+        }
+
+        Exceptions::assertReported(fn (RuntimeException $exception): bool => $exception === $listenerException);
     }
 }
