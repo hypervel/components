@@ -65,6 +65,8 @@ class InvokableValidationRule implements Rule, ValidatorAwareRule
     public function passes(string $attribute, mixed $value): bool
     {
         $this->failed = false;
+        // The same rule may validate new input on a later run.
+        $this->messages = [];
 
         if ($this->invokable instanceof DataAwareRule) {
             $this->invokable->setData($this->validator->getData());

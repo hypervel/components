@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use Closure;
 use Hypervel\Contracts\Validation\DataAwareRule;
 use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Contracts\Validation\Validator as ValidatorContract;
@@ -13,6 +14,7 @@ use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\InvokableValidationRule;
 use Hypervel\Validation\Validator;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class ValidationInvokableRuleTest extends TestCase
 {
@@ -49,6 +51,47 @@ class ValidationInvokableRuleTest extends TestCase
                 "The foo attribute is not 'foo'. Got 'bar' instead.",
             ],
         ], $validator->messages()->messages());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testRepeatedValidationReplacesPreviousRuleMessages(bool $invokable): void
+    {
+        $callback = static function (string $attribute, mixed $value, Closure $fail): void {
+            if ($value !== 'accepted') {
+                $fail('Rejected ' . $value);
+            }
+        };
+        $rule = $invokable ? new class($callback) implements ValidationRule {
+            /**
+             * Create a rule using the shared validation callback.
+             */
+            public function __construct(private readonly Closure $callback)
+            {
+            }
+
+            /**
+             * Run the validation callback.
+             */
+            public function validate(string $attribute, mixed $value, Closure $fail): void
+            {
+                ($this->callback)($attribute, $value, $fail);
+            }
+        } : $callback;
+        $validator = new Validator($this->getArrayTranslator(), ['foo' => 'first'], ['foo' => $rule]);
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame(['foo' => ['Rejected first']], $validator->errors()->messages());
+
+        $validator->setValue('foo', 'second');
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame(['foo' => ['Rejected second']], $validator->errors()->messages());
+
+        $validator->setValue('foo', 'accepted');
+
+        $this->assertTrue($validator->passes());
+        $this->assertSame([], $validator->errors()->messages());
     }
 
     public function testItCanReturnMultipleErrorMessages(): void
