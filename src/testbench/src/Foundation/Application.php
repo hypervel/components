@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Hypervel\Support\Arr;
+use Hypervel\Support\UndefinedValue;
 use Hypervel\Testbench\Concerns\CreatesApplication;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Bootstrap\EnsuresDefaultConfiguration;

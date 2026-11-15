@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Data\Fixtures;
 
+use Closure;
 use Hypervel\Data\Contracts\ValidateableData;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Support\Facades\DB;
@@ -157,7 +158,7 @@ class DataValidationAsserter
     }
 
     /**
-     * Replace database rules that have query callbacks with the query those callbacks build.
+     * Replace database-rule closures with the queries they build.
      *
      * Callbacks are closures that cannot be compared, so the query they build shows what they do.
      */
@@ -166,20 +167,26 @@ class DataValidationAsserter
         return array_map(
             static fn (array $fieldRules): array => array_map(
                 static function (mixed $rule): mixed {
-                    if (! ($rule instanceof Exists || $rule instanceof Unique) || $rule->queryCallbacks() === []) {
+                    if (! ($rule instanceof Exists || $rule instanceof Unique) || ValidationRuleParser::ruleReducesToString($rule)) {
                         return $rule;
                     }
 
-                    $query = DB::query();
+                    $conditions = array_map(static function (mixed $condition): mixed {
+                        if (! $condition instanceof Closure) {
+                            return $condition;
+                        }
 
-                    // As DatabasePresenceVerifier does, each callback receives its own nested where group.
-                    foreach ($rule->queryCallbacks() as $callback) {
-                        $query->where(static function (Builder $query) use ($callback): void {
-                            $callback($query);
+                        $query = DB::query();
+
+                        // Match the nested where group used by DatabasePresenceVerifier.
+                        $query->where(static function (Builder $query) use ($condition): void {
+                            $condition($query);
                         });
-                    }
 
-                    return [(string) $rule, $query->toSql(), $query->getBindings()];
+                        return [$query->toSql(), $query->getBindings()];
+                    }, $rule->queryConditions());
+
+                    return [(string) $rule, $conditions];
                 },
                 $fieldRules,
             ),

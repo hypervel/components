@@ -19,6 +19,7 @@ use Egulias\EmailValidator\Validation\RFCValidation;
 use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Exceptions\MathException;
@@ -1131,13 +1132,9 @@ trait ValidatesAttributes
     {
         $verifier = $this->getPresenceVerifier($connection);
 
-        $extra = $this->getExtraConditions(
-            array_values(array_slice($parameters, 2))
-        );
-
-        if ($this->currentRule instanceof Exists) {
-            $extra = array_merge($extra, $this->currentRule->queryCallbacks());
-        }
+        $extra = $this->currentRule instanceof Exists
+            ? $this->currentRule->queryConditions()
+            : $this->getExtraConditions(array_values(array_slice($parameters, 2)));
 
         return is_array($value)
             ? $verifier->getMultiCount($table, $column, $value, $extra)
@@ -1177,11 +1174,9 @@ trait ValidatesAttributes
         // data store like Redis, etc. We will use it to determine uniqueness.
         $verifier = $this->getPresenceVerifier($connection);
 
-        $extra = $this->getUniqueExtra($parameters);
-
-        if ($this->currentRule instanceof Unique) {
-            $extra = array_merge($extra, $this->currentRule->queryCallbacks());
-        }
+        $extra = $this->currentRule instanceof Unique
+            ? $this->currentRule->queryConditions()
+            : $this->getUniqueExtra($parameters);
 
         return $verifier->getCount(
             $table,
@@ -1303,7 +1298,23 @@ trait ValidatesAttributes
         $count = count($segments);
 
         for ($i = 0; $i < $count; $i += 2) {
-            $extra[$segments[$i]] = $segments[$i + 1];
+            [$column, $value] = [$segments[$i], $segments[$i + 1]];
+
+            if (! array_key_exists($column, $extra)) {
+                $extra[$column] = $value;
+
+                continue;
+            }
+
+            // Array-form rules keep native parameter types; cast as DatabasePresenceVerifier::addWhere() does.
+            $value = (string) $value;
+
+            $extra[] = fn (Builder $query): Builder => match (true) {
+                $value === 'NULL' => $query->whereNull($column),
+                $value === 'NOT_NULL' => $query->whereNotNull($column),
+                str_starts_with($value, '!') => $query->where($column, '!=', mb_substr($value, 1)),
+                default => $query->where($column, $value),
+            };
         }
 
         return $extra;
@@ -2124,7 +2135,7 @@ trait ValidatesAttributes
 
         $this->requireParameterCount(1, $parameters, 'not_regex');
 
-        return preg_match($parameters[0], (string) $value) < 1;
+        return preg_match($parameters[0], (string) $value) === 0;
     }
 
     /**

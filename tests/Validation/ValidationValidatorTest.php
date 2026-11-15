@@ -180,6 +180,57 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
+    #[DataProvider('nestedSometimesMissingStringProvider')]
+    public function testSometimesValidatesNestedMissingString(array $data, string $attribute, string $failedAttribute, string $rule, string $failedRule): void
+    {
+        $v = new Validator($this->getArrayTranslator(), $data, [$attribute => 'sometimes|' . $rule]);
+
+        $this->assertFalse($v->passes());
+        $this->assertArrayHasKey($failedRule, $v->failed()[$failedAttribute]);
+    }
+
+    public static function nestedSometimesMissingStringProvider(): array
+    {
+        return [
+            'nested integer' => [['profile' => ['age' => '__missing__']], 'profile.age', 'profile.age', 'integer', 'Integer'],
+            'nested in' => [['profile' => ['status' => '__missing__']], 'profile.status', 'profile.status', 'in:active,inactive', 'In'],
+            'wildcard' => [['items' => [['quantity' => '__missing__']]], 'items.*.quantity', 'items.0.quantity', 'integer', 'Integer'],
+            'terminal wildcard' => [['items' => ['__missing__']], 'items.*', 'items.0', 'integer', 'Integer'],
+            'multiple wildcards' => [['groups' => [['items' => [['quantity' => '__missing__']]]]], 'groups.*.items.*.quantity', 'groups.0.items.0.quantity', 'integer', 'Integer'],
+        ];
+    }
+
+    #[DataProvider('nestedSometimesMissingStringProvider')]
+    public function testSometimesRejectsInvalidNestedDataFromValidated(array $data, string $attribute, string $failedAttribute, string $rule, string $failedRule): void
+    {
+        $v = new Validator($this->getArrayTranslator(), $data, [$attribute => 'sometimes|' . $rule]);
+
+        $this->expectException(ValidationException::class);
+
+        $v->validated();
+    }
+
+    public function testSometimesAllowsMissingAndValidNestedValues(): void
+    {
+        $data = ['items' => [['quantity' => '__missing__'], [], ['quantity' => null]]];
+        $v = new Validator($this->getArrayTranslator(), $data, [
+            'items.*.quantity' => 'sometimes|nullable|in:__missing__',
+        ]);
+
+        $this->assertTrue($v->passes());
+        $this->assertSame(['items' => [0 => ['quantity' => '__missing__'], 2 => ['quantity' => null]]], $v->validated());
+    }
+
+    public function testSometimesDistinguishesMissingFromNullNestedValues(): void
+    {
+        $v = new Validator($this->getArrayTranslator(), ['items' => [[], ['quantity' => null]]], [
+            'items.*.quantity' => 'sometimes|required|integer',
+        ]);
+
+        $this->assertFalse($v->passes());
+        $this->assertSame(['items.1.quantity' => ['Required' => []]], $v->failed());
+    }
+
     public function testAfterCallbacksAreCalledWithValidatorInstance(): void
     {
         $trans = $this->getArrayTranslator();
@@ -6913,6 +6964,11 @@ class ValidationValidatorTest extends TestCase
         // Ensure commas are not interpreted as parameter separators
         $v = new Validator($trans, ['x' => 'foo bar'], ['x' => 'NotRegex:/x{3,}/i']);
         $this->assertTrue($v->passes());
+
+        // Ensure a failed match is not treated as no match
+        $v = new Validator($trans, ['x' => "foo\xFF"], ['x' => 'NotRegex:/foo/u']);
+        $this->assertFalse($v->passes());
+        $this->assertFalse($v->validateNotRegex('x', "foo\xFF", ['/foo/u']));
     }
 
     public function testValidateDateAndFormat(): void
@@ -9208,6 +9264,13 @@ class ValidationValidatorTest extends TestCase
 
         $data = ['cat' => ['cat1' => ['name' => '1', 'price' => 1]], ['cat2' => ['name' => 2]]];
         $this->assertEquals(['cat' => ['cat1' => ['name' => '1']]], ValidationData::extractDataFromPath('cat.cat1.name', $data));
+
+        $data = ['cat' => ['name' => '__missing__', 'age' => null]];
+        $this->assertSame(['cat' => ['name' => '__missing__']], ValidationData::extractDataFromPath('cat.name', $data));
+        $this->assertSame(['cat' => ['age' => null]], ValidationData::extractDataFromPath('cat.age', $data));
+        $this->assertSame([], ValidationData::extractDataFromPath('cat.absent', $data));
+        $this->assertSame($data, ValidationData::extractDataFromPath(null, $data));
+        $this->assertSame([], ValidationData::extractDataFromPath(null, []));
     }
 
     public function testParsingTablesFromModels(): void

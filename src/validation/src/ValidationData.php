@@ -6,6 +6,7 @@ namespace Hypervel\Validation;
 
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
+use Hypervel\Support\UndefinedValue;
 
 class ValidationData
 {
@@ -198,9 +199,9 @@ class ValidationData
     {
         $results = [];
 
-        $value = Arr::get($masterData, $attribute, '__missing__');
+        $value = Arr::get($masterData, $attribute, new UndefinedValue);
 
-        if ($value !== '__missing__') {
+        if (! $value instanceof UndefinedValue) {
             Arr::set($results, $attribute, $value);
         }
 

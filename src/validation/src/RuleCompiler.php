@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
+use Closure;
 use Hypervel\Contracts\Validation\ParameterizedRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Validation\Enums\CheckType;
@@ -240,7 +241,7 @@ final class RuleCompiler
         }
 
         return ! (($check->originalRule instanceof Exists || $check->originalRule instanceof Unique)
-            && $check->originalRule->queryCallbacks() !== []);
+            && array_any($check->originalRule->queryConditions(), static fn (mixed $condition): bool => $condition instanceof Closure));
     }
 
     /**

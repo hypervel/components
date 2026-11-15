@@ -6,12 +6,14 @@ namespace Hypervel\Tests\Validation;
 
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\DatabasePresenceVerifier;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Validator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use UnitEnum;
 
 class ValidationExistsRuleTest extends TestCase
@@ -228,6 +230,88 @@ class ValidationExistsRuleTest extends TestCase
 
         $v->setData(['id_column' => 4]);
         $this->assertTrue($v->passes());
+    }
+
+    public function testItAppliesEveryWhereNotOnTheSameColumn(): void
+    {
+        $rule = new Exists('table', 'id_column');
+
+        $rule->whereNot('type', 'foo')->whereNot('type', 'bar');
+
+        User::create(['id_column' => '1', 'type' => 'foo']);
+        User::create(['id_column' => '2', 'type' => 'bar']);
+        User::create(['id_column' => '3', 'type' => 'baz']);
+
+        $trans = $this->getArrayTranslator();
+        $v = new Validator($trans, [], ['id_column' => $rule]);
+        $v->setPresenceVerifier(new DatabasePresenceVerifier($this->app->make('db')));
+
+        $v->setData(['id_column' => 1]);
+        $this->assertFalse($v->passes());
+
+        $v->setData(['id_column' => 2]);
+        $this->assertFalse($v->passes());
+
+        $v->setData(['id_column' => 3]);
+        $this->assertTrue($v->passes());
+    }
+
+    public function testStringRuleAppliesEveryConditionOnTheSameColumn(): void
+    {
+        User::create(['id_column' => '1', 'type' => 'foo']);
+        User::create(['id_column' => '2', 'type' => 'bar']);
+        User::create(['id_column' => '3', 'type' => 'baz']);
+
+        $trans = $this->getArrayTranslator();
+        $v = new Validator($trans, [], ['id_column' => 'exists:table,id_column,type,!foo,type,!bar']);
+        $v->setPresenceVerifier(new DatabasePresenceVerifier($this->app->make('db')));
+
+        $v->setData(['id_column' => 1]);
+        $this->assertFalse($v->passes());
+
+        $v->setData(['id_column' => 2]);
+        $this->assertFalse($v->passes());
+
+        $v->setData(['id_column' => 3]);
+        $this->assertTrue($v->passes());
+    }
+
+    public function testRepeatedArrayRuleConditionsAcceptNumericValues(): void
+    {
+        User::create(['id_column' => '1', 'type' => '0']);
+
+        $validator = new Validator($this->getArrayTranslator(), ['id_column' => 1], [
+            'id_column' => [['exists', 'table', 'id_column', 'type', 0, 'type', 0]],
+        ]);
+        $validator->setPresenceVerifier(new DatabasePresenceVerifier($this->app->make('db')));
+
+        $this->assertTrue($validator->passes());
+    }
+
+    #[DataProvider('literalWhereValuesProvider')]
+    public function testWhereComparesValuesLiterally(Exists $rule, int $id, bool $passes): void
+    {
+        User::create(['id_column' => '1', 'type' => 'foo']);
+        User::create(['id_column' => '2', 'type' => 'NOT_NULL']);
+
+        $v = new Validator($this->getArrayTranslator(), ['id_column' => $id], ['id_column' => $rule]);
+        $v->setPresenceVerifier(new DatabasePresenceVerifier($this->app->make('db')));
+
+        $this->assertSame($passes, $v->passes());
+    }
+
+    public static function literalWhereValuesProvider(): array
+    {
+        $breakout = 'x\",id_column,NOT_NULL,type,"';
+
+        return [
+            'NOT_NULL is not "is not null"' => [(new Exists('table', 'id_column'))->where('type', 'NOT_NULL'), 1, false],
+            'NOT_NULL matches itself' => [(new Exists('table', 'id_column'))->where('type', 'NOT_NULL'), 2, true],
+            'leading ! is not "not equal"' => [(new Exists('table', 'id_column'))->where('type', '!bar'), 1, false],
+            'Stringable NOT_NULL' => [(new Exists('table', 'id_column'))->where('type', Str::of('NOT_NULL')), 1, false],
+            'backslash cannot override another where' => [(new Exists('table', 'id_column'))->where('id_column', 2)->where('type', $breakout . '!'), 1, false],
+            'whereNot backslash cannot add wheres' => [(new Exists('table', 'id_column'))->whereNot('type', $breakout . 'foo'), 2, true],
+        ];
     }
 
     public function testItIgnoresSoftDeletes(): void

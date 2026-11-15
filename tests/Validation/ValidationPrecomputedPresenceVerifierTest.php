@@ -75,7 +75,7 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
         $this->assertSame(0, $verifier->getCount('users', 'email', 'missing@example.com'));
     }
 
-    public function testFactsRequireTheSubmittedBindingIdentity(): void
+    public function testFactsShareEquivalentBindingsWithoutCastingObjects(): void
     {
         $casts = 0;
         $stringable = new class($casts) implements Stringable {
@@ -95,14 +95,6 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
             ->once()
             ->with('users', 'id', m::on(static fn (mixed $value): bool => $value === $stringable), null, null, [])
             ->andReturn(1);
-        $fallback->shouldReceive('getCount')
-            ->once()
-            ->with('users', 'id', 1, null, null, [])
-            ->andReturn(0);
-        $fallback->shouldReceive('getCount')
-            ->once()
-            ->with('users', 'id', '2', null, null, [])
-            ->andReturn(0);
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(
             self::lookupKey(null, 'users', 'id'),
@@ -116,8 +108,8 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
         $this->assertSame(1, $verifier->getCount('users', 'id', 2));
         $this->assertSame(1, $verifier->getCount('users', 'id', $stringable));
         $this->assertSame(0, $casts);
-        $this->assertSame(0, $verifier->getCount('users', 'id', 1));
-        $this->assertSame(0, $verifier->getCount('users', 'id', '2'));
+        $this->assertSame(1, $verifier->getCount('users', 'id', 1));
+        $this->assertSame(1, $verifier->getCount('users', 'id', '2'));
     }
 
     public function testUnknownScalarFallbackCountsAreMemoizedPerQueryShapeAndValue(): void
@@ -139,10 +131,6 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
             ->with('users', 'email', m::on(static fn (mixed $value): bool => $value === '1'), null, null, [])
             ->once()
             ->andReturn(1);
-        $fallback->shouldReceive('getCount')
-            ->with('users', 'email', m::on(static fn (mixed $value): bool => $value === 1), null, null, [])
-            ->once()
-            ->andReturn(0);
 
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(self::lookupKey(null, 'users', 'email', extra: ['status' => 'active']), [], [], [], true);
@@ -155,7 +143,7 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
             $this->assertSame(0, $verifier->getCount('users', 'email', 'shared', extra: ['status' => 'inactive']));
             $this->assertSame(2, $verifier->getCount('admins', 'email', 'shared'));
             $this->assertSame(1, $verifier->getCount('users', 'email', '1'));
-            $this->assertSame(0, $verifier->getCount('users', 'email', 1));
+            $this->assertSame(1, $verifier->getCount('users', 'email', 1));
         }
     }
 

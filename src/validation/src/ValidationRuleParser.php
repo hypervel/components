@@ -151,14 +151,26 @@ class ValidationRuleParser
      */
     public static function ruleReducesToString(mixed $rule): bool
     {
-        return is_object($rule)
-            && ! $rule instanceof Closure
-            && ! $rule instanceof ValidationRule
-            && ! $rule instanceof RuleContract
-            && ! $rule instanceof ParameterizedRule
-            && ! $rule instanceof CompilableRules
-            && ! (($rule instanceof Exists || $rule instanceof Unique)
-                && $rule->queryCallbacks() !== []);
+        if (! is_object($rule)
+            || $rule instanceof Closure
+            || $rule instanceof ValidationRule
+            || $rule instanceof RuleContract
+            || $rule instanceof ParameterizedRule
+            || $rule instanceof CompilableRules
+        ) {
+            return false;
+        }
+
+        if ($rule instanceof Exists || $rule instanceof Unique) {
+            $conditions = $rule->queryConditions();
+
+            // Lossless native rules stay cacheable strings; subclasses may override their conditions.
+            return $conditions === []
+                || (in_array($rule::class, [Exists::class, Unique::class], true)
+                    && ! array_any($conditions, static fn (mixed $condition): bool => $condition instanceof Closure));
+        }
+
+        return true;
     }
 
     /**

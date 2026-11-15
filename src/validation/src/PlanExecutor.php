@@ -332,7 +332,7 @@ trait PlanExecutor
             CheckType::Regex => (is_string($value) || is_numeric($value))
                 && preg_match($check->param, (string) $value) > 0,
             CheckType::NotRegex => (is_string($value) || is_numeric($value))
-                && preg_match($check->param, (string) $value) < 1,
+                && preg_match($check->param, (string) $value) === 0,
             CheckType::StartsWith => (is_string($value) || is_numeric($value))
                 && Str::startsWith((string) $value, $check->param),
             CheckType::EndsWith => (is_string($value) || is_numeric($value))

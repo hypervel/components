@@ -86,6 +86,32 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
         $this->assertSame(100, $verifier->getCount('table', 'column', 'value', 123, 'id', []));
     }
 
+    public function testIntegersAndBooleansAreComparedAsStrings(): void
+    {
+        $db = m::mock(ConnectionResolverInterface::class);
+        $connection = m::mock(Connection::class);
+        $db->expects('connection')->with('connection')->times(3)->andReturn($connection);
+        $verifier = new DatabasePresenceVerifier($db);
+        $verifier->setConnection('connection');
+        $builder = m::mock(Builder::class);
+        $connection->expects('table')->with('table')->times(3)->andReturn($builder);
+        $builder->expects('useWritePdo')->times(3)->andReturnSelf();
+        $builder->expects('where')->with('column', '=', '0')->andReturnSelf();
+        $builder->expects('count')->withNoArgs()->andReturn(0);
+
+        $this->assertSame(0, $verifier->getCount('table', 'column', 0));
+
+        $builder->expects('whereIn')->with('column', ['0', '1', '7', 'value'])->twice()->andReturnSelf();
+        $builder->expects('distinct')->twice()->andReturnSelf();
+        $builder->expects('count')->with('column')->andReturn(0);
+
+        $this->assertSame(0, $verifier->getMultiCount('table', 'column', [false, true, 7, 'value']));
+
+        $builder->expects('pluck')->with('column')->andReturn(new Collection(['0', '1', '7', 'value']));
+
+        $verifier->getExistingValues('table', 'column', [false, true, 7, 'value'], 'connection');
+    }
+
     #[DataProvider('connections')]
     public function testGetExistingValuesUsesRequestedConnectionAndReturnsDistinctValues(?string $connection): void
     {
