@@ -165,9 +165,14 @@ class ValidationRuleParser
             $conditions = $rule->queryConditions();
 
             // Lossless native rules stay cacheable strings; subclasses may override their conditions.
+            if (in_array($rule::class, [Exists::class, Unique::class], true)) {
+                return ! array_any($conditions, static fn (mixed $condition): bool => $condition instanceof Closure);
+            }
+
+            // The string can still carry stored wheres that a subclass's empty override removed.
+            // Exists starts with table/column; Unique also includes the ignored ID and its column.
             return $conditions === []
-                || (in_array($rule::class, [Exists::class, Unique::class], true)
-                    && ! array_any($conditions, static fn (mixed $condition): bool => $condition instanceof Closure));
+                && count(static::parse((string) $rule)[1]) === ($rule instanceof Exists ? 2 : 4);
         }
 
         return true;

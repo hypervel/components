@@ -11,6 +11,7 @@ use Hypervel\Data\Support\Validation\ValidationPath;
 use Hypervel\Tests\TestCase;
 use Hypervel\Validation\Rule as ValidationRule;
 use Hypervel\Validation\Rules\Exists;
+use Hypervel\Validation\Rules\Unique;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Stringable;
 
@@ -201,6 +202,20 @@ class ValidationAccumulatorTest extends TestCase
         $this->assertFalse($accumulator->equals($other));
 
         $other->rules = ['email' => [$literal]];
+
+        $this->assertTrue($accumulator->equals($other));
+
+        $other->rules = ['email' => [(new Exists('users', 'email'))->where('type', 'NULL')->using($callback)]];
+
+        $this->assertTrue($accumulator->equals($other));
+
+        $accumulator->rules = ['email' => [(new Exists('users', 'email'))->whereNot('status', 'draft')->whereNot('status', 'deleted')]];
+        $other->rules = ['email' => [(new Exists('users', 'email'))->whereNot('status', 'draft')->whereNot('status', 'deleted')]];
+
+        $this->assertTrue($accumulator->equals($other));
+
+        $accumulator->rules = ['email' => [(new Unique('users', 'email'))->where('type', 'NULL')->ignore(1)]];
+        $other->rules = ['email' => [(new Unique('users', 'email'))->where('type', 'NULL')->ignore('1')]];
 
         $this->assertTrue($accumulator->equals($other));
     }

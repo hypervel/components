@@ -30,7 +30,9 @@ class DatabasePresenceVerifier implements DatabasePresenceVerifierInterface
      */
     public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int
     {
-        $query = $this->table($collection)->where($column, '=', $this->prepareValue($value));
+        // Keep JSON booleans typed so the query builder compiles a native JSON comparison.
+        $value = is_bool($value) && str_contains($column, '->') ? $value : $this->prepareValue($value);
+        $query = $this->table($collection)->where($column, '=', $value);
 
         if (! is_null($excludeId) && $excludeId !== 'NULL') {
             $query->where($idColumn ?: 'id', '<>', $excludeId);
@@ -44,7 +46,33 @@ class DatabasePresenceVerifier implements DatabasePresenceVerifierInterface
      */
     public function getMultiCount(string $collection, string $column, array $values, array $extra = []): int
     {
-        $query = $this->table($collection)->whereIn($column, array_map($this->prepareValue(...), $values));
+        $query = $this->table($collection);
+
+        if (str_contains($column, '->') && array_any($values, static fn (mixed $value): bool => is_bool($value))) {
+            // whereIn() does not apply the query builder's native JSON-boolean comparison.
+            $query->where(function (Builder $query) use ($column, $values): void {
+                $booleans = [];
+                $others = [];
+
+                foreach ($values as $value) {
+                    if (is_bool($value)) {
+                        $booleans[(int) $value] = $value;
+                    } else {
+                        $others[] = $value;
+                    }
+                }
+
+                if ($others !== []) {
+                    $query->whereIn($column, array_map($this->prepareValue(...), $others));
+                }
+
+                foreach ($booleans as $value) {
+                    $query->orWhere($column, $value);
+                }
+            });
+        } else {
+            $query->whereIn($column, array_map($this->prepareValue(...), $values));
+        }
 
         return $this->addConditions($query, $extra)->distinct()->count($column);
     }

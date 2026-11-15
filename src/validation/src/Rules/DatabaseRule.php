@@ -226,7 +226,19 @@ trait DatabaseRule
             }
         }
 
-        return array_merge($conditions, $this->using);
+        // Unlike Laravel, keep queryCallbacks() overrides effective when combining conditions.
+        return array_merge($conditions, $this->queryCallbacks());
+    }
+
+    /**
+     * Determine whether two native rules have the same stored conditions.
+     *
+     * @internal
+     */
+    public function hasSameConditions(self $other): bool
+    {
+        return $this->wheres === $other->wheres
+            && $this->queryCallbacks() === $other->queryCallbacks();
     }
 
     /**
