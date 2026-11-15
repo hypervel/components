@@ -220,14 +220,14 @@ TEXT;
         $quotedBinding = <<<'TEXT'
 'O''Reilly \\ café $1 \1'
 TEXT;
-        [$event, $connection] = $this->queryEvent('select ?', [$binding]);
+        [$event, $connection] = $this->queryEvent('select ?, ?', [$binding, 1.234567890123456]);
         $connection->shouldReceive('escape')
             ->once()
             ->with($binding)
             ->andReturn($quotedBinding);
 
         $this->assertSame(
-            'select ' . $quotedBinding,
+            'select ' . $quotedBinding . ', 1.234567890123456',
             $this->app->make(QueryWatcher::class)->replaceBindings($event),
         );
     }
