@@ -224,7 +224,7 @@ trait ReplacesAttributes
     /**
      * Replace all place-holders for the in rule.
      *
-     * @param array<int, int|string> $parameters
+     * @param array<int, mixed> $parameters
      */
     protected function replaceIn(string $message, string $attribute, string $rule, array $parameters): string
     {
@@ -246,7 +246,7 @@ trait ReplacesAttributes
     /**
      * Replace all place-holders for the not_in rule.
      *
-     * @param array<int, int|string> $parameters
+     * @param array<int, mixed> $parameters
      */
     protected function replaceNotIn(string $message, string $attribute, string $rule, array $parameters): string
     {
@@ -740,7 +740,7 @@ trait ReplacesAttributes
     /**
      * Replace all place-holders for the doesnt_contain rule.
      *
-     * @param array<int,string> $parameters
+     * @param array<int, mixed> $parameters
      */
     protected function replaceDoesntContain(string $message, string $attribute, string $rule, array $parameters): string
     {
