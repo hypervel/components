@@ -35,6 +35,8 @@
 - [Validating Passwords](#validating-passwords)
 - [Custom Validation Rules](#custom-validation-rules)
     - [Using Rule Objects](#using-rule-objects)
+    - [Extending Fluent Rules](#extending-fluent-rules)
+    - [Customizing Database Rules](#customizing-database-rules)
     - [Using Closures](#using-closures)
     - [Implicit Rules](#implicit-rules)
 - [Credits](#credits)
@@ -155,6 +157,13 @@ $request->validate([
 ```
 
 If a parameter contains `|`, use a rule object or an array of individual rules instead of joining the rules into a single string. Regular expression parameters retain their regular expression syntax.
+
+<a name="membership-comparisons"></a>
+#### Membership Comparisons
+
+The `in`, `not_in`, `contains` and `doesnt_contain` rules use the same value comparisons. `false`, `0` and `'0'` match, as do `true`, `1` and `'1'`. Null matches only null; an empty string stays separate. Other scalar and stringable values compare by their string form, so `1` matches `'1'` but not `'01'`. Pass null members through a fluent builder or structured rule array.
+
+Float conversion preserves precision using PHP's default `serialize_precision=-1`. A float matches itself, but distinct values are not rounded into a match: `0.1 + 0.2` does not match `0.3`. Round explicitly when your application requires a fixed decimal precision.
 
 <a name="stopping-on-first-validation-failure"></a>
 #### Stopping on First Validation Failure
@@ -1905,6 +1914,8 @@ Validator::make($data, [
 ]);
 ```
 
+Values are compared using the [membership comparisons](#membership-comparisons).
+
 <a name="rule-doesnt-contain"></a>
 #### doesnt_contain:_foo_,_bar_,...
 
@@ -1923,7 +1934,7 @@ Validator::make($data, [
 ]);
 ```
 
-Comparisons are strict. String and fluent rules encode parameters as strings, so the integer `1` does not match the parameter `'1'`.
+Values are compared using the [membership comparisons](#membership-comparisons).
 
 <a name="rule-current-password"></a>
 #### current_password
@@ -2113,7 +2124,7 @@ The field under validation must not end with one of the given values.
 <a name="rule-email"></a>
 #### email
 
-The field under validation must be formatted as an email address. This validation rule utilizes the [egulias/email-validator](https://github.com/egulias/EmailValidator) package for validating the email address. By default, the `RFCValidation` validator is applied, but you can apply other validation styles as well:
+The field under validation must be formatted as an email address no longer than 254 bytes. This validation rule utilizes the [egulias/email-validator](https://github.com/egulias/EmailValidator) package for validating the email address. By default, the `RFCValidation` validator is applied, but you can apply other validation styles as well:
 
 ```php
 'email' => ['email:rfc,dns']
@@ -2434,6 +2445,8 @@ Validator::make($input, [
 ]);
 ```
 
+Values are compared using the [membership comparisons](#membership-comparisons).
+
 <a name="rule-in-array"></a>
 #### in_array:_anotherfield_.*
 
@@ -2614,6 +2627,8 @@ Validator::make($data, [
     ],
 ]);
 ```
+
+Values are compared using the [membership comparisons](#membership-comparisons). When combined with `array`, this rule rejects the array if any item is in the given list.
 
 <a name="rule-not-regex"></a>
 #### not_regex:_pattern_
@@ -3627,6 +3642,65 @@ class Uppercase implements ValidationRule, ValidatorAwareRule
     }
 }
 ```
+
+> [!WARNING]
+> Create stateful rules with `new`, or implement [`Hypervel\Contracts\Container\Transient`](/docs/{{version}}/container#transient-classes) when injecting them through the container, and do not register them as shared bindings. This includes `DataAwareRule` and `ValidatorAwareRule` implementations: sharing their data or validator reference between requests is unsafe.
+
+<a name="extending-fluent-rules"></a>
+### Extending Fluent Rules
+
+The `In`, `NotIn`, `ArrayKeys`, `Contains` and `DoesntContain` builders implement `Hypervel\Contracts\Validation\ParameterizedRule`. Their `toArray` method returns the rule name followed by its parameters, such as `['in', 'active', 'pending']`. Override this method to customize a subclass's declaration; their `__toString` methods are final and render that declaration. The validator's `getRules` method retains these builders as objects.
+
+A subclass implementing the `Rule` or `ValidationRule` contract executes its custom validation instead of its parameter declaration.
+
+Structured declarations are read at the start of each validation run, including in custom validators. Changes between runs take effect on the next run; changes during a run do not alter its captured parameters. Custom validation hooks still receive the original objects.
+
+<a name="customizing-database-rules"></a>
+### Customizing Database Rules
+
+Use the fluent `exists` and `unique` methods for ordinary conditions. When a subclass derives conditions from additional state, override `queryConditions` to return a `DatabaseConditions` instance. For example, a subclass can use its current `enabled` setting each time validation runs:
+
+```php
+use Hypervel\Validation\DatabaseCondition;
+use Hypervel\Validation\DatabaseConditionOperator;
+use Hypervel\Validation\DatabaseConditions;
+
+public bool $enabled = true;
+
+public function queryConditions(): DatabaseConditions
+{
+    return new DatabaseConditions(...[
+        ...parent::queryConditions()->all(),
+        new DatabaseCondition('payload->enabled', DatabaseConditionOperator::Equals, $this->enabled),
+    ]);
+}
+```
+
+The available operators are `Equals`, `NotEquals`, `IsNull`, `IsNotNull`, `In` and `NotIn`. Condition values are literal: use `IsNull` to test for null, rather than the string `'NULL'`. Explicit query closures may also be included. Existing string rules retain their usual syntax.
+
+Override `queryParameters` to customize the table, column or ignored ID. It returns `[table, column]` for `Exists` and `[table, column, ignoredId, idColumn]` for `Unique`, with null indicating no ignored ID. Both builders have a final `__toString` method that renders these declarations; string rendering is not how the validator receives a builder's conditions. The validator's `getRules` method retains these builders as objects.
+
+Pass database-rule objects directly to the validator. Their string form cannot preserve callbacks, `whereIn` / `whereNotIn` conditions, JSON booleans or literal values such as `NULL` and `!active`.
+
+The default validator reads these declarations at the start of each validation run. Changes made before `passes`, or between runs, take effect on the next run; changes made by an earlier check during a run do not. Use `using` callbacks for conditions that must be evaluated during the database check. Custom validator subclasses retain the original database-rule objects and read their declarations during delegated execution.
+
+#### Custom Presence Verifiers
+
+Custom implementations of `Hypervel\Validation\PresenceVerifierInterface` receive a resolved `PresenceQuery`:
+
+```php
+use Hypervel\Validation\PresenceQuery;
+
+public function getCount(PresenceQuery $query, mixed $value): int;
+
+public function getMultiCount(PresenceQuery $query, array $values): int;
+```
+
+The query provides `connection`, `collection`, `column`, `conditions`, `excludeId` and `idColumn`. Read the ordered predicates and callbacks through `$query->conditions->all()`. Apply each predicate's column, operator and value, and invoke callbacks with your query builder. `getMultiCount` counts distinct matching values. Connection selection belongs to this query; there is no `setConnection` method or separate `DatabasePresenceVerifierInterface`, and `Validator::getPresenceVerifier()` takes no connection argument.
+
+If you extend `DatabasePresenceVerifier`, its condition hook is `addWhere(Builder $query, DatabaseCondition $condition): void`; `addConditions` accepts `DatabaseConditions`, and `table` accepts `PresenceQuery`. The base verifier applies all six operators and explicit closures through the query builder.
+
+Override `prepareValue(string $column, mixed $value): mixed` to customize the values being validated. The column comes first so overrides can distinguish JSON selectors from ordinary columns. Condition operands are normalized separately when their `DatabaseCondition` is created.
 
 <a name="using-closures"></a>
 ### Using Closures

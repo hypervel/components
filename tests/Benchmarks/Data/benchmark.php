@@ -10,6 +10,8 @@ use Hypervel\Data\Attributes\LoadRelation;
 use Hypervel\Data\Attributes\MapInputName;
 use Hypervel\Data\Attributes\PropertyForMorph;
 use Hypervel\Data\Attributes\Validation\Email;
+use Hypervel\Data\Attributes\Validation\Exists;
+use Hypervel\Data\Attributes\Validation\In;
 use Hypervel\Data\Attributes\WithCast;
 use Hypervel\Data\Casts\Cast;
 use Hypervel\Data\Contracts\PropertyMorphableData;
@@ -35,12 +37,48 @@ use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Foundation\Application as TestbenchApplication;
+use Hypervel\Validation\Rule;
 
 use function Hypervel\Coroutine\run;
 
 require dirname(__DIR__, 3) . '/tests/bootstrap.php';
 
 Bootstrapper::bootstrap();
+
+class DataBenchmarkAttributeRules extends Data
+{
+    /**
+     * Declare reusable membership and database rules through attributes.
+     */
+    public function __construct(
+        #[Exists('data_benchmark_users', 'id')]
+        public int $id,
+        #[In('active', 'pending')]
+        public string $status,
+    ) {
+    }
+}
+
+class DataBenchmarkClassRules extends Data
+{
+    /**
+     * Accept the same input as the attribute-based workload.
+     */
+    public function __construct(public int $id, public string $status)
+    {
+    }
+
+    /**
+     * Build equal declarations per item to exercise dynamic collection rule sharing.
+     */
+    public static function rules(): array
+    {
+        return [
+            'id' => [Rule::exists('data_benchmark_users', 'id')],
+            'status' => [Rule::in(['active', 'pending'])],
+        ];
+    }
+}
 
 class DataBenchmarkAddress extends Data
 {
@@ -381,6 +419,7 @@ class DataBenchmark
         private readonly int $operations,
         private readonly int $samples,
         private readonly int $warmup,
+        private readonly bool $verify,
     ) {
         $this->connection->listen(function (QueryExecuted $event): void {
             ++$this->queryCount;
@@ -436,6 +475,7 @@ class DataBenchmark
         ];
         $collectionRows = $this->userRows(1_000);
         $validationRows = $this->userRows(5_000);
+        $ruleRows = array_map(static fn (int $identifier): array => ['id' => $identifier, 'status' => 'active'], range(1, 1000));
         $lazyRows = array_map(
             static fn (array $row): array => [
                 'id' => $row['id'],
@@ -572,6 +612,16 @@ class DataBenchmark
                 $collectionOperations,
                 $collectionWarmup,
                 fn (): int => DataBenchmarkLazyItem::collect($lazyRows, DataCollection::class)->count(),
+            ],
+            'validate-attributes-1000' => [
+                $collectionOperations,
+                $collectionWarmup,
+                fn (): int => $this->validateRuleCollection(DataBenchmarkAttributeRules::class, $ruleRows),
+            ],
+            'validate-class-rules-1000' => [
+                $collectionOperations,
+                $collectionWarmup,
+                fn (): int => $this->validateRuleCollection(DataBenchmarkClassRules::class, $ruleRows),
             ],
             'validate-5000-nested' => [
                 $validationOperations,
@@ -748,6 +798,14 @@ class DataBenchmark
         int $operations,
         int $warmup,
     ): array {
+        if ($this->verify) {
+            if ($operation() === 0) {
+                throw new LogicException("Benchmark scenario [{$name}] produced an empty checksum.");
+            }
+
+            return ['scenario' => $name, 'status' => 'verified'];
+        }
+
         $checksum = 0;
 
         for ($iteration = 0; $iteration < $warmup; ++$iteration) {
@@ -799,6 +857,10 @@ class DataBenchmark
      */
     private function benchmarkOnce(string $name, Closure $operation): array
     {
+        if ($this->verify) {
+            return $this->benchmark($name, $operation, 1, 0);
+        }
+
         memory_reset_peak_usage();
         $baselineMemory = memory_get_usage(true);
         $queryCount = $this->queryCount;
@@ -829,6 +891,12 @@ class DataBenchmark
      */
     private function printResult(array $result): void
     {
+        if (isset($result['status'])) {
+            printf("%-34s %s\n", $result['scenario'], $result['status']);
+
+            return;
+        }
+
         printf(
             "%-34s %10d %14.0f %14.2f %14.2f %12.3f %14d\n",
             $result['scenario'],
@@ -839,6 +907,27 @@ class DataBenchmark
             $result['queries_per_operation'],
             $result['peak_memory_bytes'],
         );
+    }
+
+    /**
+     * Validate a complete collection and check its size and representative contents.
+     *
+     * @param class-string<Data> $class
+     */
+    private function validateRuleCollection(string $class, array $rows): int
+    {
+        $items = $class::factory()->alwaysValidate()->collect($rows, DataCollection::class);
+        $first = array_key_first($rows);
+        $last = array_key_last($rows);
+        if ($items->count() !== count($rows)
+            || $items[$first]->id !== $rows[$first]['id']
+            || $items[$last]->id !== $rows[$last]['id']
+            || $items[$last]->status !== $rows[$last]['status']
+        ) {
+            throw new LogicException('Validated rule collection has incorrect contents.');
+        }
+
+        return $items->count();
     }
 
     /**
@@ -935,7 +1024,8 @@ class DataBenchmark
      */
     private function environment(): array
     {
-        $commit = trim((string) shell_exec('git rev-parse HEAD 2>/dev/null'));
+        $git = 'git -C ' . escapeshellarg(dirname(__DIR__, 3));
+        $commit = trim((string) shell_exec($git . ' rev-parse HEAD 2>/dev/null'));
         // The ini settings can differ from what is running, so the status reports OPcache and JIT as they are.
         $opcache = function_exists('opcache_get_status') ? opcache_get_status(false) : false;
         $jitActive = is_array($opcache) && ($opcache['jit']['on'] ?? false);
@@ -943,6 +1033,10 @@ class DataBenchmark
         return [
             'timestamp' => gmdate(DATE_ATOM),
             'commit' => $commit !== '' ? $commit : 'unknown',
+            'source_status' => rtrim((string) shell_exec($git . ' status --porcelain -- src')),
+            'working_tree_status' => rtrim((string) shell_exec($git . ' status --porcelain')),
+            'harness_hash' => hash_file('xxh128', __FILE__),
+            'lock_hash' => hash_file('xxh128', dirname(__DIR__, 3) . '/composer.lock'),
             'php' => PHP_VERSION,
             'os' => php_uname(),
             'extensions' => get_loaded_extensions(),
@@ -963,7 +1057,7 @@ class DataBenchmark
  */
 function main(): int
 {
-    $options = getopt('', ['operations:', 'samples:', 'warmup:', 'json:', 'csv:', 'help']);
+    $options = getopt('', ['operations:', 'samples:', 'warmup:', 'json:', 'csv:', 'verify', 'help']);
 
     if ($options === false) {
         fwrite(STDERR, "Unable to parse benchmark options.\n");
@@ -981,6 +1075,7 @@ function main(): int
         $operations = parseIntegerOption($options, 'operations', 20_000, 1, 1_000_000);
         $samples = parseIntegerOption($options, 'samples', 21, 1, 100);
         $warmup = parseIntegerOption($options, 'warmup', 1_000, 0, 100_000);
+        $verify = array_key_exists('verify', $options);
         $databasePath = tempnam(sys_get_temp_dir(), 'hypervel-data-benchmark-');
 
         if ($databasePath === false) {
@@ -1025,6 +1120,7 @@ function main(): int
                 $operations,
                 $samples,
                 $warmup,
+                $verify,
                 &$executionException,
                 &$report,
             ): void {
@@ -1038,6 +1134,7 @@ function main(): int
                         $operations,
                         $samples,
                         $warmup,
+                        $verify,
                     ))->execute();
                 } catch (Throwable $throwable) {
                     $executionException = $throwable;
@@ -1202,6 +1299,7 @@ Options:
   --warmup=COUNT        Unmeasured warmup operations (default: 1000)
   --json=PATH           Write the complete report as JSON
   --csv=PATH            Write scenario results as CSV
+  --verify              Check each workload once without timing
   --help                Show this help
 
 TEXT;

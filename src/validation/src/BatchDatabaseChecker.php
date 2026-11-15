@@ -18,24 +18,14 @@ final class BatchDatabaseChecker
     /**
      * Build a precomputed verifier from grouped candidates.
      *
-     * @param array<string, array{
-     *     meta: array{
-     *         connection: ?string,
-     *         table: string,
-     *         column: string,
-     *         wheres: array<string, mixed>,
-     *         ignore: null|int|string,
-     *         idColumn: ?string
-     *     },
-     *     values: list<mixed>
-     * }> $groups
+     * @param array<string, array{query: PresenceQuery, values: list<mixed>}> $groups
      */
     public static function buildVerifier(array $groups, DatabasePresenceVerifier $presenceVerifier): ?PrecomputedPresenceVerifier
     {
         $verifier = new PrecomputedPresenceVerifier($presenceVerifier);
 
         foreach ($groups as $lookupKey => $group) {
-            self::registerLookup($verifier, $presenceVerifier, $lookupKey, $group['meta'], $group['values']);
+            self::registerLookup($verifier, $presenceVerifier, $lookupKey, $group['query'], $group['values']);
         }
 
         return $verifier->hasLookups() ? $verifier : null;
@@ -44,21 +34,13 @@ final class BatchDatabaseChecker
     /**
      * Query and register database-proven facts for one query shape.
      *
-     * @param array{
-     *     connection: ?string,
-     *     table: string,
-     *     column: string,
-     *     wheres: array<string, mixed>,
-     *     ignore: null|int|string,
-     *     idColumn: ?string
-     * } $meta
      * @param list<mixed> $values
      */
     private static function registerLookup(
         PrecomputedPresenceVerifier $verifier,
         DatabasePresenceVerifier $presenceVerifier,
         string $lookupKey,
-        array $meta,
+        PresenceQuery $query,
         array $values,
     ): void {
         $representativeValues = self::normalizeCandidates($values);
@@ -70,29 +52,18 @@ final class BatchDatabaseChecker
         $stageOneSingleChunk = count($representativeValues) <= self::CHUNK_SIZE;
         $stageOneValues = self::queryValues(
             $presenceVerifier,
-            $meta,
+            $query,
             array_values($representativeValues),
         );
-        $comparisonIndex = [];
-
-        foreach (array_keys($representativeValues) as $bindingKey) {
-            $comparisonIndex[substr($bindingKey, 1)][] = $bindingKey;
-        }
-
         $exactHits = [];
         $knownPresent = [];
         $provenAbsent = [];
 
         foreach ($stageOneValues as $value) {
-            $normalizedValue = PrecomputedPresenceVerifier::normalizeValue($value);
+            $bindingKey = PrecomputedPresenceVerifier::bindingKey($value);
 
-            if ($normalizedValue === null) {
-                continue;
-            }
-
-            // Query success proves each retained PDO binding was accepted. A returned
-            // equal string form is therefore exact for every matching submitted binding.
-            foreach ($comparisonIndex[$normalizedValue] ?? [] as $bindingKey) {
+            // A returned equal string form proves the normalized presence binding matched.
+            if ($bindingKey !== null && isset($representativeValues[$bindingKey])) {
                 $exactHits[$bindingKey] = true;
             }
         }
@@ -105,22 +76,16 @@ final class BatchDatabaseChecker
         } elseif (count($representativeValues) === 1 && $exactHits === []) {
             $knownPresent[array_key_first($representativeValues)] = true;
         } elseif ($exactHits !== [] && $misses !== []) {
-            $stageTwoValues = self::queryValues($presenceVerifier, $meta, array_values($misses));
+            $stageTwoValues = self::queryValues($presenceVerifier, $query, array_values($misses));
 
             if ($stageTwoValues === []) {
                 $provenAbsent = array_fill_keys(array_keys($misses), true);
             } else {
                 foreach ($stageTwoValues as $value) {
-                    $normalizedValue = PrecomputedPresenceVerifier::normalizeValue($value);
+                    $bindingKey = PrecomputedPresenceVerifier::bindingKey($value);
 
-                    if ($normalizedValue === null) {
-                        continue;
-                    }
-
-                    foreach ($comparisonIndex[$normalizedValue] ?? [] as $bindingKey) {
-                        if (isset($misses[$bindingKey])) {
-                            $knownPresent[$bindingKey] = true;
-                        }
+                    if ($bindingKey !== null && isset($misses[$bindingKey])) {
+                        $knownPresent[$bindingKey] = true;
                     }
                 }
 
@@ -142,41 +107,25 @@ final class BatchDatabaseChecker
     /**
      * Run chunked queries for one database query shape.
      *
-     * @param array{
-     *     connection: ?string,
-     *     table: string,
-     *     column: string,
-     *     wheres: array<string, mixed>,
-     *     ignore: null|int|string,
-     *     idColumn: ?string
-     * } $meta
      * @param list<float|int|string> $values
      * @return list<mixed>
      */
     private static function queryValues(
         DatabasePresenceVerifier $presenceVerifier,
-        array $meta,
+        PresenceQuery $query,
         array $values,
     ): array {
         $results = [];
 
         foreach (array_chunk($values, self::CHUNK_SIZE) as $chunk) {
-            array_push($results, ...$presenceVerifier->getExistingValues(
-                $meta['table'],
-                $meta['column'],
-                $chunk,
-                $meta['connection'],
-                $meta['ignore'],
-                $meta['idColumn'],
-                $meta['wheres'],
-            ));
+            array_push($results, ...$presenceVerifier->getExistingValues($query, $chunk));
         }
 
         return $results;
     }
 
     /**
-     * Normalize candidates while retaining the first raw SQL binding.
+     * Normalize binding identities while retaining the first candidate value.
      *
      * An unsupported array item rejects only that concrete array candidate;
      * safe siblings in the same query-shape group remain batchable.

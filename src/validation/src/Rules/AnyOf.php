@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
@@ -11,7 +12,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Validator;
 
 // @phpstan-ignore class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
-class AnyOf implements Rule, ValidatorAwareRule
+class AnyOf implements Rule, ValidatorAwareRule, Transient
 {
     /**
      * The rules to match against.

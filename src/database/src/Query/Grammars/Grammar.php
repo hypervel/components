@@ -374,6 +374,28 @@ class Grammar extends BaseGrammar
     }
 
     /**
+     * Compile JSON membership while retaining native boolean comparisons.
+     */
+    protected function whereJsonBooleanIn(Builder $query, array $where): string
+    {
+        $parts = $where['values'] === [] ? [] : [$this->whereIn($query, $where)];
+
+        foreach ($where['booleans'] as $value) {
+            $parts[] = $this->compileJsonBooleanInValue($where['column'], $value);
+        }
+
+        return ($where['not'] ? 'not ' : '') . '(' . implode(' or ', $parts) . ')';
+    }
+
+    /**
+     * Compile one JSON boolean membership comparison.
+     */
+    protected function compileJsonBooleanInValue(string $column, bool $value): string
+    {
+        return $this->wrapJsonBooleanSelector($column) . ' = ' . $this->wrapJsonBooleanValue($value ? 'true' : 'false');
+    }
+
+    /**
      * Compile a "where not in raw" clause.
      *
      * For safety, whereIntegerInRaw ensures this method is only used with integer values.

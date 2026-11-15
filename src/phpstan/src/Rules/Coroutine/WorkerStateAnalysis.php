@@ -69,6 +69,7 @@ class WorkerStateAnalysis
         $abstracts = [];
         $singletons = [];
         $queued = [];
+        $formRequests = [];
         $helperCalls = [];
 
         foreach ($node->get(WorkerStateCallCollector::class) as $file => $calls) {
@@ -93,6 +94,10 @@ class WorkerStateAnalysis
 
                 if ($class['queued']) {
                     $queued[] = $class['class'];
+                }
+
+                if ($class['formRequest']) {
+                    $formRequests[] = $class['class'];
                 }
 
                 foreach ($class['observers'] as $observer) {
@@ -120,6 +125,7 @@ class WorkerStateAnalysis
             $queued,
             $helperCalls,
             array_map(array_keys(...), $observers),
+            $formRequests,
         );
     }
 
@@ -191,7 +197,7 @@ class WorkerStateAnalysis
 
     /**
      * Determine whether the container injects the global configuration repository into the function's
-     * parameter, and the function still holds it: a controller action, a route closure or a job's handler.
+     * parameter, and the function still holds it: an action, route closure, job handler or form request hook.
      *
      * @param FunctionFacts $function
      */

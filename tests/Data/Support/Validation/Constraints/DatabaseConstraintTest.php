@@ -11,11 +11,9 @@ use Hypervel\Data\Support\Validation\Constraints\WhereNotInConstraint;
 use Hypervel\Data\Support\Validation\Constraints\WhereNotNullConstraint;
 use Hypervel\Data\Support\Validation\Constraints\WhereNullConstraint;
 use Hypervel\Data\Support\Validation\References\ExternalReference;
-use Hypervel\Database\Query\Builder;
 use Hypervel\Tests\TestCase;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseConstraintTest extends TestCase
@@ -50,11 +48,8 @@ class DatabaseConstraintTest extends TestCase
         ];
     }
 
-    /**
-     * Test callback and set constraints register native query callbacks.
-     */
     #[DataProvider('databaseRuleObjects')]
-    public function testAppliesCallbackConstraints(Exists|Unique $rule): void
+    public function testAppliesMembershipAndCallbackConstraints(Exists|Unique $rule): void
     {
         $where = static fn (): null => null;
 
@@ -62,15 +57,12 @@ class DatabaseConstraintTest extends TestCase
         (new WhereInConstraint('status', ['active', 'pending']))->apply($rule);
         (new WhereNotInConstraint('role', ['admin', 'owner']))->apply($rule);
 
-        [$callback, $whereIn, $whereNotIn] = $rule->queryCallbacks();
-        $query = m::mock(Builder::class);
-        $query->shouldReceive('whereIn')->once()->with('status', ['active', 'pending'])->andReturnSelf();
-        $query->shouldReceive('whereNotIn')->once()->with('role', ['admin', 'owner'])->andReturnSelf();
-
-        $this->assertCount(3, $rule->queryCallbacks());
-        $this->assertSame($where, $callback);
-        $whereIn($query);
-        $whereNotIn($query);
+        $this->assertSame([
+            ['status', 'in', ['active', 'pending']],
+            ['role', 'not in', ['admin', 'owner']],
+            $where,
+        ], $rule->queryConditions()->toArray());
+        $this->assertSame([$where], $rule->queryCallbacks());
     }
 
     /**

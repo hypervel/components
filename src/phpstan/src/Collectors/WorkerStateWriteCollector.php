@@ -121,7 +121,7 @@ class WorkerStateWriteCollector implements Collector
 
         // @phpstan-ignore phpstanApi.class (The offset chain PHPStan builds inside a property write.), phpstanApi.class (The offset chain PHPStan builds inside a property write.)
         while ($value instanceof SetOffsetValueTypeExpr || $value instanceof SetExistingOffsetValueTypeExpr) {
-            // @phpstan-ignore phpstanApi.method (The offset chain PHPStan builds inside a property write.)
+            // @phpstan-ignore phpstanApi.method (The offset chain PHPStan builds inside a property write.), phpstanApi.method (The existing-offset member of the same chain.)
             $dim = $value->getDim();
 
             $cacheKey = $cacheKey || ($growingStorage
@@ -129,10 +129,10 @@ class WorkerStateWriteCollector implements Collector
                 && $this->helper->readsRequestState($dim, $scope)
                 && ! $this->helper->isBoundedKey($scope->getType($dim)));
 
-            // @phpstan-ignore phpstanApi.method (The offset chain PHPStan builds inside a property write.)
+            // @phpstan-ignore phpstanApi.method (The offset chain PHPStan builds inside a property write.), phpstanApi.method (The existing-offset member of the same chain.)
             $copied = $copied && $scope->getType($value->getVar())->isObject()->no();
 
-            // @phpstan-ignore phpstanApi.method (The offset chain PHPStan builds inside a property write.)
+            // @phpstan-ignore phpstanApi.method (The offset chain PHPStan builds inside a property write.), phpstanApi.method (The existing-offset member of the same chain.)
             $value = $value->getValue();
         }
 

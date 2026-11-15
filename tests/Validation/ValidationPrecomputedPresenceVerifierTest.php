@@ -6,8 +6,12 @@ namespace Hypervel\Tests\Validation;
 
 use DateTimeImmutable;
 use Hypervel\Tests\TestCase;
-use Hypervel\Validation\DatabasePresenceVerifierInterface;
+use Hypervel\Validation\DatabaseCondition;
+use Hypervel\Validation\DatabaseConditionOperator;
+use Hypervel\Validation\DatabaseConditions;
 use Hypervel\Validation\PrecomputedPresenceVerifier;
+use Hypervel\Validation\PresenceQuery;
+use Hypervel\Validation\PresenceVerifierInterface;
 use Mockery as m;
 use RuntimeException;
 use stdClass;
@@ -17,23 +21,43 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
 {
     public function testLookupKeyModelsTheCompleteEffectiveQueryShape(): void
     {
-        $base = self::lookupKey(null, 'users', 'email', extra: ['status' => 'active', 'deleted_at' => 'NULL']);
+        $status = new DatabaseCondition('status', DatabaseConditionOperator::Equals, 'active');
+        $deleted = new DatabaseCondition('deleted_at', DatabaseConditionOperator::IsNull);
+        $conditions = new DatabaseConditions($status, $deleted);
+        $base = self::lookupKey(new PresenceQuery(null, 'users', 'email', $conditions));
 
-        $this->assertSame($base, self::lookupKey(null, 'users', 'email', 'NULL', 'uuid', ['status' => 'active', 'deleted_at' => 'NULL']));
-        $this->assertNotSame($base, self::lookupKey('tenant', 'users', 'email', extra: ['status' => 'active', 'deleted_at' => 'NULL']));
-        $this->assertNotSame($base, self::lookupKey(null, 'admins', 'email', extra: ['status' => 'active', 'deleted_at' => 'NULL']));
-        $this->assertNotSame($base, self::lookupKey(null, 'users', 'username', extra: ['status' => 'active', 'deleted_at' => 'NULL']));
-        $this->assertNotSame($base, self::lookupKey(null, 'users', 'email', extra: ['deleted_at' => 'NULL', 'status' => 'active']));
-        $this->assertNotSame($base, self::lookupKey(null, 'users', 'email', extra: ['status' => 'inactive', 'deleted_at' => 'NULL']));
+        $this->assertSame($base, self::lookupKey(new PresenceQuery(
+            null,
+            'users',
+            'email',
+            DatabaseConditions::fromParameters(['status', 'active', 'deleted_at', null]),
+        )));
+        $this->assertSame($base, self::lookupKey(new PresenceQuery(null, 'users', 'email', $conditions, idColumn: 'uuid')));
+        $this->assertNotSame($base, self::lookupKey(new PresenceQuery('tenant', 'users', 'email', $conditions)));
+        $this->assertNotSame($base, self::lookupKey(new PresenceQuery(null, 'admins', 'email', $conditions)));
+        $this->assertNotSame($base, self::lookupKey(new PresenceQuery(null, 'users', 'username', $conditions)));
+        $this->assertNotSame($base, self::lookupKey(new PresenceQuery(null, 'users', 'email', new DatabaseConditions($deleted, $status))));
+        $this->assertNotSame($base, self::lookupKey(new PresenceQuery(null, 'users', 'email', new DatabaseConditions(
+            new DatabaseCondition('status', DatabaseConditionOperator::Equals, 'inactive'),
+            $deleted,
+        ))));
     }
 
     public function testLookupKeyUsesEffectiveExclusionAndNormalizedConditions(): void
     {
-        $defaultId = self::lookupKey(null, 'users', 'email', '7', null, ['active' => true, 'archived' => false]);
+        $booleans = new DatabaseConditions(
+            new DatabaseCondition('active', DatabaseConditionOperator::Equals, true),
+            new DatabaseCondition('archived', DatabaseConditionOperator::Equals, false),
+        );
+        $strings = new DatabaseConditions(
+            new DatabaseCondition('active', DatabaseConditionOperator::Equals, '1'),
+            new DatabaseCondition('archived', DatabaseConditionOperator::Equals, '0'),
+        );
+        $defaultId = self::lookupKey(new PresenceQuery(null, 'users', 'email', $booleans, '7'));
 
-        $this->assertSame($defaultId, self::lookupKey(null, 'users', 'email', '7', 'id', ['active' => '1', 'archived' => '']));
-        $this->assertNotSame($defaultId, self::lookupKey(null, 'users', 'email', '8', 'id', ['active' => '1', 'archived' => '']));
-        $this->assertNotSame($defaultId, self::lookupKey(null, 'users', 'email', '7', 'uuid', ['active' => '1', 'archived' => '']));
+        $this->assertSame($defaultId, self::lookupKey(new PresenceQuery(null, 'users', 'email', $strings, '7', 'id')));
+        $this->assertNotSame($defaultId, self::lookupKey(new PresenceQuery(null, 'users', 'email', $strings, '8', 'id')));
+        $this->assertNotSame($defaultId, self::lookupKey(new PresenceQuery(null, 'users', 'email', $strings, '7', 'uuid')));
     }
 
     public function testLookupKeyRejectsConditionsThatCannotBeReplayed(): void
@@ -52,16 +76,24 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
             }
         };
 
-        $this->assertNull(PrecomputedPresenceVerifier::lookupKey(null, 'users', 'email', extra: [static function (): void {}]));
-        $this->assertNull(PrecomputedPresenceVerifier::lookupKey(null, 'users', 'email', extra: ['status' => new stdClass]));
-        $this->assertNull(PrecomputedPresenceVerifier::lookupKey(null, 'users', 'email', extra: ['status' => $stringable]));
+        foreach ([
+            new DatabaseConditions(static function (): void {}),
+            new DatabaseConditions(new DatabaseCondition('status', DatabaseConditionOperator::Equals, new stdClass)),
+            new DatabaseConditions(new DatabaseCondition('status', DatabaseConditionOperator::In, [$stringable])),
+        ] as $conditions) {
+            $this->assertNull(PrecomputedPresenceVerifier::lookupKey(
+                new PresenceQuery(null, 'users', 'email', $conditions),
+            ));
+        }
         $this->assertSame(0, $casts);
     }
 
     public function testScalarFactsUseTheirDatabaseProvenState(): void
     {
         $verifier = $this->makeVerifierWithUnusedFallback();
-        $lookupKey = self::lookupKey(null, 'users', 'email');
+        $presenceQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions);
+
+        $lookupKey = self::lookupKey($presenceQuery);
         $verifier->addLookup(
             $lookupKey,
             exactHits: self::bindingMap(['exact@example.com']),
@@ -70,12 +102,12 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
             stageOneSingleChunk: true,
         );
 
-        $this->assertSame(1, $verifier->getCount('users', 'email', 'exact@example.com'));
-        $this->assertSame(1, $verifier->getCount('users', 'email', 'case@example.com'));
-        $this->assertSame(0, $verifier->getCount('users', 'email', 'missing@example.com'));
+        $this->assertSame(1, $verifier->getCount($presenceQuery, 'exact@example.com'));
+        $this->assertSame(1, $verifier->getCount($presenceQuery, 'case@example.com'));
+        $this->assertSame(0, $verifier->getCount($presenceQuery, 'missing@example.com'));
     }
 
-    public function testFactsRequireTheSubmittedBindingIdentity(): void
+    public function testFactsShareEquivalentBindingsWithoutCastingObjects(): void
     {
         $casts = 0;
         $stringable = new class($casts) implements Stringable {
@@ -90,146 +122,154 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
                 return '3';
             }
         };
-        $fallback = m::mock(DatabasePresenceVerifierInterface::class);
+        $fallback = m::mock(PresenceVerifierInterface::class);
+        $presenceQuery = new PresenceQuery(null, 'users', 'id', new DatabaseConditions);
+
         $fallback->shouldReceive('getCount')
             ->once()
-            ->with('users', 'id', m::on(static fn (mixed $value): bool => $value === $stringable), null, null, [])
+            ->with($presenceQuery, m::on(static fn (mixed $value): bool => $value === $stringable))
             ->andReturn(1);
-        $fallback->shouldReceive('getCount')
-            ->once()
-            ->with('users', 'id', 1, null, null, [])
-            ->andReturn(0);
-        $fallback->shouldReceive('getCount')
-            ->once()
-            ->with('users', 'id', '2', null, null, [])
-            ->andReturn(0);
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(
-            self::lookupKey(null, 'users', 'id'),
-            exactHits: self::bindingMap(['1', 2, '3']),
+            self::lookupKey($presenceQuery),
+            exactHits: self::bindingMap(['1', 2, '3', '1.234567890123456']),
             knownPresent: [],
-            provenAbsent: [],
+            provenAbsent: self::bindingMap(['1.2345678901234558']),
             stageOneSingleChunk: true,
         );
 
-        $this->assertSame(1, $verifier->getCount('users', 'id', '1'));
-        $this->assertSame(1, $verifier->getCount('users', 'id', 2));
-        $this->assertSame(1, $verifier->getCount('users', 'id', $stringable));
+        $this->assertSame(1, $verifier->getCount($presenceQuery, '1'));
+        $this->assertSame(1, $verifier->getCount($presenceQuery, 2));
+        $this->assertSame(1, $verifier->getCount($presenceQuery, $stringable));
         $this->assertSame(0, $casts);
-        $this->assertSame(0, $verifier->getCount('users', 'id', 1));
-        $this->assertSame(0, $verifier->getCount('users', 'id', '2'));
+        $this->assertSame(1, $verifier->getCount($presenceQuery, 1));
+        $this->assertSame(1, $verifier->getCount($presenceQuery, '2'));
+        $this->assertSame(1, $verifier->getCount($presenceQuery, 1.234567890123456));
+        $this->assertSame(0, $verifier->getCount($presenceQuery, 1.2345678901234558));
     }
 
     public function testUnknownScalarFallbackCountsAreMemoizedPerQueryShapeAndValue(): void
     {
-        $fallback = m::mock(DatabasePresenceVerifierInterface::class);
+        $fallback = m::mock(PresenceVerifierInterface::class);
+        $activeQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions(new DatabaseCondition('status', DatabaseConditionOperator::Equals, 'active')));
+
         $fallback->shouldReceive('getCount')
-            ->with('users', 'email', 'shared', null, null, ['status' => 'active'])
+            ->with($activeQuery, 'shared')
             ->once()
             ->andReturn(1);
+        $inactiveQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions(new DatabaseCondition('status', DatabaseConditionOperator::Equals, 'inactive')));
+
         $fallback->shouldReceive('getCount')
-            ->with('users', 'email', 'shared', null, null, ['status' => 'inactive'])
+            ->with($inactiveQuery, 'shared')
             ->once()
             ->andReturn(0);
+        $adminQuery = new PresenceQuery(null, 'admins', 'email', new DatabaseConditions);
+
         $fallback->shouldReceive('getCount')
-            ->with('admins', 'email', 'shared', null, null, [])
+            ->with($adminQuery, 'shared')
             ->once()
             ->andReturn(2);
+        $unfilteredQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions);
+
         $fallback->shouldReceive('getCount')
-            ->with('users', 'email', m::on(static fn (mixed $value): bool => $value === '1'), null, null, [])
+            ->with($unfilteredQuery, m::on(static fn (mixed $value): bool => $value === '1'))
             ->once()
             ->andReturn(1);
-        $fallback->shouldReceive('getCount')
-            ->with('users', 'email', m::on(static fn (mixed $value): bool => $value === 1), null, null, [])
-            ->once()
-            ->andReturn(0);
 
         $verifier = new PrecomputedPresenceVerifier($fallback);
-        $verifier->addLookup(self::lookupKey(null, 'users', 'email', extra: ['status' => 'active']), [], [], [], true);
-        $verifier->addLookup(self::lookupKey(null, 'users', 'email', extra: ['status' => 'inactive']), [], [], [], true);
-        $verifier->addLookup(self::lookupKey(null, 'admins', 'email'), [], [], [], true);
-        $verifier->addLookup(self::lookupKey(null, 'users', 'email'), [], [], [], true);
+        $verifier->addLookup(self::lookupKey($activeQuery), [], [], [], true);
+        $verifier->addLookup(self::lookupKey($inactiveQuery), [], [], [], true);
+        $verifier->addLookup(self::lookupKey($adminQuery), [], [], [], true);
+        $verifier->addLookup(self::lookupKey($unfilteredQuery), [], [], [], true);
 
         for ($iteration = 0; $iteration < 2; ++$iteration) {
-            $this->assertSame(1, $verifier->getCount('users', 'email', 'shared', extra: ['status' => 'active']));
-            $this->assertSame(0, $verifier->getCount('users', 'email', 'shared', extra: ['status' => 'inactive']));
-            $this->assertSame(2, $verifier->getCount('admins', 'email', 'shared'));
-            $this->assertSame(1, $verifier->getCount('users', 'email', '1'));
-            $this->assertSame(0, $verifier->getCount('users', 'email', 1));
+            $this->assertSame(1, $verifier->getCount($activeQuery, 'shared'));
+            $this->assertSame(0, $verifier->getCount($inactiveQuery, 'shared'));
+            $this->assertSame(2, $verifier->getCount($adminQuery, 'shared'));
+            $this->assertSame(1, $verifier->getCount($unfilteredQuery, '1'));
+            $this->assertSame(1, $verifier->getCount($unfilteredQuery, 1));
         }
     }
 
     public function testUnregisteredAndUnsupportedScalarShapesDelegateWithoutMemoization(): void
     {
         $unsupported = false;
-        $fallback = m::mock(DatabasePresenceVerifierInterface::class);
+        $fallback = m::mock(PresenceVerifierInterface::class);
+        $unregisteredQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions(new DatabaseCondition('status', DatabaseConditionOperator::Equals, 'active')));
+
         $fallback->shouldReceive('getCount')
-            ->with('users', 'email', 'unregistered', null, null, ['status' => 'active'])
+            ->with($unregisteredQuery, 'unregistered')
             ->twice()
             ->andReturn(1);
+        $registeredQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions);
+
         $fallback->shouldReceive('getCount')
-            ->with('users', 'email', $unsupported, null, null, [])
+            ->with($registeredQuery, $unsupported)
             ->twice()
             ->andReturn(0);
 
         $verifier = new PrecomputedPresenceVerifier($fallback);
-        $verifier->addLookup(self::lookupKey(null, 'users', 'email'), [], [], [], true);
+        $verifier->addLookup(self::lookupKey($registeredQuery), [], [], [], true);
 
         for ($iteration = 0; $iteration < 2; ++$iteration) {
-            $this->assertSame(1, $verifier->getCount('users', 'email', 'unregistered', extra: ['status' => 'active']));
-            $this->assertSame(0, $verifier->getCount('users', 'email', $unsupported));
+            $this->assertSame(1, $verifier->getCount($unregisteredQuery, 'unregistered'));
+            $this->assertSame(0, $verifier->getCount($registeredQuery, $unsupported));
         }
     }
 
     public function testConnectionIsPartOfTheLookupAndForwardedToTheFallback(): void
     {
-        $fallback = m::mock(DatabasePresenceVerifierInterface::class);
-        $fallback->shouldReceive('setConnection')->once()->with('tenant');
-        $fallback->shouldReceive('getCount')->once()->with('users', 'email', 'unknown', null, null, [])->andReturn(1);
+        $fallback = m::mock(PresenceVerifierInterface::class);
+        $presenceQuery = new PresenceQuery('tenant', 'users', 'email', new DatabaseConditions);
+
+        $fallback->shouldReceive('getCount')->once()->with($presenceQuery, 'unknown')->andReturn(1);
 
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(
-            self::lookupKey('tenant', 'users', 'email'),
+            self::lookupKey($presenceQuery),
             exactHits: self::bindingMap(['known']),
             knownPresent: [],
             provenAbsent: [],
             stageOneSingleChunk: true,
         );
-        $verifier->setConnection('tenant');
 
-        $this->assertSame(1, $verifier->getCount('users', 'email', 'known'));
-        $this->assertSame(1, $verifier->getCount('users', 'email', 'unknown'));
+        $this->assertSame(1, $verifier->getCount($presenceQuery, 'known'));
+        $this->assertSame(1, $verifier->getCount($presenceQuery, 'unknown'));
     }
 
     public function testMultiCountUsesExactAndAbsentFactsFromOneDistinctQuery(): void
     {
         $verifier = $this->makeVerifierWithUnusedFallback();
+        $presenceQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions);
+
         $verifier->addLookup(
-            self::lookupKey(null, 'users', 'email'),
+            self::lookupKey($presenceQuery),
             exactHits: self::bindingMap(['first', 'second']),
             knownPresent: [],
             provenAbsent: self::bindingMap(['missing']),
             stageOneSingleChunk: true,
         );
 
-        $this->assertSame(2, $verifier->getMultiCount('users', 'email', ['first', 'first', 'second', 'missing']));
+        $this->assertSame(2, $verifier->getMultiCount($presenceQuery, ['first', 'first', 'second', 'missing']));
     }
 
     public function testMultiCountUsesKnownPresentOnlyForASoleDistinctInput(): void
     {
-        $fallback = m::mock(DatabasePresenceVerifierInterface::class);
-        $fallback->shouldReceive('getMultiCount')->once()->with('users', 'email', ['case', 'exact'], [])->andReturn(1);
+        $fallback = m::mock(PresenceVerifierInterface::class);
+        $presenceQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions);
+
+        $fallback->shouldReceive('getMultiCount')->once()->with($presenceQuery, ['case', 'exact'])->andReturn(1);
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(
-            self::lookupKey(null, 'users', 'email'),
+            self::lookupKey($presenceQuery),
             exactHits: self::bindingMap(['exact']),
             knownPresent: self::bindingMap(['case']),
             provenAbsent: [],
             stageOneSingleChunk: true,
         );
 
-        $this->assertSame(1, $verifier->getMultiCount('users', 'email', ['case']));
-        $this->assertSame(1, $verifier->getMultiCount('users', 'email', ['case', 'exact']));
+        $this->assertSame(1, $verifier->getMultiCount($presenceQuery, ['case']));
+        $this->assertSame(1, $verifier->getMultiCount($presenceQuery, ['case', 'exact']));
     }
 
     public function testMultiCountDelegatesUnknownUnsupportedAndCrossChunkFactsAsAWhole(): void
@@ -247,28 +287,30 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
                 return 'exact';
             }
         };
-        $fallback = m::mock(DatabasePresenceVerifierInterface::class);
-        $fallback->shouldReceive('getMultiCount')->once()->with('users', 'email', ['unknown'], [])->andReturn(1);
-        $fallback->shouldReceive('getMultiCount')->once()->with('users', 'email', [false], [])->andReturn(0);
+        $fallback = m::mock(PresenceVerifierInterface::class);
+        $presenceQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions);
+
+        $fallback->shouldReceive('getMultiCount')->once()->with($presenceQuery, ['unknown'])->andReturn(1);
+        $fallback->shouldReceive('getMultiCount')->once()->with($presenceQuery, [false])->andReturn(0);
         $fallback->shouldReceive('getMultiCount')
             ->once()
-            ->with('users', 'email', m::on(static fn (array $values): bool => $values === [$stringable]), [])
+            ->with($presenceQuery, m::on(static fn (array $values): bool => $values === [$stringable]))
             ->andReturn(1);
-        $fallback->shouldReceive('getMultiCount')->once()->with('users', 'email', ['exact'], [])->andReturn(1);
+        $fallback->shouldReceive('getMultiCount')->once()->with($presenceQuery, ['exact'])->andReturn(1);
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(
-            self::lookupKey(null, 'users', 'email'),
+            self::lookupKey($presenceQuery),
             exactHits: self::bindingMap(['exact']),
             knownPresent: [],
             provenAbsent: [],
             stageOneSingleChunk: false,
         );
 
-        $this->assertSame(1, $verifier->getMultiCount('users', 'email', ['unknown']));
-        $this->assertSame(0, $verifier->getMultiCount('users', 'email', [false]));
-        $this->assertSame(1, $verifier->getMultiCount('users', 'email', [$stringable]));
+        $this->assertSame(1, $verifier->getMultiCount($presenceQuery, ['unknown']));
+        $this->assertSame(0, $verifier->getMultiCount($presenceQuery, [false]));
+        $this->assertSame(1, $verifier->getMultiCount($presenceQuery, [$stringable]));
         $this->assertSame(0, $casts);
-        $this->assertSame(1, $verifier->getMultiCount('users', 'email', ['exact']));
+        $this->assertSame(1, $verifier->getMultiCount($presenceQuery, ['exact']));
     }
 
     public function testDateTimeBindingsDelegateToTheOrdinaryVerifier(): void
@@ -279,16 +321,18 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
                 return $this->format(DATE_ATOM);
             }
         };
-        $fallback = m::mock(DatabasePresenceVerifierInterface::class);
+        $fallback = m::mock(PresenceVerifierInterface::class);
+        $presenceQuery = new PresenceQuery(null, 'users', 'created_at', new DatabaseConditions);
+
         $fallback->shouldReceive('getCount')
             ->once()
-            ->with('users', 'created_at', $value, null, null, [])
+            ->with($presenceQuery, $value)
             ->andReturn(1);
         $verifier = new PrecomputedPresenceVerifier($fallback);
-        $verifier->addLookup(self::lookupKey(null, 'users', 'created_at'), [], [], [], true);
+        $verifier->addLookup(self::lookupKey($presenceQuery), [], [], [], true);
 
         $this->assertNull(PrecomputedPresenceVerifier::bindingKey($value));
-        $this->assertSame(1, $verifier->getCount('users', 'created_at', $value));
+        $this->assertSame(1, $verifier->getCount($presenceQuery, $value));
     }
 
     public function testHasLookupsReflectsRegisteredQueryShapes(): void
@@ -297,7 +341,7 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
 
         $this->assertFalse($verifier->hasLookups());
 
-        $verifier->addLookup(self::lookupKey(null, 'users', 'email'), [], [], [], true);
+        $verifier->addLookup(self::lookupKey(new PresenceQuery(null, 'users', 'email', new DatabaseConditions)), [], [], [], true);
 
         $this->assertTrue($verifier->hasLookups());
     }
@@ -305,22 +349,10 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
     /**
      * Build a non-null lookup key for scalar query conditions.
      */
-    private static function lookupKey(
-        ?string $connection,
-        string $collection,
-        string $column,
-        int|string|null $excludeId = null,
-        ?string $idColumn = null,
-        array $extra = [],
-    ): string {
-        return PrecomputedPresenceVerifier::lookupKey(
-            $connection,
-            $collection,
-            $column,
-            $excludeId,
-            $idColumn,
-            $extra,
-        ) ?? throw new RuntimeException('Expected a scalar lookup shape.');
+    private static function lookupKey(PresenceQuery $query): string
+    {
+        return PrecomputedPresenceVerifier::lookupKey($query)
+            ?? throw new RuntimeException('Expected a scalar lookup shape.');
     }
 
     /**
@@ -346,7 +378,7 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
      */
     private function makeVerifierWithUnusedFallback(): PrecomputedPresenceVerifier
     {
-        $fallback = m::mock(DatabasePresenceVerifierInterface::class);
+        $fallback = m::mock(PresenceVerifierInterface::class);
         $fallback->shouldNotReceive('getCount');
         $fallback->shouldNotReceive('getMultiCount');
 

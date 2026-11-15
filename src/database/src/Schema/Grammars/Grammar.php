@@ -10,6 +10,7 @@ use Hypervel\Database\Grammar as BaseGrammar;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\ColumnDefinition;
 use Hypervel\Support\Fluent;
+use Hypervel\Support\Number;
 use RuntimeException;
 use UnitEnum;
 
@@ -464,7 +465,7 @@ abstract class Grammar extends BaseGrammar
 
         return is_bool($value)
             ? "'" . (int) $value . "'"
-            : $this->quoteString((string) $value);
+            : $this->quoteString(is_float($value) ? Number::toString($value) : (string) $value);
     }
 
     /**

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Foundation;
 
+use Hypervel\Support\UndefinedValue;
+
 /**
  * @api
  */

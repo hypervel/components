@@ -8,6 +8,7 @@ use Hypervel\Container\Attributes\Singleton;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\Eloquent\Attributes\ObservedBy;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Foundation\Http\FormRequest;
 use Hypervel\PHPStan\Reflection\SourceFiles;
 use Hypervel\PHPStan\Rules\Coroutine\WorkerStateHelper;
 use Hypervel\PHPStan\Support\RuntimeInputs;
@@ -32,7 +33,7 @@ use function is_string;
  * Collects the classes that are worker-lifetime roots by declaration, the request or operation
  * state their promoted constructor parameters keep, and the observers models register when they boot.
  *
- * @phpstan-type ClassFacts array{class: string, singleton: bool, queued: bool, captures: list<array{property: string, line: int, state: string}>, observers: list<string>, events: list<string>}
+ * @phpstan-type ClassFacts array{class: string, singleton: bool, queued: bool, formRequest: bool, captures: list<array{property: string, line: int, state: string}>, observers: list<string>, events: list<string>}
  *
  * @implements Collector<InClassNode, ClassFacts>
  */
@@ -92,6 +93,7 @@ class WorkerStateClassCollector implements Collector
         $concrete = ! $class->isAbstract();
         $singleton = $concrete && $class->getNativeReflection()->getAttributes(Singleton::class) !== [];
         $queued = $concrete && $class->is(ShouldQueue::class);
+        $formRequest = $concrete && $class->is(FormRequest::class);
         $captures = [];
 
         $constructor = $node->getOriginalNode()->getMethod('__construct');
@@ -115,7 +117,7 @@ class WorkerStateClassCollector implements Collector
 
         [$observers, $events] = $concrete && $class->is(Model::class) ? $this->getObservers($class, $scope) : [[], []];
 
-        if (! $singleton && ! $queued && $captures === [] && $observers === []) {
+        if (! $singleton && ! $queued && ! $formRequest && $captures === [] && $observers === []) {
             return null;
         }
 
@@ -123,6 +125,7 @@ class WorkerStateClassCollector implements Collector
             'class' => $class->getName(),
             'singleton' => $singleton,
             'queued' => $queued,
+            'formRequest' => $formRequest,
             'captures' => $captures,
             'observers' => $observers,
             'events' => $events,

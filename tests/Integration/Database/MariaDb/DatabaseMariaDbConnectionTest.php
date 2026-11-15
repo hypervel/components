@@ -71,6 +71,42 @@ class DatabaseMariaDbConnectionTest extends MariaDbTestCase
         ];
     }
 
+    #[DataProvider('jsonBooleanComparisonsDataProvider')]
+    public function testJsonBooleanComparison(bool $value, string $operator, array $expected): void
+    {
+        $rows = [];
+
+        foreach ([
+            '{"flag":true}', '{"flag":false}', '{"flag":"true"}', '{"flag":"false"}',
+            '{"flag":"disabled"}', '{"flag":1}', '{"flag":0}', '{"flag":null}', '{}', null,
+            '{ "flag" : true }', '{ "flag" : false }',
+        ] as $index => $json) {
+            $rows[] = [self::FLOAT_COL => $index, self::JSON_COL => $json];
+        }
+
+        DB::table(self::TABLE)->insert($rows);
+
+        $this->assertSame($expected, DB::table(self::TABLE)
+            ->where(self::JSON_COL . '->flag', $operator, $value)
+            ->orderBy(self::FLOAT_COL)
+            ->pluck(self::FLOAT_COL)->all());
+    }
+
+    /**
+     * Provide JSON boolean comparisons and matching row identifiers.
+     */
+    public static function jsonBooleanComparisonsDataProvider(): array
+    {
+        return [
+            'equals true' => [true, '=', [0.0, 10.0]],
+            'equals false' => [false, '=', [1.0, 11.0]],
+            'not equal true' => [true, '!=', [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 11.0]],
+            'not equal false' => [false, '!=', [0.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 10.0]],
+            'null safe true' => [true, '<=>', [0.0, 10.0]],
+            'null safe false' => [false, '<=>', [1.0, 11.0]],
+        ];
+    }
+
     public function testFloatValueStoredCorrectly(): void
     {
         DB::table(self::TABLE)->insert([self::FLOAT_COL => self::FLOAT_VAL]);

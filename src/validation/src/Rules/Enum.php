@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Validation\Rules;
 
 use BackedEnum;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\Validator;
@@ -18,7 +19,7 @@ use function Hypervel\Support\enum_try_from;
 use function Hypervel\Support\enum_value;
 
 // @phpstan-ignore class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
-class Enum implements Rule, Stringable, ValidatorAwareRule
+class Enum implements Rule, Stringable, ValidatorAwareRule, Transient
 {
     use Conditionable;
 

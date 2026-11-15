@@ -9,21 +9,27 @@ use DateTimeImmutable;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Database\QueryException;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Tests\Validation\Fixtures\IntegerStatus;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\BatchDatabaseChecker;
+use Hypervel\Validation\DatabaseCondition;
+use Hypervel\Validation\DatabaseConditionOperator;
+use Hypervel\Validation\DatabaseConditions;
 use Hypervel\Validation\DatabasePresenceVerifier;
 use Hypervel\Validation\PrecomputedPresenceVerifier;
+use Hypervel\Validation\PresenceQuery;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
 use Hypervel\Validation\Validator;
 use PHPUnit\Framework\Attributes\TestWith;
+use ReflectionProperty;
 use RuntimeException;
 use Stringable;
 
@@ -63,7 +69,8 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
         $presenceVerifier = $this->app->make('validation.presence');
         $this->assertInstanceOf(DatabasePresenceVerifier::class, $presenceVerifier);
         $verifier = new PrecomputedPresenceVerifier($presenceVerifier);
-        $lookupKey = PrecomputedPresenceVerifier::lookupKey(null, 'batch_test_users', 'email');
+        $query = new PresenceQuery(null, 'batch_test_users', 'email', new DatabaseConditions);
+        $lookupKey = PrecomputedPresenceVerifier::lookupKey($query);
         $bindingKey = PrecomputedPresenceVerifier::bindingKey('user1@example.com');
         $this->assertNotNull($lookupKey);
         $this->assertNotNull($bindingKey);
@@ -76,8 +83,7 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
         );
 
         $count = $verifier->getMultiCount(
-            'batch_test_users',
-            'email',
+            $query,
             ['user1@example.com', 'user1@example.com'],
         );
 
@@ -171,6 +177,262 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
             $queryLog,
             static fn (array $entry): bool => str_contains($entry['query'], 'batch_test_users'),
         ));
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPresenceRuleOverridesRemainAuthoritative(bool $emptyConditions): void
+    {
+        $rule = $emptyConditions
+            ? (new class('batch_test_users', 'email') extends Exists {
+                /**
+                 * Remove the stored condition from the effective query.
+                 */
+                public function queryConditions(): DatabaseConditions
+                {
+                    return new DatabaseConditions;
+                }
+            })->where('status', 'active')
+            : new class('batch_test_users', 'email') extends Exists {
+                /**
+                 * Supply a condition through the original callback hook.
+                 */
+                public function queryCallbacks(): array
+                {
+                    return [static fn (Builder $query): Builder => $query->where('status', 'active')];
+                }
+            };
+
+        $ordinary = $this->makeOrdinaryValidator(['email' => 'user3@example.com'], ['email' => $rule]);
+        $compiled = $this->makeValidator(
+            ['items' => [['email' => 'user3@example.com'], ['email' => 'user3@example.com']]],
+            ['items.*.email' => $rule],
+        );
+
+        $this->assertSame($emptyConditions, $ordinary->passes());
+        $this->assertSame($emptyConditions, $compiled->passes());
+    }
+
+    public function testJsonBooleanPresenceMatchesScalarAndArrayCandidates(): void
+    {
+        Schema::table('batch_test_users', function (Blueprint $table): void {
+            $table->jsonb('payload')->nullable();
+        });
+
+        foreach ([true, false, 'disabled'] as $index => $flag) {
+            DB::table('batch_test_users')->where('external_id', $index)->update([
+                'payload' => json_encode(['flag' => $flag], JSON_THROW_ON_ERROR),
+            ]);
+        }
+
+        $verifier = $this->app->make('validation.presence');
+
+        $query = new PresenceQuery(null, 'batch_test_users', 'payload->flag', new DatabaseConditions);
+        $this->assertSame(1, $verifier->getCount($query, true));
+        $this->assertSame(1, $verifier->getCount($query, false));
+
+        $validator = $this->makeValidator(
+            ['flags' => [true, false, 'disabled']],
+            ['flags' => ['array', new Exists('batch_test_users', 'payload->flag')]],
+        );
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        try {
+            $this->assertTrue($validator->passes());
+            $this->assertCount(1, DB::getQueryLog());
+        } finally {
+            DB::disableQueryLog();
+        }
+    }
+
+    public function testJsonBooleanConditionsKeepBatchingAndCachedPlans(): void
+    {
+        Schema::table('batch_test_users', function (Blueprint $table): void {
+            $table->jsonb('payload')->nullable();
+        });
+        DB::table('batch_test_users')->where('external_id', 0)->update(['payload' => '{"flag":true}']);
+        DB::table('batch_test_users')->where('external_id', 1)->update(['payload' => '{"flag":false}']);
+        $compiledPlans = new ReflectionProperty(Validator::class, 'compiledPlans');
+
+        foreach ([true, false] as $flag) {
+            foreach (['where', 'whereNot'] as $method) {
+                $matchingEmail = ($flag === ($method === 'where')) ? 'user1@example.com' : 'user2@example.com';
+
+                foreach ([Exists::class, Unique::class] as $ruleClass) {
+                    $rule = (new $ruleClass('batch_test_users', 'email'))->{$method}('payload->flag', $flag);
+                    $ordinary = $this->makeOrdinaryValidator(['email' => $matchingEmail], ['email' => $rule]);
+                    $this->assertSame($ruleClass === Exists::class, $ordinary->passes());
+                    $firstPlan = null;
+
+                    for ($run = 0; $run < 2; ++$run) {
+                        $validator = $this->makeValidator(
+                            ['items' => [['email' => $matchingEmail], ['email' => $matchingEmail]]],
+                            ['items.*.email' => $rule],
+                        );
+                        DB::flushQueryLog();
+                        DB::enableQueryLog();
+
+                        try {
+                            $this->assertSame($ruleClass === Exists::class, $validator->passes());
+                            $this->assertCount(1, DB::getQueryLog(), $ruleClass . '::' . $method);
+                        } finally {
+                            DB::disableQueryLog();
+                        }
+
+                        $plan = $compiledPlans->getValue($validator)['items.0.email'];
+                        $firstPlan ??= $plan;
+                        $this->assertSame($firstPlan, $plan);
+                    }
+                }
+            }
+        }
+    }
+
+    public function testArrayFormConditionsPreserveNativeBooleansAndNull(): void
+    {
+        Schema::table('batch_test_users', function (Blueprint $table): void {
+            $table->boolean('enabled')->nullable();
+            $table->jsonb('payload')->nullable();
+        });
+        DB::table('batch_test_users')->where('external_id', 0)->update([
+            'enabled' => false, 'payload' => '{"enabled":false}',
+        ]);
+        DB::table('batch_test_users')->where('external_id', 1)->update([
+            'enabled' => true, 'payload' => '{"enabled":true}',
+        ]);
+
+        foreach ([
+            ['enabled', false, 'user1@example.com'],
+            ['enabled', true, 'user2@example.com'],
+            ['enabled', null, 'user3@example.com'],
+            ['payload->enabled', false, 'user1@example.com'],
+            ['payload->enabled', true, 'user2@example.com'],
+        ] as [$column, $value, $email]) {
+            foreach (['exists', 'unique'] as $name) {
+                $parameters = [$name, 'batch_test_users', 'email'];
+
+                if ($name === 'unique') {
+                    array_push($parameters, null, 'id');
+                }
+
+                array_push($parameters, $column, $value);
+                $data = ['items' => [['email' => $email], ['email' => $email]]];
+                $rules = ['items.*.email' => [$parameters]];
+                $delegated = new class(new Translator(new ArrayLoader, 'en'), $data, $rules) extends Validator {
+                };
+                $delegated->setPresenceVerifier($this->app->make('validation.presence'));
+
+                foreach ([$this->makeValidator($data, $rules), $delegated] as $validator) {
+                    DB::flushQueryLog();
+                    DB::enableQueryLog();
+
+                    try {
+                        $this->assertSame($name === 'exists', $validator->passes());
+                        $this->assertCount($validator === $delegated ? 2 : 1, DB::getQueryLog());
+                    } finally {
+                        DB::disableQueryLog();
+                    }
+                }
+            }
+        }
+    }
+
+    public function testLiteralRepeatedAndMembershipConditionsKeepBatchingAndCachedPlans(): void
+    {
+        $compiledPlans = new ReflectionProperty(Validator::class, 'compiledPlans');
+
+        foreach (['NULL', 'NOT_NULL', '!active'] as $status) {
+            DB::table('batch_test_users')->whereIn('external_id', [0, 1])->update([
+                'status' => $status,
+                'scheduled_at' => null,
+            ]);
+
+            foreach ([Exists::class, Unique::class] as $ruleClass) {
+                $rule = (new $ruleClass('batch_test_users', 'email'))
+                    ->where('status', $status)
+                    ->whereNot('status', 'excluded')
+                    ->whereIn('status', [$status, 'other'])
+                    ->whereNotIn('status', ['excluded'])
+                    ->whereNull('scheduled_at')
+                    ->whereNotNull('lookup_value');
+                $firstPlan = null;
+
+                for ($run = 0; $run < 2; ++$run) {
+                    $validator = $this->makeValidator(
+                        ['items' => [['email' => 'user1@example.com'], ['email' => 'user2@example.com']]],
+                        ['items.*.email' => $rule],
+                    );
+                    DB::flushQueryLog();
+                    DB::enableQueryLog();
+
+                    try {
+                        $this->assertSame($ruleClass === Exists::class, $validator->passes());
+                        $this->assertCount(1, DB::getQueryLog(), $ruleClass);
+                    } finally {
+                        DB::disableQueryLog();
+                    }
+
+                    $plan = $compiledPlans->getValue($validator)['items.0.email'];
+                    $firstPlan ??= $plan;
+                    $this->assertSame($firstPlan, $plan);
+                }
+            }
+        }
+    }
+
+    public function testSingleBackedEnumsAreAcceptedByMembershipConditions(): void
+    {
+        foreach ([Exists::class, Unique::class] as $ruleClass) {
+            foreach (['whereIn', 'whereNotIn'] as $method) {
+                $rule = (new $ruleClass('batch_test_users', 'email'))->{$method}('external_id', IntegerStatus::Pending);
+                $email = $method === 'whereIn' ? 'user2@example.com' : 'user1@example.com';
+                $validator = $this->makeValidator(
+                    ['items' => [['email' => $email], ['email' => $email]]],
+                    ['items.*.email' => $rule],
+                );
+
+                $this->assertSame($ruleClass === Exists::class, $validator->passes());
+            }
+        }
+    }
+
+    #[TestWith([['user1@example.com', 'user2@example.com'], true])]
+    #[TestWith([['user3@example.com', 'user3@example.com'], false])]
+    public function testOverriddenScalarConditionsMatchOrdinaryAndBatchedQueries(array $emails, bool $passes): void
+    {
+        $rule = new class('batch_test_users', 'email') extends Exists {
+            /**
+             * Limit presence checks to active users.
+             */
+            public function queryConditions(): DatabaseConditions
+            {
+                return new DatabaseConditions(new DatabaseCondition('status', DatabaseConditionOperator::Equals, 'active'));
+            }
+        };
+
+        foreach ($emails as $email) {
+            $ordinary = $this->makeOrdinaryValidator(['email' => $email], ['email' => $rule]);
+            $this->assertSame($passes, $ordinary->passes());
+        }
+
+        $batched = $this->makeValidator(
+            ['items' => array_map(static fn (string $email): array => ['email' => $email], $emails)],
+            ['items.*.email' => $rule],
+        );
+        $batched->after(function (Validator $validator): void {
+            $this->assertInstanceOf(PrecomputedPresenceVerifier::class, $validator->getPresenceVerifier());
+        });
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        try {
+            $this->assertSame($passes, $batched->passes());
+            $this->assertCount(1, DB::getQueryLog());
+        } finally {
+            DB::disableQueryLog();
+        }
     }
 
     public function testExactPresenceChecksBatchDifferentQueryShapesIndependently(): void
@@ -449,6 +711,50 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
         }
     }
 
+    public function testFloatPredicatesAndCandidatesUseTheSameDatabaseComparison(): void
+    {
+        Schema::table('batch_test_users', function (Blueprint $table): void {
+            $table->decimal('precise_score', 20, 16)->nullable();
+        });
+        $score = 1.234567890123456;
+        DB::table('batch_test_users')->where('external_id', 100)->update(['precise_score' => $score]);
+
+        $this->assertSame($score, (float) DB::table('batch_test_users')->where('external_id', 100)->value('precise_score'));
+
+        foreach ([['lookup_value', 1.0], ['precise_score', $score]] as [$column, $value]) {
+            foreach ([Exists::class, Unique::class] as $ruleClass) {
+                $rule = (new $ruleClass('batch_test_users', $column))->where($column, $value);
+                $ordinary = $this->makeOrdinaryValidator(['value' => $value], ['value' => $rule]);
+                $batched = $this->makeValidator(
+                    ['items' => [['value' => $value], ['value' => $value]]],
+                    ['items.*.value' => $rule],
+                );
+
+                $this->assertSame($ruleClass === Exists::class, $ordinary->passes());
+                $this->assertSame($ruleClass === Exists::class, $batched->passes());
+            }
+        }
+
+        $data = ['items' => [['value' => $score], ['value' => 1.2345678901234558]]];
+
+        foreach ([Exists::class => 1, Unique::class => 0] as $ruleClass => $invalidIndex) {
+            $rules = ['items.*.value' => new $ruleClass('batch_test_users', 'precise_score')];
+
+            foreach ([$this->makeOrdinaryValidator($data, $rules), $this->makeValidator($data, $rules)] as $validator) {
+                $this->assertFalse($validator->passes());
+                $this->assertSame(["items.{$invalidIndex}.value"], $validator->errors()->keys());
+            }
+        }
+
+        $values = [$score, 1.2345678901234558];
+        $rules = ['values' => new Exists('batch_test_users', 'precise_score')];
+        $this->assertFalse($this->makeValidator(['values' => $values], $rules)->passes());
+
+        DB::table('batch_test_users')->where('external_id', 0)->update(['precise_score' => $values[1]]);
+
+        $this->assertTrue($this->makeValidator(['values' => $values], $rules)->passes());
+    }
+
     public function testDateTimeCandidatesUseTheOrdinaryVerifierBindingConversion(): void
     {
         $value = new ValidationPresenceDomainDate('2025-01-01 00:00:00');
@@ -467,8 +773,7 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
         }
     }
 
-    #[RequiresDatabase(['mysql', 'mariadb', 'sqlite'])]
-    public function testIntegerCandidateAgainstTextUsesOnePrecomputedQueryWhereSupported(): void
+    public function testIntegerCandidateAgainstTextUsesOnePrecomputedQuery(): void
     {
         foreach (['exists', 'unique'] as $rule) {
             $ordinary = $this->makeOrdinaryValidator(
@@ -490,7 +795,8 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
                 DB::disableQueryLog();
             }
 
-            $this->assertSame($ordinary->passes(), $result);
+            $this->assertSame($rule === 'exists', $ordinary->passes());
+            $this->assertSame($rule === 'exists', $result);
             $this->assertCount(1, array_filter(
                 $queryLog,
                 static fn (array $entry): bool => str_contains($entry['query'], 'batch_test_users'),
@@ -498,11 +804,12 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
         }
     }
 
-    #[RequiresDatabase(['mysql', 'mariadb', 'sqlite'])]
-    public function testMixedStringAndIntegerTextCandidatesRetainBothBindings(): void
+    #[TestWith([['1', 1]])]
+    #[TestWith([[1, '1']])]
+    public function testMixedStringAndIntegerTextCandidatesShareOneBinding(array $values): void
     {
         $validator = $this->makeValidator(
-            ['items' => [['value' => '1'], ['value' => 1]]],
+            ['items' => array_map(static fn (int|string $value): array => ['value' => $value], $values)],
             ['items.*.value' => 'exists:batch_test_users,lookup_value'],
         );
 
@@ -523,11 +830,11 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
         ));
 
         $this->assertCount(1, $presenceQueries);
-        $this->assertSame(['1', 1], $presenceQueries[0]['bindings']);
+        $this->assertSame(['1'], $presenceQueries[0]['bindings']);
     }
 
     #[RequiresDatabase(['mysql', 'mariadb'])]
-    public function testMixedStringAndIntegerCandidatesPreserveOrdinaryMySqlTextComparison(): void
+    public function testMixedStringAndIntegerCandidatesAvoidMySqlNumericCoercion(): void
     {
         $this->app->make('db')->table('batch_test_users')
             ->where('external_id', 100)
@@ -543,7 +850,7 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
         );
 
         $this->assertFalse($ordinaryString->passes());
-        $this->assertTrue($ordinaryInteger->passes());
+        $this->assertFalse($ordinaryInteger->passes());
 
         foreach ([['1', 1], [1, '1']] as $values) {
             $validator = $this->makeValidator(
@@ -557,10 +864,7 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
             $this->assertFalse($validator->passes());
 
             foreach ($values as $index => $value) {
-                $this->assertSame(
-                    is_string($value),
-                    $validator->errors()->has("items.{$index}.value"),
-                );
+                $this->assertTrue($validator->errors()->has("items.{$index}.value"));
             }
         }
     }
@@ -606,10 +910,8 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
         $presenceVerifier = $this->app->make('validation.presence');
         $this->assertInstanceOf(DatabasePresenceVerifier::class, $presenceVerifier);
         $this->assertCount(1, $presenceVerifier->getExistingValues(
-            'batch_test_users',
-            'lookup_value',
+            new PresenceQuery(null, 'batch_test_users', 'lookup_value', new DatabaseConditions),
             ['Case', 'case'],
-            null,
         ));
 
         $ordinary = $this->makeOrdinaryValidator(
@@ -667,29 +969,6 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
             $queryLog,
             static fn (array $entry): bool => str_contains($entry['query'], 'batch_test_users'),
         ));
-    }
-
-    #[RequiresDatabase('pgsql')]
-    public function testPostgresPreservesIntegerToTextBindingErrorsOnOrdinaryAndBatchedPaths(): void
-    {
-        $ordinary = $this->makeOrdinaryValidator(
-            ['value' => 1],
-            ['value' => 'exists:batch_test_users,lookup_value'],
-        );
-
-        $this->assertThrows($ordinary->passes(...), QueryException::class);
-
-        foreach ([['1', 1], [1, '1']] as $values) {
-            $batched = $this->makeValidator(
-                ['items' => array_map(
-                    static fn (int|string $value): array => ['value' => $value],
-                    $values,
-                )],
-                ['items.*.value' => 'exists:batch_test_users,lookup_value'],
-            );
-
-            $this->assertThrows($batched->passes(...), QueryException::class);
-        }
     }
 
     public function testOriginalPresenceVerifierIsRestoredAfterExceptionDuringBatchedValidation(): void

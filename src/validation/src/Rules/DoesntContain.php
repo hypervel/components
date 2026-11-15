@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Validation\Rules;
 
 use Hypervel\Contracts\Support\Arrayable;
-use Stringable;
+use Hypervel\Contracts\Validation\ParameterizedRule;
+use Hypervel\Validation\Membership;
+use Hypervel\Validation\Rules\Concerns\FormatsMembershipRule;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
-class DoesntContain implements Stringable
+class DoesntContain implements ParameterizedRule
 {
+    use FormatsMembershipRule;
+
     /**
      * The values that should not be contained in the attribute.
      */
@@ -30,16 +34,13 @@ class DoesntContain implements Stringable
     }
 
     /**
-     * Convert the rule to a validation string.
+     * Get the rule name followed by its parameters.
      */
-    public function __toString(): string
+    public function toArray(): array
     {
-        $values = array_map(function ($value) {
-            $value = enum_value($value);
-
-            return '"' . str_replace('"', '""', (string) $value) . '"';
-        }, $this->values);
-
-        return 'doesnt_contain:' . implode(',', $values);
+        return ['doesnt_contain', ...array_map(
+            static fn (mixed $value): ?string => Membership::normalize(enum_value($value)),
+            $this->values,
+        )];
     }
 }

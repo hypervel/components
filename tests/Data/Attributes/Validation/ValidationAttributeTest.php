@@ -231,16 +231,11 @@ class ValidationAttributeTest extends TestCase
     {
         yield [new Ascii, 'ascii'];
         yield [new Base64, 'base64'];
-        yield [new Contains(['admin', [42]], new ValidationAttributeExternalReference('member')), 'contains:admin,42,member'];
         yield [new CurrentPassword(new ValidationAttributeExternalReference), 'current_password:admin'];
         yield [new Decimal('2', '4'), 'decimal:2,4'];
         yield [new DeclinedIf('status', false), 'declined_if:status,false'];
         yield [new Distinct(new ValidationAttributeExternalReference(Distinct::Strict)), 'distinct:strict'];
         yield [new Distinct(new ValidationAttributeExternalReference(null)), 'distinct'];
-        yield [
-            new DoesntContain(['admin', [42]], new ValidationAttributeExternalReference('member')),
-            'doesnt_contain:admin,42,member',
-        ];
         yield [
             new DoesntEndWith(['.php', ['.exe']], new ValidationAttributeExternalReference('.bat')),
             'doesnt_end_with:.php,.exe,.bat',
@@ -322,6 +317,42 @@ class ValidationAttributeTest extends TestCase
             'starts_with:admin,root,system',
         ];
         yield [new Url(['http', ['https']], new ValidationAttributeExternalReference('ftp')), 'url:http,https,ftp'];
+    }
+
+    public function testCompilesMembershipAttributesWithNormalizedValues(): void
+    {
+        foreach ([Contains::class => 'contains', DoesntContain::class => 'doesnt_contain'] as $class => $keyword) {
+            $attribute = new $class(['admin', [42]], new ValidationAttributeExternalReference('member'));
+            $rule = (new RuleDenormalizer)->execute($attribute, ValidationPath::create())[0];
+
+            $this->assertSame([$keyword, 'admin', '42', 'member'], $rule->toArray());
+
+            $attribute = new $class(false, null, 1.25, ValidationAttributeBackedEnum::Foo);
+            $this->assertSame([$keyword, '0', null, '1.25', 'foo'], $attribute->getRule(ValidationPath::create())->toArray());
+        }
+    }
+
+    public function testMembershipReferencesResolveWhenCompiled(): void
+    {
+        foreach ([Contains::class, DoesntContain::class] as $class) {
+            $reference = new class implements ExternalReference {
+                public bool $value = false;
+
+                /**
+                 * Resolve the value for the current validation.
+                 */
+                public function getValue(): mixed
+                {
+                    return $this->value;
+                }
+            };
+            $attribute = new $class($reference);
+            $path = ValidationPath::create();
+
+            $this->assertSame([$class::keyword(), '0'], $attribute->getRule($path)->toArray());
+            $reference->value = true;
+            $this->assertSame([$class::keyword(), '1'], $attribute->getRule($path)->toArray());
+        }
     }
 
     /**

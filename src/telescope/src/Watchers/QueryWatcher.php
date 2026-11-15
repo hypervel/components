@@ -8,6 +8,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Support\Number;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 use RuntimeException;
@@ -90,7 +91,9 @@ class QueryWatcher extends Watcher
 
             if ($binding === null) {
                 $binding = 'null';
-            } elseif (! is_int($binding) && ! is_float($binding)) {
+            } elseif (is_float($binding)) {
+                $binding = Number::toString($binding);
+            } elseif (! is_int($binding)) {
                 $binding = $this->quoteStringBinding($event, $binding);
             }
 

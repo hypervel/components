@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\Validator;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Support\Facades\Gate;
 
 // @phpstan-ignore class.implementsDeprecatedInterface (Laravel's validation Rule/ImplicitRule contracts are deprecated but still supported.)
-class Can implements Rule, ValidatorAwareRule
+class Can implements Rule, ValidatorAwareRule, Transient
 {
     /**
      * The current validator instance.

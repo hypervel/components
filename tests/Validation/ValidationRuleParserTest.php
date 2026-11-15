@@ -703,20 +703,12 @@ class ValidationRuleParserTest extends TestCase
     {
         $results = (new ValidationRuleParser(['value' => 'allowed']))->explode([
             'value' => [
-                Rule::in(['allowed', 'other']),
-                Rule::notIn(['blocked']),
                 Rule::dimensions()->maxWidth(100),
-                Rule::exists('users', 'email'),
-                Rule::unique('users', 'email')->ignore(0),
             ],
         ]);
 
         $this->assertSame([
-            'in:"allowed","other"',
-            'not_in:"blocked"',
             'dimensions:max_width=100',
-            'exists:users,email',
-            'unique:users,email,"0",id',
         ], $results->rules['value']);
     }
 
@@ -767,10 +759,10 @@ class ValidationRuleParserTest extends TestCase
         $this->assertSame(['NotRegex', [$pattern]], ValidationRuleParser::parse('not_regex:' . $pattern));
     }
 
-    public function testExplodePreservesCallbackBearingPresenceRules(): void
+    public function testExplodePreservesDatabaseRuleObjects(): void
     {
-        $exists = Rule::exists('users', 'email')->where(static fn ($query) => $query);
-        $unique = Rule::unique('users', 'email')->where(static fn ($query) => $query);
+        $exists = Rule::exists('users', 'email');
+        $unique = Rule::unique('users', 'email');
 
         $results = (new ValidationRuleParser(['email' => 'user@example.com']))->explode([
             'email' => [$exists, $unique],
@@ -781,9 +773,6 @@ class ValidationRuleParserTest extends TestCase
 
     public function testIdentifiesRulesReducedToStringsByTheParser(): void
     {
-        $callbackExists = Rule::exists('users', 'email')->where(
-            static fn ($query) => $query,
-        );
         $contractRule = new class implements RuleContract {
             public function passes(string $attribute, mixed $value): bool
             {
@@ -796,11 +785,13 @@ class ValidationRuleParserTest extends TestCase
             }
         };
 
-        $this->assertTrue(ValidationRuleParser::ruleReducesToString(
+        $this->assertFalse(ValidationRuleParser::ruleReducesToString(
             Rule::exists('users', 'email'),
         ));
+        $this->assertFalse(ValidationRuleParser::ruleReducesToString(
+            Rule::unique('users', 'email'),
+        ));
         $this->assertTrue(ValidationRuleParser::ruleReducesToString(Rule::date()));
-        $this->assertFalse(ValidationRuleParser::ruleReducesToString($callbackExists));
         $this->assertFalse(ValidationRuleParser::ruleReducesToString(
             Rule::forEach(static fn (): array => []),
         ));

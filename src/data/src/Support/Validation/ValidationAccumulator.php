@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Data\Support\Validation;
 
-use Hypervel\Contracts\Validation\ParameterizedRule;
+use Hypervel\Contracts\Validation\Rule as RuleContract;
+use Hypervel\Contracts\Validation\ValidationRule as ValidationRuleContract;
 use Hypervel\Validation\Rules\Enum;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
@@ -142,14 +143,18 @@ class ValidationAccumulator
      */
     protected function ruleValueEquals(mixed $rule, mixed $otherRule): bool
     {
+        if ($rule === $otherRule) {
+            return true;
+        }
+
         if (is_array($rule) || is_array($otherRule)) {
             return is_array($rule)
                 && is_array($otherRule)
                 && $this->rulesEqual($rule, $otherRule);
         }
 
-        if ($rule instanceof ParameterizedRule) {
-            return $otherRule instanceof ParameterizedRule && $rule->toArray() === $otherRule->toArray();
+        if (ValidationRuleParser::ruleUsesParameterizedDeclaration($rule)) {
+            return ValidationRuleParser::ruleUsesParameterizedDeclaration($otherRule) && $rule->toArray() === $otherRule->toArray();
         }
 
         // Each item compiles its own inferred enum rule, so equal rules compare by their type and case restrictions.
@@ -158,12 +163,13 @@ class ValidationAccumulator
         }
 
         if (($rule instanceof Exists || $rule instanceof Unique)
-            && $rule->queryCallbacks() !== []
+            && ! $rule instanceof RuleContract
+            && ! $rule instanceof ValidationRuleContract
         ) {
             return is_object($otherRule)
                 && $otherRule::class === $rule::class
-                && (string) $rule === (string) $otherRule
-                && $rule->queryCallbacks() === $otherRule->queryCallbacks();
+                && $rule->queryParameters() === $otherRule->queryParameters()
+                && $rule->queryConditions()->toArray() === $otherRule->queryConditions()->toArray();
         }
 
         if (ValidationRuleParser::ruleReducesToString($rule)) {

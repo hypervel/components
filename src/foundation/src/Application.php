@@ -1572,7 +1572,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Routing\UrlGenerator::class,
                 \Hypervel\Contracts\Routing\UrlGenerator::class,
             ],
-            'validation.presence' => [\Hypervel\Validation\DatabasePresenceVerifierInterface::class],
+            'validation.presence' => [\Hypervel\Validation\PresenceVerifierInterface::class],
             'validator' => [
                 \Hypervel\Validation\Factory::class,
                 \Hypervel\Contracts\Validation\Factory::class,

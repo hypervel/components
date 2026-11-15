@@ -532,6 +532,72 @@ class ContainerCallTest extends TestCase
         $this->assertInstanceOf(ContainerCallContextualImplB::class, $result);
     }
 
+    public function testInheritedCallablesUseTheConcreteClassContextualBindings(): void
+    {
+        $container = new Container;
+        $container->when(ContainerCallInheritedChildStub::class)
+            ->needs(ContainerCallConcreteStub::class)
+            ->give(ContainerCallContextualConcreteStub::class);
+
+        $stub = new ContainerCallInheritedChildStub;
+
+        foreach ([
+            [$stub, '__invoke'],
+            $stub,
+            $stub->__invoke(...),
+            Closure::fromCallable([$stub, '__invoke']),
+            [ContainerCallInheritedChildStub::class, 'handle'],
+            ContainerCallInheritedChildStub::class . '::handle',
+            ContainerCallInheritedChildStub::handle(...),
+        ] as $callback) {
+            $this->assertInstanceOf(ContainerCallContextualConcreteStub::class, $container->call($callback));
+        }
+    }
+
+    public function testNestedCallablesRestoreTheReturningClassContext(): void
+    {
+        $container = new Container;
+        $outer = new class {
+            /**
+             * Run the nested call.
+             */
+            public function run(Closure $next): mixed
+            {
+                return $next();
+            }
+
+            /**
+             * Return the contextually resolved dependency.
+             */
+            public function handle(ContainerCallConcreteStub $dependency): ContainerCallConcreteStub
+            {
+                return $dependency;
+            }
+        };
+        $middle = new class {
+            /**
+             * Run the nested call.
+             */
+            public function run(Closure $next): mixed
+            {
+                return $next();
+            }
+        };
+        $container->when($outer::class)->needs(ContainerCallConcreteStub::class)->give(ContainerCallContextualConcreteStub::class);
+        $container->when($middle::class)->needs(ContainerCallConcreteStub::class)->give(ContainerCallConcreteStub::class);
+
+        foreach ([false, true] as $firstClass) {
+            $result = $container->call($firstClass ? $outer->run(...) : [$outer, 'run'], [
+                'next' => fn () => $container->call($firstClass ? $middle->run(...) : [$middle, 'run'], [
+                    'next' => fn () => $container->call($firstClass ? $outer->handle(...) : [$outer, 'handle']),
+                ]),
+            ]);
+
+            $this->assertInstanceOf(ContainerCallContextualConcreteStub::class, $result);
+            $this->assertNull($container->currentlyResolving());
+        }
+    }
+
     public function testFirstClassCallableCleansUpBuildStackAfterException(): void
     {
         $container = new Container;
@@ -762,4 +828,21 @@ class ContainerCallContextualStub
     {
         return $dependency;
     }
+}
+
+class ContainerCallInheritedParentStub
+{
+    public function __invoke(ContainerCallConcreteStub $dependency): ContainerCallConcreteStub
+    {
+        return $dependency;
+    }
+
+    public static function handle(ContainerCallConcreteStub $dependency): ContainerCallConcreteStub
+    {
+        return $dependency;
+    }
+}
+
+class ContainerCallInheritedChildStub extends ContainerCallInheritedParentStub
+{
 }

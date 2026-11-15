@@ -7,6 +7,7 @@ namespace Hypervel\Tests\PHPStan\Rules\Coroutine;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Config\Repository;
+use Hypervel\Contracts\Validation\Factory as ValidationFactoryContract;
 use Hypervel\Core\Events\OnReceive;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Client\Factory;
@@ -26,6 +27,7 @@ use Hypervel\PHPStan\Support\FacadeHelper;
 use Hypervel\PHPStan\Support\RuntimeInputs;
 use Hypervel\Routing\Router;
 use Hypervel\Support\DateFactory;
+use Hypervel\Tests\PHPStan\Rules\Coroutine\FormRequestInjection as FormRequests;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\RestrictedCalls\ContextualConfigController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\RestrictedCalls\ContextualRegistry;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\RestrictedCalls\FactoryRegistry;
@@ -39,6 +41,7 @@ use Hypervel\Tests\PHPStan\Rules\Coroutine\RestrictedCalls\ReceiverController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\RestrictedCalls\Registry;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\RestrictedCalls\ReportController;
 use Hypervel\Tests\PHPStan\Rules\Coroutine\RestrictedCalls\UnknownRegistryTask;
+use Hypervel\Validation\Factory as ValidationFactory;
 use PhpParser\Node;
 use PHPStan\Collectors\Collector;
 use PHPStan\Rules\Rule;
@@ -107,12 +110,6 @@ class RestrictedCallRuleTest extends RuleTestCase
             self::BOOT_OR_TESTS_TIP . self::SHARED_TIP,
         ];
 
-        $config = static fn (int $line): array => [
-            'Configuration is changed while handling a request, which changes it for the whole worker.',
-            $line,
-            'Set configuration during boot, and keep per-request values in CoroutineContext.',
-        ];
-
         $this->analyse([__DIR__ . '/data/restricted-calls.php'], [
             $boot('register', '', 86),
             [$fake[0], 87, $fake[1]],
@@ -123,7 +120,7 @@ class RestrictedCallRuleTest extends RuleTestCase
             $configure(98),
             [sprintf(self::MESSAGE, 'BootOnly', Factory::class . '::globalOptions', self::SHARED, self::REQUEST), 116, self::BOOT_TIP . self::SHARED_TIP],
             [sprintf(self::MESSAGE, 'BootOnly', DateFactory::class . '::useClass', '', self::REQUEST), 117, self::BOOT_TIP],
-            $config(118),
+            self::configurationMutationError(118),
             [sprintf(self::MESSAGE, 'BootOnly', ConfigRepository::class . '::macro', '', self::REQUEST), 119, self::BOOT_TIP],
             $boot('map', ' with a non-default $map', 126),
             $boot('map', ' with a non-default $map', 127),
@@ -137,8 +134,8 @@ class RestrictedCallRuleTest extends RuleTestCase
             $boot('register', '', 170),
             $configure(204),
             $configure(207),
-            $config(210),
-            $config(211),
+            self::configurationMutationError(210),
+            self::configurationMutationError(211),
             $configure(251, self::JOB),
             $configure(299, self::JOB),
             $configure(310, self::JOB),
@@ -146,9 +143,41 @@ class RestrictedCallRuleTest extends RuleTestCase
         ]);
     }
 
+    public function testFormRequestInjection(): void
+    {
+        $factory = static fn (int $line): array => [
+            sprintf(self::MESSAGE, 'BootOnly', ValidationFactory::class . '::includeUnvalidatedArrayKeys', self::SHARED, self::REQUEST),
+            $line,
+            self::BOOT_TIP . self::SHARED_TIP,
+        ];
+
+        $this->analyse([__DIR__ . '/Fixtures/form-request-injection.php'], [
+            self::configurationMutationError(24),
+            $factory(25),
+            self::configurationMutationError(32),
+            $factory(42),
+            self::configurationMutationError(43),
+            self::configurationMutationError(51),
+        ]);
+    }
+
     public static function getAdditionalConfigFiles(): array
     {
         return [__DIR__ . '/../phpstan-rules.neon'];
+    }
+
+    /**
+     * Get the expected diagnostic for a shared configuration write.
+     *
+     * @return array{string, int, string}
+     */
+    private static function configurationMutationError(int $line): array
+    {
+        return [
+            'Configuration is changed while handling a request, which changes it for the whole worker.',
+            $line,
+            'Set configuration during boot, and keep per-request values in CoroutineContext.',
+        ];
     }
 
     /**
@@ -240,6 +269,11 @@ class RestrictedCallRuleTest extends RuleTestCase
         // Each pair of jobs shares one handler, listed in the order where keeping one job's injection would report.
         $container->when(FreshRegistryJob::class)->needs(Registry::class)->give(FreshRegistry::class);
         $container->when(UnknownRegistryTask::class)->needs(Registry::class)->give(static fn (): Registry => new Registry);
+
+        $container->singleton(ValidationFactoryContract::class, ValidationFactory::class);
+        $container->singleton(FormRequests\CustomValidator::class);
+        $container->bindMethod([FormRequests\BoundRequest::class, 'rules'], static fn ($request): array => $request->rules(new ConfigRepository));
+        $container->bindMethod([FormRequests\BoundJob::class, 'handle'], static fn ($job) => $job->handle(new ConfigRepository));
 
         return $container;
     }

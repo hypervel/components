@@ -8,6 +8,7 @@ use Brick\Math\BigNumber;
 use Brick\Math\Exception\MathException as BrickMathException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Exceptions\MathException;
+use Hypervel\Support\Number;
 use Hypervel\Support\Str;
 use Hypervel\Validation\Enums\CheckType;
 use InvalidArgumentException;
@@ -258,7 +259,7 @@ trait PlanExecutor
         return match ($check->type) {
             CheckType::TypeString => is_string($value),
             CheckType::TypeNumeric => is_numeric($value),
-            CheckType::TypeInteger => filter_var($value, FILTER_VALIDATE_INT) !== false,
+            CheckType::TypeInteger => filter_var(is_float($value) ? Number::toString($value) : $value, FILTER_VALIDATE_INT) !== false,
             CheckType::TypeIntegerStrict => is_int($value),
             CheckType::TypeBoolean => in_array($value, [true, false, 0, 1, '0', '1'], true),
             CheckType::TypeArray => is_array($value),
@@ -280,13 +281,13 @@ trait PlanExecutor
             CheckType::Alpha => is_string($value) && preg_match('/\A[\pL\pM]+\z/u', $value) === 1,
             CheckType::AlphaAscii => is_string($value) && preg_match('/\A[a-zA-Z]+\z/u', $value) === 1,
             CheckType::AlphaDash => (is_string($value) || is_numeric($value))
-                && preg_match('/\A[\pL\pM\pN_-]+\z/u', (string) $value) > 0,
+                && preg_match('/\A[\pL\pM\pN_-]+\z/u', is_float($value) ? Number::toString($value) : (string) $value) > 0,
             CheckType::AlphaDashAscii => (is_string($value) || is_numeric($value))
-                && preg_match('/\A[a-zA-Z0-9_-]+\z/u', (string) $value) > 0,
+                && preg_match('/\A[a-zA-Z0-9_-]+\z/u', is_float($value) ? Number::toString($value) : (string) $value) > 0,
             CheckType::AlphaNum => (is_string($value) || is_numeric($value))
-                && preg_match('/\A[\pL\pM\pN]+\z/u', (string) $value) > 0,
+                && preg_match('/\A[\pL\pM\pN]+\z/u', is_float($value) ? Number::toString($value) : (string) $value) > 0,
             CheckType::AlphaNumAscii => (is_string($value) || is_numeric($value))
-                && preg_match('/\A[a-zA-Z0-9]+\z/u', (string) $value) > 0,
+                && preg_match('/\A[a-zA-Z0-9]+\z/u', is_float($value) ? Number::toString($value) : (string) $value) > 0,
             CheckType::Lowercase => is_string($value) && Str::lower($value) === $value,
             CheckType::Uppercase => is_string($value) && Str::upper($value) === $value,
 
@@ -319,33 +320,33 @@ trait PlanExecutor
                 $check->param['numeric'],
             ),
             CheckType::Digits => (is_string($value) || is_numeric($value))
-                && ! preg_match('/[^0-9]/', $s = (string) $value)
-                && strlen($s) === $check->param,
+                && ! preg_match('/[^0-9]/', $stringValue = is_float($value) ? Number::toString($value) : (string) $value)
+                && strlen($stringValue) === $check->param,
             CheckType::DigitsBetween => $this->inlineDigitsBetween($value, $check->param),
             CheckType::MinDigits => (is_string($value) || is_numeric($value))
-                && ! preg_match('/[^0-9]/', $s = (string) $value)
-                && strlen($s) >= $check->param,
+                && ! preg_match('/[^0-9]/', $stringValue = is_float($value) ? Number::toString($value) : (string) $value)
+                && strlen($stringValue) >= $check->param,
             CheckType::MaxDigits => (is_string($value) || is_numeric($value))
-                && ! preg_match('/[^0-9]/', $s = (string) $value)
-                && strlen($s) <= $check->param,
+                && ! preg_match('/[^0-9]/', $stringValue = is_float($value) ? Number::toString($value) : (string) $value)
+                && strlen($stringValue) <= $check->param,
 
             CheckType::Regex => (is_string($value) || is_numeric($value))
-                && preg_match($check->param, (string) $value) > 0,
+                && preg_match($check->param, is_float($value) ? Number::toString($value) : (string) $value) > 0,
             CheckType::NotRegex => (is_string($value) || is_numeric($value))
-                && preg_match($check->param, (string) $value) < 1,
+                && preg_match($check->param, is_float($value) ? Number::toString($value) : (string) $value) === 0,
             CheckType::StartsWith => (is_string($value) || is_numeric($value))
-                && Str::startsWith((string) $value, $check->param),
+                && Str::startsWith(is_float($value) ? Number::toString($value) : (string) $value, $check->param),
             CheckType::EndsWith => (is_string($value) || is_numeric($value))
-                && Str::endsWith((string) $value, $check->param),
+                && Str::endsWith(is_float($value) ? Number::toString($value) : (string) $value, $check->param),
             CheckType::DoesntStartWith => (is_string($value) || is_numeric($value))
-                && ! Str::startsWith((string) $value, $check->param),
+                && ! Str::startsWith(is_float($value) ? Number::toString($value) : (string) $value, $check->param),
             CheckType::DoesntEndWith => (is_string($value) || is_numeric($value))
-                && ! Str::endsWith((string) $value, $check->param),
+                && ! Str::endsWith(is_float($value) ? Number::toString($value) : (string) $value, $check->param),
 
             CheckType::In => (is_scalar($value) || $value instanceof Stringable)
-                && in_array((string) $value, $check->param, true),
+                && isset($check->param[Membership::normalize($value)]),
             CheckType::NotIn => ! ((is_scalar($value) || $value instanceof Stringable)
-                && in_array((string) $value, $check->param, true)),
+                && isset($check->param[Membership::normalize($value)])),
 
             CheckType::IsDate => $this->isValidDate($value),
             CheckType::DateFormat => $this->inlineMatchesDateFormat($value, $check->param),
@@ -383,7 +384,7 @@ trait PlanExecutor
                 };
             }
 
-            $size = BigNumber::of((string) $size);
+            $size = BigNumber::of(Number::toString($size));
 
             return match ($operator) {
                 '>=' => $size->isGreaterThanOrEqualTo($threshold['raw']),
@@ -419,7 +420,7 @@ trait PlanExecutor
                 return $size >= $minimum['integer'] && $size <= $maximum['integer'];
             }
 
-            $size = BigNumber::of((string) $size);
+            $size = BigNumber::of(Number::toString($size));
 
             return $size->isGreaterThanOrEqualTo($minimum['raw'])
                 && $size->isLessThanOrEqualTo($maximum['raw']);
@@ -447,7 +448,7 @@ trait PlanExecutor
             return false;
         }
 
-        $length = strlen($value = (string) $value);
+        $length = strlen($value = is_float($value) ? Number::toString($value) : (string) $value);
 
         return ! preg_match('/[^0-9]/', $value)
             && $length >= $range[0] && $length <= $range[1];

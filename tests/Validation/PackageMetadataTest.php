@@ -31,16 +31,15 @@ class PackageMetadataTest extends TestCase
             'hypervel/attributes',
             'hypervel/collections',
             'hypervel/conditionable',
-            'hypervel/console',
             'hypervel/container',
             'hypervel/context',
             'hypervel/contracts',
+            'hypervel/coroutine',
             'hypervel/database',
             'hypervel/http',
             'hypervel/macroable',
             'hypervel/support',
             'hypervel/translation',
-            'symfony/console',
             'symfony/http-foundation',
         ] as $dependency) {
             $this->assertArrayHasKey($dependency, $composer['require']);

@@ -46,6 +46,8 @@ class ClosureValidationRule implements RuleContract, ValidatorAwareRule
     public function passes(string $attribute, mixed $value): bool
     {
         $this->failed = false;
+        // The same rule may validate new input on a later run.
+        $this->messages = [];
 
         $this->callback->__invoke($attribute, $value, function ($attribute, $message = null) {
             $this->failed = true;

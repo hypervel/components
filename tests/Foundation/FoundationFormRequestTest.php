@@ -28,6 +28,7 @@ use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator as TranslatorConcrete;
 use Hypervel\Validation\Factory as ValidationFactory;
+use Hypervel\Validation\Rules\Numeric;
 use Hypervel\Validation\ValidationException;
 use Mockery as m;
 use ReflectionProperty;
@@ -44,6 +45,34 @@ class FoundationFormRequestTest extends TestCase
         $request->validateResolved();
 
         $this->assertEquals(['name' => 'specified'], $request->validated());
+    }
+
+    public function testInjectedRuleConstraintsBelongToEachRequest(): void
+    {
+        $container = new Container;
+        $container->instance(ValidationFactoryContract::class, $this->createValidationFactory($container));
+
+        $prototype = new class extends FormRequest {
+            /**
+             * Build the constraints for this request.
+             */
+            public function rules(Numeric $numeric): array
+            {
+                return [
+                    'minimum' => ['boolean'],
+                    'amount' => [$this->boolean('minimum') ? $numeric->min(10) : $numeric->max(5)],
+                ];
+            }
+        };
+
+        foreach ([['minimum' => true, 'amount' => 12], ['minimum' => false, 'amount' => 3]] as $payload) {
+            $request = $prototype::create('/', 'POST', $payload);
+            $request->setContainer($container)->setRedirector($this->createMockRedirector($request));
+
+            $request->validateResolved();
+
+            $this->assertSame($payload, $request->validated());
+        }
     }
 
     public function testValidatedMethodReturnsTheValidatedDataNestedRules(): void

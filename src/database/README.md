@@ -7,6 +7,7 @@ Documentation: https://hypervel.org/docs/database
 
 ## Differences From Laravel
 
+- PDO float bindings and SQL escaping preserve precision instead of relying on PHP's rounded string conversion. Round computed values explicitly where decimal equality is required; see [floating-point bindings](https://hypervel.org/docs/database#binding-floating-point-values).
 - PDO connections require exception mode so failed statements cannot silently continue. Warning and silent options are rejected when connecting; custom connectors and supplied handles must honor the same requirement. See [PDO error mode](https://hypervel.org/docs/database#pdo-error-mode).
 - Default retry and lost-connection detection recognizes PDO failures, not arbitrary exception text. Non-PDO drivers provide their own policies through `LostConnectionDetector::detectUsing()` for lost connections or the existing detector bindings; see [detecting database failures](https://hypervel.org/docs/database#detecting-database-failures).
 - `DB::transaction()` throws if its closure manually ends the transaction it owns. Let `transaction()` manage completion, or use the manual transaction API separately. Balanced nested transactions remain supported; see [database transactions](https://hypervel.org/docs/database#database-transactions).
