@@ -48,7 +48,7 @@ trait TransformsToResource
             }
         }
 
-        throw ResourceClassNotFoundException::forModel(static::class);
+        throw ResourceClassNotFoundException::forModel($this);
     }
 
     /**

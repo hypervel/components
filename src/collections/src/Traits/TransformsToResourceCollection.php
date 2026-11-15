@@ -82,7 +82,7 @@ trait TransformsToResourceCollection
             }
         }
 
-        throw ResourceClassNotFoundException::forModel($className);
+        throw ResourceClassNotFoundException::forModel($model);
     }
 
     /**

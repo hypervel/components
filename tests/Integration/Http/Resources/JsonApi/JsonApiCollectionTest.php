@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Http\Resources\JsonApi;
 
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Http\Request;
 use Hypervel\Http\Resources\JsonApi\AnonymousResourceCollection;
 use Hypervel\Http\Resources\JsonApi\JsonApiRequest;
+use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Route;
@@ -282,6 +284,26 @@ class JsonApiCollectionTest extends TestCase
         $this->assertSame('Admin', $administrator->getRelation('teams')->first()->getRelation('membership')->role);
     }
 
+    public function testConflictingIdentifierMetadataIsRejectedWhenIncludedResourcesMerge(): void
+    {
+        $author = User::factory()->create();
+        $team = Team::factory()->create();
+        $author->teams()->attach($team, ['role' => 'Admin']);
+        $author->teams()->attach($team, ['role' => 'Member']);
+        $posts = [];
+
+        foreach (['Admin', 'Member'] as $role) {
+            $post = Post::factory()->create(['user_id' => $author->getKey()]);
+            $post->load(['author.teams' => fn (BelongsToMany $query): BelongsToMany => $query->wherePivot('role', $role)]);
+            $posts[] = $post;
+        }
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('contains conflicting metadata');
+
+        PostWithIdentifierMetaAuthorResource::collection($posts)->toResponse(JsonApiRequest::create('/?include=author.teams'));
+    }
+
     public function testRepeatedAssociationsWithIdentifierMetadataAreRejectedAfterConstrainedLoading(): void
     {
         $user = User::factory()->create();
@@ -419,6 +441,20 @@ class JsonApiCollectionTest extends TestCase
 
         $this->assertSame(['data' => [], 'included' => []], $data);
         $this->assertSame(['data' => []], UserResource::collection([])->toResponse(JsonApiRequest::create('/'))->getData(true));
+    }
+}
+
+class PostWithIdentifierMetaAuthorResource extends JsonApiResource
+{
+    protected array $relationships = ['author' => UserWithIdentifierMetaResource::class];
+
+    /**
+     * Keep the post identity while exposing author association metadata.
+     */
+    #[Override]
+    public function toType(Request $request): string
+    {
+        return 'posts';
     }
 }
 
