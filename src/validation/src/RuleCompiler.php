@@ -28,16 +28,20 @@ final class RuleCompiler
     /**
      * Capture declarations once and produce their plain cache key.
      *
+     * @param list<mixed> $rules
      * @param RuleDeclarations $declarations
      * @return array{list<mixed>, ?string}
      */
     public static function prepare(array $rules, WeakMap $declarations): array
     {
-        $prepared = [];
-        $key = [];
+        $key = $rules;
         $cacheable = true;
 
-        foreach ($rules as $rule) {
+        foreach ($rules as $index => $rule) {
+            if (is_string($rule)) {
+                continue;
+            }
+
             if (! $rule instanceof RuleContract && ($rule instanceof Exists || $rule instanceof Unique)) {
                 if (! isset($declarations[$rule])) {
                     $plan = DatabaseRulePlan::fromRule($rule);
@@ -45,27 +49,21 @@ final class RuleCompiler
                 }
 
                 ['plan' => $rule, 'cacheData' => $data] = $declarations[$rule];
+                $rules[$index] = $rule;
                 $cacheable = $cacheable && $data !== null;
-                $key[] = ['database', $data];
-            } else {
-                if (ValidationRuleParser::ruleUsesParameterizedDeclaration($rule)) {
-                    $declaration = self::prepareParameterizedRule($rule, $declarations);
-                    $rule = $declaration['export'];
-                    $cacheable = $cacheable && $declaration['cacheable'];
-                } elseif (! is_string($rule)
-                    && (! is_array($rule)
-                        || ! array_all($rule, static fn (mixed $parameter): bool => is_scalar($parameter) || $parameter === null))
-                ) {
-                    $cacheable = false;
-                }
-
-                $key[] = $rule;
+                $key[$index] = ['database', $data];
+            } elseif (ValidationRuleParser::ruleUsesParameterizedDeclaration($rule)) {
+                $declaration = self::prepareParameterizedRule($rule, $declarations);
+                $rules[$index] = $key[$index] = $declaration['export'];
+                $cacheable = $cacheable && $declaration['cacheable'];
+            } elseif (! is_array($rule)
+                || ! array_all($rule, static fn (mixed $parameter): bool => is_scalar($parameter) || $parameter === null)
+            ) {
+                $cacheable = false;
             }
-
-            $prepared[] = $rule;
         }
 
-        return [$prepared, $cacheable ? serialize($key) : null];
+        return [$rules, $cacheable ? serialize($key) : null];
     }
 
     /**
@@ -246,6 +244,9 @@ final class RuleCompiler
             $plan->sometimes = true;
             return;
         }
+        if ($ruleName === 'Boolean') {
+            $plan->boolean = true;
+        }
 
         $inline = array_all($parameters, static fn (mixed $parameter): bool => is_scalar($parameter))
             ? self::tryInline($ruleName, $parameters, $context)
@@ -296,6 +297,8 @@ final class RuleCompiler
             $plan->bail = true;
         } elseif ($ruleName === 'Sometimes') {
             $plan->sometimes = true;
+        } elseif ($ruleName === 'Boolean') {
+            $plan->boolean = true;
         }
 
         self::appendDelegatedCheck(

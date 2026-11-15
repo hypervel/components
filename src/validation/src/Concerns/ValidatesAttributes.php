@@ -2398,7 +2398,7 @@ trait ValidatesAttributes
 
         $values = array_slice($parameters, 1);
 
-        if ($this->shouldConvertToBoolean($parameters[0]) || is_bool($other)) {
+        if (is_bool($other) || $this->shouldConvertToBoolean($parameters[0])) {
             $values = $this->convertValuesToBoolean($values);
         }
 
@@ -2414,7 +2414,10 @@ trait ValidatesAttributes
      */
     protected function shouldConvertToBoolean(string $parameter): bool
     {
-        return in_array('boolean', $this->rules[$parameter] ?? []);
+        // Plans record Boolean aliases and declarations; calls outside a run read the live rules.
+        return $this->ruleDeclarations !== null && isset($this->compiledPlans[$parameter])
+            ? $this->compiledPlans[$parameter]->boolean
+            : $this->hasRule($parameter, 'Boolean');
     }
 
     /**
@@ -2835,8 +2838,15 @@ trait ValidatesAttributes
             return $value;
         }
 
-        if (is_float($value) && ! is_finite($value)) {
-            return Number::toString($value);
+        if (is_float($value)) {
+            if (! is_finite($value)) {
+                return Number::toString($value);
+            }
+
+            // Finite float exponents fit the default ±1000 range; only custom policies need their text.
+            if ($this->ensureExponentWithinAllowedRangeUsing === null) {
+                return $value;
+            }
         }
 
         $stringValue = is_float($value) ? Number::toString($value) : (string) $value;

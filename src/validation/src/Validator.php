@@ -533,6 +533,8 @@ class Validator implements ValidatorContract
         $plans = [];
         $isBaseValidator = static::class === self::class;
         $this->databasePresenceCheckCount = 0;
+        $previousRules = null;
+        $plan = null;
 
         foreach ($this->rules as $attribute => $rules) {
             $attribute = (string) $attribute;
@@ -541,21 +543,25 @@ class Validator implements ValidatorContract
                 $rules = [$rules];
             }
 
-            $key = null;
-
-            if ($isBaseValidator) {
-                [$rules, $key] = RuleCompiler::prepare($rules, $declarations);
-            }
-
-            $plan = $isBaseValidator ? RulePlanCache::get($key) : null;
-
-            if ($plan === null) {
-                $plan = $isBaseValidator
-                    ? RuleCompiler::compile($rules, $this->defaultNumericRules)
-                    : RuleCompiler::compileAllDelegated($rules, $declarations);
+            // Wildcard siblings share rule lists; immutable plans do not depend on the attribute.
+            if ($plan === null || $rules !== $previousRules) {
+                $previousRules = $rules;
+                $key = null;
 
                 if ($isBaseValidator) {
-                    RulePlanCache::put($key, $plan);
+                    [$rules, $key] = RuleCompiler::prepare($rules, $declarations);
+                }
+
+                $plan = $isBaseValidator ? RulePlanCache::get($key) : null;
+
+                if ($plan === null) {
+                    $plan = $isBaseValidator
+                        ? RuleCompiler::compile($rules, $this->defaultNumericRules)
+                        : RuleCompiler::compileAllDelegated($rules, $declarations);
+
+                    if ($isBaseValidator) {
+                        RulePlanCache::put($key, $plan);
+                    }
                 }
             }
 
@@ -1075,11 +1081,12 @@ class Validator implements ValidatorContract
 
             $value = data_get($this->getData(), $key, $missingValue);
 
+            // Only parent arrays need rule inspection; loose comparisons can render retained builders.
             if (
                 $this->excludeUnvalidatedArrayKeys
-                && (in_array('array', $rules) || in_array('list', $rules))
                 && $value !== null
                 && isset($parentKeys[$key])
+                && (in_array('array', $rules) || in_array('list', $rules))
             ) {
                 continue;
             }

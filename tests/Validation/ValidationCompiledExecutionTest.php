@@ -16,9 +16,11 @@ use Hypervel\Translation\Translator;
 use Hypervel\Validation\DatabaseCondition;
 use Hypervel\Validation\DatabaseConditionOperator;
 use Hypervel\Validation\DatabaseConditions;
+use Hypervel\Validation\Factory;
 use Hypervel\Validation\PresenceQuery;
 use Hypervel\Validation\PresenceVerifierInterface;
 use Hypervel\Validation\Rule;
+use Hypervel\Validation\Rules\Concerns\FormatsParameters;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\In;
 use Hypervel\Validation\Validator;
@@ -50,6 +52,90 @@ class ValidationCompiledExecutionTest extends TestCase
         );
 
         $this->assertSame(['name' => 'John', 'age' => 30], $v->validate());
+    }
+
+    public function testDependentChecksAndValidatedLeavesDoNotRenderSharedBuilders(): void
+    {
+        $rule = new class(['active']) extends In {
+            public int $exports = 0;
+
+            /**
+             * Count canonical declaration reads.
+             */
+            public function toArray(): array
+            {
+                ++$this->exports;
+
+                return parent::toArray();
+            }
+        };
+        $factory = new Factory(new Translator(new ArrayLoader, 'en'));
+        $validator = $factory->make([
+            'items' => [
+                ['type' => 'active', 'detail' => 'first', 'unvalidated' => 'discard'],
+                ['type' => 'active', 'detail' => 'second', 'unvalidated' => 'discard'],
+            ],
+        ], [
+            'items' => 'array',
+            'items.*' => 'array',
+            'items.*.type' => [$rule],
+            'items.*.detail' => 'required_if:items.*.type,active',
+        ]);
+
+        $this->assertSame(['items' => [
+            ['type' => 'active', 'detail' => 'first'],
+            ['type' => 'active', 'detail' => 'second'],
+        ]], $validator->validate());
+        $this->assertSame(1, $rule->exports);
+    }
+
+    #[TestWith(['boolean'])]
+    #[TestWith(['bool'])]
+    public function testDependentChecksUseCapturedBooleanDeclarations(string $name): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $rule = new class($name) implements ParameterizedRule {
+                use FormatsParameters;
+
+                public int $exports = 0;
+
+                /**
+                 * Set the declared rule name.
+                 */
+                public function __construct(private string $name)
+                {
+                }
+
+                /**
+                 * Export a Boolean declaration without string transport.
+                 */
+                public function toArray(): array
+                {
+                    ++$this->exports;
+
+                    return [$this->name];
+                }
+            };
+            $validator = $this->makeValidator(
+                ['flag' => 0],
+                ['flag' => [$rule], 'detail' => 'required_if:flag,false'],
+                validatorClass: $validatorClass,
+            );
+
+            $this->assertFalse($validator->passes());
+            $this->assertArrayHasKey('RequiredIf', $validator->failed()['detail']);
+            $this->assertSame(1, $rule->exports);
+        }
+    }
+
+    public function testDependentMetadataReadsCurrentRulesBetweenRuns(): void
+    {
+        $validator = $this->makeValidator(['flag' => 0], ['flag' => 'boolean']);
+        $this->assertTrue($validator->passes());
+        $this->assertSame([[false], 0], $validator->parseDependentRuleParameters(['flag', 'false']));
+        $validator->setRules(['flag' => 'integer']);
+
+        $this->assertSame([['false'], 0], $validator->parseDependentRuleParameters(['flag', 'false']));
     }
 
     public function testFailedOutput(): void
@@ -184,6 +270,8 @@ class ValidationCompiledExecutionTest extends TestCase
         yield 'float input range' => [$number, ['numeric', 'between:1.234567890123455,1.234567890123457'], true];
         yield 'float input size' => [$number, ['numeric', 'size:1.234567890123456'], true];
         yield 'float input multiple' => [$number, ['numeric', 'multiple_of:1.234567890123456'], true];
+        yield 'largest finite float fits default exponent policy' => [PHP_FLOAT_MAX, ['numeric', 'min:0'], true];
+        yield 'smallest positive float fits default exponent policy' => [PHP_FLOAT_MIN * PHP_FLOAT_EPSILON, ['numeric', 'between:0,1'], true];
         yield 'explicit decimal arithmetic' => [0.1 + 0.2, ['numeric', 'multiple_of:0.1'], false];
         yield 'decimal places retained' => [$number, ['decimal:15'], true];
         yield 'decimal places not rounded' => [$number, ['decimal:13'], false];
@@ -1314,6 +1402,8 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertFalse($validator->passes());
         $this->assertSame(2, $rule->exports);
         $this->assertSame(['values.0', 'values.1'], array_keys($validator->failed()));
+        $plans = new ReflectionProperty(Validator::class, 'compiledPlans')->getValue($validator);
+        $this->assertSame($plans['values.0'], $plans['values.1']);
 
         if ($delegated) {
             $this->assertSame([$rule, $rule, $rule, $rule], $validator->seenRules);
