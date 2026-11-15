@@ -35,6 +35,7 @@
 - [Validating Passwords](#validating-passwords)
 - [Custom Validation Rules](#custom-validation-rules)
     - [Using Rule Objects](#using-rule-objects)
+    - [Extending Fluent Rules](#extending-fluent-rules)
     - [Customizing Database Rules](#customizing-database-rules)
     - [Using Closures](#using-closures)
     - [Implicit Rules](#implicit-rules)
@@ -156,6 +157,11 @@ $request->validate([
 ```
 
 If a parameter contains `|`, use a rule object or an array of individual rules instead of joining the rules into a single string. Regular expression parameters retain their regular expression syntax.
+
+<a name="membership-comparisons"></a>
+#### Membership Comparisons
+
+The `in`, `not_in`, `contains` and `doesnt_contain` rules use the same value comparisons. `false`, `0` and `'0'` match, as do `true`, `1` and `'1'`. Null matches only null; an empty string stays separate. Other scalar and stringable values compare by their string form, so `1` matches `'1'` but not `'01'`. Pass null members through a fluent builder or structured rule array.
 
 <a name="stopping-on-first-validation-failure"></a>
 #### Stopping on First Validation Failure
@@ -1906,6 +1912,8 @@ Validator::make($data, [
 ]);
 ```
 
+Values are compared using the [membership comparisons](#membership-comparisons).
+
 <a name="rule-doesnt-contain"></a>
 #### doesnt_contain:_foo_,_bar_,...
 
@@ -1924,7 +1932,7 @@ Validator::make($data, [
 ]);
 ```
 
-Comparisons are strict. String and fluent rules encode parameters as strings, so the integer `1` does not match the parameter `'1'`.
+Values are compared using the [membership comparisons](#membership-comparisons).
 
 <a name="rule-current-password"></a>
 #### current_password
@@ -2435,6 +2443,8 @@ Validator::make($input, [
 ]);
 ```
 
+Values are compared using the [membership comparisons](#membership-comparisons).
+
 <a name="rule-in-array"></a>
 #### in_array:_anotherfield_.*
 
@@ -2615,6 +2625,8 @@ Validator::make($data, [
     ],
 ]);
 ```
+
+Values are compared using the [membership comparisons](#membership-comparisons). When combined with `array`, this rule rejects the array if any item is in the given list.
 
 <a name="rule-not-regex"></a>
 #### not_regex:_pattern_
@@ -3632,6 +3644,15 @@ class Uppercase implements ValidationRule, ValidatorAwareRule
 > [!WARNING]
 > Create stateful rules with `new`, or implement `Hypervel\Contracts\Container\Transient` when injecting them through the container. This includes `DataAwareRule` and `ValidatorAwareRule` implementations: sharing their data or validator reference between requests is unsafe.
 
+<a name="extending-fluent-rules"></a>
+### Extending Fluent Rules
+
+The `In`, `NotIn`, `ArrayKeys`, `Contains` and `DoesntContain` builders implement `Hypervel\Contracts\Validation\ParameterizedRule`. Their `toArray` method returns the rule name followed by its parameters, such as `['in', 'active', 'pending']`. Override this method to customize a subclass's declaration; their `__toString` methods are final and render that declaration. The validator's `getRules` method retains these builders as objects.
+
+A subclass implementing the `Rule` or `ValidationRule` contract executes its custom validation instead of its parameter declaration.
+
+Structured declarations are read at the start of each validation run, including in custom validators. Changes between runs take effect on the next run; changes during a run do not alter its captured parameters. Custom validation hooks still receive the original objects.
+
 <a name="customizing-database-rules"></a>
 ### Customizing Database Rules
 
@@ -3657,7 +3678,7 @@ The available operators are `Equals`, `NotEquals`, `IsNull`, `IsNotNull`, `In` a
 
 Override `queryParameters` to customize the table, column or ignored ID. It returns `[table, column]` for `Exists` and `[table, column, ignoredId, idColumn]` for `Unique`, with null indicating no ignored ID. Both builders have a final `__toString` method that renders these declarations; string rendering is not how the validator receives a builder's conditions. The validator's `getRules` method retains these builders as objects.
 
-The default validator reads these declarations at the start of each validation run. Changes made before `passes`, or between runs, take effect on the next run; changes made by an earlier check during a run do not. Use `using` callbacks for conditions that must be evaluated during the database check. Custom validator subclasses retain the original rule objects and their validation hooks.
+The default validator reads these declarations at the start of each validation run. Changes made before `passes`, or between runs, take effect on the next run; changes made by an earlier check during a run do not. Use `using` callbacks for conditions that must be evaluated during the database check. Custom validator subclasses retain the original database-rule objects and read their declarations during delegated execution.
 
 #### Custom Presence Verifiers
 

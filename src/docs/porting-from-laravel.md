@@ -718,6 +718,10 @@ Adapt custom presence verifiers and `Exists`/`Unique` subclasses to [typed datab
 
 Handwritten validation parameters use standard CSV quoting. Replace backslash-escaped quotes inside quoted parameters with doubled quotes; backslashes are literal. Fluent rule builders handle quoting for you. See [rule parameters](/docs/{{version}}/validation#rule-parameters).
 
+For membership-rule subclasses, override `toArray()` instead of the final `__toString()`. The validator retains these builders in `getRules()`; see [extending fluent rules](/docs/{{version}}/validation#extending-fluent-rules).
+
+Membership checks equate booleans with `0`/`1` and their string forms, while null and empty strings remain distinct. Check mixed-type allowlists and denylists against the [comparison rules](/docs/{{version}}/validation#membership-comparisons).
+
 `FailOnUnknownFields` accepts the contents of `array` fields without child rules. Add child rules or allowed keys (`array:name,email`) when those contents must be restricted. See [unknown fields](/docs/{{version}}/validation#request-failing-on-unknown-fields).
 
 Laravel's deprecated `InvokableRule` contract is not available. Change rules that implement it to implement `Hypervel\Contracts\Validation\ValidationRule` and rename their `__invoke` method to `validate`; code that calls such a rule object directly must call `validate` or keep its own `__invoke` method. See [rule objects](/docs/{{version}}/validation#using-rule-objects).
