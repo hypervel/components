@@ -12,7 +12,7 @@ interface PresenceVerifierInterface
     public function getCount(PresenceQuery $query, mixed $value): int;
 
     /**
-     * Count the number of objects in a collection with the given values.
+     * Count the distinct matching values in a collection.
      */
     public function getMultiCount(PresenceQuery $query, array $values): int;
 }

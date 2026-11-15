@@ -29,6 +29,8 @@ use Hypervel\Support\Fluent;
 use Hypervel\Support\Json;
 use Hypervel\Support\Stringable;
 use Hypervel\Tests\TestCase;
+use Hypervel\Tests\Validation\Fixtures\PureEnum;
+use Hypervel\Tests\Validation\Fixtures\StringStatus;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\DatabaseCondition;
@@ -5223,6 +5225,24 @@ class ValidationValidatorTest extends TestCase
 
         $v = new Validator($trans, ['email' => [new stdClass, new stdClass]], ['email' => 'exists:users,email_addr']);
         $this->assertFalse($v->passes());
+
+        foreach ([
+            ['amount', [1.234567890123456, 1.234567890123457], false],
+            ['amount', [false, null], false],
+            ['payload->active', [true, 1], false],
+            ['amount', [1, 1.0, '1', new Stringable('1')], true],
+            ['status', [StringStatus::Pending, 'pending'], true],
+            ['status', [PureEnum::one, 'one'], true],
+        ] as [$column, $values, $passes]) {
+            $validator = new Validator($trans, ['values' => $values], ['values' => [new Exists('records', $column)]]);
+            $verifier = m::mock(PresenceVerifierInterface::class);
+            $verifier->expects('getMultiCount')
+                ->with($this->matchingPresenceQuery(new PresenceQuery(null, 'records', $column, new DatabaseConditions)), $values)
+                ->andReturn(1);
+            $validator->setPresenceVerifier($verifier);
+
+            $this->assertSame($passes, $validator->passes());
+        }
     }
 
     public function testValidationExistsIsNotCalledUnnecessarily(): void

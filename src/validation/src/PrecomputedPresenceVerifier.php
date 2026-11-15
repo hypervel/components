@@ -115,7 +115,7 @@ final class PrecomputedPresenceVerifier implements PresenceVerifierInterface
     }
 
     /**
-     * Count the number of objects in a collection with the given values.
+     * Count the distinct matching values in a collection.
      *
      * @param array<int|string, mixed> $values
      */

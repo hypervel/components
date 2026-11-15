@@ -26,6 +26,7 @@ use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Json;
 use Hypervel\Support\Number;
 use Hypervel\Support\Str;
+use Hypervel\Validation\DatabaseCondition;
 use Hypervel\Validation\DatabaseConditions;
 use Hypervel\Validation\DatabaseRulePlan;
 use Hypervel\Validation\FakeDnsGetRecordWrapper;
@@ -1124,16 +1125,30 @@ trait ValidatesAttributes
         // that the columns being "verified" shares the given attribute's name.
         $column = $this->getQueryColumn($parameters, $attribute);
 
-        // Nested arrays and non-stringable objects cannot be compared by array_unique().
+        $expected = 1;
+
         if (is_array($value)) {
+            $distinct = [];
+
             foreach ($value as $element) {
+                $element = DatabaseCondition::prepareValue($column, $element);
+
                 if (is_array($element) || (is_object($element) && ! $element instanceof Stringable)) {
                     return false;
                 }
-            }
-        }
 
-        $expected = is_array($value) ? count(array_unique($value)) : 1;
+                // Count the same values the presence query compares, without rounded float casts
+                // or collisions between JSON booleans, null and their textual representations.
+                $key = match (true) {
+                    $element === null => 'n',
+                    is_bool($element) => $element ? 'b1' : 'b0',
+                    default => 's' . (is_float($element) ? Number::toString($element) : (string) $element),
+                };
+                $distinct[$key] = true;
+            }
+
+            $expected = count($distinct);
+        }
 
         if ($expected === 0) {
             return true;

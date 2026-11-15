@@ -745,6 +745,14 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
                 $this->assertSame(["items.{$invalidIndex}.value"], $validator->errors()->keys());
             }
         }
+
+        $values = [$score, 1.2345678901234558];
+        $rules = ['values' => new Exists('batch_test_users', 'precise_score')];
+        $this->assertFalse($this->makeValidator(['values' => $values], $rules)->passes());
+
+        DB::table('batch_test_users')->where('external_id', 0)->update(['precise_score' => $values[1]]);
+
+        $this->assertTrue($this->makeValidator(['values' => $values], $rules)->passes());
     }
 
     public function testDateTimeCandidatesUseTheOrdinaryVerifierBindingConversion(): void
