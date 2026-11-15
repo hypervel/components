@@ -3644,7 +3644,7 @@ class Uppercase implements ValidationRule, ValidatorAwareRule
 ```
 
 > [!WARNING]
-> Create stateful rules with `new`, or implement `Hypervel\Contracts\Container\Transient` when injecting them through the container. This includes `DataAwareRule` and `ValidatorAwareRule` implementations: sharing their data or validator reference between requests is unsafe.
+> Create stateful rules with `new`, or implement [`Hypervel\Contracts\Container\Transient`](/docs/{{version}}/container#transient-classes) when injecting them through the container, and do not register them as shared bindings. This includes `DataAwareRule` and `ValidatorAwareRule` implementations: sharing their data or validator reference between requests is unsafe.
 
 <a name="extending-fluent-rules"></a>
 ### Extending Fluent Rules
