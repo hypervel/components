@@ -179,7 +179,8 @@ class DefaultConfigurationTest extends TestCase
     public function itPopulatesExpectedHashingDefaults(): void
     {
         $this->assertSame([
-            'rounds' => Env::has('TESTBENCH_PACKAGE_TESTER') ? 12 : 10,
+            // phpunit.xml.dist sets BCRYPT_ROUNDS for fast hashing in both test modes.
+            'rounds' => 4,
             'verify' => true,
             'limit' => null,
         ], $this->app->make('config')->array('hashing.bcrypt'));

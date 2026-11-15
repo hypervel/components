@@ -14,6 +14,7 @@ use Hypervel\Routing\Router;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Notification;
 use Hypervel\Support\Facades\Password;
+use Hypervel\Support\Sleep;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Integration\Auth\Fixtures\AuthTestUser;
@@ -24,6 +25,20 @@ class ForgotPasswordTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * Set up the test environment.
+     */
+    #[Override]
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Sleep::fake();
+    }
+
+    /**
+     * Define the password broker test environment.
+     */
     #[Override]
     protected function defineEnvironment(ApplicationContract $app): void
     {
@@ -32,8 +47,6 @@ class ForgotPasswordTest extends TestCase
             'app.key' => '12345678901234567890123456789012',
             'auth.providers.users.model' => AuthTestUser::class,
             'auth.passwords.users.throttle' => 0,
-            'auth.timebox_duration' => 0,
-            'hashing.bcrypt.rounds' => 4,
         ]);
     }
 

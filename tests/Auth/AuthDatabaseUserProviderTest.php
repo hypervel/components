@@ -191,7 +191,7 @@ class AuthDatabaseUserProviderTest extends TestCase
     public function testCredentialValidation(): void
     {
         $conn = new PdoConnection(new PDO('sqlite::memory:'));
-        $hasher = new BcryptHasher;
+        $hasher = new BcryptHasher(['rounds' => 4]);
         $provider = new DatabaseUserProvider($conn, $hasher, 'foo');
         $user = new GenericUser(['password' => $hasher->make('plain')]);
         $result = $provider->validateCredentials($user, ['password' => 'plain']);
@@ -202,7 +202,7 @@ class AuthDatabaseUserProviderTest extends TestCase
     public function testCredentialValidationFails(): void
     {
         $conn = new PdoConnection(new PDO('sqlite::memory:'));
-        $hasher = new BcryptHasher;
+        $hasher = new BcryptHasher(['rounds' => 4]);
         $provider = new DatabaseUserProvider($conn, $hasher, 'foo');
         $user = new GenericUser(['password' => $hasher->make('plain')]);
         $result = $provider->validateCredentials($user, ['password' => 'wrong']);
