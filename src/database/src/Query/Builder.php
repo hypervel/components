@@ -1399,10 +1399,28 @@ class Builder implements BuilderContract
             $values = $values->toArray();
         }
 
-        $this->wheres[] = ['type' => $type, 'column' => $column, 'values' => $values, 'boolean' => $boolean];
-
         if (count($values) !== count(Arr::flatten($values, 1))) {
             throw new InvalidArgumentException('Nested arrays may not be passed to whereIn method.');
+        }
+
+        if (is_string($column) && str_contains($column, '->') && array_any($values, static fn (mixed $value): bool => is_bool($value))) {
+            $booleans = [];
+            $others = [];
+
+            // Unlike Laravel, keep JSON booleans separate from scalar bindings so
+            // membership follows the driver's native boolean-comparison semantics.
+            foreach ($values as $value) {
+                if (is_bool($value)) {
+                    $booleans[(int) $value] = $value;
+                } else {
+                    $others[] = $value;
+                }
+            }
+
+            $values = $others;
+            $this->wheres[] = ['type' => 'JsonBooleanIn', 'column' => $column, 'values' => $values, 'booleans' => array_values($booleans), 'boolean' => $boolean, 'not' => $not];
+        } else {
+            $this->wheres[] = ['type' => $type, 'column' => $column, 'values' => $values, 'boolean' => $boolean];
         }
 
         // Finally, we'll add a binding for each value unless that value is an expression

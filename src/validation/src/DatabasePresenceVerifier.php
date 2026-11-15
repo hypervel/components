@@ -80,31 +80,7 @@ class DatabasePresenceVerifier implements PresenceVerifierInterface
     {
         $values = array_map(fn (mixed $value): mixed => $this->prepareValue($column, $value), $values);
 
-        if (! str_contains($column, '->') || ! array_any($values, static fn (mixed $value): bool => is_bool($value))) {
-            return $query->whereIn($column, $values);
-        }
-
-        // whereIn() does not use the grammar's native JSON-boolean comparison.
-        return $query->where(function (Builder $query) use ($column, $values): void {
-            $booleans = [];
-            $others = [];
-
-            foreach ($values as $value) {
-                if (is_bool($value)) {
-                    $booleans[(int) $value] = $value;
-                } else {
-                    $others[] = $value;
-                }
-            }
-
-            if ($others !== []) {
-                $query->whereIn($column, $others);
-            }
-
-            foreach ($booleans as $value) {
-                $query->orWhere($column, $value);
-            }
-        });
+        return $query->whereIn($column, $values);
     }
 
     /**

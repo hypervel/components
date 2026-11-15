@@ -6638,6 +6638,46 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame("select * from `users` where items->'$.available' = true", $builder->toSql());
     }
 
+    #[DataProvider('jsonBooleanMembershipGrammars')]
+    public function testJsonBooleanMembership(string $factory, string $table, string $scalar, string $true, string $false): void
+    {
+        $builder = $this->{$factory}()->from('users')->whereIn('items->available', [true, 'x', false, true]);
+        $this->assertSame("select * from {$table} where ({$scalar} in (?) or {$true} or {$false})", $builder->toSql());
+        $this->assertSame(['x'], $builder->getBindings());
+
+        $builder = $this->{$factory}()->from('users')
+            ->whereNotIn('items->available', [true])
+            ->orWhereIn('items->available', [false, 'x']);
+        $this->assertSame("select * from {$table} where not ({$true}) or ({$scalar} in (?) or {$false})", $builder->toSql());
+        $this->assertSame(['x'], $builder->getBindings());
+    }
+
+    public static function jsonBooleanMembershipGrammars(): iterable
+    {
+        yield 'mysql' => [
+            'getMySqlBuilder', '`users`',
+            'json_unquote(json_extract(`items`, \'$."available"\'))',
+            '(json_unquote(json_extract(`items`, \'$."available"\')) = \'true\' and json_type(json_extract(`items`, \'$."available"\')) = \'BOOLEAN\')',
+            '(json_unquote(json_extract(`items`, \'$."available"\')) = \'false\' and json_type(json_extract(`items`, \'$."available"\')) = \'BOOLEAN\')',
+        ];
+        yield 'mariadb' => [
+            'getMariaDbBuilder', '`users`',
+            'json_value(`items`, \'$."available"\')',
+            '(json_value(`items`, \'$."available"\') = \'1\' and json_type(json_extract(`items`, \'$."available"\')) = \'BOOLEAN\')',
+            '(json_value(`items`, \'$."available"\') = \'0\' and json_type(json_extract(`items`, \'$."available"\')) = \'BOOLEAN\')',
+        ];
+        yield 'postgres' => [
+            'getPostgresBuilder', '"users"', '"items"->>\'available\'',
+            '("items"->>\'available\' = \'true\' and jsonb_typeof(("items"->\'available\')::jsonb) = \'boolean\')',
+            '("items"->>\'available\' = \'false\' and jsonb_typeof(("items"->\'available\')::jsonb) = \'boolean\')',
+        ];
+        yield 'sqlite' => [
+            'getSQLiteBuilder', '"users"', 'json_extract("items", \'$."available"\')',
+            'json_extract("items", \'$."available"\') = true',
+            'json_extract("items", \'$."available"\') = false',
+        ];
+    }
+
     public function testMySqlWrappingJsonWithBooleanAndIntegerThatLooksLikeOne(): void
     {
         $builder = $this->getMySqlBuilder();

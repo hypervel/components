@@ -247,6 +247,16 @@ class PostgresGrammar extends Grammar
     }
 
     /**
+     * Compile one JSON boolean membership comparison.
+     */
+    protected function compileJsonBooleanInValue(string $column, bool $value): string
+    {
+        // Keep text-expression indexes usable without equating JSON booleans with strings.
+        return '(' . $this->wrap($column) . ' = ' . $this->quoteString($value ? 'true' : 'false')
+            . ' and jsonb_typeof(' . $this->wrapJsonBooleanSelector($column) . ") = 'boolean')";
+    }
+
+    /**
      * Compile a "JSON contains" statement into SQL.
      */
     protected function compileJsonContains(string $column, string $value): string
