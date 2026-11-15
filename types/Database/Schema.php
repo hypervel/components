@@ -63,7 +63,7 @@ function testSchemaCallbackAndReferenceTypes(Builder $schema): void
 {
     assertType('int<0, max>|null', Builder::$defaultStringLength);
     assertType("'int'|'ulid'|'uuid'", Builder::$defaultMorphKeyType);
-    assertType('Closure(int<0, max>): void', Builder::defaultStringLength(...));
+    assertType('static-Closure(int<0, max>): void', Builder::defaultStringLength(...));
     assertType('42', $schema->withoutForeignKeyConstraints(fn (): int => 42));
     assertType('array{string|null, string}', $schema->parseSchemaAndTable('users'));
 
