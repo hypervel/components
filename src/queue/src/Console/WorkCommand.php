@@ -186,6 +186,10 @@ class WorkCommand extends Command
         });
 
         $events->listen(JobProcessed::class, static function (JobProcessed $event): void {
+            if ($event->job->hasFailed()) {
+                return;
+            }
+
             static::currentCommand()?->writeOutput($event->job, 'success');
         });
 
