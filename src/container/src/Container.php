@@ -1028,7 +1028,7 @@ class Container implements ContainerContract
             // Unlike Laravel's declaring scope, the called class honors a concrete subclass's
             // contextual bindings for inherited methods, just like constructors and array callables.
             if (($className = $reflection->getClosureCalledClass()?->name)
-                && ! in_array($className, $resolutionState->buildStack, true)
+                && end($resolutionState->buildStack) !== $className
             ) {
                 $resolutionState->buildStack[] = $className;
                 $pushedToBuildStack = true;
@@ -1047,8 +1047,10 @@ class Container implements ContainerContract
         $pushedToBuildStack = false;
         $resolutionState = $this->getOrCreateResolutionState();
 
+        // Compare the active frame, not Laravel's whole-stack membership: A -> B -> A
+        // must restore A's contextual bindings while the inner call runs.
         if (($className = $this->getClassForCallable($callback))
-            && ! in_array($className, $resolutionState->buildStack, true)) {
+            && end($resolutionState->buildStack) !== $className) {
             $resolutionState->buildStack[] = $className;
 
             $pushedToBuildStack = true;
