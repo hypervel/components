@@ -35,6 +35,7 @@
 - [Validating Passwords](#validating-passwords)
 - [Custom Validation Rules](#custom-validation-rules)
     - [Using Rule Objects](#using-rule-objects)
+    - [Customizing Database Rules](#customizing-database-rules)
     - [Using Closures](#using-closures)
     - [Implicit Rules](#implicit-rules)
 - [Credits](#credits)
@@ -3627,6 +3628,54 @@ class Uppercase implements ValidationRule, ValidatorAwareRule
     }
 }
 ```
+
+> [!WARNING]
+> Create stateful rules with `new`, or implement `Hypervel\Contracts\Container\Transient` when injecting them through the container. This includes `DataAwareRule` and `ValidatorAwareRule` implementations: sharing their data or validator reference between requests is unsafe.
+
+<a name="customizing-database-rules"></a>
+### Customizing Database Rules
+
+Use the fluent `exists` and `unique` methods for ordinary conditions. When a subclass derives conditions from additional state, override `queryConditions` to return a `DatabaseConditions` instance. For example, a subclass can use its current `enabled` setting each time validation runs:
+
+```php
+use Hypervel\Validation\DatabaseCondition;
+use Hypervel\Validation\DatabaseConditionOperator;
+use Hypervel\Validation\DatabaseConditions;
+
+public bool $enabled = true;
+
+public function queryConditions(): DatabaseConditions
+{
+    return new DatabaseConditions(...[
+        ...parent::queryConditions()->all(),
+        new DatabaseCondition('payload->enabled', DatabaseConditionOperator::Equals, $this->enabled),
+    ]);
+}
+```
+
+The available operators are `Equals`, `NotEquals`, `IsNull`, `IsNotNull`, `In` and `NotIn`. Condition values are literal: use `IsNull` to test for null, rather than the string `'NULL'`. Explicit query closures may also be included. Existing string rules retain their usual syntax.
+
+Override `queryParameters` to customize the table, column or ignored ID. It returns `[table, column]` for `Exists` and `[table, column, ignoredId, idColumn]` for `Unique`, with null indicating no ignored ID. Both builders have a final `__toString` method that renders these declarations; string rendering is not how the validator receives a builder's conditions. The validator's `getRules` method retains these builders as objects.
+
+The default validator reads these declarations at the start of each validation run. Changes made before `passes`, or between runs, take effect on the next run; changes made by an earlier check during a run do not. Use `using` callbacks for conditions that must be evaluated during the database check. Custom validator subclasses retain the original rule objects and their validation hooks.
+
+#### Custom Presence Verifiers
+
+Custom implementations of `Hypervel\Validation\PresenceVerifierInterface` receive a resolved `PresenceQuery`:
+
+```php
+use Hypervel\Validation\PresenceQuery;
+
+public function getCount(PresenceQuery $query, mixed $value): int;
+
+public function getMultiCount(PresenceQuery $query, array $values): int;
+```
+
+The query provides `connection`, `collection`, `column`, `conditions`, `excludeId` and `idColumn`. Read the ordered predicates and callbacks through `$query->conditions->all()`. Apply each predicate's column, operator and value, and invoke callbacks with your query builder. `getMultiCount` counts distinct matching values. Connection selection belongs to this query; there is no `setConnection` method or separate `DatabasePresenceVerifierInterface`, and `Validator::getPresenceVerifier()` takes no connection argument.
+
+If you extend `DatabasePresenceVerifier`, its condition hook is `addWhere(Builder $query, DatabaseCondition $condition): void`; `addConditions` accepts `DatabaseConditions`, and `table` accepts `PresenceQuery`. The base verifier applies all six operators and explicit closures through the query builder.
+
+Override `prepareValue(string $column, mixed $value): mixed` to customize the values being validated. The column comes first so overrides can distinguish JSON selectors from ordinary columns. Condition operands are normalized separately when their `DatabaseCondition` is created.
 
 <a name="using-closures"></a>
 ### Using Closures

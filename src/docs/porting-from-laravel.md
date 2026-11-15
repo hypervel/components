@@ -714,6 +714,8 @@ When porting schemas that place sibling assertions beside a local `$ref` or use 
 <a name="validation"></a>
 ### Validation
 
+Adapt custom presence verifiers and `Exists`/`Unique` subclasses to [typed database conditions and presence queries](/docs/{{version}}/validation#customizing-database-rules); verifier `prepareValue()` overrides also take the column first. Use `queryParameters()` instead of overriding the final `__toString()`, and `using()` callbacks for conditions that must change during a validation run. Code inspecting `getRules()` receives database-rule builders as objects.
+
 Handwritten validation parameters use standard CSV quoting. Replace backslash-escaped quotes inside quoted parameters with doubled quotes; backslashes are literal. Fluent rule builders handle quoting for you. See [rule parameters](/docs/{{version}}/validation#rule-parameters).
 
 `FailOnUnknownFields` accepts the contents of `array` fields without child rules. Add child rules or allowed keys (`array:name,email`) when those contents must be restricted. See [unknown fields](/docs/{{version}}/validation#request-failing-on-unknown-fields).
