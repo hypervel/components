@@ -10,6 +10,7 @@ use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Http\Request;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Composer;
+use Hypervel\Support\Number;
 use Hypervel\Support\Str;
 use Symfony\Component\ErrorHandler\Exception\FlattenException;
 
@@ -233,7 +234,8 @@ class Exception
     {
         return array_map(function (array $query): array {
             $bindings = array_map(static fn (mixed $binding): string => match (gettype($binding)) {
-                'integer', 'double' => (string) $binding,
+                'integer' => (string) $binding,
+                'double' => Number::toString($binding),
                 'NULL' => 'NULL',
                 default => "'{$binding}'",
             }, $query['bindings']);
