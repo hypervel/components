@@ -31,6 +31,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\InteractsWithTime;
+use Hypervel\Support\Number;
 use Hypervel\Support\Traits\Macroable;
 use LogicException;
 use RuntimeException;
@@ -1344,7 +1345,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
             return $this->escapeBinary($value);
         }
         if (is_int($value) || is_float($value)) {
-            return (string) $value;
+            // Unlike Laravel's string cast, retain float precision to match bound parameters.
+            return Number::toString($value);
         }
         if (is_bool($value)) {
             return $this->escapeBool($value);

@@ -719,6 +719,8 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
         $score = 1.234567890123456;
         DB::table('batch_test_users')->where('external_id', 100)->update(['precise_score' => $score]);
 
+        $this->assertSame($score, (float) DB::table('batch_test_users')->where('external_id', 100)->value('precise_score'));
+
         foreach ([['lookup_value', 1.0], ['precise_score', $score]] as [$column, $value]) {
             foreach ([Exists::class, Unique::class] as $ruleClass) {
                 $rule = (new $ruleClass('batch_test_users', $column))->where($column, $value);
@@ -730,6 +732,17 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
 
                 $this->assertSame($ruleClass === Exists::class, $ordinary->passes());
                 $this->assertSame($ruleClass === Exists::class, $batched->passes());
+            }
+        }
+
+        $data = ['items' => [['value' => $score], ['value' => 1.2345678901234558]]];
+
+        foreach ([Exists::class => 1, Unique::class => 0] as $ruleClass => $invalidIndex) {
+            $rules = ['items.*.value' => new $ruleClass('batch_test_users', 'precise_score')];
+
+            foreach ([$this->makeOrdinaryValidator($data, $rules), $this->makeValidator($data, $rules)] as $validator) {
+                $this->assertFalse($validator->passes());
+                $this->assertSame(["items.{$invalidIndex}.value"], $validator->errors()->keys());
             }
         }
     }

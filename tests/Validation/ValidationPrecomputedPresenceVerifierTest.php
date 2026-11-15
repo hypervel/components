@@ -132,9 +132,9 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(
             self::lookupKey($presenceQuery),
-            exactHits: self::bindingMap(['1', 2, '3']),
+            exactHits: self::bindingMap(['1', 2, '3', '1.234567890123456']),
             knownPresent: [],
-            provenAbsent: [],
+            provenAbsent: self::bindingMap(['1.2345678901234558']),
             stageOneSingleChunk: true,
         );
 
@@ -144,6 +144,8 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
         $this->assertSame(0, $casts);
         $this->assertSame(1, $verifier->getCount($presenceQuery, 1));
         $this->assertSame(1, $verifier->getCount($presenceQuery, '2'));
+        $this->assertSame(1, $verifier->getCount($presenceQuery, 1.234567890123456));
+        $this->assertSame(0, $verifier->getCount($presenceQuery, 1.2345678901234558));
     }
 
     public function testUnknownScalarFallbackCountsAreMemoizedPerQueryShapeAndValue(): void

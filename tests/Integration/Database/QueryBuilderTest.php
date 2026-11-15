@@ -37,6 +37,25 @@ class QueryBuilderTest extends DatabaseTestCase
         ]);
     }
 
+    public function testFloatDefaultsAndArithmeticPreservePrecision(): void
+    {
+        Schema::create('precise_balances', function (Blueprint $table): void {
+            $table->id();
+            $table->double('balance')->default(1.234567890123456);
+        });
+        $identifier = DB::table('precise_balances')->insertGetId([]);
+        $account = DB::table('precise_balances')->where('id', $identifier);
+
+        $this->assertSame(1.234567890123456, (float) $account->value('balance'));
+
+        $account->update(['balance' => 0]);
+        $account->increment('balance', 1.234567890123456);
+        $this->assertSame(1.234567890123456, (float) $account->value('balance'));
+
+        $account->decrement('balance', 1.234567890123456);
+        $this->assertSame(0.0, (float) $account->value('balance'));
+    }
+
     public function testIncrement(): void
     {
         Schema::create('accounting', function (Blueprint $table) {

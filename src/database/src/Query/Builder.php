@@ -32,6 +32,7 @@ use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
+use Hypervel\Support\Number;
 use Hypervel\Support\Str;
 use Hypervel\Support\StrCache;
 use Hypervel\Support\Stringable;
@@ -5130,6 +5131,8 @@ class Builder implements BuilderContract
                 throw new InvalidArgumentException('Non-associative array passed to incrementEach method.');
             }
 
+            $amount = is_float($amount) ? Number::toString($amount) : $amount;
+
             $columns[$column] = $this->raw("{$this->grammar->wrap($column)} + {$amount}");
         }
 
@@ -5170,6 +5173,8 @@ class Builder implements BuilderContract
             if (! is_string($column)) {
                 throw new InvalidArgumentException('Non-associative array passed to decrementEach method.');
             }
+
+            $amount = is_float($amount) ? Number::toString($amount) : $amount;
 
             $columns[$column] = $this->raw("{$this->grammar->wrap($column)} - {$amount}");
         }

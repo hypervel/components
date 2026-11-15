@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
+use Hypervel\Support\Number;
+
 /**
  * Return database-proven presence facts from batched queries.
  *
@@ -188,6 +190,6 @@ final class PrecomputedPresenceVerifier implements PresenceVerifierInterface
             return null;
         }
 
-        return 's' . $value;
+        return 's' . (is_float($value) ? Number::toString($value) : $value);
     }
 }
