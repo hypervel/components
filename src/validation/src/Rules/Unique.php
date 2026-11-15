@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Traits\Conditionable;
 use Stringable;
 
-class Unique implements Stringable
+class Unique implements Stringable, Transient
 {
     use Conditionable;
     use DatabaseRule;

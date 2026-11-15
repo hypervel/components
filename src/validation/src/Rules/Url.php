@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Validation\ParameterizedRule;
 use Hypervel\Validation\Rules\Concerns\FormatsParameters;
 
-class Url implements ParameterizedRule
+class Url implements ParameterizedRule, Transient
 {
     use FormatsParameters;
 

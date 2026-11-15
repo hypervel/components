@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Support\Traits\Conditionable;
 use Stringable;
 
-class Exists implements Stringable
+class Exists implements Stringable, Transient
 {
     use Conditionable;
     use DatabaseRule;
