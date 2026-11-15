@@ -399,6 +399,17 @@ class RoleTest extends TestCase
         $this->assertSame('test-role', $this->testUser->roles[0]->name);
     }
 
+    public function testIntegerKeyAliasPreservesRepeatedRoleAssignment(): void
+    {
+        $this->app->make(PermissionRegistrar::class)->setRoleClass(IntegerKeyRole::class);
+
+        $this->testUser->assignRole($this->testUserRole->getKey());
+        $this->testUser->assignRole($this->testUserRole->getKey());
+
+        $this->assertTrue($this->testUser->fresh()->hasRole('testRole'));
+        $this->assertSame(1, $this->testUser->roles()->count());
+    }
+
     public function testItDoesNotTreatStringZeroAsEmptyWhenAssigningRole(): void
     {
         $this->app->make(Role::class)->create(['name' => '0']);
@@ -407,6 +418,11 @@ class RoleTest extends TestCase
 
         $this->assertTrue($this->testUser->hasRole('0'));
     }
+}
+
+class IntegerKeyRole extends RoleModel
+{
+    protected string $keyType = 'integer';
 }
 
 class RoleWithGuardNameAccessor extends RoleModel
