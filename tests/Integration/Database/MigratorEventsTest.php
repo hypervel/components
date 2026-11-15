@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database;
 
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Events\MigrationEnded;
 use Hypervel\Database\Events\MigrationFailed;
@@ -13,11 +14,16 @@ use Hypervel\Database\Events\MigrationsStarted;
 use Hypervel\Database\Events\MigrationStarted;
 use Hypervel\Database\Events\NoPendingMigrations;
 use Hypervel\Database\Migrations\Migration;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class MigratorEventsTest extends TestCase
 {
@@ -224,11 +230,28 @@ class MigratorEventsTest extends TestCase
         });
     }
 
-    public function testFailingMigrationListenerDoesNotReplaceTheMigrationException(): void
+    #[TestWith(['reported'])]
+    #[TestWith(['reporter failure'])]
+    #[TestWith(['listener cancellation'])]
+    public function testFailingMigrationListenerPreservesThePrimaryFailureAndCancellation(string $case): void
     {
         Exceptions::fake();
-        $listenerException = new RuntimeException('The failure notification could not be delivered.');
+        $listenerException = $case === 'listener cancellation'
+            ? new CanceledException('The failure notification was canceled.')
+            : new RuntimeException('The failure notification could not be delivered.');
         $migrationException = null;
+        $previousErrorLog = null;
+
+        if ($case === 'reporter failure') {
+            $this->mock(ExceptionHandler::class)
+                ->shouldReceive('report')->once()->with($listenerException)
+                ->andThrow(new RuntimeException('The exception reporter failed.'));
+
+            $errorLogDirectory = ParallelTesting::tempDir('MigratorEventsTest');
+            (new Filesystem)->deleteDirectory($errorLogDirectory);
+            mkdir($errorLogDirectory, recursive: true);
+            $previousErrorLog = ini_set('error_log', $errorLogDirectory . '/report.log');
+        }
 
         Event::listen(MigrationFailed::class, function (MigrationFailed $event) use ($listenerException, &$migrationException): void {
             $migrationException = $event->exception;
@@ -237,16 +260,28 @@ class MigratorEventsTest extends TestCase
         });
 
         try {
-            $this->artisan('migrate', [
-                '--path' => realpath(__DIR__ . '/Fixtures/FailingMigrations'),
-                '--realpath' => true,
-            ]);
+            try {
+                $this->artisan('migrate', [
+                    '--path' => realpath(__DIR__ . '/Fixtures/FailingMigrations'),
+                    '--realpath' => true,
+                ]);
 
-            $this->fail('The migration exception was not rethrown.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($migrationException, $exception);
+                $this->fail('The migration failure or cancellation was not rethrown.');
+            } catch (Throwable $exception) {
+                $this->assertSame($case === 'listener cancellation' ? $listenerException : $migrationException, $exception);
+            }
+
+            if ($case === 'reporter failure') {
+                $this->assertStringContainsString($listenerException->getMessage(), file_get_contents($errorLogDirectory . '/report.log'));
+            } else {
+                $reportedException = $case === 'listener cancellation' ? $migrationException : $listenerException;
+                Exceptions::assertReported(fn (RuntimeException $exception): bool => $exception === $reportedException);
+            }
+        } finally {
+            if ($previousErrorLog !== null) {
+                ini_set('error_log', $previousErrorLog);
+                (new Filesystem)->deleteDirectory($errorLogDirectory);
+            }
         }
-
-        Exceptions::assertReported(fn (RuntimeException $exception): bool => $exception === $listenerException);
     }
 }

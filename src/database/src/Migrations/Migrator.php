@@ -31,6 +31,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Hypervel\Support\Collection;
+use Hypervel\Support\FailureReporter;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use ReflectionClass;
@@ -463,8 +464,12 @@ class Migrator
                     : $callback();
         } catch (Throwable $exception) {
             if ($this->hasMigrationEventListeners(MigrationFailed::class)) {
-                // Report notification failures without hiding the original migration error.
-                rescue(fn () => $this->fireMigrationEvent(new MigrationFailed($migration, $method, $name, $exception)));
+                try {
+                    $this->fireMigrationEvent(new MigrationFailed($migration, $method, $name, $exception));
+                } catch (Throwable $listenerException) {
+                    // Unlike Laravel, report listener failures without replacing the migration failure, unless they carry cancellation.
+                    $exception = FailureReporter::preferCancellation($exception, $listenerException);
+                }
             }
 
             throw $exception;
