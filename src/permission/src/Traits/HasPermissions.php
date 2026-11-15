@@ -1068,7 +1068,7 @@ trait HasPermissions
      */
     protected function normalizeRelatedPivotId(BelongsToMany $relation, mixed $id): int|string
     {
-        return $relation->getRelated()->getKeyType() === 'int'
+        return in_array($relation->getRelated()->getKeyType(), ['int', 'integer'], true)
             ? (int) $id
             : (string) $id;
     }

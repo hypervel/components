@@ -14,6 +14,8 @@ use Hypervel\Permission\Events\RoleAttachedEvent;
 use Hypervel\Permission\Events\RoleDetachedEvent;
 use Hypervel\Permission\Exceptions\GuardDoesNotMatch;
 use Hypervel\Permission\Exceptions\RoleDoesNotExist;
+use Hypervel\Permission\Models\Role as BaseRole;
+use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Traits\HasRoles;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
@@ -24,11 +26,17 @@ use Hypervel\Tests\Permission\Fixtures\Models\User;
 use Hypervel\Tests\Permission\Fixtures\Models\UserWithoutHasRoles;
 use Hypervel\Tests\Permission\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionMethod;
 use TypeError;
 
 class HasRolesCustomPivot extends MorphPivot
 {
+}
+
+class HasRolesIntegerKeyRole extends BaseRole
+{
+    protected string $keyType = 'integer';
 }
 
 class HasRolesCustomPivotUser extends UserWithoutHasRoles
@@ -322,12 +330,17 @@ class HasRolesTest extends TestCase
         $this->assertTrue($this->testUser->fresh()->hasRole('testRole'));
     }
 
-    public function testItDoesNotThrowAnExceptionWhenAssigningARoleThatIsAlreadyAssigned(): void
+    #[TestWith([BaseRole::class])]
+    #[TestWith([HasRolesIntegerKeyRole::class])]
+    public function testItDoesNotThrowAnExceptionWhenAssigningARoleThatIsAlreadyAssigned(string $roleClass): void
     {
+        $this->app->make(PermissionRegistrar::class)->setRoleClass($roleClass);
+
         $this->testUser->assignRole($this->testUserRole->getKey());
         $this->testUser->assignRole($this->testUserRole->getKey());
 
         $this->assertTrue($this->testUser->fresh()->hasRole('testRole'));
+        $this->assertSame(1, $this->testUser->roles()->count());
     }
 
     public function testItThrowsAnExceptionWhenAssigningARoleThatDoesNotExist(): void

@@ -2955,7 +2955,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         // Non-incrementing integer keys are validated too: MySQL and MariaDB would
         // otherwise coerce a value such as "12abc" and resolve the model with key 12.
-        if ($this->getKeyType() === 'int'
+        if (in_array($this->getKeyType(), ['int', 'integer'], true)
             && Str::afterLast($field, '.') === $this->getKeyName()
             && ! $this->isValidIntegerRouteKey($value)) {
             $this->handleInvalidRouteKey($value, $field);

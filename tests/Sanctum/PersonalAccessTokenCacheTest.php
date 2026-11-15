@@ -221,11 +221,13 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertSame(0, $this->countQueriesForTable('personal_access_tokens'));
     }
 
-    public function testNonNumericTokenIdForIntegerKeyModelDoesNotQueryOrCache(): void
+    #[TestWith([PersonalAccessToken::class])]
+    #[TestWith([IntegerKeyPersonalAccessToken::class])]
+    public function testNonNumericTokenIdForIntegerKeyModelDoesNotQueryOrCache(string $modelClass): void
     {
         DB::enableQueryLog();
 
-        $this->assertNull(PersonalAccessToken::findToken('abc|missing'));
+        $this->assertNull($modelClass::findToken('abc|missing'));
 
         $this->assertSame(0, $this->countQueriesForTable('personal_access_tokens'));
         $this->assertNull($this->cacheRepository()->getRaw('sanctum:abc'));
@@ -251,12 +253,14 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertNull($this->cacheRepository()->getRaw('sanctum:1'));
     }
 
-    public function testOverflowingIntegerTokenIdDoesNotQueryOrCache(): void
+    #[TestWith([PersonalAccessToken::class])]
+    #[TestWith([IntegerKeyPersonalAccessToken::class])]
+    public function testOverflowingIntegerTokenIdDoesNotQueryOrCache(string $modelClass): void
     {
         $id = PHP_INT_MAX . '0';
         DB::enableQueryLog();
 
-        $this->assertNull(PersonalAccessToken::findToken("{$id}|missing"));
+        $this->assertNull($modelClass::findToken("{$id}|missing"));
 
         $this->assertSame(0, $this->countQueriesForTable('personal_access_tokens'));
         $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$id}"));
@@ -1808,6 +1812,11 @@ class PersonalAccessTokenCacheTest extends TestCase
             static fn (array $query): bool => str_contains($query['query'] ?? '', $table),
         ));
     }
+}
+
+class IntegerKeyPersonalAccessToken extends PersonalAccessToken
+{
+    protected string $keyType = 'integer';
 }
 
 class StringKeyPersonalAccessToken extends PersonalAccessToken

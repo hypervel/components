@@ -111,7 +111,7 @@ class PersonalAccessToken extends Model implements HasAbilities
             return null;
         }
 
-        if ((new static)->getKeyType() === 'int'
+        if (in_array((new static)->getKeyType(), ['int', 'integer'], true)
             && (! ctype_digit($id) || filter_var($id, FILTER_VALIDATE_INT) === false)) {
             return null;
         }

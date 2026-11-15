@@ -17,6 +17,7 @@ use Hypervel\Database\Schema\Grammars\MySqlGrammar;
 use Hypervel\Database\Schema\IndexDefinition;
 use Hypervel\Foundation\Auth\User as Authenticatable;
 use Hypervel\Support\Fluent;
+use Hypervel\Tests\Database\Fixtures\Models\EloquentModelUsingIntegerKeyType;
 use Hypervel\Tests\Database\Fixtures\Models\EloquentModelUsingNonIncrementedInt;
 use Hypervel\Tests\Database\Fixtures\Models\EloquentModelUsingUlid;
 use Hypervel\Tests\Database\Fixtures\Models\EloquentModelUsingUuid;
@@ -726,6 +727,19 @@ class DatabaseSchemaBlueprintTest extends TestCase
 
         $this->assertEquals([
             'alter table `posts` add `model_using_non_incremented_int_id` bigint unsigned not null',
+        ], $getSql('MySql'));
+    }
+
+    public function testGenerateRelationshipColumnWithIntegerKeyTypeModel(): void
+    {
+        $getSql = function ($grammar) {
+            return $this->getBlueprint($grammar, 'posts', function ($table) {
+                $table->foreignIdFor(EloquentModelUsingIntegerKeyType::class);
+            })->toSql();
+        };
+
+        $this->assertEquals([
+            'alter table `posts` add `model_using_integer_key_type_id` bigint unsigned not null',
         ], $getSql('MySql'));
     }
 
