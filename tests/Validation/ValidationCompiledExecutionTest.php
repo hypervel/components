@@ -156,6 +156,151 @@ class ValidationCompiledExecutionTest extends TestCase
         }
     }
 
+    #[DataProvider('preciseNumericRules')]
+    public function testNumericPrecisionMatchesCompiledAndDelegatedExecution(mixed $value, array $rules, bool $expected, array $other = []): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $validator = $this->makeValidator(['value' => $value, ...$other], ['value' => $rules], validatorClass: $validatorClass);
+
+            $this->assertSame($expected, $validator->passes(), $validatorClass);
+        }
+    }
+
+    /**
+     * Provide numeric inputs and operands whose significant digits must survive conversion.
+     */
+    public static function preciseNumericRules(): iterable
+    {
+        $number = 1.234567890123456;
+
+        yield 'fluent maximum' => ['1.23456789012348', [Rule::numeric()->max($number)], false];
+        yield 'native maximum' => ['1.23456789012348', ['numeric', ['max', $number]], false];
+        yield 'native minimum' => ['1.23456789012347', ['numeric', ['min', $number]], true];
+        yield 'native range' => ['1.234567890123456', ['numeric', ['between', $number, $number]], true];
+        yield 'native size' => ['1.234567890123456', ['numeric', ['size', $number]], true];
+        yield 'native divisor' => ['1.234567890123456', ['numeric', ['multiple_of', $number]], true];
+        yield 'float input maximum' => [$number, ['numeric', 'max:1.23456789012347'], true];
+        yield 'float input minimum' => [$number, ['numeric', 'min:1.23456789012347'], false];
+        yield 'float input range' => [$number, ['numeric', 'between:1.234567890123455,1.234567890123457'], true];
+        yield 'float input size' => [$number, ['numeric', 'size:1.234567890123456'], true];
+        yield 'float input multiple' => [$number, ['numeric', 'multiple_of:1.234567890123456'], true];
+        yield 'explicit decimal arithmetic' => [0.1 + 0.2, ['numeric', 'multiple_of:0.1'], false];
+        yield 'decimal places retained' => [$number, ['decimal:15'], true];
+        yield 'decimal places not rounded' => [$number, ['decimal:13'], false];
+        yield 'NAN is not an integer' => [NAN, ['integer'], false];
+        yield 'infinite digits rejected' => [INF, ['digits:3'], false];
+        yield 'NAN decimal rejected' => [NAN, ['decimal:0'], false];
+        yield 'digit input is not trimmed' => ["123\0", ['digits:3'], false];
+        yield 'regex input is not trimmed' => [' 123', ['regex:/^\d+$/'], false];
+        yield 'fraction rejected by integer pattern' => [1.0000000000000002, ['regex:/^\d+$/'], false];
+        yield 'fraction passes not integer pattern' => [1.0000000000000002, ['not_regex:/^\d+$/'], true];
+        yield 'numeric text length retained' => [1.2345678901234567, ['max:15'], false];
+        yield 'microsecond date format' => [1700000000.123456, ['date_format:U.u'], true];
+        yield 'rounded date spelling is not used' => [9.514857900400147, ['date'], false];
+        yield 'microsecond date comparison literal' => [1700000000.123457, ['date_format:U.u', ['after', 1700000000.123456]], true];
+        yield 'microsecond date comparison field' => [1700000000.123457, ['date_format:U.u', 'after:other'], true, ['other' => 1700000000.123456]];
+
+        foreach (['integer', 'digits:3', 'digits_between:3,3', 'min_digits:3', 'max_digits:3'] as $rule) {
+            yield "fraction rejected by {$rule}" => [123.00000000000001, [$rule], false];
+            yield "integral float accepted by {$rule}" => [123.0, [$rule], true];
+        }
+
+        foreach (['alpha_num', 'alpha_num:ascii', 'alpha_dash', 'alpha_dash:ascii'] as $rule) {
+            yield "fraction rejected by {$rule}" => [1.0000000000000002, [$rule], false];
+        }
+
+        foreach (['starts_with:1.234567890123456' => true, 'ends_with:456' => true, 'doesnt_start_with:1.234567890123456' => false, 'doesnt_end_with:456' => false] as $rule => $expected) {
+            yield "precise {$rule}" => [$number, [$rule], $expected];
+        }
+
+        yield 'string membership retains float' => [$number, ['in:1.234567890123456'], true];
+        yield 'string membership rejects rounded arithmetic' => [0.1 + 0.2, ['in:0.3'], false];
+        yield 'fluent membership distinguishes floats' => [0.1 + 0.2, [Rule::in([0.3])], false];
+        yield 'negative fluent membership distinguishes floats' => [0.1 + 0.2, [Rule::notIn([0.3])], true];
+        yield 'contains retains float' => [[$number], [Rule::contains([$number])], true];
+        yield 'contains distinguishes floats' => [[0.1 + 0.2], [Rule::contains([0.3])], false];
+        yield 'doesnt contain distinguishes floats' => [[0.1 + 0.2], [Rule::doesntContain([0.3])], true];
+
+        foreach (['gt' => true, 'gte' => true, 'lt' => false, 'lte' => false] as $rule => $expected) {
+            yield "native {$rule} operand" => ['1.23456789012347', ['numeric', [$rule, $number]], $expected];
+            yield "float {$rule} fields" => [1.23456789012347, ['numeric', "{$rule}:other"], $expected, ['other' => $number]];
+        }
+    }
+
+    public function testNumericFailureMessagesPreserveOperandPrecision(): void
+    {
+        $number = 1.234567890123456;
+
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach ([
+                [2, ['max', $number], ':max', '1.234567890123456'],
+                [0, ['min', $number], ':min', '1.234567890123456'],
+                [0, ['size', $number], ':size', '1.234567890123456'],
+                [1, ['multiple_of', $number], ':value', '1.234567890123456'],
+                [0, ['between', $number, $number], ':min/:max', '1.234567890123456/1.234567890123456'],
+                [$number, ['min', 2], ':input', '1.234567890123456'],
+            ] as [$value, $rule, $message, $expected]) {
+                $validator = new $validatorClass(
+                    new Translator(new ArrayLoader, 'en'),
+                    ['value' => $value],
+                    ['value' => ['numeric', $rule]],
+                    ['value.' . $rule[0] => $message],
+                );
+
+                $this->assertFalse($validator->passes());
+                $this->assertSame($expected, $validator->errors()->first('value'));
+            }
+        }
+    }
+
+    public function testNativeDateFailureParametersRetainPrecision(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $validator = new $validatorClass(
+                new Translator(new ArrayLoader, 'en'),
+                ['value' => 1700000000.123455],
+                ['value' => ['date_format:U.u', ['after', 1700000000.123456]]],
+                ['value.after' => 'After :date'],
+            );
+
+            $this->assertFalse($validator->passes());
+            $this->assertSame('After 1700000000.123456', $validator->errors()->first('value'));
+            $this->assertSame(['After' => ['1700000000.123456']], $validator->failed()['value']);
+        }
+    }
+
+    public function testNativeConditionalFloatLiteralsRetainPrecision(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $validator = $this->makeValidator(
+                ['other' => '1.234567890123456'],
+                ['value' => [['required_if', 'other', 1.234567890123456]]],
+                validatorClass: $validatorClass,
+            );
+
+            $this->assertFalse($validator->passes());
+            $this->assertArrayHasKey('RequiredIf', $validator->failed()['value']);
+        }
+    }
+
+    public function testNumericExponentCallbackReceivesOriginalFloat(): void
+    {
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            $validator = $this->makeValidator(['value' => 1.25e20], ['value' => 'numeric|max:2e20'], validatorClass: $validatorClass);
+            $received = [];
+            $validator->ensureExponentWithinAllowedRangeUsing(
+                static function (int $scale, string $attribute, float $value) use (&$received): bool {
+                    $received[] = [$scale, $attribute, $value];
+
+                    return true;
+                },
+            );
+
+            $this->assertTrue($validator->passes());
+            $this->assertSame([[20, 'value', 1.25e20]], $received);
+        }
+    }
+
     public function testNumericSizeChecksEnforceExponentPolicyExactlyOnce(): void
     {
         foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
@@ -608,6 +753,34 @@ class ValidationCompiledExecutionTest extends TestCase
             $validator->setPresenceVerifier($verifier);
 
             $this->assertTrue($validator->passes());
+        }
+    }
+
+    public function testFloatUniqueExclusionsRetainTheirValue(): void
+    {
+        $identifier = 123.00000000000001;
+
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach ([
+                Rule::unique('users', 'email')->ignore($identifier),
+                ['unique', 'users', 'email', $identifier],
+                Rule::unique('users', 'email')->ignore('[identifier]'),
+                ['unique', 'users', 'email', '[identifier]'],
+            ] as $rule) {
+                $verifier = m::mock(PresenceVerifierInterface::class);
+                $verifier->shouldReceive('getCount')->once()->with(
+                    m::on(static fn (PresenceQuery $query): bool => $query->excludeId === '123.00000000000001'),
+                    'user@example.com',
+                )->andReturn(0);
+                $validator = $this->makeValidator(
+                    ['identifier' => $identifier, 'email' => 'user@example.com'],
+                    ['email' => [$rule]],
+                    validatorClass: $validatorClass,
+                );
+                $validator->setPresenceVerifier($verifier);
+
+                $this->assertTrue($validator->passes());
+            }
         }
     }
 

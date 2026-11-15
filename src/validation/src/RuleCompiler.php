@@ -6,6 +6,7 @@ namespace Hypervel\Validation;
 
 use Hypervel\Contracts\Validation\ParameterizedRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
+use Hypervel\Support\Number;
 use Hypervel\Validation\Enums\CheckType;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
@@ -498,7 +499,7 @@ final class RuleCompiler
      */
     private static function compileSizeThreshold(mixed $threshold): array
     {
-        $rawThreshold = trim((string) $threshold);
+        $rawThreshold = trim(is_float($threshold) ? Number::toString($threshold) : (string) $threshold);
         $integerThreshold = filter_var($rawThreshold, FILTER_VALIDATE_INT);
 
         return [

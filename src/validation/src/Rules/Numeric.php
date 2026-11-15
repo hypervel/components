@@ -6,6 +6,7 @@ namespace Hypervel\Validation\Rules;
 
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Number;
 use Hypervel\Support\Traits\Conditionable;
 use Stringable;
 
@@ -33,7 +34,7 @@ class Numeric implements Stringable, Transient
      */
     public function between(float|int $min, float|int $max): static
     {
-        return $this->addRule('between:' . $min . ',' . $max);
+        return $this->addRule('between:' . Number::toString($min) . ',' . Number::toString($max));
     }
 
     /**
@@ -139,7 +140,7 @@ class Numeric implements Stringable, Transient
      */
     public function max(float|int $value): static
     {
-        return $this->addRule('max:' . $value);
+        return $this->addRule('max:' . Number::toString($value));
     }
 
     /**
@@ -159,7 +160,7 @@ class Numeric implements Stringable, Transient
      */
     public function min(float|int $value): static
     {
-        return $this->addRule('min:' . $value);
+        return $this->addRule('min:' . Number::toString($value));
     }
 
     /**
@@ -179,7 +180,7 @@ class Numeric implements Stringable, Transient
      */
     public function multipleOf(float|int $value): static
     {
-        return $this->addRule('multiple_of:' . $value);
+        return $this->addRule('multiple_of:' . Number::toString($value));
     }
 
     /**

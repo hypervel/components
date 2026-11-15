@@ -39,6 +39,9 @@ class ValidationNumericRuleTest extends TestCase
 
         $rule = Rule::numeric()->between(1.5, 10.5);
         $this->assertSame('numeric|between:1.5,10.5', (string) $rule);
+
+        $rule = Rule::numeric()->between(1.234567890123456, 1.234567890123457);
+        $this->assertSame('numeric|between:1.234567890123456,1.234567890123457', (string) $rule);
     }
 
     public function testDecimalRule(): void
@@ -108,6 +111,9 @@ class ValidationNumericRuleTest extends TestCase
 
         $rule = Rule::numeric()->max(10.5);
         $this->assertSame('numeric|max:10.5', (string) $rule);
+
+        $rule = Rule::numeric()->max(1.234567890123456);
+        $this->assertSame('numeric|max:1.234567890123456', (string) $rule);
     }
 
     public function testMaxDigitsRule(): void
@@ -123,6 +129,9 @@ class ValidationNumericRuleTest extends TestCase
 
         $rule = Rule::numeric()->min(10.5);
         $this->assertSame('numeric|min:10.5', (string) $rule);
+
+        $rule = Rule::numeric()->min(1.234567890123456);
+        $this->assertSame('numeric|min:1.234567890123456', (string) $rule);
     }
 
     public function testMinDigitsRule(): void
@@ -135,6 +144,9 @@ class ValidationNumericRuleTest extends TestCase
     {
         $rule = Rule::numeric()->multipleOf(10);
         $this->assertSame('numeric|multiple_of:10', (string) $rule);
+
+        $rule = Rule::numeric()->multipleOf(1.234567890123456);
+        $this->assertSame('numeric|multiple_of:1.234567890123456', (string) $rule);
     }
 
     public function testSameRule(): void

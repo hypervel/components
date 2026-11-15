@@ -847,6 +847,13 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
         $v->messages()->setFormat(':message');
         $this->assertSame('type must be included in Short, Long.', $v->messages()->first('type'));
+
+        $v->setValueNames(['type' => ['1.5' => 'One and a half']]);
+        $this->assertSame('One and a half', $v->getDisplayableValue('type', 1.5));
+        $this->assertSame('array', $v->getDisplayableValue('type', ['value']));
+
+        $trans->addLines(['validation.values.type.1.234567890123456' => 'Precise'], 'en');
+        $this->assertSame('Precise', $v->getDisplayableValue('type', 1.234567890123456));
     }
 
     public function testCapitalizedDisplayableValuesAreReplaced(): void
@@ -4860,6 +4867,12 @@ class ValidationValidatorTest extends TestCase
 
         $v = new Validator($trans, ['foo' => ['1', '11']], ['foo.*' => 'distinct:ignore_case']);
         $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => ['1.2345678901235', 1.234567890123456]], ['foo.*' => 'distinct:ignore_case']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['foo' => ['1.234567890123456', 1.234567890123456]], ['foo.*' => 'distinct:ignore_case']);
+        $this->assertFalse($v->passes());
 
         $v = new Validator($trans, ['foo' => ['hello', "HELLO\n"]], ['foo.*' => 'distinct:ignore_case']);
         $this->assertTrue($v->passes());

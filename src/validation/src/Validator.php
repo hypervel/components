@@ -1234,7 +1234,7 @@ class Validator implements ValidatorContract
 
         // Conditional comparisons use strings; database predicates retain native values.
         if ($rule !== 'Unique') {
-            $literals = array_map(strval(...), $literals);
+            $literals = array_map($this->parameterToString(...), $literals);
         }
 
         $parameters = $this->replaceDotInParameters($parameters);
@@ -1253,7 +1253,7 @@ class Validator implements ValidatorContract
     {
         return array_map(function ($field) {
             // Null is a native value, not a field reference; Unique uses it for no ignored ID.
-            return $field === null ? null : static::encodeAttributeWithPlaceholder((string) $field);
+            return $field === null ? null : static::encodeAttributeWithPlaceholder($this->parameterToString($field));
         }, $parameters);
     }
 
@@ -1464,7 +1464,7 @@ class Validator implements ValidatorContract
 
         if ($this->dependsOnOtherFields($rule)) {
             // Inline checks may supply scalar parameters; retain their encoded field paths.
-            $parameters = array_map(strval(...), $parameters);
+            $parameters = array_map($this->parameterToString(...), $parameters);
         }
 
         // Message lookups must distinguish literal dots and asterisks from path syntax.

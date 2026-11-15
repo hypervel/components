@@ -6,6 +6,7 @@ namespace Hypervel\Validation\Concerns;
 
 use Hypervel\Support\Arr;
 use Hypervel\Support\Exceptions\MathException;
+use Hypervel\Support\Number;
 use Hypervel\Support\Str;
 
 trait ReplacesAttributes
@@ -41,7 +42,7 @@ trait ReplacesAttributes
      */
     protected function replaceBetween(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace([':min', ':max'], $parameters, $message);
+        return str_replace([':min', ':max'], array_map($this->parameterToString(...), $parameters), $message);
     }
 
     /**
@@ -127,7 +128,7 @@ trait ReplacesAttributes
      */
     protected function replaceMin(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace(':min', (string) $parameters[0], $message);
+        return str_replace(':min', $this->parameterToString($parameters[0]), $message);
     }
 
     /**
@@ -147,7 +148,7 @@ trait ReplacesAttributes
      */
     protected function replaceMax(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace(':max', (string) $parameters[0], $message);
+        return str_replace(':max', $this->parameterToString($parameters[0]), $message);
     }
 
     /**
@@ -218,7 +219,7 @@ trait ReplacesAttributes
      */
     protected function replaceMultipleOf(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace(':value', (string) ($parameters[0] ?? ''), $message);
+        return str_replace(':value', $this->parameterToString($parameters[0] ?? ''), $message);
     }
 
     /**
@@ -440,7 +441,15 @@ trait ReplacesAttributes
      */
     protected function replaceSize(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace(':size', (string) $parameters[0], $message);
+        return str_replace(':size', $this->parameterToString($parameters[0]), $message);
+    }
+
+    /**
+     * Convert a rule parameter or message value to text without rounding floats.
+     */
+    private function parameterToString(mixed $value): string
+    {
+        return is_float($value) ? Number::toString($value) : (string) $value;
     }
 
     /**
@@ -461,7 +470,7 @@ trait ReplacesAttributes
             $size = $this->trim($value);
         }
 
-        return str_replace(':value', (string) $size, $message);
+        return str_replace(':value', $this->parameterToString($size), $message);
     }
 
     /**

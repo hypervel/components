@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
+use Hypervel\Support\Number;
 use Stringable;
 
 /**
@@ -20,7 +21,12 @@ class Membership
      */
     public static function normalize(string|int|float|bool|Stringable|null $value): ?string
     {
-        return $value === null ? null : (is_bool($value) ? (string) (int) $value : (string) $value);
+        return match (true) {
+            $value === null => null,
+            is_bool($value) => (string) (int) $value,
+            is_float($value) => Number::toString($value),
+            default => (string) $value,
+        };
     }
 
     /**

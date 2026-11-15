@@ -6,6 +6,7 @@ namespace Hypervel\Validation\Rules;
 
 use Hypervel\Contracts\Container\Transient;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Number;
 use Hypervel\Support\Traits\Conditionable;
 use Stringable;
 
@@ -78,6 +79,12 @@ class Unique implements Stringable, Transient
      */
     public function queryParameters(): array
     {
-        return [$this->table, $this->column, $this->ignore === null ? null : (string) $this->ignore, $this->idColumn];
+        $ignore = match (true) {
+            $this->ignore === null => null,
+            is_float($this->ignore) => Number::toString($this->ignore),
+            default => (string) $this->ignore,
+        };
+
+        return [$this->table, $this->column, $ignore, $this->idColumn];
     }
 }
