@@ -97,6 +97,9 @@ class ValidationInRuleTest extends TestCase
         $number = 1.234567890123456;
         $v = new Validator($trans, ['x' => $number], ['x' => Rule::in([$number])]);
         $this->assertTrue($v->passes());
+
+        $validator = new Validator($trans, ['x' => 1.2345678901234558], ['x' => Rule::in([$number])]);
+        $this->assertFalse($validator->passes());
     }
 
     #[TestWith([false])]

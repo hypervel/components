@@ -8,6 +8,7 @@ use BackedEnum;
 use Closure;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Number;
 use Hypervel\Validation\DatabaseCondition;
 use Hypervel\Validation\DatabaseConditionOperator;
 use Hypervel\Validation\DatabaseConditions;
@@ -223,7 +224,11 @@ trait DatabaseRule
                 continue;
             }
 
-            $operand = is_bool($condition->value) ? (int) $condition->value : $condition->value;
+            $operand = match (true) {
+                is_bool($condition->value) => (int) $condition->value,
+                is_float($condition->value) => Number::toString($condition->value),
+                default => $condition->value,
+            };
 
             // Membership predicates, like callbacks, have no legacy string representation.
             $value = match ($condition->operator) {
