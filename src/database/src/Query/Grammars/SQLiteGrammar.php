@@ -347,7 +347,8 @@ class SQLiteGrammar extends Grammar
 
         $columns = $this->compileUpdateColumns($query, $values);
 
-        $selectSql = $this->compileSelectQuery($query->select($this->qualifyRowIdentifier($query, 'rowid')));
+        // Selecting row identifiers must not replace a reusable builder's columns or select bindings.
+        $selectSql = $this->compileSelectQuery((clone $query)->select($this->qualifyRowIdentifier($query, 'rowid')));
 
         return "update {$table} set {$columns} where {$this->wrap('rowid')} in ({$selectSql})";
     }
@@ -392,7 +393,8 @@ class SQLiteGrammar extends Grammar
     {
         $table = $this->wrapTable($query->from);
 
-        $selectSql = $this->compileSelectQuery($query->select($this->qualifyRowIdentifier($query, 'rowid')));
+        // Selecting row identifiers must not replace a reusable builder's columns or select bindings.
+        $selectSql = $this->compileSelectQuery((clone $query)->select($this->qualifyRowIdentifier($query, 'rowid')));
 
         return "delete from {$table} where {$this->wrap('rowid')} in ({$selectSql})";
     }

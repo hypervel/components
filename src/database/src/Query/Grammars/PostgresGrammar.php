@@ -595,7 +595,8 @@ class PostgresGrammar extends Grammar
     {
         // A ctid is unique only within one physical table, and the partitions of a
         // partitioned table reuse them, so rows are matched by table and ctid.
-        $selectSql = $this->compileSelectQuery($query->select([
+        // Selecting row identifiers must not replace a reusable builder's columns or select bindings.
+        $selectSql = $this->compileSelectQuery((clone $query)->select([
             $this->qualifyRowIdentifier($query, 'tableoid'),
             $this->qualifyRowIdentifier($query, 'ctid'),
         ]));

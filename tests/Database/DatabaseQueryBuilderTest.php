@@ -3150,9 +3150,12 @@ class DatabaseQueryBuilderTest extends TestCase
     {
         $builder = $driver === 'sqlite' ? $this->getSQLiteBuilder() : $this->getPostgresBuilder();
         $builder->getConnection()->expects($operation)->with($sql, $operation === 'update' ? [false] : [])->andReturn(3);
-        $builder->from('users')->orderBy('id')->offset(2);
+        $builder->selectRaw('? as display_value', ['original'])->from('users')->orderBy('id')->offset(2);
+        $originalSelect = $builder->toSql();
 
         $this->assertSame(3, $operation === 'update' ? $builder->update(['active' => false]) : $builder->delete());
+        $this->assertSame($originalSelect, $builder->toSql());
+        $this->assertSame(['original'], $builder->getBindings());
     }
 
     /**
