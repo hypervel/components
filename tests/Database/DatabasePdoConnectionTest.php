@@ -994,9 +994,9 @@ class DatabasePdoConnectionTest extends TestCase
         $connection->rollBack();
     }
 
-    public function testLostManagedCommitTerminallyDetachesTransactionState(): void
+    public function testLostConnectionDuringCommitDiscardsPdoSoTheNextTransactionReconnects(): void
     {
-        $failure = new PDOException('server has gone away');
+        $failure = new PDOException('SQLSTATE[08006] [7] no connection to the server');
         $pdo = $this->getMockBuilder(PDOStub::class)
             ->onlyMethods(['beginTransaction', 'commit', 'inTransaction', 'rollBack'])
             ->getMock();
@@ -1005,21 +1005,29 @@ class DatabasePdoConnectionTest extends TestCase
         $pdo->expects($this->never())->method('inTransaction');
         $pdo->expects($this->never())->method('rollBack');
 
+        $freshPdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['beginTransaction', 'commit'])->getMock();
+        $freshPdo->expects($this->once())->method('beginTransaction');
+        $freshPdo->expects($this->once())->method('commit');
+
         $connection = $this->getMockConnection([], $pdo);
+        $connection->setReconnector(fn (PdoConnection $connection) => $connection->setPdo($freshPdo));
         $connection->setReadPdo(new PDOStub);
         $manager = new DatabaseTransactionsManager;
         $connection->setTransactionManager($manager);
         $rollbackCallbackCalled = false;
 
         try {
-            $connection->transaction(function (Connection $connection) use (&$rollbackCallbackCalled): void {
+            $connection->transaction(function (Connection $connection) use (&$rollbackCallbackCalled): string {
                 $connection->afterRollBack(function () use (&$rollbackCallbackCalled): void {
                     $rollbackCallbackCalled = true;
                 });
+
+                return 'first';
             });
             $this->fail('Expected the lost commit to fail.');
         } catch (PDOException $exception) {
             $this->assertSame($failure, $exception);
+            $this->assertSame('SQLSTATE[08006] [7] no connection to the server', $exception->getMessage());
         }
 
         $this->assertTrue($rollbackCallbackCalled);
@@ -1028,6 +1036,8 @@ class DatabasePdoConnectionTest extends TestCase
         $this->assertCount(0, $manager->getCommittedTransactions());
         $this->assertNull($connection->getRawPdo());
         $this->assertNull($connection->getRawReadPdo());
+
+        $this->assertSame('second', $connection->transaction(fn () => 'second'));
     }
 
     #[DataProvider('lostTransactionOperations')]
