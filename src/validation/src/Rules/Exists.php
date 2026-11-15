@@ -16,13 +16,25 @@ class Exists implements Stringable, Transient
     /**
      * Convert the rule to a validation string.
      */
-    public function __toString(): string
+    final public function __toString(): string
     {
+        [$table, $column] = $this->queryParameters();
+
         return rtrim(sprintf(
             'exists:%s,%s,%s',
-            $this->table,
-            $this->column,
+            $table,
+            $column,
             $this->formatWheres()
         ), ',');
+    }
+
+    /**
+     * Get the table and column used by both validation and string rendering.
+     *
+     * @return array{string, string}
+     */
+    public function queryParameters(): array
+    {
+        return [$this->table, $this->column];
     }
 }

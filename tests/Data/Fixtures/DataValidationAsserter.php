@@ -167,7 +167,7 @@ class DataValidationAsserter
         return array_map(
             static fn (array $fieldRules): array => array_map(
                 static function (mixed $rule): mixed {
-                    if (! ($rule instanceof Exists || $rule instanceof Unique) || ValidationRuleParser::ruleReducesToString($rule)) {
+                    if (! ($rule instanceof Exists || $rule instanceof Unique)) {
                         return $rule;
                     }
 
@@ -184,7 +184,7 @@ class DataValidationAsserter
                         });
 
                         return [$query->toSql(), $query->getBindings()];
-                    }, $rule->queryConditions());
+                    }, $rule->queryConditions()->toArray());
 
                     return [(string) $rule, $conditions];
                 },

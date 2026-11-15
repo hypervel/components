@@ -57,15 +57,27 @@ class Unique implements Stringable, Transient
     /**
      * Convert the rule to a validation string.
      */
-    public function __toString(): string
+    final public function __toString(): string
     {
+        [$table, $column, $ignore, $idColumn] = $this->queryParameters();
+
         return rtrim(sprintf(
             'unique:%s,%s,%s,%s,%s',
-            $this->table,
-            $this->column,
-            $this->ignore !== null ? '"' . str_replace('"', '""', (string) $this->ignore) . '"' : 'NULL',
-            $this->idColumn,
+            $table,
+            $column,
+            $ignore !== null ? '"' . str_replace('"', '""', $ignore) . '"' : 'NULL',
+            $idColumn,
             $this->formatWheres()
         ), ',');
+    }
+
+    /**
+     * Get the table, column and exclusion used by validation and string rendering.
+     *
+     * @return array{string, string, ?string, string}
+     */
+    public function queryParameters(): array
+    {
+        return [$this->table, $this->column, $this->ignore === null ? null : (string) $this->ignore, $this->idColumn];
     }
 }

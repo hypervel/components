@@ -526,7 +526,13 @@ class Validator implements ValidatorContract
                 $rules = [$rules];
             }
 
-            $plan = $isBaseValidator ? RulePlanCache::get($rules) : null;
+            $key = null;
+
+            if ($isBaseValidator) {
+                [$rules, $key] = RuleCompiler::prepare($rules);
+            }
+
+            $plan = $isBaseValidator ? RulePlanCache::get($key) : null;
 
             if ($plan === null) {
                 $plan = $isBaseValidator
@@ -534,7 +540,7 @@ class Validator implements ValidatorContract
                     : RuleCompiler::compileAllDelegated($rules);
 
                 if ($isBaseValidator) {
-                    RulePlanCache::put($rules, $plan);
+                    RulePlanCache::put($key, $plan);
                 }
             }
 
@@ -780,26 +786,19 @@ class Validator implements ValidatorContract
                     continue;
                 }
 
-                $meta = $this->extractPresenceRuleMeta($check, $attribute);
+                $query = $this->extractPresenceQuery($check, $attribute);
 
-                if ($meta === null) {
+                if ($query === null) {
                     continue;
                 }
 
-                $lookupKey = PrecomputedPresenceVerifier::lookupKey(
-                    $meta['connection'],
-                    $meta['table'],
-                    $meta['column'],
-                    $meta['ignore'],
-                    $meta['idColumn'],
-                    $meta['wheres'],
-                );
+                $lookupKey = PrecomputedPresenceVerifier::lookupKey($query);
 
                 if ($lookupKey === null) {
                     continue;
                 }
 
-                $groups[$lookupKey] ??= ['meta' => $meta, 'values' => []];
+                $groups[$lookupKey] ??= ['query' => $query, 'values' => []];
                 $groups[$lookupKey]['values'][] = $value;
             }
         }
@@ -819,46 +818,19 @@ class Validator implements ValidatorContract
     }
 
     /**
-     * Extract batch metadata from a compiled database-presence check.
-     *
-     * @return null|array{
-     *     connection: ?string,
-     *     table: string,
-     *     column: string,
-     *     wheres: array<int|string, mixed>,
-     *     ignore: null|int|string,
-     *     idColumn: ?string
-     * }
+     * Resolve a batchable presence query from the captured declaration.
      */
-    private function extractPresenceRuleMeta(
-        DelegatedCheck $check,
-        string $attribute,
-    ): ?array {
-        if (! $check->parametersAreScalar) {
-            return null;
-        }
-
-        $usesRuleConditions = $check->originalRule instanceof Exists || $check->originalRule instanceof Unique;
-        $wheres = $usesRuleConditions ? $check->originalRule->queryConditions() : [];
-
-        if (array_any($wheres, static fn (mixed $condition): bool => $condition instanceof Closure)) {
-            return null;
-        }
-
-        $type = match ($check->ruleName) {
-            'Exists' => 'exists',
-            'Unique' => 'unique',
-            default => null,
-        };
-
+    private function extractPresenceQuery(DelegatedCheck $check, string $attribute): ?PresenceQuery
+    {
         $parameters = $check->parameters;
 
-        if ($type === null || ! isset($parameters[0])) {
+        if (! isset($parameters[0])
+            || ! array_all($parameters, static fn (mixed $parameter): bool => is_scalar($parameter) || $parameter === null)
+        ) {
             return null;
         }
 
-        $tableParameter = (string) $parameters[0];
-        [$connection, $table, $modelIdColumn] = $this->parseTable($tableParameter);
+        [$connection, $table, $modelIdColumn] = $this->parseTable((string) $parameters[0]);
         $column = $this->getQueryColumn($parameters, $attribute);
 
         if ($column === '' || $column === false) {
@@ -868,38 +840,25 @@ class Validator implements ValidatorContract
         $ignore = null;
         $idColumn = null;
 
-        if ($type === 'exists') {
-            if (! $usesRuleConditions && isset($parameters[2])) {
-                $wheres = $this->getExtraConditions(array_values(array_slice($parameters, 2)));
-            }
-        } else {
-            if (isset($parameters[2])) {
-                $rawIgnore = (string) $parameters[2];
+        if ($check->ruleName === 'Unique' && array_key_exists(2, $parameters)) {
+            $rawIgnore = (string) $parameters[2];
 
-                // Field references require per-item runtime resolution — not batchable
-                if (str_contains($rawIgnore, '[') || str_contains($rawIgnore, '*')) {
-                    return null;
-                }
-
-                [$idColumn, $ignore] = $this->getUniqueIds($modelIdColumn, $parameters);
-
-                if ($ignore !== null) {
-                    $ignore = (string) $ignore;
-                }
+            // Field references need per-item runtime resolution and cannot be precomputed.
+            if (str_contains($rawIgnore, '[') || str_contains($rawIgnore, '*')) {
+                return null;
             }
-            if (! $usesRuleConditions && isset($parameters[4])) {
-                $wheres = $this->getExtraConditions(array_slice($parameters, 4));
-            }
+
+            [$idColumn, $ignore] = $this->getUniqueIds($modelIdColumn, $parameters);
+            $ignore = $ignore === null ? null : (string) $ignore;
         }
 
-        return [
-            'connection' => $connection,
-            'table' => $table,
-            'column' => (string) $column,
-            'wheres' => $wheres,
-            'ignore' => $ignore,
-            'idColumn' => $idColumn,
-        ];
+        $conditions = $check->originalRule instanceof DatabaseRulePlan
+            ? $check->originalRule->conditions
+            : ($check->ruleName === 'Unique'
+                ? $this->getUniqueExtra($parameters)
+                : $this->getExtraConditions(array_slice($parameters, 2)));
+
+        return new PresenceQuery($connection, $table, $column, $conditions, $ignore, $idColumn);
     }
 
     /**
@@ -1254,10 +1213,14 @@ class Validator implements ValidatorContract
      */
     protected function replaceFieldsInParameters(string $rule, array $parameters, array $keys): array
     {
-        // Literal values keep the existing string conversion, but are not attribute paths.
         $literals = isset($this->literalParameterOffsets[$rule])
-            ? array_map(strval(...), array_splice($parameters, $this->literalParameterOffsets[$rule]))
+            ? array_splice($parameters, $this->literalParameterOffsets[$rule])
             : [];
+
+        // Conditional comparisons use strings; database predicates retain native values.
+        if ($rule !== 'Unique') {
+            $literals = array_map(strval(...), $literals);
+        }
 
         $parameters = $this->replaceDotInParameters($parameters);
 
@@ -1274,7 +1237,8 @@ class Validator implements ValidatorContract
     protected function replaceDotInParameters(array $parameters): array
     {
         return array_map(function ($field) {
-            return static::encodeAttributeWithPlaceholder((string) ($field ?? ''));
+            // Null is a native value, not a field reference; Unique uses it for no ignored ID.
+            return $field === null ? null : static::encodeAttributeWithPlaceholder((string) $field);
         }, $parameters);
     }
 
@@ -1285,7 +1249,7 @@ class Validator implements ValidatorContract
     {
         return array_map(function ($field) use ($keys) {
             // Escape literal percent signs before introducing the wildcard placeholders.
-            return vsprintf(str_replace(['%', '*'], ['%%', '%s'], $field), $keys);
+            return $field === null ? null : vsprintf(str_replace(['%', '*'], ['%%', '%s'], $field), $keys);
         }, $parameters);
     }
 
@@ -1617,6 +1581,13 @@ class Validator implements ValidatorContract
         $rules = (array) $rules;
 
         foreach ($this->rules[$attribute] as $rule) {
+            // Unrelated metadata checks must not reread the captured presence declaration.
+            if (($rule instanceof Exists || $rule instanceof Unique)
+                && ! in_array($rule instanceof Exists ? 'Exists' : 'Unique', $rules, true)
+            ) {
+                continue;
+            }
+
             [$rule, $parameters] = ValidationRuleParser::parse($rule);
 
             if (in_array($rule, $rules)) {
@@ -2009,17 +1980,10 @@ class Validator implements ValidatorContract
      *
      * @throws RuntimeException
      */
-    public function getPresenceVerifier(?string $connection = null): PresenceVerifierInterface
+    public function getPresenceVerifier(): PresenceVerifierInterface
     {
         if (! isset($this->presenceVerifier)) {
             throw new RuntimeException('Presence verifier has not been set.');
-        }
-
-        if ($this->presenceVerifier instanceof DatabasePresenceVerifierInterface) {
-            // WARNING: Keep setConnection() and the presence check in one synchronous chain.
-            // Database presence verifiers store the connection on a shared verifier instance,
-            // so yielding between this call and getCount()/getMultiCount() would race.
-            $this->presenceVerifier->setConnection($connection);
         }
 
         return $this->presenceVerifier;

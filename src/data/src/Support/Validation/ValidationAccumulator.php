@@ -161,20 +161,14 @@ class ValidationAccumulator
             return $otherRule instanceof Enum && $rule == $otherRule;
         }
 
-        $reducesToString = ValidationRuleParser::ruleReducesToString($rule);
-
-        if (($rule instanceof Exists || $rule instanceof Unique)
-            && ! $reducesToString
-        ) {
+        if ($rule instanceof Exists || $rule instanceof Unique) {
             return is_object($otherRule)
                 && $otherRule::class === $rule::class
-                && (string) $rule === (string) $otherRule
-                && (in_array($rule::class, [Exists::class, Unique::class], true)
-                    ? $rule->hasSameConditions($otherRule)
-                    : $rule->queryConditions() === $otherRule->queryConditions());
+                && $rule->queryParameters() === $otherRule->queryParameters()
+                && $rule->queryConditions()->toArray() === $otherRule->queryConditions()->toArray();
         }
 
-        if ($reducesToString) {
+        if (ValidationRuleParser::ruleReducesToString($rule)) {
             $rule = (string) $rule;
         }
 

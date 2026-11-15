@@ -8,10 +8,9 @@ use BackedEnum;
 use Closure;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Database\Query\Builder;
-use Hypervel\Support\Collection;
-
-use function Hypervel\Support\enum_value;
+use Hypervel\Validation\DatabaseCondition;
+use Hypervel\Validation\DatabaseConditionOperator;
+use Hypervel\Validation\DatabaseConditions;
 
 trait DatabaseRule
 {
@@ -27,6 +26,8 @@ trait DatabaseRule
 
     /**
      * The extra where clauses for the query.
+     *
+     * @var list<DatabaseCondition>
      */
     protected array $wheres = [];
 
@@ -88,9 +89,7 @@ trait DatabaseRule
             return $this->whereNull($column);
         }
 
-        $value = $this->normalizeWhereValue($value);
-
-        $this->wheres[] = ['column' => $column, 'operator' => '=', 'value' => (string) $value];
+        $this->wheres[] = new DatabaseCondition($column, DatabaseConditionOperator::Equals, $value);
 
         return $this;
     }
@@ -106,9 +105,7 @@ trait DatabaseRule
             return $this->whereNotIn($column, $value);
         }
 
-        $value = $this->normalizeWhereValue($value);
-
-        $this->wheres[] = ['column' => $column, 'operator' => '!=', 'value' => (string) $value];
+        $this->wheres[] = new DatabaseCondition($column, DatabaseConditionOperator::NotEquals, $value ?? '');
 
         return $this;
     }
@@ -120,7 +117,7 @@ trait DatabaseRule
      */
     public function whereNull(string $column): static
     {
-        $this->wheres[] = ['column' => $column, 'operator' => 'NULL', 'value' => null];
+        $this->wheres[] = new DatabaseCondition($column, DatabaseConditionOperator::IsNull);
 
         return $this;
     }
@@ -132,7 +129,7 @@ trait DatabaseRule
      */
     public function whereNotNull(string $column): static
     {
-        $this->wheres[] = ['column' => $column, 'operator' => 'NOT_NULL', 'value' => null];
+        $this->wheres[] = new DatabaseCondition($column, DatabaseConditionOperator::IsNotNull);
 
         return $this;
     }
@@ -144,9 +141,9 @@ trait DatabaseRule
      */
     public function whereIn(string $column, array|Arrayable|BackedEnum $values): static
     {
-        return $this->where(function ($query) use ($column, $values) {
-            $query->whereIn($column, $values);
-        });
+        $this->wheres[] = new DatabaseCondition($column, DatabaseConditionOperator::In, $values);
+
+        return $this;
     }
 
     /**
@@ -156,9 +153,9 @@ trait DatabaseRule
      */
     public function whereNotIn(string $column, array|Arrayable|BackedEnum $values): static
     {
-        return $this->where(function ($query) use ($column, $values) {
-            $query->whereNotIn($column, $values);
-        });
+        $this->wheres[] = new DatabaseCondition($column, DatabaseConditionOperator::NotIn, $values);
+
+        return $this;
     }
 
     /**
@@ -208,59 +205,10 @@ trait DatabaseRule
     /**
      * Get the extra conditions for the presence verifier.
      */
-    public function queryConditions(): array
+    public function queryConditions(): DatabaseConditions
     {
-        $conditions = [];
-
-        foreach ($this->wheres as ['column' => $column, 'operator' => $operator, 'value' => $value]) {
-            if ($operator === '=' && ($value === 'NULL' || $value === 'NOT_NULL' || str_starts_with($value, '!'))) {
-                $conditions[] = fn (Builder $query): Builder => $query->where($column, '=', $value);
-            } elseif (array_key_exists($column, $conditions)) {
-                $conditions[] = fn (Builder $query): Builder => match ($operator) {
-                    'NULL' => $query->whereNull($column),
-                    'NOT_NULL' => $query->whereNotNull($column),
-                    default => $query->where($column, $operator, $value),
-                };
-            } else {
-                $conditions[$column] = $this->formatWhereValue($operator, $value);
-            }
-        }
-
-        // Unlike Laravel, keep queryCallbacks() overrides effective when combining conditions.
-        return array_merge($conditions, $this->queryCallbacks());
-    }
-
-    /**
-     * Determine whether two native rules have the same stored conditions.
-     *
-     * @internal
-     */
-    public function hasSameConditions(self $other): bool
-    {
-        return $this->wheres === $other->wheres
-            && $this->queryCallbacks() === $other->queryCallbacks();
-    }
-
-    /**
-     * Format a "where" clause value as the presence verifier reads it.
-     */
-    protected function formatWhereValue(string $operator, ?string $value): string
-    {
-        return match ($operator) {
-            '=' => (string) $value,
-            '!=' => '!' . $value,
-            default => $operator,
-        };
-    }
-
-    /**
-     * Normalize a where value for string serialization.
-     */
-    protected function normalizeWhereValue(mixed $value): mixed
-    {
-        $value = enum_value($value);
-
-        return is_bool($value) ? (int) $value : $value;
+        // Unlike Laravel, read the callback hook so subclass overrides remain effective.
+        return new DatabaseConditions(...[...$this->wheres, ...$this->queryCallbacks()]);
     }
 
     /**
@@ -268,8 +216,29 @@ trait DatabaseRule
      */
     protected function formatWheres(): string
     {
-        return (new Collection($this->wheres))
-            ->map(fn ($where) => $where['column'] . ',"' . str_replace('"', '""', $this->formatWhereValue($where['operator'], $where['value'])) . '"')
-            ->implode(',');
+        $wheres = [];
+
+        foreach ($this->queryConditions()->all() as $condition) {
+            if ($condition instanceof Closure) {
+                continue;
+            }
+
+            $operand = is_bool($condition->value) ? (int) $condition->value : $condition->value;
+
+            // Membership predicates, like callbacks, have no legacy string representation.
+            $value = match ($condition->operator) {
+                DatabaseConditionOperator::Equals => (string) $operand,
+                DatabaseConditionOperator::NotEquals => '!' . $operand,
+                DatabaseConditionOperator::IsNull => 'NULL',
+                DatabaseConditionOperator::IsNotNull => 'NOT_NULL',
+                DatabaseConditionOperator::In, DatabaseConditionOperator::NotIn => null,
+            };
+
+            if ($value !== null) {
+                $wheres[] = $condition->column . ',"' . str_replace('"', '""', $value) . '"';
+            }
+        }
+
+        return implode(',', $wheres);
     }
 }

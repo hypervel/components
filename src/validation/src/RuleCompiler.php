@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
-use Closure;
 use Hypervel\Contracts\Validation\ParameterizedRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Validation\Enums\CheckType;
@@ -22,23 +21,70 @@ use Hypervel\Validation\Rules\Unique;
 final class RuleCompiler
 {
     /**
+     * Capture declarations once and produce their plain cache key.
+     *
+     * @return array{list<mixed>, ?string}
+     */
+    public static function prepare(array $rules): array
+    {
+        $prepared = [];
+        $key = [];
+        $cacheable = true;
+
+        foreach ($rules as $rule) {
+            if (! $rule instanceof RuleContract && ($rule instanceof Exists || $rule instanceof Unique)) {
+                $rule = DatabaseRulePlan::fromRule($rule);
+                $data = $rule->cacheData();
+                $cacheable = $cacheable && $data !== null;
+                $key[] = ['database', $data];
+            } else {
+                if ($rule instanceof ParameterizedRule) {
+                    $rule = $rule->toArray();
+                }
+
+                if (! is_string($rule)
+                    && (! is_array($rule)
+                        || ! array_all($rule, static fn (mixed $parameter): bool => is_scalar($parameter) || $parameter === null))
+                ) {
+                    $cacheable = false;
+                }
+
+                $key[] = $rule;
+            }
+
+            $prepared[] = $rule;
+        }
+
+        return [$prepared, $cacheable ? serialize($key) : null];
+    }
+
+    /**
      * Compile a per-attribute rule array into an AttributePlan with inlining.
      *
      * Used for the base Validator class. Subclasses use compileAllDelegated().
      *
-     * @param list<mixed> $rules As produced by ValidationRuleParser::explode()
+     * @param list<mixed> $rules Captured by prepare()
      * @param list<string> $numericRules Rules which activate numeric size semantics
      */
     public static function compile(array $rules, array $numericRules): AttributePlan
     {
         $plan = new AttributePlan;
-        $parsedRules = array_map(
-            static fn (mixed $rule): array => ValidationRuleParser::parse($rule),
-            $rules,
-        );
+        $parsedRules = [];
+
+        foreach ($rules as $index => $rule) {
+            if ($rule instanceof DatabaseRulePlan) {
+                $rule = $rule->snapshot();
+            } elseif (is_array($rule)) {
+                // Later checks must not mutate captured parameters through caller references.
+                $rule = array_map(static fn (mixed $parameter): mixed => $parameter, $rule);
+            }
+
+            $rules[$index] = $rule;
+            $parsedRules[] = ValidationRuleParser::parse($rule);
+        }
 
         foreach ($parsedRules as [, $parameters]) {
-            if (array_any($parameters, static fn (mixed $parameter): bool => ! is_scalar($parameter))) {
+            if (array_any($parameters, static fn (mixed $parameter): bool => ! is_scalar($parameter) && $parameter !== null)) {
                 foreach ($rules as $index => $rule) {
                     self::compileRuleDelegated($rule, $plan, $parsedRules[$index]);
                 }
@@ -50,6 +96,13 @@ final class RuleCompiler
         $context = self::collectContext($parsedRules, $numericRules);
 
         foreach ($rules as $index => $rule) {
+            [$name, $parameters] = $parsedRules[$index];
+
+            if (! $rule instanceof DatabaseRulePlan && ($name === 'Exists' || $name === 'Unique')) {
+                $rule = DatabaseRulePlan::fromParameters($name, $parameters);
+                $parsedRules[$index] = [$name, $rule->parameters];
+            }
+
             self::compileRule($rule, $parsedRules[$index], $plan, $context);
         }
 
@@ -155,7 +208,9 @@ final class RuleCompiler
             return;
         }
 
-        $inline = self::tryInline($ruleName, $parameters, $context);
+        $inline = array_all($parameters, static fn (mixed $parameter): bool => is_scalar($parameter))
+            ? self::tryInline($ruleName, $parameters, $context)
+            : null;
         if ($inline !== null) {
             $plan->checks[] = $inline;
             return;
@@ -167,7 +222,7 @@ final class RuleCompiler
             $plan,
             ruleName: $ruleName,
             parameters: $parameters,
-            originalRule: $rule instanceof ParameterizedRule ? [$ruleName, ...$parameters] : $rule,
+            originalRule: is_array($rule) ? [$ruleName, ...$parameters] : $rule,
         );
     }
 
@@ -234,14 +289,17 @@ final class RuleCompiler
      */
     private static function canConsumePrecomputedPresenceLookup(DelegatedCheck $check): bool
     {
-        if (! $check->parametersAreScalar
-            || ($check->ruleName !== 'Exists' && $check->ruleName !== 'Unique')
-        ) {
+        if ($check->ruleName !== 'Exists' && $check->ruleName !== 'Unique') {
             return false;
         }
 
-        return ! (($check->originalRule instanceof Exists || $check->originalRule instanceof Unique)
-            && array_any($check->originalRule->queryConditions(), static fn (mixed $condition): bool => $condition instanceof Closure));
+        if ($check->originalRule instanceof DatabaseRulePlan) {
+            return $check->originalRule->cacheData() !== null;
+        }
+
+        return $check->parametersAreScalar
+            && ! $check->originalRule instanceof Exists
+            && ! $check->originalRule instanceof Unique;
     }
 
     /**

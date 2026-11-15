@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Validation\ParameterizedRule;
 use Hypervel\Tests\TestCase;
+use Hypervel\Tests\Validation\Fixtures\IntegerStatus;
 use Hypervel\Validation\AttributePlan;
 use Hypervel\Validation\Enums\CheckType;
 use Hypervel\Validation\InlineCheck;
@@ -16,6 +18,7 @@ use Hypervel\Validation\Rules\Concerns\FormatsParameters;
 use Hypervel\Validation\ValidationRuleParser;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use stdClass;
 use WeakReference;
 
@@ -35,21 +38,21 @@ class ValidationRulePlanCacheTest extends TestCase
         $rules = ['required', 'string', 'max:255'];
         $plan = $this->compile($rules);
 
-        RulePlanCache::put($rules, $plan);
+        RulePlanCache::put($this->key($rules), $plan);
 
-        $cached = RulePlanCache::get($rules);
+        $cached = RulePlanCache::get($this->key($rules));
 
         $this->assertSame($plan, $cached);
     }
 
     public function testCacheMissReturnsNull(): void
     {
-        $this->assertNull(RulePlanCache::get(['required', 'string']));
+        $this->assertNull(RulePlanCache::get($this->key(['required', 'string'])));
     }
 
     public function testNonStringElementsReturnNull(): void
     {
-        $this->assertNull(RulePlanCache::get(['required', new stdClass]));
+        $this->assertNull(RulePlanCache::get($this->key(['required', new stdClass])));
     }
 
     public function testCanonicalFluentRulesShareCachedPlans(): void
@@ -62,13 +65,13 @@ class ValidationRulePlanCacheTest extends TestCase
         ])->rules['state'];
         $plan = $this->compile($firstRules);
 
-        RulePlanCache::put($firstRules, $plan);
+        RulePlanCache::put($this->key($firstRules), $plan);
 
         $this->assertSame(['required', 'in:"active","inactive"'], $firstRules);
         $this->assertSame($firstRules, $secondRules);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[1]);
         $this->assertSame(CheckType::In, $plan->checks[1]->type);
-        $this->assertSame($plan, RulePlanCache::get($secondRules));
+        $this->assertSame($plan, RulePlanCache::get($this->key($secondRules)));
     }
 
     public function testParameterizedRulesSharePlansWithoutRetainingMutableBuilders(): void
@@ -76,21 +79,21 @@ class ValidationRulePlanCacheTest extends TestCase
         $rule = Rule::confirmed()->customField('first');
         $reference = WeakReference::create($rule);
         $firstPlan = $this->compile([$rule]);
-        RulePlanCache::put([$rule], $firstPlan);
+        RulePlanCache::put($this->key([$rule]), $firstPlan);
 
-        $this->assertSame($firstPlan, RulePlanCache::get([Rule::confirmed()->customField('first')]));
+        $this->assertSame($firstPlan, RulePlanCache::get($this->key([Rule::confirmed()->customField('first')])));
 
         $rule->customField('second');
 
-        $this->assertNull(RulePlanCache::get([$rule]));
+        $this->assertNull(RulePlanCache::get($this->key([$rule])));
 
         $secondPlan = $this->compile([$rule]);
-        RulePlanCache::put([$rule], $secondPlan);
+        RulePlanCache::put($this->key([$rule]), $secondPlan);
         unset($rule);
 
         $this->assertNull($reference->get());
-        $this->assertSame($firstPlan, RulePlanCache::get([Rule::confirmed()->customField('first')]));
-        $this->assertSame($secondPlan, RulePlanCache::get([Rule::confirmed()->customField('second')]));
+        $this->assertSame($firstPlan, RulePlanCache::get($this->key([Rule::confirmed()->customField('first')])));
+        $this->assertSame($secondPlan, RulePlanCache::get($this->key([Rule::confirmed()->customField('second')])));
         $this->assertSame(['Confirmed', 'first'], $firstPlan->checks[0]->originalRule);
         $this->assertSame(['Confirmed', 'second'], $secondPlan->checks[0]->originalRule);
     }
@@ -109,9 +112,100 @@ class ValidationRulePlanCacheTest extends TestCase
             }
         };
 
-        RulePlanCache::put([$rule], $this->compile([$rule]));
+        RulePlanCache::put($this->key([$rule]), $this->compile([$rule]));
 
-        $this->assertNull(RulePlanCache::get([$rule]));
+        $this->assertNull(RulePlanCache::get($this->key([$rule])));
+    }
+
+    public function testDatabaseConditionsSharePlansWithoutLosingNativeTypes(): void
+    {
+        $rule = Rule::exists('users', 'id')
+            ->where('payload->enabled', true)
+            ->where('status', 'NULL')
+            ->whereNot('status', '!draft')
+            ->whereIn('tenant', ['first', 'second']);
+        $reference = WeakReference::create($rule);
+        $plan = $this->compile([$rule]);
+        RulePlanCache::put($this->key([$rule]), $plan);
+        unset($rule);
+
+        $this->assertNull($reference->get());
+
+        $equivalent = Rule::exists('users', 'id')
+            ->where('payload->enabled', true)
+            ->where('status', 'NULL')
+            ->whereNot('status', '!draft')
+            ->whereIn('tenant', ['first', 'second']);
+
+        $this->assertSame($plan, RulePlanCache::get($this->key([$equivalent])));
+
+        $different = Rule::exists('users', 'id')
+            ->where('payload->enabled', '1')
+            ->where('status', 'NULL')
+            ->whereNot('status', '!draft')
+            ->whereIn('tenant', ['first', 'second']);
+
+        $this->assertNull(RulePlanCache::get($this->key([$different])));
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCapturedMembershipDoesNotFollowLaterReferenceMutations(bool $withCallback): void
+    {
+        $tenant = 'first';
+        $rule = Rule::exists('users', 'id')->whereIn('tenant', [&$tenant]);
+
+        if ($withCallback) {
+            $rule->using(static function (): void {});
+        }
+
+        $firstPlan = $this->compile([$rule]);
+        $firstKey = $this->key([$rule]);
+        RulePlanCache::put($firstKey, $firstPlan);
+        $tenant = 'second';
+        $secondPlan = $this->compile([$rule]);
+
+        $this->assertSame([['tenant', 'in', ['first']]], array_slice($firstPlan->checks[0]->originalRule->conditions->toArray(), 0, 1));
+        $this->assertSame([['tenant', 'in', ['second']]], array_slice($secondPlan->checks[0]->originalRule->conditions->toArray(), 0, 1));
+        $this->assertSame($withCallback ? null : $firstPlan, RulePlanCache::get($firstKey));
+        $this->assertNull(RulePlanCache::get($this->key([$rule])));
+    }
+
+    public function testArrayableMembershipIsReadOncePerPreparationAndDetachedFromCachedPlans(): void
+    {
+        $members = new class implements Arrayable {
+            public int $reads = 0;
+
+            public array $values = [IntegerStatus::Pending];
+
+            /**
+             * Export the current membership values.
+             */
+            public function toArray(): array
+            {
+                ++$this->reads;
+
+                return $this->values;
+            }
+        };
+        $rule = Rule::exists('users', 'id')->whereIn('tenant', $members);
+        [$prepared, $key] = RuleCompiler::prepare([$rule]);
+        $plan = RuleCompiler::compile($prepared, self::NUMERIC_RULES);
+        RulePlanCache::put($key, $plan);
+
+        $this->assertSame(1, $members->reads);
+        [, $sameKey] = RuleCompiler::prepare([$rule]);
+        $this->assertSame($plan, RulePlanCache::get($sameKey));
+        $this->assertSame(2, $members->reads);
+
+        $members->values = [IntegerStatus::Done];
+        [$prepared, $changedKey] = RuleCompiler::prepare([$rule]);
+        $changedPlan = RuleCompiler::compile($prepared, self::NUMERIC_RULES);
+
+        $this->assertSame(3, $members->reads);
+        $this->assertNull(RulePlanCache::get($changedKey));
+        $this->assertSame([['tenant', 'in', [1]]], $plan->checks[0]->originalRule->conditions->toArray());
+        $this->assertSame([['tenant', 'in', [2]]], $changedPlan->checks[0]->originalRule->conditions->toArray());
     }
 
     public function testFlushStateClearsCache(): void
@@ -119,11 +213,11 @@ class ValidationRulePlanCacheTest extends TestCase
         $rules = ['required'];
         $plan = $this->compile($rules);
 
-        RulePlanCache::put($rules, $plan);
-        $this->assertNotNull(RulePlanCache::get($rules));
+        RulePlanCache::put($this->key($rules), $plan);
+        $this->assertNotNull(RulePlanCache::get($this->key($rules)));
 
         RulePlanCache::flushState();
-        $this->assertNull(RulePlanCache::get($rules));
+        $this->assertNull(RulePlanCache::get($this->key($rules)));
     }
 
     public function testLruEvictionAtMaxSize(): void
@@ -135,22 +229,22 @@ class ValidationRulePlanCacheTest extends TestCase
         $rules3 = ['rule_c'];
         $rules4 = ['rule_d'];
 
-        RulePlanCache::put($rules1, $this->compile($rules1));
-        RulePlanCache::put($rules2, $this->compile($rules2));
-        RulePlanCache::put($rules3, $this->compile($rules3));
+        RulePlanCache::put($this->key($rules1), $this->compile($rules1));
+        RulePlanCache::put($this->key($rules2), $this->compile($rules2));
+        RulePlanCache::put($this->key($rules3), $this->compile($rules3));
 
-        $this->assertNotNull(RulePlanCache::get($rules1));
-        $this->assertNotNull(RulePlanCache::get($rules2));
-        $this->assertNotNull(RulePlanCache::get($rules3));
+        $this->assertNotNull(RulePlanCache::get($this->key($rules1)));
+        $this->assertNotNull(RulePlanCache::get($this->key($rules2)));
+        $this->assertNotNull(RulePlanCache::get($this->key($rules3)));
 
         // Adding a 4th entry evicts the least recently used (rules1,
         // since rules2 and rules3 were just accessed by get() above)
-        RulePlanCache::put($rules4, $this->compile($rules4));
+        RulePlanCache::put($this->key($rules4), $this->compile($rules4));
 
-        $this->assertNull(RulePlanCache::get($rules1));
-        $this->assertNotNull(RulePlanCache::get($rules2));
-        $this->assertNotNull(RulePlanCache::get($rules3));
-        $this->assertNotNull(RulePlanCache::get($rules4));
+        $this->assertNull(RulePlanCache::get($this->key($rules1)));
+        $this->assertNotNull(RulePlanCache::get($this->key($rules2)));
+        $this->assertNotNull(RulePlanCache::get($this->key($rules3)));
+        $this->assertNotNull(RulePlanCache::get($this->key($rules4)));
     }
 
     public function testReputtingExistingKeyAtMaxSizeDoesNotEvictAndRefreshesRecency(): void
@@ -170,30 +264,30 @@ class ValidationRulePlanCacheTest extends TestCase
         $plan2 = $this->compile($rules2);
         $plan3 = $this->compile($rules3);
 
-        RulePlanCache::put($rules1, $plan1);
-        RulePlanCache::put($rules2, $plan2);
-        RulePlanCache::put($rules3, $plan3);
+        RulePlanCache::put($this->key($rules1), $plan1);
+        RulePlanCache::put($this->key($rules2), $plan2);
+        RulePlanCache::put($this->key($rules3), $plan3);
 
         // Re-put rules2. If put() does not unset the existing slot before the
         // eviction loop, rules1 will be wrongly evicted here and rules2 will
         // not be refreshed to the MRU position.
-        RulePlanCache::put($rules2, $plan2);
-        RulePlanCache::put($rules4, $this->compile($rules4));
-        RulePlanCache::put($rules5, $this->compile($rules5));
+        RulePlanCache::put($this->key($rules2), $plan2);
+        RulePlanCache::put($this->key($rules4), $this->compile($rules4));
+        RulePlanCache::put($this->key($rules5), $this->compile($rules5));
 
-        $this->assertNull(RulePlanCache::get($rules1));
-        $this->assertNotNull(RulePlanCache::get($rules2));
-        $this->assertNull(RulePlanCache::get($rules3));
-        $this->assertNotNull(RulePlanCache::get($rules4));
-        $this->assertNotNull(RulePlanCache::get($rules5));
+        $this->assertNull(RulePlanCache::get($this->key($rules1)));
+        $this->assertNotNull(RulePlanCache::get($this->key($rules2)));
+        $this->assertNull(RulePlanCache::get($this->key($rules3)));
+        $this->assertNotNull(RulePlanCache::get($this->key($rules4)));
+        $this->assertNotNull(RulePlanCache::get($this->key($rules5)));
     }
 
     public function testPutWithNonStringElementsIsNoOp(): void
     {
-        RulePlanCache::put(['required', new stdClass], $this->compile(['required']));
+        RulePlanCache::put($this->key(['required', new stdClass]), $this->compile(['required']));
 
         // No crash, and cache is still empty for string rules
-        $this->assertNull(RulePlanCache::get(['required']));
+        $this->assertNull(RulePlanCache::get($this->key(['required'])));
     }
 
     public function testDifferentRuleArraysAreDifferentKeys(): void
@@ -204,11 +298,11 @@ class ValidationRulePlanCacheTest extends TestCase
         $plan1 = $this->compile($rules1);
         $plan2 = $this->compile($rules2);
 
-        RulePlanCache::put($rules1, $plan1);
-        RulePlanCache::put($rules2, $plan2);
+        RulePlanCache::put($this->key($rules1), $plan1);
+        RulePlanCache::put($this->key($rules2), $plan2);
 
-        $this->assertSame($plan1, RulePlanCache::get($rules1));
-        $this->assertSame($plan2, RulePlanCache::get($rules2));
+        $this->assertSame($plan1, RulePlanCache::get($this->key($rules1)));
+        $this->assertSame($plan2, RulePlanCache::get($this->key($rules2)));
     }
 
     public function testDelimiterCharactersCannotCollideAcrossRuleArrays(): void
@@ -218,11 +312,11 @@ class ValidationRulePlanCacheTest extends TestCase
         $plan1 = $this->compile($rules1);
         $plan2 = $this->compile($rules2);
 
-        RulePlanCache::put($rules1, $plan1);
-        RulePlanCache::put($rules2, $plan2);
+        RulePlanCache::put($this->key($rules1), $plan1);
+        RulePlanCache::put($this->key($rules2), $plan2);
 
-        $this->assertSame($plan1, RulePlanCache::get($rules1));
-        $this->assertSame($plan2, RulePlanCache::get($rules2));
+        $this->assertSame($plan1, RulePlanCache::get($this->key($rules1)));
+        $this->assertSame($plan2, RulePlanCache::get($this->key($rules2)));
     }
 
     #[DataProvider('invalidMaxSizes')]
@@ -247,6 +341,16 @@ class ValidationRulePlanCacheTest extends TestCase
      */
     private function compile(array $rules): AttributePlan
     {
-        return RuleCompiler::compile($rules, self::NUMERIC_RULES);
+        [$prepared] = RuleCompiler::prepare($rules);
+
+        return RuleCompiler::compile($prepared, self::NUMERIC_RULES);
+    }
+
+    /**
+     * Prepare the cache key through the same declaration boundary as the validator.
+     */
+    private function key(array $rules): ?string
+    {
+        return RuleCompiler::prepare($rules)[1];
     }
 }

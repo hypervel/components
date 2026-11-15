@@ -19,7 +19,6 @@ use Egulias\EmailValidator\Validation\RFCValidation;
 use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Database\Query\Builder;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Exceptions\MathException;
@@ -27,7 +26,10 @@ use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Json;
 use Hypervel\Support\Number;
 use Hypervel\Support\Str;
+use Hypervel\Validation\DatabaseConditions;
+use Hypervel\Validation\DatabaseRulePlan;
 use Hypervel\Validation\FakeDnsGetRecordWrapper;
+use Hypervel\Validation\PresenceQuery;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
 use Hypervel\Validation\ValidationData;
@@ -1086,7 +1088,7 @@ trait ValidatesAttributes
     /**
      * Validate the existence of an attribute value in a database table.
      *
-     * @param array<int, int|string> $parameters
+     * @param array<int, mixed> $parameters
      */
     public function validateExists(string $attribute, mixed $value, mixed $parameters): bool
     {
@@ -1126,19 +1128,22 @@ trait ValidatesAttributes
     /**
      * Get the number of records that exist in storage.
      *
-     * @param array<int, int|string> $parameters
+     * @param array<int, mixed> $parameters
      */
     protected function getExistCount(mixed $connection, string $table, string $column, mixed $value, array $parameters): int
     {
-        $verifier = $this->getPresenceVerifier($connection);
+        $verifier = $this->getPresenceVerifier();
 
-        $extra = $this->currentRule instanceof Exists
-            ? $this->currentRule->queryConditions()
-            : $this->getExtraConditions(array_values(array_slice($parameters, 2)));
+        $conditions = match (true) {
+            $this->currentRule instanceof DatabaseRulePlan => $this->currentRule->conditions,
+            $this->currentRule instanceof Exists => $this->currentRule->queryConditions(),
+            default => $this->getExtraConditions(array_values(array_slice($parameters, 2))),
+        };
+        $query = new PresenceQuery($connection, $table, $column, $conditions);
 
         return is_array($value)
-            ? $verifier->getMultiCount($table, $column, $value, $extra)
-            : $verifier->getCount($table, $column, $value, null, null, $extra);
+            ? $verifier->getMultiCount($query, $value)
+            : $verifier->getCount($query, $value);
     }
 
     /**
@@ -1146,7 +1151,7 @@ trait ValidatesAttributes
      *
      * If a database column is not specified, the attribute will be used.
      *
-     * @param array<int, int|string> $parameters
+     * @param array<int, mixed> $parameters
      */
     public function validateUnique(string $attribute, mixed $value, mixed $parameters): bool
     {
@@ -1161,7 +1166,7 @@ trait ValidatesAttributes
 
         $id = null;
 
-        if (isset($parameters[2])) {
+        if (array_key_exists(2, $parameters)) {
             [$idColumn, $id] = $this->getUniqueIds($idColumn, $parameters);
 
             if (! is_null($id)) {
@@ -1172,26 +1177,24 @@ trait ValidatesAttributes
         // The presence verifier is responsible for counting rows within this store
         // mechanism which might be a relational database or any other permanent
         // data store like Redis, etc. We will use it to determine uniqueness.
-        $verifier = $this->getPresenceVerifier($connection);
+        $verifier = $this->getPresenceVerifier();
 
-        $extra = $this->currentRule instanceof Unique
-            ? $this->currentRule->queryConditions()
-            : $this->getUniqueExtra($parameters);
+        $conditions = match (true) {
+            $this->currentRule instanceof DatabaseRulePlan => $this->currentRule->conditions,
+            $this->currentRule instanceof Unique => $this->currentRule->queryConditions(),
+            default => $this->getUniqueExtra($parameters),
+        };
 
         return $verifier->getCount(
-            $table,
-            $column,
+            new PresenceQuery($connection, $table, $column, $conditions, $id, $idColumn),
             $value,
-            $id,
-            $idColumn,
-            $extra
         ) === 0;
     }
 
     /**
      * Get the excluded ID column and value for the unique rule.
      *
-     * @param array<int, int|string> $parameters
+     * @param array<int, mixed> $parameters
      */
     protected function getUniqueIds(?string $idColumn, array $parameters): array
     {
@@ -1223,15 +1226,15 @@ trait ValidatesAttributes
     /**
      * Get the extra conditions for a unique rule.
      *
-     * @param array<int, int|string> $parameters
+     * @param array<int, mixed> $parameters
      */
-    protected function getUniqueExtra(array $parameters): array
+    protected function getUniqueExtra(array $parameters): DatabaseConditions
     {
         if (isset($parameters[4])) {
             return $this->getExtraConditions(array_slice($parameters, 4));
         }
 
-        return [];
+        return new DatabaseConditions;
     }
 
     /**
@@ -1291,33 +1294,9 @@ trait ValidatesAttributes
     /**
      * Get the extra conditions for a unique / exists rule.
      */
-    protected function getExtraConditions(array $segments): array
+    protected function getExtraConditions(array $segments): DatabaseConditions
     {
-        $extra = [];
-
-        $count = count($segments);
-
-        for ($i = 0; $i < $count; $i += 2) {
-            [$column, $value] = [$segments[$i], $segments[$i + 1]];
-
-            if (! array_key_exists($column, $extra)) {
-                $extra[$column] = $value;
-
-                continue;
-            }
-
-            // Array-form rules keep native parameter types; cast as DatabasePresenceVerifier::addWhere() does.
-            $value = (string) $value;
-
-            $extra[] = fn (Builder $query): Builder => match (true) {
-                $value === 'NULL' => $query->whereNull($column),
-                $value === 'NOT_NULL' => $query->whereNotNull($column),
-                str_starts_with($value, '!') => $query->where($column, '!=', mb_substr($value, 1)),
-                default => $query->where($column, $value),
-            };
-        }
-
-        return $extra;
+        return DatabaseConditions::fromParameters($segments);
     }
 
     /**

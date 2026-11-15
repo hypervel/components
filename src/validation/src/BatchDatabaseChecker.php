@@ -18,24 +18,14 @@ final class BatchDatabaseChecker
     /**
      * Build a precomputed verifier from grouped candidates.
      *
-     * @param array<string, array{
-     *     meta: array{
-     *         connection: ?string,
-     *         table: string,
-     *         column: string,
-     *         wheres: array<string, mixed>,
-     *         ignore: null|int|string,
-     *         idColumn: ?string
-     *     },
-     *     values: list<mixed>
-     * }> $groups
+     * @param array<string, array{query: PresenceQuery, values: list<mixed>}> $groups
      */
     public static function buildVerifier(array $groups, DatabasePresenceVerifier $presenceVerifier): ?PrecomputedPresenceVerifier
     {
         $verifier = new PrecomputedPresenceVerifier($presenceVerifier);
 
         foreach ($groups as $lookupKey => $group) {
-            self::registerLookup($verifier, $presenceVerifier, $lookupKey, $group['meta'], $group['values']);
+            self::registerLookup($verifier, $presenceVerifier, $lookupKey, $group['query'], $group['values']);
         }
 
         return $verifier->hasLookups() ? $verifier : null;
@@ -44,21 +34,13 @@ final class BatchDatabaseChecker
     /**
      * Query and register database-proven facts for one query shape.
      *
-     * @param array{
-     *     connection: ?string,
-     *     table: string,
-     *     column: string,
-     *     wheres: array<string, mixed>,
-     *     ignore: null|int|string,
-     *     idColumn: ?string
-     * } $meta
      * @param list<mixed> $values
      */
     private static function registerLookup(
         PrecomputedPresenceVerifier $verifier,
         DatabasePresenceVerifier $presenceVerifier,
         string $lookupKey,
-        array $meta,
+        PresenceQuery $query,
         array $values,
     ): void {
         $representativeValues = self::normalizeCandidates($values);
@@ -70,7 +52,7 @@ final class BatchDatabaseChecker
         $stageOneSingleChunk = count($representativeValues) <= self::CHUNK_SIZE;
         $stageOneValues = self::queryValues(
             $presenceVerifier,
-            $meta,
+            $query,
             array_values($representativeValues),
         );
         $exactHits = [];
@@ -94,7 +76,7 @@ final class BatchDatabaseChecker
         } elseif (count($representativeValues) === 1 && $exactHits === []) {
             $knownPresent[array_key_first($representativeValues)] = true;
         } elseif ($exactHits !== [] && $misses !== []) {
-            $stageTwoValues = self::queryValues($presenceVerifier, $meta, array_values($misses));
+            $stageTwoValues = self::queryValues($presenceVerifier, $query, array_values($misses));
 
             if ($stageTwoValues === []) {
                 $provenAbsent = array_fill_keys(array_keys($misses), true);
@@ -125,34 +107,18 @@ final class BatchDatabaseChecker
     /**
      * Run chunked queries for one database query shape.
      *
-     * @param array{
-     *     connection: ?string,
-     *     table: string,
-     *     column: string,
-     *     wheres: array<string, mixed>,
-     *     ignore: null|int|string,
-     *     idColumn: ?string
-     * } $meta
      * @param list<float|int|string> $values
      * @return list<mixed>
      */
     private static function queryValues(
         DatabasePresenceVerifier $presenceVerifier,
-        array $meta,
+        PresenceQuery $query,
         array $values,
     ): array {
         $results = [];
 
         foreach (array_chunk($values, self::CHUNK_SIZE) as $chunk) {
-            array_push($results, ...$presenceVerifier->getExistingValues(
-                $meta['table'],
-                $meta['column'],
-                $chunk,
-                $meta['connection'],
-                $meta['ignore'],
-                $meta['idColumn'],
-                $meta['wheres'],
-            ));
+            array_push($results, ...$presenceVerifier->getExistingValues($query, $chunk));
         }
 
         return $results;

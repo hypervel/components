@@ -10,8 +10,6 @@ use Hypervel\Support\Fluent;
 use Hypervel\Tests\TestCase;
 use Hypervel\Validation\NestedRules;
 use Hypervel\Validation\Rule;
-use Hypervel\Validation\Rules\Exists;
-use Hypervel\Validation\Rules\Unique;
 use Hypervel\Validation\ValidationRuleParser;
 use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -708,8 +706,6 @@ class ValidationRuleParserTest extends TestCase
                 Rule::in(['allowed', 'other']),
                 Rule::notIn(['blocked']),
                 Rule::dimensions()->maxWidth(100),
-                Rule::exists('users', 'email'),
-                Rule::unique('users', 'email')->ignore(0),
             ],
         ]);
 
@@ -717,8 +713,6 @@ class ValidationRuleParserTest extends TestCase
             'in:"allowed","other"',
             'not_in:"blocked"',
             'dimensions:max_width=100',
-            'exists:users,email',
-            'unique:users,email,"0",id',
         ], $results->rules['value']);
     }
 
@@ -769,10 +763,10 @@ class ValidationRuleParserTest extends TestCase
         $this->assertSame(['NotRegex', [$pattern]], ValidationRuleParser::parse('not_regex:' . $pattern));
     }
 
-    public function testExplodePreservesCallbackBearingPresenceRules(): void
+    public function testExplodePreservesDatabaseRuleObjects(): void
     {
-        $exists = Rule::exists('users', 'email')->where(static fn ($query) => $query);
-        $unique = Rule::unique('users', 'email')->where(static fn ($query) => $query);
+        $exists = Rule::exists('users', 'email');
+        $unique = Rule::unique('users', 'email');
 
         $results = (new ValidationRuleParser(['email' => 'user@example.com']))->explode([
             'email' => [$exists, $unique],
@@ -781,41 +775,8 @@ class ValidationRuleParserTest extends TestCase
         $this->assertSame([$exists, $unique], $results->rules['email']);
     }
 
-    public function testEmptyConditionOverridesReduceOnlyWithoutStoredWheres(): void
-    {
-        $exists = new class('users', 'email') extends Exists {
-            /**
-             * Remove all stored query conditions.
-             */
-            public function queryConditions(): array
-            {
-                return [];
-            }
-        };
-        $unique = (new class('users', 'email') extends Unique {
-            /**
-             * Remove all stored query conditions.
-             */
-            public function queryConditions(): array
-            {
-                return [];
-            }
-        })->ignore('id,with,commas');
-
-        foreach ([$exists, $unique] as $rule) {
-            $this->assertTrue(ValidationRuleParser::ruleReducesToString($rule));
-            $rule->where('status', 'active');
-            $result = (new ValidationRuleParser(['email' => 'user@example.com']))->explode(['email' => [$rule]]);
-
-            $this->assertSame([$rule], $result->rules['email']);
-        }
-    }
-
     public function testIdentifiesRulesReducedToStringsByTheParser(): void
     {
-        $callbackExists = Rule::exists('users', 'email')->where(
-            static fn ($query) => $query,
-        );
         $contractRule = new class implements RuleContract {
             public function passes(string $attribute, mixed $value): bool
             {
@@ -828,23 +789,13 @@ class ValidationRuleParserTest extends TestCase
             }
         };
 
-        $this->assertTrue(ValidationRuleParser::ruleReducesToString(
+        $this->assertFalse(ValidationRuleParser::ruleReducesToString(
             Rule::exists('users', 'email'),
         ));
-        $this->assertTrue(ValidationRuleParser::ruleReducesToString(
-            Rule::exists('users', 'email')->where('active', true),
-        ));
-        $this->assertTrue(ValidationRuleParser::ruleReducesToString(
-            Rule::unique('users', 'email')->withoutTrashed(),
-        ));
         $this->assertFalse(ValidationRuleParser::ruleReducesToString(
-            Rule::exists('users', 'email')->where('type', 'NULL'),
-        ));
-        $this->assertFalse(ValidationRuleParser::ruleReducesToString(
-            Rule::exists('users', 'email')->whereNot('type', 'foo')->whereNot('type', 'bar'),
+            Rule::unique('users', 'email'),
         ));
         $this->assertTrue(ValidationRuleParser::ruleReducesToString(Rule::date()));
-        $this->assertFalse(ValidationRuleParser::ruleReducesToString($callbackExists));
         $this->assertFalse(ValidationRuleParser::ruleReducesToString(
             Rule::forEach(static fn (): array => []),
         ));

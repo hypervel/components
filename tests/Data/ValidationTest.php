@@ -1764,7 +1764,7 @@ class ValidationTest extends TestCase
             'email' => [
                 'required',
                 'string',
-                'unique:users,NULL,NULL,id,is_active,"1"',
+                (new HypervelUnique('users'))->where('is_active', true),
             ],
         ]);
     }
@@ -1782,7 +1782,7 @@ class ValidationTest extends TestCase
             'property' => [
                 'required',
                 'integer',
-                'unique:posts,NULL,"69",id',
+                (new HypervelUnique('posts'))->ignore('69'),
             ],
         ]);
     }
@@ -1800,7 +1800,7 @@ class ValidationTest extends TestCase
             'property' => [
                 'required',
                 'integer',
-                'unique:posts,NULL,"69",id',
+                (new HypervelUnique('posts'))->ignore(69),
             ],
         ]);
     }

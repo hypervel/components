@@ -13,8 +13,13 @@ use Hypervel\Http\UploadedFile;
 use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
+use Hypervel\Validation\DatabaseCondition;
+use Hypervel\Validation\DatabaseConditionOperator;
+use Hypervel\Validation\DatabaseConditions;
+use Hypervel\Validation\PresenceQuery;
 use Hypervel\Validation\PresenceVerifierInterface;
 use Hypervel\Validation\Rule;
+use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Validator;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -573,12 +578,25 @@ class ValidationCompiledExecutionTest extends TestCase
         foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
             $verifier = m::mock(PresenceVerifierInterface::class);
             $verifier->shouldReceive('getCount')->once()->with(
-                'users',
-                'email',
+                m::on(static function (PresenceQuery $query): bool {
+                    $actual = get_object_vars($query);
+                    $actual['conditions'] = $query->conditions->toArray();
+                    self::assertSame([
+                        'connection' => null,
+                        'collection' => 'users',
+                        'column' => 'email',
+                        'conditions' => [
+                            ['scope', '=', '*'],
+                            ['path', '=', 'a\.b'],
+                            ['discount', '=', '100%'],
+                        ],
+                        'excludeId' => '42',
+                        'idColumn' => 'id',
+                    ], $actual);
+
+                    return true;
+                }),
                 'user@example.com',
-                '42',
-                'id',
-                ['scope' => '*', 'path' => 'a\.b', 'discount' => '100%'],
             )->andReturn(0);
             $validator = $this->makeValidator(
                 ['items' => [['id' => 42, 'email' => 'user@example.com']]],
@@ -755,14 +773,20 @@ class ValidationCompiledExecutionTest extends TestCase
                     {
                     }
 
-                    public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int
+                    /**
+                     * Count matching values in the requested store.
+                     */
+                    public function getCount(PresenceQuery $query, mixed $value): int
                     {
                         ++$this->calls;
 
                         return 0;
                     }
 
-                    public function getMultiCount(string $collection, string $column, array $values, array $extra = []): int
+                    /**
+                     * Count matching distinct values in the requested store.
+                     */
+                    public function getMultiCount(PresenceQuery $query, array $values): int
                     {
                         ++$this->calls;
 
@@ -804,14 +828,20 @@ class ValidationCompiledExecutionTest extends TestCase
             {
             }
 
-            public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int
+            /**
+             * Count matching values in the requested store.
+             */
+            public function getCount(PresenceQuery $query, mixed $value): int
             {
                 ++$this->presenceCalls;
 
                 return 1;
             }
 
-            public function getMultiCount(string $collection, string $column, array $values, array $extra = []): int
+            /**
+             * Count matching distinct values in the requested store.
+             */
+            public function getMultiCount(PresenceQuery $query, array $values): int
             {
                 ++$this->presenceCalls;
 
@@ -846,12 +876,18 @@ class ValidationCompiledExecutionTest extends TestCase
     public function testCustomPresenceVerifierDisablesBatching(): void
     {
         $customVerifier = new class implements PresenceVerifierInterface {
-            public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int
+            /**
+             * Count matching values in the requested store.
+             */
+            public function getCount(PresenceQuery $query, mixed $value): int
             {
                 return $value === 'exists@example.com' ? 1 : 0;
             }
 
-            public function getMultiCount(string $collection, string $column, array $values, array $extra = []): int
+            /**
+             * Count matching distinct values in the requested store.
+             */
+            public function getMultiCount(PresenceQuery $query, array $values): int
             {
                 return 0;
             }
@@ -914,12 +950,18 @@ class ValidationCompiledExecutionTest extends TestCase
         $v = new Validator($translator, ['name' => 'test'], ['name' => 'required|string']);
 
         $originalVerifier = new class implements PresenceVerifierInterface {
-            public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int
+            /**
+             * Count matching values in the requested store.
+             */
+            public function getCount(PresenceQuery $query, mixed $value): int
             {
                 return 0;
             }
 
-            public function getMultiCount(string $collection, string $column, array $values, array $extra = []): int
+            /**
+             * Count matching distinct values in the requested store.
+             */
+            public function getMultiCount(PresenceQuery $query, array $values): int
             {
                 return 0;
             }
@@ -974,6 +1016,103 @@ class ValidationCompiledExecutionTest extends TestCase
 
             $rule->customField('another_field');
         }
+    }
+
+    public function testDatabaseDeclarationsAreCapturedOncePerRunAndCachedByValue(): void
+    {
+        $rule = new class('users', 'email') extends Exists {
+            public int $parameterReads = 0;
+
+            public int $conditionReads = 0;
+
+            public string $status = 'construction';
+
+            /**
+             * Export the subclass's canonical query header.
+             */
+            public function queryParameters(): array
+            {
+                ++$this->parameterReads;
+
+                return ['users', 'custom_email'];
+            }
+
+            /**
+             * Export the current declarative condition.
+             */
+            public function queryConditions(): DatabaseConditions
+            {
+                ++$this->conditionReads;
+
+                return new DatabaseConditions(new DatabaseCondition('status', DatabaseConditionOperator::Equals, $this->status));
+            }
+        };
+        $validator = $this->makeValidator(
+            ['trigger' => 'present', 'email' => 'user@example.com'],
+            ['trigger' => 'mutate', 'email' => ['nullable', $rule]],
+        );
+        $validator->addExtension('mutate', static function () use ($rule): bool {
+            $rule->status = 'during validation';
+
+            return true;
+        });
+        $conditions = [];
+        $verifier = m::mock(PresenceVerifierInterface::class);
+        $verifier->expects('getCount')->times(3)->andReturnUsing(function (PresenceQuery $query, mixed $value) use (&$conditions): int {
+            $this->assertSame('users', $query->collection);
+            $this->assertSame('custom_email', $query->column);
+            $this->assertSame('user@example.com', $value);
+            $conditions[] = $query->conditions->toArray();
+
+            return $query->conditions->all()[0]->value === 'active' ? 1 : 0;
+        });
+        $validator->setPresenceVerifier($verifier);
+        $compiledPlans = new ReflectionProperty(Validator::class, 'compiledPlans');
+        $plans = [];
+
+        foreach (['active', 'active', 'inactive'] as $status) {
+            $rule->status = $status;
+            $this->assertSame($status === 'active', $validator->passes());
+            $plans[] = $compiledPlans->getValue($validator)['email'];
+        }
+
+        $this->assertSame(3, $rule->parameterReads);
+        $this->assertSame(3, $rule->conditionReads);
+        $this->assertSame([
+            [['status', '=', 'active']],
+            [['status', '=', 'active']],
+            [['status', '=', 'inactive']],
+        ], $conditions);
+        $this->assertSame($plans[0], $plans[1]);
+        $this->assertNotSame($plans[0], $plans[2]);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCustomValidatorsReceiveOriginalDatabaseRules(bool $wildcard): void
+    {
+        $rule = new Exists('users', 'email');
+        $data = $wildcard ? ['items' => [['email' => 'first'], ['email' => 'second']]] : ['email' => 'first'];
+        $rules = [$wildcard ? 'items.*.email' : 'email' => $rule];
+        $validator = new class(new Translator(new ArrayLoader, 'en'), $data, $rules) extends Validator {
+            public array $seenRules = [];
+
+            /**
+             * Inspect the caller's rule through the normal extension hook.
+             */
+            public function validateExists(string $attribute, mixed $value, mixed $parameters): bool
+            {
+                $this->seenRules[] = $this->currentRule;
+
+                return parent::validateExists($attribute, $value, $parameters);
+            }
+        };
+        $verifier = m::mock(PresenceVerifierInterface::class);
+        $verifier->expects('getCount')->times($wildcard ? 2 : 1)->andReturn(1);
+        $validator->setPresenceVerifier($verifier);
+
+        $this->assertTrue($validator->passes());
+        $this->assertSame($wildcard ? [$rule, $rule] : [$rule], $validator->seenRules);
     }
 
     #[DataProvider('guardedRuleCases')]

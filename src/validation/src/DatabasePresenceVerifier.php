@@ -8,128 +8,115 @@ use Closure;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 
-class DatabasePresenceVerifier implements DatabasePresenceVerifierInterface
+class DatabasePresenceVerifier implements PresenceVerifierInterface
 {
     /**
-     * The database connection to use.
-     */
-    protected ?string $connection = null;
-
-    /**
      * Create a new database presence verifier.
-     *
-     * @param ConnectionResolverInterface $db the database connection instance
      */
-    public function __construct(
-        protected ConnectionResolverInterface $db
-    ) {
-    }
-
-    /**
-     * Count the number of objects in a collection having the given value.
-     */
-    public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int
+    public function __construct(protected ConnectionResolverInterface $db)
     {
-        // Keep JSON booleans typed so the query builder compiles a native JSON comparison.
-        $value = is_bool($value) && str_contains($column, '->') ? $value : $this->prepareValue($value);
-        $query = $this->table($collection)->where($column, '=', $value);
-
-        if (! is_null($excludeId) && $excludeId !== 'NULL') {
-            $query->where($idColumn ?: 'id', '<>', $excludeId);
-        }
-
-        return $this->addConditions($query, $extra)->count();
     }
 
     /**
-     * Count the number of objects in a collection with the given values.
+     * Count the number of objects matching the resolved presence query.
      */
-    public function getMultiCount(string $collection, string $column, array $values, array $extra = []): int
+    public function getCount(PresenceQuery $query, mixed $value): int
     {
-        $query = $this->table($collection);
+        $builder = $this->table($query)
+            ->where($query->column, '=', $this->prepareValue($query->column, $value));
 
-        if (str_contains($column, '->') && array_any($values, static fn (mixed $value): bool => is_bool($value))) {
-            // whereIn() does not apply the query builder's native JSON-boolean comparison.
-            $query->where(function (Builder $query) use ($column, $values): void {
-                $booleans = [];
-                $others = [];
-
-                foreach ($values as $value) {
-                    if (is_bool($value)) {
-                        $booleans[(int) $value] = $value;
-                    } else {
-                        $others[] = $value;
-                    }
-                }
-
-                if ($others !== []) {
-                    $query->whereIn($column, array_map($this->prepareValue(...), $others));
-                }
-
-                foreach ($booleans as $value) {
-                    $query->orWhere($column, $value);
-                }
-            });
-        } else {
-            $query->whereIn($column, array_map($this->prepareValue(...), $values));
-        }
-
-        return $this->addConditions($query, $extra)->distinct()->count($column);
+        return $this->addQueryConditions($builder, $query)->count();
     }
 
     /**
-     * Get the distinct existing values from a collection.
+     * Count the distinct values matching the resolved presence query.
+     */
+    public function getMultiCount(PresenceQuery $query, array $values): int
+    {
+        $builder = $this->addWhereIn($this->table($query), $query->column, $values);
+
+        return $this->addQueryConditions($builder, $query)->distinct()->count($query->column);
+    }
+
+    /**
+     * Get the distinct existing candidate values for a batch.
      *
-     * @param array<int, mixed> $values
-     * @param array<string, mixed> $extra
      * @return array<int, mixed>
      */
-    public function getExistingValues(
-        string $collection,
-        string $column,
-        array $values,
-        ?string $connection,
-        mixed $excludeId = null,
-        ?string $idColumn = null,
-        array $extra = [],
-    ): array {
-        $query = $this->db->connection($connection)
-            ->table($collection)
-            ->useWritePdo()
-            ->whereIn($column, array_map($this->prepareValue(...), $values));
-
-        if (! is_null($excludeId) && $excludeId !== 'NULL') {
-            $query->where($idColumn ?: 'id', '<>', $excludeId);
-        }
+    public function getExistingValues(PresenceQuery $query, array $values): array
+    {
+        $builder = $this->addWhereIn($this->table($query), $query->column, $values);
 
         /** @var array<int, mixed> */
-        return $this->addConditions($query, $extra)->distinct()->pluck($column)->all();
+        return $this->addQueryConditions($builder, $query)->distinct()->pluck($query->column)->all();
     }
 
     /**
-     * Prepare a value for comparison with a database column.
+     * Add exclusions and predicates without storing invocation state on the verifier.
      */
-    protected function prepareValue(mixed $value): mixed
+    protected function addQueryConditions(Builder $builder, PresenceQuery $query): Builder
     {
-        return match (true) {
-            is_bool($value) => (string) (int) $value,
-            is_int($value) => (string) $value,
-            default => $value,
-        };
+        if ($query->excludeId !== null) {
+            $builder->where($query->idColumn ?: 'id', '<>', $query->excludeId);
+        }
+
+        return $this->addConditions($builder, $query->conditions);
     }
 
     /**
-     * Add the given conditions to the query.
+     * Prepare the value being validated for comparison with its database column.
      */
-    protected function addConditions(Builder $query, array $conditions): Builder
+    protected function prepareValue(string $column, mixed $value): mixed
     {
-        foreach ($conditions as $key => $value) {
-            if ($value instanceof Closure) {
-                $query->where(function ($query) use ($value) {
-                    $value($query);
-                });
+        // Unlike Laravel's value-only hook, the column keeps JSON booleans typed
+        // through the same normalizer used by condition operands.
+        return DatabaseCondition::prepareValue($column, $value);
+    }
+
+    /**
+     * Add candidate comparisons while preserving native JSON booleans.
+     */
+    protected function addWhereIn(Builder $query, string $column, array $values): Builder
+    {
+        $values = array_map(fn (mixed $value): mixed => $this->prepareValue($column, $value), $values);
+
+        if (! str_contains($column, '->') || ! array_any($values, static fn (mixed $value): bool => is_bool($value))) {
+            return $query->whereIn($column, $values);
+        }
+
+        // whereIn() does not use the grammar's native JSON-boolean comparison.
+        return $query->where(function (Builder $query) use ($column, $values): void {
+            $booleans = [];
+            $others = [];
+
+            foreach ($values as $value) {
+                if (is_bool($value)) {
+                    $booleans[(int) $value] = $value;
+                } else {
+                    $others[] = $value;
+                }
+            }
+
+            if ($others !== []) {
+                $query->whereIn($column, $others);
+            }
+
+            foreach ($booleans as $value) {
+                $query->orWhere($column, $value);
+            }
+        });
+    }
+
+    /**
+     * Apply the declared predicates and explicit query callbacks.
+     */
+    protected function addConditions(Builder $query, DatabaseConditions $conditions): Builder
+    {
+        foreach ($conditions->all() as $condition) {
+            if ($condition instanceof Closure) {
+                $query->where($condition);
             } else {
-                $this->addWhere($query, $key, $value);
+                $this->addWhere($query, $condition);
             }
         }
 
@@ -137,36 +124,25 @@ class DatabasePresenceVerifier implements DatabasePresenceVerifierInterface
     }
 
     /**
-     * Add a "where" clause to the given query.
+     * Apply one typed predicate without interpreting its value as a string token.
      */
-    protected function addWhere(Builder $query, string $key, mixed $extraValue): void
+    protected function addWhere(Builder $query, DatabaseCondition $condition): void
     {
-        $extraValue = (string) $extraValue;
-
-        if ($extraValue === 'NULL') {
-            $query->whereNull($key);
-        } elseif ($extraValue === 'NOT_NULL') {
-            $query->whereNotNull($key);
-        } elseif (str_starts_with($extraValue, '!')) {
-            $query->where($key, '!=', mb_substr($extraValue, 1));
-        } else {
-            $query->where($key, $extraValue);
-        }
+        match ($condition->operator) {
+            DatabaseConditionOperator::Equals => $query->where($condition->column, '=', $condition->value),
+            DatabaseConditionOperator::NotEquals => $query->where($condition->column, '!=', $condition->value),
+            DatabaseConditionOperator::IsNull => $query->whereNull($condition->column),
+            DatabaseConditionOperator::IsNotNull => $query->whereNotNull($condition->column),
+            DatabaseConditionOperator::In => $query->whereIn($condition->column, $condition->value),
+            DatabaseConditionOperator::NotIn => $query->whereNotIn($condition->column, $condition->value),
+        };
     }
 
     /**
-     * Get a query builder for the given table.
+     * Get a write-connection query builder for the requested table.
      */
-    protected function table(string $table): Builder
+    protected function table(PresenceQuery $query): Builder
     {
-        return $this->db->connection($this->connection)->table($table)->useWritePdo();
-    }
-
-    /**
-     * Set the connection to be used.
-     */
-    public function setConnection(?string $connection): void
-    {
-        $this->connection = $connection;
+        return $this->db->connection($query->connection)->table($query->collection)->useWritePdo();
     }
 }

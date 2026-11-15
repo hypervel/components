@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
-use Closure;
-
 /**
  * Return database-proven presence facts from batched queries.
  *
@@ -13,7 +11,7 @@ use Closure;
  * keyed by the complete database query shape. Unknown probes delegate to the
  * original verifier, preserving ordinary validation semantics.
  */
-final class PrecomputedPresenceVerifier implements DatabasePresenceVerifierInterface
+final class PrecomputedPresenceVerifier implements PresenceVerifierInterface
 {
     /**
      * @var array<string, array{
@@ -28,45 +26,34 @@ final class PrecomputedPresenceVerifier implements DatabasePresenceVerifierInter
     /** @var array<string, array<string, int>> */
     private array $fallbackCounts = [];
 
-    private ?string $connection = null;
-
+    /**
+     * Create an execution-local lookup around the ordinary presence verifier.
+     */
     public function __construct(
-        private readonly DatabasePresenceVerifierInterface $fallback,
+        private readonly PresenceVerifierInterface $fallback,
     ) {
     }
 
     /**
      * Build a key for the complete database query shape.
      */
-    public static function lookupKey(
-        ?string $connection,
-        string $collection,
-        string $column,
-        int|string|null $excludeId = null,
-        ?string $idColumn = null,
-        array $extra = [],
-    ): ?string {
-        $conditions = [];
+    public static function lookupKey(PresenceQuery $query): ?string
+    {
+        $conditions = $query->conditions->cacheData();
 
-        foreach ($extra as $key => $value) {
-            if ($value instanceof Closure
-                || (! is_scalar($value) && $value !== null)
-            ) {
-                return null;
-            }
-
-            $conditions[] = [(string) $key, (string) $value];
+        if ($conditions === null) {
+            return null;
         }
 
         $shape = [
-            'connection' => $connection,
-            'collection' => $collection,
-            'column' => $column,
+            'connection' => $query->connection,
+            'collection' => $query->collection,
+            'column' => $query->column,
             'conditions' => $conditions,
         ];
 
-        if ($excludeId !== null && $excludeId !== 'NULL') {
-            $shape['exclusion'] = [$idColumn ?: 'id', $excludeId];
+        if ($query->excludeId !== null) {
+            $shape['exclusion'] = [$query->idColumn ?: 'id', $query->excludeId];
         }
 
         return serialize($shape);
@@ -96,28 +83,19 @@ final class PrecomputedPresenceVerifier implements DatabasePresenceVerifierInter
 
     /**
      * Count the number of objects in a collection having the given value.
-     *
-     * @param array<mixed> $extra
      */
-    public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int
+    public function getCount(PresenceQuery $query, mixed $value): int
     {
-        $lookupKey = self::lookupKey(
-            $this->connection,
-            $collection,
-            $column,
-            $excludeId,
-            $idColumn,
-            $extra,
-        );
+        $lookupKey = self::lookupKey($query);
 
         if ($lookupKey === null || ! isset($this->lookups[$lookupKey])) {
-            return $this->fallback->getCount($collection, $column, $value, $excludeId, $idColumn, $extra);
+            return $this->fallback->getCount($query, $value);
         }
 
         $bindingKey = self::bindingKey($value);
 
         if ($bindingKey === null) {
-            return $this->fallback->getCount($collection, $column, $value, $excludeId, $idColumn, $extra);
+            return $this->fallback->getCount($query, $value);
         }
 
         $lookup = $this->lookups[$lookupKey];
@@ -131,21 +109,20 @@ final class PrecomputedPresenceVerifier implements DatabasePresenceVerifierInter
         }
 
         return $this->fallbackCounts[$lookupKey][$bindingKey]
-            ??= $this->fallback->getCount($collection, $column, $value, $excludeId, $idColumn, $extra);
+            ??= $this->fallback->getCount($query, $value);
     }
 
     /**
      * Count the number of objects in a collection with the given values.
      *
      * @param array<int|string, mixed> $values
-     * @param array<mixed> $extra
      */
-    public function getMultiCount(string $collection, string $column, array $values, array $extra = []): int
+    public function getMultiCount(PresenceQuery $query, array $values): int
     {
-        $lookupKey = self::lookupKey($this->connection, $collection, $column, extra: $extra);
+        $lookupKey = self::lookupKey($query);
 
         if ($lookupKey === null || ! isset($this->lookups[$lookupKey])) {
-            return $this->fallback->getMultiCount($collection, $column, $values, $extra);
+            return $this->fallback->getMultiCount($query, $values);
         }
 
         $bindingKeys = [];
@@ -154,7 +131,7 @@ final class PrecomputedPresenceVerifier implements DatabasePresenceVerifierInter
             $bindingKey = self::bindingKey($value);
 
             if ($bindingKey === null) {
-                return $this->fallback->getMultiCount($collection, $column, $values, $extra);
+                return $this->fallback->getMultiCount($query, $values);
             }
 
             $bindingKeys[$bindingKey] = true;
@@ -167,7 +144,7 @@ final class PrecomputedPresenceVerifier implements DatabasePresenceVerifierInter
         foreach ($bindingKeys as $bindingKey => $_) {
             if (isset($lookup['exactHits'][$bindingKey])) {
                 if (! $lookup['stageOneSingleChunk']) {
-                    return $this->fallback->getMultiCount($collection, $column, $values, $extra);
+                    return $this->fallback->getMultiCount($query, $values);
                 }
 
                 ++$presentCount;
@@ -176,7 +153,7 @@ final class PrecomputedPresenceVerifier implements DatabasePresenceVerifierInter
 
             if (isset($lookup['knownPresent'][$bindingKey])) {
                 if ($distinctValueCount !== 1) {
-                    return $this->fallback->getMultiCount($collection, $column, $values, $extra);
+                    return $this->fallback->getMultiCount($query, $values);
                 }
 
                 ++$presentCount;
@@ -184,20 +161,11 @@ final class PrecomputedPresenceVerifier implements DatabasePresenceVerifierInter
             }
 
             if (! isset($lookup['provenAbsent'][$bindingKey])) {
-                return $this->fallback->getMultiCount($collection, $column, $values, $extra);
+                return $this->fallback->getMultiCount($query, $values);
             }
         }
 
         return $presentCount;
-    }
-
-    /**
-     * Set the connection to be used.
-     */
-    public function setConnection(?string $connection): void
-    {
-        $this->connection = $connection;
-        $this->fallback->setConnection($connection);
     }
 
     /**

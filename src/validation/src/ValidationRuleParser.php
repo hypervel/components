@@ -157,22 +157,10 @@ class ValidationRuleParser
             || $rule instanceof RuleContract
             || $rule instanceof ParameterizedRule
             || $rule instanceof CompilableRules
+            || $rule instanceof Exists
+            || $rule instanceof Unique
         ) {
             return false;
-        }
-
-        if ($rule instanceof Exists || $rule instanceof Unique) {
-            $conditions = $rule->queryConditions();
-
-            // Lossless native rules stay cacheable strings; subclasses may override their conditions.
-            if (in_array($rule::class, [Exists::class, Unique::class], true)) {
-                return ! array_any($conditions, static fn (mixed $condition): bool => $condition instanceof Closure);
-            }
-
-            // The string can still carry stored wheres that a subclass's empty override removed.
-            // Exists starts with table/column; Unique also includes the ignored ID and its column.
-            return $conditions === []
-                && count(static::parse((string) $rule)[1]) === ($rule instanceof Exists ? 2 : 4);
         }
 
         return true;
@@ -409,6 +397,14 @@ class ValidationRuleParser
 
         if ($rule instanceof RuleContract || $rule instanceof CompilableRules) {
             return [$rule, []];
+        }
+
+        if ($rule instanceof DatabaseRulePlan) {
+            return [$rule->name, $rule->parameters];
+        }
+
+        if ($rule instanceof Exists || $rule instanceof Unique) {
+            return [$rule instanceof Exists ? 'Exists' : 'Unique', $rule->queryParameters()];
         }
 
         if (is_array($rule)) {
