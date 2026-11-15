@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Closure;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
@@ -15,6 +16,7 @@ use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
 class EloquentUpdateTest extends DatabaseTestCase
@@ -97,6 +99,64 @@ class EloquentUpdateTest extends DatabaseTestCase
         $this->assertSame('Engineer: Abdul', $record->job . ': ' . $record->name);
     }
 
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTouchQualifiesUpdatedAtColumnOnQueriesWithJoins(bool $scoped): void
+    {
+        TestUpdateModel2::forceCreate([
+            'name' => Str::random(),
+            'updated_at' => '2000-01-01 00:00:00',
+        ]);
+
+        TestUpdateModel3::forceCreate([
+            'counter' => 1,
+            'updated_at' => '2000-01-01 00:00:00',
+        ]);
+
+        $query = TestUpdateModel2::query();
+        $join = static fn (Builder $builder) => $builder->join('test_model3', 'test_model3.id', '=', 'test_model2.id');
+
+        if ($scoped) {
+            $query->withGlobalScope('joined', $join);
+        } else {
+            $join($query);
+        }
+
+        $affected = $query->touch();
+
+        $this->assertSame(1, $affected);
+        $this->assertNotSame('2000-01-01 00:00:00', TestUpdateModel2::find(1)->updated_at->toDateTimeString());
+        $this->assertSame('2000-01-01 00:00:00', TestUpdateModel3::find(1)->updated_at->toDateTimeString());
+    }
+
+    #[TestWith(['touch', [], 2])]
+    #[TestWith(['update', [['counter' => 3]], 3])]
+    #[TestWith(['increment', ['counter'], 3])]
+    #[TestWith(['decrement', ['counter'], 1])]
+    #[TestWith(['incrementEach', [['counter' => 1]], 3])]
+    #[TestWith(['decrementEach', [['counter' => 1]], 1])]
+    public function testWritesUseTableAliasAddedByGlobalScope(string $method, array $arguments, int $counter): void
+    {
+        TestUpdateModel1::create(['name' => 'access', 'title' => 'allowed']);
+        TestUpdateModel3::forceCreate(['counter' => 2, 'updated_at' => '2000-01-01 00:00:00']);
+        $scopeCalls = 0;
+
+        $query = TestUpdateModel3::withoutGlobalScopes()
+            ->withGlobalScope('access', function (Builder $query) use (&$scopeCalls): void {
+                ++$scopeCalls;
+                $query->from('test_model3', 'target')
+                    ->join('test_model1', 'test_model1.id', '=', 'target.id')
+                    ->where('test_model1.title', 'allowed');
+            });
+
+        $affected = $query->{$method}(...$arguments);
+
+        $this->assertSame(1, $affected);
+        $this->assertSame(1, $scopeCalls);
+        $this->assertSame($counter, TestUpdateModel3::find(1)->counter);
+        $this->assertNotSame('2000-01-01 00:00:00', TestUpdateModel3::find(1)->updated_at->toDateTimeString());
+    }
+
     public function testSoftDeleteWithJoins(): void
     {
         TestUpdateModel1::create([
@@ -114,6 +174,27 @@ class EloquentUpdateTest extends DatabaseTestCase
         })->delete();
 
         $this->assertCount(0, TestUpdateModel2::all());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testSoftDeleteAndRestoreWithScopedJoins(bool $restore): void
+    {
+        TestUpdateModel2::forceCreate([
+            'name' => 'target',
+            'deleted_at' => $restore ? '2000-01-01 00:00:00' : null,
+        ]);
+        TestUpdateModel3::create(['counter' => 1]);
+        $scopeCalls = 0;
+        $query = TestUpdateModel2::query()->withGlobalScope('joined', function (Builder $query) use (&$scopeCalls): void {
+            ++$scopeCalls;
+            $query->join('test_model3', 'test_model3.id', '=', 'test_model2.id');
+        });
+
+        $this->assertSame(1, $restore ? $query->restore() : $query->delete());
+        $this->assertSame(1, $scopeCalls);
+        $this->assertSame(! $restore, TestUpdateModel2::withTrashed()->find(1)->trashed());
+        $this->assertFalse(TestUpdateModel3::find(1)->trashed());
     }
 
     public function testIncrement(): void

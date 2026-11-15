@@ -1316,7 +1316,9 @@ class Builder implements BuilderContract
      */
     public function update(array $values): int
     {
-        return $this->toBase()->update($this->addUpdatedAtColumn($values));
+        $builder = $this->applyScopes()->withoutGlobalScopes();
+
+        return $builder->toBase()->update($builder->addUpdatedAtColumn($values));
     }
 
     /**
@@ -1372,7 +1374,15 @@ class Builder implements BuilderContract
             return false;
         }
 
-        return $this->toBase()->update([$column => $time]);
+        // Global scopes may add joins or alias the table, so qualify against the scoped builder.
+        $builder = $this->applyScopes()->withoutGlobalScopes();
+        $query = $builder->toBase();
+
+        if (! empty($query->joins)) {
+            $column = $builder->qualifyColumn($column);
+        }
+
+        return $query->update([$column => $time]);
     }
 
     /**
@@ -1380,10 +1390,12 @@ class Builder implements BuilderContract
      */
     public function increment(Expression|string $column, mixed $amount = 1, array $extra = []): int
     {
-        return $this->toBase()->increment(
+        $builder = $this->applyScopes()->withoutGlobalScopes();
+
+        return $builder->toBase()->increment(
             $column,
             $amount,
-            $this->addUpdatedAtColumn($extra)
+            $builder->addUpdatedAtColumn($extra)
         );
     }
 
@@ -1392,10 +1404,12 @@ class Builder implements BuilderContract
      */
     public function decrement(Expression|string $column, mixed $amount = 1, array $extra = []): int
     {
-        return $this->toBase()->decrement(
+        $builder = $this->applyScopes()->withoutGlobalScopes();
+
+        return $builder->toBase()->decrement(
             $column,
             $amount,
-            $this->addUpdatedAtColumn($extra)
+            $builder->addUpdatedAtColumn($extra)
         );
     }
 
@@ -1407,9 +1421,11 @@ class Builder implements BuilderContract
      */
     public function incrementEach(array $columns, array $extra = []): int
     {
-        return $this->toBase()->incrementEach(
+        $builder = $this->applyScopes()->withoutGlobalScopes();
+
+        return $builder->toBase()->incrementEach(
             $columns,
-            $this->addUpdatedAtColumn($extra)
+            $builder->addUpdatedAtColumn($extra)
         );
     }
 
@@ -1421,9 +1437,11 @@ class Builder implements BuilderContract
      */
     public function decrementEach(array $columns, array $extra = []): int
     {
-        return $this->toBase()->decrementEach(
+        $builder = $this->applyScopes()->withoutGlobalScopes();
+
+        return $builder->toBase()->decrementEach(
             $columns,
-            $this->addUpdatedAtColumn($extra)
+            $builder->addUpdatedAtColumn($extra)
         );
     }
 
@@ -1439,6 +1457,7 @@ class Builder implements BuilderContract
 
         $column = $this->model->getUpdatedAtColumn();
 
+        // Scopes may alias the table; writes that retain this qualifier must prepare scopes first.
         $alias = $this->query->getFromAlias();
 
         // Opaque raw sources cannot safely qualify an automatic timestamp.
