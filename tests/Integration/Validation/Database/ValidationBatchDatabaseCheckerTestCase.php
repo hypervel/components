@@ -9,6 +9,7 @@ use DateTimeImmutable;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
@@ -170,6 +171,72 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
             $queryLog,
             static fn (array $entry): bool => str_contains($entry['query'], 'batch_test_users'),
         ));
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPresenceRuleOverridesRemainAuthoritative(bool $emptyConditions): void
+    {
+        $rule = $emptyConditions
+            ? (new class('batch_test_users', 'email') extends Exists {
+                /**
+                 * Remove the stored condition from the effective query.
+                 */
+                public function queryConditions(): array
+                {
+                    return [];
+                }
+            })->where('status', 'active')
+            : new class('batch_test_users', 'email') extends Exists {
+                /**
+                 * Supply a condition through the original callback hook.
+                 */
+                public function queryCallbacks(): array
+                {
+                    return [static fn (Builder $query): Builder => $query->where('status', 'active')];
+                }
+            };
+
+        $ordinary = $this->makeOrdinaryValidator(['email' => 'user3@example.com'], ['email' => $rule]);
+        $compiled = $this->makeValidator(
+            ['items' => [['email' => 'user3@example.com'], ['email' => 'user3@example.com']]],
+            ['items.*.email' => $rule],
+        );
+
+        $this->assertSame($emptyConditions, $ordinary->passes());
+        $this->assertSame($emptyConditions, $compiled->passes());
+    }
+
+    public function testJsonBooleanPresenceMatchesScalarAndArrayCandidates(): void
+    {
+        Schema::table('batch_test_users', function (Blueprint $table): void {
+            $table->jsonb('payload')->nullable();
+        });
+
+        foreach ([true, false, 'disabled'] as $index => $flag) {
+            DB::table('batch_test_users')->where('external_id', $index)->update([
+                'payload' => json_encode(['flag' => $flag], JSON_THROW_ON_ERROR),
+            ]);
+        }
+
+        $verifier = $this->app->make('validation.presence');
+
+        $this->assertSame(1, $verifier->getCount('batch_test_users', 'payload->flag', true));
+        $this->assertSame(1, $verifier->getCount('batch_test_users', 'payload->flag', false));
+
+        $validator = $this->makeValidator(
+            ['flags' => [true, false, 'disabled']],
+            ['flags' => ['array', new Exists('batch_test_users', 'payload->flag')]],
+        );
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        try {
+            $this->assertTrue($validator->passes());
+            $this->assertCount(1, DB::getQueryLog());
+        } finally {
+            DB::disableQueryLog();
+        }
     }
 
     #[TestWith([['user1@example.com', 'user2@example.com'], true])]

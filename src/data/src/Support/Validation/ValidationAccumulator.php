@@ -169,7 +169,9 @@ class ValidationAccumulator
             return is_object($otherRule)
                 && $otherRule::class === $rule::class
                 && (string) $rule === (string) $otherRule
-                && $rule->queryConditions() === $otherRule->queryConditions();
+                && (in_array($rule::class, [Exists::class, Unique::class], true)
+                    ? $rule->hasSameConditions($otherRule)
+                    : $rule->queryConditions() === $otherRule->queryConditions());
         }
 
         if ($reducesToString) {

@@ -10,6 +10,8 @@ use Hypervel\Support\Fluent;
 use Hypervel\Tests\TestCase;
 use Hypervel\Validation\NestedRules;
 use Hypervel\Validation\Rule;
+use Hypervel\Validation\Rules\Exists;
+use Hypervel\Validation\Rules\Unique;
 use Hypervel\Validation\ValidationRuleParser;
 use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -777,6 +779,36 @@ class ValidationRuleParserTest extends TestCase
         ]);
 
         $this->assertSame([$exists, $unique], $results->rules['email']);
+    }
+
+    public function testEmptyConditionOverridesReduceOnlyWithoutStoredWheres(): void
+    {
+        $exists = new class('users', 'email') extends Exists {
+            /**
+             * Remove all stored query conditions.
+             */
+            public function queryConditions(): array
+            {
+                return [];
+            }
+        };
+        $unique = (new class('users', 'email') extends Unique {
+            /**
+             * Remove all stored query conditions.
+             */
+            public function queryConditions(): array
+            {
+                return [];
+            }
+        })->ignore('id,with,commas');
+
+        foreach ([$exists, $unique] as $rule) {
+            $this->assertTrue(ValidationRuleParser::ruleReducesToString($rule));
+            $rule->where('status', 'active');
+            $result = (new ValidationRuleParser(['email' => 'user@example.com']))->explode(['email' => [$rule]]);
+
+            $this->assertSame([$rule], $result->rules['email']);
+        }
     }
 
     public function testIdentifiesRulesReducedToStringsByTheParser(): void
