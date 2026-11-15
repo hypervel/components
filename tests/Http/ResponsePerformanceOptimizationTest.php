@@ -17,6 +17,7 @@ class ResponsePerformanceOptimizationTest extends TestCase
     #[DataProvider('commonResponsePreparationProvider')]
     public function testCommonResponsePreparationMatchesSymfony(array $headers): void
     {
+        $headers['Date'] = 'Thu, 01 Jan 1970 00:00:00 GMT';
         $request = Request::create('/', 'GET', server: ['SERVER_PROTOCOL' => 'HTTP/1.1']);
         $expected = new SymfonyResponse('content', 200, $headers);
         $actual = new Response('content', 200, $headers);
