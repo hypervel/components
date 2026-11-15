@@ -163,6 +163,8 @@ If a parameter contains `|`, use a rule object or an array of individual rules i
 
 The `in`, `not_in`, `contains` and `doesnt_contain` rules use the same value comparisons. `false`, `0` and `'0'` match, as do `true`, `1` and `'1'`. Null matches only null; an empty string stays separate. Other scalar and stringable values compare by their string form, so `1` matches `'1'` but not `'01'`. Pass null members through a fluent builder or structured rule array.
 
+Float conversion preserves precision using PHP's default `serialize_precision=-1`. A float matches itself, but distinct values are not rounded into a match: `0.1 + 0.2` does not match `0.3`. Round explicitly when your application requires a fixed decimal precision.
+
 <a name="stopping-on-first-validation-failure"></a>
 #### Stopping on First Validation Failure
 

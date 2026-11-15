@@ -720,7 +720,7 @@ Handwritten validation parameters use standard CSV quoting. Replace backslash-es
 
 For membership-rule subclasses, override `toArray()` instead of the final `__toString()`. The validator retains these builders in `getRules()`; see [extending fluent rules](/docs/{{version}}/validation#extending-fluent-rules).
 
-Membership checks equate booleans with `0`/`1` and their string forms, while null and empty strings remain distinct. Check mixed-type allowlists and denylists against the [comparison rules](/docs/{{version}}/validation#membership-comparisons).
+Membership checks preserve float precision and equate booleans with `0`/`1` and their string forms, while null and empty strings remain distinct. Check mixed-type allowlists and denylists against the [comparison rules](/docs/{{version}}/validation#membership-comparisons).
 
 `FailOnUnknownFields` accepts the contents of `array` fields without child rules. Add child rules or allowed keys (`array:name,email`) when those contents must be restricted. See [unknown fields](/docs/{{version}}/validation#request-failing-on-unknown-fields).
 
@@ -829,6 +829,8 @@ Hypervel's drivers are designed around its Swoole runtime and do not mirror ever
 Hypervel supports MySQL, MariaDB, PostgreSQL, and SQLite database connections. SQL Server, MongoDB, and DynamoDB database integrations are not supported.
 
 Hypervel requires a newer MariaDB version than Laravel. Check the [supported database versions](/docs/{{version}}/database#introduction) and upgrade older servers before porting.
+
+PDO float bindings preserve precision instead of using PHP's rounded string conversion. Review decimal equality comparisons that relied on that implicit rounding; see [floating-point bindings](/docs/{{version}}/database#binding-floating-point-values).
 
 Remove any warning or silent `PDO::ATTR_ERRMODE` setting; PDO connections require exception mode. Custom connectors and supplied PDO handles must also use it. See [PDO error mode](/docs/{{version}}/database#pdo-error-mode).
 
