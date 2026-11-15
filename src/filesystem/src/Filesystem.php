@@ -547,6 +547,7 @@ class Filesystem
 
         $running = class_exists(Phar::class, false) ? Phar::running() : '';
 
+        // On POSIX, normalizing backslashes could allow a separate archive named app.phar\other.phar.
         return $running === '' || ! str_starts_with($path, $running . '/');
     }
 

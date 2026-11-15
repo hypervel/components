@@ -352,20 +352,53 @@ class FilesystemTest extends TestCase
         $phar = $this->tempDir . '/app.phar';
 
         file_put_contents($this->tempDir . '/run.php', '<?php
+            declare(strict_types=1);
+
+            use Hypervel\Filesystem\Filesystem;
+
             require ' . var_export(realpath(__DIR__ . '/../../vendor/autoload.php'), true) . ';
             require __DIR__."/Filesystem.php";
 
-            $files = new Hypervel\Filesystem\Filesystem;
+            $files = new class extends Filesystem
+            {
+                /**
+                 * Determine whether the path passes the archive boundary check.
+                 */
+                public function allows(string $path): bool
+                {
+                    return ! $this->hasDangerousStreamWrapper($path);
+                }
+            };
 
-            echo $files->get(Phar::running()."/file.txt"), "|", var_export($files->exists("phar:///some/archive.phar/entry"), true);
+            $running = Phar::running();
+
+            echo $files->get($running."/file.txt"), "|", $files->get($running."/dir/file.txt"), "|", json_encode([
+                $files->allows($running."\\\file.txt"),
+                $files->allows($running."\\\dir/file.txt"),
+                $files->allows($running."\\\dir\\\file.txt"),
+                $files->allows($running.".evil/file.txt"),
+                $files->allows($running."X/file.txt"),
+                $files->allows($running."X\\\file.txt"),
+                $files->exists("phar:///some/archive.phar/entry"),
+            ]);
+
+            $foreign = $running."\\\foreign.phar/file.txt";
+            echo "|", file_get_contents($foreign), "|", var_export($files->exists($foreign), true);
         ');
 
         file_put_contents($this->tempDir . '/build.php', '<?php
+            declare(strict_types=1);
+
             $phar = new Phar(' . var_export($phar, true) . ');
             $phar->addFile(' . var_export(realpath(__DIR__ . '/../../src/filesystem/src/Filesystem.php'), true) . ', "Filesystem.php");
             $phar->addFile(' . var_export($this->tempDir . '/run.php', true) . ', "run.php");
             $phar->addFromString("file.txt", "Hello from phar");
+            $phar->addFromString("dir/file.txt", "Hello from nested");
             $phar->setStub(\'<?php Phar::mapPhar("app.phar"); require "phar://app.phar/run.php"; __HALT_COMPILER();\');
+
+            $foreign = new Phar(' . var_export($this->tempDir . '/foreign.phar', true) . ');
+            $foreign->addFromString("file.txt", "Hello from foreign");
+            copy(' . var_export($this->tempDir . '/foreign.phar', true) . ', ' . var_export($phar . '\foreign.phar', true) . ');
         ');
 
         (new Process([PHP_BINARY, '-d', 'phar.readonly=0', $this->tempDir . '/build.php'], timeout: 10))->mustRun();
@@ -373,7 +406,8 @@ class FilesystemTest extends TestCase
         $process = new Process([PHP_BINARY, $phar], timeout: 10);
         $process->mustRun();
 
-        $this->assertSame('Hello from phar|false', $process->getOutput());
+        // Unlike upstream's Windows normalization, POSIX backslashes remain literal filename characters.
+        $this->assertSame('Hello from phar|Hello from nested|[false,false,false,false,false,false,false]|Hello from foreign|false', $process->getOutput());
     }
 
     #[RequiresPhpExtension('phar')]
