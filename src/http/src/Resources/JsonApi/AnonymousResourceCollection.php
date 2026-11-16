@@ -80,7 +80,7 @@ class AnonymousResourceCollection extends BaseAnonymousResourceCollection
     {
         if ($this->includedResources === null) {
             $this->loadMissingRequestedRelationships($request);
-            $this->includedResources = JsonApiResource::resolveIncludedResources($this->collection, $request);
+            $this->includedResources = JsonApiResource::resolveIncludedResources($this->collection, $request, $this->jsonOptions());
         }
 
         return $this->includedResources;

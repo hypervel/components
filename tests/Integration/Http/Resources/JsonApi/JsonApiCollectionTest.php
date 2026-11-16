@@ -312,7 +312,7 @@ class JsonApiCollectionTest extends TestCase
     }
 
     #[DataProvider('identifierMetadataValues')]
-    public function testToOneIdentifierMetadataUsesJsonValueEquality(array $first, array $second, bool $conflicts): void
+    public function testToOneIdentifierMetadataUsesJsonValueEquality(array $first, array $second, bool $conflicts, string $resourceClass = IdentifierMetadataResource::class): void
     {
         $author = User::factory()->create();
         $profile = Profile::factory()->create(['user_id' => $author->getKey()]);
@@ -328,7 +328,7 @@ class JsonApiCollectionTest extends TestCase
             $profileResource->identifierMeta = $metadata;
             $authorResource = new IdentifierMetadataResource($authorCopy);
             $authorResource->relationships = ['profile' => fn (): IdentifierMetadataResource => $profileResource];
-            $postResource = new IdentifierMetadataResource($post);
+            $postResource = new $resourceClass($post);
             $postResource->relationships = ['author' => fn (): IdentifierMetadataResource => $authorResource];
             $resources[] = $postResource;
         }
@@ -338,11 +338,11 @@ class JsonApiCollectionTest extends TestCase
             $this->expectExceptionMessage('contains conflicting metadata');
         }
 
-        $data = IdentifierMetadataResource::collection($resources)
-            ->toResponse(JsonApiRequest::create('/?include=author.profile'))->getData(true);
+        $collection = $resourceClass::collection($resources);
+        $data = $collection->toResponse(JsonApiRequest::create('/?include=author.profile'))->getData(true);
 
         $this->assertSame(
-            json_decode(json_encode($first, JSON_THROW_ON_ERROR), true, flags: JSON_THROW_ON_ERROR),
+            json_decode(json_encode($first, $collection->jsonOptions() | JSON_THROW_ON_ERROR), true, flags: JSON_THROW_ON_ERROR),
             collect($data['included'])->firstWhere('type', 'users')['relationships']['profile']['data']['meta'],
         );
     }
@@ -361,6 +361,7 @@ class JsonApiCollectionTest extends TestCase
             ],
             'object and list' => [['options' => (object) []], ['options' => []], true],
             'list order' => [['priority' => ['read', 'write']], ['priority' => ['write', 'read']], true],
+            'UTF-8 substitution' => [['label' => "bad\xB1"], ['label' => "bad\xB1"], false, SubstitutingIdentifierMetadataResource::class],
         ];
     }
 
@@ -540,6 +541,18 @@ class IdentifierMetadataResource extends JsonApiResource
     public function toIdentifierMeta(Request $request): array
     {
         return $this->identifierMeta;
+    }
+}
+
+class SubstitutingIdentifierMetadataResource extends IdentifierMetadataResource
+{
+    /**
+     * Replace invalid input bytes when encoding the resource response.
+     */
+    #[Override]
+    public function jsonOptions(): int
+    {
+        return JSON_INVALID_UTF8_SUBSTITUTE;
     }
 }
 

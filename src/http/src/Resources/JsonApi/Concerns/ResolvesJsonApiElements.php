@@ -694,7 +694,7 @@ trait ResolvesJsonApiElements
      * @internal
      * @param Collection<array-key, JsonApiResource> $resources
      */
-    public static function resolveIncludedResources(Collection $resources, JsonApiRequest $request): array
+    public static function resolveIncludedResources(Collection $resources, JsonApiRequest $request, int $jsonOptions): array
     {
         static::prepareResourceRelationships($resources, $request);
 
@@ -718,11 +718,11 @@ trait ResolvesJsonApiElements
 
                 if ($root !== null) {
                     $identifiers[$key] ??= [];
-                    static::mergeResourceRelationships($root->loadedRelationshipIdentifiers, $relationships, $identifiers[$key]);
+                    static::mergeResourceRelationships($root->loadedRelationshipIdentifiers, $relationships, $identifiers[$key], $jsonOptions);
                 } elseif (isset($positions[$key])) {
                     $position = $positions[$key];
                     $identifiers[$key] ??= [];
-                    static::mergeResourceRelationships($included[$position]['relationships'], $relationships, $identifiers[$key]);
+                    static::mergeResourceRelationships($included[$position]['relationships'], $relationships, $identifiers[$key], $jsonOptions);
                 } else {
                     $positions[$key] = count($included);
                     $entry['relationships'] = $relationships;
@@ -747,7 +747,7 @@ trait ResolvesJsonApiElements
     /**
      * Merge relationship linkage without discarding descendants of duplicate resources.
      */
-    protected static function mergeResourceRelationships(array &$relationships, array $additional, array &$identifiers): void
+    protected static function mergeResourceRelationships(array &$relationships, array $additional, array &$identifiers, int $jsonOptions): void
     {
         foreach ($additional as $name => $relationship) {
             if (! array_key_exists($name, $relationships)) {
@@ -802,10 +802,10 @@ trait ResolvesJsonApiElements
                 $known = $identifiers[$name][$identifier['type']][$identifier['id']];
                 $meta = $identifier['meta'] ?? null;
 
-                // Compare emitted values without scalar coercion, object identity or member-order differences.
+                // Honor the response's encoding policy while ignoring object identity and member order.
                 if ($known !== $meta && ! static::jsonValuesEqual(
-                    json_decode(json_encode($known, JSON_THROW_ON_ERROR), flags: JSON_THROW_ON_ERROR),
-                    json_decode(json_encode($meta, JSON_THROW_ON_ERROR), flags: JSON_THROW_ON_ERROR),
+                    json_decode(json_encode($known, $jsonOptions | JSON_THROW_ON_ERROR), flags: JSON_THROW_ON_ERROR),
+                    json_decode(json_encode($meta, $jsonOptions | JSON_THROW_ON_ERROR), flags: JSON_THROW_ON_ERROR),
                 )) {
                     throw new LogicException(sprintf(
                         'Relationship [%s] contains conflicting metadata for resource [%s:%s]. Expose the associations as separate resources.',
