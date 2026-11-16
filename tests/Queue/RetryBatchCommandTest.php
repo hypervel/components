@@ -12,16 +12,22 @@ use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Queue\Console\RetryBatchCommand;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use PHPUnit\Framework\Attributes\TestWith;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 
 class RetryBatchCommandTest extends TestCase
 {
-    public function testItFailsWhenTheBatchCannotBeFound(): void
+    use VerifiesDoubles;
+
+    #[TestWith(['missing-batch'])]
+    #[TestWith(['0'])]
+    public function testItFailsWhenTheBatchCannotBeFound(string $id): void
     {
-        $repo = m::mock(BatchRepository::class);
-        $repo->shouldReceive('find')->once()->with('missing-batch')->andReturn(null);
+        $repo = Double::for(BatchRepository::class);
+        $repo->expects('find')->with($id)->returns(null);
 
         $this->app->instance(BatchRepository::class, $repo);
 
@@ -30,17 +36,17 @@ class RetryBatchCommandTest extends TestCase
 
         $output = new BufferedOutput;
 
-        $exitCode = $command->run(new ArrayInput(['id' => ['missing-batch']]), $output);
+        $exitCode = $command->run(new ArrayInput(['id' => [$id]]), $output);
 
         $this->assertSame(Command::FAILURE, $exitCode);
-        $this->assertStringContainsString('Unable to find a batch with ID [missing-batch].', $output->fetch());
+        $this->assertStringContainsString("Unable to find a batch with ID [{$id}].", $output->fetch());
     }
 
     public function testItFailsWhenTheBatchHasNoFailedJobs(): void
     {
         $batch = new Batch(
-            m::mock(QueueFactory::class),
-            m::mock(BatchRepository::class),
+            Double::for(QueueFactory::class),
+            Double::for(BatchRepository::class),
             'empty-batch',
             'Empty Batch',
             0,
@@ -51,8 +57,8 @@ class RetryBatchCommandTest extends TestCase
             CarbonImmutable::now(),
         );
 
-        $repo = m::mock(BatchRepository::class);
-        $repo->shouldReceive('find')->once()->with('empty-batch')->andReturn($batch);
+        $repo = Double::for(BatchRepository::class);
+        $repo->expects('find')->with('empty-batch')->returns($batch);
 
         $this->app->instance(BatchRepository::class, $repo);
 
@@ -73,14 +79,14 @@ class RetryBatchCommandTest extends TestCase
 
     public function testItCanBeRunInIsolation(): void
     {
-        $repo = m::mock(BatchRepository::class);
-        $repo->shouldReceive('find')->once()->with('batch-id')->andReturn(null);
+        $repo = Double::for(BatchRepository::class);
+        $repo->expects('find')->with('batch-id')->returns(null);
 
         $this->app->instance(BatchRepository::class, $repo);
 
-        $mutex = m::mock(CommandMutex::class);
-        $mutex->shouldReceive('create')->once()->andReturnTrue();
-        $mutex->shouldReceive('forget')->once()->andReturnTrue();
+        $mutex = Double::for(CommandMutex::class);
+        $mutex->expects('create')->returns(true);
+        $mutex->expects('forget')->returns(true);
 
         $this->app->instance(CommandMutex::class, $mutex);
 
