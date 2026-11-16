@@ -11,10 +11,13 @@ use Hypervel\Http\Testing\File;
 use Hypervel\Mail\Attachment;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class AttachmentTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testFromUrlWithHttpScheme(): void
     {
         $attachment = Attachment::fromUrl('http://example.com/file.pdf');
@@ -128,12 +131,12 @@ class AttachmentTest extends TestCase
 
     public function testIsEquivalentWithStorageAttachments(): void
     {
-        $storage = m::mock(FilesystemAdapter::class);
-        $storage->shouldReceive('mimeType')->twice()->with('report.txt')->andReturn('text/plain');
-        $storage->shouldReceive('get')->twice()->with('report.txt')->andReturn('file content');
+        $storage = Double::for(FilesystemAdapter::class)->strict();
+        $storage->expects('mimeType')->times(2)->with('report.txt')->returns('text/plain');
+        $storage->expects('get')->times(2)->with('report.txt')->returns('file content');
 
-        $factory = m::mock(FilesystemFactory::class);
-        $factory->shouldReceive('disk')->twice()->with('documents')->andReturn($storage);
+        $factory = Double::for(FilesystemFactory::class)->strict();
+        $factory->expects('disk')->times(2)->with('documents')->returns($storage);
 
         $container = new Container;
         $container->instance(FilesystemFactory::class, $factory);
@@ -165,12 +168,12 @@ class AttachmentTest extends TestCase
 
     public function testStorageAttachmentResolvesDiskOnceAndOmitsFailedMimeDetection(): void
     {
-        $storage = m::mock(FilesystemAdapter::class);
-        $storage->shouldReceive('mimeType')->once()->with('report.txt')->andReturnFalse();
-        $storage->shouldReceive('get')->once()->with('report.txt')->andReturn('file content');
+        $storage = Double::for(FilesystemAdapter::class)->strict();
+        $storage->expects('mimeType')->with('report.txt')->returns(false);
+        $storage->expects('get')->with('report.txt')->returns('file content');
 
-        $factory = m::mock(FilesystemFactory::class);
-        $factory->shouldReceive('disk')->once()->with('documents')->andReturn($storage);
+        $factory = Double::for(FilesystemFactory::class)->strict();
+        $factory->expects('disk')->with('documents')->returns($storage);
 
         $container = new Container;
         $container->instance(FilesystemFactory::class, $factory);
@@ -188,12 +191,12 @@ class AttachmentTest extends TestCase
 
     public function testExplicitStorageAttachmentMimeSkipsDetection(): void
     {
-        $storage = m::mock(FilesystemAdapter::class);
-        $storage->shouldNotReceive('mimeType');
-        $storage->shouldReceive('get')->once()->with('report.txt')->andReturn('file content');
+        $storage = Double::for(FilesystemAdapter::class)->strict();
+        $storage->expects('mimeType')->never();
+        $storage->expects('get')->with('report.txt')->returns('file content');
 
-        $factory = m::mock(FilesystemFactory::class);
-        $factory->shouldReceive('disk')->once()->with('documents')->andReturn($storage);
+        $factory = Double::for(FilesystemFactory::class)->strict();
+        $factory->expects('disk')->with('documents')->returns($storage);
 
         $container = new Container;
         $container->instance(FilesystemFactory::class, $factory);

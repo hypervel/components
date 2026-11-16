@@ -9,7 +9,8 @@ use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Transport\CloudflareTransport;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 use Symfony\Component\Mailer\Exception\TransportException;
@@ -18,10 +19,12 @@ use Symfony\Component\Mime\Email;
 
 class MailCloudflareTransportTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function setUp(): void
     {
         parent::setUp();
-        $this->app->instance('view', m::mock(ViewFactory::class));
+        $this->app->instance('view', Double::for(ViewFactory::class)->strict());
     }
 
     public function testGetTransport(): void

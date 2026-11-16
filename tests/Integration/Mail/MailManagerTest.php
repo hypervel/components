@@ -24,7 +24,8 @@ use Hypervel\Support\Testing\Fakes\MailFake;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Log\LoggerInterface;
@@ -39,13 +40,15 @@ use Symfony\Component\Mime\RawMessage;
 
 class MailManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Set up the test environment.
      */
     protected function setUp(): void
     {
         parent::setUp();
-        $this->app->instance('view', m::mock(ViewFactory::class));
+        $this->app->instance('view', Double::for(ViewFactory::class)->strict());
     }
 
     public function testSetApplicationRefreshesConfigWithoutRebuildingResolvedMailers(): void
@@ -344,9 +347,9 @@ class MailManagerTest extends TestCase
         config(['mail.sendmail' => '/usr/sbin/sendmail -bs -i']);
         config(['mail.log_channel' => 'legacy-channel']);
 
-        $logger = m::mock(LoggerInterface::class);
-        $logManager = m::mock(LogManager::class);
-        $logManager->shouldReceive('channel')->once()->with(null)->andReturn($logger);
+        $logger = Double::for(LoggerInterface::class)->strict();
+        $logManager = Double::for(LogManager::class)->strict();
+        $logManager->expects('channel')->with(null)->returns($logger);
         $this->app->instance(LoggerInterface::class, $logManager);
 
         $manager = new MailManager($this->app);
@@ -784,8 +787,8 @@ class MailManagerTest extends TestCase
     {
         $observed = [];
         $pool = $this->app->make(PoolManager::class)->pool('mail');
-        $transport = m::mock(TransportInterface::class);
-        $transport->shouldReceive('send')->times(3)->andReturnUsing(function () use ($pool, &$observed): null {
+        $transport = Double::for(TransportInterface::class)->strict();
+        $transport->expects('send')->times(3)->resolves(function () use ($pool, &$observed): null {
             $observed[] = $pool->getBorrowedCount();
 
             return null;
