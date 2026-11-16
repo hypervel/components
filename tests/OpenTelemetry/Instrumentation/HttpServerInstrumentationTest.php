@@ -22,7 +22,8 @@ use Hypervel\OpenTelemetry\Support\RequestTelemetryState;
 use Hypervel\OpenTelemetry\Support\UserContextResolver;
 use Hypervel\Routing\Route;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Trace\Propagation\TraceContextPropagator;
 use OpenTelemetry\API\Trace\Span;
@@ -58,6 +59,8 @@ use Swoole\Coroutine\CanceledException;
 
 class HttpServerInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private ContextStorageInterface&ExecutionContextAwareInterface $previousStorage;
 
     private Dispatcher $events;
@@ -97,7 +100,7 @@ class HttpServerInstrumentationTest extends TestCase
         $this->meterProvider = (new MeterProviderBuilder)
             ->addReader($this->metricReader)
             ->build();
-        $this->userContexts = m::mock(UserContextResolver::class);
+        $this->userContexts = Double::for(UserContextResolver::class)->strict();
     }
 
     protected function tearDownInCoroutine(): void
@@ -429,8 +432,8 @@ class HttpServerInstrumentationTest extends TestCase
     private function instrumentation(
         ?ResponsePropagatorInterface $responsePropagator = null,
     ): HttpServerInstrumentation {
-        $logContextScopes = m::mock(LogContextScopeFactory::class);
-        $logContextScopes->shouldReceive('activate')->zeroOrMoreTimes()->andReturnNull();
+        $logContextScopes = Double::for(LogContextScopeFactory::class)->strict();
+        $logContextScopes->allows('activate')->returns(null);
 
         return new HttpServerInstrumentation(
             $this->events,

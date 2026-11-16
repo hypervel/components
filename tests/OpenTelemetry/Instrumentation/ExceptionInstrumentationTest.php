@@ -21,7 +21,9 @@ use Hypervel\OpenTelemetry\Support\RequestTelemetryState;
 use Hypervel\OpenTelemetry\Support\UserContextResolver;
 use Hypervel\Support\Lottery;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Logs\LogRecordBuilderInterface;
 use OpenTelemetry\API\Logs\Severity;
@@ -53,6 +55,8 @@ use Throwable;
 
 class ExceptionInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private ContextStorageInterface&ExecutionContextAwareInterface $previousStorage;
 
     private Container $container;
@@ -73,7 +77,7 @@ class ExceptionInstrumentationTest extends TestCase
 
     private OperationOrigin $origins;
 
-    private UserContextResolver $userContexts;
+    private UserContextResolver&DoubleInterface $userContexts;
 
     protected function setUp(): void
     {
@@ -100,7 +104,7 @@ class ExceptionInstrumentationTest extends TestCase
             ->build();
         $this->exceptionContexts = new ExceptionContextRegistry;
         $this->origins = new OperationOrigin;
-        $this->userContexts = m::mock(UserContextResolver::class);
+        $this->userContexts = Double::for(UserContextResolver::class)->strict();
     }
 
     protected function tearDownInCoroutine(): void
@@ -198,10 +202,9 @@ class ExceptionInstrumentationTest extends TestCase
             false,
         );
         RequestTelemetryState::set($state);
-        $this->userContexts->shouldReceive('resolve')
-            ->once()
+        $this->userContexts->expects('resolve')
             ->with($state)
-            ->andReturn(['user.id' => '42']);
+            ->returns(['user.id' => '42']);
 
         $this->handler->report(new RuntimeException('Request failed.'));
 
@@ -342,7 +345,7 @@ class ExceptionInstrumentationTest extends TestCase
     public function testCustomHandlerWithoutReportableSupportIsLeftUntouched(): void
     {
         $container = new Container;
-        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
         $container->instance(ExceptionHandlerContract::class, $handler);
         $instrumentation = $this->instrumentation(container: $container);
 
@@ -362,15 +365,15 @@ class ExceptionInstrumentationTest extends TestCase
         array $enrichers = [],
         ?Container $container = null,
     ): ExceptionInstrumentation {
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('configuration')->zeroOrMoreTimes()->andReturn([
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->allows('configuration')->returns([
             'instrumentation' => [
                 HttpServerInstrumentation::class => $userContext
                     ? ['user_context' => true]
                     : false,
             ],
         ]);
-        $manager->shouldReceive('exceptionEnrichers')->zeroOrMoreTimes()->andReturn($enrichers);
+        $manager->allows('exceptionEnrichers')->returns($enrichers);
 
         return new ExceptionInstrumentation(
             $container ?? $this->container,

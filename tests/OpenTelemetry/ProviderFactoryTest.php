@@ -13,7 +13,8 @@ use Hypervel\OpenTelemetry\Support\ConfigurationNormalizer;
 use Hypervel\OpenTelemetry\Support\ProcessIdentity;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use OpenTelemetry\SDK\Logs\Exporter\InMemoryExporter as InMemoryLogExporter;
 use OpenTelemetry\SDK\Logs\LogRecordExporterInterface;
 use OpenTelemetry\SDK\Metrics\MeterProviderInterface;
@@ -33,6 +34,8 @@ use stdClass;
 
 class ProviderFactoryTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testNoneSignalsBuildNoProviderOrExporterGraph(): void
     {
         $configuration = $this->configuration();
@@ -41,7 +44,7 @@ class ProviderFactoryTest extends TestCase
         $configuration['logs']['exporter'] = 'none';
         $resolved = false;
 
-        $providers = (new ProviderFactory(m::mock(Container::class)))->create(
+        $providers = (new ProviderFactory(Double::for(Container::class, override: true)->strict()->instance()))->create(
             (new ConfigurationNormalizer)->normalize($configuration),
             ProcessIdentity::eventWorker(0),
             function () use (&$resolved): ExporterFactory {
@@ -60,7 +63,7 @@ class ProviderFactoryTest extends TestCase
     public function testBuildsProvidersThatExportAllThreeSignals(): void
     {
         $exporters = new RecordingExporterFactory;
-        $providers = (new ProviderFactory(m::mock(Container::class)))->create(
+        $providers = (new ProviderFactory(Double::for(Container::class, override: true)->strict()->instance()))->create(
             (new ConfigurationNormalizer)->normalize($this->configuration()),
             ProcessIdentity::eventWorker(2),
             static fn (): ExporterFactory => $exporters,
@@ -103,7 +106,7 @@ class ProviderFactoryTest extends TestCase
         $configuration['metrics']['exporter'] = 'none';
         $configuration['logs']['exporter'] = 'none';
         $exporters = new RecordingExporterFactory;
-        $providers = (new ProviderFactory(m::mock(Container::class)))->create(
+        $providers = (new ProviderFactory(Double::for(Container::class, override: true)->strict()->instance()))->create(
             (new ConfigurationNormalizer)->normalize($configuration),
             ProcessIdentity::taskWorker(5),
             static fn (): ExporterFactory => $exporters,
@@ -137,12 +140,12 @@ class ProviderFactoryTest extends TestCase
         $configuration['metrics']['provider'] = 'custom.metrics';
         $configuration['traces']['exporter'] = 'none';
         $configuration['logs']['exporter'] = 'none';
-        $provider = m::mock(MeterProviderInterface::class);
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->once()->with('custom.metrics')->andReturn($provider);
+        $provider = Double::for(MeterProviderInterface::class)->strict();
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with('custom.metrics')->returns($provider);
         $resolved = false;
 
-        $providers = (new ProviderFactory($container))->create(
+        $providers = (new ProviderFactory($container->instance()))->create(
             (new ConfigurationNormalizer)->normalize($configuration),
             ProcessIdentity::cli(),
             function () use (&$resolved): ExporterFactory {
@@ -162,13 +165,13 @@ class ProviderFactoryTest extends TestCase
         $configuration['metrics']['provider'] = 'invalid.metrics';
         $configuration['traces']['exporter'] = 'none';
         $configuration['logs']['exporter'] = 'none';
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->once()->with('invalid.metrics')->andReturn(new stdClass);
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with('invalid.metrics')->returns(new stdClass);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIsOrContains('must implement [OpenTelemetry\SDK\Metrics\MeterProviderInterface]');
 
-        (new ProviderFactory($container))->create(
+        (new ProviderFactory($container->instance()))->create(
             (new ConfigurationNormalizer)->normalize($configuration),
             ProcessIdentity::cli(),
             static fn (): ExporterFactory => new RecordingExporterFactory,
@@ -180,16 +183,16 @@ class ProviderFactoryTest extends TestCase
         $configuration = $this->configuration();
         $configuration['traces']['sampler'] = 'custom.sampler';
         $configuration['metrics']['views'] = ['custom.view'];
-        $sampler = m::mock(SamplerInterface::class);
-        $view = m::mock(MetricView::class);
-        $view->shouldReceive('criteria')->once()->andReturn(new InstrumentNameCriteria('original.metric'));
-        $view->shouldReceive('template')->once()->andReturn(ViewTemplate::create()->withName('renamed.metric'));
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->once()->with('custom.view')->andReturn($view);
-        $container->shouldReceive('make')->once()->with('custom.sampler')->andReturn($sampler);
+        $sampler = Double::for(SamplerInterface::class)->strict();
+        $view = Double::for(MetricView::class)->strict();
+        $view->expects('criteria')->returns(new InstrumentNameCriteria('original.metric'));
+        $view->expects('template')->returns(ViewTemplate::create()->withName('renamed.metric'));
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with('custom.view')->returns($view);
+        $container->expects('make')->with('custom.sampler')->returns($sampler);
         $exporters = new RecordingExporterFactory;
 
-        $providers = (new ProviderFactory($container))->create(
+        $providers = (new ProviderFactory($container->instance()))->create(
             (new ConfigurationNormalizer)->normalize($configuration),
             ProcessIdentity::cli(),
             static fn (): ExporterFactory => $exporters,
@@ -212,7 +215,7 @@ class ProviderFactoryTest extends TestCase
         $configuration = $this->configuration();
         $configuration['internal_metrics'] = true;
         $exporters = new RecordingExporterFactory;
-        $providers = (new ProviderFactory(m::mock(Container::class)))->create(
+        $providers = (new ProviderFactory(Double::for(Container::class, override: true)->strict()->instance()))->create(
             (new ConfigurationNormalizer)->normalize($configuration),
             ProcessIdentity::cli(),
             static fn (): ExporterFactory => $exporters,
@@ -239,14 +242,14 @@ class ProviderFactoryTest extends TestCase
         $configuration = $this->configuration();
         $configuration['metrics']['views'] = ['failing.view'];
         $expected = new RuntimeException('Unable to build metric view.');
-        $view = m::mock(MetricView::class);
-        $view->shouldReceive('criteria')->once()->andThrow($expected);
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->once()->with('failing.view')->andReturn($view);
+        $view = Double::for(MetricView::class)->strict();
+        $view->expects('criteria')->throws($expected);
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with('failing.view')->returns($view);
         $exporterCreated = false;
 
         try {
-            (new ProviderFactory($container))->create(
+            (new ProviderFactory($container->instance()))->create(
                 (new ConfigurationNormalizer)->normalize($configuration),
                 ProcessIdentity::cli(),
                 function () use (&$exporterCreated): ExporterFactory {

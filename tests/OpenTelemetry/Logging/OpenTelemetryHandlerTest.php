@@ -14,7 +14,10 @@ use Hypervel\OpenTelemetry\Logging\OpenTelemetryHandler;
 use Hypervel\OpenTelemetry\OpenTelemetryManager;
 use Hypervel\OpenTelemetry\Support\ExceptionContextRegistry;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\OverriddenDouble;
 use Monolog\Level;
 use Monolog\LogRecord;
 use OpenTelemetry\API\Logs\Severity;
@@ -35,17 +38,19 @@ use stdClass;
 
 class OpenTelemetryHandlerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private ContextStorageInterface&ExecutionContextAwareInterface $previousStorage;
 
     private ArrayObject $records;
 
     private LoggerProvider $loggerProvider;
 
-    private OpenTelemetryManager $manager;
+    private OpenTelemetryManager&DoubleInterface $manager;
 
     private ExceptionContextRegistry $exceptionContexts;
 
-    private Container $container;
+    private OverriddenDouble $container;
 
     protected function setUp(): void
     {
@@ -61,9 +66,9 @@ class OpenTelemetryHandlerTest extends TestCase
         $this->loggerProvider = (new LoggerProviderBuilder)
             ->addLogRecordProcessor(new SimpleLogRecordProcessor(new InMemoryExporter($this->records)))
             ->build();
-        $this->manager = m::mock(OpenTelemetryManager::class);
+        $this->manager = Double::for(OpenTelemetryManager::class)->strict();
         $this->exceptionContexts = new ExceptionContextRegistry;
-        $this->container = m::mock(Container::class);
+        $this->container = Double::for(Container::class, override: true)->strict();
     }
 
     protected function tearDownInCoroutine(): void
@@ -80,7 +85,7 @@ class OpenTelemetryHandlerTest extends TestCase
 
     public function testDisabledSignalReturnsImmediatelyAndContinuesBubbling(): void
     {
-        $this->manager->shouldReceive('logsEnabled')->twice()->andReturnFalse();
+        $this->manager->expects('logsEnabled')->times(2)->returns(false);
         $handler = $this->handler();
         $record = $this->record();
 
@@ -92,8 +97,8 @@ class OpenTelemetryHandlerTest extends TestCase
 
     public function testItPreservesStructuredRecordFieldsAndCurrentTraceContext(): void
     {
-        $this->manager->shouldReceive('logsEnabled')->once()->andReturnTrue();
-        $this->container->shouldNotReceive('make');
+        $this->manager->expects('logsEnabled')->returns(true);
+        $this->container->expects('make')->never();
         $handler = $this->handler();
         $spanContext = SpanContext::create(
             '1234567890abcdef1234567890abcdef',
@@ -140,8 +145,8 @@ class OpenTelemetryHandlerTest extends TestCase
 
     public function testOrdinaryExceptionContextBecomesStandardExceptionAttributes(): void
     {
-        $this->manager->shouldReceive('logsEnabled')->once()->andReturnTrue();
-        $this->container->shouldNotReceive('make');
+        $this->manager->expects('logsEnabled')->returns(true);
+        $this->container->expects('make')->never();
         $exception = new RuntimeException('Application failed.');
 
         $this->handler()->handle($this->record(context: [
@@ -159,17 +164,16 @@ class OpenTelemetryHandlerTest extends TestCase
 
     public function testItSuppressesOnlyTheExactExceptionBeingDirectlyReported(): void
     {
-        $this->manager->shouldReceive('logsEnabled')->twice()->andReturnTrue();
+        $this->manager->expects('logsEnabled')->times(2)->returns(true);
         $this->exceptionContexts->markRecorderRegistered();
         $reported = new RuntimeException('Reported.');
         $other = new RuntimeException('Other.');
-        $exceptionHandler = m::mock(ExceptionHandler::class);
-        $exceptionHandler->shouldReceive('isReporting')->once()->with($reported)->andReturnTrue();
-        $exceptionHandler->shouldReceive('isReporting')->once()->with($other)->andReturnFalse();
-        $this->container->shouldReceive('make')
-            ->once()
+        $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
+        $exceptionHandler->expects('isReporting')->with($reported)->returns(true);
+        $exceptionHandler->expects('isReporting')->with($other)->returns(false);
+        $this->container->expects('make')
             ->with(ExceptionHandlerContract::class)
-            ->andReturn($exceptionHandler);
+            ->returns($exceptionHandler);
         $handler = $this->handler();
 
         $this->assertFalse($handler->handle($this->record(context: ['exception' => $reported])));
@@ -182,7 +186,7 @@ class OpenTelemetryHandlerTest extends TestCase
 
     public function testConfiguredLevelStillFiltersRecords(): void
     {
-        $this->manager->shouldReceive('logsEnabled')->twice()->andReturnTrue();
+        $this->manager->expects('logsEnabled')->times(2)->returns(true);
         $handler = $this->handler(Level::Error);
 
         $this->assertFalse($handler->isHandling($this->record(level: Level::Info)));
@@ -198,7 +202,7 @@ class OpenTelemetryHandlerTest extends TestCase
             $this->loggerProvider->getLogger('application'),
             $this->manager,
             $this->exceptionContexts,
-            $this->container,
+            $this->container->instance(),
             new AttributeValidator,
             $level,
         );

@@ -16,7 +16,8 @@ use Hypervel\OpenTelemetry\Support\LogContextScopeFactory;
 use Hypervel\OpenTelemetry\Support\OperationOrigin;
 use Hypervel\OpenTelemetry\Support\ProcessIdentity;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Metrics\Noop\NoopMeterProvider;
 use OpenTelemetry\API\Trace\Span;
@@ -30,6 +31,8 @@ use Symfony\Component\Console\Input\ArrayInput;
 
 class ConsoleInstrumentationNonCoroutineTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected bool $runTestsInCoroutine = false;
 
     private ContextStorageInterface&ExecutionContextAwareInterface $previousStorage;
@@ -63,8 +66,8 @@ class ConsoleInstrumentationNonCoroutineTest extends TestCase
 
     public function testCommandSpanUsesAndClearsTheNonCoroutineContextStack(): void
     {
-        $logContextScopes = m::mock(LogContextScopeFactory::class);
-        $logContextScopes->shouldReceive('activate')->once()->andReturnNull();
+        $logContextScopes = Double::for(LogContextScopeFactory::class)->strict();
+        $logContextScopes->expects('activate')->returns(null);
         $instrumentation = new ConsoleInstrumentation(
             $this->events,
             $this->tracerProvider,

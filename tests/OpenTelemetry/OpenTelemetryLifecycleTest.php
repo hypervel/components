@@ -17,23 +17,27 @@ use Hypervel\ServerProcess\AbstractProcess;
 use Hypervel\ServerProcess\Events\AfterProcessHandle;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use Swoole\Server;
 
 class OpenTelemetryLifecycleTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBindsTheCorrectWorkerIdentityAndStartsOneScheduler(): void
     {
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('bind')->once()->withArgs(
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->expects('bind')->with(Argument::satisfies(
             static fn (ProcessIdentity $identity): bool => $identity->type === ProcessIdentity::TASK
                 && $identity->workerId === 7,
-        );
-        $manager->shouldReceive('isBound')->once()->andReturnTrue();
-        $scheduler = m::mock(ExportScheduler::class);
-        $scheduler->shouldReceive('start')->once();
-        $server = m::mock(Server::class);
+        ));
+        $manager->expects('isBound')->returns(true);
+        $scheduler = Double::for(ExportScheduler::class)->strict();
+        $scheduler->expects('start');
+        $server = Double::for(Server::class)->strict();
         $server->taskworker = true;
 
         $this->lifecycle($manager, $scheduler)->startWorker(new AfterWorkerStart($server, 7));
@@ -41,15 +45,15 @@ class OpenTelemetryLifecycleTest extends TestCase
 
     public function testBindsAnEventWorkerIdentity(): void
     {
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('bind')->once()->withArgs(
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->expects('bind')->with(Argument::satisfies(
             static fn (ProcessIdentity $identity): bool => $identity->type === ProcessIdentity::EVENT
                 && $identity->workerId === 3,
-        );
-        $manager->shouldReceive('isBound')->once()->andReturnTrue();
-        $scheduler = m::mock(ExportScheduler::class);
-        $scheduler->shouldReceive('start')->once();
-        $server = m::mock(Server::class);
+        ));
+        $manager->expects('isBound')->returns(true);
+        $scheduler = Double::for(ExportScheduler::class)->strict();
+        $scheduler->expects('start');
+        $server = Double::for(Server::class)->strict();
         $server->taskworker = false;
 
         $this->lifecycle($manager, $scheduler)->startWorker(new AfterWorkerStart($server, 3));
@@ -58,12 +62,12 @@ class OpenTelemetryLifecycleTest extends TestCase
     public function testWorkerRetainsShutdownOwnershipAfterRegistrationFailure(): void
     {
         $expected = new RuntimeException('Unable to register instrumentation.');
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('bind')->once()->andThrow($expected);
-        $manager->shouldReceive('isBound')->once()->andReturnTrue();
-        $scheduler = m::mock(ExportScheduler::class);
-        $scheduler->shouldReceive('start')->once();
-        $server = m::mock(Server::class);
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->expects('bind')->throws($expected);
+        $manager->expects('isBound')->returns(true);
+        $scheduler = Double::for(ExportScheduler::class)->strict();
+        $scheduler->expects('start');
+        $server = Double::for(Server::class)->strict();
         $server->taskworker = false;
 
         try {
@@ -76,24 +80,19 @@ class OpenTelemetryLifecycleTest extends TestCase
 
     public function testStandaloneCliBindsOnceAndSharesOneTimerAcrossNestedCommands(): void
     {
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('isBound')->times(3)->andReturn(false, true, true);
-        $manager->shouldReceive('bind')->once()->withArgs(
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->expects('isBound')->times(3)->returns(false, true, true);
+        $manager->expects('bind')->with(Argument::satisfies(
             static fn (ProcessIdentity $identity): bool => $identity->type === ProcessIdentity::CLI,
-        );
-        $scheduler = m::mock(ExportScheduler::class);
-        $scheduler->shouldReceive('start')->once();
-        $scheduler->shouldReceive('stop')->once();
-        $scheduler->shouldReceive('shutdown')->once()->andReturnTrue();
+        ));
+        $scheduler = Double::for(ExportScheduler::class)->strict();
+        $scheduler->expects('start');
+        $scheduler->expects('stop');
+        $scheduler->expects('shutdown')->returns(true);
         $terminatingListener = null;
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('listen')
-            ->once()
-            ->with(Terminating::class, m::on(function (callable $listener) use (&$terminatingListener): bool {
-                $terminatingListener = $listener;
-
-                return true;
-            }));
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('listen')
+            ->with(Terminating::class, Argument::capture($terminatingListener));
         $lifecycle = $this->lifecycle($manager, $scheduler, events: $events);
 
         $lifecycle->startCli();
@@ -110,20 +109,15 @@ class OpenTelemetryLifecycleTest extends TestCase
     public function testStandaloneCliRetainsShutdownOwnershipAfterRegistrationFailure(): void
     {
         $expected = new RuntimeException('Unable to register instrumentation.');
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('isBound')->twice()->andReturn(false, true);
-        $manager->shouldReceive('bind')->once()->andThrow($expected);
-        $scheduler = m::mock(ExportScheduler::class);
-        $scheduler->shouldReceive('shutdown')->once()->andReturnTrue();
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->expects('isBound')->times(2)->returns(false, true);
+        $manager->expects('bind')->throws($expected);
+        $scheduler = Double::for(ExportScheduler::class)->strict();
+        $scheduler->expects('shutdown')->returns(true);
         $terminatingListener = null;
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('listen')
-            ->once()
-            ->with(Terminating::class, m::on(function (callable $listener) use (&$terminatingListener): bool {
-                $terminatingListener = $listener;
-
-                return true;
-            }));
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('listen')
+            ->with(Terminating::class, Argument::capture($terminatingListener));
         $lifecycle = $this->lifecycle($manager, $scheduler, events: $events);
 
         try {
@@ -139,20 +133,20 @@ class OpenTelemetryLifecycleTest extends TestCase
 
     public function testCoroutineServerProcessBindsItsIdentityAndClosesAtItsOwnBoundary(): void
     {
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('bind')->once()->withArgs(
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->expects('bind')->with(Argument::satisfies(
             static fn (ProcessIdentity $identity): bool => $identity->type === ProcessIdentity::PROCESS
                 && $identity->processClass === LifecycleProcess::class
                 && $identity->processName === 'telemetry-test'
                 && $identity->processIndex === 2,
-        );
-        $manager->shouldReceive('isBound')->once()->andReturnTrue();
-        $scheduler = m::mock(ExportScheduler::class);
-        $scheduler->shouldReceive('start')->once();
-        $scheduler->shouldReceive('shutdown')->once()->andReturnTrue();
-        $container = m::mock(Container::class);
-        $container->shouldReceive('bound')->once()->with('events')->andReturnFalse();
-        $process = new LifecycleProcess($container);
+        ));
+        $manager->expects('isBound')->returns(true);
+        $scheduler = Double::for(ExportScheduler::class)->strict();
+        $scheduler->expects('start');
+        $scheduler->expects('shutdown')->returns(true);
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('bound')->with('events')->returns(false);
+        $process = new LifecycleProcess($container->instance());
         $process->name = 'telemetry-test';
 
         $lifecycle = $this->lifecycle($manager, $scheduler);
@@ -162,14 +156,14 @@ class OpenTelemetryLifecycleTest extends TestCase
 
     public function testNonCoroutineServerProcessDrainsWithoutStartingATimer(): void
     {
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('bind')->once();
-        $manager->shouldReceive('isBound')->once()->andReturnTrue();
-        $scheduler = m::mock(ExportScheduler::class);
-        $scheduler->shouldReceive('shutdown')->once()->andReturnTrue();
-        $container = m::mock(Container::class);
-        $container->shouldReceive('bound')->once()->with('events')->andReturnFalse();
-        $process = new LifecycleProcess($container);
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->expects('bind');
+        $manager->expects('isBound')->returns(true);
+        $scheduler = Double::for(ExportScheduler::class)->strict();
+        $scheduler->expects('shutdown')->returns(true);
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('bound')->with('events')->returns(false);
+        $process = new LifecycleProcess($container->instance());
         $process->enableCoroutine = false;
 
         $lifecycle = $this->lifecycle($manager, $scheduler);
@@ -179,12 +173,12 @@ class OpenTelemetryLifecycleTest extends TestCase
 
     public function testExcludedAndFailedProcessesHaveNoCleanupLifecycle(): void
     {
-        $container = m::mock(Container::class);
-        $container->shouldReceive('bound')->once()->with('events')->andReturnFalse();
-        $process = new LifecycleProcess($container);
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('isBound')->once()->andReturnFalse();
-        $scheduler = m::mock(ExportScheduler::class);
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('bound')->with('events')->returns(false);
+        $process = new LifecycleProcess($container->instance());
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->expects('isBound')->returns(false);
+        $scheduler = Double::for(ExportScheduler::class)->strict();
         $configuration = ['opentelemetry' => ['server_processes' => ['except' => [LifecycleProcess::class]]]];
         $lifecycle = $this->lifecycle($manager, $scheduler, $configuration);
 
@@ -192,9 +186,9 @@ class OpenTelemetryLifecycleTest extends TestCase
         $lifecycle->finishProcess(new AfterProcessHandle($process, 0));
 
         $expected = new RuntimeException('Unable to bind process telemetry.');
-        $failingManager = m::mock(OpenTelemetryManager::class);
-        $failingManager->shouldReceive('bind')->once()->andThrow($expected);
-        $failingManager->shouldReceive('isBound')->once()->andReturnFalse();
+        $failingManager = Double::for(OpenTelemetryManager::class)->strict();
+        $failingManager->expects('bind')->throws($expected);
+        $failingManager->expects('isBound')->returns(false);
         $failingLifecycle = $this->lifecycle($failingManager, $scheduler);
 
         try {
@@ -209,15 +203,15 @@ class OpenTelemetryLifecycleTest extends TestCase
 
     public function testProcessRegistrationFailureClosesTheBoundGraph(): void
     {
-        $container = m::mock(Container::class);
-        $container->shouldReceive('bound')->once()->with('events')->andReturnFalse();
-        $process = new LifecycleProcess($container);
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('bound')->with('events')->returns(false);
+        $process = new LifecycleProcess($container->instance());
         $expected = new RuntimeException('Unable to register instrumentation.');
-        $manager = m::mock(OpenTelemetryManager::class);
-        $manager->shouldReceive('bind')->once()->andThrow($expected);
-        $manager->shouldReceive('isBound')->once()->andReturnTrue();
-        $scheduler = m::mock(ExportScheduler::class);
-        $scheduler->shouldReceive('shutdown')->once()->andReturnTrue();
+        $manager = Double::for(OpenTelemetryManager::class)->strict();
+        $manager->expects('bind')->throws($expected);
+        $manager->expects('isBound')->returns(true);
+        $scheduler = Double::for(ExportScheduler::class)->strict();
+        $scheduler->expects('shutdown')->returns(true);
         $lifecycle = $this->lifecycle($manager, $scheduler);
 
         try {
@@ -243,7 +237,7 @@ class OpenTelemetryLifecycleTest extends TestCase
             $manager,
             $scheduler,
             new Repository($configuration),
-            $events ?? m::mock(Dispatcher::class),
+            $events ?? Double::for(Dispatcher::class)->strict(),
         );
     }
 }

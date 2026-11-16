@@ -22,8 +22,9 @@ use Hypervel\OpenTelemetry\Support\LogContextScopeFactory;
 use Hypervel\OpenTelemetry\Support\OperationOrigin;
 use Hypervel\OpenTelemetry\Support\ProcessIdentity;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Trace\Propagation\TraceContextPropagator;
 use OpenTelemetry\API\Trace\Span;
@@ -58,6 +59,8 @@ use function Hypervel\Coroutine\parallel;
 
 class GrpcInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private const string CLIENT_DURATION_METRIC = 'rpc.client.call.duration';
 
     private const string SERVER_DURATION_METRIC = 'rpc.server.call.duration';
@@ -477,8 +480,8 @@ class GrpcInstrumentationTest extends TestCase
      */
     private function instrumentation(?TextMapPropagatorInterface $propagator = null): GrpcInstrumentation
     {
-        $logContextScopes = m::mock(LogContextScopeFactory::class);
-        $logContextScopes->shouldReceive('activate')->zeroOrMoreTimes()->andReturnNull();
+        $logContextScopes = Double::for(LogContextScopeFactory::class)->strict();
+        $logContextScopes->allows('activate')->returns(null);
 
         return new GrpcInstrumentation(
             $this->operations,

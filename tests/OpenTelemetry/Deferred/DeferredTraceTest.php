@@ -7,13 +7,16 @@ namespace Hypervel\Tests\OpenTelemetry\Deferred;
 use Generator;
 use Hypervel\OpenTelemetry\Deferred\Trace\DeferredTracerProvider;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use OpenTelemetry\API\Trace\SpanBuilderInterface;
 use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\API\Trace\TracerProviderInterface;
 
 class DeferredTraceTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testPreBindTracerReplaysItsScopeAcrossBindUnbindAndRebind(): void
     {
         $provider = new DeferredTracerProvider;
@@ -24,15 +27,14 @@ class DeferredTraceTest extends TestCase
         $this->assertInstanceOf(SpanBuilderInterface::class, $tracer->spanBuilder('before-bind'));
         $this->assertFalse($attributes->valid());
 
-        $firstBuilder = m::mock(SpanBuilderInterface::class);
-        $firstTracer = m::mock(TracerInterface::class);
-        $firstTracer->shouldReceive('isEnabled')->once()->andReturnTrue();
-        $firstTracer->shouldReceive('spanBuilder')->once()->with('first')->andReturn($firstBuilder);
-        $firstProvider = m::mock(TracerProviderInterface::class);
-        $firstProvider->shouldReceive('getTracer')
-            ->once()
+        $firstBuilder = Double::for(SpanBuilderInterface::class)->strict();
+        $firstTracer = Double::for(TracerInterface::class)->strict();
+        $firstTracer->expects('isEnabled')->returns(true);
+        $firstTracer->expects('spanBuilder')->with('first')->returns($firstBuilder);
+        $firstProvider = Double::for(TracerProviderInterface::class)->strict();
+        $firstProvider->expects('getTracer')
             ->with('billing', '1.0', 'https://schema.test', ['scope.kind' => 'test'])
-            ->andReturn($firstTracer);
+            ->returns($firstTracer);
 
         $provider->bind($firstProvider);
 
@@ -43,13 +45,12 @@ class DeferredTraceTest extends TestCase
 
         $this->assertFalse($tracer->isEnabled());
 
-        $secondTracer = m::mock(TracerInterface::class);
-        $secondTracer->shouldReceive('isEnabled')->once()->andReturnTrue();
-        $secondProvider = m::mock(TracerProviderInterface::class);
-        $secondProvider->shouldReceive('getTracer')
-            ->once()
+        $secondTracer = Double::for(TracerInterface::class)->strict();
+        $secondTracer->expects('isEnabled')->returns(true);
+        $secondProvider = Double::for(TracerProviderInterface::class)->strict();
+        $secondProvider->expects('getTracer')
             ->with('billing', '1.0', 'https://schema.test', ['scope.kind' => 'test'])
-            ->andReturn($secondTracer);
+            ->returns($secondTracer);
 
         $provider->bind($secondProvider);
 
@@ -59,12 +60,11 @@ class DeferredTraceTest extends TestCase
     public function testTracerRequestedAfterBindComesDirectlyFromTheWorkerProvider(): void
     {
         $provider = new DeferredTracerProvider;
-        $workerTracer = m::mock(TracerInterface::class);
-        $workerProvider = m::mock(TracerProviderInterface::class);
-        $workerProvider->shouldReceive('getTracer')
-            ->once()
+        $workerTracer = Double::for(TracerInterface::class)->strict();
+        $workerProvider = Double::for(TracerProviderInterface::class)->strict();
+        $workerProvider->expects('getTracer')
             ->with('worker', null, null, [])
-            ->andReturn($workerTracer);
+            ->returns($workerTracer);
 
         $provider->bind($workerProvider);
 

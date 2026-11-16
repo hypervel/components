@@ -20,7 +20,9 @@ use Hypervel\OpenTelemetry\Support\ExceptionContextRegistry;
 use Hypervel\OpenTelemetry\Support\OperationOrigin;
 use Hypervel\OpenTelemetry\Support\ProcessIdentity;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Nyholm\Psr7\Request as NyholmRequest;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Trace\Propagation\TraceContextPropagator;
@@ -53,6 +55,8 @@ use Throwable;
 
 class HttpClientInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private ContextStorageInterface&ExecutionContextAwareInterface $previousStorage;
 
     private Factory $factory;
@@ -69,7 +73,7 @@ class HttpClientInstrumentationTest extends TestCase
 
     private MeterProvider $meterProvider;
 
-    private OpenTelemetryManager $manager;
+    private OpenTelemetryManager&DoubleInterface $manager;
 
     private ExceptionContextRegistry $exceptionContexts;
 
@@ -98,10 +102,9 @@ class HttpClientInstrumentationTest extends TestCase
         $this->meterProvider = (new MeterProviderBuilder)
             ->addReader($this->metricReader)
             ->build();
-        $this->manager = m::mock(OpenTelemetryManager::class);
-        $this->manager->shouldReceive('urlTemplateResolver')
-            ->zeroOrMoreTimes()
-            ->andReturnUsing(function (): ?Closure {
+        $this->manager = Double::for(OpenTelemetryManager::class)->strict();
+        $this->manager->allows('urlTemplateResolver')
+            ->resolves(function (): ?Closure {
                 ++$this->urlTemplateResolverCalls;
 
                 return $this->urlTemplateResolver;

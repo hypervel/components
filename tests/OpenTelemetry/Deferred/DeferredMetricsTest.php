@@ -8,7 +8,10 @@ use Closure;
 use Generator;
 use Hypervel\OpenTelemetry\Deferred\Metrics\DeferredMeterProvider;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use OpenTelemetry\API\Metrics\CounterInterface;
 use OpenTelemetry\API\Metrics\GaugeInterface;
 use OpenTelemetry\API\Metrics\HistogramInterface;
@@ -24,6 +27,8 @@ use WeakReference;
 
 class DeferredMetricsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testPreBindSynchronousInstrumentsDropMeasurementsAndBindWithTheirDescriptors(): void
     {
         $provider = new DeferredMeterProvider;
@@ -45,40 +50,35 @@ class DeferredMetricsTest extends TestCase
         $this->assertFalse($gauge->isEnabled());
         $this->assertFalse($attributes->valid());
 
-        $workerCounter = m::mock(CounterInterface::class);
-        $workerCounter->shouldReceive('isEnabled')->once()->andReturnTrue();
-        $workerCounter->shouldReceive('add')->once()->with(2, ['result' => 'ok'], null);
-        $workerUpDownCounter = m::mock(UpDownCounterInterface::class);
-        $workerUpDownCounter->shouldReceive('isEnabled')->once()->andReturnTrue();
-        $workerUpDownCounter->shouldReceive('add')->once()->with(-2, [], null);
-        $workerHistogram = m::mock(HistogramInterface::class);
-        $workerHistogram->shouldReceive('isEnabled')->once()->andReturnTrue();
-        $workerHistogram->shouldReceive('record')->once()->with(1.5, [], null);
-        $workerGauge = m::mock(GaugeInterface::class);
-        $workerGauge->shouldReceive('isEnabled')->once()->andReturnTrue();
-        $workerGauge->shouldReceive('record')->once()->with(20, [], null);
-        $workerMeter = m::mock(MeterInterface::class);
-        $workerMeter->shouldReceive('createCounter')
-            ->once()
+        $workerCounter = Double::for(CounterInterface::class)->strict();
+        $workerCounter->expects('isEnabled')->returns(true);
+        $workerCounter->expects('add')->with(2, ['result' => 'ok'], null);
+        $workerUpDownCounter = Double::for(UpDownCounterInterface::class)->strict();
+        $workerUpDownCounter->expects('isEnabled')->returns(true);
+        $workerUpDownCounter->expects('add')->with(-2, [], null);
+        $workerHistogram = Double::for(HistogramInterface::class)->strict();
+        $workerHistogram->expects('isEnabled')->returns(true);
+        $workerHistogram->expects('record')->with(1.5, [], null);
+        $workerGauge = Double::for(GaugeInterface::class)->strict();
+        $workerGauge->expects('isEnabled')->returns(true);
+        $workerGauge->expects('record')->with(20, [], null);
+        $workerMeter = Double::for(MeterInterface::class)->strict();
+        $workerMeter->expects('createCounter')
             ->with('billing.count', '{item}', 'Count items', ['key' => 'value'])
-            ->andReturn($workerCounter);
-        $workerMeter->shouldReceive('createUpDownCounter')
-            ->once()
+            ->returns($workerCounter);
+        $workerMeter->expects('createUpDownCounter')
             ->with('billing.active', null, null, [])
-            ->andReturn($workerUpDownCounter);
-        $workerMeter->shouldReceive('createHistogram')
-            ->once()
+            ->returns($workerUpDownCounter);
+        $workerMeter->expects('createHistogram')
             ->with('billing.duration', 's', null, [])
-            ->andReturn($workerHistogram);
-        $workerMeter->shouldReceive('createGauge')
-            ->once()
+            ->returns($workerHistogram);
+        $workerMeter->expects('createGauge')
             ->with('billing.size', 'By', null, [])
-            ->andReturn($workerGauge);
-        $workerProvider = m::mock(MeterProviderInterface::class);
-        $workerProvider->shouldReceive('getMeter')
-            ->once()
+            ->returns($workerGauge);
+        $workerProvider = Double::for(MeterProviderInterface::class)->strict();
+        $workerProvider->expects('getMeter')
             ->with('billing', '1.0', 'https://schema.test', ['scope.kind' => 'test'])
-            ->andReturn($workerMeter);
+            ->returns($workerMeter);
 
         $provider->bind($workerProvider);
 
@@ -145,13 +145,13 @@ class DeferredMetricsTest extends TestCase
             $counterCallback,
             $batchCallback,
         );
-        $firstCounterToken->shouldReceive('detach')->once();
-        $firstBatchToken->shouldReceive('detach')->once();
+        $firstCounterToken->expects('detach');
+        $firstBatchToken->expects('detach');
 
         $provider->bind($secondProvider);
 
-        $secondCounterToken->shouldReceive('detach')->once();
-        $secondBatchToken->shouldReceive('detach')->once();
+        $secondCounterToken->expects('detach');
+        $secondBatchToken->expects('detach');
         $counterToken->detach();
         $batchToken->detach();
 
@@ -166,18 +166,16 @@ class DeferredMetricsTest extends TestCase
         $target = new DeferredMetricsCallbackTarget;
         $targetReference = WeakReference::create($target);
         $counter->observe($target->callback());
-        $workerCounter = m::mock(ObservableCounterInterface::class);
-        $workerCounter->shouldReceive('isEnabled')->andReturnTrue();
-        $workerMeter = m::mock(MeterInterface::class);
-        $workerMeter->shouldReceive('createObservableCounter')
-            ->once()
+        $workerCounter = Double::for(ObservableCounterInterface::class)->strict();
+        $workerCounter->allows('isEnabled')->returns(true);
+        $workerMeter = Double::for(MeterInterface::class)->strict();
+        $workerMeter->expects('createObservableCounter')
             ->with('runtime.count', null, null, [])
-            ->andReturn($workerCounter);
-        $workerProvider = m::mock(MeterProviderInterface::class);
-        $workerProvider->shouldReceive('getMeter')
-            ->once()
+            ->returns($workerCounter);
+        $workerProvider = Double::for(MeterProviderInterface::class)->strict();
+        $workerProvider->expects('getMeter')
             ->with('runtime', null, null, [])
-            ->andReturn($workerMeter);
+            ->returns($workerMeter);
 
         unset($target);
         gc_collect_cycles();
@@ -195,29 +193,26 @@ class DeferredMetricsTest extends TestCase
         $target = new DeferredMetricsCallbackTarget;
         $targetReference = WeakReference::create($target);
         $counter->observe([$target, 'observe']);
-        $delegateToken = m::mock(ObservableCallbackInterface::class);
-        $delegateToken->shouldReceive('detach')->once();
-        $workerCounter = m::mock(ObservableCounterInterface::class);
-        $workerCounter->shouldReceive('observe')
-            ->once()
-            ->with(m::type(Closure::class))
-            ->andReturnUsing(function (Closure $callback) use ($delegateToken): ObservableCallbackInterface {
-                $observer = m::mock(ObserverInterface::class);
-                $observer->shouldReceive('observe')->once()->with(1);
+        $delegateToken = Double::for(ObservableCallbackInterface::class)->strict();
+        $delegateToken->expects('detach');
+        $workerCounter = Double::for(ObservableCounterInterface::class)->strict();
+        $workerCounter->expects('observe')
+            ->with(Argument::type(Closure::class))
+            ->resolves(function (Closure $callback) use ($delegateToken): ObservableCallbackInterface {
+                $observer = Double::for(ObserverInterface::class)->strict();
+                $observer->expects('observe')->with(1);
                 $callback($observer);
 
                 return $delegateToken;
             });
-        $workerMeter = m::mock(MeterInterface::class);
-        $workerMeter->shouldReceive('createObservableCounter')
-            ->once()
+        $workerMeter = Double::for(MeterInterface::class)->strict();
+        $workerMeter->expects('createObservableCounter')
             ->with('runtime.count', null, null, [])
-            ->andReturn($workerCounter);
-        $workerProvider = m::mock(MeterProviderInterface::class);
-        $workerProvider->shouldReceive('getMeter')
-            ->once()
+            ->returns($workerCounter);
+        $workerProvider = Double::for(MeterProviderInterface::class)->strict();
+        $workerProvider->expects('getMeter')
             ->with('runtime', null, null, [])
-            ->andReturn($workerMeter);
+            ->returns($workerMeter);
 
         $provider->bind($workerProvider);
         $this->assertSame(1, $target->observations);
@@ -232,49 +227,44 @@ class DeferredMetricsTest extends TestCase
         $provider = new DeferredMeterProvider;
         $meter = $provider->getMeter('runtime');
         $counter = $meter->createObservableCounter('runtime.count');
-        $foreignGauge = m::mock(ObservableGaugeInterface::class);
+        $foreignGauge = Double::for(ObservableGaugeInterface::class)->strict();
         $callback = static function (ObserverInterface $counter, ObserverInterface $gauge): void {
             $counter->observe(1);
             $gauge->observe(2);
         };
-        $counterDelegate = m::mock(ObservableCounterInterface::class);
-        $delegateToken = m::mock(ObservableCallbackInterface::class);
-        $workerMeter = m::mock(MeterInterface::class);
-        $workerMeter->shouldReceive('createObservableCounter')
-            ->once()
+        $counterDelegate = Double::for(ObservableCounterInterface::class)->strict();
+        $delegateToken = Double::for(ObservableCallbackInterface::class)->strict();
+        $workerMeter = Double::for(MeterInterface::class)->strict();
+        $workerMeter->expects('createObservableCounter')
             ->with('runtime.count', null, null, [])
-            ->andReturn($counterDelegate);
-        $workerMeter->shouldReceive('batchObserve')
-            ->once()
+            ->returns($counterDelegate);
+        $workerMeter->expects('batchObserve')
             ->with($callback, $counterDelegate, $foreignGauge)
-            ->andReturn($delegateToken);
-        $workerProvider = m::mock(MeterProviderInterface::class);
-        $workerProvider->shouldReceive('getMeter')
-            ->once()
+            ->returns($delegateToken);
+        $workerProvider = Double::for(MeterProviderInterface::class)->strict();
+        $workerProvider->expects('getMeter')
             ->with('runtime', null, null, [])
-            ->andReturn($workerMeter);
+            ->returns($workerMeter);
 
         $token = $meter->batchObserve($callback, $counter, $foreignGauge);
         $provider->bind($workerProvider);
 
-        $delegateToken->shouldReceive('detach')->once();
+        $delegateToken->expects('detach');
         $token->detach();
     }
 
     public function testMeterAndInstrumentsRequestedAfterBindComeDirectlyFromTheWorkerProvider(): void
     {
         $provider = new DeferredMeterProvider;
-        $workerCounter = m::mock(CounterInterface::class);
-        $workerMeter = m::mock(MeterInterface::class);
-        $workerMeter->shouldReceive('createCounter')
-            ->once()
+        $workerCounter = Double::for(CounterInterface::class)->strict();
+        $workerMeter = Double::for(MeterInterface::class)->strict();
+        $workerMeter->expects('createCounter')
             ->with('worker.count')
-            ->andReturn($workerCounter);
-        $workerProvider = m::mock(MeterProviderInterface::class);
-        $workerProvider->shouldReceive('getMeter')
-            ->once()
+            ->returns($workerCounter);
+        $workerProvider = Double::for(MeterProviderInterface::class)->strict();
+        $workerProvider->expects('getMeter')
             ->with('worker', null, null, [])
-            ->andReturn($workerMeter);
+            ->returns($workerMeter);
 
         $provider->bind($workerProvider);
         $meter = $provider->getMeter('worker');
@@ -286,7 +276,7 @@ class DeferredMetricsTest extends TestCase
     /**
      * Create a worker provider configured for observable replay.
      *
-     * @return array{MeterProviderInterface, ObservableCallbackInterface, ObservableCallbackInterface}
+     * @return array{DoubleInterface&MeterProviderInterface, DoubleInterface&ObservableCallbackInterface, DoubleInterface&ObservableCallbackInterface}
      */
     private function observableProvider(
         callable $counterCreation,
@@ -294,37 +284,32 @@ class DeferredMetricsTest extends TestCase
         callable $counterCallback,
         callable $batchCallback,
     ): array {
-        $counterToken = m::mock(ObservableCallbackInterface::class);
-        $batchToken = m::mock(ObservableCallbackInterface::class);
-        $counter = m::mock(ObservableCounterInterface::class);
-        $counter->shouldReceive('isEnabled')->andReturnTrue();
-        $counter->shouldReceive('observe')->once()->with($counterCallback)->andReturn($counterToken);
-        $gauge = m::mock(ObservableGaugeInterface::class);
-        $gauge->shouldReceive('isEnabled')->andReturnTrue();
-        $upDownCounter = m::mock(ObservableUpDownCounterInterface::class);
-        $upDownCounter->shouldReceive('isEnabled')->andReturnTrue();
-        $meter = m::mock(MeterInterface::class);
-        $meter->shouldReceive('createObservableCounter')
-            ->once()
+        $counterToken = Double::for(ObservableCallbackInterface::class)->strict();
+        $batchToken = Double::for(ObservableCallbackInterface::class)->strict();
+        $counter = Double::for(ObservableCounterInterface::class)->strict();
+        $counter->allows('isEnabled')->returns(true);
+        $counter->expects('observe')->with($counterCallback)->returns($counterToken);
+        $gauge = Double::for(ObservableGaugeInterface::class)->strict();
+        $gauge->allows('isEnabled')->returns(true);
+        $upDownCounter = Double::for(ObservableUpDownCounterInterface::class)->strict();
+        $upDownCounter->allows('isEnabled')->returns(true);
+        $meter = Double::for(MeterInterface::class)->strict();
+        $meter->expects('createObservableCounter')
             ->with('runtime.count', null, null, [], $counterCreation)
-            ->andReturn($counter);
-        $meter->shouldReceive('createObservableGauge')
-            ->once()
+            ->returns($counter);
+        $meter->expects('createObservableGauge')
             ->with('runtime.gauge', null, null, [], $gaugeCreation)
-            ->andReturn($gauge);
-        $meter->shouldReceive('createObservableUpDownCounter')
-            ->once()
+            ->returns($gauge);
+        $meter->expects('createObservableUpDownCounter')
             ->with('runtime.active', null, null, [])
-            ->andReturn($upDownCounter);
-        $meter->shouldReceive('batchObserve')
-            ->once()
+            ->returns($upDownCounter);
+        $meter->expects('batchObserve')
             ->with($batchCallback, $counter, $gauge)
-            ->andReturn($batchToken);
-        $provider = m::mock(MeterProviderInterface::class);
-        $provider->shouldReceive('getMeter')
-            ->once()
+            ->returns($batchToken);
+        $provider = Double::for(MeterProviderInterface::class)->strict();
+        $provider->expects('getMeter')
             ->with('runtime', null, null, [])
-            ->andReturn($meter);
+            ->returns($meter);
 
         return [$provider, $counterToken, $batchToken];
     }
