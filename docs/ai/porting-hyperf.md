@@ -239,8 +239,12 @@ $result = $container->get(Foo::class);  // test setup call
 
 // Hypervel
 use Hypervel\Contracts\Container\Container as ContainerContract;
-$container = m::mock(ContainerContract::class);
-$container->shouldReceive('make')->with(Foo::class)->andReturn(new Foo());
+use JMac\Testing\Double;
+
+// The container's instance() method collides with Double's control API.
+$containerDouble = Double::for(ContainerContract::class, override: true);
+$containerDouble->allows('make')->with(Foo::class)->returns(new Foo);
+$container = $containerDouble->instance();
 $result = $container->make(Foo::class);  // test setup call
 ```
 
@@ -258,10 +262,11 @@ $formatter->shouldReceive('format')->with($exception)->twice()->andReturn('unit'
 
 // Hypervel
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
-$container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnTrue();
-$container->shouldReceive('make')->with(ExceptionHandlerContract::class)
-    ->andReturn($handler = m::mock(ExceptionHandlerContract::class));
-$handler->shouldReceive('report')->with($exception)->twice();
+
+$handler = Double::for(ExceptionHandlerContract::class);
+$containerDouble->allows('has')->with(ExceptionHandlerContract::class)->returns(true);
+$containerDouble->allows('make')->with(ExceptionHandlerContract::class)->returns($handler);
+$handler->expects('report')->with($exception)->times(2);
 ```
 
 ### NonCoroutine tests
@@ -275,7 +280,7 @@ Hyperf uses `#[Group('NonCoroutine')]` on individual test methods to mark tests 
 3. Change `Hyperf\` imports to `Hypervel\`
 4. Remove Hyperf license header; remove `#[CoversNothing]` and `#[CoversClass(…)]` attributes
 5. Extend `Hypervel\Tests\TestCase` (not `PHPUnit\Framework\TestCase`)
-6. Change container mock to `Hypervel\Contracts\Container\Container`, all `->get()` to `->make()` (expectations AND direct calls)
+6. Convert Mockery doubles to Double per the [test double conventions](../../AGENTS.md#test-doubles); use `Hypervel\Contracts\Container\Container` and change all `->get()` to `->make()` (expectations and direct calls)
 7. Change error handler mock to `Hypervel\Contracts\Debug\ExceptionHandler`
 8. Extract `#[Group('NonCoroutine')]` methods to separate class with `$runTestsInCoroutine = false`
 9. Ensure `parent::setUp()` is called
