@@ -433,8 +433,8 @@ class ContextualAttributeBindingTest extends TestCase
         $request->allows('route')->with('array-access')->returns(new ArrayObject(['id' => 20]));
         $request->allows('route')->with('object')->returns((object) ['nested' => (object) ['id' => 30]]);
         $request->allows('route')->with('model')->returns($model);
-        $request->allows('route')->with('missing')->returns(['other' => 50]);
-        $request->allows('route')->with('null')->returns(null);
+        $request->expects('route')->with('missing')->returns(['other' => 50]);
+        $request->expects('route')->with('null')->returns(null);
         $container->singleton('request', fn (): Request => $request->instance());
 
         $resolved = $container->make(RouteParameterPropertyTest::class);

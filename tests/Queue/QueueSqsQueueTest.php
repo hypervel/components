@@ -211,10 +211,18 @@ class QueueSqsQueueTest extends TestCase
     protected function isPayloadOf(string $job): Closure
     {
         return function (string $body) use ($job): bool {
-            $payload = json_decode($body, true);
+            $payload = json_decode($body, true, flags: JSON_THROW_ON_ERROR);
 
-            return ($payload['displayName'] ?? null) === $job
-                && (class_exists($job) || $payload['data'] === $this->mockedData);
+            if ($payload['displayName'] !== $job) {
+                return false;
+            }
+
+            if (! class_exists($job)) {
+                return $payload['data'] === $this->mockedData;
+            }
+
+            return $payload['data']['commandName'] === $job
+                && unserialize($payload['data']['command']) instanceof $job;
         };
     }
 
@@ -625,6 +633,8 @@ class QueueSqsQueueTest extends TestCase
         $this->expectSqsCommand('sendMessage', ['QueueUrl' => $this->queueUrl, 'MessageBody' => $this->isPayloadOf(FakeSqsJob::class), 'MessageGroupId' => $this->mockedMessageGroupId], $this->mockedSendMessageResponseModel);
         $id = $queue->push($job, $this->mockedData, $this->queueName);
         $this->assertEquals($this->mockedMessageId, $id);
+        $payload = json_decode($this->handler->getLastCommand()['MessageBody'], true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame($this->mockedMessageGroupId, unserialize($payload['data']['command'])->messageGroup);
         $container->received('bound')->with('events')->times(3);
     }
 

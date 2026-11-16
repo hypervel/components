@@ -15,6 +15,7 @@ use Hypervel\Tests\TestCase;
 use Hypervel\Translation\Translator;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use PHPUnit\Framework\Attributes\TestWith;
 use WeakReference;
 
 class SupportServiceProviderTest extends TestCase
@@ -549,26 +550,42 @@ class SupportServiceProviderTest extends TestCase
         (new ServiceProviderForTestingComputed($app->instance()))->register();
     }
 
-    public function testLoadTranslationsFromWithoutNamespace(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testLoadTranslationsFromWithoutNamespace(bool $alreadyResolved): void
     {
         $translator = Double::for(Translator::class);
         $translator->expects('addPath')->with(__DIR__ . '/translations');
 
-        $this->app->instance('translator', $translator);
+        $this->app->singleton('translator', fn (): Translator => $translator);
+
+        if ($alreadyResolved) {
+            $this->app->make('translator');
+        }
 
         $provider = new ServiceProviderForTestingOne($this->app);
         $provider->loadTranslationsFrom(__DIR__ . '/translations');
+
+        $this->app->make('translator');
     }
 
-    public function testLoadTranslationsFromWithNamespace(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testLoadTranslationsFromWithNamespace(bool $alreadyResolved): void
     {
         $translator = Double::for(Translator::class);
         $translator->expects('addNamespace')->with('namespace', __DIR__ . '/translations');
 
-        $this->app->instance('translator', $translator);
+        $this->app->singleton('translator', fn (): Translator => $translator);
+
+        if ($alreadyResolved) {
+            $this->app->make('translator');
+        }
 
         $provider = new ServiceProviderForTestingOne($this->app);
         $provider->loadTranslationsFrom(__DIR__ . '/translations', 'namespace');
+
+        $this->app->make('translator');
     }
 
     public function testCanRemoveProvider(): void

@@ -394,7 +394,8 @@ class RedisStoreTest extends TestCase
 
         $store->clear();
 
-        // An entry that expired five minutes ago, and one that is still fresh...
+        // Backdate membership scores while leaving Redis values alive, so pruning
+        // must remove expired scores rather than relying on orphan cleanup.
         CarbonImmutable::setTestNow(CarbonImmutable::now()->subMinutes(5));
 
         try {

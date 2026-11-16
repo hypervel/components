@@ -496,7 +496,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
         $this->assertSame(1, $models[0]->friends->count());
         $this->assertContains($result, $models[0]->friends);
-        $this->assertCount(0, $models[1]->friends);
+        $this->assertFalse($models[1]->relationLoaded('friends'));
     }
 
     public function testBelongsToManyWithPivotValuesFiltersAndInsertsDefaults(): void

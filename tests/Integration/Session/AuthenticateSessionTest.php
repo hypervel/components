@@ -12,9 +12,11 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Http\Kernel;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Http\Request;
 use Hypervel\Routing\Router;
 use Hypervel\Session\Middleware\AuthenticateSession;
 use Hypervel\Support\Facades\Auth;
+use Hypervel\Support\Facades\Hash;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\Factories\UserFactory;
@@ -89,6 +91,25 @@ class AuthenticateSessionTest extends TestCase
         $this->actingAs($user)->get('protected')
             ->assertOk()
             ->assertSessionHas('password_hash_web', $this->hashFor($user));
+    }
+
+    public function testItRefreshesTheSessionHashAfterThePasswordChanges(): void
+    {
+        $user = UserFactory::new()->create();
+        $originalHash = $this->hashFor($user);
+        $updatedPassword = Hash::make('updated-password');
+
+        $this->app->make(Router::class)->post('change-password', function (Request $request) use ($updatedPassword): string {
+            $request->user()->forceFill(['password' => $updatedPassword])->save();
+
+            return 'updated';
+        })->middleware(['web', AuthenticateSession::class]);
+
+        $response = $this->actingAs($user)
+            ->withSession(['password_hash_web' => $originalHash])
+            ->post('change-password');
+
+        $response->assertOk()->assertSessionHas('password_hash_web', $this->hashFor($user->refresh()));
     }
 
     #[DataProvider('authenticatedRememberCookies')]
