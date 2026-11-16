@@ -31,6 +31,7 @@
         <ini name="display_startup_errors" value="on"/>
         <ini name="memory_limit" value="1024M"/>
         <server name="HYPERVEL_PARALLEL_TESTING" value="1"/>
+        <env name="BCRYPT_ROUNDS" value="4"/>
         <!--
             Fix terminal dimensions so console-output assertions do not depend
             on the developer's terminal size.

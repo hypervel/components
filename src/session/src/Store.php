@@ -251,7 +251,7 @@ class Store implements Session
         $attributesForStorage = $this->prepareErrorBagForSerialization($attributes);
 
         $serialized = $this->serialization === 'json'
-            ? json_encode($attributesForStorage, JSON_THROW_ON_ERROR)
+            ? json_encode($attributesForStorage, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE)
             : serialize($attributesForStorage);
 
         $written = $this->handler->write(

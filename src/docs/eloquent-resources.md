@@ -1266,6 +1266,8 @@ return $post->load('author', 'comments')
     ->includePreviouslyLoadedRelationships();
 ```
 
+When several resources of the same class wrap the same model instance, each previously loaded relationship keeps its first result. Relationships requested through the `include` query parameter are resolved by each resource.
+
 <a name="jsonapi-links-and-meta"></a>
 ### Links and Meta
 
@@ -1314,6 +1316,47 @@ This will add `links` and `meta` keys to the resource object in the response:
     }
 }
 ```
+
+<a name="jsonapi-identifier-meta"></a>
+#### Relationship Identifier Metadata
+
+Each JSON:API resource appears once per type and ID, and each relationship lists a related identity once. Included resources omit the pivot relation. To expose data about an association, define `toIdentifierMeta` on the related resource:
+
+```php
+/**
+ * Get metadata for this resource's relationship identifier.
+ */
+public function toIdentifierMeta(Request $request): array
+{
+    return [
+        'role' => $this->whenPivotLoaded('team_user', fn () => $this->pivot->role),
+    ];
+}
+```
+
+The result appears in the relationship identifier's `meta` object. The pivot is available to this method, and conditional helpers such as `whenPivotLoadedAs` and `mergeWhen` are supported. Returning an empty array omits `meta`.
+
+Identifier metadata describes one association between the parent and related resource. If multiple rows connect the same pair, expose those associations as resources with their own IDs; repeated identifiers with metadata are rejected when encountered. For example, a normal `Membership` model mapped to `team_user` can be exposed through a user's `memberships` relationship:
+
+```php
+use Hypervel\Http\Request;
+use Hypervel\Http\Resources\JsonApi\JsonApiResource;
+
+class MembershipResource extends JsonApiResource
+{
+    public array $relationships = ['team' => TeamResource::class];
+
+    /**
+     * Transform the membership attributes.
+     */
+    public function toAttributes(Request $request): array
+    {
+        return ['role' => $this->role];
+    }
+}
+```
+
+Map `memberships` to this resource on `UserResource`, then request `include=memberships.team`. Each membership retains its own attributes while the shared team appears once. Standard JSON resources retain their usual `whenPivotLoaded` behavior.
 
 <a name="resource-responses"></a>
 ## Resource Responses

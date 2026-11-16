@@ -4604,6 +4604,8 @@ class HttpClientTest extends TestCase
 
     public function testRequestExceptionIsThrownWhenRetriesExhausted(): void
     {
+        Sleep::fake();
+
         $this->factory->fake([
             '*' => $this->factory::response(['error'], 403),
         ]);
@@ -4612,7 +4614,7 @@ class HttpClientTest extends TestCase
 
         try {
             $this->factory
-                ->retry(2, 0, null, true)
+                ->retry(2, 1000, null, true)
                 ->get('http://foo.com/get');
         } catch (RequestException $e) {
             $exception = $e;
@@ -4880,12 +4882,14 @@ class HttpClientTest extends TestCase
 
     public function testRequestExceptionIsNotThrownWhenDisabledAndRetriesExhausted(): void
     {
+        Sleep::fake();
+
         $this->factory->fake([
             '*' => $this->factory::response(['error'], 403),
         ]);
 
         $response = $this->factory
-            ->retry(2, 0, null, false)
+            ->retry(2, 1000, null, false)
             ->get('http://foo.com/get');
 
         $this->assertTrue($response->failed());
@@ -4990,6 +4994,8 @@ class HttpClientTest extends TestCase
 
     public function testRequestCanBeModifiedInRetryCallback(): void
     {
+        Sleep::fake();
+
         $this->factory->fake([
             '*' => $this->factory->sequence()
                 ->push(['error'], 500)
@@ -4997,7 +5003,7 @@ class HttpClientTest extends TestCase
         ]);
 
         $response = $this->factory
-            ->retry(2, 0, function ($exception, $request) {
+            ->retry(2, 1000, function ($exception, $request) {
                 $this->assertInstanceOf(PendingRequest::class, $request);
 
                 $request->withHeaders(['Foo' => 'Bar']);

@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Concerns;
 
 use Hypervel\Database\Eloquent\Attributes\UseResource;
+use Hypervel\Http\Resources\Exceptions\ResourceClassNotFoundException;
 use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Support\Str;
-use LogicException;
 use ReflectionClass;
 
 /**
@@ -32,7 +32,7 @@ trait TransformsToResource
     /**
      * Guess the resource class for the model.
      *
-     * @throws LogicException
+     * @throws ResourceClassNotFoundException
      */
     protected function guessResource(): JsonResource
     {
@@ -48,7 +48,7 @@ trait TransformsToResource
             }
         }
 
-        throw new LogicException(sprintf('Failed to find resource class for model [%s].', get_class($this)));
+        throw ResourceClassNotFoundException::forModel($this);
     }
 
     /**

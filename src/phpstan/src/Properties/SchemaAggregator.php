@@ -2078,7 +2078,7 @@ class SchemaAggregator
                 $type = match (true) {
                     $method === 'foreignuuidfor' => 'uuid',
                     $method === 'foreignulidfor' => 'char',
-                    $model->getKeyType() === 'int' => 'biginteger',
+                    in_array($model->getKeyType(), ['int', 'integer'], true) => 'biginteger',
                     isset(class_uses_recursive($model)[HasUlids::class]) => 'char',
                     default => 'uuid',
                 };

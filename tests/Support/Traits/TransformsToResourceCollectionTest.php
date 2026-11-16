@@ -9,6 +9,7 @@ use Hypervel\Database\Eloquent\Attributes\UseResourceCollection;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Concerns\TransformsToResource;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Http\Resources\Exceptions\ResourceClassNotFoundException;
 use Hypervel\Http\Resources\Json\AnonymousResourceCollection;
 use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Http\Resources\Json\ResourceCollection;
@@ -40,7 +41,7 @@ class TransformsToResourceCollectionTest extends TestCase
 
     public function testToResourceCollectionThrowsExceptionWhenResourceCannotBeFound(): void
     {
-        $this->expectException(LogicException::class);
+        $this->expectException(ResourceClassNotFoundException::class);
         $this->expectExceptionMessageIs('Failed to find resource class for model [Hypervel\Tests\Support\Traits\ResourceCollectionTestModel].');
 
         $model = new ResourceCollectionTestModel;

@@ -11,6 +11,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Request;
+use Hypervel\Session\ArraySessionHandler;
 use Hypervel\Session\CookieSessionHandler;
 use Hypervel\Session\SessionId;
 use Hypervel\Session\Store;
@@ -1294,6 +1295,23 @@ class SessionStoreTest extends TestCase
             'Your first name is required',
             'Your first name must be at least 1 character',
         ]], $errors->getBags()['default']->getMessages());
+    }
+
+    public function testInvalidUtf8DoesNotEmptyJsonSerializedSession(): void
+    {
+        $session = new Store('name', $handler = new ArraySessionHandler(10), $this->getSessionId(), 'json');
+        $session->start();
+        $session->put('login_web_59ba36addc2b2f9401580f014c7f58ea4e30989d', 1);
+        $session->put('url.intended', "https://hypervel.org/\xB1");
+        $token = $session->token();
+        $session->save();
+
+        $session = new Store('name', $handler, $this->getSessionId(), 'json');
+        $session->start();
+
+        $this->assertSame(1, $session->get('login_web_59ba36addc2b2f9401580f014c7f58ea4e30989d'));
+        $this->assertSame($token, $session->token());
+        $this->assertSame("https://hypervel.org/\u{FFFD}", $session->get('url.intended'));
     }
 
     public function testItIsMacroable(): void

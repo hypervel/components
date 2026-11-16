@@ -144,6 +144,14 @@ class JsonApiResource extends JsonResource
     }
 
     /**
+     * Get metadata for this resource's relationship identifier.
+     */
+    public function toIdentifierMeta(Request $request): array
+    {
+        return [];
+    }
+
+    /**
      * Get any additional data that should be returned with the resource array.
      */
     #[Override]
@@ -151,7 +159,7 @@ class JsonApiResource extends JsonResource
     {
         $jsonApiRequest = $this->resolveJsonApiRequestFrom($request);
 
-        $included = $this->includedResources ??= static::resolveIncludedResources(new Collection([$this]), $jsonApiRequest);
+        $included = $this->includedResources ??= static::resolveIncludedResources(new Collection([$this]), $jsonApiRequest, $this->jsonOptions());
 
         return [
             ...($included !== [] || $jsonApiRequest->has('include')) ? ['included' => $included] : [],
@@ -199,7 +207,7 @@ class JsonApiResource extends JsonResource
         $request = $this->resolveJsonApiRequestFrom($request);
 
         // Merge duplicate linkage before the primary resource is serialized.
-        $this->includedResources ??= static::resolveIncludedResources(new Collection([$this]), $request);
+        $this->includedResources ??= static::resolveIncludedResources(new Collection([$this]), $request, $this->jsonOptions());
 
         return parent::toResponse($request);
     }

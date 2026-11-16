@@ -53,7 +53,6 @@ class UserSessionLifecycleTest extends TestCase
                 ],
             ],
             'auth.providers.users.model' => User::class,
-            'hashing.bcrypt.rounds' => 4,
             'session.driver' => 'database',
             'session.lottery' => [0, 100],
         ]);

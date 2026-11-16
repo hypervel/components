@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Http\Resources\Exceptions\ResourceClassNotFoundException;
 use Hypervel\Http\Resources\JsonApi\Exceptions\ResourceIdentificationException;
 use Hypervel\Http\Resources\JsonApi\JsonApiRequest;
 use Hypervel\Http\Resources\JsonApi\JsonApiResource;
@@ -21,11 +22,12 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
-use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use JsonSerializable;
+use LogicException;
 use ReflectionMethod;
 use RuntimeException;
+use stdClass;
 use WeakMap;
 
 trait ResolvesJsonApiElements
@@ -55,9 +57,10 @@ trait ResolvesJsonApiElements
     /**
      * Cached loaded relationships map.
      *
-     * @var null|array<int, array{0: JsonApiResource, 1: string, 2: string, 3: bool}>
+     * @internal
+     * @var null|array<int, array{0: JsonApiResource, 1: string, 2: string, 3: ?string, 4: ?JsonApiResource}>
      */
-    public ?array $loadedRelationshipsMap = null;
+    protected ?array $loadedRelationshipsMap = null;
 
     /**
      * Cached loaded relationship identifiers.
@@ -250,7 +253,7 @@ trait ResolvesJsonApiElements
         JsonApiRequest $request,
         mixed $resource,
         RelationResolver $relationResolver,
-        Collection|Model|null $relatedModels
+        Collection|JsonApiResource|Model|null $relatedModels
     ): Generator {
         $relationName = $relationResolver->relationName;
         $resourceClass = $relationResolver->resourceClass();
@@ -268,72 +271,135 @@ trait ResolvesJsonApiElements
 
             // Default loading stays batched across parents in prepareResourceRelationships().
             if (! empty($requestedRelationships) && ! $this->usesDefaultRelationshipLoading()) {
-                $this->loadMissingRequestedRelationships($request, $relatedModels, $resourceClass, $requestedRelationships);
+                $models = $relatedModels
+                    ->map(fn (JsonApiResource|Model $related): mixed => $related instanceof JsonApiResource ? $related->resource : $related)
+                    ->whereInstanceOf(Model::class);
+
+                if ($models->isNotEmpty()) {
+                    $this->loadMissingRequestedRelationships($request, $models, $resourceClass, $requestedRelationships);
+                }
             }
 
             $relationship = $resource->{$relationName}();
 
-            $isUnique = ! $relationship instanceof BelongsToMany;
+            $pivotAccessor = $relationship instanceof BelongsToMany ? $relationship->getPivotAccessor() : null;
+            $identifiers = [];
+            $seen = [];
 
-            yield $relationName => ['data' => $relatedModels->map(function ($relatedModel) use ($request, $resourceClass, $isUnique, $requestedRelationships) {
-                $relatedResource = rescue(fn () => $relatedModel->toResource($resourceClass), new JsonApiResource($relatedModel));
-
-                if (! $relatedResource instanceof JsonApiResource) {
-                    $relatedResource = new JsonApiResource($relatedResource->resource);
-                }
+            foreach ($relatedModels as $related) {
+                $origin = $related instanceof JsonApiResource ? $related : null;
+                $relatedResource = $origin !== null ? $this->cloneRelatedResource($origin) : $this->makeRelatedResource($related, $resourceClass);
 
                 $relatedResource->requestedRelationships = $requestedRelationships;
 
-                return transform(
-                    [$relatedResource->resolveResourceType($request), $relatedResource->resolveResourceIdentifier($request)],
-                    function ($uniqueKey) use ($relatedResource, $isUnique) {
-                        $this->loadedRelationshipsMap[] = [$relatedResource, ...$uniqueKey, $isUnique];
+                $identifier = $relatedResource->resolveResourceIdentifierObject($request);
+                $type = $identifier['type'];
+                $id = $identifier['id'];
 
-                        return [
-                            'id' => $uniqueKey[1],
-                            'type' => $uniqueKey[0],
-                        ];
+                // Duplicate instances can carry different loaded descendants that still need merging.
+                $this->loadedRelationshipsMap[] = [$relatedResource, $type, $id, $pivotAccessor, $origin];
+
+                if (isset($seen[$type][$id])) {
+                    if ($seen[$type][$id] || isset($identifier['meta'])) {
+                        throw new LogicException(sprintf(
+                            'Relationship [%s::%s] contains repeated resource [%s:%s] with identifier metadata. Expose the associations as separate resources.',
+                            $resource::class,
+                            $relationName,
+                            $type,
+                            $id,
+                        ));
                     }
-                );
-            })->all()];
+
+                    continue;
+                }
+
+                $seen[$type][$id] = isset($identifier['meta']);
+                $identifiers[] = $identifier;
+            }
+
+            yield $relationName => ['data' => $identifiers];
 
             return;
         }
 
         // Relationship is a single model...
-        $relatedModel = $relatedModels;
+        $relatedModel = $relatedModels instanceof JsonApiResource ? $relatedModels->resource : $relatedModels;
 
         if (is_null($relatedModel)) {
             yield $relationName => null;
 
             return;
         }
-        if ($relatedModel instanceof Pivot
-            || isset(class_uses_recursive($relatedModel)[AsPivot::class])) {
+        if ($relatedModel instanceof Model && ($relatedModel instanceof Pivot
+            || isset(class_uses_recursive($relatedModel)[AsPivot::class]))) {
             yield $relationName => new MissingValue;
 
             return;
         }
 
-        $relatedResource = rescue(fn () => $relatedModel->toResource($resourceClass), new JsonApiResource($relatedModel));
-
-        if (! $relatedResource instanceof JsonApiResource) {
-            $relatedResource = new JsonApiResource($relatedResource->resource);
-        }
+        $origin = $relatedModels instanceof JsonApiResource ? $relatedModels : null;
+        $relatedResource = $origin !== null ? $this->cloneRelatedResource($origin) : $this->makeRelatedResource($relatedModel, $resourceClass);
 
         $relatedResource->requestedRelationships = $requestedRelationships;
 
-        yield $relationName => ['data' => transform(
-            [$relatedResource->resolveResourceType($request), $relatedResource->resolveResourceIdentifier($request)],
-            function ($uniqueKey) use ($relatedResource) {
-                $this->loadedRelationshipsMap[] = [$relatedResource, ...$uniqueKey, true];
+        $identifier = $relatedResource->resolveResourceIdentifierObject($request);
+        $this->loadedRelationshipsMap[] = [$relatedResource, $identifier['type'], $identifier['id'], null, $origin];
 
-                return [
-                    'id' => $uniqueKey[1],
-                    'type' => $uniqueKey[0],
-                ];
+        yield $relationName => ['data' => $identifier];
+    }
+
+    /**
+     * Clone a supplied resource with fresh relationship traversal state.
+     */
+    protected function cloneRelatedResource(JsonApiResource $resource): JsonApiResource
+    {
+        $resource = clone $resource;
+        $resource->loadedRelationshipsMap = null;
+        $resource->loadedRelationshipIdentifiers = [];
+        $resource->includedResources = null;
+
+        return $resource;
+    }
+
+    /**
+     * Create a resource for the related model.
+     */
+    protected function makeRelatedResource(Model $relatedModel, ?string $resourceClass): JsonApiResource
+    {
+        // Only absent mappings fall back; failures in configured resources must propagate.
+        if ($resourceClass !== null) {
+            $relatedResource = $relatedModel->toResource($resourceClass);
+        } else {
+            try {
+                $relatedResource = $relatedModel->toResource();
+            } catch (ResourceClassNotFoundException $exception) {
+                if ($exception->getModel() !== $relatedModel) {
+                    throw $exception;
+                }
+
+                return new JsonApiResource($relatedModel);
             }
-        )];
+        }
+
+        return $relatedResource instanceof JsonApiResource ? $relatedResource : new JsonApiResource($relatedResource->resource);
+    }
+
+    /**
+     * Resolve a relationship identifier and its optional metadata.
+     *
+     * @return array{id: string, type: string, meta?: object}
+     */
+    protected function resolveResourceIdentifierObject(JsonApiRequest $request): array
+    {
+        $type = $this->resolveResourceType($request);
+        $id = $this->resolveResourceIdentifier($request);
+        $meta = $this->filter($this->toIdentifierMeta($request));
+
+        return [
+            'id' => $id,
+            'type' => $type,
+            ...$meta !== [] ? ['meta' => (object) $meta] : [],
+        ];
     }
 
     /**
@@ -369,6 +435,8 @@ trait ResolvesJsonApiElements
     ): void {
         // Eager loading uses the first model's class and connection for the whole group.
         $relatedModels->groupBy(fn ($relatedModel) => serialize([$relatedModel::class, $relatedModel->getConnectionName()]))->each(function ($relatedModels) use ($request, $resourceClass, $requestedRelationships) {
+            // Existing resources may need constructor arguments unavailable to this optional preload.
+            // Skip reconstruction failures; actual rendering validates resources and rescue preserves cancellation.
             $relatedResource = rescue(fn () => $relatedModels->first()->toResource($resourceClass), report: false);
 
             if (! $relatedResource instanceof JsonApiResource) {
@@ -528,46 +596,89 @@ trait ResolvesJsonApiElements
         $relations = new Collection;
         $index = 0;
 
-        // Track visited objects by instance + type to prevent infinite loops from circular
-        // references created by "chaperone()". We use object instances rather than type
-        // and ID for any possible cases like BelongsToMany with different pivot data.
-        // We'll track types to allow the same models with different resource types.
+        // Map each original instance and type to true for primary data, or to loaded relationship names per resource class.
         $visitedObjects = new WeakMap;
+        $expandedRelationships = new WeakMap;
 
         $visitedObjects[$this->resource] = [
             $this->resolveResourceType($request) => true,
         ];
 
         while ($index < count($this->loadedRelationshipsMap)) {
-            [$resourceInstance, $type, $id, $isUnique] = $this->loadedRelationshipsMap[$index];
+            [$resourceInstance, $type, $id, $pivotAccessor, $origin] = $this->loadedRelationshipsMap[$index];
 
             $underlyingResource = $resourceInstance->resource;
 
-            if (is_object($underlyingResource)) {
-                if (isset($visitedObjects[$underlyingResource][$type])) {
+            $visited = is_object($underlyingResource) && isset($visitedObjects[$underlyingResource][$type]);
+            $expansionOwner = $origin ?? ($underlyingResource instanceof Model ? $underlyingResource : $resourceInstance);
+            $requested = array_fill_keys($resourceInstance->requestedRelationships ?? [], true);
+
+            if ($visited) {
+                if ($resourceInstance->loadedRelationshipsMap !== null) {
+                    // Requested paths retain each occurrence's resolvers; repeated tails need no second walk.
+                    if (array_diff_key($requested, $expandedRelationships[$expansionOwner][$resourceInstance::class][$type] ?? []) === []) {
+                        ++$index;
+                        continue;
+                    }
+                } elseif ($origin === null || ! $underlyingResource instanceof Model || $visitedObjects[$underlyingResource][$type] === true) {
+                    // Keep primary linkage authoritative and avoid rediscovering synthesized or non-model resources.
+                    ++$index;
+                    continue;
+                }
+            } elseif (is_object($underlyingResource)) {
+                $visitedObjects[$underlyingResource] ??= [];
+                $visitedObjects[$underlyingResource][$type] = [];
+            }
+
+            $expandedRelationships[$expansionOwner] ??= [];
+            $expandedRelationships[$expansionOwner][$resourceInstance::class][$type]
+                = ($expandedRelationships[$expansionOwner][$resourceInstance::class][$type] ?? []) + $requested;
+
+            if ($pivotAccessor !== null && $underlyingResource instanceof Model) {
+                // Association data belongs on identifiers; preserve the original model for cycle tracking and callers.
+                $resourceInstance = clone $resourceInstance;
+                $resourceInstance->resource = (clone $underlyingResource)->unsetRelation($pivotAccessor);
+            }
+
+            if ($visited && $resourceInstance->loadedRelationshipsMap === null) {
+                $resourceInstance->includePreviouslyLoadedRelationships();
+                $names = array_fill_keys($resourceInstance->getResourceRelationships($request)->keys()->all(), true);
+                $known = $visitedObjects[$underlyingResource][$type][$resourceInstance::class] ?? [];
+                $names = array_diff_key($names, $known);
+
+                if ($names === []) {
                     ++$index;
                     continue;
                 }
 
-                $visitedObjects[$underlyingResource] ??= [];
-                $visitedObjects[$underlyingResource][$type] = true;
+                // Implicit linkage expands once per name; re-running inverse closures can make chaperone graphs quadratic.
+                $resourceInstance->requestedRelationships = array_keys($names);
+                $resourceInstance->includesPreviouslyLoadedRelationships = false;
             }
 
-            $relationsData = $resourceInstance
-                ->includePreviouslyLoadedRelationships()
-                ->resolve($request);
+            $relationsData = $visited
+                ? ['data' => ['relationships' => $resourceInstance->resolveResourceRelationshipIdentifiers($request)]]
+                : $resourceInstance->includePreviouslyLoadedRelationships()->resolve($request);
+
+            if ($underlyingResource instanceof Model && $visitedObjects[$underlyingResource][$type] !== true) {
+                $visitedObjects[$underlyingResource][$type][$resourceInstance::class]
+                    = ($visitedObjects[$underlyingResource][$type][$resourceInstance::class] ?? [])
+                    + array_fill_keys(array_keys($resourceInstance->loadedRelationshipIdentifiers), true);
+            }
 
             array_push($this->loadedRelationshipsMap, ...($resourceInstance->loadedRelationshipsMap ?? []));
 
-            $relations->push(array_filter([
+            $relations->push([
                 'id' => $id,
                 'type' => $type,
-                '_uniqueKey' => implode(':', $isUnique === true ? [$id, $type] : [$id, $type, (string) Str::random()]),
-                'attributes' => Arr::get($relationsData, 'data.attributes'),
-                'relationships' => Arr::get($relationsData, 'data.relationships'),
-                'links' => Arr::get($relationsData, 'data.links'),
-                'meta' => Arr::get($relationsData, 'data.meta'),
-            ]));
+                '_uniqueKey' => $id . ':' . $type,
+                ...array_filter([
+                    'attributes' => Arr::get($relationsData, 'data.attributes'),
+                    'relationships' => Arr::get($relationsData, 'data.relationships'),
+                    'links' => Arr::get($relationsData, 'data.links'),
+                    'meta' => Arr::get($relationsData, 'data.meta'),
+                ]),
+            ]);
 
             ++$index;
         }
@@ -575,13 +686,15 @@ trait ResolvesJsonApiElements
         return $relations;
     }
 
+    // REMOVED: includedResourceHash; JSON:API type/id defines uniqueness, with association data on identifiers.
+
     /**
      * Resolve included resources and preserve linkage when combining duplicate identities.
      *
      * @internal
      * @param Collection<array-key, JsonApiResource> $resources
      */
-    public static function resolveIncludedResources(Collection $resources, JsonApiRequest $request): array
+    public static function resolveIncludedResources(Collection $resources, JsonApiRequest $request, int $jsonOptions): array
     {
         static::prepareResourceRelationships($resources, $request);
 
@@ -603,14 +716,13 @@ trait ResolvesJsonApiElements
                 $relationships = (array) ($entry['relationships'] ?? []);
                 $root = $roots[$entry['type']][$entry['id']] ?? null;
 
-                // Pivot variants have distinct keys and must retain their own attributes.
-                if ($root !== null && $key === $entry['id'] . ':' . $entry['type']) {
+                if ($root !== null) {
                     $identifiers[$key] ??= [];
-                    static::mergeResourceRelationships($root->loadedRelationshipIdentifiers, $relationships, $identifiers[$key]);
+                    static::mergeResourceRelationships($root->loadedRelationshipIdentifiers, $relationships, $identifiers[$key], $jsonOptions);
                 } elseif (isset($positions[$key])) {
                     $position = $positions[$key];
                     $identifiers[$key] ??= [];
-                    static::mergeResourceRelationships($included[$position]['relationships'], $relationships, $identifiers[$key]);
+                    static::mergeResourceRelationships($included[$position]['relationships'], $relationships, $identifiers[$key], $jsonOptions);
                 } else {
                     $positions[$key] = count($included);
                     $entry['relationships'] = $relationships;
@@ -635,7 +747,7 @@ trait ResolvesJsonApiElements
     /**
      * Merge relationship linkage without discarding descendants of duplicate resources.
      */
-    protected static function mergeResourceRelationships(array &$relationships, array $additional, array &$identifiers): void
+    protected static function mergeResourceRelationships(array &$relationships, array $additional, array &$identifiers, int $jsonOptions): void
     {
         foreach ($additional as $name => $relationship) {
             if (! array_key_exists($name, $relationships)) {
@@ -663,25 +775,76 @@ trait ResolvesJsonApiElements
 
             $incoming = $incoming instanceof Collection ? $incoming->all() : $incoming;
 
-            if ($incoming === null || ! array_is_list($data)) {
+            if ($incoming === null) {
                 continue;
             }
+
+            $isList = array_is_list($data);
 
             if (! isset($identifiers[$name])) {
                 $identifiers[$name] = [];
 
-                foreach ($data as $identifier) {
-                    $identifiers[$name][$identifier['type']][$identifier['id']] = true;
+                foreach ($isList ? $data : [$data] as $identifier) {
+                    $identifiers[$name][$identifier['type']][$identifier['id']] = $identifier['meta'] ?? null;
                 }
             }
 
-            foreach ($incoming as $identifier) {
-                if (! isset($identifiers[$name][$identifier['type']][$identifier['id']])) {
-                    $identifiers[$name][$identifier['type']][$identifier['id']] = true;
-                    $data[] = $identifier;
+            foreach ($isList ? $incoming : [$incoming] as $identifier) {
+                if (! array_key_exists($identifier['id'], $identifiers[$name][$identifier['type']] ?? [])) {
+                    if ($isList) {
+                        $identifiers[$name][$identifier['type']][$identifier['id']] = $identifier['meta'] ?? null;
+                        $data[] = $identifier;
+                    }
+
+                    continue;
+                }
+
+                $known = $identifiers[$name][$identifier['type']][$identifier['id']];
+                $meta = $identifier['meta'] ?? null;
+
+                // Honor the response's encoding policy while ignoring object identity and member order.
+                if ($known !== $meta && ! static::jsonValuesEqual(
+                    json_decode(json_encode($known, $jsonOptions | JSON_THROW_ON_ERROR), flags: JSON_THROW_ON_ERROR),
+                    json_decode(json_encode($meta, $jsonOptions | JSON_THROW_ON_ERROR), flags: JSON_THROW_ON_ERROR),
+                )) {
+                    throw new LogicException(sprintf(
+                        'Relationship [%s] contains conflicting metadata for resource [%s:%s]. Expose the associations as separate resources.',
+                        $name,
+                        $identifier['type'],
+                        $identifier['id'],
+                    ));
                 }
             }
         }
+    }
+
+    /**
+     * Compare decoded JSON values while preserving scalar types and list order.
+     */
+    protected static function jsonValuesEqual(mixed $left, mixed $right): bool
+    {
+        if ($left === $right) {
+            return true;
+        }
+
+        if ($left instanceof stdClass && $right instanceof stdClass) {
+            $left = get_object_vars($left);
+            $right = get_object_vars($right);
+        } elseif (! is_array($left) || ! is_array($right)) {
+            return false;
+        }
+
+        if (count($left) !== count($right)) {
+            return false;
+        }
+
+        foreach ($left as $key => $value) {
+            if (! array_key_exists($key, $right) || ! static::jsonValuesEqual($value, $right[$key])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

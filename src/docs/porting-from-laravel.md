@@ -628,6 +628,8 @@ Mercure applications must configure a standalone HTTP hub. Hypervel runs on Swoo
 
 [Requested relationships](/docs/{{version}}/eloquent-resources#including-jsonapi-relationships) load before attribute callbacks, so a `whenLoaded()` attribute can appear when the client requests that relationship. [Default attributes](/docs/{{version}}/eloquent-resources#defining-jsonapi-attributes) omit `id`, `type`, and declared relationship names; explicit attribute definitions remain under your control.
 
+Included resources and relationship identifiers are unique by type and ID. Move pivot-dependent included attributes to `toIdentifierMeta()`; expose independently meaningful repeated associations as resources with their own IDs. See [identifier metadata](/docs/{{version}}/eloquent-resources#jsonapi-identifier-meta). Do not write `loadedRelationshipsMap` directly or override `includedResourceHash()`: the map is protected internal state and the hash hook is not provided.
+
 <a name="csrf-protection"></a>
 ### CSRF Protection
 

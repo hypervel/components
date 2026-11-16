@@ -88,6 +88,7 @@ class PostgresGrammar extends Grammar
             . 'join pg_namespace pn on pn.oid = pc.relnamespace '
             . 'where c.relispartition and i.inhrelid = c.oid) as partition_of from pg_class c, pg_namespace n '
             . "where c.relkind in ('r', 'p') and n.oid = c.relnamespace and "
+            . "not exists (select 1 from pg_depend d where d.classid = 'pg_class'::regclass and d.objid = c.oid and d.deptype = 'e') and "
             . $this->compileSchemaWhereClause($schema, 'n.nspname')
             . ' order by n.nspname, c.relname';
     }
@@ -97,9 +98,12 @@ class PostgresGrammar extends Grammar
      */
     public function compileViews(string|array|null $schema): string
     {
-        return 'select viewname as name, schemaname as schema, definition from pg_views where '
-            . $this->compileSchemaWhereClause($schema, 'schemaname')
-            . ' order by schemaname, viewname';
+        // Read catalog OIDs directly: resolving view names requires schema USAGE privileges.
+        return 'select c.relname as name, n.nspname as schema, pg_get_viewdef(c.oid) as definition '
+            . "from pg_class c join pg_namespace n on n.oid = c.relnamespace where c.relkind = 'v' and "
+            . "not exists (select 1 from pg_depend d where d.classid = 'pg_class'::regclass and d.objid = c.oid and d.deptype = 'e') and "
+            . $this->compileSchemaWhereClause($schema, 'n.nspname')
+            . ' order by n.nspname, c.relname';
     }
 
     /**
@@ -114,7 +118,7 @@ class PostgresGrammar extends Grammar
             . 'left join pg_type el on el.oid = t.typelem '
             . 'left join pg_class ce on ce.oid = el.typrelid '
             . "where ((t.typrelid = 0 and (ce.relkind = 'c' or ce.relkind is null)) or c.relkind = 'c') "
-            . "and not exists (select 1 from pg_depend d where d.objid in (t.oid, t.typelem) and d.deptype = 'e') and "
+            . "and not exists (select 1 from pg_depend d where d.classid = 'pg_type'::regclass and d.objid in (t.oid, t.typelem) and d.deptype = 'e') and "
             . $this->compileSchemaWhereClause($schema, 'n.nspname');
     }
 

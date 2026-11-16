@@ -6,6 +6,7 @@ namespace Hypervel\Support\Traits;
 
 use Hypervel\Database\Eloquent\Attributes\UseResource;
 use Hypervel\Database\Eloquent\Attributes\UseResourceCollection;
+use Hypervel\Http\Resources\Exceptions\ResourceClassNotFoundException;
 use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Http\Resources\Json\ResourceCollection;
 use LogicException;
@@ -81,7 +82,7 @@ trait TransformsToResourceCollection
             }
         }
 
-        throw new LogicException(sprintf('Failed to find resource class for model [%s].', $className));
+        throw ResourceClassNotFoundException::forModel($model);
     }
 
     /**

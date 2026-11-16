@@ -41,6 +41,7 @@ class SoftDeletingScope implements Scope
         }
 
         $builder->onDelete(function (Builder $builder) {
+            $builder = $builder->applyScopes()->withoutGlobalScopes();
             $column = $this->getDeletedAtColumn($builder);
 
             return $builder->update([
@@ -56,6 +57,7 @@ class SoftDeletingScope implements Scope
      */
     protected function getDeletedAtColumn(Builder $builder): string
     {
+        // Scopes may add joins or aliases, so callers pass the scope-prepared builder.
         if ((array) $builder->getQuery()->joins !== []) {
             return $builder->qualifyColumn($builder->getModel()->getQualifiedDeletedAtColumn());
         }
@@ -72,6 +74,7 @@ class SoftDeletingScope implements Scope
     {
         $builder->macro('restore', function (Builder $builder) {
             $builder->withTrashed();
+            $builder = $builder->applyScopes()->withoutGlobalScopes();
 
             return $builder->update([$this->getDeletedAtColumn($builder) => null]);
         });

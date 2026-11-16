@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
 class DatabaseEloquentRouteBindingTest extends TestCase
@@ -75,14 +76,16 @@ class DatabaseEloquentRouteBindingTest extends TestCase
         ];
     }
 
-    public function testItValidatesQualifiedKeyColumnsFromChildBindings(): void
+    #[TestWith(['int'])]
+    #[TestWith(['integer'])]
+    public function testItValidatesQualifiedKeyColumnsFromChildBindings(string $keyType): void
     {
         $query = m::mock(Builder::class);
         $query->shouldNotReceive('where');
 
         $this->expectException(ModelNotFoundException::class);
 
-        (new RouteBindingIntKeyModel)->resolveRouteBindingQuery($query, 'abc', 'route_binding_int_key_models.id');
+        (new RouteBindingIntKeyModel)->setKeyType($keyType)->resolveRouteBindingQuery($query, 'abc', 'route_binding_int_key_models.id');
     }
 
     public function testItDoesNotValidateNonKeyBindingFields(): void

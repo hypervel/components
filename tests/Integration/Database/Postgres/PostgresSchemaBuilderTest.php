@@ -442,6 +442,68 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
         }));
     }
 
+    public function testGetViewsIncludesSchemasWithoutUsagePrivileges(): void
+    {
+        $connection = DB::connection();
+        $role = 'schema_reader_' . getmypid();
+        $schema = 'restricted_' . getmypid();
+        $connection->beginTransaction();
+
+        try {
+            $connection->statement("create role {$role}");
+            $connection->statement("create schema {$schema}");
+            $connection->statement("create view {$schema}.example as select 1 as id");
+            $connection->statement("set local role {$role}");
+
+            $view = collect(Schema::getViews())->firstWhere('schema', $schema);
+
+            $this->assertSame('example', $view['name']);
+            $this->assertStringContainsString('SELECT 1 AS id', $view['definition']);
+        } finally {
+            $connection->rollBack();
+        }
+    }
+
+    #[TestWith(['table'])]
+    #[TestWith(['view'])]
+    #[TestWith(['type'])]
+    public function testExtensionDependenciesInOtherCatalogsDoNotHideObjects(string $kind): void
+    {
+        $connection = DB::connection();
+        $grammar = $connection->getSchemaGrammar();
+        $connection->beginTransaction();
+
+        try {
+            $connection->statement(match ($kind) {
+                'table' => 'create table public.catalog_identity (id integer)',
+                'view' => 'create view public.catalog_identity as select 1 as id',
+                'type' => "create type public.catalog_identity as enum ('example')",
+            });
+
+            $objectOid = $connection->scalar($kind === 'type'
+                ? "select 'public.catalog_identity'::regtype::oid"
+                : "select 'public.catalog_identity'::regclass::oid");
+            $query = match ($kind) {
+                'table' => $grammar->compileTables('public'),
+                'view' => $grammar->compileViews('public'),
+                'type' => $grammar->compileTypes('public'),
+            };
+
+            // Model a cross-catalog OID collision without changing PostgreSQL's system catalogs.
+            $objects = $connection->select(<<<'SQL'
+                with pg_depend as (
+                    select classid, objid, deptype from pg_catalog.pg_depend
+                    union all
+                    select 'pg_proc'::regclass, ?::oid, 'e'::"char"
+                )
+                SQL . $query, [$objectOid]);
+
+            $this->assertContains('catalog_identity', array_column($objects, 'name'));
+        } finally {
+            $connection->rollBack();
+        }
+    }
+
     #[RequiresDatabase('pgsql', '>=11.0')]
     public function testDropPartitionedTables(): void
     {
@@ -551,6 +613,67 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
         $this->assertContains('public_table_created_at_index', $indexNames);
         $this->assertContains('public_table_body_fulltext', $indexNames);
         $this->assertContains('table_raw_index', $indexNames);
+    }
+
+    public function testDropAllViewsIgnoresViewsOwnedByExtensions(): void
+    {
+        DB::statement('create extension if not exists pg_stat_statements schema public');
+        DB::statement('create view public.foo (id) as select 1');
+
+        try {
+            $this->assertFalse(Schema::hasView('public.pg_stat_statements'));
+
+            Schema::dropAllViews();
+
+            $this->assertFalse(Schema::hasView('public.foo'));
+            $this->assertTrue((bool) DB::scalar("select exists (select 1 from pg_views where viewname = 'pg_stat_statements')"));
+        } finally {
+            DB::statement('drop extension if exists pg_stat_statements');
+        }
+    }
+
+    public function testDropAllTablesIgnoresTablesOwnedByExtensions(): void
+    {
+        Schema::create('public.table', function (Blueprint $table) {
+            $table->increments('id');
+        });
+
+        DB::statement('create table public.extension_table (id integer)');
+        DB::statement('alter extension plpgsql add table public.extension_table');
+
+        try {
+            Schema::dropAllTables();
+
+            $this->artisan('migrate:install');
+
+            $this->assertFalse(Schema::hasTable('public.table'));
+            $this->assertTrue(Schema::hasTable('public.extension_table'));
+        } finally {
+            DB::statement('alter extension plpgsql drop table public.extension_table');
+            DB::statement('drop table public.extension_table');
+        }
+    }
+
+    public function testDropAllTypesIgnoresTypesOwnedByExtensions(): void
+    {
+        DB::statement("create type public.ordinary_type as enum ('example')");
+        DB::statement("create type public.extension_type as enum ('example')");
+        DB::statement('alter extension plpgsql add type public.extension_type');
+
+        try {
+            $types = array_column(Schema::getTypes(), 'name');
+            $this->assertContains('ordinary_type', $types);
+            $this->assertNotContains('extension_type', $types);
+
+            Schema::dropAllTypes();
+
+            $this->assertEmpty(Schema::getTypes());
+            $this->assertNotNull(DB::scalar("select to_regtype('public.extension_type')"));
+        } finally {
+            DB::statement('alter extension plpgsql drop type public.extension_type');
+            DB::statement('drop type public.extension_type');
+            DB::statement('drop type if exists public.ordinary_type');
+        }
     }
 
     public function testLateSchemaFailureRollsBackTheCompleteBlueprint(): void

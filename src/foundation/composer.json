@@ -71,7 +71,7 @@
         "hypervel/websocket-server": "^0.4",
         "laravel/serializable-closure": "^2.0.11",
         "league/flysystem": "^3.25.1",
-        "league/uri": "^7.5.1",
+        "league/uri": "^7.6",
         "monolog/monolog": "^3.10",
         "nesbot/carbon": "^3.13.1",
         "psr/clock": "^1.0",

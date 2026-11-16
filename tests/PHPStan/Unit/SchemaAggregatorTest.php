@@ -10,6 +10,7 @@ use Hypervel\PHPStan\Properties\ConnectionConfigResolver;
 use Hypervel\PHPStan\Properties\SchemaAggregator;
 use Hypervel\PHPStan\Properties\SchemaConnection;
 use Hypervel\PHPStan\Properties\SchemaTable;
+use Hypervel\Tests\Database\Fixtures\Models\EloquentModelUsingIntegerKeyType;
 use Hypervel\Tests\PHPStan\Fixtures\OverridesConfig;
 use Hypervel\Tests\PHPStan\Fixtures\ReadsSchemaFacts;
 use Hypervel\Tests\PHPStan\Fixtures\SchemaAggregator\Author;
@@ -234,6 +235,21 @@ class SchemaAggregatorTest extends PHPStanTestCase
 
         // change() may modify any known column.
         $this->assertSame([], $this->columns($aggregator, 'compensations'));
+    }
+
+    #[Test]
+    public function itResolvesForeignIdsForTheIntegerKeyTypeAlias(): void
+    {
+        $model = EloquentModelUsingIntegerKeyType::class;
+        $aggregator = $this->aggregate(<<<PHP
+            Schema::create('posts', function (Blueprint \$table) {
+                \$table->foreignIdFor('{$model}');
+            });
+        PHP);
+
+        $this->assertSame([
+            'model_using_integer_key_type_id' => ['int<0, max>|numeric-string', false],
+        ], $this->columns($aggregator, 'posts'));
     }
 
     /**

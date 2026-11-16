@@ -15,12 +15,25 @@ use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Override;
 use UnexpectedValueException;
 
 class AuthPasswordBrokerTest extends TestCase
 {
+    /**
+     * Set up the test environment.
+     */
+    #[Override]
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Sleep::fake();
+    }
+
     public function testIfUserIsNotFoundErrorRedirectIsReturned(): void
     {
         $broker = $this->getBroker($mocks = $this->getMocks());

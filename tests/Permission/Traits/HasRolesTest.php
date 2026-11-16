@@ -328,6 +328,7 @@ class HasRolesTest extends TestCase
         $this->testUser->assignRole($this->testUserRole->getKey());
 
         $this->assertTrue($this->testUser->fresh()->hasRole('testRole'));
+        $this->assertSame(1, $this->testUser->roles()->count());
     }
 
     public function testItThrowsAnExceptionWhenAssigningARoleThatDoesNotExist(): void
