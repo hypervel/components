@@ -58,7 +58,8 @@ class SesV2Transport extends AbstractTransport implements Stringable
                 array_merge(
                     $options,
                     [
-                        'Source' => $message->getEnvelope()->getSender()->toString(),
+                        // SES v2 drops Laravel's v1-only Source field. Keep the raw sender headers;
+                        // the envelope sender may be a Return-Path, not the FromEmailAddress identity.
                         'Destination' => [
                             'ToAddresses' => (new Collection($message->getEnvelope()->getRecipients()))
                                 ->map
