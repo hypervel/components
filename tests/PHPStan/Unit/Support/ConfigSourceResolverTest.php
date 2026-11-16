@@ -22,7 +22,8 @@ use Hypervel\Tests\PHPStan\Fixtures\Config\Writes\ReorderedArgumentsProvider;
 use Hypervel\Tests\PHPStan\Fixtures\Config\Writes\UnpackedCallbackWriteProvider;
 use Hypervel\Tests\PHPStan\Fixtures\Config\Writes\UnrecognizedFlowProvider;
 use Hypervel\Tests\PHPStan\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPStan\File\FileHelper;
 use PHPStan\Testing\PHPStanTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -32,6 +33,8 @@ use function ksort;
 
 class ConfigSourceResolverTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Writes that would leave a key unbounded make every lookup unknown; flows the
      * static pass leaves to the tracker do not.
@@ -66,7 +69,7 @@ class ConfigSourceResolverTest extends TestCase
      */
     public function testAnonymousProviderWritesAreUnknown(): void
     {
-        $provider = new class(m::mock(Application::class)) extends ServiceProvider {};
+        $provider = new class(Double::for(Application::class, override: true)->strict()->instance()) extends ServiceProvider {};
 
         $this->assertTrue($this->createResolver($provider::class)->hasUnknownWrites());
     }
@@ -150,16 +153,16 @@ class ConfigSourceResolverTest extends TestCase
      */
     private function createResolver(string $providerClass): ConfigSourceResolver
     {
-        $app = m::mock(Application::class);
-        $provider = new $providerClass($app);
+        $app = Double::for(Application::class, override: true)->strict();
+        $provider = new $providerClass($app->instance());
 
-        $app->shouldReceive('getProviders')->with(ServiceProvider::class)->andReturn([$providerClass => $provider]);
-        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn(new ConfigMutationTracker);
-        $app->shouldReceive('configPath')->andReturn(__DIR__ . '/missing-config');
-        $app->shouldReceive('shouldMergeFrameworkConfiguration')->andReturn(true);
+        $app->allows('getProviders')->with(ServiceProvider::class)->returns([$providerClass => $provider]);
+        $app->allows('make')->with(ConfigMutationTracker::class)->returns(new ConfigMutationTracker);
+        $app->allows('configPath')->returns(__DIR__ . '/missing-config');
+        $app->allows('shouldMergeFrameworkConfiguration')->returns(true);
 
         $container = new Container;
-        $container->instance(Application::class, $app);
+        $container->instance(Application::class, $app->instance());
 
         $phpstan = PHPStanTestCase::getContainer();
         $resolver = new ConfigSourceResolver(
