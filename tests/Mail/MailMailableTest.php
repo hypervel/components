@@ -7,23 +7,21 @@ namespace Hypervel\Tests\Mail;
 use Closure;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Mail\Attachable;
-use Hypervel\Contracts\Mail\Mailer as MailerContract;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\Factory as ViewFactory;
-use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Mail\Attachment;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\Mailables\Envelope;
 use Hypervel\Mail\Mailables\Headers;
 use Hypervel\Mail\Mailer;
-use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Message;
 use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\HtmlString;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\AssertionFailedError;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
@@ -31,9 +29,11 @@ use WeakReference;
 
 class MailMailableTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testMailableSetsRecipientsCorrectly(): void
     {
-        $this->mockContainer();
+        $this->stubMailer();
 
         $mailable = new WelcomeMailableStub;
         $mailable->to('taylor@laravel.com');
@@ -119,7 +119,7 @@ class MailMailableTest extends TestCase
 
     public function testMailableSetsCcRecipientsCorrectly(): void
     {
-        $this->mockContainer();
+        $this->stubMailer();
 
         $mailable = new WelcomeMailableStub;
         $mailable->cc('taylor@laravel.com');
@@ -210,7 +210,7 @@ class MailMailableTest extends TestCase
 
     public function testMailableSetsBccRecipientsCorrectly(): void
     {
-        $this->mockContainer();
+        $this->stubMailer();
 
         $mailable = new WelcomeMailableStub;
         $mailable->bcc('taylor@laravel.com');
@@ -301,7 +301,7 @@ class MailMailableTest extends TestCase
 
     public function testMailableSetsReplyToCorrectly(): void
     {
-        $this->mockContainer();
+        $this->stubMailer();
 
         $mailable = new WelcomeMailableStub;
         $mailable->replyTo('taylor@laravel.com');
@@ -381,7 +381,7 @@ class MailMailableTest extends TestCase
 
     public function testMailableSetsFromCorrectly(): void
     {
-        $this->mockContainer();
+        $this->stubMailer();
 
         $mailable = new WelcomeMailableStub;
         $mailable->from('taylor@laravel.com');
@@ -629,7 +629,7 @@ class MailMailableTest extends TestCase
 
     public function testMailablePriorityGetsSent(): void
     {
-        $view = $this->mockView();
+        $view = Double::for(ViewFactory::class);
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
@@ -648,7 +648,7 @@ class MailMailableTest extends TestCase
 
     public function testMailableIsReleasedWithoutGarbageCollectionAfterSettingPriority(): void
     {
-        $mailer = new Mailer('array', $this->mockView(), new ArrayTransport);
+        $mailer = new Mailer('array', Double::for(ViewFactory::class), new ArrayTransport);
         $garbageCollectionEnabled = gc_enabled();
         gc_disable();
 
@@ -674,7 +674,7 @@ class MailMailableTest extends TestCase
 
     public function testEnvelopeCallbackCanInspectAndReplaceRenderedContent(): void
     {
-        $view = $this->mockView();
+        $view = Double::for(ViewFactory::class);
         $mailer = new Mailer('array', $view, new ArrayTransport);
         $renderedContent = null;
 
@@ -736,8 +736,8 @@ class MailMailableTest extends TestCase
         $this->assertTrue($mailable->hasMetadata('shipping_fee', 20));
         $this->assertTrue($mailable->hasMetadata('total', 1670));
 
-        $this->mockContainer();
-        $view = $this->mockView();
+        $this->stubMailer();
+        $view = Double::for(ViewFactory::class);
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $sentMessage = $mailer->send($mailable);
@@ -752,9 +752,9 @@ class MailMailableTest extends TestCase
 
     public function testMailableMetadataGetsSent(): void
     {
-        $this->mockContainer();
+        $this->stubMailer();
 
-        $view = $this->mockView();
+        $view = Double::for(ViewFactory::class);
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
@@ -797,9 +797,9 @@ class MailMailableTest extends TestCase
 
     public function testMailableTagGetsSent(): void
     {
-        $this->mockContainer();
+        $this->stubMailer();
 
-        $view = $this->mockView();
+        $view = Double::for(ViewFactory::class);
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
@@ -835,7 +835,7 @@ class MailMailableTest extends TestCase
 
     public function testAssertionDiagnosticsDoNotInvokeEnvelopeAgain(): void
     {
-        $this->mockContainer();
+        $this->stubMailer();
 
         $mailable = new class extends Mailable {
             public int $envelopeCalls = 0;
@@ -882,7 +882,7 @@ class MailMailableTest extends TestCase
 
     public function testTagAssertionReportsWhenMailableHasNoTags(): void
     {
-        $this->mockContainer();
+        $this->stubMailer();
 
         $mailable = new Mailable;
         $mailable->html('test content');
@@ -1016,7 +1016,7 @@ class MailMailableTest extends TestCase
 
     public function testHasAttachmentWithEnvelopeAttachments(): void
     {
-        $this->mockContainer();
+        $this->stubMailer();
         $mailable = new class extends Mailable {
             public function envelope(): Envelope
             {
@@ -1061,14 +1061,14 @@ class MailMailableTest extends TestCase
 
     public function testHasAttachmentWithDeclaredStorageAttachmentsAndNoEnvelope(): void
     {
-        $storage = m::mock(FilesystemAdapter::class);
-        $storage->shouldReceive('mimeType')->with('report.txt')->andReturn('text/plain');
-        $storage->shouldReceive('mimeType')->with('other.txt')->andReturn('text/plain');
-        $storage->shouldReceive('get')->with('report.txt')->andReturn('report content');
-        $storage->shouldReceive('get')->with('other.txt')->andReturn('other content');
+        $storage = Double::for(FilesystemAdapter::class);
+        $storage->allows('mimeType')->with('report.txt')->returns('text/plain');
+        $storage->allows('mimeType')->with('other.txt')->returns('text/plain');
+        $storage->allows('get')->with('report.txt')->returns('report content');
+        $storage->allows('get')->with('other.txt')->returns('other content');
 
-        $factory = m::mock(FilesystemFactory::class);
-        $factory->shouldReceive('disk')->with('documents')->andReturn($storage);
+        $factory = Double::for(FilesystemFactory::class);
+        $factory->allows('disk')->with('documents')->returns($storage);
         $this->app->instance(FilesystemFactory::class, $factory);
 
         $mailable = new class extends Mailable {
@@ -1248,12 +1248,12 @@ class MailMailableTest extends TestCase
 
     public function testStorageAttachmentOmitsFailedMimeDetection(): void
     {
-        $storage = m::mock(FilesystemAdapter::class);
-        $storage->expects('mimeType')->with('report.txt')->andReturnFalse();
-        $storage->expects('get')->with('report.txt')->andReturn('file content');
+        $storage = Double::for(FilesystemAdapter::class);
+        $storage->expects('mimeType')->with('report.txt')->returns(false);
+        $storage->expects('get')->with('report.txt')->returns('file content');
 
-        $factory = m::mock(FilesystemFactory::class);
-        $factory->expects('disk')->with('documents')->andReturn($storage);
+        $factory = Double::for(FilesystemFactory::class);
+        $factory->expects('disk')->with('documents')->returns($storage);
         $this->app->instance(FilesystemFactory::class, $factory);
 
         $mailable = new Mailable;
@@ -1269,12 +1269,12 @@ class MailMailableTest extends TestCase
 
     public function testExplicitStorageAttachmentMimeSkipsDetection(): void
     {
-        $storage = m::mock(FilesystemAdapter::class);
-        $storage->shouldNotReceive('mimeType');
-        $storage->expects('get')->with('report.txt')->andReturn('file content');
+        $storage = Double::for(FilesystemAdapter::class);
+        $storage->expects('mimeType')->never();
+        $storage->expects('get')->with('report.txt')->returns('file content');
 
-        $factory = m::mock(FilesystemFactory::class);
-        $factory->expects('disk')->with('documents')->andReturn($storage);
+        $factory = Double::for(FilesystemFactory::class);
+        $factory->expects('disk')->with('documents')->returns($storage);
         $this->app->instance(FilesystemFactory::class, $factory);
 
         $mailable = new Mailable;
@@ -1290,7 +1290,7 @@ class MailMailableTest extends TestCase
 
     public function testAssertHasNoAttachments(): void
     {
-        $this->mockContainer();
+        $this->stubMailer();
 
         $mailable = new class extends Mailable {
             /**
@@ -1323,7 +1323,7 @@ class MailMailableTest extends TestCase
 
     public function testAssertHasAttachment(): void
     {
-        $this->mockContainer();
+        $this->stubMailer();
 
         $mailable = new class extends Mailable {
             public function build(): void
@@ -1350,7 +1350,7 @@ class MailMailableTest extends TestCase
 
     public function testAssertHasAttachedData(): void
     {
-        $this->mockContainer();
+        $this->stubMailer();
 
         $mailable = new class extends Mailable {
             public function build(): void
@@ -1377,7 +1377,7 @@ class MailMailableTest extends TestCase
 
     public function testAssertHasAttachmentFromStorage(): void
     {
-        $this->mockContainer();
+        $this->stubMailer();
 
         $mailable = new class extends Mailable {
             public function build(): void
@@ -1404,7 +1404,7 @@ class MailMailableTest extends TestCase
 
     public function testAssertHasSubject(): void
     {
-        $this->mockContainer();
+        $this->stubMailer();
 
         $mailable = new class extends Mailable {
             public function build(): void
@@ -1431,9 +1431,9 @@ class MailMailableTest extends TestCase
 
     public function testSubjectAssertionMatchesTheDeliveredDefaultSubject(): void
     {
-        $this->mockContainer();
+        $this->stubMailer();
 
-        $mailer = new Mailer('array', $this->mockView(), new ArrayTransport);
+        $mailer = new Mailer('array', Double::for(ViewFactory::class), new ArrayTransport);
 
         foreach ([new WelcomeMailableStub, (new WelcomeMailableStub)->subject('0')] as $mailable) {
             $mailable->from('sender@example.com')->to('recipient@example.com')->html('test content');
@@ -1446,7 +1446,7 @@ class MailMailableTest extends TestCase
 
     public function testSubjectAssertionReportsHydratedEnvelopeSubject(): void
     {
-        $this->mockContainer();
+        $this->stubMailer();
 
         $mailable = new class extends Mailable {
             /**
@@ -1466,7 +1466,7 @@ class MailMailableTest extends TestCase
 
     public function testMailableHeadersGetSent(): void
     {
-        $view = $this->mockView();
+        $view = Double::for(ViewFactory::class);
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
@@ -1490,7 +1490,7 @@ class MailMailableTest extends TestCase
 
     public function testMailableIsReleasedWithoutGarbageCollectionAfterSendingWithHeaders(): void
     {
-        $mailer = new Mailer('array', $this->mockView(), new ArrayTransport);
+        $mailer = new Mailer('array', Double::for(ViewFactory::class), new ArrayTransport);
         $garbageCollectionEnabled = gc_enabled();
         gc_disable();
 
@@ -1515,7 +1515,7 @@ class MailMailableTest extends TestCase
 
     public function testMailableAttributesInBuild(): void
     {
-        $this->mockContainer();
+        $this->stubMailer();
 
         $mailable = new class extends Mailable {
             public function build(): void
@@ -1544,7 +1544,7 @@ class MailMailableTest extends TestCase
 
     public function testMailablesCanBeTapped(): void
     {
-        $this->mockContainer();
+        $this->stubMailer();
 
         $mail = new WelcomeMailableStub;
 
@@ -1557,28 +1557,16 @@ class MailMailableTest extends TestCase
         });
     }
 
-    protected function mockContainer(): void
+    /**
+     * Stub rendering for mailable assertions.
+     */
+    protected function stubMailer(): void
     {
-        $mailer = m::mock(MailerContract::class);
-        $mailer->shouldReceive('render')
-            ->andReturn('');
+        $mailer = Double::for(Mailer::class);
+        $mailer->allows('render')
+            ->returns('');
 
-        $this->app->singleton('mail.manager', fn ($app) => new MailManager($app));
-        $this->app->instance('view', m::mock(ViewFactory::class));
         $this->app->instance('mailer', $mailer);
-    }
-
-    protected function mockView(): ViewFactory
-    {
-        $viewInterface = m::mock(ViewContract::class);
-        $viewInterface->shouldReceive('render')
-            ->andReturn('rendered.view');
-
-        $view = m::mock(ViewFactory::class);
-        $view->shouldReceive('make')
-            ->andReturn($viewInterface);
-
-        return $view;
     }
 }
 

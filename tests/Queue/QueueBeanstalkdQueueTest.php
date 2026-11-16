@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\BeanstalkdQueue;
@@ -16,7 +15,10 @@ use Hypervel\Support\Str;
 use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
 use Hypervel\Tests\Queue\Fixtures\UnitQueueName;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
 use Pheanstalk\Contract\PheanstalkPublisherInterface;
@@ -34,9 +36,11 @@ use Symfony\Component\Uid\Uuid;
 
 class QueueBeanstalkdQueueTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private BeanstalkdQueue $queue;
 
-    private ContainerContract $container;
+    private DoubleInterface $container;
 
     public function testQueueNamesPreserveZeroAndDefaultEmptyString(): void
     {
@@ -54,10 +58,9 @@ class QueueBeanstalkdQueueTest extends TestCase
         $this->setQueue('default', 60);
 
         $this->queue->getPheanstalk()
-            ->shouldReceive('statsTube')
-            ->once()
-            ->with(m::on(fn (TubeName $tube): bool => $tube->value === 'stack'))
-            ->andReturn(new TubeStats(
+            ->expects('statsTube')
+            ->with(Argument::satisfies(fn (TubeName $tube): bool => $tube->value === 'stack'))
+            ->returns(new TubeStats(
                 name: new TubeName('stack'),
                 currentJobsUrgent: 0,
                 currentJobsReady: 3,
@@ -81,8 +84,8 @@ class QueueBeanstalkdQueueTest extends TestCase
     public function testAnAbsentTubeHasNoJobs(string $method): void
     {
         $this->setQueue('default', 60);
-        $this->queue->getPheanstalk()->shouldReceive('statsTube')
-            ->once()->andThrow(new TubeNotFoundException(new TubeName('unused')));
+        $this->queue->getPheanstalk()->expects('statsTube')
+            ->throws(new TubeNotFoundException(new TubeName('unused')));
 
         $this->assertSame(0, $this->queue->{$method}('unused'));
     }
@@ -99,7 +102,7 @@ class QueueBeanstalkdQueueTest extends TestCase
     {
         $this->setQueue('default', 60);
         $failure = new RuntimeException('Beanstalkd connection failed.');
-        $this->queue->getPheanstalk()->shouldReceive('statsTube')->once()->andThrow($failure);
+        $this->queue->getPheanstalk()->expects('statsTube')->throws($failure);
 
         $this->expectExceptionObject($failure);
 
@@ -111,10 +114,10 @@ class QueueBeanstalkdQueueTest extends TestCase
         $this->setQueue('default', 60);
 
         $this->queue->getPheanstalk()
-            ->shouldReceive('stats')
+            ->expects('stats')
             ->times(4)
-            ->withNoArgs()
-            ->andReturn(new ServerStats(
+            ->with()
+            ->returns(new ServerStats(
                 currentJobsUrgent: 1,
                 currentJobsReady: 3,
                 currentJobsReserved: 5,
@@ -197,24 +200,23 @@ class QueueBeanstalkdQueueTest extends TestCase
 
         $this->setQueue('default', 60);
         $pheanstalk = $this->queue->getPheanstalk();
-        $pheanstalk->expects('useTube')->with(m::type(TubeName::class));
-        $pheanstalk->expects('useTube')->with(m::type(TubeName::class));
+        $pheanstalk->expects('useTube')->times(2)->with(Argument::type(TubeName::class));
         $pheanstalk->expects('put')->times(2)->with(json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'stringJob' => true, 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'delay' => null]), 1024, 0, 60);
 
         $this->queue->push('foo', ['data'], 'stack');
         $this->queue->push('foo', ['data']);
 
-        $this->container->shouldHaveReceived('bound')->with('events')->times(6);
+        $this->container->received('bound')->with('events')->times(6);
     }
 
     public function testJobQueuedReceivesTheExactBeanstalkdJobIdentifier(): void
     {
         $this->setQueue('default', 60);
 
-        $jobId = m::mock(JobIdInterface::class);
+        $jobId = Double::for(JobIdInterface::class);
         $pheanstalk = $this->queue->getPheanstalk();
-        $pheanstalk->shouldReceive('useTube')->once()->with(m::on(fn (TubeName $tube): bool => $tube->value === '0'));
-        $pheanstalk->shouldReceive('put')->once()->andReturn($jobId);
+        $pheanstalk->expects('useTube')->with(Argument::satisfies(fn (TubeName $tube): bool => $tube->value === '0'));
+        $pheanstalk->expects('put')->returns($jobId);
 
         $events = new Dispatcher;
         $queuedEvent = null;
@@ -243,22 +245,21 @@ class QueueBeanstalkdQueueTest extends TestCase
 
         $this->setQueue('default', 60);
         $pheanstalk = $this->queue->getPheanstalk();
-        $pheanstalk->expects('useTube')->with(m::type(TubeName::class));
-        $pheanstalk->expects('useTube')->with(m::type(TubeName::class));
+        $pheanstalk->expects('useTube')->times(2)->with(Argument::type(TubeName::class));
         $pheanstalk->expects('put')->times(2)->with(json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'stringJob' => true, 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'delay' => 5]), Pheanstalk::DEFAULT_PRIORITY, 5, Pheanstalk::DEFAULT_TTR);
 
         $this->queue->later(5, 'foo', ['data'], 'stack');
         $this->queue->later(5, 'foo', ['data']);
 
-        $this->container->shouldHaveReceived('bound')->with('events')->times(6);
+        $this->container->received('bound')->with('events')->times(6);
     }
 
     public function testBulkRespectsDelayAttributeWhenPushingOntoBeanstalkd(): void
     {
         $this->setQueue('default', 60);
         $pheanstalk = $this->queue->getPheanstalk();
-        $pheanstalk->expects('useTube')->with(m::type(TubeName::class));
-        $pheanstalk->expects('put')->with(m::type('string'), Pheanstalk::DEFAULT_PRIORITY, 15, Pheanstalk::DEFAULT_TTR);
+        $pheanstalk->expects('useTube')->with(Argument::type(TubeName::class));
+        $pheanstalk->expects('put')->with(Argument::type('string'), Pheanstalk::DEFAULT_PRIORITY, 15, Pheanstalk::DEFAULT_TTR);
 
         $this->queue->bulk([new BeanstalkdJobWithDelayAttribute], ['data']);
     }
@@ -269,13 +270,13 @@ class QueueBeanstalkdQueueTest extends TestCase
         $tube = new TubeName('default');
 
         $pheanstalk = $this->queue->getPheanstalk();
-        $pheanstalk->expects('watch')->with(m::type(TubeName::class));
-        $pheanstalk->expects('listTubesWatched')->andReturn(new TubeList($tube));
+        $pheanstalk->expects('watch')->with(Argument::type(TubeName::class));
+        $pheanstalk->expects('listTubesWatched')->returns(new TubeList($tube));
 
-        $jobId = m::mock(JobIdInterface::class);
+        $jobId = Double::for(JobIdInterface::class);
         $jobId->expects('getId');
         $job = new Job($jobId, '');
-        $pheanstalk->expects('reserveWithTimeout')->with(0)->andReturn($job);
+        $pheanstalk->expects('reserveWithTimeout')->with(0)->returns($job);
 
         $result = $this->queue->pop();
 
@@ -288,13 +289,13 @@ class QueueBeanstalkdQueueTest extends TestCase
         $tube = new TubeName('default');
 
         $pheanstalk = $this->queue->getPheanstalk();
-        $pheanstalk->expects('watch')->with(m::type(TubeName::class));
-        $pheanstalk->expects('listTubesWatched')->andReturn(new TubeList($tube));
+        $pheanstalk->expects('watch')->with(Argument::type(TubeName::class));
+        $pheanstalk->expects('listTubesWatched')->returns(new TubeList($tube));
 
-        $jobId = m::mock(JobIdInterface::class);
+        $jobId = Double::for(JobIdInterface::class);
         $jobId->expects('getId');
         $job = new Job($jobId, '');
-        $pheanstalk->expects('reserveWithTimeout')->with(60)->andReturn($job);
+        $pheanstalk->expects('reserveWithTimeout')->with(60)->returns($job);
 
         $result = $this->queue->pop();
 
@@ -306,8 +307,8 @@ class QueueBeanstalkdQueueTest extends TestCase
         $this->setQueue('default', 60);
 
         $pheanstalk = $this->queue->getPheanstalk();
-        $pheanstalk->expects('useTube')->with(m::type(TubeName::class))->andReturn($pheanstalk);
-        $pheanstalk->expects('delete')->with(m::type(JobIdInterface::class));
+        $pheanstalk->expects('useTube')->with(Argument::type(TubeName::class));
+        $pheanstalk->expects('delete')->with(Argument::type(JobIdInterface::class));
 
         $this->queue->deleteMessage('default', 1);
     }
@@ -318,14 +319,14 @@ class QueueBeanstalkdQueueTest extends TestCase
     private function setQueue(string $default, int $timeToRun, int $blockFor = 0): void
     {
         $this->queue = new BeanstalkdQueue(
-            m::mock(implode(',', [PheanstalkManagerInterface::class, PheanstalkPublisherInterface::class, PheanstalkSubscriberInterface::class])),
+            Double::for(PheanstalkManagerInterface::class, PheanstalkPublisherInterface::class, PheanstalkSubscriberInterface::class),
             $default,
             $timeToRun,
             $blockFor
         );
         $this->queue->setConnectionName('beanstalkd');
-        $this->container = m::spy(Container::class)->makePartial();
-        $this->queue->setContainer($this->container);
+        $this->container = Double::for(Container::class, override: true)->passthru(new Container);
+        $this->queue->setContainer($this->container->instance());
     }
 }
 

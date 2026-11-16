@@ -21,12 +21,15 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class SupportFacadesEventTest extends TestCase
 {
-    private Dispatcher&MockInterface $events;
+    use VerifiesDoubles;
+
+    private Dispatcher&DoubleInterface $events;
 
     /**
      * Set up the event and cache services.
@@ -35,8 +38,8 @@ class SupportFacadesEventTest extends TestCase
     {
         parent::setUp();
 
-        $this->events = m::mock(Dispatcher::class);
-        $this->events->shouldReceive('hasListeners')->andReturnTrue();
+        $this->events = Double::for(Dispatcher::class);
+        $this->events->allows('hasListeners')->returns(true);
 
         $container = new Container;
         $container->instance('events', $this->events);

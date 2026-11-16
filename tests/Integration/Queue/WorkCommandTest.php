@@ -20,13 +20,16 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Integration\Queue\QueueTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 #[WithMigration]
 #[WithMigration('queue')]
 class WorkCommandTest extends QueueTestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Define the test environment.
      */
@@ -299,12 +302,12 @@ class WorkCommandTest extends QueueTestCase
 
         Worker::$restartable = false;
 
-        $cache = m::mock(Repository::class);
-        $cache->shouldNotReceive('get')->with(Worker::RESTART_SIGNAL_CACHE_KEY);
-        $cache->expects('get')->with('illuminate:queues:paused', false)->andReturn(false);
+        $cache = Double::for(Repository::class);
+        $cache->expects('get')->with(Worker::RESTART_SIGNAL_CACHE_KEY)->never();
+        $cache->expects('get')->with('illuminate:queues:paused', false)->returns(false);
         $cache->expects('get')
             ->with(['illuminate:queue:paused:database:default'])
-            ->andReturn(['illuminate:queue:paused:database:default' => false]);
+            ->returns(['illuminate:queue:paused:database:default' => false]);
 
         Cache::expects('store')->twice()->andReturn($cache);
         Cache::shouldNotReceive('driver');
@@ -329,9 +332,9 @@ class WorkCommandTest extends QueueTestCase
 
         Worker::$pausable = false;
 
-        $cache = m::mock(Repository::class);
+        $cache = Double::for(Repository::class);
 
-        $cache->expects('get')->twice()->with(Worker::RESTART_SIGNAL_CACHE_KEY)->andReturn(null);
+        $cache->expects('get')->times(2)->with(Worker::RESTART_SIGNAL_CACHE_KEY)->returns(null);
 
         Cache::expects('store')->andReturn($cache);
         Cache::shouldNotReceive('driver');

@@ -9,17 +9,20 @@ use Hypervel\Foundation\Application;
 use Hypervel\Queue\Console\ForgetFailedCommand;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 
 class QueueForgetFailedCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testItForgetsASingleJob(): void
     {
         $container = new Application;
-        $failer = m::mock(FailedJobProviderInterface::class);
-        $failer->shouldReceive('forget')->with('5')->andReturnTrue();
+        $failer = Double::for(FailedJobProviderInterface::class);
+        $failer->expects('forget')->with('5')->returns(true);
         $container->instance(FailedJobProviderInterface::class, $failer);
 
         $command = new ForgetFailedCommand;
@@ -34,9 +37,9 @@ class QueueForgetFailedCommandTest extends TestCase
     public function testItForgetsMultipleJobs(): void
     {
         $container = new Application;
-        $failer = m::mock(FailedJobProviderInterface::class);
-        $failer->shouldReceive('forget')->with('5')->andReturnTrue();
-        $failer->shouldReceive('forget')->with('6')->andReturnTrue();
+        $failer = Double::for(FailedJobProviderInterface::class);
+        $failer->expects('forget')->with('5')->returns(true);
+        $failer->expects('forget')->with('6')->returns(true);
         $container->instance(FailedJobProviderInterface::class, $failer);
 
         $command = new ForgetFailedCommand;
@@ -55,8 +58,8 @@ class QueueForgetFailedCommandTest extends TestCase
     public function testItFailsWhenAJobCannotBeFound(): void
     {
         $container = new Application;
-        $failer = m::mock(FailedJobProviderInterface::class);
-        $failer->shouldReceive('forget')->with('5')->andReturnFalse();
+        $failer = Double::for(FailedJobProviderInterface::class);
+        $failer->expects('forget')->with('5')->returns(false);
         $container->instance(FailedJobProviderInterface::class, $failer);
 
         $command = new ForgetFailedCommand;
@@ -71,10 +74,10 @@ class QueueForgetFailedCommandTest extends TestCase
     public function testItForgetsTheRemainingJobsWhenOneCannotBeFound(): void
     {
         $container = new Application;
-        $failer = m::mock(FailedJobProviderInterface::class);
-        $failer->shouldReceive('forget')->with('5')->andReturnTrue();
-        $failer->shouldReceive('forget')->with('6')->andReturnFalse();
-        $failer->shouldReceive('forget')->with('7')->andReturnTrue();
+        $failer = Double::for(FailedJobProviderInterface::class);
+        $failer->expects('forget')->with('5')->returns(true);
+        $failer->expects('forget')->with('6')->returns(false);
+        $failer->expects('forget')->with('7')->returns(true);
         $container->instance(FailedJobProviderInterface::class, $failer);
 
         $command = new ForgetFailedCommand;

@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\DatabaseEloquentMorphToTest;
 
 use Hypervel\Database\ClassMorphViolationException;
-use Hypervel\Database\Connection;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -16,28 +14,28 @@ use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
+use Hypervel\Tests\Database\Concerns\InteractsWithInMemoryConnection;
 use Hypervel\Tests\Database\Fixtures\TestEnum;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 
 class DatabaseEloquentMorphToTest extends TestCase
 {
+    use InteractsWithInMemoryConnection;
+    use VerifiesDoubles;
+
     protected Builder $builder;
 
     protected Model $related;
 
-    protected function addMockConnection(Model $model): void
+    protected function setUp(): void
     {
-        $model->setConnectionResolver($resolver = m::mock(ConnectionResolverInterface::class));
-        $resolver->shouldReceive('connection')->andReturn($connection = m::mock(Connection::class));
-        $connection->shouldReceive('getQueryGrammar')->andReturn($grammar = m::mock(Grammar::class));
-        $grammar->shouldReceive('getBitwiseOperators')->andReturn([]);
-        $connection->shouldReceive('getPostProcessor')->andReturn($processor = m::mock(Processor::class));
-        $connection->shouldReceive('query')->andReturnUsing(function () use ($connection, $grammar, $processor) {
-            return new QueryBuilder($connection, $grammar, $processor);
-        });
+        parent::setUp();
+
+        $this->useInMemoryConnection();
     }
 
     public function testLookupDictionaryIsProperlyConstructedForEnums(): void
@@ -122,11 +120,9 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testMorphToWithDefault(): void
     {
-        $this->addMockConnection(new ModelStub);
-
         $relation = $this->getRelation()->withDefault();
 
-        $this->builder->expects('first')->andReturnNull();
+        $this->builder->expects('first')->returns(null);
 
         $newModel = new ModelStub;
 
@@ -135,13 +131,11 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testMorphToWithDynamicDefault(): void
     {
-        $this->addMockConnection(new ModelStub);
-
         $relation = $this->getRelation()->withDefault(function ($newModel) {
             $newModel->username = 'taylor';
         });
 
-        $this->builder->expects('first')->andReturnNull();
+        $this->builder->expects('first')->returns(null);
 
         $newModel = new ModelStub;
         $newModel->username = 'taylor';
@@ -155,11 +149,9 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testMorphToWithArrayDefault(): void
     {
-        $this->addMockConnection(new ModelStub);
-
         $relation = $this->getRelation()->withDefault(['username' => 'taylor']);
 
-        $this->builder->expects('first')->andReturnNull();
+        $this->builder->expects('first')->returns(null);
 
         $newModel = new ModelStub;
         $newModel->username = 'taylor';
@@ -193,8 +185,6 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testMorphToWithSpecifiedClassDefault(): void
     {
-        $this->addMockConnection(new RelatedStub);
-
         $parent = new ModelStub;
         $parent->relation_type = RelatedStub::class;
 
@@ -236,8 +226,8 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testAssociateMethodUsesConfiguredOwnerKeyWithZeroValue(): void
     {
-        $builder = m::mock(Builder::class);
-        $builder->shouldReceive('getModel')->andReturn(new MorphToAssociateRelatedStub);
+        $builder = Double::for(Builder::class);
+        $builder->allows('getModel')->returns(new MorphToAssociateRelatedStub);
 
         $parent = new MorphToAssociateParentStub;
         $associate = (new MorphToAssociateRelatedStub)->forceFill([
@@ -262,8 +252,8 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testAssociateMethodUsesConfiguredOwnerKeyWithNullValue(): void
     {
-        $builder = m::mock(Builder::class);
-        $builder->shouldReceive('getModel')->andReturn(new MorphToAssociateRelatedStub);
+        $builder = Double::for(Builder::class);
+        $builder->allows('getModel')->returns(new MorphToAssociateRelatedStub);
 
         $parent = new MorphToAssociateParentStub;
         $associate = (new MorphToAssociateRelatedStub)->forceFill([
@@ -288,8 +278,8 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testAssociateMethodRejectsScalarValuesBeforeChangingTheParent(): void
     {
-        $builder = m::mock(Builder::class);
-        $builder->shouldReceive('getModel')->andReturn(new MorphToAssociateRelatedStub);
+        $builder = Double::for(Builder::class);
+        $builder->allows('getModel')->returns(new MorphToAssociateRelatedStub);
 
         $parent = (new MorphToAssociateParentStub)->forceFill([
             'foreign_key' => 'original-id',
@@ -319,8 +309,8 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testAssociateMethodRejectsUnmappedModelsBeforeChangingTheParent(): void
     {
-        $builder = m::mock(Builder::class);
-        $builder->shouldReceive('getModel')->andReturn(new MorphToAssociateRelatedStub);
+        $builder = Double::for(Builder::class);
+        $builder->allows('getModel')->returns(new MorphToAssociateRelatedStub);
 
         $parent = (new MorphToAssociateParentStub)->forceFill([
             'foreign_key' => 'original-id',
@@ -381,9 +371,9 @@ class DatabaseEloquentMorphToTest extends TestCase
             }
         };
 
-        $builder = m::mock(Builder::class);
+        $builder = Double::for(Builder::class);
         $related = new RelatedStub;
-        $builder->expects('getModel')->andReturn($related);
+        $builder->expects('getModel')->returns($related);
 
         $parent = new ModelStub;
         $parent->morph_type = 'type_1';
@@ -395,8 +385,8 @@ class DatabaseEloquentMorphToTest extends TestCase
 
         $relation->addEagerConstraints([$parent]);
 
-        $result = m::mock(Model::class);
-        $result->expects('getKey')->andReturn($uuidObject);
+        $result = Double::for(Model::class);
+        $result->expects('getKey')->returns($uuidObject);
 
         $relation->callMatchToMorphParents('type_1', new EloquentCollection([$result]));
 
@@ -425,16 +415,16 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function getRelation($parent = null, $builder = null)
     {
-        $this->builder = $builder ?: m::mock(Builder::class);
-        $this->builder->shouldReceive('where')->with('relation.id', '=', 'foreign.value');
-        $this->related = m::mock(Model::class);
-        $this->related->shouldReceive('getKeyName')->andReturn('id');
-        $this->related->shouldReceive('getTable')->andReturn('relation');
-        $this->related->shouldReceive('qualifyColumn')->andReturnUsing(fn (string $column) => "relation.{$column}");
-        $this->builder->shouldReceive('getModel')->andReturn($this->related);
+        $this->builder = $builder ?: Double::for(Builder::class);
+        $this->builder->allows('where')->with('relation.id', '=', 'foreign.value')->returns($this->builder);
+        $this->related = Double::for(Model::class);
+        $this->related->allows('getKeyName')->returns('id');
+        $this->related->allows('getTable')->returns('relation');
+        $this->related->allows('qualifyColumn')->resolves(fn (string $column) => "relation.{$column}");
+        $this->builder->allows('getModel')->returns($this->related);
         $parent = $parent ?: new ModelStub;
 
-        return m::mock(MorphTo::class . '[createModelByType]', [$this->builder, $parent, 'foreign_key', 'id', 'morph_type', 'relation']);
+        return new MorphTo($this->builder, $parent, 'foreign_key', 'id', 'morph_type', 'relation');
     }
 }
 

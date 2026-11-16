@@ -8,15 +8,18 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\TestCase;
 use Hypervel\View\FileViewFinder;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class ViewFileViewFinderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBasicViewFinding(): void
     {
         $finder = $this->getFinder();
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.blade.php')->andReturn(true);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.blade.php')->returns(true);
 
         $this->assertEquals(__DIR__ . '/foo.blade.php', $finder->find(view: 'foo'));
     }
@@ -24,8 +27,8 @@ class ViewFileViewFinderTest extends TestCase
     public function testCascadingFileLoading(): void
     {
         $finder = $this->getFinder();
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.blade.php')->andReturn(false);
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.php')->andReturn(true);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.blade.php')->returns(false);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.php')->returns(true);
 
         $this->assertEquals(__DIR__ . '/foo.php', $finder->find('foo'));
     }
@@ -34,11 +37,11 @@ class ViewFileViewFinderTest extends TestCase
     {
         $finder = $this->getFinder();
         $finder->addLocation(__DIR__ . '/nested');
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.blade.php')->andReturn(false);
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.php')->andReturn(false);
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.css')->andReturn(false);
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.html')->andReturn(false);
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/nested/foo.blade.php')->andReturn(true);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.blade.php')->returns(false);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.php')->returns(false);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.css')->returns(false);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.html')->returns(false);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/nested/foo.blade.php')->returns(true);
 
         $this->assertEquals(__DIR__ . '/nested/foo.blade.php', $finder->find('foo'));
     }
@@ -47,7 +50,7 @@ class ViewFileViewFinderTest extends TestCase
     {
         $finder = $this->getFinder();
         $finder->addNamespace('foo', __DIR__ . '/foo');
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo/bar/baz.blade.php')->andReturn(true);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo/bar/baz.blade.php')->returns(true);
 
         $this->assertEquals(__DIR__ . '/foo/bar/baz.blade.php', $finder->find('foo::bar.baz'));
     }
@@ -56,8 +59,8 @@ class ViewFileViewFinderTest extends TestCase
     {
         $finder = $this->getFinder();
         $finder->addNamespace('foo', __DIR__ . '/foo');
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo/bar/baz.blade.php')->andReturn(false);
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo/bar/baz.php')->andReturn(true);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo/bar/baz.blade.php')->returns(false);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo/bar/baz.php')->returns(true);
 
         $this->assertEquals(__DIR__ . '/foo/bar/baz.php', $finder->find('foo::bar.baz'));
     }
@@ -66,11 +69,11 @@ class ViewFileViewFinderTest extends TestCase
     {
         $finder = $this->getFinder();
         $finder->addNamespace('foo', [__DIR__ . '/foo', __DIR__ . '/bar']);
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo/bar/baz.blade.php')->andReturn(false);
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo/bar/baz.php')->andReturn(false);
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo/bar/baz.css')->andReturn(false);
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo/bar/baz.html')->andReturn(false);
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/bar/bar/baz.blade.php')->andReturn(true);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo/bar/baz.blade.php')->returns(false);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo/bar/baz.php')->returns(false);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo/bar/baz.css')->returns(false);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo/bar/baz.html')->returns(false);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/bar/bar/baz.blade.php')->returns(true);
 
         $this->assertEquals(__DIR__ . '/bar/bar/baz.blade.php', $finder->find('foo::bar.baz'));
     }
@@ -80,10 +83,10 @@ class ViewFileViewFinderTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
 
         $finder = $this->getFinder();
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.blade.php')->andReturn(false);
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.php')->andReturn(false);
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.css')->andReturn(false);
-        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.html')->andReturn(false);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.blade.php')->returns(false);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.php')->returns(false);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.css')->returns(false);
+        $finder->getFilesystem()->expects('exists')->with(__DIR__ . '/foo.html')->returns(false);
 
         $finder->find('foo');
     }
@@ -179,6 +182,6 @@ class ViewFileViewFinderTest extends TestCase
      */
     protected function getFinder(): FileViewFinder
     {
-        return new FileViewFinder(m::mock(Filesystem::class), [__DIR__]);
+        return new FileViewFinder(Double::for(Filesystem::class), [__DIR__]);
     }
 }

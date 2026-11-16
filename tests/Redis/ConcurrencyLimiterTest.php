@@ -11,7 +11,9 @@ use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -20,6 +22,8 @@ use Throwable;
 
 class ConcurrencyLimiterTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBlockExecutesCallbackOnSuccessfulAcquisition(): void
     {
         $redis = $this->mockRedis();
@@ -29,14 +33,8 @@ class ConcurrencyLimiterTest extends TestCase
 
         // release() calls eval with the release script
         $redis->expects('eval')
-            ->withArgs(function (string $script, int $numKeys, string $key, string $id): bool {
-                $this->assertSame(1, $numKeys);
-                $this->assertSame('test-lock1', $key);
-                $this->assertNotEmpty($id);
-
-                return true;
-            })
-            ->andReturn(1);
+            ->with(Argument::type('string'), 1, 'test-lock1', Argument::satisfies(static fn (string $id): bool => $id !== ''))
+            ->returns(1);
 
         $limiter = new ConcurrencyLimiter($redis, 'test-lock', 3, 60);
 
@@ -70,13 +68,8 @@ class ConcurrencyLimiterTest extends TestCase
 
         // release() should still be called
         $redis->expects('eval')
-            ->withArgs(function (string $script, int $numKeys, string $key, string $id): bool {
-                $this->assertSame(1, $numKeys);
-                $this->assertSame('test-lock1', $key);
-
-                return true;
-            })
-            ->andReturn(1);
+            ->with(Argument::type('string'), 1, 'test-lock1', Argument::type('string'))
+            ->returns(1);
 
         $limiter = new ConcurrencyLimiter($redis, 'test-lock', 3, 60);
 
@@ -95,7 +88,7 @@ class ConcurrencyLimiterTest extends TestCase
 
         $this->expectSlotClaim($redis, 'test-lock1');
         $redis->expects('eval')
-            ->andThrow($releaseException);
+            ->throws($releaseException);
 
         $limiter = new ConcurrencyLimiter($redis, 'test-lock', 3, 60);
 
@@ -123,7 +116,7 @@ class ConcurrencyLimiterTest extends TestCase
 
         $this->expectSlotClaim($redis, 'test-lock1');
         $redis->expects('eval')
-            ->andThrow($releaseException);
+            ->throws($releaseException);
 
         $limiter = new ConcurrencyLimiter($redis, 'test-lock', 3, 60);
 
@@ -143,13 +136,13 @@ class ConcurrencyLimiterTest extends TestCase
     public function testBlockThrowsTimeoutExceptionWhenCannotAcquire(): void
     {
         $redis = $this->mockRedis();
-        $connection = m::mock(RedisConnection::class);
+        $connection = Double::for(RedisConnection::class);
 
         // acquire() always fails (returns falsy)
-        $redis->shouldReceive('withConnection')
-            ->andReturnUsing(fn (callable $callback): mixed => $callback($connection));
-        $connection->shouldReceive('evalWithShaCache')
-            ->andReturn(false);
+        $redis->allows('withConnection')
+            ->resolves(fn (callable $callback): mixed => $callback($connection));
+        $connection->allows('evalWithShaCache')
+            ->returns(false);
 
         $limiter = new ConcurrencyLimiter($redis, 'test-lock', 3, 60);
 
@@ -164,11 +157,11 @@ class ConcurrencyLimiterTest extends TestCase
         Sleep::fake(syncWithCarbon: true);
         CarbonImmutable::setTestNow(CarbonImmutable::now());
         $redis = $this->mockRedis();
-        $connection = m::mock(RedisConnection::class);
-        $redis->shouldReceive('withConnection')
-            ->andReturnUsing(fn (callable $callback): mixed => $callback($connection));
-        $connection->shouldReceive('evalWithShaCache')->times(4)
-            ->andReturn(false, false, false, 'test-lock1');
+        $connection = Double::for(RedisConnection::class);
+        $redis->allows('withConnection')
+            ->resolves(fn (callable $callback): mixed => $callback($connection));
+        $connection->expects('evalWithShaCache')->times(4)
+            ->returns(false, false, false, 'test-lock1');
 
         $limiter = new ConcurrencyLimiter($redis, 'test-lock', 1, 10);
 
@@ -187,7 +180,7 @@ class ConcurrencyLimiterTest extends TestCase
 
         // limit(0) means no slots — acquire must short-circuit before evaluating Lua,
         // otherwise Lua hits redis.call('mget') with no args and errors.
-        $redis->shouldNotReceive('withConnection');
+        $redis->expects('withConnection')->never();
 
         $this->expectException(LimiterTimeoutException::class);
 
@@ -198,7 +191,7 @@ class ConcurrencyLimiterTest extends TestCase
     {
         $redis = $this->mockRedis();
 
-        $redis->shouldNotReceive('withConnection');
+        $redis->expects('withConnection')->never();
 
         $this->expectException(LimiterTimeoutException::class);
 
@@ -224,14 +217,8 @@ class ConcurrencyLimiterTest extends TestCase
 
         $this->expectSlotClaim($redis, 'test-lock1');
         $redis->expects('eval')
-            ->withArgs(function (string $script, int $numKeys, string $key, string $id): bool {
-                $this->assertSame(1, $numKeys);
-                $this->assertSame('test-lock1', $key);
-                $this->assertNotEmpty($id);
-
-                return true;
-            })
-            ->andReturn(1);
+            ->with(Argument::type('string'), 1, 'test-lock1', Argument::satisfies(static fn (string $id): bool => $id !== ''))
+            ->returns(1);
 
         $lease = (new ConcurrencyLimiter($redis, 'test-lock', 3, 60))->acquire(5);
 
@@ -244,15 +231,8 @@ class ConcurrencyLimiterTest extends TestCase
 
         $this->expectSlotClaim($redis, 'test-lock1');
         $redis->expects('eval')
-            ->withArgs(function (string $script, int $numKeys, string $key, string $id, int $seconds): bool {
-                $this->assertSame(1, $numKeys);
-                $this->assertSame('test-lock1', $key);
-                $this->assertNotEmpty($id);
-                $this->assertSame(60, $seconds);
-
-                return true;
-            })
-            ->andReturn(1);
+            ->with(Argument::type('string'), 1, 'test-lock1', Argument::satisfies(static fn (string $id): bool => $id !== ''), 60)
+            ->returns(1);
 
         $lease = (new ConcurrencyLimiter($redis, 'test-lock', 3, 60))->acquire(5);
 
@@ -266,7 +246,7 @@ class ConcurrencyLimiterTest extends TestCase
         $this->expectSlotClaim($redis, 'test-lock1');
         $redis->expects('ttl')
             ->with('test-lock1')
-            ->andReturn(5);
+            ->returns(5);
 
         $lease = (new ConcurrencyLimiter($redis, 'test-lock', 3, 60))->acquire(5);
 
@@ -276,7 +256,7 @@ class ConcurrencyLimiterTest extends TestCase
     public function testAcquireUsesHashTagsOnPhpRedisClusterConnection(): void
     {
         $redis = $this->mockRedis();
-        $redis->expects('isCluster')->andReturnTrue();
+        $redis->expects('isCluster')->returns(true);
 
         $this->expectSlotClaim(
             $redis,
@@ -300,7 +280,7 @@ class ConcurrencyLimiterTest extends TestCase
     public function testAcquireUsesPlainKeysOnNonClusterConnection(): void
     {
         $redis = $this->mockRedis();
-        $redis->expects('isCluster')->andReturnFalse();
+        $redis->expects('isCluster')->returns(false);
 
         $this->expectSlotClaim(
             $redis,
@@ -327,7 +307,7 @@ class ConcurrencyLimiterTest extends TestCase
     public function testReleaseKeyMatchesAcquireKeyOnCluster(): void
     {
         $redis = $this->mockRedis();
-        $redis->expects('isCluster')->andReturnTrue();
+        $redis->expects('isCluster')->returns(true);
 
         // Acquire returns the slot key.
         $this->expectSlotClaim($redis, '{mykey}2');
@@ -344,7 +324,7 @@ class ConcurrencyLimiterTest extends TestCase
     public function testAcquireDoesNotDoubleWrapPreExistingHashTags(string $name): void
     {
         $redis = $this->mockRedis();
-        $redis->expects('isCluster')->andReturnTrue();
+        $redis->expects('isCluster')->returns(true);
 
         // The name already has a hash tag and must not be double-wrapped.
         $this->expectSlotClaim($redis, $name . '1', function (string $script, array $keys, array $arguments) use ($name): bool {
@@ -372,7 +352,7 @@ class ConcurrencyLimiterTest extends TestCase
     public function testAcquireWrapsUnmatchedBraceOnCluster(): void
     {
         $redis = $this->mockRedis();
-        $redis->expects('isCluster')->andReturnTrue();
+        $redis->expects('isCluster')->returns(true);
 
         // An opening brace without a closing brace is not a valid hash tag.
         $this->expectSlotClaim($redis, '{my{lock}1', function (string $script, array $keys, array $arguments): bool {
@@ -392,7 +372,7 @@ class ConcurrencyLimiterTest extends TestCase
     public function testAcquireWrapsEmptyBracesOnCluster(): void
     {
         $redis = $this->mockRedis();
-        $redis->expects('isCluster')->andReturnTrue();
+        $redis->expects('isCluster')->returns(true);
 
         // Empty braces are not a valid hash tag.
         $this->expectSlotClaim($redis, '{my{}lock}1', function (string $script, array $keys, array $arguments): bool {
@@ -412,43 +392,56 @@ class ConcurrencyLimiterTest extends TestCase
     /**
      * Create a mock RedisProxy.
      */
-    private function mockRedis(): m\MockInterface|RedisProxy
+    private function mockRedis(): ConcurrencyLimiterRedisProxy
     {
-        $redis = m::mock(RedisProxy::class);
-        $redis->shouldReceive('isCluster')->byDefault()->andReturnFalse();
-
-        return $redis;
+        return Double::for(ConcurrencyLimiterRedisProxy::class);
     }
 
     /**
      * Expect a slot-claim script evaluation on one held Redis connection.
      */
     private function expectSlotClaim(
-        m\MockInterface|RedisProxy $redis,
+        ConcurrencyLimiterRedisProxy $redis,
         false|string $result,
         ?callable $assertion = null,
     ): void {
-        $connection = m::mock(RedisConnection::class);
+        $connection = Double::for(RedisConnection::class);
 
         $redis->expects('withConnection')
-            ->andReturnUsing(fn (callable $callback): mixed => $callback($connection));
+            ->resolves(fn (callable $callback): mixed => $callback($connection));
 
-        $expectation = $connection->expects('evalWithShaCache');
+        $connection->expects('evalWithShaCache')->resolves(
+            function (string $script, array $keys, array $arguments) use ($assertion, $result): false|string {
+                if ($assertion !== null) {
+                    $this->assertTrue($assertion($script, $keys, $arguments));
+                }
 
-        if ($assertion !== null) {
-            $expectation->withArgs($assertion);
-        }
-
-        $expectation->andReturn($result);
+                return $result;
+            }
+        );
     }
 
     /**
      * Expect a release script evaluation for the acquired slot.
      */
-    private function expectRelease(m\MockInterface|RedisProxy $redis, string $key): void
+    private function expectRelease(ConcurrencyLimiterRedisProxy $redis, string $key): void
     {
         $redis->expects('eval')
-            ->with(m::on(static fn (string $script): bool => str_contains($script, 'del')), 1, $key, m::type('string'))
-            ->andReturn(1);
+            ->with(Argument::satisfies(static fn (string $script): bool => str_contains($script, 'del')), 1, $key, Argument::type('string'))
+            ->returns(1);
     }
+}
+
+// Declare the dynamic proxy commands so Double can generate native methods.
+abstract class ConcurrencyLimiterRedisProxy extends RedisProxy
+{
+    /**
+     * Execute a Lua script.
+     */
+    abstract public function eval(string $script, int $numberOfKeys, mixed ...$arguments): mixed;
+
+    /**
+     * Get the remaining key lifetime.
+     */
+    abstract public function ttl(string $key): int;
 }

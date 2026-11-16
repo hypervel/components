@@ -11,7 +11,6 @@ use Hypervel\Database\Eloquent\Concerns\HasAttributes;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class DatabaseConcernsHasAttributesTest extends TestCase
@@ -32,20 +31,16 @@ class DatabaseConcernsHasAttributesTest extends TestCase
 
     public function testRelationsToArray(): void
     {
-        $mock = m::mock(HasAttributesWithoutConstructor::class)
-            ->makePartial()
-            ->shouldAllowMockingProtectedMethods()
-            ->expects('getArrayableRelations')->andReturn([
-                'arrayable_relation' => new Collection(['foo' => 'bar']),
-                'invalid_relation' => 'invalid',
-                'null_relation' => null,
-            ])
-            ->getMock();
+        $model = new class extends Model {
+        };
+        $model->setRelation('arrayable_relation', new Collection(['foo' => 'bar']));
+        $model->setRelation('invalid_relation', 'invalid');
+        $model->setRelation('null_relation', null);
 
         $this->assertEquals([
             'arrayable_relation' => ['foo' => 'bar'],
             'null_relation' => null,
-        ], $mock->relationsToArray());
+        ], $model->relationsToArray());
     }
 
     public function testCastingEmptyStringToArrayDoesNotError(): void

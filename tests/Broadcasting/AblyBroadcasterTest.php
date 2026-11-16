@@ -11,16 +11,20 @@ use Ably\Utils\Crypto;
 use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Broadcasting\BroadcastException;
-use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Routing\BindingRegistrar;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use JsonException;
-use Mockery as m;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class AblyBroadcasterTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected AblyBroadcaster $broadcaster;
 
     protected AblyRest $ably;
@@ -38,10 +42,9 @@ class AblyBroadcasterTest extends TestCase
             $this->markTestSkipped(sprintf('%s class is not available.', AblyRest::class));
         }
 
-        $this->container = m::mock(Container::class);
-        $this->container->shouldReceive('bound')->with(BindingRegistrar::class)->andReturnFalse()->byDefault();
-        $this->ably = m::mock(AblyRest::class, ['abcd:efg']);
-        $this->broadcaster = m::mock(AblyBroadcaster::class, [$this->container, $this->ably])->makePartial();
+        $this->container = new Container;
+        $this->ably = new AblyRest('abcd:efg');
+        $this->broadcaster = Double::for(AblyBroadcaster::class)->passthru(new AblyBroadcaster($this->container, $this->ably));
     }
 
     public function testAuthCallValidAuthenticationResponseWithPrivateChannelWhenCallbackReturnTrue(): void
@@ -52,7 +55,7 @@ class AblyBroadcasterTest extends TestCase
 
         $this->broadcaster->expects('generateAblySignature')
             ->with('private-test', 'abcd.1234')
-            ->andReturn('signature');
+            ->returns('signature');
 
         $this->assertSame(
             ['auth' => 'abcd:signature'],
@@ -108,7 +111,7 @@ class AblyBroadcasterTest extends TestCase
                 'abcd.1234',
                 ['user_id' => '42', 'user_info' => $returnData],
             )
-            ->andReturn('signature');
+            ->returns('signature');
 
         $this->assertSame(
             [
@@ -152,14 +155,14 @@ class AblyBroadcasterTest extends TestCase
     public function testAuthUsesRewrittenChannelForConfiguredGuardAndOriginalNameForPresenceSignature(): void
     {
         $wireChannel = 'presence-application.tenant.orders.5';
-        $user = m::mock('User');
-        $user->shouldReceive('getAuthIdentifier')->once()->andReturn(42);
+        $user = Double::for(Authenticatable::class);
+        $user->expects('getAuthIdentifier')->returns(42);
 
-        $request = m::mock(Request::class);
-        $request->shouldReceive('input')->with('channel_name')->andReturn($wireChannel);
-        $request->shouldReceive('input')->with('socket_id')->andReturn('abcd.1234');
-        $request->shouldReceive('user')->times(3)->with('members')->andReturn($user);
-        $request->shouldNotReceive('user')->withNoArgs();
+        $request = Double::for(Request::class, override: true);
+        $request->allows('input')->with('channel_name')->returns($wireChannel);
+        $request->allows('input')->with('socket_id')->returns('abcd.1234');
+        $request->expects('user')->times(3)->with('members')->returns($user);
+        $request->expects('user')->never()->with(Argument::none());
 
         $calls = 0;
         Broadcaster::authorizeChannelsUsing(function (Request $request, string $channel) use (&$calls): ?string {
@@ -178,14 +181,13 @@ class AblyBroadcasterTest extends TestCase
             ['guards' => ['members']],
         );
 
-        $this->broadcaster->shouldReceive('generateAblySignature')
-            ->once()
+        $this->broadcaster->expects('generateAblySignature')
             ->with(
                 $wireChannel,
                 'abcd.1234',
                 ['user_id' => '42', 'user_info' => ['role' => 'viewer']],
             )
-            ->andReturn('signature');
+            ->returns('signature');
 
         $this->assertSame(
             [
@@ -195,7 +197,7 @@ class AblyBroadcasterTest extends TestCase
                     'user_info' => ['role' => 'viewer'],
                 ]),
             ],
-            $this->broadcaster->auth($request),
+            $this->broadcaster->auth($request->instance()),
         );
         $this->assertSame(1, $calls);
     }
@@ -233,9 +235,8 @@ class AblyBroadcasterTest extends TestCase
     {
         $this->expectException(JsonException::class);
 
-        $this->broadcaster->shouldReceive('generateAblySignature')
-            ->once()
-            ->andReturn('signature');
+        $this->broadcaster->expects('generateAblySignature')
+            ->returns('signature');
 
         $this->broadcaster->validAuthenticationResponse(
             $this->getMockRequestWithUserForChannel('presence-test'),
@@ -313,15 +314,27 @@ class AblyBroadcasterTest extends TestCase
      */
     protected function getMockRequestWithUserForChannel(string|array $channel): Request
     {
-        $request = m::mock(Request::class);
-        $request->shouldReceive('input')->with('channel_name')->andReturn($channel);
-        $request->shouldReceive('input')->with('socket_id')->andReturn('abcd.1234');
+        $request = new Request(['channel_name' => $channel, 'socket_id' => 'abcd.1234']);
 
-        $user = m::mock('User');
-        $user->shouldReceive('getAuthIdentifierForBroadcasting')->andReturn(42);
-        $user->shouldReceive('getAuthIdentifier')->andReturn(42);
+        $user = new class {
+            /**
+             * Get the user's broadcast identifier.
+             */
+            public function getAuthIdentifierForBroadcasting(): int
+            {
+                return 42;
+            }
 
-        $request->shouldReceive('user')->andReturn($user);
+            /**
+             * Get the user's authentication identifier.
+             */
+            public function getAuthIdentifier(): int
+            {
+                return 42;
+            }
+        };
+
+        $request->setUserResolver(fn () => $user);
 
         return $request;
     }
@@ -331,10 +344,9 @@ class AblyBroadcasterTest extends TestCase
      */
     protected function getMockRequestWithoutUserForChannel(string $channel): Request
     {
-        $request = m::mock(Request::class);
-        $request->shouldReceive('input')->with('channel_name')->andReturn($channel);
+        $request = new Request(['channel_name' => $channel]);
 
-        $request->expects('user')->andReturn(null);
+        $request->setUserResolver(fn () => null);
 
         return $request;
     }

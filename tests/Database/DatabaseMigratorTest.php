@@ -16,7 +16,8 @@ use Hypervel\Database\PdoConnection;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
@@ -25,6 +26,8 @@ use UnitEnum;
 
 class DatabaseMigratorTest extends TestCase
 {
+    use VerifiesDoubles;
+
     // REMOVED: Laravel's ::direct resolution and default-connection tests.
     // Hypervel routes migrations through configured named connections instead.
 
@@ -82,10 +85,10 @@ class DatabaseMigratorTest extends TestCase
     public function testRunMethodPreservesWriteConnectionName(): void
     {
         CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, 'pgsql');
-        $resolver = m::mock(Resolver::class);
+        $resolver = Double::for(Resolver::class);
         $migrator = $this->migrator($resolver);
-        $connection = m::mock(Connection::class);
-        $connection->expects('getNameWithReadWriteType')->andReturn('pgsql::write');
+        $connection = Double::for(Connection::class);
+        $connection->expects('getNameWithReadWriteType')->returns('pgsql::write');
 
         $migration = new class($this) {
             /**
@@ -347,10 +350,10 @@ class DatabaseMigratorTest extends TestCase
             'pgsql' => ['driver' => 'pgsql'],
         ]);
 
-        $resolver = m::mock(Resolver::class);
-        $repository = m::mock(MigrationRepositoryInterface::class);
+        $resolver = Double::for(Resolver::class);
+        $repository = Double::for(MigrationRepositoryInterface::class);
 
-        $repository->shouldReceive('setSource')->once()->with('pgsql');
+        $repository->expects('setSource')->with('pgsql');
 
         $migrator = new Migrator($repository, $resolver, new Filesystem);
         $migrator->setConnection('pgsql-pooled');
@@ -367,9 +370,9 @@ class DatabaseMigratorTest extends TestCase
     {
         $this->bindConfig([]);
 
-        $resolver = m::mock(Resolver::class);
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $repository->shouldNotReceive('setSource');
+        $resolver = Double::for(Resolver::class);
+        $repository = Double::for(MigrationRepositoryInterface::class);
+        $repository->expects('setSource')->never();
 
         $migrator = new Migrator($repository, $resolver, new Filesystem);
 
@@ -385,10 +388,10 @@ class DatabaseMigratorTest extends TestCase
             'pgsql' => ['driver' => 'pgsql'],
         ]);
 
-        $resolver = m::mock(Resolver::class);
-        $repository = m::mock(MigrationRepositoryInterface::class);
+        $resolver = Double::for(Resolver::class);
+        $repository = Double::for(MigrationRepositoryInterface::class);
 
-        $repository->shouldReceive('setSource')->once()->with('pgsql');
+        $repository->expects('setSource')->with('pgsql');
 
         $migrator = new Migrator($repository, $resolver, new Filesystem);
         $migrator->setConnection('pgsql');
@@ -407,12 +410,12 @@ class DatabaseMigratorTest extends TestCase
             'pgsql' => ['driver' => 'pgsql'],
         ]);
 
-        $resolver = m::mock(Resolver::class);
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $resolvedConnection = m::mock(Connection::class);
+        $resolver = Double::for(Resolver::class);
+        $repository = Double::for(MigrationRepositoryInterface::class);
+        $resolvedConnection = Double::for(Connection::class);
 
-        $repository->shouldReceive('setSource')->once()->with('pgsql');
-        $resolver->shouldReceive('connection')->twice()->with('pgsql')->andReturn($resolvedConnection);
+        $repository->expects('setSource')->with('pgsql');
+        $resolver->expects('connection')->times(2)->with('pgsql')->returns($resolvedConnection);
 
         $migrator = new Migrator($repository, $resolver, new Filesystem);
         $migrator->setConnection('pgsql-pooled');
@@ -431,11 +434,11 @@ class DatabaseMigratorTest extends TestCase
             default: 'pgsql',
         );
 
-        $resolver = m::mock(Resolver::class);
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $resolvedConnection = m::mock(Connection::class);
+        $resolver = Double::for(Resolver::class);
+        $repository = Double::for(MigrationRepositoryInterface::class);
+        $resolvedConnection = Double::for(Connection::class);
 
-        $resolver->shouldReceive('connection')->once()->with('0')->andReturn($resolvedConnection);
+        $resolver->expects('connection')->with('0')->returns($resolvedConnection);
 
         $migrator = new Migrator($repository, $resolver, new Filesystem);
 
@@ -452,11 +455,11 @@ class DatabaseMigratorTest extends TestCase
             'pgsql' => ['driver' => 'pgsql'],
         ]);
 
-        $resolver = m::mock(Resolver::class);
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $resolvedConnection = m::mock(Connection::class);
+        $resolver = Double::for(Resolver::class);
+        $repository = Double::for(MigrationRepositoryInterface::class);
+        $resolvedConnection = Double::for(Connection::class);
 
-        $resolver->shouldReceive('connection')->once()->with('pgsql')->andReturn($resolvedConnection);
+        $resolver->expects('connection')->with('pgsql')->returns($resolvedConnection);
 
         $migrator = new Migrator($repository, $resolver, new Filesystem);
 
@@ -470,9 +473,9 @@ class DatabaseMigratorTest extends TestCase
             'pgsql' => ['driver' => 'pgsql'],
         ]);
 
-        $resolver = m::mock(Resolver::class);
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $resolvedConnection = m::mock(Connection::class);
+        $resolver = Double::for(Resolver::class);
+        $repository = Double::for(MigrationRepositoryInterface::class);
+        $resolvedConnection = Double::for(Connection::class);
 
         $capturedName = null;
         Migrator::resolveConnectionsUsing(function (Resolver $r, ?string $name) use (&$capturedName, $resolvedConnection) {
@@ -500,9 +503,9 @@ class DatabaseMigratorTest extends TestCase
             default: 'pgsql-pooled',
         );
 
-        $resolver = m::mock(Resolver::class);
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $repository->shouldReceive('setSource')->once()->with('pgsql');
+        $resolver = Double::for(Resolver::class);
+        $repository = Double::for(MigrationRepositoryInterface::class);
+        $repository->expects('setSource')->with('pgsql');
 
         $migrator = new Migrator($repository, $resolver, new Filesystem);
         $migrator->setConnection(null);
@@ -528,11 +531,11 @@ class DatabaseMigratorTest extends TestCase
             default: 'pgsql-pooled',
         );
 
-        $resolver = m::mock(Resolver::class);
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $resolvedConnection = m::mock(Connection::class);
+        $resolver = Double::for(Resolver::class);
+        $repository = Double::for(MigrationRepositoryInterface::class);
+        $resolvedConnection = Double::for(Connection::class);
 
-        $resolver->shouldReceive('connection')->once()->with('pgsql')->andReturn($resolvedConnection);
+        $resolver->expects('connection')->with('pgsql')->returns($resolvedConnection);
 
         $migrator = new Migrator($repository, $resolver, new Filesystem);
 
@@ -552,10 +555,10 @@ class DatabaseMigratorTest extends TestCase
             default: 'stored',
         );
 
-        $resolver = m::mock(Resolver::class);
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $repository->shouldReceive('setSource')->twice()->with('stored');
-        $repository->shouldReceive('setSource')->once()->with('inner-direct');
+        $resolver = Double::for(Resolver::class);
+        $repository = Double::for(MigrationRepositoryInterface::class);
+        $repository->expects('setSource')->times(2)->with('stored');
+        $repository->expects('setSource')->with('inner-direct');
 
         $migrator = new Migrator($repository, $resolver, new Filesystem);
         $migrator->setConnection('stored');
@@ -590,10 +593,10 @@ class DatabaseMigratorTest extends TestCase
             default: 'stored',
         );
 
-        $resolver = m::mock(Resolver::class);
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $repository->shouldReceive('setSource')->twice()->with('stored');
-        $repository->shouldReceive('setSource')->once()->with('inner-direct');
+        $resolver = Double::for(Resolver::class);
+        $repository = Double::for(MigrationRepositoryInterface::class);
+        $repository->expects('setSource')->times(2)->with('stored');
+        $repository->expects('setSource')->with('inner-direct');
 
         $migrator = new Migrator($repository, $resolver, new Filesystem);
         $migrator->setConnection('stored');
@@ -627,11 +630,11 @@ class DatabaseMigratorTest extends TestCase
             default: 'pgsql-pooled',
         );
 
-        $resolver = m::mock(Resolver::class);
-        $repository = m::mock(MigrationRepositoryInterface::class);
+        $resolver = Double::for(Resolver::class);
+        $repository = Double::for(MigrationRepositoryInterface::class);
 
-        $repository->shouldReceive('setSource')->once()->with('pgsql');
-        $repository->shouldReceive('setSource')->once()->with(null);
+        $repository->expects('setSource')->with('pgsql');
+        $repository->expects('setSource')->with(null);
 
         $migrator = new Migrator($repository, $resolver, new Filesystem);
 
@@ -666,10 +669,10 @@ class DatabaseMigratorTest extends TestCase
             default: 'default-pooled',
         );
 
-        $resolver = m::mock(Resolver::class);
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $repository->shouldReceive('setSource')->once()->with('default-direct');
-        $repository->shouldReceive('setSource')->once()->with(null);
+        $resolver = Double::for(Resolver::class);
+        $repository = Double::for(MigrationRepositoryInterface::class);
+        $repository->expects('setSource')->with('default-direct');
+        $repository->expects('setSource')->with(null);
         $migrator = new Migrator($repository, $resolver, new Filesystem);
 
         $connections = $migrator->getMigrationConnections([
@@ -695,10 +698,10 @@ class DatabaseMigratorTest extends TestCase
             default: 'default-pooled',
         );
 
-        $resolver = m::mock(Resolver::class);
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $repository->shouldReceive('setSource')->once()->with('default-direct');
-        $repository->shouldReceive('setSource')->once()->with(null);
+        $resolver = Double::for(Resolver::class);
+        $repository = Double::for(MigrationRepositoryInterface::class);
+        $repository->expects('setSource')->with('default-direct');
+        $repository->expects('setSource')->with(null);
         $migrator = new Migrator($repository, $resolver, new Filesystem);
 
         $this->assertSame(
@@ -724,15 +727,15 @@ class DatabaseMigratorTest extends TestCase
             default: null,
         );
 
-        $resolver = m::mock(Resolver::class);
-        $repository = m::mock(MigrationRepositoryInterface::class);
+        $resolver = Double::for(Resolver::class);
+        $repository = Double::for(MigrationRepositoryInterface::class);
 
         // Outer enter: setSource('pgsql'). Inner enter: setSource('mysql').
         // Inner exit: setSource back to 'pgsql' (outer's stored). Outer exit:
         // setSource back to null.
-        $repository->shouldReceive('setSource')->with('pgsql')->twice();
-        $repository->shouldReceive('setSource')->with('mysql')->once();
-        $repository->shouldReceive('setSource')->with(null)->once();
+        $repository->expects('setSource')->with('pgsql')->times(2);
+        $repository->expects('setSource')->with('mysql');
+        $repository->expects('setSource')->with(null);
 
         $migrator = new Migrator($repository, $resolver, new Filesystem);
 

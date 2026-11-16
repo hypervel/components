@@ -22,8 +22,10 @@ use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
-use Mockery as m;
 use PDO;
 use RuntimeException;
 
@@ -31,6 +33,7 @@ class DatabaseTruncationTest extends TestCase
 {
     use DatabaseTruncation;
     use InteractsWithConsole;
+    use VerifiesDoubles;
 
     private ?Container $app;
 
@@ -270,17 +273,17 @@ class DatabaseTruncationTest extends TestCase
 
     public function testCachesAndRestoresConfiguredInMemoryConnections(): void
     {
-        $defaultPdo = m::mock(PDO::class);
-        $namedPdo = m::mock(PDO::class);
-        $sourceDefault = m::mock(PdoConnection::class);
-        $sourceNamed = m::mock(PdoConnection::class);
-        $sourceDefault->expects('getPdo')->andReturn($defaultPdo);
-        $sourceNamed->expects('getPdo')->andReturn($namedPdo);
+        $defaultPdo = Double::for(PDO::class);
+        $namedPdo = Double::for(PDO::class);
+        $sourceDefault = Double::for(PdoConnection::class);
+        $sourceNamed = Double::for(PdoConnection::class);
+        $sourceDefault->expects('getPdo')->returns($defaultPdo);
+        $sourceNamed->expects('getPdo')->returns($namedPdo);
 
-        $sourceDatabase = m::mock(DatabaseManager::class);
-        $sourceDatabase->expects('connection')->with(null)->andReturn($sourceDefault);
-        $sourceDatabase->expects('connection')->with('named')->andReturn($sourceNamed);
-        $sourceDatabase->shouldNotReceive('connection')->with('file');
+        $sourceDatabase = Double::for(DatabaseManager::class);
+        $sourceDatabase->expects('connection')->with(null)->returns($sourceDefault);
+        $sourceDatabase->expects('connection')->with('named')->returns($sourceNamed);
+        $sourceDatabase->expects('connection')->never()->with('file');
 
         $this->app->instance('config', new Repository([
             'database' => [
@@ -297,18 +300,18 @@ class DatabaseTruncationTest extends TestCase
 
         $this->cacheInMemoryDatabases();
 
-        $dispatcher = m::mock(DispatcherContract::class);
-        $restoredDefault = m::mock(PdoConnection::class);
-        $restoredNamed = m::mock(PdoConnection::class);
-        $restoredDefault->expects('setPdo')->with($defaultPdo)->andReturnSelf();
-        $restoredDefault->expects('setEventDispatcher')->with($dispatcher)->andReturnSelf();
-        $restoredNamed->expects('setPdo')->with($namedPdo)->andReturnSelf();
-        $restoredNamed->expects('setEventDispatcher')->with($dispatcher)->andReturnSelf();
+        $dispatcher = Double::for(DispatcherContract::class);
+        $restoredDefault = Double::for(PdoConnection::class);
+        $restoredNamed = Double::for(PdoConnection::class);
+        $restoredDefault->expects('setPdo')->with(Argument::same($defaultPdo))->returns($restoredDefault);
+        $restoredDefault->expects('setEventDispatcher')->with(Argument::same($dispatcher))->returns($restoredDefault);
+        $restoredNamed->expects('setPdo')->with(Argument::same($namedPdo))->returns($restoredNamed);
+        $restoredNamed->expects('setEventDispatcher')->with(Argument::same($dispatcher))->returns($restoredNamed);
 
-        $restoredDatabase = m::mock(DatabaseManager::class);
-        $restoredDatabase->expects('connection')->with(null)->andReturn($restoredDefault);
-        $restoredDatabase->expects('connection')->with('named')->andReturn($restoredNamed);
-        $restoredDatabase->shouldNotReceive('connection')->with('file');
+        $restoredDatabase = Double::for(DatabaseManager::class);
+        $restoredDatabase->expects('connection')->with(null)->returns($restoredDefault);
+        $restoredDatabase->expects('connection')->with('named')->returns($restoredNamed);
+        $restoredDatabase->expects('connection')->never()->with('file');
 
         $this->app->instance('db', $restoredDatabase);
         $this->app->instance(DispatcherContract::class, $dispatcher);
@@ -339,8 +342,8 @@ class DatabaseTruncationTest extends TestCase
             ],
         ]));
 
-        $database = m::mock(DatabaseManager::class);
-        $database->expects('connection')->with(null)->andReturn(m::mock(Connection::class));
+        $database = Double::for(DatabaseManager::class);
+        $database->expects('connection')->with(null)->returns(Double::for(Connection::class));
         $this->app->instance('db', $database);
 
         $this->expectException(LogicException::class);
@@ -359,10 +362,10 @@ class DatabaseTruncationTest extends TestCase
                 ],
             ],
         ]));
-        RefreshDatabaseState::$inMemoryConnections = ['default' => m::mock(PDO::class)];
+        RefreshDatabaseState::$inMemoryConnections = ['default' => Double::for(PDO::class)];
 
-        $database = m::mock(DatabaseManager::class);
-        $database->expects('connection')->with(null)->andReturn(m::mock(Connection::class));
+        $database = Double::for(DatabaseManager::class);
+        $database->expects('connection')->with(null)->returns(Double::for(Connection::class));
         $this->app->instance('db', $database);
 
         $this->expectException(LogicException::class);
@@ -453,17 +456,17 @@ class DatabaseTruncationTest extends TestCase
 
     public function testMigratesWhenRetainedStateHasNoSelectedInMemoryPdo(): void
     {
-        $pdo = m::mock(PDO::class);
-        $connection = m::mock(PdoConnection::class);
-        $connection->expects('getPdo')->andReturn($pdo);
-        $database = m::mock(DatabaseManager::class);
-        $database->expects('connection')->with(null)->andReturn($connection);
-        $kernel = m::mock(KernelContract::class);
+        $pdo = Double::for(PDO::class);
+        $connection = Double::for(PdoConnection::class);
+        $connection->expects('getPdo')->returns($pdo);
+        $database = Double::for(DatabaseManager::class);
+        $database->expects('connection')->with(null)->returns($connection);
+        $kernel = Double::for(KernelContract::class);
         $kernel->expects('call')->with('migrate:fresh', [
             '--drop-views' => false,
             '--drop-types' => false,
             '--seed' => false,
-        ])->andReturn(0);
+        ])->returns(0);
         $kernel->expects('setArtisan')->with(null);
         $this->app->instance(KernelContract::class, $kernel);
         $this->app->instance('db', $database);
@@ -485,12 +488,12 @@ class DatabaseTruncationTest extends TestCase
 
     public function testAdoptsAMissingInMemoryPdoBeforeTheTruncationHook(): void
     {
-        $pdo = m::mock(PDO::class);
-        $connection = m::mock(PdoConnection::class);
-        $connection->expects('getPdo')->andReturn($pdo);
+        $pdo = Double::for(PDO::class);
+        $connection = Double::for(PdoConnection::class);
+        $connection->expects('getPdo')->returns($pdo);
 
-        $database = m::mock(DatabaseManager::class);
-        $database->expects('connection')->with(null)->andReturn($connection);
+        $database = Double::for(DatabaseManager::class);
+        $database->expects('connection')->with(null)->returns($connection);
 
         $app = new Container;
         $app->instance('config', new Repository([
@@ -558,21 +561,21 @@ class DatabaseTruncationTest extends TestCase
         $actual = [];
         $allTables = array_map(fn (array $table): array => $table + ['partition_of' => null], $allTables);
 
-        $schema = m::mock($builder ?? Builder::class)->makePartial();
+        $schema = Double::for($builder ?? Builder::class)->passthru();
 
         if ($schemas === []) {
-            $schema->shouldNotReceive('getTables');
+            $schema->expects('getTables')->never();
         } else {
-            $schema->expects('getTables')->with($schemas)->andReturn(
+            $schema->expects('getTables')->with($schemas)->returns(
                 $schemas === null
                     ? $allTables
                     : array_filter($allTables, fn (array $table): bool => in_array($table['schema'], $schemas, true))
             );
         }
 
-        $schema->expects('getCurrentSchemaListing')->andReturn($schemas);
+        $schema->expects('getCurrentSchemaListing')->returns($schemas);
         $withoutPrefix = false;
-        $schema->expects('truncateTables')->andReturnUsing(
+        $schema->expects('truncateTables')->resolves(
             function (array $tables) use (&$actual, &$withoutPrefix, $failure): void {
                 $this->assertTrue($withoutPrefix);
                 $actual = $tables;
@@ -583,14 +586,14 @@ class DatabaseTruncationTest extends TestCase
             }
         );
 
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getTablePrefix')->andReturn($prefix);
+        $connection = Double::for(Connection::class);
+        $connection->allows('getTablePrefix')->returns($prefix);
         $dispatcher = new Dispatcher;
-        $connection->expects('getEventDispatcher')->andReturn($dispatcher);
+        $connection->expects('getEventDispatcher')->returns($dispatcher);
         $connection->expects('unsetEventDispatcher');
-        $connection->expects('setEventDispatcher')->with($dispatcher);
-        $connection->shouldReceive('getSchemaBuilder')->andReturn($schema);
-        $connection->expects('withoutTablePrefix')->andReturnUsing(
+        $connection->expects('setEventDispatcher')->with(Argument::same($dispatcher));
+        $connection->allows('getSchemaBuilder')->returns($schema);
+        $connection->expects('withoutTablePrefix')->resolves(
             function (callable $callback) use ($connection, &$withoutPrefix): void {
                 $withoutPrefix = true;
 

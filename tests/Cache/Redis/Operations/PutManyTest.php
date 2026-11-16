@@ -28,7 +28,7 @@ class PutManyTest extends RedisCacheTestCase
                 $this->assertSame('prefix:baz', $keys[1]);
                 $this->assertSame('prefix:bar', $keys[2]);
                 // Args: [ttl, val1, val2, val3]
-                $this->assertSame(60, $args[0]); // TTL
+                $this->assertSame([60, serialize('bar'), serialize('qux'), serialize('norf')], $args);
 
                 return true;
             })

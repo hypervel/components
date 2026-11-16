@@ -15,11 +15,14 @@ use Hypervel\Database\Query\Grammars\PostgresGrammar;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseEloquentAsVectorCastTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testGetDecodesBinaryVector(): void
     {
         $this->useGrammar(MariaDbGrammar::class);
@@ -193,12 +196,12 @@ class DatabaseEloquentAsVectorCastTest extends TestCase
      */
     protected function useGrammar(string $grammar): Grammar
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new $grammar($connection);
-        $connection->shouldReceive('getQueryGrammar')->andReturn($grammar);
+        $connection->allows('getQueryGrammar')->returns($grammar);
 
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->andReturn($connection);
+        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver->allows('connection')->returns($connection);
 
         Model::setConnectionResolver($resolver);
 

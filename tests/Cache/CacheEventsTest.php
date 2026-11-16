@@ -33,7 +33,8 @@ use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -41,6 +42,8 @@ use Throwable;
 
 class CacheEventsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRepositorySkipsEventDispatchSeamWithoutListenersAndEntersItWithListeners(): void
     {
         $repository = new class(new ArrayStore, ['store' => 'array']) extends Repository {
@@ -56,9 +59,9 @@ class CacheEventsTest extends TestCase
                 parent::event($event);
             }
         };
-        $dispatcher = m::mock(DispatcherContract::class);
-        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturnFalse();
-        $dispatcher->shouldNotReceive('dispatch');
+        $dispatcher = Double::for(DispatcherContract::class);
+        $dispatcher->allows('hasListeners')->returns(false);
+        $dispatcher->expects('dispatch')->never();
         $repository->setEventDispatcher($dispatcher);
 
         $this->assertNull($repository->get('missing'));
@@ -93,9 +96,9 @@ class CacheEventsTest extends TestCase
                 parent::event($event);
             }
         };
-        $dispatcher = m::mock(DispatcherContract::class);
-        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturnFalse();
-        $dispatcher->shouldNotReceive('dispatch');
+        $dispatcher = Double::for(DispatcherContract::class);
+        $dispatcher->allows('hasListeners')->returns(false);
+        $dispatcher->expects('dispatch')->never();
         $repository->setEventDispatcher($dispatcher);
 
         $this->assertNull($repository->get('missing'));
@@ -186,8 +189,8 @@ class CacheEventsTest extends TestCase
     public function testGetDispatchesFailureEventWhenTheStoreThrows(): void
     {
         $exception = new RuntimeException('The cache read failed.');
-        $store = m::mock(Store::class);
-        $store->expects('get')->with('foo')->andThrow($exception);
+        $store = Double::for(Store::class);
+        $store->expects('get')->with('foo')->throws($exception);
         $events = [];
         $repository = new Repository($store, ['store' => 'array']);
         $repository->setEventDispatcher($this->getCapturingDispatcher($events));
@@ -211,8 +214,8 @@ class CacheEventsTest extends TestCase
     public function testManyDispatchesFailureEventWhenTheStoreThrows(): void
     {
         $exception = new RuntimeException('The cache batch read failed.');
-        $store = m::mock(Store::class);
-        $store->expects('many')->with(['foo', 'bar'])->andThrow($exception);
+        $store = Double::for(Store::class);
+        $store->expects('many')->with(['foo', 'bar'])->throws($exception);
         $events = [];
         $repository = new Repository($store, ['store' => 'array']);
         $repository->setEventDispatcher($this->getCapturingDispatcher($events));
@@ -236,8 +239,8 @@ class CacheEventsTest extends TestCase
     public function testPutDispatchesFailureEventWhenTheStoreThrows(): void
     {
         $exception = new RuntimeException('The cache write failed.');
-        $store = m::mock(Store::class);
-        $store->expects('put')->with('foo', 'bar', 60)->andThrow($exception);
+        $store = Double::for(Store::class);
+        $store->expects('put')->with('foo', 'bar', 60)->throws($exception);
         $events = [];
         $repository = new Repository($store, ['store' => 'array']);
         $repository->setEventDispatcher($this->getCapturingDispatcher($events));
@@ -266,8 +269,8 @@ class CacheEventsTest extends TestCase
         array $eventClasses,
         array $keys,
     ): void {
-        $store = m::mock(Store::class);
-        $store->expects($method)->with(...$arguments)->andReturnFalse();
+        $store = Double::for(Store::class);
+        $store->expects($method)->with(...$arguments)->returns(false);
         $events = [];
         $repository = new Repository($store, ['store' => 'array']);
         $repository->setEventDispatcher($this->getCapturingDispatcher($events));
@@ -299,8 +302,8 @@ class CacheEventsTest extends TestCase
     {
         $exception = new RuntimeException('The cache batch write failed.');
         $values = ['foo' => 'bar', 'baz' => 'qux'];
-        $store = m::mock(Store::class);
-        $store->expects('putMany')->with($values, 60)->andThrow($exception);
+        $store = Double::for(Store::class);
+        $store->expects('putMany')->with($values, 60)->throws($exception);
         $events = [];
         $repository = new Repository($store, ['store' => 'array']);
         $repository->setEventDispatcher($this->getCapturingDispatcher($events));
@@ -324,8 +327,8 @@ class CacheEventsTest extends TestCase
     public function testForeverDispatchesFailureEventWhenTheStoreThrows(): void
     {
         $exception = new RuntimeException('The cache forever write failed.');
-        $store = m::mock(Store::class);
-        $store->expects('forever')->with('foo', 'bar')->andThrow($exception);
+        $store = Double::for(Store::class);
+        $store->expects('forever')->with('foo', 'bar')->throws($exception);
         $events = [];
         $repository = new Repository($store, ['store' => 'array']);
         $repository->setEventDispatcher($this->getCapturingDispatcher($events));
@@ -349,8 +352,8 @@ class CacheEventsTest extends TestCase
     public function testForgetDispatchesFailureEventWhenTheStoreThrows(): void
     {
         $exception = new RuntimeException('The cache forget failed.');
-        $store = m::mock(Store::class);
-        $store->expects('forget')->with('foo')->andThrow($exception);
+        $store = Double::for(Store::class);
+        $store->expects('forget')->with('foo')->throws($exception);
         $events = [];
         $repository = new Repository($store, ['store' => 'array']);
         $repository->setEventDispatcher($this->getCapturingDispatcher($events));
@@ -383,11 +386,11 @@ class CacheEventsTest extends TestCase
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
         }
-        $store = m::mock(Store::class, CanFlushLocks::class, AuthoritativeRawReadable::class);
-        $store->shouldReceive('supportsFlushingLocks')->andReturnTrue()->byDefault();
+        $store = Double::for(Store::class, CanFlushLocks::class, AuthoritativeRawReadable::class);
+        $store->allows('supportsFlushingLocks')->returns(true);
         $store->expects($storeMethod)
             ->with(...$storeArguments)
-            ->andThrow($cancellation);
+            ->throws($cancellation);
         $events = [];
         $repository = new Repository($store, ['store' => 'array']);
         $repository->setEventDispatcher($this->getCapturingDispatcher($events));
@@ -577,8 +580,8 @@ class CacheEventsTest extends TestCase
     public function testForgetDoesTriggerFailedEventOnFailure(): void
     {
         $dispatcher = $this->getDispatcher();
-        $store = m::mock(Store::class);
-        $store->expects('forget')->andReturn(false);
+        $store = Double::for(Store::class);
+        $store->expects('forget')->returns(false);
         $repository = new Repository($store);
         $repository->setEventDispatcher($dispatcher);
 
@@ -620,8 +623,8 @@ class CacheEventsTest extends TestCase
     public function testFlushDispatchesFailureEventWithExactException(): void
     {
         $exception = new RuntimeException('The cache flush failed.');
-        $store = m::mock(Store::class);
-        $store->expects('flush')->andThrow($exception);
+        $store = Double::for(Store::class);
+        $store->expects('flush')->throws($exception);
         $events = [];
         $repository = new Repository($store, ['store' => 'array']);
         $repository->setEventDispatcher($this->getCapturingDispatcher($events));
@@ -652,9 +655,9 @@ class CacheEventsTest extends TestCase
     public function testFlushLocksDispatchesFailureEventWithExactException(): void
     {
         $exception = new RuntimeException('The cache lock flush failed.');
-        $store = m::mock(Store::class, CanFlushLocks::class);
-        $store->expects('supportsFlushingLocks')->andReturnTrue();
-        $store->expects('flushLocks')->andThrow($exception);
+        $store = Double::for(Store::class, CanFlushLocks::class);
+        $store->expects('supportsFlushingLocks')->returns(true);
+        $store->expects('flushLocks')->throws($exception);
         $events = [];
         $repository = new Repository($store, ['store' => 'array']);
         $repository->setEventDispatcher($this->getCapturingDispatcher($events));
@@ -678,8 +681,8 @@ class CacheEventsTest extends TestCase
         $dispatcher = $this->getDispatcher();
 
         // Create a store that fails to flush
-        $failingStore = m::mock(Store::class);
-        $failingStore->expects('flush')->andReturn(false);
+        $failingStore = Double::for(Store::class);
+        $failingStore->expects('flush')->returns(false);
 
         $repository = new Repository($failingStore, ['store' => 'array']);
         $repository->setEventDispatcher($dispatcher);
@@ -696,9 +699,9 @@ class CacheEventsTest extends TestCase
         $dispatcher = $this->getDispatcher();
 
         // Create a store that fails to flush locks
-        $failingStore = m::mock(ArrayStore::class);
-        $failingStore->shouldReceive('supportsFlushingLocks')->andReturn(true);
-        $failingStore->expects('flushLocks')->andReturn(false);
+        $failingStore = Double::for(ArrayStore::class);
+        $failingStore->allows('supportsFlushingLocks')->returns(true);
+        $failingStore->expects('flushLocks')->returns(false);
 
         $repository = new Repository($failingStore, ['store' => 'array']);
         $repository->setEventDispatcher($dispatcher);

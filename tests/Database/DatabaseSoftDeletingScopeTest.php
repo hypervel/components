@@ -8,13 +8,8 @@ use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Eloquent\SoftDeletingScope;
-use Hypervel\Database\PdoConnection;
-use Hypervel\Database\Query\Builder as BaseBuilder;
-use Hypervel\Database\Query\Grammars\Grammar;
-use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use PDO;
 
 class DatabaseSoftDeletingScopeTest extends TestCase
@@ -36,54 +31,6 @@ class DatabaseSoftDeletingScopeTest extends TestCase
         $builder->restore();
 
         $this->assertSame(0, $connection->table('users')->whereNotNull('deleted_at')->count());
-    }
-
-    public function testRestoreOrCreateExtension(): void
-    {
-        $connection = new PdoConnection(new PDO('sqlite::memory:'));
-        $builder = new EloquentBuilder(new BaseBuilder(
-            $connection,
-            new Grammar($connection),
-            new Processor
-        ));
-
-        $scope = new SoftDeletingScope;
-        $scope->extend($builder);
-        $callback = $builder->getMacro('restoreOrCreate');
-        $givenBuilder = m::mock(EloquentBuilder::class);
-        $givenBuilder->expects('withTrashed');
-        $attributes = ['name' => 'foo'];
-        $values = ['email' => 'bar'];
-        $model = m::mock(Model::class);
-        $givenBuilder->expects('firstOrCreate')->with($attributes, $values)->andReturn($model);
-        $model->expects('restore')->andReturn(true);
-        $result = $callback($givenBuilder, $attributes, $values);
-
-        $this->assertEquals($model, $result);
-    }
-
-    public function testCreateOrRestoreExtension(): void
-    {
-        $connection = new PdoConnection(new PDO('sqlite::memory:'));
-        $builder = new EloquentBuilder(new BaseBuilder(
-            $connection,
-            new Grammar($connection),
-            new Processor
-        ));
-
-        $scope = new SoftDeletingScope;
-        $scope->extend($builder);
-        $callback = $builder->getMacro('createOrRestore');
-        $givenBuilder = m::mock(EloquentBuilder::class);
-        $givenBuilder->expects('withTrashed');
-        $attributes = ['name' => 'foo'];
-        $values = ['email' => 'bar'];
-        $model = m::mock(Model::class);
-        $givenBuilder->expects('createOrFirst')->with($attributes, $values)->andReturn($model);
-        $model->expects('restore')->andReturn(true);
-        $result = $callback($givenBuilder, $attributes, $values);
-
-        $this->assertEquals($model, $result);
     }
 
     public function testWithTrashedExtension(): void

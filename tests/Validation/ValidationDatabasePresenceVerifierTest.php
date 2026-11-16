@@ -19,21 +19,25 @@ use Hypervel\Validation\DatabasePresenceVerifier;
 use Hypervel\Validation\PresenceQuery;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Validator;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class ValidationDatabasePresenceVerifierTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBasicCount(): void
     {
-        $db = m::mock(ConnectionResolverInterface::class);
+        $db = Double::for(ConnectionResolverInterface::class);
         $verifier = new DatabasePresenceVerifier($db);
-        $conn = m::mock(Connection::class);
-        $db->expects('connection')->with('connection')->andReturn($conn);
-        $builder = m::mock(Builder::class);
-        $conn->expects('table')->with('table')->andReturn($builder);
-        $builder->expects('useWritePdo')->andReturn($builder);
-        $builder->expects('where')->with('column', '=', 'value')->andReturn($builder);
+        $conn = Double::for(Connection::class);
+        $db->expects('connection')->with('connection')->returns($conn);
+        $builder = Double::for(Builder::class);
+        $conn->expects('table')->with('table')->returns($builder);
+        $builder->expects('useWritePdo')->returns($builder);
+        $builder->expects('where')->with('column', '=', 'value')->returns($builder);
         $extra = new DatabaseConditions(
             new DatabaseCondition('foo', DatabaseConditionOperator::IsNull),
             new DatabaseCondition('bar', DatabaseConditionOperator::IsNotNull),
@@ -50,21 +54,21 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
         $builder->expects('where')->with('not', '!=', 'admin');
         $builder->expects('whereIn')->with('role', ['reader', 'editor']);
         $builder->expects('whereNotIn')->with('role', ['admin']);
-        $builder->expects('count')->andReturn(100);
+        $builder->expects('count')->returns(100);
 
         $this->assertSame(100, $verifier->getCount(new PresenceQuery('connection', 'table', 'column', $extra), 'value'));
     }
 
     public function testBasicCountWithClosures(): void
     {
-        $db = m::mock(ConnectionResolverInterface::class);
+        $db = Double::for(ConnectionResolverInterface::class);
         $verifier = new DatabasePresenceVerifier($db);
-        $conn = m::mock(Connection::class);
-        $db->expects('connection')->with('connection')->andReturn($conn);
-        $builder = m::mock(Builder::class);
-        $conn->expects('table')->with('table')->andReturn($builder);
-        $builder->expects('useWritePdo')->andReturn($builder);
-        $builder->expects('where')->with('column', '=', 'value')->andReturn($builder);
+        $conn = Double::for(Connection::class);
+        $db->expects('connection')->with('connection')->returns($conn);
+        $builder = Double::for(Builder::class);
+        $conn->expects('table')->with('table')->returns($builder);
+        $builder->expects('useWritePdo')->returns($builder);
+        $builder->expects('where')->with('column', '=', 'value')->returns($builder);
         $closure = function (Builder $query): void {
             $query->where('closure', 1);
         };
@@ -81,54 +85,54 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
         $builder->expects('where')->with('baz', '=', 'taylor');
         $builder->expects('where')->with('faz', '=', '1');
         $builder->expects('where')->with('not', '!=', 'admin');
-        $builder->expects('where')->with(m::type(Closure::class))->andReturnUsing(function (Closure $callback) use ($builder): Builder {
+        $builder->expects('where')->with(Argument::type(Closure::class))->resolves(function (Closure $callback) use ($builder): Builder {
             $callback($builder);
 
             return $builder;
         });
         $builder->expects('where')->with('closure', 1);
-        $builder->expects('count')->andReturn(100);
+        $builder->expects('count')->returns(100);
 
         $this->assertSame(100, $verifier->getCount(new PresenceQuery('connection', 'table', 'column', $extra), 'value'));
     }
 
     public function testGetCountWithValidExcludeId(): void
     {
-        $db = m::mock(ConnectionResolverInterface::class);
+        $db = Double::for(ConnectionResolverInterface::class);
         $verifier = new DatabasePresenceVerifier($db);
-        $conn = m::mock(Connection::class);
-        $db->expects('connection')->with('connection')->andReturn($conn);
-        $builder = m::mock(Builder::class);
-        $conn->expects('table')->with('table')->andReturn($builder);
-        $builder->expects('useWritePdo')->andReturn($builder);
-        $builder->expects('where')->with('column', '=', 'value')->andReturn($builder);
-        $builder->expects('where')->with('id', '<>', 123)->andReturn($builder);
-        $builder->expects('count')->andReturn(100);
+        $conn = Double::for(Connection::class);
+        $db->expects('connection')->with('connection')->returns($conn);
+        $builder = Double::for(Builder::class);
+        $conn->expects('table')->with('table')->returns($builder);
+        $builder->expects('useWritePdo')->returns($builder);
+        $builder->expects('where')->with('column', '=', 'value')->returns($builder);
+        $builder->expects('where')->with('id', '<>', 123)->returns($builder);
+        $builder->expects('count')->returns(100);
 
         $this->assertSame(100, $verifier->getCount(new PresenceQuery('connection', 'table', 'column', new DatabaseConditions, 123, 'id'), 'value'));
     }
 
     public function testIntegersAndBooleansAreComparedAsStrings(): void
     {
-        $db = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(Connection::class);
-        $db->expects('connection')->with('connection')->times(3)->andReturn($connection);
+        $db = Double::for(ConnectionResolverInterface::class);
+        $connection = Double::for(Connection::class);
+        $db->expects('connection')->with('connection')->times(3)->returns($connection);
         $verifier = new DatabasePresenceVerifier($db);
-        $builder = m::mock(Builder::class);
-        $connection->expects('table')->with('table')->times(3)->andReturn($builder);
-        $builder->expects('useWritePdo')->times(3)->andReturnSelf();
-        $builder->expects('where')->with('column', '=', '0')->andReturnSelf();
-        $builder->expects('count')->withNoArgs()->andReturn(0);
+        $builder = Double::for(Builder::class);
+        $connection->expects('table')->with('table')->times(3)->returns($builder);
+        $builder->expects('useWritePdo')->times(3)->returns($builder);
+        $builder->expects('where')->with('column', '=', '0')->returns($builder);
+        $builder->expects('count')->with()->returns(0);
 
         $this->assertSame(0, $verifier->getCount(new PresenceQuery('connection', 'table', 'column', new DatabaseConditions), 0));
 
-        $builder->expects('whereIn')->with('column', ['0', '1', '7', 'value'])->twice()->andReturnSelf();
-        $builder->expects('distinct')->twice()->andReturnSelf();
-        $builder->expects('count')->with('column')->andReturn(0);
+        $builder->expects('whereIn')->with('column', ['0', '1', '7', 'value'])->times(2)->returns($builder);
+        $builder->expects('distinct')->times(2)->returns($builder);
+        $builder->expects('count')->with('column')->returns(0);
 
         $this->assertSame(0, $verifier->getMultiCount(new PresenceQuery('connection', 'table', 'column', new DatabaseConditions), [false, true, 7, 'value']));
 
-        $builder->expects('pluck')->with('column')->andReturn(new Collection(['0', '1', '7', 'value']));
+        $builder->expects('pluck')->with('column')->returns(new Collection(['0', '1', '7', 'value']));
 
         $verifier->getExistingValues(new PresenceQuery('connection', 'table', 'column', new DatabaseConditions), [false, true, 7, 'value']);
     }
@@ -136,16 +140,16 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
     #[DataProvider('connections')]
     public function testGetExistingValuesUsesRequestedConnectionAndReturnsDistinctValues(?string $connection): void
     {
-        $verifier = new DatabasePresenceVerifier($db = m::mock(ConnectionResolverInterface::class));
-        $db->expects('connection')->with($connection)->andReturn($database = m::mock(Connection::class));
-        $database->expects('table')->with('table')->andReturn($builder = m::mock(Builder::class));
-        $builder->expects('useWritePdo')->andReturnSelf();
-        $builder->expects('whereIn')->with('column', ['first', 'second'])->andReturnSelf();
-        $builder->expects('where')->with('uuid', '<>', 'ignored')->andReturnSelf();
+        $verifier = new DatabasePresenceVerifier($db = Double::for(ConnectionResolverInterface::class));
+        $db->expects('connection')->with($connection)->returns($database = Double::for(Connection::class));
+        $database->expects('table')->with('table')->returns($builder = Double::for(Builder::class));
+        $builder->expects('useWritePdo')->returns($builder);
+        $builder->expects('whereIn')->with('column', ['first', 'second'])->returns($builder);
+        $builder->expects('where')->with('uuid', '<>', 'ignored')->returns($builder);
         $builder->expects('whereNull')->with('deleted_at');
         $builder->expects('where')->with('status', '=', 'active');
-        $builder->expects('distinct')->andReturnSelf();
-        $builder->expects('pluck')->with('column')->andReturn(new Collection(['first']));
+        $builder->expects('distinct')->returns($builder);
+        $builder->expects('pluck')->with('column')->returns(new Collection(['first']));
 
         $this->assertSame(['first'], $verifier->getExistingValues(
             new PresenceQuery($connection, 'table', 'column', new DatabaseConditions(
@@ -166,7 +170,7 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
 
     public function testNestedValidationCannotChangeTheOuterConnection(): void
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class);
         $verifier = new DatabasePresenceVerifier($resolver);
         $translator = new Translator(new ArrayLoader, 'en');
         $inner = new Validator($translator, ['email' => 'inner@example.com'], [
@@ -198,13 +202,13 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
         $outer->setPresenceVerifier($verifier);
 
         foreach (['inner' => 1, 'outer' => 0] as $name => $count) {
-            $connection = m::mock(Connection::class);
-            $builder = m::mock(Builder::class);
-            $resolver->expects('connection')->with($name)->andReturn($connection);
-            $connection->expects('table')->with('users')->andReturn($builder);
-            $builder->expects('useWritePdo')->andReturnSelf();
-            $builder->expects('where')->with('email', '=', $name . '@example.com')->andReturnSelf();
-            $builder->expects('count')->andReturn($count);
+            $connection = Double::for(Connection::class);
+            $builder = Double::for(Builder::class);
+            $resolver->expects('connection')->with($name)->returns($connection);
+            $connection->expects('table')->with('users')->returns($builder);
+            $builder->expects('useWritePdo')->returns($builder);
+            $builder->expects('where')->with('email', '=', $name . '@example.com')->returns($builder);
+            $builder->expects('count')->returns($count);
         }
 
         $this->assertFalse($outer->passes());

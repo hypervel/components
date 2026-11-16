@@ -11,7 +11,8 @@ use Hypervel\Support\Composer;
 use Hypervel\Support\Env;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Symfony\Component\Process\Process;
@@ -21,6 +22,8 @@ use function Hypervel\Support\php_binary;
 
 class SupportComposerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected string $tempDir;
 
     protected ?string $originalComposerVendorDirectory = null;
@@ -255,10 +258,10 @@ class SupportComposerTest extends TestCase
     {
         $directory = __DIR__;
 
-        $files = m::mock(Filesystem::class);
-        $files->expects('exists')->with($directory . '/composer.phar')->andReturn($customComposerPhar);
+        $files = Double::for(Filesystem::class);
+        $files->expects('exists')->with($directory . '/composer.phar')->returns($customComposerPhar);
 
-        $process = m::mock(Process::class);
+        $process = Double::for(Process::class);
         $process->expects('run');
 
         $composer = $this->getMockBuilder(Composer::class)

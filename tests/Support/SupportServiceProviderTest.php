@@ -13,11 +13,14 @@ use Hypervel\Support\ServiceProvider;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Hypervel\Translation\Translator;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use WeakReference;
 
 class SupportServiceProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Application $app;
 
     protected ConfigMutationTracker $configMutationTracker;
@@ -26,21 +29,19 @@ class SupportServiceProviderTest extends TestCase
     {
         parent::setUp();
 
-        $this->app = $app = m::mock(Application::class)->makePartial();
+        $this->app = $app = new Application;
+        $app->instance('config_loaded_from_cache', false);
 
         $config = new ConfigRepository([
             'database' => ['migrations' => [
                 'update_date_on_publish' => true,
             ]],
         ]);
-        $app->shouldReceive('make')->with('config')->andReturn($config)->byDefault();
+        $app->instance('config', $config);
 
         $this->configMutationTracker = new ConfigMutationTracker;
         $this->configMutationTracker->observe($config);
-        $app->shouldReceive('make')
-            ->with(ConfigMutationTracker::class)
-            ->andReturn($this->configMutationTracker)
-            ->byDefault();
+        $app->instance(ConfigMutationTracker::class, $this->configMutationTracker);
 
         $one = new ServiceProviderForTestingOne($app);
         $one->boot();
@@ -65,8 +66,8 @@ class SupportServiceProviderTest extends TestCase
     public function testIsEnabledCanReadFromContainerAndConfig(): void
     {
         $config = new ConfigRepository(['package' => ['enabled' => true]]);
-        $app = m::mock(Application::class)->makePartial();
-        $app->shouldReceive('make')->with('config')->andReturn($config);
+        $app = new Application;
+        $app->instance('config', $config);
 
         $provider = new ServiceProviderForTestingConditionallyEnabled($app);
         $this->assertTrue($provider->isEnabled());
@@ -205,7 +206,7 @@ class SupportServiceProviderTest extends TestCase
         $config = new ConfigRepository([
             'database' => ['migrations' => []],
         ]);
-        $this->app->shouldReceive('make')->with('config')->andReturn($config);
+        $this->app->instance('config', $config);
         $serviceProvider = new ServiceProviderForTestingOne($this->app);
 
         (fn () => $this->publishesMigrations(['source' => 'destination']))
@@ -247,7 +248,7 @@ class SupportServiceProviderTest extends TestCase
     public function testMergeConfigFromWithFlatConfig(): void
     {
         $config = new ConfigRepository;
-        $this->app->shouldReceive('make')->with('config')->andReturn($config);
+        $this->app->instance('config', $config);
 
         $provider = new ServiceProviderForTestingFlat($this->app);
         $provider->register();
@@ -261,7 +262,7 @@ class SupportServiceProviderTest extends TestCase
         $config = new ConfigRepository([
             'flat' => ['default' => 'redis'],
         ]);
-        $this->app->shouldReceive('make')->with('config')->andReturn($config);
+        $this->app->instance('config', $config);
 
         $provider = new ServiceProviderForTestingFlat($this->app);
         $provider->register();
@@ -281,7 +282,7 @@ class SupportServiceProviderTest extends TestCase
                 ],
             ],
         ]);
-        $this->app->shouldReceive('make')->with('config')->andReturn($config);
+        $this->app->instance('config', $config);
 
         $provider = new ServiceProviderForTestingFlatWithStores($this->app);
         $provider->register();
@@ -309,7 +310,7 @@ class SupportServiceProviderTest extends TestCase
                 ],
             ],
         ]);
-        $this->app->shouldReceive('make')->with('config')->andReturn($config);
+        $this->app->instance('config', $config);
 
         $provider = new ServiceProviderForTestingMergeableStores($this->app);
         $provider->register();
@@ -344,7 +345,7 @@ class SupportServiceProviderTest extends TestCase
                 'default' => 'redis',
             ],
         ]);
-        $this->app->shouldReceive('make')->with('config')->andReturn($config);
+        $this->app->instance('config', $config);
 
         $provider = new ServiceProviderForTestingMergeableStores($this->app);
         $provider->register();
@@ -360,7 +361,7 @@ class SupportServiceProviderTest extends TestCase
     public function testMergeConfigFromWithMergeableOptionsWhenNoExistingConfig(): void
     {
         $config = new ConfigRepository;
-        $this->app->shouldReceive('make')->with('config')->andReturn($config);
+        $this->app->instance('config', $config);
 
         $provider = new ServiceProviderForTestingMergeableStores($this->app);
         $provider->register();
@@ -381,10 +382,10 @@ class SupportServiceProviderTest extends TestCase
         ]);
         $tracker = new ConfigMutationTracker;
         $tracker->observe($masterConfig);
-        $app = m::mock(Application::class)->makePartial();
-        $app->shouldReceive('configurationIsCached')->andReturn(false);
-        $app->shouldReceive('make')->with('config')->andReturn($masterConfig);
-        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn($tracker);
+        $app = new Application;
+        $app->instance('config_loaded_from_cache', false);
+        $app->instance('config', $masterConfig);
+        $app->instance(ConfigMutationTracker::class, $tracker);
 
         (new ServiceProviderForTestingFlat($app))->register();
 
@@ -402,10 +403,10 @@ class SupportServiceProviderTest extends TestCase
         $masterConfig = new ConfigRepository;
         $tracker = new ConfigMutationTracker;
         $tracker->observe($masterConfig);
-        $app = m::mock(Application::class)->makePartial();
-        $app->shouldReceive('configurationIsCached')->andReturn(false);
-        $app->shouldReceive('make')->with('config')->andReturn($masterConfig);
-        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn($tracker);
+        $app = new Application;
+        $app->instance('config_loaded_from_cache', false);
+        $app->instance('config', $masterConfig);
+        $app->instance(ConfigMutationTracker::class, $tracker);
 
         $provider = new ServiceProviderForTestingMergeableStores($app);
         $providerReference = WeakReference::create($provider);
@@ -434,10 +435,10 @@ class SupportServiceProviderTest extends TestCase
         ]);
         $tracker = new ConfigMutationTracker;
         $tracker->observe($masterConfig);
-        $app = m::mock(Application::class)->makePartial();
-        $app->shouldReceive('configurationIsCached')->andReturn(false);
-        $app->shouldReceive('make')->with('config')->andReturn($masterConfig);
-        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn($tracker);
+        $app = new Application;
+        $app->instance('config_loaded_from_cache', false);
+        $app->instance('config', $masterConfig);
+        $app->instance(ConfigMutationTracker::class, $tracker);
 
         (new ServiceProviderForTestingReplace($app))->register();
 
@@ -462,25 +463,22 @@ class SupportServiceProviderTest extends TestCase
 
     public function testMergeConfigFromSkipsWhenConfigIsCached(): void
     {
-        $app = m::mock(Application::class)->makePartial();
-        $app->shouldReceive('configurationIsCached')->andReturn(true);
-        $app->shouldReceive('make')->with('config')->never();
-        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->never();
+        $app = Double::for(Application::class, override: true);
+        $app->allows('configurationIsCached')->returns(true);
+        $app->expects('make')->with('config')->never();
+        $app->expects('make')->with(ConfigMutationTracker::class)->never();
 
-        $provider = new ServiceProviderForTestingFlat($app);
+        $provider = new ServiceProviderForTestingFlat($app->instance());
         $provider->register();
-
-        // Config should not have been touched — merge was skipped
-        $this->assertNull((new ConfigRepository)->get('flat'));
     }
 
     public function testMergeConfigFromRunsWhenConfigIsNotCached(): void
     {
         $config = new ConfigRepository;
-        $app = m::mock(Application::class)->makePartial();
-        $app->shouldReceive('configurationIsCached')->andReturn(false);
-        $app->shouldReceive('make')->with('config')->andReturn($config);
-        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn(new ConfigMutationTracker);
+        $app = new Application;
+        $app->instance('config_loaded_from_cache', false);
+        $app->instance('config', $config);
+        $app->instance(ConfigMutationTracker::class, new ConfigMutationTracker);
 
         $provider = new ServiceProviderForTestingFlat($app);
         $provider->register();
@@ -490,15 +488,13 @@ class SupportServiceProviderTest extends TestCase
 
     public function testReplaceConfigRecursivelyFromSkipsWhenCached(): void
     {
-        $app = m::mock(Application::class)->makePartial();
-        $app->shouldReceive('configurationIsCached')->andReturn(true);
-        $app->shouldReceive('make')->with('config')->never();
-        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->never();
+        $app = Double::for(Application::class, override: true);
+        $app->allows('configurationIsCached')->returns(true);
+        $app->expects('make')->with('config')->never();
+        $app->expects('make')->with(ConfigMutationTracker::class)->never();
 
-        $provider = new ServiceProviderForTestingReplace($app);
+        $provider = new ServiceProviderForTestingReplace($app->instance());
         $provider->register();
-
-        $this->assertNull((new ConfigRepository)->get('flat'));
     }
 
     public function testReplaceConfigRecursivelyFromRunsWhenNotCached(): void
@@ -506,10 +502,10 @@ class SupportServiceProviderTest extends TestCase
         $config = new ConfigRepository([
             'flat' => ['default' => 'redis', 'extra' => 'app-value'],
         ]);
-        $app = m::mock(Application::class)->makePartial();
-        $app->shouldReceive('configurationIsCached')->andReturn(false);
-        $app->shouldReceive('make')->with('config')->andReturn($config);
-        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn(new ConfigMutationTracker);
+        $app = new Application;
+        $app->instance('config_loaded_from_cache', false);
+        $app->instance('config', $config);
+        $app->instance(ConfigMutationTracker::class, new ConfigMutationTracker);
 
         $provider = new ServiceProviderForTestingReplace($app);
         $provider->register();
@@ -526,10 +522,10 @@ class SupportServiceProviderTest extends TestCase
         $masterConfig = new ConfigRepository(['computed' => ['record' => 10]]);
         $tracker = new ConfigMutationTracker;
         $tracker->observe($masterConfig);
-        $app = m::mock(Application::class)->makePartial();
-        $app->shouldReceive('configurationIsCached')->andReturn(false);
-        $app->shouldReceive('make')->with('config')->andReturn($masterConfig);
-        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn($tracker);
+        $app = new Application;
+        $app->instance('config_loaded_from_cache', false);
+        $app->instance('config', $masterConfig);
+        $app->instance(ConfigMutationTracker::class, $tracker);
 
         (new ServiceProviderForTestingComputed($app))->register();
 
@@ -544,27 +540,21 @@ class SupportServiceProviderTest extends TestCase
 
     public function testConfigureUsingSkipsWhenConfigIsCached(): void
     {
-        $app = m::mock(Application::class)->makePartial();
-        $app->shouldReceive('configurationIsCached')->andReturn(true);
-        $app->shouldReceive('make')->with('config')->never();
-        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->never();
+        $app = Double::for(Application::class, override: true);
+        $app->allows('configurationIsCached')->returns(true);
+        $app->expects('make')->with('config')->never();
+        $app->expects('make')->with(ConfigMutationTracker::class)->never();
 
         // Cached configuration already holds the computed value, so neither the configuration nor the tracker is touched.
-        (new ServiceProviderForTestingComputed($app))->register();
-
-        $this->addToAssertionCount(1);
+        (new ServiceProviderForTestingComputed($app->instance()))->register();
     }
 
     public function testLoadTranslationsFromWithoutNamespace(): void
     {
-        $translator = m::mock(Translator::class);
+        $translator = Double::for(Translator::class);
         $translator->expects('addPath')->with(__DIR__ . '/translations');
 
-        $this->app->expects('afterResolving')->with('translator', m::on(function (callable $callback) use ($translator): bool {
-            $callback($translator);
-
-            return true;
-        }));
+        $this->app->instance('translator', $translator);
 
         $provider = new ServiceProviderForTestingOne($this->app);
         $provider->loadTranslationsFrom(__DIR__ . '/translations');
@@ -572,14 +562,10 @@ class SupportServiceProviderTest extends TestCase
 
     public function testLoadTranslationsFromWithNamespace(): void
     {
-        $translator = m::mock(Translator::class);
+        $translator = Double::for(Translator::class);
         $translator->expects('addNamespace')->with('namespace', __DIR__ . '/translations');
 
-        $this->app->expects('afterResolving')->with('translator', m::on(function (callable $callback) use ($translator): bool {
-            $callback($translator);
-
-            return true;
-        }));
+        $this->app->instance('translator', $translator);
 
         $provider = new ServiceProviderForTestingOne($this->app);
         $provider->loadTranslationsFrom(__DIR__ . '/translations', 'namespace');

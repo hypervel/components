@@ -6,15 +6,19 @@ namespace Hypervel\Tests\Events\EventsSubscriberTest;
 
 use Hypervel\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class EventsSubscriberTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testEventSubscribeCanAcceptObject(): void
     {
         $d = new Dispatcher;
-        $subs = m::mock(ExampleSubscriber::class);
-        $subs->expects('subscribe')->with($d);
+        $subs = Double::for(ExampleSubscriber::class);
+        $subs->expects('subscribe')->with(Argument::same($d));
 
         $d->subscribe($subs);
     }

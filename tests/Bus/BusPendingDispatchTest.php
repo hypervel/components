@@ -16,7 +16,9 @@ use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use ReflectionClass;
 use stdClass;
 
@@ -33,7 +35,9 @@ class PendingDispatchWithoutDestructor extends PendingDispatch
 
 class BusPendingDispatchTest extends TestCase
 {
-    protected stdClass&m\MockInterface $job;
+    use VerifiesDoubles;
+
+    protected PendingDispatchTestJob $job;
 
     protected PendingDispatchWithoutDestructor $pendingDispatch;
 
@@ -44,49 +48,55 @@ class BusPendingDispatchTest extends TestCase
     {
         parent::setUp();
 
-        $this->job = m::mock(stdClass::class);
+        $this->job = new PendingDispatchTestJob;
         $this->pendingDispatch = new PendingDispatchWithoutDestructor($this->job);
     }
 
     public function testOnConnection(): void
     {
-        $this->job->expects('onConnection')->with('test-connection');
         $this->pendingDispatch->onConnection('test-connection');
+
+        $this->assertSame('test-connection', $this->job->connection);
     }
 
     public function testOnQueue(): void
     {
-        $this->job->expects('onQueue')->with('test-queue');
         $this->pendingDispatch->onQueue('test-queue');
+
+        $this->assertSame('test-queue', $this->job->queue);
     }
 
     public function testOnGroup(): void
     {
-        $this->job->expects('onGroup')->with('test-group');
         $this->pendingDispatch->onGroup('test-group');
+
+        $this->assertSame('test-group', $this->job->messageGroup);
     }
 
     public function testOnGroupForwardsAnArray(): void
     {
         $groups = ['first', 'second'];
 
-        $this->job->expects('onGroup')->with($groups);
         $this->pendingDispatch->onGroup($groups);
+
+        $this->assertSame($groups, $this->job->messageGroup);
     }
 
     public function testWithDeduplicator(): void
     {
         $deduplicator = fn (): string => 'id';
-        $this->job->expects('withDeduplicator')->with($deduplicator);
         $this->pendingDispatch->withDeduplicator($deduplicator);
+
+        $this->assertSame($deduplicator, $this->job->deduplicator->getClosure());
     }
 
     public function testWithDeduplicatorForwardsAnArrayCallable(): void
     {
         $deduplicator = [$this, 'resolveDeduplicationId'];
 
-        $this->job->expects('withDeduplicator')->with($deduplicator);
         $this->pendingDispatch->withDeduplicator($deduplicator);
+
+        $this->assertSame($deduplicator, $this->job->deduplicator);
     }
 
     /**
@@ -99,45 +109,53 @@ class BusPendingDispatchTest extends TestCase
 
     public function testAllOnConnection(): void
     {
-        $this->job->expects('allOnConnection')->with('test-connection');
         $this->pendingDispatch->allOnConnection('test-connection');
+
+        $this->assertSame('test-connection', $this->job->connection);
+        $this->assertSame('test-connection', $this->job->chainConnection);
     }
 
     public function testAllOnQueue(): void
     {
-        $this->job->expects('allOnQueue')->with('test-queue');
         $this->pendingDispatch->allOnQueue('test-queue');
+
+        $this->assertSame('test-queue', $this->job->queue);
+        $this->assertSame('test-queue', $this->job->chainQueue);
     }
 
     public function testDelay(): void
     {
-        $this->job->expects('delay')->with(60);
         $this->pendingDispatch->delay(60);
+
+        $this->assertSame(60, $this->job->delay);
     }
 
     public function testWithoutDelay(): void
     {
-        $this->job->expects('withoutDelay');
-        $this->pendingDispatch->withoutDelay();
+        $this->pendingDispatch->delay(60)->withoutDelay();
+
+        $this->assertSame(0, $this->job->delay);
     }
 
     public function testAfterCommit(): void
     {
-        $this->job->expects('afterCommit');
         $this->pendingDispatch->afterCommit();
+
+        $this->assertTrue($this->job->afterCommit);
     }
 
     public function testBeforeCommit(): void
     {
-        $this->job->expects('beforeCommit');
         $this->pendingDispatch->beforeCommit();
+
+        $this->assertFalse($this->job->afterCommit);
     }
 
     public function testChain(): void
     {
-        $chain = [new stdClass];
-        $this->job->expects('chain')->with($chain);
-        $this->pendingDispatch->chain($chain);
+        $this->pendingDispatch->chain([new stdClass]);
+
+        $this->assertSame([serialize(new stdClass)], $this->job->chained);
     }
 
     public function testAfterResponse(): void
@@ -166,9 +184,9 @@ class BusPendingDispatchTest extends TestCase
     {
         Container::setInstance($container = new Container);
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')->never();
-        $dispatcher->shouldReceive('dispatchAfterResponse')->never();
+        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher->expects('dispatch')->never();
+        $dispatcher->expects('dispatchAfterResponse')->never();
         $container->instance(Dispatcher::class, $dispatcher);
 
         $job = new PreparingDebouncedPendingDispatchJob(false);
@@ -182,9 +200,9 @@ class BusPendingDispatchTest extends TestCase
     {
         Container::setInstance($container = new Container);
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')->never();
-        $dispatcher->shouldReceive('dispatchAfterResponse')->never();
+        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher->expects('dispatch')->never();
+        $dispatcher->expects('dispatchAfterResponse')->never();
         $container->instance(Dispatcher::class, $dispatcher);
 
         $pendingDispatch = new PendingDispatch(new PreparingUniquePendingDispatchJob(false));
@@ -195,9 +213,9 @@ class BusPendingDispatchTest extends TestCase
     {
         Container::setInstance($container = new Container);
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->expects('dispatch')->with(m::type(PreparingPendingDispatchJob::class));
-        $dispatcher->shouldReceive('dispatchAfterResponse')->never();
+        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher->expects('dispatch')->with(Argument::type(PreparingPendingDispatchJob::class));
+        $dispatcher->expects('dispatchAfterResponse')->never();
         $container->instance(Dispatcher::class, $dispatcher);
 
         $pendingDispatch = new PendingDispatch(new PreparingPendingDispatchJob(true));
@@ -215,11 +233,11 @@ class BusPendingDispatchTest extends TestCase
         $deferredJob = null;
         $metadata = null;
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')->never();
+        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher->expects('dispatch')->never();
         $dispatcher->expects('dispatchAfterResponse')
-            ->with($job)
-            ->andReturnUsing(function (object $job) use (&$deferredJob, &$metadata): void {
+            ->with(Argument::same($job))
+            ->resolves(function (object $job) use (&$deferredJob, &$metadata): void {
                 $deferredJob = $job;
                 $metadata = DispatchLockContext::peekPayloadMetadata($job);
             });
@@ -244,38 +262,43 @@ class BusPendingDispatchTest extends TestCase
 
     public function testDynamicallyProxyMethods(): void
     {
-        $newJob = new stdClass;
-        $this->job->expects('appendToChain')->with($newJob);
-        $this->pendingDispatch->appendToChain($newJob);
+        $this->pendingDispatch->appendToChain(new stdClass);
+
+        $this->assertSame([serialize(new stdClass)], $this->job->chained);
     }
 
     public function testWhenMethodOfConditionableTraitWithTrue(): void
     {
-        $this->job->expects('delay')->with(300);
-
         $this->pendingDispatch->when(true, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
+
+        $this->assertSame(300, $this->job->delay);
     }
 
     public function testWhenMethodOfConditionableTraitWithFalse(): void
     {
-        $this->job->shouldReceive('delay')->never();
-
         $this->pendingDispatch->when(false, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
+
+        $this->assertNull($this->job->delay);
     }
 
     public function testUnlessMethodOfConditionableTraitWithTrue(): void
     {
-        $this->job->shouldReceive('delay')->never();
-
         $this->pendingDispatch->unless(true, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
+
+        $this->assertNull($this->job->delay);
     }
 
     public function testUnlessMethodOfConditionableTraitWithFalse(): void
     {
-        $this->job->expects('delay')->with(300);
-
         $this->pendingDispatch->unless(false, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
+
+        $this->assertSame(300, $this->job->delay);
     }
+}
+
+class PendingDispatchTestJob
+{
+    use Queueable;
 }
 
 class PreparingPendingDispatchJob implements PreparesForDispatch

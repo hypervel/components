@@ -15,12 +15,14 @@ use Hypervel\Foundation\Auth\User;
 use Hypervel\Hashing\BcryptHasher;
 use Hypervel\Tests\Database\Concerns\InteractsWithInMemoryConnection;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class AuthEloquentUserProviderTest extends TestCase
 {
     use InteractsWithInMemoryConnection;
+    use VerifiesDoubles;
 
     public function testRetrieveByIDReturnsUser(): void
     {
@@ -61,7 +63,7 @@ class AuthEloquentUserProviderTest extends TestCase
     public function testUpdateRememberTokenRestoresTimestampsAfterSaving(): void
     {
         $user = new EloquentProviderRememberUserStub;
-        $provider = new EloquentUserProvider(m::mock(Hasher::class), $user::class);
+        $provider = new EloquentUserProvider(Double::for(Hasher::class), $user::class);
 
         $provider->updateRememberToken($user, 'remember-token');
 
@@ -74,7 +76,7 @@ class AuthEloquentUserProviderTest extends TestCase
     {
         $user = new EloquentProviderRememberUserStub;
         $user->timestamps = false;
-        $provider = new EloquentUserProvider(m::mock(Hasher::class), $user::class);
+        $provider = new EloquentUserProvider(Double::for(Hasher::class), $user::class);
 
         $provider->updateRememberToken($user, 'remember-token');
 
@@ -87,7 +89,7 @@ class AuthEloquentUserProviderTest extends TestCase
         $exception = new RuntimeException('Save failed.');
         $user = new EloquentProviderRememberUserStub;
         $user->saveException = $exception;
-        $provider = new EloquentUserProvider(m::mock(Hasher::class), $user::class);
+        $provider = new EloquentUserProvider(Double::for(Hasher::class), $user::class);
 
         try {
             $provider->updateRememberToken($user, 'remember-token');
@@ -151,11 +153,11 @@ class AuthEloquentUserProviderTest extends TestCase
 
     public function testCredentialValidationFailsGracefullyWithNullPassword(): void
     {
-        $hasher = m::mock(Hasher::class);
-        $hasher->shouldReceive('check')->never();
+        $hasher = Double::for(Hasher::class);
+        $hasher->expects('check')->never();
         $provider = new EloquentUserProvider($hasher, 'foo');
-        $user = m::mock(Authenticatable::class);
-        $user->expects('getAuthPassword')->andReturn(null);
+        $user = Double::for(Authenticatable::class);
+        $user->expects('getAuthPassword')->returns(null);
         $result = $provider->validateCredentials($user, ['password' => 'plain']);
 
         $this->assertFalse($result);
@@ -192,9 +194,9 @@ class AuthEloquentUserProviderTest extends TestCase
 
     public function testDontRehashPasswordIfNotRequired(): void
     {
-        $hasher = m::mock(Hasher::class);
-        $hasher->expects('needsRehash')->with('hash')->andReturn(false);
-        $hasher->shouldNotReceive('make');
+        $hasher = Double::for(Hasher::class);
+        $hasher->expects('needsRehash')->with('hash')->returns(false);
+        $hasher->expects('make')->never();
 
         $provider = $this->newProvider($hasher);
         $user = EloquentProviderUserStub::find(3);

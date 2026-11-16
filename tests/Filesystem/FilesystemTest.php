@@ -10,8 +10,9 @@ use Hypervel\Support\Json;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonException;
-use Mockery as m;
 use PharData;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
@@ -23,6 +24,8 @@ use function Hypervel\Coroutine\go;
 
 class FilesystemTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private string $tempDir;
 
     protected function setUp(): void
@@ -665,8 +668,8 @@ class FilesystemTest extends TestCase
         file_put_contents($this->tempDir . '/tmp6/foo.txt', '');
         mkdir($this->tempDir . '/tmp7', 0777, true);
 
-        $files = m::mock(Filesystem::class)->makePartial();
-        $files->expects('deleteDirectory')->andReturn(false);
+        $files = Double::for(Filesystem::class)->passthru();
+        $files->expects('deleteDirectory')->returns(false);
         $this->assertFalse($files->moveDirectory($this->tempDir . '/tmp6', $this->tempDir . '/tmp7', true));
     }
 

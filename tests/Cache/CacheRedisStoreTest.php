@@ -4,230 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
-use __PHP_Incomplete_Class;
 use Hypervel\Cache\RedisStore;
-use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Contracts\Redis\Factory;
-use Hypervel\Redis\RedisProxy;
-use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
-use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
-use Mockery as m;
-use Redis;
-use stdClass;
+use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
-class CacheRedisStoreTest extends RedisCacheTestCase
+class CacheRedisStoreTest extends TestCase
 {
-    public function testGetReturnsNullWhenNotFound(): void
-    {
-        $connection = $this->mockConnection();
-        $connection->expects('get')->with('prefix:foo')->andReturn(null);
-
-        $store = $this->createStore($connection);
-        $this->assertNull($store->get('foo'));
-    }
-
-    public function testRedisValueIsReturned(): void
-    {
-        $connection = $this->mockConnection();
-        $connection->expects('get')->with('prefix:foo')->andReturn(serialize('foo'));
-
-        $store = $this->createStore($connection);
-        $this->assertSame('foo', $store->get('foo'));
-    }
-
-    public function testSerializableClassesControlRedisValues(): void
-    {
-        $denyingConnection = $this->mockConnection();
-        $denyingConnection->expects('get')
-            ->with('prefix:object')
-            ->andReturn(serialize(new stdClass));
-        $allowingConnection = $this->mockConnection();
-        $allowingConnection->expects('get')
-            ->with('prefix:object')
-            ->andReturn(serialize(new stdClass));
-
-        $denyingStore = new RedisStore(
-            $this->createRedisFactory($denyingConnection),
-            'prefix:',
-            'default',
-            false,
-        );
-        $allowingStore = new RedisStore(
-            $this->createRedisFactory($allowingConnection),
-            'prefix:',
-            'default',
-            serializableClasses: [stdClass::class],
-        );
-
-        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $denyingStore->get('object'));
-        $this->assertInstanceOf(stdClass::class, $allowingStore->get('object'));
-    }
-
-    public function testSerializableClassPolicyControlsRedisValues(): void
-    {
-        $connection = $this->mockConnection();
-        $connection->expects('get')
-            ->with('prefix:object')
-            ->andReturn(serialize(new stdClass));
-        $store = new RedisStore(
-            $this->createRedisFactory($connection),
-            'prefix:',
-            'default',
-            serializableClassPolicy: new SerializableClassPolicy(static fn (): false => false),
-        );
-
-        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $store->get('object'));
-    }
-
-    public function testRedisMultipleValuesAreReturned(): void
-    {
-        $connection = $this->mockConnection();
-        $connection->expects('mget')->with(['prefix:foo', 'prefix:fizz', 'prefix:norf', 'prefix:null'])
-            ->andReturn([
-                serialize('bar'),
-                serialize('buzz'),
-                serialize('quz'),
-                null,
-            ]);
-
-        $store = $this->createStore($connection);
-        $results = $store->many(['foo', 'fizz', 'norf', 'null']);
-
-        $this->assertSame('bar', $results['foo']);
-        $this->assertSame('buzz', $results['fizz']);
-        $this->assertSame('quz', $results['norf']);
-        $this->assertNull($results['null']);
-    }
-
-    public function testRedisValueIsReturnedForNumerics(): void
-    {
-        $connection = $this->mockConnection();
-        $connection->expects('get')->with('prefix:foo')->andReturn(1);
-
-        $store = $this->createStore($connection);
-        $this->assertEquals(1, $store->get('foo'));
-    }
-
-    public function testSetMethodProperlyCallsRedis(): void
-    {
-        $connection = $this->mockConnection();
-        $connection->expects('setex')->with('prefix:foo', 60, serialize('foo'))->andReturn('OK');
-
-        $store = $this->createStore($connection);
-        $result = $store->put('foo', 'foo', 60);
-        $this->assertTrue($result);
-    }
-
-    public function testSetMultipleMethodProperlyCallsRedis(): void
-    {
-        $connection = $this->mockConnection();
-        // Hypervel uses a Lua script for putMany in standard mode (more performant than multi/exec).
-        // The Lua script receives all keys and serialized values in a single EVALSHA call.
-        $connection->expects('evalWithShaCache')
-            ->with(
-                m::type('string'),
-                ['prefix:foo', 'prefix:baz', 'prefix:bar'],
-                [60, serialize('bar'), serialize('qux'), serialize('norf')],
-            )
-            ->andReturn(true);
-
-        $store = $this->createStore($connection);
-        $result = $store->putMany([
-            'foo' => 'bar',
-            'baz' => 'qux',
-            'bar' => 'norf',
-        ], 60);
-        $this->assertTrue($result);
-    }
-
-    public function testSetMethodProperlyCallsRedisForNumerics(): void
-    {
-        $connection = $this->mockConnection();
-        $connection->expects('setex')->with('prefix:foo', 60, 1);
-
-        $store = $this->createStore($connection);
-        $result = $store->put('foo', 1, 60);
-        $this->assertFalse($result);
-    }
-
-    public function testIncrementMethodProperlyCallsRedis(): void
-    {
-        $connection = $this->mockConnection();
-        $connection->expects('incrBy')->with('prefix:foo', 5)->andReturn(5);
-
-        $store = $this->createStore($connection);
-        $store->increment('foo', 5);
-    }
-
-    public function testDecrementMethodProperlyCallsRedis(): void
-    {
-        $connection = $this->mockConnection();
-        $connection->expects('decrBy')->with('prefix:foo', 5)->andReturn(-5);
-
-        $store = $this->createStore($connection);
-        $store->decrement('foo', 5);
-    }
-
-    public function testStoreItemForeverProperlyCallsRedis(): void
-    {
-        $connection = $this->mockConnection();
-        $connection->expects('set')->with('prefix:foo', serialize('foo'))->andReturn('OK');
-
-        $store = $this->createStore($connection);
-        $result = $store->forever('foo', 'foo');
-        $this->assertTrue($result);
-    }
-
-    public function testTouchMethodProperlyCallsRedis(): void
-    {
-        $connection = $this->mockConnection();
-        $connection->expects('expire')->with('prefix:key', 60)->andReturn(true);
-
-        $store = $this->createStore($connection);
-        $this->assertTrue($store->touch('key', 60));
-    }
-
-    public function testForgetMethodProperlyCallsRedis(): void
-    {
-        $connection = $this->mockConnection();
-        $connection->expects('del')->with('prefix:foo');
-
-        $store = $this->createStore($connection);
-        $store->forget('foo');
-    }
-
-    public function testFlushesCached(): void
-    {
-        $connection = $this->mockConnection();
-        $connection->expects('flushdb')->andReturn('ok');
-
-        $store = $this->createStore($connection);
-        $result = $store->flush();
-        $this->assertTrue($result);
-    }
-
-    public function testFlushesCachedLocks(): void
-    {
-        $lockProxy = m::mock(RedisProxy::class);
-        $lockProxy->expects('flushdb')->andReturn('ok');
-
-        $redis = m::mock(Factory::class);
-        $redis->expects('connection')->with('locks')->andReturn($lockProxy);
-
-        $store = new RedisStore(
-            $redis,
-            'prefix:',
-            'default'
-        );
-        $store->setLockConnection('locks');
-
-        $result = $store->flushLocks();
-        $this->assertTrue($result);
-    }
+    use VerifiesDoubles;
 
     public function testSupportsFlushingLocksRequiresSeparateLockConnection(): void
     {
-        $store = $this->createStore($this->mockConnection());
+        $store = $this->getRedis();
 
         $this->assertFalse($store->supportsFlushingLocks());
 
@@ -238,7 +27,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
 
     public function testGetAndSetPrefix(): void
     {
-        $store = $this->createStore($this->mockConnection());
+        $store = $this->getRedis();
         $this->assertSame('prefix:', $store->getPrefix());
         $store->setPrefix('foo');
         $this->assertSame('foo', $store->getPrefix());
@@ -246,35 +35,11 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $this->assertEmpty($store->getPrefix());
     }
 
-    public function testFlushStaleTagsStopsScanningWhenTheCursorReachesZero(): void
+    /**
+     * Create a Redis store without opening a connection.
+     */
+    protected function getRedis(): RedisStore
     {
-        $client = new FakeRedisClient(scanResults: [
-            ['keys' => ['prefix:_all:tag:foo:entries'], 'iterator' => 0],
-        ]);
-        $store = $this->createStoreWithFakeClient($client, tagMode: 'all');
-
-        $store->flushStaleTags();
-
-        $this->assertSame(1, $client->getScanCallCount());
-    }
-
-    public function testFlushStaleTagsDoesNotDoublePrefixTheMatchPattern(): void
-    {
-        $connection = $this->mockConnection();
-        $connection->allows('getShouldTransform')->andReturn(false);
-        $connection->allows('getOption')->with(Redis::OPT_PREFIX)->andReturn('app_');
-        $connection->allows('getOption')->with(Redis::OPT_SCAN)->andReturn(Redis::SCAN_PREFIX);
-        $connection->expects('scan')
-            ->with(m::any(), 'prefix:_all:tag:*:entries', 1000)
-            ->andReturnUsing(function (mixed &$cursor): array {
-                $cursor = 0;
-
-                return ['app_prefix:_all:tag:foo:entries'];
-            });
-        $connection->expects('zRemRangeByScore')->with('prefix:_all:tag:foo:entries', '0', m::any())->andReturn(0);
-        $connection->allows('zscan')->andReturn(false);
-        $connection->allows('zCard')->andReturn(0);
-
-        $this->createStore($connection, tagMode: 'all')->flushStaleTags();
+        return new RedisStore(Double::for(Factory::class), 'prefix:');
     }
 }

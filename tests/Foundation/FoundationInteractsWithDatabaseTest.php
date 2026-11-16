@@ -16,13 +16,15 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Concerns\CreatesApplication;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\ExpectationFailedException;
 
 class FoundationInteractsWithDatabaseTest extends TestCase
 {
     use InteractsWithDatabase;
+    use VerifiesDoubles;
 
     protected string $table = 'products';
 
@@ -37,7 +39,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
     {
         parent::setUp();
 
-        $this->connection = m::mock(Connection::class);
+        $this->connection = Double::for(Connection::class);
     }
 
     public function testSeeInDatabaseFindsResults(): void
@@ -70,12 +72,12 @@ class FoundationInteractsWithDatabaseTest extends TestCase
 
     public function testAssertDatabaseSupportsArrays(): void
     {
-        $builder = m::mock(Builder::class);
-        $builder->expects('where')->with(['title' => 'Spark', 'name' => 'Hypervel'])->andReturnSelf();
-        $builder->expects('where')->with(['title' => 'Forge', 'name' => 'Hypervel'])->andReturnSelf();
-        $builder->expects('exists')->twice()->andReturn(true);
+        $builder = Double::for(Builder::class);
+        $builder->expects('where')->ordered()->with(['title' => 'Spark', 'name' => 'Hypervel'])->returns($builder);
+        $builder->expects('where')->ordered()->with(['title' => 'Forge', 'name' => 'Hypervel'])->returns($builder);
+        $builder->expects('exists')->times(2)->returns(true);
 
-        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
+        $this->connection->allows('table')->with($this->table)->returns($builder);
 
         $this->assertDatabaseHas($this->table, [
             ['title' => 'Spark', 'name' => 'Hypervel'],
@@ -116,12 +118,12 @@ class FoundationInteractsWithDatabaseTest extends TestCase
 
     public function testAssertDatabaseMissingSupportsArrays(): void
     {
-        $builder = m::mock(Builder::class);
-        $builder->expects('where')->with(['title' => 'Spark', 'name' => 'Hypervel'])->andReturnSelf();
-        $builder->expects('where')->with(['title' => 'Forge', 'name' => 'Hypervel'])->andReturnSelf();
-        $builder->expects('exists')->twice()->andReturn(false);
+        $builder = Double::for(Builder::class);
+        $builder->expects('where')->ordered()->with(['title' => 'Spark', 'name' => 'Hypervel'])->returns($builder);
+        $builder->expects('where')->ordered()->with(['title' => 'Forge', 'name' => 'Hypervel'])->returns($builder);
+        $builder->expects('exists')->times(2)->returns(false);
 
-        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
+        $this->connection->allows('table')->with($this->table)->returns($builder);
 
         $this->assertDatabaseMissing($this->table, [
             ['title' => 'Spark', 'name' => 'Hypervel'],
@@ -206,11 +208,11 @@ class FoundationInteractsWithDatabaseTest extends TestCase
 
     public function testAssertDatabaseEmptySupportsArrays(): void
     {
-        $builder = m::mock(Builder::class);
-        $builder->expects('count')->twice()->andReturn(0);
+        $builder = Double::for(Builder::class);
+        $builder->expects('count')->times(2)->returns(0);
 
-        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
-        $this->connection->shouldReceive('table')->with('orders')->andReturn($builder);
+        $this->connection->expects('table')->with($this->table)->returns($builder);
+        $this->connection->expects('table')->with('orders')->returns($builder);
 
         $this->assertDatabaseEmpty([ProductStub::class, OrderStub::class]);
     }
@@ -225,13 +227,13 @@ class FoundationInteractsWithDatabaseTest extends TestCase
 
     public function testAssertSoftDeletedSupportsArrays(): void
     {
-        $builder = m::mock(Builder::class);
-        $builder->expects('where')->with(['title' => 'Spark', 'name' => 'Hypervel'])->andReturnSelf();
-        $builder->expects('where')->with(['title' => 'Forge', 'name' => 'Hypervel'])->andReturnSelf();
-        $builder->expects('whereNotNull')->with('deleted_at')->twice()->andReturnSelf();
-        $builder->expects('exists')->twice()->andReturnTrue();
+        $builder = Double::for(Builder::class);
+        $builder->expects('where')->ordered()->with(['title' => 'Spark', 'name' => 'Hypervel'])->returns($builder);
+        $builder->expects('where')->ordered()->with(['title' => 'Forge', 'name' => 'Hypervel'])->returns($builder);
+        $builder->expects('whereNotNull')->with('deleted_at')->times(2)->returns($builder);
+        $builder->expects('exists')->times(2)->returns(true);
 
-        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
+        $this->connection->allows('table')->with($this->table)->returns($builder);
 
         $this->assertSoftDeleted($this->table, [
             ['title' => 'Spark', 'name' => 'Hypervel'],
@@ -241,13 +243,13 @@ class FoundationInteractsWithDatabaseTest extends TestCase
 
     public function testAssertSoftDeletedSupportsModelWithArrays(): void
     {
-        $builder = m::mock(Builder::class);
-        $builder->expects('where')->with(['title' => 'Spark', 'id' => 1])->andReturnSelf();
-        $builder->expects('where')->with(['name' => 'Hypervel', 'id' => 1])->andReturnSelf();
-        $builder->expects('whereNotNull')->with('trashed_at')->twice()->andReturnSelf();
-        $builder->expects('exists')->twice()->andReturnTrue();
+        $builder = Double::for(Builder::class);
+        $builder->expects('where')->ordered()->with(['title' => 'Spark', 'id' => 1])->returns($builder);
+        $builder->expects('where')->ordered()->with(['name' => 'Hypervel', 'id' => 1])->returns($builder);
+        $builder->expects('whereNotNull')->with('trashed_at')->times(2)->returns($builder);
+        $builder->expects('exists')->times(2)->returns(true);
 
-        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
+        $this->connection->allows('table')->with($this->table)->returns($builder);
 
         $this->assertSoftDeleted(new CustomProductStub(['id' => 1]), [
             ['title' => 'Spark'],
@@ -257,13 +259,13 @@ class FoundationInteractsWithDatabaseTest extends TestCase
 
     public function testAssertNotSoftDeletedSupportsArrays(): void
     {
-        $builder = m::mock(Builder::class);
-        $builder->expects('where')->with(['title' => 'Spark', 'name' => 'Hypervel'])->andReturnSelf();
-        $builder->expects('where')->with(['title' => 'Forge', 'name' => 'Hypervel'])->andReturnSelf();
-        $builder->expects('whereNull')->with('deleted_at')->twice()->andReturnSelf();
-        $builder->expects('exists')->twice()->andReturnTrue();
+        $builder = Double::for(Builder::class);
+        $builder->expects('where')->ordered()->with(['title' => 'Spark', 'name' => 'Hypervel'])->returns($builder);
+        $builder->expects('where')->ordered()->with(['title' => 'Forge', 'name' => 'Hypervel'])->returns($builder);
+        $builder->expects('whereNull')->with('deleted_at')->times(2)->returns($builder);
+        $builder->expects('exists')->times(2)->returns(true);
 
-        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
+        $this->connection->allows('table')->with($this->table)->returns($builder);
 
         $this->assertNotSoftDeleted($this->table, [
             ['title' => 'Spark', 'name' => 'Hypervel'],
@@ -273,13 +275,13 @@ class FoundationInteractsWithDatabaseTest extends TestCase
 
     public function testAssertNotSoftDeletedSupportsModelWithArrays(): void
     {
-        $builder = m::mock(Builder::class);
-        $builder->expects('where')->with(['title' => 'Spark', 'id' => 1])->andReturnSelf();
-        $builder->expects('where')->with(['name' => 'Hypervel', 'id' => 1])->andReturnSelf();
-        $builder->expects('whereNull')->with('trashed_at')->twice()->andReturnSelf();
-        $builder->expects('exists')->twice()->andReturnTrue();
+        $builder = Double::for(Builder::class);
+        $builder->expects('where')->ordered()->with(['title' => 'Spark', 'id' => 1])->returns($builder);
+        $builder->expects('where')->ordered()->with(['name' => 'Hypervel', 'id' => 1])->returns($builder);
+        $builder->expects('whereNull')->with('trashed_at')->times(2)->returns($builder);
+        $builder->expects('exists')->times(2)->returns(true);
 
-        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
+        $this->connection->allows('table')->with($this->table)->returns($builder);
 
         $this->assertNotSoftDeleted(new CustomProductStub(['id' => 1]), [
             ['title' => 'Spark'],
@@ -289,26 +291,26 @@ class FoundationInteractsWithDatabaseTest extends TestCase
 
     public function testAssertSoftDeletedTableSupportsIterablesWithCustomDeletedAtColumn(): void
     {
-        $builder = m::mock(Builder::class);
-        $builder->expects('where')->with($this->data)->twice()->andReturnSelf();
-        $builder->expects('whereNotNull')->with('removed_at')->twice()->andReturnSelf();
-        $builder->expects('exists')->twice()->andReturnTrue();
+        $builder = Double::for(Builder::class);
+        $builder->expects('where')->with($this->data)->times(2)->returns($builder);
+        $builder->expects('whereNotNull')->with('removed_at')->times(2)->returns($builder);
+        $builder->expects('exists')->times(2)->returns(true);
 
-        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
-        $this->connection->shouldReceive('table')->with('orders')->andReturn($builder);
+        $this->connection->expects('table')->with($this->table)->returns($builder);
+        $this->connection->expects('table')->with('orders')->returns($builder);
 
         $this->assertSoftDeleted(['products', 'orders'], $this->data, deletedAtColumn: 'removed_at');
     }
 
     public function testAssertNotSoftDeletedTableSupportsIterablesWithCustomDeletedAtColumn(): void
     {
-        $builder = m::mock(Builder::class);
-        $builder->expects('where')->with($this->data)->twice()->andReturnSelf();
-        $builder->expects('whereNull')->with('removed_at')->twice()->andReturnSelf();
-        $builder->expects('exists')->twice()->andReturnTrue();
+        $builder = Double::for(Builder::class);
+        $builder->expects('where')->with($this->data)->times(2)->returns($builder);
+        $builder->expects('whereNull')->with('removed_at')->times(2)->returns($builder);
+        $builder->expects('exists')->times(2)->returns(true);
 
-        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
-        $this->connection->shouldReceive('table')->with('orders')->andReturn($builder);
+        $this->connection->expects('table')->with($this->table)->returns($builder);
+        $this->connection->expects('table')->with('orders')->returns($builder);
 
         $this->assertNotSoftDeleted(['products', 'orders'], $this->data, deletedAtColumn: 'removed_at');
     }
@@ -591,9 +593,9 @@ class FoundationInteractsWithDatabaseTest extends TestCase
      *
      * @param null|int|list<int> $countResult
      */
-    protected function mockCountBuilder(bool $existsResult, string $deletedAtColumn = 'deleted_at', array|int|null $countResult = null): Builder&MockInterface
+    protected function mockCountBuilder(bool $existsResult, string $deletedAtColumn = 'deleted_at', array|int|null $countResult = null): Builder&DoubleInterface
     {
-        $builder = m::mock(Builder::class);
+        $builder = Double::for(Builder::class);
 
         $countResult = Arr::wrap($countResult);
         $countResult = ! empty($countResult) ? $countResult : [$existsResult ? 1 : 0];
@@ -601,25 +603,25 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $key = array_key_first($this->data);
         $value = $this->data[$key];
 
-        $builder->shouldReceive('where')->with($key, $value)->andReturnSelf();
+        $builder->allows('where')->with($key, $value)->returns($builder);
 
-        $builder->shouldReceive('select')->with(array_keys($this->data))->andReturnSelf();
+        $builder->allows('select')->with(array_keys($this->data))->returns($builder);
 
-        $builder->shouldReceive('limit')->andReturnSelf();
+        $builder->allows('limit')->returns($builder);
 
-        $builder->shouldReceive('where')->with($this->data)->andReturnSelf();
+        $builder->allows('where')->with($this->data)->returns($builder);
 
-        $builder->shouldReceive('whereNotNull')->with($deletedAtColumn)->andReturnSelf();
+        $builder->allows('whereNotNull')->with($deletedAtColumn)->returns($builder);
 
-        $builder->shouldReceive('whereNull')->with($deletedAtColumn)->andReturnSelf();
+        $builder->allows('whereNull')->with($deletedAtColumn)->returns($builder);
 
-        $builder->shouldReceive('exists')->andReturn($existsResult)->byDefault();
+        $builder->allows('exists')->returns($existsResult);
 
-        $builder->shouldReceive('count')->andReturn(...$countResult)->byDefault();
+        $builder->allows('count')->returns(...$countResult);
 
-        $this->connection->shouldReceive('table')
+        $this->connection->allows('table')
             ->with($this->table)
-            ->andReturn($builder);
+            ->returns($builder);
 
         return $builder;
     }

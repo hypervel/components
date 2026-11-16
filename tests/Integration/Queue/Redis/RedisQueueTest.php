@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Queue\Redis\RedisQueueTest;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
+use Hypervel\Events\Dispatcher as EventsDispatcher;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Events\JobPayloadFinalizing;
@@ -16,6 +17,8 @@ use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\LuaScripts;
+use Hypervel\Queue\Queue;
+use Hypervel\Queue\QueueRoutes;
 use Hypervel\Queue\RedisQueue;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\RedisConnection;
@@ -26,7 +29,9 @@ use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use Redis as PhpRedis;
@@ -40,6 +45,7 @@ class RedisQueueTest extends TestCase
 {
     use InteractsWithRedis;
     use InteractsWithTime;
+    use VerifiesDoubles;
 
     private RedisQueue $queue;
 
@@ -494,49 +500,48 @@ class RedisQueueTest extends TestCase
 
     public function testPushJobQueueingAndJobQueuedEvents(): void
     {
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->with(JobPayloadFinalizing::class)->andReturnFalse();
-        $events->expects('hasListeners')->with(JobQueueing::class)->andReturn(true);
-        $events->expects('hasListeners')->with(JobQueued::class)->andReturn(true);
-        $events->expects('dispatch')->withArgs(function (JobQueueing $jobQueueing): bool {
-            $this->assertInstanceOf(RedisQueueIntegrationTestJob::class, $jobQueueing->job);
+        $dispatched = [];
 
-            return true;
-        })->andReturnNull();
-        $events->expects('dispatch')->withArgs(function (JobQueued $jobQueued): bool {
-            $this->assertInstanceOf(RedisQueueIntegrationTestJob::class, $jobQueued->job);
-            $this->assertIsString($jobQueued->id);
+        $events = new EventsDispatcher;
+        $events->listen([JobQueueing::class, JobQueued::class], function (JobQueueing|JobQueued $event) use (&$dispatched): void {
+            $dispatched[] = $event;
+        });
 
-            return true;
-        })->andReturnNull();
-
-        $container = m::mock(Container::class)->makePartial();
-        $container->expects('bound')->with('events')->andReturn(true)->times(3);
-        $container->expects('make')->with('events')->andReturn($events)->times(3);
+        $container = new Container;
+        $container->instance('events', $events);
 
         $queue = new RedisQueue($this->app->make(RedisFactory::class), $this->defaultQueueName());
         $queue->setContainer($container);
         $queue->setConnectionName('redis');
 
-        $queue->push(new RedisQueueIntegrationTestJob(5));
+        $queue->push($job = new RedisQueueIntegrationTestJob(5));
+
+        $this->assertCount(2, $dispatched);
+        $this->assertInstanceOf(JobQueueing::class, $dispatched[0]);
+        $this->assertSame($job, $dispatched[0]->job);
+        $this->assertInstanceOf(JobQueued::class, $dispatched[1]);
+        $this->assertSame($job, $dispatched[1]->job);
+        $this->assertIsString($dispatched[1]->id);
     }
 
     public function testBulkJobQueuedEvent(): void
     {
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->with(JobPayloadFinalizing::class)->andReturnFalse()->times(3);
-        $events->expects('hasListeners')->with(JobQueueing::class)->andReturn(true)->times(3);
-        $events->expects('hasListeners')->with(JobQueued::class)->andReturn(true)->times(3);
-        $events->expects('dispatch')->with(m::type(JobQueueing::class))->andReturnNull()->times(3);
-        $events->expects('dispatch')->with(m::type(JobQueued::class))->andReturnNull()->times(3);
+        $events = Double::for(Dispatcher::class);
+        $events->expects('hasListeners')->with(JobPayloadFinalizing::class)->returns(false)->times(3);
+        $events->expects('hasListeners')->with(JobQueueing::class)->returns(true)->times(3);
+        $events->expects('hasListeners')->with(JobQueued::class)->returns(true)->times(3);
+        $events->expects('dispatch')->with(Argument::type(JobQueueing::class))->returns(null)->times(3);
+        $events->expects('dispatch')->with(Argument::type(JobQueued::class))->returns(null)->times(3);
 
-        $container = m::mock(Container::class)->makePartial();
-        $container->expects('has')->with('db.transactions')->andReturnFalse();
-        $container->expects('bound')->with('events')->andReturn(true)->times(9);
-        $container->expects('make')->with('events')->andReturn($events)->times(9);
+        $container = Double::for(Container::class, override: true);
+        $container->allows('bound')->with('queue.routes')->returns(false);
+        $container->allows('make')->with(QueueRoutes::class)->returns(new QueueRoutes);
+        $container->expects('has')->with('db.transactions')->returns(false);
+        $container->expects('bound')->with('events')->returns(true)->times(9);
+        $container->expects('make')->with('events')->returns($events)->times(9);
 
         $queue = new RedisQueue($this->app->make(RedisFactory::class), $this->defaultQueueName());
-        $queue->setContainer($container);
+        $queue->setContainer($container->instance());
         $queue->setConnectionName('redis');
 
         $queue->bulk([
@@ -821,6 +826,67 @@ class RedisQueueTest extends TestCase
 
         $this->assertSame([1, 2, 3], $seen);
         $this->assertNull($this->queue->pop('bulk-test'));
+    }
+
+    public function testPayloadHooksAreAppliedToTheQueuedPayload(): void
+    {
+        $default = $this->defaultQueueName();
+        $this->setQueue($default);
+
+        $receivedQueue = null;
+
+        Queue::createPayloadUsing(function (string $connection, ?string $queue, array $payload) use (&$receivedQueue): array {
+            $receivedQueue = $queue;
+
+            return ['custom' => 'taylor'];
+        });
+
+        Queue::createPayloadUsing(function (string $connection, ?string $queue, array $payload): array {
+            return ['bar' => 'foo'];
+        });
+
+        $this->queue->push('foo', ['data']);
+
+        $payload = json_decode($this->queue->pop()->getRawBody(), true);
+
+        $this->assertSame('foo', $payload['job']);
+        $this->assertSame(['data'], $payload['data']);
+        $this->assertSame('taylor', $payload['custom']);
+        $this->assertSame('foo', $payload['bar']);
+
+        // The hook sees the queue name as configured, without any cluster hash tags...
+        $this->assertSame('queues:' . $default, $receivedQueue);
+    }
+
+    public function testLaterAcceptsADateTimeDelay(): void
+    {
+        $default = $this->defaultQueueName();
+        $this->setQueue($default);
+
+        $due = new RedisQueueIntegrationTestJob(1);
+        $notDue = new RedisQueueIntegrationTestJob(2);
+
+        $this->queue->later(CarbonImmutable::now()->subSeconds(100), $due);
+        $this->queue->later(CarbonImmutable::now()->addSeconds(1000), $notDue);
+
+        $this->assertEquals($due, unserialize(json_decode($this->queue->pop()->getRawBody())->data->command));
+        $this->assertNull($this->queue->pop());
+
+        $redisKey = $this->getQueueRedisKey($default);
+        $this->assertSame(1, $this->redisConnection()->zcard("{$redisKey}:delayed"));
+    }
+
+    public function testQueueNamesCanBeEnums(): void
+    {
+        $this->setQueue('default');
+
+        $this->queue->push(new RedisQueueIntegrationTestJob(1), '', 'emails');
+        $this->queue->push(new RedisQueueIntegrationTestJob(2), '', 'emails');
+        $this->queue->push(new RedisQueueIntegrationTestJob(3), '', 'other');
+
+        $this->assertSame(2, $this->queue->size(RedisQueueIntegrationTestQueue::Emails));
+        $this->assertSame(2, $this->queue->pendingJobs(RedisQueueIntegrationTestQueue::Emails)->count());
+        $this->assertSame('emails', $this->queue->pendingJobs(RedisQueueIntegrationTestQueue::Emails)->first()->queue);
     }
 
     public function testBulkPushesDelayedJobsOntoDelayedQueue(): void
@@ -1139,4 +1205,9 @@ class RedisQueueIntegrationDelayedJob extends RedisQueueIntegrationTestJob
     {
         parent::__construct($i);
     }
+}
+
+enum RedisQueueIntegrationTestQueue: string
+{
+    case Emails = 'emails';
 }

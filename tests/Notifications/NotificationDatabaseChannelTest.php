@@ -5,28 +5,33 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Notifications;
 
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\Channels\DatabaseChannel;
 use Hypervel\Notifications\Messages\DatabaseMessage;
 use Hypervel\Notifications\Notification;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class NotificationDatabaseChannelTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testDatabaseChannelCreatesDatabaseRecordWithProperData(): void
     {
         $notification = new NotificationDatabaseChannelTestNotification;
         $notification->id = '1';
-        $notifiable = m::mock(AnonymousNotifiable::class);
+        $notifiable = Double::for(AnonymousNotifiable::class);
 
-        $notifiable->expects('routeNotificationFor->create')->with([
+        $notifiable->expects('routeNotificationFor')->returns($relation = Double::for(HasMany::class));
+        $relation->expects('create')->with([
             'id' => '1',
             'type' => get_class($notification),
             'data' => ['invoice_id' => '1'],
             'read_at' => null,
-        ])->andReturn(m::mock(Model::class));
+        ])->returns(Double::for(Model::class));
 
         $channel = new DatabaseChannel;
         $channel->send($notifiable, $notification);
@@ -36,15 +41,16 @@ class NotificationDatabaseChannelTest extends TestCase
     {
         $notification = new NotificationDatabaseChannelTestNotification;
         $notification->id = '1';
-        $notifiable = m::mock(AnonymousNotifiable::class);
+        $notifiable = Double::for(AnonymousNotifiable::class);
 
-        $notifiable->expects('routeNotificationFor->create')->with([
+        $notifiable->expects('routeNotificationFor')->returns($relation = Double::for(HasMany::class));
+        $relation->expects('create')->with([
             'id' => '1',
             'type' => get_class($notification),
             'data' => ['invoice_id' => '1'],
             'read_at' => null,
             'something' => 'else',
-        ])->andReturn(m::mock(Model::class));
+        ])->returns(Double::for(Model::class));
 
         $channel = new ExtendedDatabaseChannel;
         $channel->send($notifiable, $notification);
@@ -56,15 +62,16 @@ class NotificationDatabaseChannelTest extends TestCase
 
         $notification = new NotificationDatabaseChannelCustomizeTypeTestNotification;
         $notification->id = '1';
-        $notifiable = m::mock(AnonymousNotifiable::class);
+        $notifiable = Double::for(AnonymousNotifiable::class);
 
-        $notifiable->expects('routeNotificationFor->create')->with([
+        $notifiable->expects('routeNotificationFor')->returns($relation = Double::for(HasMany::class));
+        $relation->expects('create')->with([
             'id' => '1',
             'type' => 'MONTHLY',
             'data' => ['invoice_id' => '1'],
-            'read_at' => CarbonImmutable::now()->toDateTimeString(),
+            'read_at' => CarbonImmutable::now(),
             'something' => 'else',
-        ])->andReturn(m::mock(Model::class));
+        ])->returns(Double::for(Model::class));
 
         $channel = new ExtendedDatabaseChannel;
         $channel->send($notifiable, $notification);

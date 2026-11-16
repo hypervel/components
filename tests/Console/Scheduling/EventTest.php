@@ -23,7 +23,9 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use Hypervel\Tests\Console\Fixtures\FakeEventMutex;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -57,6 +59,8 @@ enum ScheduledEventTestEnvironment: string
 
 class EventTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected ?Container $container = null;
 
     /**
@@ -75,14 +79,13 @@ class EventTest extends TestCase
 
     public function testSendOutputToWithIsNotFile(): void
     {
-        $event = new Event(m::mock(EventMutex::class), 'php -v');
+        $event = new Event(Double::for(EventMutex::class), 'php -v');
 
         $event->sendOutputTo($output = 'test.log');
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('isFile')
-            ->once()
+        $filesystem = Double::for(Filesystem::class);
+        $filesystem->expects('isFile')
             ->with($output)
-            ->andReturn(false);
+            ->returns(false);
 
         $this->container->instance(Filesystem::class, $filesystem);
         $event->writeOutput($this->container);
@@ -90,24 +93,21 @@ class EventTest extends TestCase
 
     public function testSendOutputTo(): void
     {
-        $event = new Event(m::mock(EventMutex::class), 'php -v');
+        $event = new Event(Double::for(EventMutex::class), 'php -v');
 
         $event->sendOutputTo($output = 'test.log');
 
-        $kernel = m::mock(KernelContract::class);
-        $kernel->shouldReceive('output')
-            ->once()
-            ->andReturn($result = 'PHP 8.3.17 (cli) (built: Feb 11 2025 22:03:03) (NTS)');
+        $kernel = Double::for(KernelContract::class);
+        $kernel->expects('output')
+            ->returns($result = 'PHP 8.3.17 (cli) (built: Feb 11 2025 22:03:03) (NTS)');
 
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('isFile')
-            ->once()
+        $filesystem = Double::for(Filesystem::class);
+        $filesystem->expects('isFile')
             ->with($output)
-            ->andReturn(true);
-        $filesystem->shouldReceive('put')
-            ->once()
+            ->returns(true);
+        $filesystem->expects('put')
             ->with($output, $result)
-            ->andReturn(strlen($result));
+            ->returns(strlen($result));
 
         $this->container->instance(KernelContract::class, $kernel);
         $this->container->instance(Filesystem::class, $filesystem);
@@ -117,22 +117,20 @@ class EventTest extends TestCase
 
     public function testSendOutputToWithSystemProcess(): void
     {
-        $event = new Event(m::mock(EventMutex::class), 'php -v');
+        $event = new Event(Double::for(EventMutex::class), 'php -v');
         $event->isSystem = true;
 
         $event->sendOutputTo($output = 'test.log');
 
-        $process = m::mock(Process::class);
-        $process->shouldReceive('getOutput')
-            ->once()
-            ->andReturn($result = 'PHP 8.3.17 (cli) (built: Feb 11 2025 22:03:03) (NTS)');
+        $process = Double::for(Process::class);
+        $process->expects('getOutput')
+            ->returns($result = 'PHP 8.3.17 (cli) (built: Feb 11 2025 22:03:03) (NTS)');
         CoroutineContext::set($key = '__console.scheduling_process.' . spl_object_id($event), $process);
 
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('put')
-            ->once()
+        $filesystem = Double::for(Filesystem::class);
+        $filesystem->expects('put')
             ->with($output, $result)
-            ->andReturn(strlen($result));
+            ->returns(strlen($result));
 
         $this->container->instance(Filesystem::class, $filesystem);
 
@@ -170,7 +168,7 @@ class EventTest extends TestCase
 
     public function testNeverCheckedRepeatableEventIsNotReadyToRepeat(): void
     {
-        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event = new Event(Double::for(EventMutex::class), 'php -i');
         $event->repeatSeconds = 1;
 
         $this->assertFalse($event->shouldRepeatNow());
@@ -206,7 +204,7 @@ class EventTest extends TestCase
 
     public function testRunResetsSkippedBecauseOverlapping(): void
     {
-        $eventMutex = m::mock(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class);
         $event = new class($eventMutex, 'php -i') extends Event {
             public int $executions = 0;
 
@@ -221,8 +219,8 @@ class EventTest extends TestCase
             }
         };
 
-        $eventMutex->expects('create')->times(2)->with($event)->andReturn(false, true);
-        $eventMutex->expects('forget')->with($event);
+        $eventMutex->expects('create')->times(2)->with(Argument::same($event))->returns(false, true);
+        $eventMutex->expects('forget')->with(Argument::same($event));
         $event->withoutOverlapping();
 
         $this->assertNull($event->run($this->container));
@@ -236,9 +234,9 @@ class EventTest extends TestCase
 
     public function testReleaseMutexOnTerminationSignalReleasesOwnedMutex(): void
     {
-        $eventMutex = m::mock(EventMutex::class);
-        $eventMutex->shouldReceive('create')->once()->andReturnTrue();
-        $eventMutex->shouldReceive('forget')->once();
+        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex->expects('create')->returns(true);
+        $eventMutex->expects('forget');
 
         $event = new Event($eventMutex, 'php -i');
         $event->withoutOverlapping();
@@ -250,8 +248,8 @@ class EventTest extends TestCase
 
     public function testReleaseMutexOnTerminationSignalDoesNotReleaseUnownedMutex(): void
     {
-        $eventMutex = m::mock(EventMutex::class);
-        $eventMutex->shouldNotReceive('forget');
+        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex->expects('forget')->never();
 
         $event = new Event($eventMutex, 'php -i');
         $event->withoutOverlapping();
@@ -261,9 +259,9 @@ class EventTest extends TestCase
 
     public function testReleaseMutexOnTerminationSignalHonorsReleaseFlag(): void
     {
-        $eventMutex = m::mock(EventMutex::class);
-        $eventMutex->shouldReceive('create')->once()->andReturnTrue();
-        $eventMutex->shouldNotReceive('forget');
+        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex->expects('create')->returns(true);
+        $eventMutex->expects('forget')->never();
 
         $event = new Event($eventMutex, 'php -i');
         $event->withoutOverlapping(releaseOnTerminationSignals: false);
@@ -275,9 +273,9 @@ class EventTest extends TestCase
 
     public function testStartFailureRemainsPrimaryWhenMutexCleanupFails(): void
     {
-        $mutex = m::mock(EventMutex::class);
-        $mutex->shouldReceive('create')->once()->andReturnTrue();
-        $mutex->shouldReceive('forget')->once()->andThrow(new RuntimeException('mutex cleanup failed'));
+        $mutex = Double::for(EventMutex::class);
+        $mutex->expects('create')->returns(true);
+        $mutex->expects('forget')->throws(new RuntimeException('mutex cleanup failed'));
 
         $event = new Event($mutex, 'php -i');
         $event->withoutOverlapping();
@@ -296,9 +294,9 @@ class EventTest extends TestCase
     public function testOutputFailureStillRunsAfterCallbacksAndReleasesMutex(): void
     {
         $afterCalled = false;
-        $mutex = m::mock(EventMutex::class);
-        $mutex->shouldReceive('create')->once()->andReturnTrue();
-        $mutex->shouldReceive('forget')->once();
+        $mutex = Double::for(EventMutex::class);
+        $mutex->expects('create')->returns(true);
+        $mutex->expects('forget');
 
         $event = new EventTestExecutableEvent($mutex);
         $event->withoutOverlapping();
@@ -307,9 +305,9 @@ class EventTest extends TestCase
             $afterCalled = true;
         });
 
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('isFile')->once()->with($output)->andReturnTrue();
-        $filesystem->shouldReceive('put')->once()->with($output, 'output')->andReturnFalse();
+        $filesystem = Double::for(Filesystem::class);
+        $filesystem->expects('isFile')->with($output)->returns(true);
+        $filesystem->expects('put')->with($output, 'output')->returns(false);
         $this->container->instance(Filesystem::class, $filesystem);
 
         try {
@@ -325,9 +323,9 @@ class EventTest extends TestCase
 
     public function testAfterCallbackFailureRemainsPrimaryWhenMutexCleanupFails(): void
     {
-        $mutex = m::mock(EventMutex::class);
-        $mutex->shouldReceive('create')->once()->andReturnTrue();
-        $mutex->shouldReceive('forget')->once()->andThrow(new RuntimeException('mutex cleanup failed'));
+        $mutex = Double::for(EventMutex::class);
+        $mutex->expects('create')->returns(true);
+        $mutex->expects('forget')->throws(new RuntimeException('mutex cleanup failed'));
 
         $event = new EventTestExecutableEvent($mutex);
         $event->withoutOverlapping();
@@ -362,21 +360,21 @@ class EventTest extends TestCase
                 }
             }
         };
-        $mutex = m::mock(EventMutex::class);
-        $mutex->shouldReceive('create')->once()->andReturnTrue();
+        $mutex = Double::for(EventMutex::class);
+        $mutex->expects('create')->returns(true);
         $event = new EventTestExecutableEvent($mutex);
         $event->withoutOverlapping();
 
         if ($failurePhase === 'output') {
             $event->sendOutputTo('test.log')->after($cancel);
-            $filesystem = m::mock(Filesystem::class);
-            $filesystem->shouldReceive('isFile')->once()->with('test.log')->andReturnTrue();
-            $filesystem->shouldReceive('put')->once()->with('test.log', 'output')->andReturnFalse();
+            $filesystem = Double::for(Filesystem::class);
+            $filesystem->expects('isFile')->with('test.log')->returns(true);
+            $filesystem->expects('put')->with('test.log', 'output')->returns(false);
             $this->container->instance(Filesystem::class, $filesystem);
-            $mutex->shouldReceive('forget')->once();
+            $mutex->expects('forget');
         } else {
             $event->{$failurePhase === 'start' ? 'before' : 'after'}(static fn () => throw new RuntimeException('Earlier failure.'));
-            $mutex->shouldReceive('forget')->once()->andReturnUsing($cancel);
+            $mutex->expects('forget')->resolves($cancel);
         }
 
         try {
@@ -392,8 +390,8 @@ class EventTest extends TestCase
     public function testExitPublicationFailureStillRunsCallbacksAndReleasesMutex(): void
     {
         $afterCalled = false;
-        $mutex = m::mock(EventMutex::class);
-        $mutex->shouldReceive('forget')->once();
+        $mutex = Double::for(EventMutex::class);
+        $mutex->expects('forget');
 
         $event = new EventTestFailingExitCodeEvent($mutex);
         $event->withoutOverlapping = true;
@@ -414,24 +412,21 @@ class EventTest extends TestCase
 
     public function testAppendOutput(): void
     {
-        $event = new Event(m::mock(EventMutex::class), 'php -v');
+        $event = new Event(Double::for(EventMutex::class), 'php -v');
 
         $event->appendOutputTo($output = 'test.log');
 
-        $kernel = m::mock(KernelContract::class);
-        $kernel->shouldReceive('output')
-            ->once()
-            ->andReturn($result = 'PHP 8.3.17 (cli) (built: Feb 11 2025 22:03:03) (NTS)');
+        $kernel = Double::for(KernelContract::class);
+        $kernel->expects('output')
+            ->returns($result = 'PHP 8.3.17 (cli) (built: Feb 11 2025 22:03:03) (NTS)');
 
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('isFile')
-            ->once()
+        $filesystem = Double::for(Filesystem::class);
+        $filesystem->expects('isFile')
             ->with($output)
-            ->andReturn(true);
-        $filesystem->shouldReceive('append')
-            ->once()
+            ->returns(true);
+        $filesystem->expects('append')
             ->with($output, $result)
-            ->andReturn(strlen($result));
+            ->returns(strlen($result));
 
         $this->container->instance(KernelContract::class, $kernel);
         $this->container->instance(Filesystem::class, $filesystem);
@@ -441,15 +436,15 @@ class EventTest extends TestCase
 
     public function testWriteOutputRejectsFailedWrites(): void
     {
-        $event = new Event(m::mock(EventMutex::class), 'php -v');
+        $event = new Event(Double::for(EventMutex::class), 'php -v');
         $event->sendOutputTo($output = 'test.log');
 
-        $kernel = m::mock(KernelContract::class);
-        $kernel->shouldReceive('output')->once()->andReturn($result = 'output');
+        $kernel = Double::for(KernelContract::class);
+        $kernel->expects('output')->returns($result = 'output');
 
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('isFile')->once()->with($output)->andReturnTrue();
-        $filesystem->shouldReceive('put')->once()->with($output, $result)->andReturnFalse();
+        $filesystem = Double::for(Filesystem::class);
+        $filesystem->expects('isFile')->with($output)->returns(true);
+        $filesystem->expects('put')->with($output, $result)->returns(false);
 
         $this->container->instance(KernelContract::class, $kernel);
         $this->container->instance(Filesystem::class, $filesystem);
@@ -462,15 +457,15 @@ class EventTest extends TestCase
 
     public function testWriteOutputRejectsPartialWrites(): void
     {
-        $event = new Event(m::mock(EventMutex::class), 'php -v');
+        $event = new Event(Double::for(EventMutex::class), 'php -v');
         $event->appendOutputTo($output = 'test.log');
 
-        $kernel = m::mock(KernelContract::class);
-        $kernel->shouldReceive('output')->once()->andReturn($result = 'output');
+        $kernel = Double::for(KernelContract::class);
+        $kernel->expects('output')->returns($result = 'output');
 
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('isFile')->once()->with($output)->andReturnTrue();
-        $filesystem->shouldReceive('append')->once()->with($output, $result)->andReturn(3);
+        $filesystem = Double::for(Filesystem::class);
+        $filesystem->expects('isFile')->with($output)->returns(true);
+        $filesystem->expects('append')->with($output, $result)->returns(3);
 
         $this->container->instance(KernelContract::class, $kernel);
         $this->container->instance(Filesystem::class, $filesystem);
@@ -483,13 +478,13 @@ class EventTest extends TestCase
 
     public function testOutputCallbackSurfacesReadFailureAfterFileCheck(): void
     {
-        $event = new Event(m::mock(EventMutex::class), 'php -v');
+        $event = new Event(Double::for(EventMutex::class), 'php -v');
         $event->sendOutputTo($output = 'test.log');
         $event->thenWithOutput(fn (Stringable $output) => $output);
 
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('isFile')->once()->with($output)->andReturnTrue();
-        $filesystem->shouldReceive('get')->once()->with($output)->andThrow(
+        $filesystem = Double::for(Filesystem::class);
+        $filesystem->expects('isFile')->with($output)->returns(true);
+        $filesystem->expects('get')->with($output)->throws(
             new FileNotFoundException("Unable to read file at path {$output}.")
         );
 
@@ -503,20 +498,19 @@ class EventTest extends TestCase
 
     public function testEmailOutputUsesTheMailContractCallback(): void
     {
-        $event = new Event(m::mock(EventMutex::class), 'php -v');
+        $event = new Event(Double::for(EventMutex::class), 'php -v');
         $event->sendOutputTo($output = 'test.log');
         $event->description('Daily report');
         $event->emailOutputTo($addresses = ['taylor@example.com']);
 
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('isFile')->once()->with($output)->andReturnTrue();
-        $filesystem->shouldReceive('get')->once()->with($output)->andReturn('captured output');
+        $filesystem = Double::for(Filesystem::class);
+        $filesystem->expects('isFile')->with($output)->returns(true);
+        $filesystem->expects('get')->with($output)->returns('captured output');
 
-        $mailer = m::mock(Mailer::class);
-        $mailer->shouldReceive('raw')
-            ->once()
-            ->with('captured output', m::type(Closure::class))
-            ->andReturnUsing(function (string $text, Closure $callback) use ($addresses) {
+        $mailer = Double::for(Mailer::class);
+        $mailer->expects('raw')
+            ->with('captured output', Argument::type(Closure::class))
+            ->resolves(function (string $text, Closure $callback) use ($addresses) {
                 $message = new Message(new Email);
                 $callback($message);
 
@@ -539,10 +533,10 @@ class EventTest extends TestCase
     public function testProcessIsRetainedThroughAfterCallbacksAndReleasedAfterSuccess(): void
     {
         $outputDuringCallback = null;
-        $process = m::mock(Process::class);
-        $process->shouldReceive('getOutput')->once()->andReturn('process output');
+        $process = Double::for(Process::class);
+        $process->expects('getOutput')->returns('process output');
 
-        $event = new EventTestProcessEvent(m::mock(EventMutex::class), $process);
+        $event = new EventTestProcessEvent(Double::for(EventMutex::class), $process);
         $event->after(function (Event $event) use (&$outputDuringCallback): void {
             $outputDuringCallback = $event->getOutput($this->container);
         });
@@ -556,8 +550,8 @@ class EventTest extends TestCase
     public function testProcessIsReleasedAfterExecutionFailure(): void
     {
         $event = new EventTestProcessEvent(
-            m::mock(EventMutex::class),
-            m::mock(Process::class),
+            Double::for(EventMutex::class),
+            Double::for(Process::class),
             new RuntimeException('execution failed')
         );
 
@@ -574,17 +568,17 @@ class EventTest extends TestCase
     public function testProcessIsReleasedAfterOutputFailure(): void
     {
         $afterCalled = false;
-        $process = m::mock(Process::class);
-        $process->shouldReceive('getOutput')->once()->andReturn('process output');
+        $process = Double::for(Process::class);
+        $process->expects('getOutput')->returns('process output');
 
-        $event = new EventTestProcessEvent(m::mock(EventMutex::class), $process);
+        $event = new EventTestProcessEvent(Double::for(EventMutex::class), $process);
         $event->sendOutputTo($output = 'test.log');
         $event->after(function () use (&$afterCalled): void {
             $afterCalled = true;
         });
 
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('put')->once()->with($output, 'process output')->andReturnFalse();
+        $filesystem = Double::for(Filesystem::class);
+        $filesystem->expects('put')->with($output, 'process output')->returns(false);
         $this->container->instance(Filesystem::class, $filesystem);
 
         try {
@@ -605,18 +599,18 @@ class EventTest extends TestCase
         $cancellation = new CanceledException('Output write canceled.');
         $cleanup = $cleanupThrows ? new RuntimeException('Output cleanup failed.') : null;
         $afterCalled = false;
-        $process = m::mock(Process::class);
-        $process->shouldReceive('getOutput')->once()->andReturn('process output');
-        $mutex = m::mock(EventMutex::class);
-        $mutex->shouldReceive('create')->once()->andReturnTrue();
-        $mutex->shouldReceive('forget')->once();
+        $process = Double::for(Process::class);
+        $process->expects('getOutput')->returns('process output');
+        $mutex = Double::for(EventMutex::class);
+        $mutex->expects('create')->returns(true);
+        $mutex->expects('forget');
         $event = new EventTestProcessEvent($mutex, $process);
         $event->withoutOverlapping()->sendOutputTo('test.log');
         $event->after(static function () use (&$afterCalled): void {
             $afterCalled = true;
         });
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('put')->once()->with('test.log', 'process output')->andReturnUsing(
+        $filesystem = Double::for(Filesystem::class);
+        $filesystem->expects('put')->with('test.log', 'process output')->resolves(
             static function () use ($cancellation, $cleanup): never {
                 try {
                     throw $cancellation;
@@ -643,7 +637,7 @@ class EventTest extends TestCase
 
     public function testProcessIsReleasedAfterAfterCallbackFailure(): void
     {
-        $event = new EventTestProcessEvent(m::mock(EventMutex::class), m::mock(Process::class));
+        $event = new EventTestProcessEvent(Double::for(EventMutex::class), Double::for(Process::class));
         $event->after(fn () => throw new RuntimeException('after callback failed'));
 
         try {
@@ -781,12 +775,12 @@ class EventTest extends TestCase
         $failureEvent = null;
         $outputEvent = null;
         $outputValue = null;
-        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event = new Event(Double::for(EventMutex::class), 'php -i');
         $event->sendOutputTo($output = 'test.log');
 
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('isFile')->twice()->with($output)->andReturnTrue();
-        $filesystem->shouldReceive('get')->twice()->with($output)->andReturn('captured output');
+        $filesystem = Double::for(Filesystem::class);
+        $filesystem->expects('isFile')->times(2)->with($output)->returns(true);
+        $filesystem->expects('get')->times(2)->with($output)->returns('captured output');
         $this->container->instance(Filesystem::class, $filesystem);
 
         $event->onSuccess(function (Event $scheduledEvent) use (&$successEvent): void {
@@ -814,7 +808,7 @@ class EventTest extends TestCase
 
     public function testTimezoneAcceptsStringBackedEnum(): void
     {
-        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event = new Event(Double::for(EventMutex::class), 'php -i');
 
         $event->timezone(EventTestTimezoneStringEnum::NewYork);
 
@@ -824,7 +818,7 @@ class EventTest extends TestCase
 
     public function testTimezoneAcceptsUnitEnum(): void
     {
-        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event = new Event(Double::for(EventMutex::class), 'php -i');
 
         $event->timezone(EventTestTimezoneUnitEnum::UTC);
 
@@ -834,7 +828,7 @@ class EventTest extends TestCase
 
     public function testTimezoneAcceptsIntBackedEnum(): void
     {
-        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event = new Event(Double::for(EventMutex::class), 'php -i');
 
         $event->timezone(EventTestTimezoneIntEnum::Zone1);
 
@@ -843,7 +837,7 @@ class EventTest extends TestCase
 
     public function testTimezoneAcceptsDateTimeZoneObject(): void
     {
-        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event = new Event(Double::for(EventMutex::class), 'php -i');
 
         $tz = new DateTimeZone('UTC');
         $event->timezone($tz);
@@ -854,10 +848,11 @@ class EventTest extends TestCase
 
     public function testBasicCronCompilation(): void
     {
-        $app = m::mock(ApplicationContract::class);
-        $app->expects('isDownForMaintenance')->times(3)->andReturn(false);
-        $app->expects('environment')->times(3)->andReturn('production');
-        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback): bool => $callback());
+        $appDouble = Double::for(ApplicationContract::class, override: true);
+        $app = $appDouble->instance();
+        $appDouble->expects('isDownForMaintenance')->times(3)->returns(false);
+        $appDouble->expects('environment')->times(3)->returns('production');
+        $appDouble->allows('call')->resolves(fn (callable $callback): bool => $callback());
 
         $event = new Event(new FakeEventMutex, 'php foo');
         $this->assertSame('* * * * *', $event->getExpression());
@@ -901,9 +896,10 @@ class EventTest extends TestCase
 
     public function testEventIsDueCheck(): void
     {
-        $app = m::mock(ApplicationContract::class);
-        $app->expects('isDownForMaintenance')->times(2)->andReturn(false);
-        $app->expects('environment')->times(2)->andReturn('production');
+        $appDouble = Double::for(ApplicationContract::class, override: true);
+        $app = $appDouble->instance();
+        $appDouble->expects('isDownForMaintenance')->times(2)->returns(false);
+        $appDouble->expects('environment')->times(2)->returns('production');
         CarbonImmutable::setTestNow(CarbonImmutable::create(2015, 1, 1, 0, 0, 0));
 
         $event = new Event(new FakeEventMutex, 'php foo');
@@ -917,13 +913,14 @@ class EventTest extends TestCase
 
     public function testEventIsDueAtUsesGivenTime(): void
     {
-        $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
-        $app->shouldReceive('environment')->andReturn('production');
+        $appDouble = Double::for(ApplicationContract::class, override: true);
+        $app = $appDouble->instance();
+        $appDouble->allows('isDownForMaintenance')->returns(false);
+        $appDouble->allows('environment')->returns('production');
 
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-29 13:00:00'));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo');
+        $event = new Event(Double::for(EventMutex::class), 'php foo');
         $event->dailyAt('13:00');
 
         $this->assertFalse($event->isDueAt($app, CarbonImmutable::parse('2026-05-29 12:59:59')));
@@ -932,11 +929,12 @@ class EventTest extends TestCase
 
     public function testEventIsDueAtUsesEventTimezone(): void
     {
-        $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
-        $app->shouldReceive('environment')->andReturn('production');
+        $appDouble = Double::for(ApplicationContract::class, override: true);
+        $app = $appDouble->instance();
+        $appDouble->allows('isDownForMaintenance')->returns(false);
+        $appDouble->allows('environment')->returns('production');
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo');
+        $event = new Event(Double::for(EventMutex::class), 'php foo');
         $event->dailyAt('09:00')->timezone('America/New_York');
 
         $this->assertTrue($event->isDueAt($app, CarbonImmutable::parse('2026-05-29 13:00:00', 'UTC')));
@@ -970,12 +968,13 @@ class EventTest extends TestCase
 
     public function testTimeBetweenIsEvaluatedUsingTheCurrentTime(): void
     {
-        $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback): bool => $callback());
+        $appDouble = Double::for(ApplicationContract::class, override: true);
+        $app = $appDouble->instance();
+        $appDouble->allows('call')->resolves(fn (callable $callback): bool => $callback());
 
         CarbonImmutable::setTestNow('2026-05-29 09:00:00');
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $event = new Event(Double::for(EventMutex::class), 'php foo', 'UTC');
         $event->between('8:00', '10:00');
 
         $this->assertTrue($event->filtersPass($app));

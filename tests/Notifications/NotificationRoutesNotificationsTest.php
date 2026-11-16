@@ -10,15 +10,18 @@ use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\RoutesNotifications;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use stdClass;
 
 class NotificationRoutesNotificationsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testNotificationCanBeDispatched(): void
     {
         $container = $this->getContainer();
-        $factory = m::mock(Dispatcher::class);
+        $factory = Double::for(Dispatcher::class);
         $container->instance(Dispatcher::class, $factory);
         $notifiable = new RoutesNotificationsTestInstance;
         $instance = new stdClass;
@@ -30,7 +33,7 @@ class NotificationRoutesNotificationsTest extends TestCase
     public function testNotificationCanBeSentNow(): void
     {
         $container = $this->getContainer();
-        $factory = m::mock(Dispatcher::class);
+        $factory = Double::for(Dispatcher::class);
         $container->instance(Dispatcher::class, $factory);
         $notifiable = new RoutesNotificationsTestInstance;
         $instance = new stdClass;

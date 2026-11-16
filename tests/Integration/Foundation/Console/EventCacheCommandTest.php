@@ -7,11 +7,15 @@ namespace Hypervel\Tests\Integration\Foundation\Console;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Support\Providers\EventServiceProvider;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 
 class EventCacheCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function tearDown(): void
     {
         @unlink($this->app->getCachedEventsPath());
@@ -21,8 +25,8 @@ class EventCacheCommandTest extends TestCase
 
     public function testEventsAreCachedAtomically(): void
     {
-        $files = m::mock(Filesystem::class)->makePartial();
-        $files->shouldReceive('replace')->once()->with($this->app->getCachedEventsPath(), m::type('string'), null)->passthru();
+        $files = Double::for(new Filesystem)->passthru();
+        $files->expects('put')->never();
 
         $this->app->instance('files', $files);
 
@@ -31,6 +35,8 @@ class EventCacheCommandTest extends TestCase
             ->assertSuccessful();
 
         $this->assertFileExists($this->app->getCachedEventsPath());
+
+        $files->received('replace')->times(1)->with($this->app->getCachedEventsPath(), Argument::type('string'), null);
     }
 
     public function testCachedFileContainsProviderEvents(): void
@@ -98,11 +104,10 @@ class EventCacheCommandTest extends TestCase
         chmod($cachePath, 0640);
 
         $publicationException = new RuntimeException('publication failed');
-        $files = m::mock(Filesystem::class)->makePartial();
-        $files->shouldReceive('replace')
-            ->once()
-            ->with($cachePath, m::type('string'), 0640)
-            ->andThrow($publicationException);
+        $files = Double::for(new Filesystem)->passthru();
+        $files->expects('replace')
+            ->with($cachePath, Argument::type('string'), 0640)
+            ->throws($publicationException);
         $this->app->instance('files', $files);
 
         try {

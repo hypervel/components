@@ -9,23 +9,26 @@ use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Grammars\MariaDbGrammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonException;
-use Mockery as m;
 
 class DatabaseMariaDbQueryGrammarTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testUpdateBindingsRejectUnencodableArrays(): void
     {
         $this->expectException(JsonException::class);
 
-        (new MariaDbGrammar(m::mock(Connection::class)))
+        (new MariaDbGrammar(Double::for(Connection::class)))
             ->prepareBindingsForUpdate([], ['payload' => [NAN]]);
     }
 
     public function testToRawSql(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->expects('escape')->with('foo', false)->andReturn("'foo'");
+        $connection = Double::for(Connection::class);
+        $connection->expects('escape')->with('foo', false)->returns("'foo'");
         $grammar = new MariaDbGrammar($connection);
 
         $query = $grammar->substituteBindingsIntoRawSql(
@@ -103,14 +106,14 @@ class DatabaseMariaDbQueryGrammarTest extends TestCase
 
     protected function getBuilder(): Builder
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getDatabaseName')->andReturn('database');
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $connection = Double::for(Connection::class);
+        $connection->allows('getDatabaseName')->returns('database');
+        $connection->allows('getTablePrefix')->returns('');
 
         return new Builder(
             $connection,
             new MariaDbGrammar($connection),
-            m::mock(Processor::class)
+            Double::for(Processor::class)
         );
     }
 }

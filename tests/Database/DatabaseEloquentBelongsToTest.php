@@ -14,11 +14,14 @@ use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Tests\Database\Fixtures\Enums\Bar;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 
 class DatabaseEloquentBelongsToTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Builder $builder;
 
     protected Model $related;
@@ -29,8 +32,8 @@ class DatabaseEloquentBelongsToTest extends TestCase
         // while still having real Model behavior for attribute handling
         $relation = $this->getRelationWithPartialMock()->withDefault();
 
-        $this->builder->expects('first')->andReturnNull();
-        $this->related->expects('newInstance')->andReturnSelf();
+        $this->builder->expects('first')->returns(null);
+        $this->related->expects('newInstance')->returns($this->related);
 
         $result = $relation->getResults();
 
@@ -43,8 +46,8 @@ class DatabaseEloquentBelongsToTest extends TestCase
             $newModel->username = 'taylor';
         });
 
-        $this->builder->expects('first')->andReturnNull();
-        $this->related->expects('newInstance')->andReturnSelf();
+        $this->builder->expects('first')->returns(null);
+        $this->related->expects('newInstance')->returns($this->related);
 
         $result = $relation->getResults();
 
@@ -57,8 +60,8 @@ class DatabaseEloquentBelongsToTest extends TestCase
     {
         $relation = $this->getRelationWithPartialMock()->withDefault(['username' => 'taylor']);
 
-        $this->builder->expects('first')->andReturnNull();
-        $this->related->expects('newInstance')->andReturnSelf();
+        $this->builder->expects('first')->returns(null);
+        $this->related->expects('newInstance')->returns($this->related);
 
         $result = $relation->getResults();
 
@@ -95,7 +98,7 @@ class DatabaseEloquentBelongsToTest extends TestCase
     public function testRelationIsProperlyInitialized(): void
     {
         $relation = $this->getRelation();
-        $model = m::mock(Model::class);
+        $model = Double::for(Model::class);
         $model->expects('setRelation')->with('foo', null);
         $models = $relation->initRelation([$model], 'foo');
 
@@ -306,14 +309,14 @@ class DatabaseEloquentBelongsToTest extends TestCase
      */
     protected function getRelation(?Model $parent = null, string $keyType = 'int'): BelongsTo
     {
-        $this->builder = m::mock(Builder::class);
+        $this->builder = Double::for(Builder::class);
         $this->builder->expects('where')->with('relation.id', '=', 'foreign.value');
-        $this->related = m::mock(Model::class);
-        $this->related->shouldReceive('getKeyType')->andReturn($keyType);
-        $this->related->shouldReceive('getKeyName')->andReturn('id');
-        $this->related->shouldReceive('getTable')->andReturn('relation');
-        $this->related->shouldReceive('qualifyColumn')->andReturnUsing(fn (string $column): string => "relation.{$column}");
-        $this->builder->expects('getModel')->andReturn($this->related);
+        $this->related = Double::for(Model::class);
+        $this->related->allows('getKeyType')->returns($keyType);
+        $this->related->allows('getKeyName')->returns('id');
+        $this->related->allows('getTable')->returns('relation');
+        $this->related->allows('qualifyColumn')->resolves(fn (string $column): string => "relation.{$column}");
+        $this->builder->expects('getModel')->returns($this->related);
         $parent = $parent ?: new ModelStub;
 
         return new BelongsTo($this->builder, $parent, 'foreign_key', 'id', 'relation');
@@ -328,14 +331,14 @@ class DatabaseEloquentBelongsToTest extends TestCase
      */
     protected function getRelationWithPartialMock(?Model $parent = null): BelongsTo
     {
-        $this->builder = m::mock(Builder::class);
+        $this->builder = Double::for(Builder::class);
         $this->builder->expects('where')->with('relation.id', '=', 'foreign.value');
-        $this->related = m::mock(ModelStub::class)->makePartial();
-        $this->related->shouldReceive('getKeyType')->andReturn('int');
-        $this->related->shouldReceive('getKeyName')->andReturn('id');
-        $this->related->shouldReceive('getTable')->andReturn('relation');
-        $this->related->shouldReceive('qualifyColumn')->andReturnUsing(fn (string $column): string => "relation.{$column}");
-        $this->builder->expects('getModel')->andReturn($this->related);
+        $this->related = Double::for(new ModelStub)->passthru();
+        $this->related->allows('getKeyType')->returns('int');
+        $this->related->allows('getKeyName')->returns('id');
+        $this->related->allows('getTable')->returns('relation');
+        $this->related->allows('qualifyColumn')->resolves(fn (string $column): string => "relation.{$column}");
+        $this->builder->expects('getModel')->returns($this->related);
         $parent = $parent ?: new ModelStub;
 
         return new BelongsTo($this->builder, $parent, 'foreign_key', 'id', 'relation');

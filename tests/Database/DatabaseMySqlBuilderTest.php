@@ -11,22 +11,25 @@ use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Schema\Grammars\MySqlGrammar as MySqlGrammarSchema;
 use Hypervel\Database\Schema\MySqlBuilder;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class DatabaseMySqlBuilderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCreateDatabase(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new MySqlGrammarSchema($connection);
 
-        $connection->expects('getConfig')->with('charset')->andReturn('utf8mb4');
-        $connection->expects('getConfig')->with('collation')->andReturn('utf8mb4_unicode_ci');
-        $connection->expects('getSchemaGrammar')->andReturn($grammar);
+        $connection->expects('getConfig')->with('charset')->returns('utf8mb4');
+        $connection->expects('getConfig')->with('collation')->returns('utf8mb4_unicode_ci');
+        $connection->expects('getSchemaGrammar')->returns($grammar);
         $connection->expects('statement')->with(
             'create database `my_temporary_database` default character set `utf8mb4` default collate `utf8mb4_unicode_ci`'
-        )->andReturn(true);
+        )->returns(true);
 
         $builder = new MySqlBuilder($connection);
         $builder->createDatabase('my_temporary_database');
@@ -34,13 +37,13 @@ class DatabaseMySqlBuilderTest extends TestCase
 
     public function testDropDatabaseIfExists(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new MySqlGrammarSchema($connection);
 
-        $connection->expects('getSchemaGrammar')->andReturn($grammar);
+        $connection->expects('getSchemaGrammar')->returns($grammar);
         $connection->expects('statement')->with(
             'drop database if exists `my_database_a`'
-        )->andReturn(true);
+        )->returns(true);
 
         $builder = new MySqlBuilder($connection);
 
@@ -49,11 +52,11 @@ class DatabaseMySqlBuilderTest extends TestCase
 
     public function testDeleteWithJoinCompilesOrderByAndLimit(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $processor = new Processor;
         $grammar = new MySqlGrammar($connection);
 
-        $connection->expects('getTablePrefix')->times(5)->andReturn('');
+        $connection->expects('getTablePrefix')->times(5)->returns('');
 
         $builder = new Builder($connection, $grammar, $processor);
 
@@ -72,67 +75,65 @@ class DatabaseMySqlBuilderTest extends TestCase
 
     public function testDropAllTablesPreservesEnabledForeignKeyConstraints(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new MySqlGrammarSchema($connection);
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $builder = m::mock(MySqlBuilder::class, [$connection])->makePartial();
-        $connection->shouldReceive('getDatabaseName')->once()->andReturn('database');
-        $builder->shouldReceive('getTableListing')->once()->with(['database'])->andReturn(['users']);
-        $connection->shouldReceive('beginForeignKeyConstraintSuppression')->once()->andReturnTrue();
-        $connection->shouldReceive('pretending')->times(3)->andReturnFalse();
-        $connection->shouldReceive('scalar')->once()->with('select @@foreign_key_checks', [], false)->andReturn(1);
-        $connection->shouldReceive('executeSessionStatement')->once()->with('SET FOREIGN_KEY_CHECKS=0;')->ordered();
-        $connection->shouldReceive('statement')
-            ->once()
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $builder = Double::for(new MySqlBuilder($connection))->passthru();
+        $connection->expects('getDatabaseName')->returns('database');
+        $builder->expects('getTableListing')->with(['database'])->returns(['users']);
+        $connection->expects('beginForeignKeyConstraintSuppression')->returns(true);
+        $connection->expects('pretending')->times(3)->returns(false);
+        $connection->expects('scalar')->with('select @@foreign_key_checks', [], false)->returns(1);
+        $connection->expects('executeSessionStatement')->with('SET FOREIGN_KEY_CHECKS=0;')->ordered();
+        $connection->expects('statement')
             ->with($grammar->compileDropAllTables(['users']))
-            ->andReturnTrue()
+            ->returns(true)
             ->ordered();
-        $connection->shouldReceive('executeSessionStatement')->once()->with('SET FOREIGN_KEY_CHECKS=1;')->ordered();
-        $connection->shouldReceive('endForeignKeyConstraintSuppression')->once();
+        $connection->expects('executeSessionStatement')->with('SET FOREIGN_KEY_CHECKS=1;')->ordered();
+        $connection->expects('endForeignKeyConstraintSuppression');
 
         $builder->dropAllTables();
     }
 
     public function testDropAllTablesPreservesDisabledForeignKeyConstraints(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new MySqlGrammarSchema($connection);
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $builder = m::mock(MySqlBuilder::class, [$connection])->makePartial();
-        $connection->shouldReceive('getDatabaseName')->once()->andReturn('database');
-        $builder->shouldReceive('getTableListing')->once()->with(['database'])->andReturn(['users']);
-        $connection->shouldReceive('beginForeignKeyConstraintSuppression')->once()->andReturnTrue();
-        $connection->shouldReceive('pretending')->once()->andReturnFalse();
-        $connection->shouldReceive('scalar')->once()->with('select @@foreign_key_checks', [], false)->andReturn(0);
-        $connection->shouldNotReceive('executeSessionStatement');
-        $connection->shouldReceive('statement')
-            ->once()
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $builder = Double::for(new MySqlBuilder($connection))->passthru();
+        $connection->expects('getDatabaseName')->returns('database');
+        $builder->expects('getTableListing')->with(['database'])->returns(['users']);
+        $connection->expects('beginForeignKeyConstraintSuppression')->returns(true);
+        $connection->expects('pretending')->returns(false);
+        $connection->expects('scalar')->with('select @@foreign_key_checks', [], false)->returns(0);
+        $connection->expects('executeSessionStatement')->never();
+        $connection->expects('statement')
             ->with($grammar->compileDropAllTables(['users']))
-            ->andReturnTrue();
-        $connection->shouldReceive('endForeignKeyConstraintSuppression')->once();
+            ->returns(true);
+        $connection->expects('endForeignKeyConstraintSuppression');
 
         $builder->dropAllTables();
     }
 
     public function testDropAllTablesPropagatesAFalseStatementResultAfterRestoringConstraints(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new MySqlGrammarSchema($connection);
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $builder = m::mock(MySqlBuilder::class, [$connection])->makePartial();
-        $connection->shouldReceive('getDatabaseName')->once()->andReturn('database');
-        $builder->shouldReceive('getTableListing')->once()->with(['database'])->andReturn(['users']);
-        $connection->shouldReceive('beginForeignKeyConstraintSuppression')->once()->andReturnTrue();
-        $connection->shouldReceive('pretending')->times(3)->andReturnFalse();
-        $connection->shouldReceive('scalar')->once()->with('select @@foreign_key_checks', [], false)->andReturn(1);
-        $connection->shouldReceive('executeSessionStatement')->once()->with('SET FOREIGN_KEY_CHECKS=0;')->ordered();
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $builder = Double::for(new MySqlBuilder($connection))->passthru();
+        $connection->expects('getDatabaseName')->returns('database');
+        $builder->expects('getTableListing')->with(['database'])->returns(['users']);
+        $connection->expects('beginForeignKeyConstraintSuppression')->returns(true);
+        $connection->expects('pretending')->times(3)->returns(false);
+        $connection->expects('scalar')->with('select @@foreign_key_checks', [], false)->returns(1);
+        $connection->expects('executeSessionStatement')->with('SET FOREIGN_KEY_CHECKS=0;')->ordered();
         $statement = $grammar->compileDropAllTables(['users']);
-        $connection->shouldReceive('statement')->once()->with($statement)->andReturnFalse()->ordered();
-        $connection->shouldReceive('executeSessionStatement')->once()->with('SET FOREIGN_KEY_CHECKS=1;')->ordered();
-        $connection->shouldReceive('endForeignKeyConstraintSuppression')->once();
+        $connection->expects('statement')->with($statement)->returns(false)->ordered();
+        $connection->expects('executeSessionStatement')->with('SET FOREIGN_KEY_CHECKS=1;')->ordered();
+        $connection->expects('endForeignKeyConstraintSuppression');
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs("Failed to execute schema statement [{$statement}].");
@@ -142,17 +143,17 @@ class DatabaseMySqlBuilderTest extends TestCase
 
     public function testDropAllViewsPropagatesAFalseStatementResult(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new MySqlGrammarSchema($connection);
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $builder = m::mock(MySqlBuilder::class, [$connection])->makePartial();
-        $builder->shouldReceive('getCurrentSchemaListing')->once()->andReturn(['database']);
-        $builder->shouldReceive('getViews')->once()->with(['database'])->andReturn([
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $builder = Double::for(new MySqlBuilder($connection))->passthru();
+        $builder->expects('getCurrentSchemaListing')->returns(['database']);
+        $builder->expects('getViews')->with(['database'])->returns([
             ['schema_qualified_name' => 'active_users'],
         ]);
         $statement = $grammar->compileDropAllViews(['active_users']);
-        $connection->shouldReceive('statement')->once()->with($statement)->andReturnFalse();
+        $connection->expects('statement')->with($statement)->returns(false);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs("Failed to execute schema statement [{$statement}].");

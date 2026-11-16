@@ -12,13 +12,16 @@ use Hypervel\Queue\Console\ClearCommand;
 use Hypervel\Queue\NullQueue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use UnitEnum;
 
 class QueueClearCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testClearingDefaultQueue(): void
     {
         $queue = new FakeClearableQueue(['default' => 2]);
@@ -84,8 +87,8 @@ class QueueClearCommandTest extends TestCase
         ClearCommand::prohibit();
 
         $container = new Application;
-        $queueManager = m::mock(QueueManager::class);
-        $queueManager->shouldNotReceive('connection');
+        $queueManager = Double::for(QueueManager::class);
+        $queueManager->expects('connection')->never();
         $container->instance('queue', $queueManager);
 
         $command = new ClearCommand;
@@ -104,14 +107,14 @@ class QueueClearCommandTest extends TestCase
         $container = new Application;
         $container->instance('env', 'testing');
 
-        $config = m::mock(Repository::class);
-        $config->expects('string')->with('queue.default')->andReturn('redis');
-        $config->shouldReceive('string')->with('queue.connections.redis.queue', 'default')->andReturn('default');
+        $config = Double::for(Repository::class);
+        $config->expects('string')->with('queue.default')->returns('redis');
+        $config->allows('string')->with('queue.connections.redis.queue', 'default')->returns('default');
 
         $container->instance('config', $config);
 
-        $queueManager = m::mock(QueueManager::class);
-        $queueManager->expects('connection')->with('redis')->andReturn($queue);
+        $queueManager = Double::for(QueueManager::class);
+        $queueManager->expects('connection')->with('redis')->returns($queue);
 
         $container->instance('queue', $queueManager);
 
