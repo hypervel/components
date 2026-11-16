@@ -19,15 +19,19 @@ use Hypervel\Foundation\Http\Middleware\TrimStrings;
 use Hypervel\Http\Middleware\TrustHosts;
 use Hypervel\Http\Middleware\TrustProxies;
 use Hypervel\Http\Request;
+use Hypervel\Routing\Router;
 use Hypervel\Session\Middleware\AuthenticateSession;
 use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ReflectionClass;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 class MiddlewareTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testConvertEmptyStringsToNull(): void
     {
         $configuration = new Middleware;
@@ -595,8 +599,8 @@ class MiddlewareTest extends TestCase
     public function testDefaultMiddlewarePriority(): void
     {
         $kernel = new \Hypervel\Foundation\Http\Kernel(
-            m::mock(Application::class),
-            m::mock(\Hypervel\Routing\Router::class)
+            Double::for(Application::class, override: true)->instance(),
+            Double::for(Router::class)
         );
 
         $reflection = new ReflectionClass($kernel);
@@ -621,8 +625,8 @@ class MiddlewareTest extends TestCase
     public function testWithMiddlewareAppliesPriorityToKernel(): void
     {
         $kernel = new \Hypervel\Foundation\Http\Kernel(
-            m::mock(Application::class),
-            m::mock(\Hypervel\Routing\Router::class)->shouldIgnoreMissing()
+            Double::for(Application::class, override: true)->instance(),
+            Double::for(Router::class)
         );
 
         $middleware = new Middleware;
@@ -647,8 +651,8 @@ class MiddlewareTest extends TestCase
     public function testWithMiddlewareAppliesAppendsToPriority(): void
     {
         $kernel = new \Hypervel\Foundation\Http\Kernel(
-            m::mock(Application::class),
-            m::mock(\Hypervel\Routing\Router::class)->shouldIgnoreMissing()
+            Double::for(Application::class, override: true)->instance(),
+            Double::for(Router::class)
         );
 
         $middleware = new Middleware;
@@ -674,8 +678,8 @@ class MiddlewareTest extends TestCase
     public function testWithMiddlewareAppliesPrependsToPriority(): void
     {
         $kernel = new \Hypervel\Foundation\Http\Kernel(
-            m::mock(Application::class),
-            m::mock(\Hypervel\Routing\Router::class)->shouldIgnoreMissing()
+            Double::for(Application::class, override: true)->instance(),
+            Double::for(Router::class)
         );
 
         $middleware = new Middleware;
@@ -701,8 +705,8 @@ class MiddlewareTest extends TestCase
     public function testWithMiddlewareAppliesGlobalGroupsAndAliasesToKernel(): void
     {
         $kernel = new \Hypervel\Foundation\Http\Kernel(
-            m::mock(Application::class),
-            m::mock(\Hypervel\Routing\Router::class)->shouldIgnoreMissing()
+            Double::for(Application::class, override: true)->instance(),
+            Double::for(Router::class)
         );
 
         $middleware = new Middleware;

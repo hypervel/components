@@ -10,23 +10,26 @@ use Hypervel\Database\Query\Processors\SQLiteProcessor;
 use Hypervel\Database\Schema\Grammars\SQLiteGrammar;
 use Hypervel\Database\Schema\SQLiteBuilder;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Override;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseSQLiteSchemaMetadataTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('tableListingVersions')]
     public function testBothTableListingPathsUseTheMetadataHook(string $version, string $compiler): void
     {
         [$builder, $connection, $grammar, $processor] = $this->builder();
-        $connection->shouldReceive('getServerVersion')->once()->andReturn($version);
-        $grammar->shouldReceive('compileDbstatExists')->once()->andReturn('dbstat sql');
-        $connection->shouldReceive('scalar')->once()->with('dbstat sql')->andReturn(1);
-        $grammar->shouldReceive($compiler)->once()->with('main', true)->andReturn('tables sql');
+        $connection->expects('getServerVersion')->returns($version);
+        $grammar->expects('compileDbstatExists')->returns('dbstat sql');
+        $connection->expects('scalar')->with('dbstat sql')->returns(1);
+        $grammar->expects($compiler)->with('main', true)->returns('tables sql');
         $rows = [(object) ['name' => 'users']];
-        $connection->shouldReceive('selectFromWriteConnection')->once()->with('tables sql')->andReturn($rows);
-        $processor->shouldReceive('processTables')->once()->with($rows)->andReturn([['name' => 'users']]);
+        $connection->expects('selectFromWriteConnection')->with('tables sql')->returns($rows);
+        $processor->expects('processTables')->with($rows)->returns([['name' => 'users']]);
 
         $this->assertSame([['name' => 'users']], $builder->getTables('main'));
         $this->assertSame(['tables sql'], $builder->metadataQueries);
@@ -43,23 +46,23 @@ class DatabaseSQLiteSchemaMetadataTest extends TestCase
     public function testViewsAndSchemaStateReadsUseTheMetadataHook(): void
     {
         [$builder, $connection, $grammar, $processor] = $this->builder();
-        $connection->shouldReceive('getTablePrefix')->andReturn('app_');
-        $grammar->shouldReceive('compileViews')->once()->with('main')->andReturn('views sql');
-        $grammar->shouldReceive('compileColumns')->once()->with('main', 'app_users')->andReturn('columns sql');
-        $grammar->shouldReceive('compileIndexes')->once()->with('main', 'app_users')->andReturn('indexes sql');
-        $grammar->shouldReceive('compileForeignKeys')->once()->with('main', 'app_users')->andReturn('foreign keys sql');
-        $grammar->shouldReceive('compileSqlCreateStatement')->once()->with('main', 'app_users')->andReturn('definition sql');
-        $connection->shouldNotReceive('scalar');
-        $connection->shouldReceive('selectFromWriteConnection')->once()->with('definition sql')->andReturn([(object) ['sql' => 'create table app_users (id integer)']]);
+        $connection->allows('getTablePrefix')->returns('app_');
+        $grammar->expects('compileViews')->with('main')->returns('views sql');
+        $grammar->expects('compileColumns')->with('main', 'app_users')->returns('columns sql');
+        $grammar->expects('compileIndexes')->with('main', 'app_users')->returns('indexes sql');
+        $grammar->expects('compileForeignKeys')->with('main', 'app_users')->returns('foreign keys sql');
+        $grammar->expects('compileSqlCreateStatement')->with('main', 'app_users')->returns('definition sql');
+        $connection->expects('scalar')->never();
+        $connection->expects('selectFromWriteConnection')->with('definition sql')->returns([(object) ['sql' => 'create table app_users (id integer)']]);
 
         foreach (['views', 'columns', 'indexes', 'foreign keys'] as $kind) {
-            $connection->shouldReceive('selectFromWriteConnection')->once()->with($kind . ' sql')->andReturn([(object) ['name' => $kind]]);
+            $connection->expects('selectFromWriteConnection')->with($kind . ' sql')->returns([(object) ['name' => $kind]]);
         }
 
-        $processor->shouldReceive('processViews')->once()->with([(object) ['name' => 'views']])->andReturn([['name' => 'active_users']]);
-        $processor->shouldReceive('processColumns')->once()->with([(object) ['name' => 'columns']], 'create table app_users (id integer)')->andReturn([['name' => 'id']]);
-        $processor->shouldReceive('processIndexesForSchemaState')->once()->with([(object) ['name' => 'indexes']])->andReturn([['name' => 'primary']]);
-        $processor->shouldReceive('processForeignKeysForSchemaState')->once()->with([(object) ['name' => 'foreign keys']])->andReturn([['implicit' => true]]);
+        $processor->expects('processViews')->with([(object) ['name' => 'views']])->returns([['name' => 'active_users']]);
+        $processor->expects('processColumns')->with([(object) ['name' => 'columns']], 'create table app_users (id integer)')->returns([['name' => 'id']]);
+        $processor->expects('processIndexesForSchemaState')->with([(object) ['name' => 'indexes']])->returns([['name' => 'primary']]);
+        $processor->expects('processForeignKeysForSchemaState')->with([(object) ['name' => 'foreign keys']])->returns([['implicit' => true]]);
 
         $this->assertSame([['name' => 'active_users']], $builder->getViews('main'));
         $this->assertSame(['columns' => [['name' => 'id']], 'sql' => 'create table app_users (id integer)'], $builder->getColumnsForSchemaState('main.users'));
@@ -72,13 +75,13 @@ class DatabaseSQLiteSchemaMetadataTest extends TestCase
     public function testStoredDefinitionRetainsScalarResultHandling(array $rows, string $sql): void
     {
         [$builder, $connection, $grammar, $processor] = $this->builder();
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
-        $grammar->shouldReceive('compileColumns')->once()->with('main', 'users')->andReturn('columns sql');
-        $grammar->shouldReceive('compileSqlCreateStatement')->once()->with('main', 'users')->andReturn('definition sql');
-        $connection->shouldReceive('selectFromWriteConnection')->once()->with('columns sql')->andReturn([]);
-        $connection->shouldReceive('selectFromWriteConnection')->once()->with('definition sql')->andReturn($rows);
-        $connection->shouldNotReceive('scalar');
-        $processor->shouldReceive('processColumns')->once()->with([], $sql)->andReturn([]);
+        $connection->allows('getTablePrefix')->returns('');
+        $grammar->expects('compileColumns')->with('main', 'users')->returns('columns sql');
+        $grammar->expects('compileSqlCreateStatement')->with('main', 'users')->returns('definition sql');
+        $connection->expects('selectFromWriteConnection')->with('columns sql')->returns([]);
+        $connection->expects('selectFromWriteConnection')->with('definition sql')->returns($rows);
+        $connection->expects('scalar')->never();
+        $processor->expects('processColumns')->with([], $sql)->returns([]);
 
         $this->assertSame(['columns' => [], 'sql' => $sql], $builder->getColumnsForSchemaState('main.users'));
         $this->assertSame(['columns sql', 'definition sql'], $builder->metadataQueries);
@@ -96,13 +99,13 @@ class DatabaseSQLiteSchemaMetadataTest extends TestCase
     public function testStoredDefinitionRejectsMultipleColumns(): void
     {
         [$builder, $connection, $grammar, $processor] = $this->builder();
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
-        $grammar->shouldReceive('compileColumns')->once()->with('main', 'users')->andReturn('columns sql');
-        $grammar->shouldReceive('compileSqlCreateStatement')->once()->with('main', 'users')->andReturn('definition sql');
-        $connection->shouldReceive('selectFromWriteConnection')->once()->with('columns sql')->andReturn([]);
-        $connection->shouldReceive('selectFromWriteConnection')->once()->with('definition sql')->andReturn([(object) ['sql' => 'create table users (id integer)', 'extra' => 1]]);
-        $connection->shouldNotReceive('scalar');
-        $processor->shouldNotReceive('processColumns');
+        $connection->allows('getTablePrefix')->returns('');
+        $grammar->expects('compileColumns')->with('main', 'users')->returns('columns sql');
+        $grammar->expects('compileSqlCreateStatement')->with('main', 'users')->returns('definition sql');
+        $connection->expects('selectFromWriteConnection')->with('columns sql')->returns([]);
+        $connection->expects('selectFromWriteConnection')->with('definition sql')->returns([(object) ['sql' => 'create table users (id integer)', 'extra' => 1]]);
+        $connection->expects('scalar')->never();
+        $processor->expects('processColumns')->never();
 
         $this->expectException(MultipleColumnsSelectedException::class);
 
@@ -111,11 +114,11 @@ class DatabaseSQLiteSchemaMetadataTest extends TestCase
 
     protected function builder(): array
     {
-        $connection = m::mock(Connection::class);
-        $grammar = m::mock(SQLiteGrammar::class);
-        $processor = m::mock(SQLiteProcessor::class);
-        $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
-        $connection->shouldReceive('getPostProcessor')->andReturn($processor);
+        $connection = Double::for(Connection::class);
+        $grammar = Double::for(SQLiteGrammar::class);
+        $processor = Double::for(SQLiteProcessor::class);
+        $connection->allows('getSchemaGrammar')->returns($grammar);
+        $connection->allows('getPostProcessor')->returns($processor);
 
         return [new SQLiteMetadataRecordingBuilder($connection), $connection, $grammar, $processor];
     }

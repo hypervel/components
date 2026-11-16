@@ -12,19 +12,23 @@ use Hypervel\Database\Console\MonitorCommand;
 use Hypervel\Database\Events\DatabaseBusy;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
 class DatabaseMonitorCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testMonitorCommandFailsWhenDatabaseDefaultIsMissing(): void
     {
         $this->app->instance('config', new Repository(['database' => []]));
 
-        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class);
 
-        $command = new MonitorCommand($resolver, m::mock(Dispatcher::class));
+        $command = new MonitorCommand($resolver, Double::for(Dispatcher::class));
         $command->setHypervel($this->app);
 
         $this->expectException(InvalidArgumentException::class);
@@ -35,13 +39,13 @@ class DatabaseMonitorCommandTest extends TestCase
 
     public function testMonitorCommandPreservesConnectionNameZero(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('threadCount')->once()->andReturn(1);
+        $connection = Double::for(Connection::class);
+        $connection->expects('threadCount')->returns(1);
 
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->once()->with('0')->andReturn($connection);
+        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver->expects('connection')->with('0')->returns($connection);
 
-        $command = new MonitorCommand($resolver, m::mock(Dispatcher::class));
+        $command = new MonitorCommand($resolver, Double::for(Dispatcher::class));
         $command->setHypervel($this->app);
 
         $this->assertSame(0, $command->run(new ArrayInput(['--databases' => '0']), new NullOutput));
@@ -49,13 +53,13 @@ class DatabaseMonitorCommandTest extends TestCase
 
     public function testBusyEventIsNotDispatchedWithoutListeners(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('threadCount')->once()->andReturn(2);
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->once()->with('primary')->andReturn($connection);
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(DatabaseBusy::class)->andReturnFalse();
-        $events->shouldReceive('dispatch')->never();
+        $connection = Double::for(Connection::class);
+        $connection->expects('threadCount')->returns(2);
+        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver->expects('connection')->with('primary')->returns($connection);
+        $events = Double::for(Dispatcher::class);
+        $events->expects('hasListeners')->with(DatabaseBusy::class)->returns(false);
+        $events->expects('dispatch')->never();
         $command = new MonitorCommand($resolver, $events);
         $command->setHypervel($this->app);
 
@@ -67,13 +71,13 @@ class DatabaseMonitorCommandTest extends TestCase
 
     public function testBusyEventIsDispatchedWithAListener(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('threadCount')->once()->andReturn(2);
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->once()->with('primary')->andReturn($connection);
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(DatabaseBusy::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->once()->with(m::on(
+        $connection = Double::for(Connection::class);
+        $connection->expects('threadCount')->returns(2);
+        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver->expects('connection')->with('primary')->returns($connection);
+        $events = Double::for(Dispatcher::class);
+        $events->expects('hasListeners')->with(DatabaseBusy::class)->returns(true);
+        $events->expects('dispatch')->with(Argument::satisfies(
             static fn (DatabaseBusy $event): bool => $event->connectionName === 'primary'
                 && $event->connections === 2
         ));

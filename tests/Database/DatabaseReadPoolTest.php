@@ -9,12 +9,15 @@ use Hypervel\Database\Connectors\ConnectorInterface;
 use Hypervel\Database\Pool\DatabasePool;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseReadPoolTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testReadRecordsAreSelectedForEachPhysicalCreationAndReconnect(): void
     {
         config(['database.connections.read_pool' => [
@@ -26,8 +29,8 @@ class DatabaseReadPoolTest extends TestCase
         $factory = new ReadPoolConnectionFactory($this->app);
         $this->app->instance('db.factory', $factory);
         $hosts = [];
-        $connector = m::mock(ConnectorInterface::class);
-        $connector->expects('connect')->times(3)->andReturnUsing(static function (array $config) use (&$hosts): PDO {
+        $connector = Double::for(ConnectorInterface::class);
+        $connector->expects('connect')->times(3)->resolves(static function (array $config) use (&$hosts): PDO {
             $hosts[] = $config['host'];
 
             return new PDO('sqlite::memory:');

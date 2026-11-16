@@ -9,11 +9,14 @@ use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Foundation\Testing\DatabaseTransactionsManager;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 
 class DatabaseTransactionsManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testItExecutesCallbacksImmediatelyIfThereIsOnlyOneTransaction(): void
     {
         $testObject = new TestingDatabaseTransactionsManagerTestObject;
@@ -141,10 +144,10 @@ class DatabaseTransactionsManagerTest extends TestCase
     public function testRoleWrappersExcludeOnlyTheirResolvedOwnersTransaction(): void
     {
         $manager = new DatabaseTransactionsManager(['foo::write']);
-        $database = m::mock(DatabaseManager::class);
+        $database = Double::for(DatabaseManager::class);
         $writer = new SQLiteConnection(new PDO('sqlite::memory:'), config: ['name' => 'foo']);
         $writer->setReadWriteType('write');
-        $database->shouldReceive('connection')->once()->with('foo::write')->andReturn($writer);
+        $database->expects('connection')->with('foo::write')->returns($writer);
         $manager->beginTransactions($database);
 
         $this->assertFalse($writer->hasApplicableTransaction());
@@ -175,11 +178,11 @@ class DatabaseTransactionsManagerTest extends TestCase
      */
     protected function beginWrappingTransactions(DatabaseTransactionsManager $manager, array $names = [null]): void
     {
-        $database = m::mock(DatabaseManager::class);
+        $database = Double::for(DatabaseManager::class);
 
         foreach ($names as $name) {
             $connection = new SQLiteConnection(new PDO('sqlite::memory:'), config: ['name' => $name ?? 'foo']);
-            $database->shouldReceive('connection')->once()->with($name)->andReturn($connection);
+            $database->expects('connection')->with($name)->returns($connection);
         }
 
         $manager->beginTransactions($database);

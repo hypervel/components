@@ -9,8 +9,10 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
-use Mockery as m;
 use ReflectionProperty;
 use RuntimeException;
 use Throwable;
@@ -19,6 +21,8 @@ use function Hypervel\Coroutine\go;
 
 class ModelBootTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -141,15 +145,13 @@ class ModelBootTest extends TestCase
     public function testBootedEventFailureLeavesTheModelPublishedAndClearsOwnership(): void
     {
         $failure = new RuntimeException('booted event failure');
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with('eloquent.booting: ' . PostPublicationFailureModel::class, m::type(PostPublicationFailureModel::class))
-            ->andReturnNull();
-        $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with('eloquent.booted: ' . PostPublicationFailureModel::class, m::type(PostPublicationFailureModel::class))
-            ->andThrow($failure);
+        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher->expects('dispatch')
+            ->with('eloquent.booting: ' . PostPublicationFailureModel::class, Argument::type(PostPublicationFailureModel::class))
+            ->returns(null);
+        $dispatcher->expects('dispatch')
+            ->with('eloquent.booted: ' . PostPublicationFailureModel::class, Argument::type(PostPublicationFailureModel::class))
+            ->throws($failure);
         Model::setEventDispatcher($dispatcher);
 
         try {

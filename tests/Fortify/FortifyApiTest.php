@@ -47,7 +47,8 @@ use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Support\Facades\Password;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use ReflectionProperty;
@@ -55,6 +56,8 @@ use Workbench\App\Models\User;
 
 class FortifyApiTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('controllersWithoutRequiredConstructorsProvider')]
     public function testControllersHaveNoRequiredConstructor(string $controller): void
     {
@@ -196,7 +199,7 @@ class FortifyApiTest extends TestCase
 
         $action = new FortifyApiConfirmPassword;
 
-        $this->assertTrue($action(m::mock(StatefulGuard::class), new User, 'secret'));
+        $this->assertTrue($action(Double::for(StatefulGuard::class), new User, 'secret'));
         $this->assertTrue($action->customCallbackInvoked);
     }
 

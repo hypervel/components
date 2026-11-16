@@ -63,4 +63,11 @@ interface ViewFinderInterface
      * Get the active view paths.
      */
     public function getPaths(): array;
+
+    /**
+     * Get the namespace to file path hints.
+     *
+     * Hypervel pairs namespace registration with discovery on the contract.
+     */
+    public function getHints(): array;
 }

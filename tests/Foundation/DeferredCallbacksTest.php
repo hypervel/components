@@ -14,12 +14,15 @@ use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Swoole\Coroutine\CanceledException;
 
 class DeferredCallbacksTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Set up the test environment.
      */
@@ -111,8 +114,8 @@ class DeferredCallbacksTest extends TestCase
 
         $this->assertSame([], DeferredCallbacksTestState::$calls);
 
-        $job = m::mock(Job::class);
-        $job->shouldReceive('hasFailed')->andReturnFalse();
+        $job = Double::for(Job::class);
+        $job->allows('hasFailed')->returns(false);
 
         $this->app->make(Dispatcher::class)->dispatch(
             new JobAttempted('database', $job, null)
@@ -132,7 +135,7 @@ class DeferredCallbacksTest extends TestCase
         })->always();
 
         $this->app->make(Dispatcher::class)->dispatch(
-            new JobAttempted('database', m::mock(Job::class), new CanceledException, canceled: true)
+            new JobAttempted('database', Double::for(Job::class), new CanceledException, canceled: true)
         );
 
         $this->assertSame([], DeferredCallbacksTestState::$calls);
@@ -140,8 +143,8 @@ class DeferredCallbacksTest extends TestCase
 
     public function testJobWithoutDeferredCallbacksDoesNotResolveTheCollection(): void
     {
-        $job = m::mock(Job::class);
-        $job->shouldNotReceive('hasFailed');
+        $job = Double::for(Job::class);
+        $job->expects('hasFailed')->never();
 
         $this->app->make(Dispatcher::class)->dispatch(
             new JobAttempted('database', $job, null)
@@ -157,8 +160,8 @@ class DeferredCallbacksTest extends TestCase
             DeferredCallbacksTestState::record('job');
         });
 
-        $job = m::mock(Job::class);
-        $job->shouldReceive('hasFailed')->andReturnFalse();
+        $job = Double::for(Job::class);
+        $job->allows('hasFailed')->returns(false);
 
         $this->app->make(Dispatcher::class)->dispatch(
             new JobAttempted($connection, $job, null)
@@ -190,8 +193,8 @@ class DeferredCallbacksTest extends TestCase
             DeferredCallbacksTestState::record('always');
         }, always: true);
 
-        $failedJob = m::mock(Job::class);
-        $failedJob->shouldReceive('hasFailed')->andReturnTrue();
+        $failedJob = Double::for(Job::class);
+        $failedJob->allows('hasFailed')->returns(true);
 
         $this->app->make(Dispatcher::class)->dispatch(
             new JobAttempted('database', $failedJob, null)
@@ -205,8 +208,8 @@ class DeferredCallbacksTest extends TestCase
             DeferredCallbacksTestState::record('sync');
         });
 
-        $syncJob = m::mock(Job::class);
-        $syncJob->shouldReceive('hasFailed')->never();
+        $syncJob = Double::for(Job::class);
+        $syncJob->expects('hasFailed')->never();
 
         $this->app->make(Dispatcher::class)->dispatch(
             new JobAttempted('sync', $syncJob, null)

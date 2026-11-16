@@ -13,13 +13,15 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class InteractsWithParallelDatabaseTest extends TestCase
 {
     use InteractsWithParallelDatabase;
+    use VerifiesDoubles;
 
     public function testParallelTestDatabaseAppendsTokenToName(): void
     {
@@ -390,25 +392,23 @@ class InteractsWithParallelDatabaseTest extends TestCase
             [],
             new PDOException('Database does not exist.')
         );
-        $schemaBuilder = m::mock(SchemaBuilder::class);
-        $schemaBuilder->shouldReceive('hasTable')
-            ->once()
+        $schemaBuilder = Double::for(SchemaBuilder::class);
+        $schemaBuilder->expects('hasTable')
             ->with('__parallel_check')
-            ->andThrow($queryException);
-        $schemaBuilder->shouldReceive('createDatabase')
-            ->once()
+            ->throws($queryException);
+        $schemaBuilder->expects('createDatabase')
             ->with('analytics_test_data_test_7')
-            ->andReturn(true);
-        $databaseConnection = m::mock(Connection::class);
-        $databaseConnection->shouldReceive('getSchemaBuilder')
-            ->twice()
-            ->andReturn($schemaBuilder);
+            ->returns(true);
+        $databaseConnection = Double::for(Connection::class);
+        $databaseConnection->expects('getSchemaBuilder')
+            ->times(2)
+            ->returns($schemaBuilder);
         $connectionCalls = 0;
-        $databaseManager = m::mock(DatabaseManager::class);
-        $databaseManager->shouldReceive('connection')
-            ->twice()
+        $databaseManager = Double::for(DatabaseManager::class);
+        $databaseManager->expects('connection')
+            ->times(2)
             ->with($connection)
-            ->andReturnUsing(function () use (
+            ->resolves(function () use (
                 &$connectionCalls,
                 $config,
                 $configurationPath,
@@ -425,7 +425,7 @@ class InteractsWithParallelDatabaseTest extends TestCase
 
                 return $databaseConnection;
             });
-        $databaseManager->shouldReceive('purge')->twice()->with($connection);
+        $databaseManager->expects('purge')->times(2)->with($connection);
         $this->app->instance('db', $databaseManager);
         DB::clearResolvedInstance();
 

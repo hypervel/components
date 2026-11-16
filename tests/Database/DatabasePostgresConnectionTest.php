@@ -7,8 +7,8 @@ namespace Hypervel\Tests\Database;
 use DateTimeImmutable;
 use Hypervel\Database\PostgresConnection;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 use PDOStatement;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -16,6 +16,8 @@ use RuntimeException;
 
 class DatabasePostgresConnectionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBooleanBindingsAreStringifiedWhenUsingEmulatedPrepares(): void
     {
         $connection = $this->newConnection(emulatePrepares: true);
@@ -99,12 +101,12 @@ class DatabasePostgresConnectionTest extends TestCase
         $readPdo = $this->commitIdReadPdo('19.0');
         $readPdo->expects('prepare')
             ->with("wait for lsn '0/16B3748' with (timeout '5s', no_throw)")
-            ->andReturn($this->commitIdStatement($status));
+            ->returns($this->commitIdStatement($status));
 
         if ($immediateResult !== null) {
             $readPdo->expects('prepare')
                 ->with('select case when pg_is_in_recovery() then pg_last_wal_replay_lsn() else pg_current_wal_insert_lsn() end >= ?::pg_lsn')
-                ->andReturn($this->commitIdStatement($immediateResult));
+                ->returns($this->commitIdStatement($immediateResult));
         }
 
         $this->assertSame($expected, $this->newCommitIdConnection($readPdo)->hasCommitId('0/16B3748', 5));
@@ -127,7 +129,7 @@ class DatabasePostgresConnectionTest extends TestCase
     public function testWaitingForACommitIdRequiresPostgres19OnTheReadConnection(): void
     {
         $readPdo = $this->commitIdReadPdo('18.4');
-        $readPdo->shouldNotReceive('prepare');
+        $readPdo->expects('prepare')->never();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('PostgreSQL 19 or newer is required.');
@@ -138,11 +140,11 @@ class DatabasePostgresConnectionTest extends TestCase
     /**
      * Create a read PDO reporting the given server version.
      */
-    protected function commitIdReadPdo(string $version): PDO&MockInterface
+    protected function commitIdReadPdo(string $version): PDO
     {
-        $pdo = m::mock(PDO::class);
-        $pdo->shouldReceive('getAttribute')->with(PDO::ATTR_SERVER_VERSION)->andReturn($version);
-        $pdo->shouldReceive('quote')->andReturnUsing(fn (string $value): string => "'{$value}'");
+        $pdo = Double::for(PDO::class);
+        $pdo->allows('getAttribute')->with(PDO::ATTR_SERVER_VERSION)->returns($version);
+        $pdo->allows('quote')->resolves(fn (string $value): string => "'{$value}'");
 
         return $pdo;
     }
@@ -152,11 +154,11 @@ class DatabasePostgresConnectionTest extends TestCase
      */
     protected function commitIdStatement(bool|string $value): PDOStatement
     {
-        $statement = m::mock(PDOStatement::class);
-        $statement->shouldReceive('setFetchMode')->andReturnTrue();
-        $statement->shouldReceive('bindValue')->andReturnTrue();
-        $statement->expects('execute')->andReturnTrue();
-        $statement->expects('fetchAll')->andReturn([(object) ['result' => $value]]);
+        $statement = Double::for(PDOStatement::class);
+        $statement->allows('setFetchMode')->returns(true);
+        $statement->allows('bindValue')->returns(true);
+        $statement->expects('execute')->returns(true);
+        $statement->expects('fetchAll')->returns([(object) ['result' => $value]]);
 
         return $statement;
     }

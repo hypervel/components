@@ -488,9 +488,11 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
 
         // GetTaggedKeys uses hlen to check size
         // When small (< threshold), it uses hkeys directly instead of scan
-        $connection->client()->allows('hlen')
+        $connection->client()->expects('hlen')
+            ->with('prefix:_any:tag:users:entries')
             ->returns(2);
         $connection->client()->expects('hkeys')
+            ->with('prefix:_any:tag:users:entries')
             ->returns(['key1', 'key2']);
 
         $connection->expects('evalWithShaCache')
@@ -510,9 +512,11 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->client()->allows('hlen')
+        $connection->client()->expects('hlen')
+            ->with('prefix:_any:tag:users:entries')
             ->returns(2);
         $connection->client()->expects('hkeys')
+            ->with('prefix:_any:tag:users:entries')
             ->returns(['key1', 'key2']);
         $connection->expects('evalWithShaCache')
             ->with(Argument::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key2:_any:tags', 'prefix:key1', 'prefix:key2'], [2, 'key1', 'key2'])
@@ -1269,11 +1273,13 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         // GetTaggedKeys uses hlen to check size first
-        $connection->client()->allows('hlen')
+        $connection->client()->expects('hlen')
+            ->with('prefix:_any:tag:users:entries')
             ->returns(2);
 
         // When small (< threshold), it uses hkeys directly
         $connection->client()->expects('hkeys')
+            ->with('prefix:_any:tag:users:entries')
             ->returns(['key1', 'key2']);
 
         // Get values for found keys (mget receives array)

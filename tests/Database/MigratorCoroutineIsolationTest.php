@@ -13,7 +13,8 @@ use Hypervel\Database\Migrations\DatabaseMigrationRepository;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -23,6 +24,8 @@ use function Hypervel\Coroutine\run;
 
 class MigratorCoroutineIsolationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected bool $runTestsInCoroutine = false;
 
     public function testConcurrentRunsKeepConnectionsOutputAndRestorationIsolated(): void
@@ -160,7 +163,7 @@ class MigratorCoroutineIsolationTest extends TestCase
     public function testReplacementMigratorDoesNotInheritReleasedInstanceState(): void
     {
         run(function (): void {
-            $resolver = m::mock(ConnectionResolverInterface::class);
+            $resolver = Double::for(ConnectionResolverInterface::class);
             $repository = new DatabaseMigrationRepository($resolver, 'migrations');
             $files = new Filesystem;
             $output = new BufferedOutput;
@@ -182,9 +185,9 @@ class MigratorCoroutineIsolationTest extends TestCase
     public function testReplacementRepositoryDoesNotInheritReleasedInstanceConnection(): void
     {
         run(function (): void {
-            $connection = m::mock(Connection::class);
-            $resolver = m::mock(ConnectionResolverInterface::class);
-            $resolver->expects('connection')->with(null)->andReturn($connection);
+            $connection = Double::for(Connection::class);
+            $resolver = Double::for(ConnectionResolverInterface::class);
+            $resolver->expects('connection')->with(null)->returns($connection);
             $repository = new DatabaseMigrationRepository($resolver, 'migrations');
             $repository->setSource('previous');
             unset($repository);
@@ -202,10 +205,10 @@ class MigratorCoroutineIsolationTest extends TestCase
      */
     private function migrator(): array
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->allows('connection')->andReturnUsing(static function (?string $name): Connection {
-            $connection = m::mock(Connection::class);
-            $connection->allows('getName')->andReturn($name ?? 'default');
+        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver->allows('connection')->resolves(static function (?string $name): Connection {
+            $connection = Double::for(Connection::class);
+            $connection->allows('getName')->returns($name ?? 'default');
 
             return $connection;
         });

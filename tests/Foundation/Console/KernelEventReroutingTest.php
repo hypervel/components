@@ -11,7 +11,8 @@ use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Foundation\Console\Kernel;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ReflectionProperty;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\ConsoleEvents;
@@ -23,6 +24,8 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 
 class KernelEventReroutingTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRerouteSymfonyCommandEventsWiresDispatcherToExistingArtisan(): void
     {
         $kernel = $this->app->make(KernelContract::class);
@@ -81,10 +84,10 @@ class KernelEventReroutingTest extends TestCase
 
     public function testReroutedEventsAreNotDispatchedWithoutListeners(): void
     {
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(CommandStarting::class)->andReturnFalse();
-        $events->shouldReceive('hasListeners')->once()->with(CommandFinished::class)->andReturnFalse();
-        $events->shouldNotReceive('dispatch');
+        $events = Double::for(Dispatcher::class);
+        $events->expects('hasListeners')->with(CommandStarting::class)->returns(false);
+        $events->expects('hasListeners')->with(CommandFinished::class)->returns(false);
+        $events->expects('dispatch')->never();
 
         $kernel = new Kernel($this->app, $events);
         $kernel->rerouteSymfonyCommandEvents();

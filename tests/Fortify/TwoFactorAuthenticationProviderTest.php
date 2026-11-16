@@ -11,12 +11,15 @@ use Hypervel\Fortify\Features;
 use Hypervel\Fortify\TwoFactorAuthenticationProvider;
 use Hypervel\Tests\Fortify\Fixtures\FixedClock;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use OTPHP\TOTP;
 use OTPHP\TOTPInterface;
 
 class TwoFactorAuthenticationProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private const int TIMESTAMP = 1234567890;
 
     private const string SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
@@ -127,12 +130,12 @@ class TwoFactorAuthenticationProviderTest extends TestCase
         $secondKey = 'fortify.2fa_codes.' . hash('xxh128', $secondSecret . '|' . $code);
         $timecode = intdiv(self::TIMESTAMP, TOTPInterface::DEFAULT_PERIOD);
         $ttl = 90;
-        $cache = m::mock(CacheRepositoryContract::class);
+        $cache = Double::for(CacheRepositoryContract::class);
 
         $this->assertSame($code, $this->codeAt($secondSecret, self::TIMESTAMP));
         $this->assertNotSame($firstKey, $secondKey);
-        $cache->shouldReceive('add')->once()->with($firstKey, $timecode, $ttl)->andReturnTrue();
-        $cache->shouldReceive('add')->once()->with($secondKey, $timecode, $ttl)->andReturnTrue();
+        $cache->expects('add')->with($firstKey, $timecode, $ttl)->returns(true);
+        $cache->expects('add')->with($secondKey, $timecode, $ttl)->returns(true);
 
         $provider = $this->provider(cache: $cache);
 
@@ -166,11 +169,11 @@ class TwoFactorAuthenticationProviderTest extends TestCase
         foreach ([0 => 30, 1 => 90, 2 => 150] as $window => $ttl) {
             Features::twoFactorAuthentication(['window' => $window]);
 
-            $cache = m::mock(CacheRepositoryContract::class);
+            $cache = Double::for(CacheRepositoryContract::class);
             $key = 'fortify.2fa_codes.' . hash('xxh128', self::SECRET . '|' . $this->codeAt(self::SECRET, self::TIMESTAMP));
             $timecode = intdiv(self::TIMESTAMP, TOTPInterface::DEFAULT_PERIOD);
 
-            $cache->shouldReceive('add')->once()->with($key, $timecode, $ttl)->andReturnTrue();
+            $cache->expects('add')->with($key, $timecode, $ttl)->returns(true);
 
             $this->assertTrue($this->provider(cache: $cache)->verify(self::SECRET, $this->codeAt(self::SECRET, self::TIMESTAMP)));
         }

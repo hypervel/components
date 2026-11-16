@@ -9,7 +9,6 @@ use Hypervel\Foundation\Exceptions\Renderer\Frame;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Di\Fixtures\ProxySources;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\ErrorHandler\Exception\FlattenException;
 
@@ -137,7 +136,7 @@ class FrameTest extends TestCase
         (new Filesystem)->put($proxyFile, '<?php');
 
         ProxySources::with([$proxyFile => __FILE__], function () use ($proxyFile): void {
-            $frame = new Frame(m::mock(FlattenException::class), [], ['file' => $proxyFile, 'line' => 10], $this->directory);
+            $frame = new Frame(new FlattenException, [], ['file' => $proxyFile, 'line' => 10], $this->directory);
 
             $this->assertTrue($frame->isFromVendor());
             $this->assertSame(basename($proxyFile), $frame->file());

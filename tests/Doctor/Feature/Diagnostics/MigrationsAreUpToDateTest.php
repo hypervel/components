@@ -16,13 +16,16 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\File;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Doctor\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
 class MigrationsAreUpToDateTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Configure separate application and migration connections.
      */
@@ -150,20 +153,20 @@ class MigrationsAreUpToDateTest extends TestCase
     #[DataProvider('migrationFailures')]
     public function testReportsWhenPendingMigrationsCannotBeApplied(?string $exceptionClass): void
     {
-        $kernel = m::mock(Kernel::class);
+        $kernel = Double::for(Kernel::class);
         Artisan::swap($kernel);
-        $command = $kernel->shouldReceive('call')->once()->with('migrate', ['--no-interaction' => true]);
+        $command = $kernel->expects('call')->with('migrate', ['--no-interaction' => true]);
 
         if ($exceptionClass !== null) {
             $exception = new $exceptionClass('Database connection refused.');
-            $command->andThrow($exception);
+            $command->throws($exception);
 
             if ($exception instanceof CanceledException) {
                 $this->expectExceptionObject($exception);
             }
         } else {
-            $command->andReturn(1);
-            $kernel->shouldReceive('output')->once()->andReturn('Database connection refused.');
+            $command->returns(1);
+            $kernel->expects('output')->returns('Database connection refused.');
         }
 
         $fix = (new MigrationsAreUpToDate)->fix(DiagnosticResult::fail('pending'));

@@ -18,7 +18,8 @@ use Hypervel\Pagination\Cursor;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -26,6 +27,8 @@ use RuntimeException;
 
 class DatabaseQueryBuilderPaginationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('keysetIterators')]
     public function testKeysetIterationVisitsEveryUnionRowOnce(string $method, bool $lazy, bool $descending): void
     {
@@ -342,7 +345,9 @@ class DatabaseQueryBuilderPaginationTest extends TestCase
         $model = new class extends Model {
             protected ?string $table = 'posts';
         };
-        $model::setConnectionResolver(m::mock(ConnectionResolverInterface::class, ['connection' => $connection]));
+        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver->allows('connection')->returns($connection);
+        $model::setConnectionResolver($resolver);
         $query = (new EloquentBuilder($connection->query()))->setModel($model)
             ->withGlobalScope('visible', static fn (EloquentBuilder $query): EloquentBuilder => $query->where('posts.id', '<', 3))
             ->select('id')->orderByDesc('id')->limit(2)
@@ -625,18 +630,18 @@ class DatabaseQueryBuilderPaginationTest extends TestCase
 
     public function testGroupedCountTransfersCallbackTimeoutAndRoutingToTheOuterStatement(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $connection = Double::for(Connection::class);
+        $connection->allows('getTablePrefix')->returns('');
         $query = new Builder($connection, new MySqlGrammar($connection), new Processor);
         $query->from('events')->groupBy('tenant_id')->beforeQuery(function (Builder $query): void {
             $query->timeout(5)->useWritePdo();
         });
-        $connection->shouldReceive('select')->once()->with(
+        $connection->expects('select')->with(
             'select /*+ MAX_EXECUTION_TIME(5000) */ count(*) as `aggregate` from (select * from `events` group by `tenant_id`) as `aggregate_table`',
             [],
             false,
             [],
-        )->andReturn([['aggregate' => 2]]);
+        )->returns([['aggregate' => 2]]);
 
         $this->assertSame(2, $query->getCountForPagination());
         $this->assertNull($query->timeout);
@@ -646,8 +651,8 @@ class DatabaseQueryBuilderPaginationTest extends TestCase
 
     public function testCallbackFailurePreservesIdentityAndRestoresTheOriginalFetchMode(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $connection = Double::for(Connection::class);
+        $connection->allows('getTablePrefix')->returns('');
         $query = new Builder($connection, new Grammar($connection), new Processor);
         $exception = new RuntimeException('Cannot prepare the query.');
         $query->from('events')->select('tenant_id')->fetchUsing(PDO::FETCH_COLUMN)
@@ -665,21 +670,21 @@ class DatabaseQueryBuilderPaginationTest extends TestCase
         $this->assertCount(1, $query->beforeQueryCallbacks);
         $this->assertSame([PDO::FETCH_COLUMN], $query->fetchUsing);
         $query->beforeQueryCallbacks = [];
-        $connection->shouldReceive('select')->once()->with(
+        $connection->expects('select')->with(
             'select "tenant_id" from "events"',
             [],
             true,
             [PDO::FETCH_COLUMN],
-        )->andReturn([1, 2]);
+        )->returns([1, 2]);
         $this->assertSame([1, 2], $query->get()->all());
     }
 
     #[DataProvider('tablePrefixes')]
     public function testRetainedInnerBindingsBelongToTheDerivedTable(string $prefix): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getTablePrefix')->andReturn($prefix);
-        $processor = m::mock(Processor::class);
+        $connection = Double::for(Connection::class);
+        $connection->allows('getTablePrefix')->returns($prefix);
+        $processor = Double::for(Processor::class);
         $query = new PaginationWithOrderingBuilder($connection, new Grammar($connection), $processor);
         $query->from('events')->selectRaw('tenant_id + ? as bucket', [11])
             ->where('tenant_id', '>', 12)->groupBy('tenant_id')
@@ -691,13 +696,13 @@ class DatabaseQueryBuilderPaginationTest extends TestCase
         $originalBindings = $query->getRawBindings();
         $originalOrders = $query->orders;
 
-        $connection->shouldReceive('select')->once()->with(
+        $connection->expects('select')->with(
             'select count(*) as "aggregate" from (select tenant_id + ? as bucket from "' . $prefix . 'events" where "tenant_id" > ? and "active" = ? group by "tenant_id" having count(*) > ? order by tenant_id + ?) as "aggregate_table"',
             [11, 12, 15, 13, 14],
             false,
             [],
-        )->andReturn([['aggregate' => 3]]);
-        $processor->shouldReceive('processSelect')->once()->andReturnUsing(function (Builder $countQuery, array $results): array {
+        )->returns([['aggregate' => 3]]);
+        $processor->expects('processSelect')->resolves(function (Builder $countQuery, array $results): array {
             $this->assertSame([11, 12, 15, 13, 14], $countQuery->getRawBindings()['from']);
             $this->assertSame([], $countQuery->getRawBindings()['select']);
             $this->assertSame([], $countQuery->getRawBindings()['where']);

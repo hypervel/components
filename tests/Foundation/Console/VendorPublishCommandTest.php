@@ -13,7 +13,8 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
@@ -21,6 +22,8 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 class VendorPublishCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Filesystem $filesystem;
 
     protected string $sourceDir;
@@ -135,8 +138,8 @@ class VendorPublishCommandTest extends TestCase
         file_put_contents($source, '<?php return ["new"];');
         ServiceProvider::$publishes[TestPublishProvider::class] = [$source => $destination];
 
-        $files = m::mock(Filesystem::class)->makePartial();
-        $files->shouldReceive('exists')->once()->with($destination)->andReturnTrue();
+        $files = Double::for(new Filesystem)->passthru();
+        $files->expects('exists')->with($destination)->returns(true);
         $tester = $this->commandTester($files);
 
         $this->assertSame(0, $tester->execute(['--provider' => TestPublishProvider::class]));
@@ -541,8 +544,8 @@ class VendorPublishCommandTest extends TestCase
         file_put_contents($source, '<?php return [];');
         ServiceProvider::$publishes[TestPublishProvider::class] = [$source => $destination];
 
-        $files = m::mock(Filesystem::class)->makePartial();
-        $files->shouldReceive('copy')->once()->with($source, $destination)->andReturnFalse();
+        $files = Double::for(new Filesystem)->passthru();
+        $files->expects('copy')->with($source, $destination)->returns(false);
         $tester = $this->commandTester($files);
 
         try {

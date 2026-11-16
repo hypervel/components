@@ -217,9 +217,12 @@ class FlushTest extends RedisCacheTestCase
         $client->expects('hdel')->with('prefix:_any:tag:posts:entries', 'shared_key', 'post_key')->returns(2);
         $client->expects('hlen')->with('prefix:_any:tag:users:entries')->times(2)->returns(0);
         $client->expects('hlen')->with('prefix:_any:tag:posts:entries')->times(2)->returns(0);
-        $client->allows('del')->returns(1);
-        $client->allows('unlink')->returns(1);
-        $client->allows('zrem')->returns(1);
+        $client->expects('del')->with('prefix:user_key:_any:tags', 'prefix:shared_key:_any:tags')->returns(2);
+        $client->expects('del')->with('prefix:shared_key:_any:tags', 'prefix:post_key:_any:tags')->returns(1);
+        $client->expects('unlink')->with('prefix:user_key', 'prefix:shared_key')->returns(2);
+        $client->expects('unlink')->with('prefix:shared_key', 'prefix:post_key')->returns(1);
+        $client->expects('zrem')->with('prefix:_any:tag:registry', 'users')->returns(1);
+        $client->expects('zrem')->with('prefix:_any:tag:registry', 'posts')->returns(1);
 
         $operation = new Flush($store->getContext(), $getTaggedKeys, new RemoveEmptyTags($store->getContext()));
         $result = $operation->execute(['users', 'posts']);
@@ -231,10 +234,10 @@ class FlushTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         // Mock hlen/hkeys for GetTaggedKeys internal calls
-        $connection->client()->allows('hlen')
+        $connection->client()->expects('hlen')
             ->with('prefix:_any:tag:users:entries')
             ->returns(1);
-        $connection->client()->allows('hkeys')
+        $connection->client()->expects('hkeys')
             ->with('prefix:_any:tag:users:entries')
             ->returns(['mykey']);
 

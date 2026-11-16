@@ -7,11 +7,14 @@ namespace Hypervel\Tests\Encryption;
 use Hypervel\Container\Container;
 use Hypervel\Support\Facades\Crypt;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class CryptFacadeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -22,11 +25,10 @@ class CryptFacadeTest extends TestCase
 
     public function testDynamicCallsForwardTheirMethodArgumentsAndReturnValue(): void
     {
-        $root = m::mock();
-        $root->shouldReceive('probe')
-            ->once()
+        $root = Double::for(CryptFacadeRoot::class);
+        $root->expects('probe')
             ->with('value', 42)
-            ->andReturn('result');
+            ->returns('result');
 
         $app = new Container;
         $app->instance('encrypter', $root);
@@ -43,4 +45,12 @@ class CryptFacadeTest extends TestCase
 
         Crypt::probe();
     }
+}
+
+abstract class CryptFacadeRoot
+{
+    /**
+     * Expose a custom method for facade forwarding.
+     */
+    abstract public function probe(string $value, int $number): string;
 }

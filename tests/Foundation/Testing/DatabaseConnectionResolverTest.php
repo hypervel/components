@@ -15,8 +15,9 @@ use Hypervel\Foundation\Testing\DatabaseTransactionsManager as TestingTransactio
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use PDO;
 use ReflectionProperty;
 use RuntimeException;
@@ -24,6 +25,8 @@ use RuntimeException;
 #[WithConfig('database.default', 'testing')]
 class DatabaseConnectionResolverTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Use coroutine-owned SQLite sessions for restoration tests.
      */
@@ -132,8 +135,8 @@ class DatabaseConnectionResolverTest extends TestCase
     {
         $manager = $this->app->make('db');
         $connection = $manager->connection('testing::read');
-        $transactions = m::mock(DatabaseTransactionsManager::class);
-        $transactions->shouldReceive('rollback')->with('testing', 0)->once();
+        $transactions = Double::for(DatabaseTransactionsManager::class);
+        $transactions->expects('rollback')->with('testing', 0);
         $connection->setTransactionManager($transactions);
 
         $manager->purge('testing::read');
@@ -217,17 +220,17 @@ class DatabaseConnectionResolverTest extends TestCase
     {
         DatabaseConnectionResolver::flushCachedConnections();
 
-        $firstConnection = m::mock(Connection::class);
-        $firstConnection->shouldReceive('resetForPool')->once();
-        $firstConnection->shouldReceive('isReusable')->once()->andReturnFalse();
-        $secondConnection = m::mock(Connection::class);
-        $secondConnection->shouldReceive('resetForPool')->once();
-        $secondConnection->shouldReceive('isReusable')->once()->andReturnFalse();
+        $firstConnection = Double::for(Connection::class);
+        $firstConnection->expects('resetForPool');
+        $firstConnection->expects('isReusable')->returns(false);
+        $secondConnection = Double::for(Connection::class);
+        $secondConnection->expects('resetForPool');
+        $secondConnection->expects('isReusable')->returns(false);
         $failure = new RuntimeException('discard failed');
-        $firstPooledConnection = m::mock(PooledConnection::class);
-        $firstPooledConnection->shouldReceive('discard')->once()->andThrow($failure);
-        $secondPooledConnection = m::mock(PooledConnection::class);
-        $secondPooledConnection->shouldReceive('discard')->once();
+        $firstPooledConnection = Double::for(PooledConnection::class);
+        $firstPooledConnection->expects('discard')->throws($failure);
+        $secondPooledConnection = Double::for(PooledConnection::class);
+        $secondPooledConnection->expects('discard');
 
         (new ReflectionProperty(DatabaseConnectionResolver::class, 'connections'))->setValue([
             'first' => $firstConnection,

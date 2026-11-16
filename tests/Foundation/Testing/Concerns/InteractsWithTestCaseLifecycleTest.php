@@ -14,12 +14,15 @@ use Hypervel\Foundation\Testing\TestCase as FoundationTestCase;
 use Hypervel\Support\Facades\ParallelTesting;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting as ParallelTestingService;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ReflectionProperty;
 use RuntimeException;
 
 class InteractsWithTestCaseLifecycleTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testLazyDatabaseTraitIsBootedOnceThroughRefreshDatabaseDependency(): void
     {
         $testCase = new FoundationLazyDatabaseTraitsTestCaseFixture('testPlaceholder');
@@ -50,8 +53,8 @@ class InteractsWithTestCaseLifecycleTest extends TestCase
         $parallelTesting = $this->app->make(ParallelTestingService::class);
 
         try {
-            $pooledConnection = m::mock(PoolConnection::class);
-            $pooledConnection->shouldReceive('discard')->once()->andReturnUsing(
+            $pooledConnection = Double::for(PoolConnection::class);
+            $pooledConnection->expects('discard')->resolves(
                 function () use (&$steps, $databaseException): never {
                     $steps[] = 'database';
 
@@ -62,8 +65,8 @@ class InteractsWithTestCaseLifecycleTest extends TestCase
             (new ReflectionProperty(DatabaseConnectionResolver::class, 'pooledConnections'))
                 ->setValue(null, ['default' => $pooledConnection]);
 
-            $poolManager = m::mock(PoolManager::class);
-            $poolManager->shouldReceive('purgeAll')->once()->andReturnUsing(
+            $poolManager = Double::for(PoolManager::class);
+            $poolManager->expects('purgeAll')->resolves(
                 function () use (&$steps, $poolException): never {
                     $steps[] = 'pool';
 
@@ -71,10 +74,10 @@ class InteractsWithTestCaseLifecycleTest extends TestCase
                 }
             );
 
-            $app = m::mock(ApplicationContract::class);
-            $app->shouldReceive('resolved')->once()->with(PoolManager::class)->andReturnTrue();
-            $app->shouldReceive('make')->once()->with(PoolManager::class)->andReturn($poolManager);
-            $app->shouldReceive('flush')->once()->andReturnUsing(
+            $app = Double::for(ApplicationContract::class, override: true);
+            $app->expects('resolved')->with(PoolManager::class)->returns(true);
+            $app->expects('make')->with(PoolManager::class)->returns($poolManager);
+            $app->expects('flush')->resolves(
                 function () use (&$steps, $applicationException): never {
                     $steps[] = 'application';
 
@@ -82,8 +85,8 @@ class InteractsWithTestCaseLifecycleTest extends TestCase
                 }
             );
 
-            $parallelTestingMock = m::mock(ParallelTestingService::class);
-            $parallelTestingMock->shouldReceive('callTearDownTestCaseCallbacks')->once()->andReturnUsing(
+            $parallelTestingMock = Double::for(ParallelTestingService::class);
+            $parallelTestingMock->expects('callTearDownTestCaseCallbacks')->resolves(
                 function () use (&$steps, $parallelException): never {
                     $steps[] = 'parallel';
 
@@ -93,7 +96,7 @@ class InteractsWithTestCaseLifecycleTest extends TestCase
             ParallelTesting::swap($parallelTestingMock);
 
             $testCase = new FoundationLifecycleTestCaseFixture('testPlaceholder');
-            $testCase->useApplication($app);
+            $testCase->useApplication($app->instance());
             $testCase->registerAfterApplicationCreatedCallback(static function (): void {
             });
             $testCase->registerBeforeApplicationDestroyedCallback(

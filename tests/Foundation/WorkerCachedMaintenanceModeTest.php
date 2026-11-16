@@ -9,16 +9,19 @@ use Hypervel\Foundation\ArrayMaintenanceMode;
 use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class WorkerCachedMaintenanceModeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testActiveCallsDriverOnlyOnceAndCachesResult(): void
     {
-        $driver = m::mock(MaintenanceModeContract::class);
-        $driver->shouldReceive('active')->once()->andReturn(true);
-        $driver->shouldReceive('data')->once()->andReturn(['status' => 503]);
+        $driver = Double::for(MaintenanceModeContract::class);
+        $driver->expects('active')->returns(true);
+        $driver->expects('data')->returns(['status' => 503]);
 
         $cached = new WorkerCachedMaintenanceMode($driver);
 
@@ -29,9 +32,9 @@ class WorkerCachedMaintenanceModeTest extends TestCase
 
     public function testDataReturnsCachedPayloadWithoutRereadingDriver(): void
     {
-        $driver = m::mock(MaintenanceModeContract::class);
-        $driver->shouldReceive('active')->once()->andReturn(true);
-        $driver->shouldReceive('data')->once()->andReturn(['status' => 503, 'retry' => 60]);
+        $driver = Double::for(MaintenanceModeContract::class);
+        $driver->expects('active')->returns(true);
+        $driver->expects('data')->returns(['status' => 503, 'retry' => 60]);
 
         $cached = new WorkerCachedMaintenanceMode($driver);
 
@@ -41,9 +44,9 @@ class WorkerCachedMaintenanceModeTest extends TestCase
 
     public function testActiveAndDataAreLoadedAtomically(): void
     {
-        $driver = m::mock(MaintenanceModeContract::class);
-        $driver->shouldReceive('active')->once()->andReturn(true);
-        $driver->shouldReceive('data')->once()->andReturn(['status' => 503]);
+        $driver = Double::for(MaintenanceModeContract::class);
+        $driver->expects('active')->returns(true);
+        $driver->expects('data')->returns(['status' => 503]);
 
         $cached = new WorkerCachedMaintenanceMode($driver);
 
@@ -57,9 +60,9 @@ class WorkerCachedMaintenanceModeTest extends TestCase
     #[TestWith([true])]
     public function testEmptyPayloadRechecksActivityBeforeCachingTheSnapshot(bool $remainsActive): void
     {
-        $driver = m::mock(MaintenanceModeContract::class);
-        $driver->shouldReceive('active')->twice()->andReturn(true, $remainsActive);
-        $driver->shouldReceive('data')->once()->andReturn([]);
+        $driver = Double::for(MaintenanceModeContract::class);
+        $driver->expects('active')->times(2)->returns(true, $remainsActive);
+        $driver->expects('data')->returns([]);
 
         $cached = new WorkerCachedMaintenanceMode($driver);
 
@@ -73,9 +76,9 @@ class WorkerCachedMaintenanceModeTest extends TestCase
     {
         CarbonImmutable::setTestNow($now = CarbonImmutable::parse('2026-01-01 00:00:00'));
 
-        $driver = m::mock(MaintenanceModeContract::class);
-        $driver->shouldReceive('active')->once()->andReturn(false);
-        $driver->shouldNotReceive('data');
+        $driver = Double::for(MaintenanceModeContract::class);
+        $driver->expects('active')->returns(false);
+        $driver->expects('data')->never();
 
         $cached = new WorkerCachedMaintenanceMode($driver, refreshInterval: 5);
 
@@ -90,9 +93,9 @@ class WorkerCachedMaintenanceModeTest extends TestCase
     {
         CarbonImmutable::setTestNow($now = CarbonImmutable::parse('2026-01-01 00:00:00'));
 
-        $driver = m::mock(MaintenanceModeContract::class);
-        $driver->shouldReceive('active')->twice()->andReturn(false, true);
-        $driver->shouldReceive('data')->once()->andReturn(['status' => 503]);
+        $driver = Double::for(MaintenanceModeContract::class);
+        $driver->expects('active')->times(2)->returns(false, true);
+        $driver->expects('data')->returns(['status' => 503]);
 
         $cached = new WorkerCachedMaintenanceMode($driver, refreshInterval: 5);
 
@@ -107,9 +110,9 @@ class WorkerCachedMaintenanceModeTest extends TestCase
     {
         CarbonImmutable::setTestNow($now = CarbonImmutable::parse('2026-01-01 00:00:00'));
 
-        $driver = m::mock(MaintenanceModeContract::class);
-        $driver->shouldReceive('active')->twice()->andReturn(false, true);
-        $driver->shouldReceive('data')->once()->andReturn(['status' => 503]);
+        $driver = Double::for(MaintenanceModeContract::class);
+        $driver->expects('active')->times(2)->returns(false, true);
+        $driver->expects('data')->returns(['status' => 503]);
 
         $cached = new WorkerCachedMaintenanceMode($driver, refreshInterval: 5);
 
@@ -124,8 +127,8 @@ class WorkerCachedMaintenanceModeTest extends TestCase
     {
         CarbonImmutable::setTestNow($now = CarbonImmutable::parse('2026-01-01 00:00:00.900000'));
 
-        $driver = m::mock(MaintenanceModeContract::class);
-        $driver->shouldReceive('active')->once()->andReturn(false);
+        $driver = Double::for(MaintenanceModeContract::class);
+        $driver->expects('active')->returns(false);
 
         $cached = new WorkerCachedMaintenanceMode($driver, refreshInterval: 5);
 
@@ -142,9 +145,9 @@ class WorkerCachedMaintenanceModeTest extends TestCase
     {
         CarbonImmutable::setTestNow($now = CarbonImmutable::parse('2026-01-01 00:00:00'));
 
-        $driver = m::mock(MaintenanceModeContract::class);
-        $driver->shouldReceive('active')->twice()->andReturn(true, true);
-        $driver->shouldReceive('data')->twice()->andReturn(['status' => 503], ['status' => 418]);
+        $driver = Double::for(MaintenanceModeContract::class);
+        $driver->expects('active')->times(2)->returns(true, true);
+        $driver->expects('data')->times(2)->returns(['status' => 503], ['status' => 418]);
 
         $cached = new WorkerCachedMaintenanceMode($driver, refreshInterval: 5);
 
@@ -159,9 +162,9 @@ class WorkerCachedMaintenanceModeTest extends TestCase
     {
         CarbonImmutable::setTestNow($now = CarbonImmutable::parse('2026-01-01 00:00:00'));
 
-        $driver = m::mock(MaintenanceModeContract::class);
-        $driver->shouldReceive('active')->once()->andReturn(false);
-        $driver->shouldNotReceive('data');
+        $driver = Double::for(MaintenanceModeContract::class);
+        $driver->expects('active')->returns(false);
+        $driver->expects('data')->never();
 
         $cached = new WorkerCachedMaintenanceMode($driver, refreshInterval: 0);
 
@@ -176,9 +179,9 @@ class WorkerCachedMaintenanceModeTest extends TestCase
     {
         CarbonImmutable::setTestNow($now = CarbonImmutable::parse('2026-01-01 00:00:00'));
 
-        $driver = m::mock(MaintenanceModeContract::class);
-        $driver->shouldReceive('active')->once()->andReturn(false);
-        $driver->shouldNotReceive('data');
+        $driver = Double::for(MaintenanceModeContract::class);
+        $driver->expects('active')->returns(false);
+        $driver->expects('data')->never();
 
         $cached = new WorkerCachedMaintenanceMode($driver, refreshInterval: -1);
 
@@ -191,9 +194,9 @@ class WorkerCachedMaintenanceModeTest extends TestCase
 
     public function testFlushCacheResetsSnapshot(): void
     {
-        $driver = m::mock(MaintenanceModeContract::class);
-        $driver->shouldReceive('active')->twice()->andReturn(true, false);
-        $driver->shouldReceive('data')->once()->andReturn(['status' => 503]);
+        $driver = Double::for(MaintenanceModeContract::class);
+        $driver->expects('active')->times(2)->returns(true, false);
+        $driver->expects('data')->returns(['status' => 503]);
 
         $cached = new WorkerCachedMaintenanceMode($driver);
 
@@ -208,9 +211,9 @@ class WorkerCachedMaintenanceModeTest extends TestCase
     {
         CarbonImmutable::setTestNow($now = CarbonImmutable::parse('2026-01-01 00:00:00'));
 
-        $driver = m::mock(MaintenanceModeContract::class);
-        $driver->shouldReceive('active')->twice()->andReturn(false, true);
-        $driver->shouldReceive('data')->once()->andReturn(['status' => 503]);
+        $driver = Double::for(MaintenanceModeContract::class);
+        $driver->expects('active')->times(2)->returns(false, true);
+        $driver->expects('data')->returns(['status' => 503]);
 
         $cached = new WorkerCachedMaintenanceMode($driver, refreshInterval: 60);
 
@@ -224,10 +227,10 @@ class WorkerCachedMaintenanceModeTest extends TestCase
 
     public function testActivateDelegatesToDriverAndFlushesCache(): void
     {
-        $driver = m::mock(MaintenanceModeContract::class);
-        $driver->shouldReceive('active')->twice()->andReturn(false, true);
-        $driver->shouldReceive('data')->once()->andReturn(['status' => 503]);
-        $driver->shouldReceive('activate')->once()->with(['status' => 503]);
+        $driver = Double::for(MaintenanceModeContract::class);
+        $driver->expects('active')->times(2)->returns(false, true);
+        $driver->expects('data')->returns(['status' => 503]);
+        $driver->expects('activate')->with(['status' => 503]);
 
         $cached = new WorkerCachedMaintenanceMode($driver);
 
@@ -240,10 +243,10 @@ class WorkerCachedMaintenanceModeTest extends TestCase
 
     public function testDeactivateDelegatesToDriverAndFlushesCache(): void
     {
-        $driver = m::mock(MaintenanceModeContract::class);
-        $driver->shouldReceive('active')->twice()->andReturn(true, false);
-        $driver->shouldReceive('data')->once()->andReturn(['status' => 503]);
-        $driver->shouldReceive('deactivate')->once();
+        $driver = Double::for(MaintenanceModeContract::class);
+        $driver->expects('active')->times(2)->returns(true, false);
+        $driver->expects('data')->returns(['status' => 503]);
+        $driver->expects('deactivate');
 
         $cached = new WorkerCachedMaintenanceMode($driver);
 
@@ -256,9 +259,9 @@ class WorkerCachedMaintenanceModeTest extends TestCase
 
     public function testWhenNotActiveDataReturnsEmptyArrayWithoutCallingDriverData(): void
     {
-        $driver = m::mock(MaintenanceModeContract::class);
-        $driver->shouldReceive('active')->once()->andReturn(false);
-        $driver->shouldNotReceive('data');
+        $driver = Double::for(MaintenanceModeContract::class);
+        $driver->expects('active')->returns(false);
+        $driver->expects('data')->never();
 
         $cached = new WorkerCachedMaintenanceMode($driver);
 
@@ -267,9 +270,9 @@ class WorkerCachedMaintenanceModeTest extends TestCase
 
     public function testAfterFlushAndRereadDecoratorReflectsUpdatedState(): void
     {
-        $driver = m::mock(MaintenanceModeContract::class);
-        $driver->shouldReceive('active')->twice()->andReturn(true, false);
-        $driver->shouldReceive('data')->once()->andReturn(['status' => 503]);
+        $driver = Double::for(MaintenanceModeContract::class);
+        $driver->expects('active')->times(2)->returns(true, false);
+        $driver->expects('data')->returns(['status' => 503]);
 
         $cached = new WorkerCachedMaintenanceMode($driver);
 

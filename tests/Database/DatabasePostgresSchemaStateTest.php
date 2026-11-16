@@ -9,7 +9,9 @@ use Hypervel\Database\Schema\Grammars\PostgresGrammar;
 use Hypervel\Database\Schema\PostgresBuilder;
 use Hypervel\Database\Schema\PostgresSchemaState;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use ReflectionMethod;
 use RuntimeException;
 use Symfony\Component\Process\Process;
@@ -17,6 +19,8 @@ use Throwable;
 
 class DatabasePostgresSchemaStateTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testDumpOutputFailureStopsTheProcess(): void
     {
         $process = new Process([PHP_BINARY, '-r', 'echo "progress"; usleep(5000000);']);
@@ -45,7 +49,7 @@ class DatabasePostgresSchemaStateTest extends TestCase
 
     public function testBaseVariablesUseConfiguredConnectionByDefault(): void
     {
-        $schemaState = new PostgresSchemaState(m::mock(PostgresConnection::class));
+        $schemaState = new PostgresSchemaState(Double::for(PostgresConnection::class));
 
         $variables = (new ReflectionMethod(PostgresSchemaState::class, 'baseVariables'))->invoke($schemaState, [
             'host' => 'pooler-host',
@@ -70,7 +74,7 @@ class DatabasePostgresSchemaStateTest extends TestCase
 
     public function testBaseVariablesDoNotExportEmptySslMode(): void
     {
-        $connection = m::mock(PostgresConnection::class);
+        $connection = Double::for(PostgresConnection::class);
         $schemaState = new PostgresSchemaState($connection);
 
         $method = new ReflectionMethod($schemaState, 'baseVariables');
@@ -101,22 +105,22 @@ class DatabasePostgresSchemaStateTest extends TestCase
             'database' => 'hypervel',
         ];
 
-        $schema = m::mock(PostgresBuilder::class);
-        $schema->shouldReceive('hasTable')->once()->with('migrations')->andReturnFalse();
+        $schema = Double::for(PostgresBuilder::class);
+        $schema->expects('hasTable')->with('migrations')->returns(false);
 
-        $connection = m::mock(PostgresConnection::class);
-        $connection->shouldReceive('getConfig')->andReturn($config);
-        $connection->shouldReceive('getSchemaBuilder')->once()->andReturn($schema);
+        $connection = Double::for(PostgresConnection::class);
+        $connection->allows('getConfig')->returns($config);
+        $connection->expects('getSchemaBuilder')->returns($schema);
 
-        $process = m::mock(Process::class);
-        $process->shouldReceive('mustRun')->once()->with(m::type('callable'), [
+        $process = Double::for(Process::class);
+        $process->expects('mustRun')->with(Argument::type('callable'), [
             'HYPERVEL_LOAD_HOST' => '127.0.0.1',
             'HYPERVEL_LOAD_PORT' => '5432',
             'HYPERVEL_LOAD_USER' => 'forge',
             'PGPASSWORD' => 'secret',
             'HYPERVEL_LOAD_DATABASE' => 'hypervel',
             'HYPERVEL_LOAD_PATH' => $path,
-        ])->andReturnSelf();
+        ]);
 
         $factoryCalledWith = null;
         $schemaState = new PostgresSchemaState(
@@ -138,13 +142,13 @@ class DatabasePostgresSchemaStateTest extends TestCase
 
     public function testMigrationDataUsesLiteralPathAndTableArguments(): void
     {
-        $schema = m::mock(PostgresBuilder::class);
-        $schema->shouldReceive('hasTable')->once()->with('archive.Migration"History')->andReturnTrue();
-        $schema->shouldReceive('parseSchemaAndTable')->once()->with('archive.Migration"History', true)->andReturn(['archive', 'Migration"History']);
-        $connection = m::mock(PostgresConnection::class);
-        $connection->shouldReceive('getSchemaBuilder')->twice()->andReturn($schema);
-        $connection->shouldReceive('getTablePrefix')->once()->andReturn('pre.');
-        $connection->shouldReceive('getConfig')->andReturn([
+        $schema = Double::for(PostgresBuilder::class);
+        $schema->expects('hasTable')->with('archive.Migration"History')->returns(true);
+        $schema->expects('parseSchemaAndTable')->with('archive.Migration"History', true)->returns(['archive', 'Migration"History']);
+        $connection = Double::for(PostgresConnection::class);
+        $connection->expects('getSchemaBuilder')->times(2)->returns($schema);
+        $connection->expects('getTablePrefix')->returns('pre.');
+        $connection->allows('getConfig')->returns([
             'host' => 'localhost', 'username' => 'user', 'password' => '', 'database' => 'app',
         ]);
 
@@ -175,16 +179,16 @@ class DatabasePostgresSchemaStateTest extends TestCase
 
     public function testMigrationTableUsesTheActualSchemaUnlessExplicitlyQualified(): void
     {
-        $connection = m::mock(PostgresConnection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(m::mock(PostgresGrammar::class));
-        $connection->shouldReceive('scalar')
-            ->twice()
+        $connection = Double::for(PostgresConnection::class);
+        $connection->expects('getSchemaGrammar')->returns(Double::for(PostgresGrammar::class));
+        $connection->expects('scalar')
+            ->times(2)
             ->with('select current_schema()', [], false)
-            ->andReturn('public', 'Schema.With.Dot');
-        $connection->shouldReceive('getTablePrefix')->times(3)->andReturn('', '', 'prefix.with.dot_');
+            ->returns('public', 'Schema.With.Dot');
+        $connection->expects('getTablePrefix')->times(3)->returns('', '', 'prefix.with.dot_');
 
         $builder = new PostgresBuilder($connection);
-        $connection->shouldReceive('getSchemaBuilder')->times(3)->andReturn($builder);
+        $connection->expects('getSchemaBuilder')->times(3)->returns($builder);
 
         $schemaState = new PostgresSchemaState($connection);
         $method = new ReflectionMethod($schemaState, 'getMigrationTable');

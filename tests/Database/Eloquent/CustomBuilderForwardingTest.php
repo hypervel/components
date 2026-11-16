@@ -13,10 +13,13 @@ use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class CustomBuilderForwardingTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testOrdinaryForwardingDiscardsResultsButPassthruAndNativeTerminalsReturnThem(): void
     {
         $builder = $this->builder(new ForwardingTestModel);
@@ -70,7 +73,7 @@ class CustomBuilderForwardingTest extends TestCase
      */
     private function builder(Model $model): ForwardingTestBuilder
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $query = new ForwardingTestQuery($connection, new Grammar($connection), new Processor);
 
         return (new ForwardingTestBuilder($query))->setModel($model);

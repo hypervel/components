@@ -8,17 +8,20 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Grammars\SQLiteGrammar;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonException;
-use Mockery as m;
 use PDO;
 
 class DatabaseSQLiteQueryGrammarTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testUpdateBindingsRejectUnencodableArrays(): void
     {
         $this->expectException(JsonException::class);
 
-        (new SQLiteGrammar(m::mock(Connection::class)))
+        (new SQLiteGrammar(Double::for(Connection::class)))
             ->prepareBindingsForUpdate([], ['payload' => [NAN]]);
     }
 

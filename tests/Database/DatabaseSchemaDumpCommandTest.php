@@ -9,11 +9,14 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Console\DumpCommand;
 use Hypervel\Database\Schema\SchemaState;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseSchemaDumpCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testDumpCommandExitsWhenProhibited(): void
     {
         $path = database_path('schema/prohibited-dump.sql');
@@ -50,16 +53,16 @@ class DatabaseSchemaDumpCommandTest extends TestCase
             'database.connections.pgsql' => ['driver' => 'pgsql'],
         ]);
 
-        $connection = m::mock(Connection::class);
-        $state = m::mock(SchemaState::class);
-        $connection->allows('getName')->andReturn('pgsql');
-        $connection->allows('getSchemaState')->andReturn($state);
-        $state->allows('withMigrationTable')->andReturnSelf();
-        $state->allows('handleOutputUsing')->andReturnSelf();
+        $connection = Double::for(Connection::class);
+        $state = Double::for(SchemaState::class);
+        $connection->allows('getName')->returns('pgsql');
+        $connection->allows('getSchemaState')->returns($state);
+        $state->allows('withMigrationTable');
+        $state->allows('handleOutputUsing');
         $state->expects('dump')->with($connection, database_path('schema/pgsql-schema.sql'));
 
-        $connections = m::mock(ConnectionResolverInterface::class);
-        $connections->expects('connection')->with('pgsql')->andReturn($connection);
+        $connections = Double::for(ConnectionResolverInterface::class);
+        $connections->expects('connection')->with('pgsql')->returns($connection);
         $this->app->instance(ConnectionResolverInterface::class, $connections);
 
         $this->artisan('schema:dump', $options)->assertSuccessful();

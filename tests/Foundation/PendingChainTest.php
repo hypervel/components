@@ -12,10 +12,13 @@ use Hypervel\Queue\Attributes\Connection;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class PendingChainTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testEnumConnectionAndQueueIdentifiersAreNormalized(): void
     {
         $chain = new PendingChain(new class {}, []);
@@ -30,8 +33,8 @@ class PendingChainTest extends TestCase
 
     public function testDispatchPreservesZeroIdentifiersOnTheChainAndFirstJob(): void
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')->twice()->andReturnArg(0);
+        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher->expects('dispatch')->times(2)->resolves(fn (object $job): object => $job);
         Container::getInstance()->instance(Dispatcher::class, $dispatcher);
 
         $fromChain = (new PendingChain(new PendingChainTestJob, []))
@@ -53,8 +56,8 @@ class PendingChainTest extends TestCase
 
     public function testDispatchUsesChainIdentifiersForEmptyFirstJobIdentifiers(): void
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')->once()->andReturnArg(0);
+        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher->expects('dispatch')->resolves(fn (object $job): object => $job);
         Container::getInstance()->instance(Dispatcher::class, $dispatcher);
 
         $firstJob = (new PendingChainTestJob)->onConnection('')->onQueue('');
@@ -70,8 +73,8 @@ class PendingChainTest extends TestCase
 
     public function testDispatchIgnoresEmptyChainIdentifiers(): void
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')->once()->andReturnArg(0);
+        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher->expects('dispatch')->resolves(fn (object $job): object => $job);
         Container::getInstance()->instance(Dispatcher::class, $dispatcher);
 
         $firstJob = (new PendingChainTestJob)
@@ -91,8 +94,8 @@ class PendingChainTest extends TestCase
 
     public function testDispatchKeepsFirstJobAttributesOverChainDefaults(): void
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')->once()->andReturnArg(0);
+        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher->expects('dispatch')->resolves(fn (object $job): object => $job);
         Container::getInstance()->instance(Dispatcher::class, $dispatcher);
 
         $dispatched = (new PendingChain(new PendingChainAttributedJob, []))
@@ -110,8 +113,8 @@ class PendingChainTest extends TestCase
 
     public function testDispatchAppliesChainDelayOnlyWithoutAFirstJobDelay(): void
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')->twice()->andReturnArg(0);
+        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher->expects('dispatch')->times(2)->resolves(fn (object $job): object => $job);
         Container::getInstance()->instance(Dispatcher::class, $dispatcher);
 
         $delayed = (new PendingChain(new PendingChainTestJob, []))->delay(10)->dispatch();

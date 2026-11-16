@@ -11,7 +11,9 @@ use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Database\SQLiteDatabaseDoesNotExistException;
 use Hypervel\Foundation\Application;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -22,14 +24,15 @@ use Throwable;
 
 class DatabaseMigrationFreshCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testFreshWipesEveryPreExistingTargetThenMigratesDispatchesAndSeeds(): void
     {
         $app = $this->makeApplication();
-        $dispatcher = $app->instance(Dispatcher::class, m::mock(Dispatcher::class));
-        $dispatcher->shouldReceive('hasListeners')->byDefault()->andReturn(false);
+        $dispatcher = $app->instance(Dispatcher::class, Double::for(Dispatcher::class));
         $command = $this->getMockBuilder(FreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = m::mock(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
             ->getMock();
         $command->setHypervel($app);
         $this->expectPreExistingMigrationTargets($migrator, ['sqlite', 'analytics'], registeredPaths: ['/registered']);
@@ -73,8 +76,9 @@ class DatabaseMigrationFreshCommandTest extends TestCase
                 return 0;
             }
         );
-        $dispatcher->shouldReceive('hasListeners')->once()->with(DatabaseRefreshed::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->with(m::type(DatabaseRefreshed::class))->andReturnUsing(
+        $dispatcher->allows('hasListeners')->with(Argument::not(DatabaseRefreshed::class))->returns(false);
+        $dispatcher->expects('hasListeners')->with(DatabaseRefreshed::class)->returns(true);
+        $dispatcher->expects('dispatch')->with(Argument::type(DatabaseRefreshed::class))->resolves(
             function (DatabaseRefreshed $event) use (&$operations): void {
                 $this->assertSame('sqlite', $event->database);
                 $this->assertTrue($event->seeding);
@@ -99,7 +103,7 @@ class DatabaseMigrationFreshCommandTest extends TestCase
         $app = $this->makeApplication();
         $command = $this->getMockBuilder(FreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = m::mock(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
             ->getMock();
         $command->setHypervel($app);
         $this->expectPreExistingMigrationTargets($migrator, ['sqlite'], repositoryExists: false);
@@ -122,16 +126,16 @@ class DatabaseMigrationFreshCommandTest extends TestCase
         $app = $this->makeApplication();
         $command = $this->getMockBuilder(FreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = m::mock(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
             ->getMock();
         $command->setHypervel($app);
         $paths = [__DIR__ . DIRECTORY_SEPARATOR . 'migrations'];
         $currentConnection = null;
         $analyticsInspections = 0;
 
-        $migrator->shouldReceive('paths')->once()->andReturn([]);
-        $migrator->shouldReceive('getMigrationConnections')->once()->with($paths, 'sqlite')->andReturn(['sqlite', 'analytics']);
-        $migrator->shouldReceive('usingConnection')->times(3)->andReturnUsing(
+        $migrator->expects('paths')->returns([]);
+        $migrator->expects('getMigrationConnections')->with($paths, 'sqlite')->returns(['sqlite', 'analytics']);
+        $migrator->expects('usingConnection')->times(3)->resolves(
             function ($name, $callback) use (&$currentConnection) {
                 $currentConnection = $name;
 
@@ -142,7 +146,7 @@ class DatabaseMigrationFreshCommandTest extends TestCase
                 }
             }
         );
-        $migrator->shouldReceive('repositoryExists')->times(3)->andReturnUsing(
+        $migrator->expects('repositoryExists')->times(3)->resolves(
             function () use (&$currentConnection, &$analyticsInspections, $path): bool {
                 if ($currentConnection === 'analytics') {
                     ++$analyticsInspections;
@@ -192,17 +196,17 @@ class DatabaseMigrationFreshCommandTest extends TestCase
         $app = $this->makeApplication('production');
         $command = $this->getMockBuilder(FreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = m::mock(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
             ->getMock();
         $command->setHypervel($app);
         $paths = [__DIR__ . DIRECTORY_SEPARATOR . 'migrations'];
         $inspection = 0;
-        $migrator->shouldReceive('paths')->once()->andReturn([]);
-        $migrator->shouldReceive('getMigrationConnections')->once()->with($paths, 'sqlite')->andReturn(['sqlite', 'analytics']);
-        $migrator->shouldReceive('usingConnection')->twice()->andReturnUsing(function ($name, $callback) {
+        $migrator->expects('paths')->returns([]);
+        $migrator->expects('getMigrationConnections')->with($paths, 'sqlite')->returns(['sqlite', 'analytics']);
+        $migrator->expects('usingConnection')->times(2)->resolves(function ($name, $callback) {
             return $callback();
         });
-        $migrator->shouldReceive('repositoryExists')->twice()->andReturnUsing(
+        $migrator->expects('repositoryExists')->times(2)->resolves(
             function () use (&$inspection, $path): bool {
                 if (++$inspection === 2) {
                     throw new SQLiteDatabaseDoesNotExistException($path);
@@ -228,18 +232,18 @@ class DatabaseMigrationFreshCommandTest extends TestCase
         $app = $this->makeApplication();
         $command = $this->getMockBuilder(TestableFreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = m::mock(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
             ->getMock();
         $command->creationFailure = $failure = new RuntimeException('create failed');
         $command->setHypervel($app);
         $paths = [__DIR__ . DIRECTORY_SEPARATOR . 'migrations'];
         $inspection = 0;
-        $migrator->shouldReceive('paths')->once()->andReturn([]);
-        $migrator->shouldReceive('getMigrationConnections')->once()->with($paths, 'sqlite')->andReturn(['sqlite', 'analytics']);
-        $migrator->shouldReceive('usingConnection')->twice()->andReturnUsing(function ($name, $callback) {
+        $migrator->expects('paths')->returns([]);
+        $migrator->expects('getMigrationConnections')->with($paths, 'sqlite')->returns(['sqlite', 'analytics']);
+        $migrator->expects('usingConnection')->times(2)->resolves(function ($name, $callback) {
             return $callback();
         });
-        $migrator->shouldReceive('repositoryExists')->twice()->andReturnUsing(
+        $migrator->expects('repositoryExists')->times(2)->resolves(
             function () use (&$inspection, $path): bool {
                 if (++$inspection === 2) {
                     throw new SQLiteDatabaseDoesNotExistException($path);
@@ -266,7 +270,7 @@ class DatabaseMigrationFreshCommandTest extends TestCase
         $app = $this->makeApplication();
         $command = $this->getMockBuilder(FreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = m::mock(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
             ->getMock();
         $command->setHypervel($app);
         $this->expectPreExistingMigrationTargets($migrator, ['analytics']);
@@ -286,11 +290,10 @@ class DatabaseMigrationFreshCommandTest extends TestCase
     public function testMigrationFailureAbortsBeforeEventAndSeeding(): void
     {
         $app = $this->makeApplication();
-        $dispatcher = $app->instance(Dispatcher::class, m::mock(Dispatcher::class));
-        $dispatcher->shouldReceive('hasListeners')->byDefault()->andReturn(false);
+        $dispatcher = $app->instance(Dispatcher::class, Double::for(Dispatcher::class));
         $command = $this->getMockBuilder(FreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = m::mock(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
             ->getMock();
         $command->setHypervel($app);
         $this->expectPreExistingMigrationTargets($migrator, ['sqlite']);
@@ -299,7 +302,7 @@ class DatabaseMigrationFreshCommandTest extends TestCase
             '--database' => 'sqlite',
             '--force' => true,
         ])->willReturn(1);
-        $dispatcher->shouldReceive('dispatch')->never();
+        $dispatcher->expects('dispatch')->never();
         $caught = null;
 
         try {
@@ -314,11 +317,10 @@ class DatabaseMigrationFreshCommandTest extends TestCase
     public function testSeedFailureOccursAfterDatabaseRefreshedEventAndFailsTheCommand(): void
     {
         $app = $this->makeApplication();
-        $dispatcher = $app->instance(Dispatcher::class, m::mock(Dispatcher::class));
-        $dispatcher->shouldReceive('hasListeners')->byDefault()->andReturn(false);
+        $dispatcher = $app->instance(Dispatcher::class, Double::for(Dispatcher::class));
         $command = $this->getMockBuilder(FreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = m::mock(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
             ->getMock();
         $command->setHypervel($app);
         $this->expectPreExistingMigrationTargets($migrator, ['sqlite']);
@@ -331,8 +333,9 @@ class DatabaseMigrationFreshCommandTest extends TestCase
                 return $name === 'migrate' ? 0 : 1;
             }
         );
-        $dispatcher->shouldReceive('hasListeners')->once()->with(DatabaseRefreshed::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->andReturnUsing(function () use (&$operations): void {
+        $dispatcher->allows('hasListeners')->with(Argument::not(DatabaseRefreshed::class))->returns(false);
+        $dispatcher->expects('hasListeners')->with(DatabaseRefreshed::class)->returns(true);
+        $dispatcher->expects('dispatch')->resolves(function () use (&$operations): void {
             $operations[] = 'event';
         });
         $caught = null;
@@ -352,17 +355,17 @@ class DatabaseMigrationFreshCommandTest extends TestCase
         $app = $this->makeApplication();
         $command = $this->getMockBuilder(FreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = m::mock(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
             ->getMock();
         $command->setHypervel($app);
         $paths = [__DIR__ . DIRECTORY_SEPARATOR . 'migrations'];
         $failure = new RuntimeException('Authentication failed.');
-        $migrator->shouldReceive('paths')->once()->andReturn([]);
-        $migrator->shouldReceive('getMigrationConnections')->once()->with($paths, 'sqlite')->andReturn(['sqlite']);
-        $migrator->shouldReceive('usingConnection')->once()->andReturnUsing(function ($name, $callback) {
+        $migrator->expects('paths')->returns([]);
+        $migrator->expects('getMigrationConnections')->with($paths, 'sqlite')->returns(['sqlite']);
+        $migrator->expects('usingConnection')->resolves(function ($name, $callback) {
             return $callback();
         });
-        $migrator->shouldReceive('repositoryExists')->once()->andThrow($failure);
+        $migrator->expects('repositoryExists')->throws($failure);
         $command->expects($this->never())->method('callSilent');
         $command->expects($this->never())->method('call');
         $caught = null;
@@ -385,15 +388,15 @@ class DatabaseMigrationFreshCommandTest extends TestCase
         $app = $this->makeApplication();
         $command = $this->getMockBuilder(FreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = m::mock(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
             ->getMock();
         $command->setHypervel($app);
-        $migrator->shouldReceive('paths')->never();
-        $migrator->shouldReceive('getMigrationConnections')->once()->with($discoveryPaths, 'sqlite')->andReturn(['sqlite']);
-        $migrator->shouldReceive('usingConnection')->once()->andReturnUsing(function ($name, $callback) {
+        $migrator->expects('paths')->never();
+        $migrator->expects('getMigrationConnections')->with($discoveryPaths, 'sqlite')->returns(['sqlite']);
+        $migrator->expects('usingConnection')->resolves(function ($name, $callback) {
             return $callback();
         });
-        $migrator->shouldReceive('repositoryExists')->once()->andReturn(true);
+        $migrator->expects('repositoryExists')->returns(true);
         $command->expects($this->once())->method('callSilent')->willReturn(0);
         $command->expects($this->once())->method('call')->with('migrate', $migrateArguments)->willReturn(0);
 
@@ -428,9 +431,9 @@ class DatabaseMigrationFreshCommandTest extends TestCase
     public function testProhibitedFreshReturnsBeforeDiscovery(): void
     {
         $app = $this->makeApplication();
-        $command = new FreshCommand($migrator = m::mock(Migrator::class));
+        $command = new FreshCommand($migrator = Double::for(Migrator::class));
         $command->setHypervel($app);
-        $migrator->shouldNotReceive('getMigrationConnections');
+        $migrator->expects('getMigrationConnections')->never();
         FreshCommand::prohibit();
 
         $this->assertSame(1, $this->runCommand($command, ['--database' => 'sqlite']));
@@ -445,12 +448,12 @@ class DatabaseMigrationFreshCommandTest extends TestCase
     ): void {
         $paths = [...$registeredPaths, __DIR__ . DIRECTORY_SEPARATOR . 'migrations'];
 
-        $migrator->shouldReceive('paths')->once()->andReturn($registeredPaths);
-        $migrator->shouldReceive('getMigrationConnections')->once()->with($paths, $database)->andReturn($connections);
-        $migrator->shouldReceive('usingConnection')->times(count($connections))->andReturnUsing(function ($name, $callback) {
+        $migrator->expects('paths')->returns($registeredPaths);
+        $migrator->expects('getMigrationConnections')->with($paths, $database)->returns($connections);
+        $migrator->expects('usingConnection')->times(count($connections))->resolves(function ($name, $callback) {
             return $callback();
         });
-        $migrator->shouldReceive('repositoryExists')->times(count($connections))->andReturn($repositoryExists);
+        $migrator->expects('repositoryExists')->times(count($connections))->returns($repositoryExists);
     }
 
     private function makeApplication(string $environment = 'development'): ApplicationDatabaseFreshStub

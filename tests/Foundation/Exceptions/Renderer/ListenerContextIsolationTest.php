@@ -8,12 +8,15 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Foundation\Exceptions\Renderer\Listener;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 use function Hypervel\Coroutine\parallel;
 
 class ListenerContextIsolationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testQueriesAreIsolatedBetweenCoroutines(): void
     {
         $results = parallel([
@@ -36,15 +39,18 @@ class ListenerContextIsolationTest extends TestCase
     private function recordQueries(string $connectionName, array $queries): array
     {
         $listener = new Listener;
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->andReturn($connectionName);
-        $connection->shouldReceive('prepareBindings')->andReturn([]);
+        $connection = Double::for(Connection::class);
+        $connection->allows('getName')->returns($connectionName);
+        $connection->allows('prepareBindings')->returns([]);
 
         foreach ($queries as $index => $query) {
             $listener->onQueryExecuted(
                 new QueryExecuted($query, [], (float) ($index + 1), $connection),
             );
         }
+
+        // Interleave the stored queries before reading them back.
+        usleep(5000);
 
         return [
             'count' => count($listener->queries()),

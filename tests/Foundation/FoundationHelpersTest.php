@@ -21,7 +21,9 @@ use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Psr\Log\LoggerInterface;
 use stdClass;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
@@ -47,6 +49,8 @@ enum UnitEnum
 
 class FoundationHelpersTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testAppPathUsesTheConfiguredApplicationDirectory(): void
     {
         $this->assertSame($this->app->basePath('app'), app_path());
@@ -247,7 +251,7 @@ class FoundationHelpersTest extends TestCase
 
     public function testInfoWritesToTheLogger(): void
     {
-        $logger = m::mock(LoggerInterface::class);
+        $logger = Double::for(LoggerInterface::class);
         $logger->expects('info')->with('User login attempt failed.', ['id' => 1]);
         $this->app->instance(LoggerInterface::class, $logger);
 
@@ -257,12 +261,8 @@ class FoundationHelpersTest extends TestCase
     public function testInfoAddsTheCallerLocationToTheContext(): void
     {
         $loggedContext = null;
-        $logger = m::mock(LoggerInterface::class);
-        $logger->expects('info')->withArgs(function (string $message, array $context) use (&$loggedContext): bool {
-            $loggedContext = $context;
-
-            return $message === 'Cache warmed.';
-        });
+        $logger = Double::for(LoggerInterface::class);
+        $logger->expects('info')->with('Cache warmed.', Argument::capture($loggedContext));
         $this->app->instance(LoggerInterface::class, $logger);
 
         info('Cache warmed.', ['id' => 1], callerLocation: true);
@@ -273,9 +273,9 @@ class FoundationHelpersTest extends TestCase
 
     public function testLogsResolvesAChannelNamedZero(): void
     {
-        $manager = m::mock(LogManager::class);
-        $logger = m::mock(LoggerInterface::class);
-        $manager->expects('driver')->with('0')->andReturn($logger);
+        $manager = Double::for(LogManager::class);
+        $logger = Double::for(LoggerInterface::class);
+        $manager->expects('driver')->with('0')->returns($logger);
         $this->app->instance('log', $manager);
 
         $this->assertSame($logger, logs('0'));

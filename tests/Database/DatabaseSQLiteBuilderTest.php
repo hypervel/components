@@ -14,8 +14,10 @@ use Hypervel\Support\Facades\File;
 use Hypervel\Support\Fluent;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
+use Override;
 use PDO;
 use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -23,6 +25,8 @@ use RuntimeException;
 
 class DatabaseSQLiteBuilderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCreateDatabase(): void
     {
         $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
@@ -75,8 +79,8 @@ class DatabaseSQLiteBuilderTest extends TestCase
     #[DataProvider('nonFileDatabaseNames')]
     public function testCreateDatabaseRejectsNonFileDatabaseNames(string $name): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new SQLiteGrammar($connection));
+        $connection = Double::for(Connection::class);
+        $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
 
         File::shouldReceive('put')->never();
 
@@ -91,8 +95,8 @@ class DatabaseSQLiteBuilderTest extends TestCase
     #[DataProvider('nonFileDatabaseNames')]
     public function testDropDatabaseRejectsNonFileDatabaseNames(string $name): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new SQLiteGrammar($connection));
+        $connection = Double::for(Connection::class);
+        $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
 
         File::shouldReceive('exists')->never();
         File::shouldReceive('delete')->never();
@@ -116,79 +120,77 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testExecuteBlueprintWrapsAKnownRebuildAndMaintainsForeignKeyStateOutsideTheTransaction(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new SQLiteGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['pragma foreign_keys = 0', 'first statement', 'second statement', 'pragma foreign_keys = 1'],
             [new Fluent(['name' => 'alter'])],
         );
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('pretending')->once()->andReturnFalse();
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma foreign_keys = 0')->ordered();
-        $connection->shouldReceive('transaction')
-            ->once()
-            ->andReturnUsing(static fn (Closure $callback) => $callback())
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('pretending')->returns(false);
+        $connection->expects('transactionLevel')->returns(0);
+        $connection->expects('executeSessionStatement')->with('pragma foreign_keys = 0')->ordered();
+        $connection->expects('transaction')
+            ->resolves(static fn (Closure $callback) => $callback())
             ->ordered();
-        $connection->shouldReceive('statement')->once()->with('first statement')->andReturnTrue()->ordered();
-        $connection->shouldReceive('statement')->once()->with('second statement')->andReturnTrue()->ordered();
-        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma foreign_keys = 1')->ordered();
+        $connection->expects('statement')->with('first statement')->returns(true)->ordered();
+        $connection->expects('statement')->with('second statement')->returns(true)->ordered();
+        $connection->expects('executeSessionStatement')->with('pragma foreign_keys = 1')->ordered();
 
         (new SQLiteBuilder($connection))->executeBlueprint($blueprint);
     }
 
     public function testExecuteBlueprintPreservesDisabledForeignKeysOutsideTheTransaction(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new SQLiteGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['first statement', 'second statement'],
             [new Fluent(['name' => 'alter'])],
         );
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('pretending')->once()->andReturnFalse();
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('executeSessionStatement')->never();
-        $connection->shouldReceive('transaction')
-            ->once()
-            ->andReturnUsing(static fn (Closure $callback) => $callback());
-        $connection->shouldReceive('statement')->once()->with('first statement')->andReturnTrue()->ordered();
-        $connection->shouldReceive('statement')->once()->with('second statement')->andReturnTrue()->ordered();
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('pretending')->returns(false);
+        $connection->expects('transactionLevel')->returns(0);
+        $connection->expects('executeSessionStatement')->never();
+        $connection->expects('transaction')
+            ->resolves(static fn (Closure $callback) => $callback());
+        $connection->expects('statement')->with('first statement')->returns(true)->ordered();
+        $connection->expects('statement')->with('second statement')->returns(true)->ordered();
 
         (new SQLiteBuilder($connection))->executeBlueprint($blueprint);
     }
 
     public function testExecuteBlueprintDoesNotWrapASingleStatement(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new SQLiteGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['statement'],
             [new Fluent(['name' => 'create'])],
         );
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('pretending')->never();
-        $connection->shouldReceive('transactionLevel')->never();
-        $connection->shouldReceive('transaction')->never();
-        $connection->shouldReceive('statement')->once()->with('statement')->andReturnTrue();
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('pretending')->never();
+        $connection->expects('transactionLevel')->never();
+        $connection->expects('transaction')->never();
+        $connection->expects('statement')->with('statement')->returns(true);
 
         (new SQLiteBuilder($connection))->executeBlueprint($blueprint);
     }
 
     public function testExecuteBlueprintDoesNotWrapCommandsAddedByAnExtensionGrammar(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new SQLiteBuilderExtensionGrammar($connection);
 
-        $connection->shouldReceive('getSchemaGrammar')->twice()->andReturn($grammar);
-        $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0');
-        $connection->shouldReceive('pretending')->once()->andReturnFalse();
-        $connection->shouldReceive('transactionLevel')->never();
-        $connection->shouldReceive('transaction')->never();
-        $connection->shouldReceive('statement')->once()->with('extension statement one')->andReturnTrue()->ordered();
-        $connection->shouldReceive('statement')->once()->with('extension statement two')->andReturnTrue()->ordered();
+        $connection->expects('getSchemaGrammar')->times(2)->returns($grammar);
+        $connection->expects('getServerVersion')->returns('3.45.0');
+        $connection->expects('pretending')->returns(false);
+        $connection->expects('transactionLevel')->never();
+        $connection->expects('transaction')->never();
+        $connection->expects('statement')->with('extension statement one')->returns(true)->ordered();
+        $connection->expects('statement')->with('extension statement two')->returns(true)->ordered();
 
         $blueprint = new SQLiteBuilderExtensionBlueprint(
             $connection,
@@ -201,18 +203,17 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testExecuteBlueprintWrapsFrameworkCommandsOverriddenByAnExtensionGrammar(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new SQLiteBuilderExtensionGrammar($connection);
 
-        $connection->shouldReceive('getSchemaGrammar')->twice()->andReturn($grammar);
-        $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0');
-        $connection->shouldReceive('pretending')->once()->andReturnFalse();
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('transaction')
-            ->once()
-            ->andReturnUsing(static fn (Closure $callback) => $callback());
-        $connection->shouldReceive('statement')->once()->with('overridden alter')->andReturnTrue()->ordered();
-        $connection->shouldReceive('statement')->once()->with('second statement')->andReturnTrue()->ordered();
+        $connection->expects('getSchemaGrammar')->times(2)->returns($grammar);
+        $connection->expects('getServerVersion')->returns('3.45.0');
+        $connection->expects('pretending')->returns(false);
+        $connection->expects('transactionLevel')->returns(0);
+        $connection->expects('transaction')
+            ->resolves(static fn (Closure $callback) => $callback());
+        $connection->expects('statement')->with('overridden alter')->returns(true)->ordered();
+        $connection->expects('statement')->with('second statement')->returns(true)->ordered();
 
         $blueprint = new SQLiteBuilderExtensionBlueprint(
             $connection,
@@ -225,26 +226,24 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testExecuteBlueprintRestoresForeignKeysWhenTheTransactionFails(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new SQLiteGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['pragma foreign_keys = 0', 'failing statement', 'pragma foreign_keys = 1'],
             [new Fluent(['name' => 'alter'])],
         );
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('pretending')->once()->andReturnFalse();
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma foreign_keys = 0')->ordered();
-        $connection->shouldReceive('transaction')
-            ->once()
-            ->andReturnUsing(static fn (Closure $callback) => $callback())
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('pretending')->returns(false);
+        $connection->expects('transactionLevel')->returns(0);
+        $connection->expects('executeSessionStatement')->with('pragma foreign_keys = 0')->ordered();
+        $connection->expects('transaction')
+            ->resolves(static fn (Closure $callback) => $callback())
             ->ordered();
-        $connection->shouldReceive('statement')
-            ->once()
+        $connection->expects('statement')
             ->with('failing statement')
-            ->andThrow(new LogicException('statement failed'))
+            ->throws(new LogicException('statement failed'))
             ->ordered();
-        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma foreign_keys = 1')->ordered();
+        $connection->expects('executeSessionStatement')->with('pragma foreign_keys = 1')->ordered();
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessageIs('statement failed');
@@ -299,24 +298,23 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testExecuteBlueprintRejectsAPopulatedRebuildInsideATransactionWithForeignKeysEnabled(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new SQLiteGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['pragma foreign_keys = 0', 'first statement', 'second statement', 'pragma foreign_keys = 1'],
             [new Fluent(['name' => 'alter'])],
         );
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('pretending')->once()->andReturnFalse();
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(1);
-        $connection->shouldReceive('getTablePrefix')->once()->andReturn('');
-        $blueprint->shouldReceive('getTable')->twice()->andReturn('users');
-        $connection->shouldReceive('scalar')
-            ->once()
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('pretending')->returns(false);
+        $connection->expects('transactionLevel')->returns(1);
+        $connection->expects('getTablePrefix')->returns('');
+        $blueprint->expects('getTable')->times(2)->returns('users');
+        $connection->expects('scalar')
             ->with('select exists (select 1 from "users" limit 1)', [], false)
-            ->andReturn(1);
-        $connection->shouldReceive('transaction')->never();
-        $connection->shouldReceive('statement')->never();
+            ->returns(1);
+        $connection->expects('transaction')->never();
+        $connection->expects('statement')->never();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs(
@@ -328,83 +326,80 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testExecuteBlueprintUsesASavepointForAnEmptyRebuildInsideATransaction(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new SQLiteGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['pragma foreign_keys = 0', 'first statement', 'second statement', 'pragma foreign_keys = 1'],
             [new Fluent(['name' => 'alter'])],
         );
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('pretending')->once()->andReturnFalse();
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(1);
-        $connection->shouldReceive('getTablePrefix')->once()->andReturn('');
-        $blueprint->shouldReceive('getTable')->once()->andReturn('users');
-        $connection->shouldReceive('scalar')
-            ->once()
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('pretending')->returns(false);
+        $connection->expects('transactionLevel')->returns(1);
+        $connection->expects('getTablePrefix')->returns('');
+        $blueprint->expects('getTable')->returns('users');
+        $connection->expects('scalar')
             ->with('select exists (select 1 from "users" limit 1)', [], false)
-            ->andReturn(0);
-        $connection->shouldReceive('transaction')
-            ->once()
-            ->andReturnUsing(static fn (Closure $callback) => $callback());
-        $connection->shouldReceive('statement')->once()->with('first statement')->andReturnTrue()->ordered();
-        $connection->shouldReceive('statement')->once()->with('second statement')->andReturnTrue()->ordered();
+            ->returns(0);
+        $connection->expects('transaction')
+            ->resolves(static fn (Closure $callback) => $callback());
+        $connection->expects('statement')->with('first statement')->returns(true)->ordered();
+        $connection->expects('statement')->with('second statement')->returns(true)->ordered();
 
         (new SQLiteBuilder($connection))->executeBlueprint($blueprint);
     }
 
     public function testExecuteBlueprintUsesASavepointInsideATransactionWhenForeignKeysAreDisabled(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new SQLiteGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['first statement', 'second statement'],
             [new Fluent(['name' => 'alter'])],
         );
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('pretending')->once()->andReturnFalse();
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(1);
-        $connection->shouldReceive('scalar')->never();
-        $connection->shouldReceive('transaction')
-            ->once()
-            ->andReturnUsing(static fn (Closure $callback) => $callback());
-        $connection->shouldReceive('statement')->once()->with('first statement')->andReturnTrue()->ordered();
-        $connection->shouldReceive('statement')->once()->with('second statement')->andReturnTrue()->ordered();
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('pretending')->returns(false);
+        $connection->expects('transactionLevel')->returns(1);
+        $connection->expects('scalar')->never();
+        $connection->expects('transaction')
+            ->resolves(static fn (Closure $callback) => $callback());
+        $connection->expects('statement')->with('first statement')->returns(true)->ordered();
+        $connection->expects('statement')->with('second statement')->returns(true)->ordered();
 
         (new SQLiteBuilder($connection))->executeBlueprint($blueprint);
     }
 
     public function testExecuteBlueprintDoesNotMutateSessionOrTransactionStateWhilePretending(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new SQLiteGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['pragma foreign_keys = 0', 'first statement', 'second statement', 'pragma foreign_keys = 1'],
             [new Fluent(['name' => 'alter'])],
         );
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('pretending')->once()->andReturnTrue();
-        $connection->shouldReceive('transactionLevel')->never();
-        $connection->shouldReceive('transaction')->never();
-        $connection->shouldReceive('executeSessionStatement')->never();
-        $connection->shouldReceive('statement')->once()->with('pragma foreign_keys = 0')->andReturnTrue()->ordered();
-        $connection->shouldReceive('statement')->once()->with('first statement')->andReturnTrue()->ordered();
-        $connection->shouldReceive('statement')->once()->with('second statement')->andReturnTrue()->ordered();
-        $connection->shouldReceive('statement')->once()->with('pragma foreign_keys = 1')->andReturnTrue()->ordered();
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('pretending')->returns(true);
+        $connection->expects('transactionLevel')->never();
+        $connection->expects('transaction')->never();
+        $connection->expects('executeSessionStatement')->never();
+        $connection->expects('statement')->with('pragma foreign_keys = 0')->returns(true)->ordered();
+        $connection->expects('statement')->with('first statement')->returns(true)->ordered();
+        $connection->expects('statement')->with('second statement')->returns(true)->ordered();
+        $connection->expects('statement')->with('pragma foreign_keys = 1')->returns(true)->ordered();
 
         (new SQLiteBuilder($connection))->executeBlueprint($blueprint);
     }
 
     public function testChangingForeignKeyConstraintsInsideATransactionFailsBeforeExecutingThePragma(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new SQLiteGrammar($connection);
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(1);
-        $connection->shouldReceive('statement')->never();
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('transactionLevel')->returns(1);
+        $connection->expects('statement')->never();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs(
@@ -541,24 +536,22 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testDropAllTablesUsesGuardedCatalogCleanup(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new SQLiteGrammar($connection);
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0)->ordered();
-        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(0)->ordered();
-        $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0')->ordered();
-        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = 1')->ordered();
-        $connection->shouldReceive('statement')
-            ->once()
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('transactionLevel')->returns(0)->ordered();
+        $connection->expects('scalar')->with('pragma writable_schema', [], false)->returns(0)->ordered();
+        $connection->expects('getServerVersion')->returns('3.45.0')->ordered();
+        $connection->expects('executeSessionStatement')->with('pragma writable_schema = 1')->ordered();
+        $connection->expects('statement')
             ->with($grammar->compileDropAllTables('main'))
-            ->andReturnTrue()
+            ->returns(true)
             ->ordered();
-        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = RESET')->ordered();
-        $connection->shouldReceive('statement')
-            ->once()
+        $connection->expects('executeSessionStatement')->with('pragma writable_schema = RESET')->ordered();
+        $connection->expects('statement')
             ->with($grammar->compileRebuild('main'))
-            ->andReturnTrue()
+            ->returns(true)
             ->ordered();
 
         (new SQLiteBuilder($connection))->dropAllTables();
@@ -566,46 +559,43 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testDropAllViewsRestoresAnEnabledWritableSchema(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new SQLiteGrammar($connection);
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0)->ordered();
-        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(1)->ordered();
-        $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0')->ordered();
-        $connection->shouldReceive('statement')
-            ->once()
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('transactionLevel')->returns(0)->ordered();
+        $connection->expects('scalar')->with('pragma writable_schema', [], false)->returns(1)->ordered();
+        $connection->expects('getServerVersion')->returns('3.45.0')->ordered();
+        $connection->expects('statement')
             ->with($grammar->compileDropAllViews('main'))
-            ->andReturnTrue()
+            ->returns(true)
             ->ordered();
-        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = RESET')->ordered();
-        $connection->shouldReceive('statement')
-            ->once()
+        $connection->expects('executeSessionStatement')->with('pragma writable_schema = RESET')->ordered();
+        $connection->expects('statement')
             ->with($grammar->compileRebuild('main'))
-            ->andReturnTrue()
+            ->returns(true)
             ->ordered();
-        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = 1')->ordered();
+        $connection->expects('executeSessionStatement')->with('pragma writable_schema = 1')->ordered();
 
         (new SQLiteBuilder($connection))->dropAllViews();
     }
 
     public function testDropAllTablesReloadsTheSchemaAfterADeleteFailure(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new SQLiteGrammar($connection);
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(0);
-        $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0');
-        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = 1')->ordered();
-        $connection->shouldReceive('statement')
-            ->once()
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('transactionLevel')->returns(0);
+        $connection->expects('scalar')->with('pragma writable_schema', [], false)->returns(0);
+        $connection->expects('getServerVersion')->returns('3.45.0');
+        $connection->expects('executeSessionStatement')->with('pragma writable_schema = 1')->ordered();
+        $connection->expects('statement')
             ->with($grammar->compileDropAllTables('main'))
-            ->andReturnFalse()
+            ->returns(false)
             ->ordered();
-        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = RESET')->ordered();
-        $connection->shouldReceive('statement')->with($grammar->compileRebuild('main'))->never();
+        $connection->expects('executeSessionStatement')->with('pragma writable_schema = RESET')->ordered();
+        $connection->expects('statement')->with($grammar->compileRebuild('main'))->never();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs(
@@ -617,26 +607,24 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testDropAllTablesMarksALegacySessionUnknownWhenVacuumFails(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new SQLiteGrammar($connection);
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(0);
-        $connection->shouldReceive('getServerVersion')->once()->andReturn('3.36.0');
-        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = 1')->ordered();
-        $connection->shouldReceive('statement')
-            ->once()
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('transactionLevel')->returns(0);
+        $connection->expects('scalar')->with('pragma writable_schema', [], false)->returns(0);
+        $connection->expects('getServerVersion')->returns('3.36.0');
+        $connection->expects('executeSessionStatement')->with('pragma writable_schema = 1')->ordered();
+        $connection->expects('statement')
             ->with($grammar->compileDropAllTables('main'))
-            ->andReturnTrue()
+            ->returns(true)
             ->ordered();
-        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = 0')->ordered();
-        $connection->shouldReceive('statement')
-            ->once()
+        $connection->expects('executeSessionStatement')->with('pragma writable_schema = 0')->ordered();
+        $connection->expects('statement')
             ->with($grammar->compileRebuild('main'))
-            ->andReturnFalse()
+            ->returns(false)
             ->ordered();
-        $connection->shouldReceive('markCurrentSessionStateUnknown')->once();
+        $connection->expects('markCurrentSessionStateUnknown');
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Failed to execute schema statement [vacuum "main"].');
@@ -646,26 +634,24 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testDropAllTablesKeepsAModernSessionKnownWhenVacuumFailsAfterReset(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new SQLiteGrammar($connection);
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(0);
-        $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0');
-        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = 1')->ordered();
-        $connection->shouldReceive('statement')
-            ->once()
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('transactionLevel')->returns(0);
+        $connection->expects('scalar')->with('pragma writable_schema', [], false)->returns(0);
+        $connection->expects('getServerVersion')->returns('3.45.0');
+        $connection->expects('executeSessionStatement')->with('pragma writable_schema = 1')->ordered();
+        $connection->expects('statement')
             ->with($grammar->compileDropAllTables('main'))
-            ->andReturnTrue()
+            ->returns(true)
             ->ordered();
-        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = RESET')->ordered();
-        $connection->shouldReceive('statement')
-            ->once()
+        $connection->expects('executeSessionStatement')->with('pragma writable_schema = RESET')->ordered();
+        $connection->expects('statement')
             ->with($grammar->compileRebuild('main'))
-            ->andReturnFalse()
+            ->returns(false)
             ->ordered();
-        $connection->shouldReceive('markCurrentSessionStateUnknown')->never();
+        $connection->expects('markCurrentSessionStateUnknown')->never();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Failed to execute schema statement [vacuum "main"].');
@@ -675,26 +661,24 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testDropAllTablesStopsBeforeSchemaReloadWhenWritableSchemaResetFails(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new SQLiteGrammar($connection);
         $failure = new PDOException('Failed to reset writable_schema.');
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(0);
-        $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0');
-        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = 1')->ordered();
-        $connection->shouldReceive('statement')
-            ->once()
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('transactionLevel')->returns(0);
+        $connection->expects('scalar')->with('pragma writable_schema', [], false)->returns(0);
+        $connection->expects('getServerVersion')->returns('3.45.0');
+        $connection->expects('executeSessionStatement')->with('pragma writable_schema = 1')->ordered();
+        $connection->expects('statement')
             ->with($grammar->compileDropAllTables('main'))
-            ->andReturnTrue()
+            ->returns(true)
             ->ordered();
-        $connection->shouldReceive('executeSessionStatement')
-            ->once()
+        $connection->expects('executeSessionStatement')
             ->with('pragma writable_schema = RESET')
-            ->andThrow($failure)
+            ->throws($failure)
             ->ordered();
-        $connection->shouldReceive('statement')->with($grammar->compileRebuild('main'))->never();
+        $connection->expects('statement')->with($grammar->compileRebuild('main'))->never();
 
         try {
             (new SQLiteBuilder($connection))->dropAllTables();
@@ -706,29 +690,26 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testDropAllViewsPropagatesWritableModeRestorationFailure(): void
     {
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $grammar = new SQLiteGrammar($connection);
         $failure = new PDOException('Failed to restore writable_schema.');
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(1);
-        $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0');
-        $connection->shouldReceive('statement')
-            ->once()
+        $connection->expects('getSchemaGrammar')->returns($grammar);
+        $connection->expects('transactionLevel')->returns(0);
+        $connection->expects('scalar')->with('pragma writable_schema', [], false)->returns(1);
+        $connection->expects('getServerVersion')->returns('3.45.0');
+        $connection->expects('statement')
             ->with($grammar->compileDropAllViews('main'))
-            ->andReturnTrue()
+            ->returns(true)
             ->ordered();
-        $connection->shouldReceive('executeSessionStatement')->once()->with('pragma writable_schema = RESET')->ordered();
-        $connection->shouldReceive('statement')
-            ->once()
+        $connection->expects('executeSessionStatement')->with('pragma writable_schema = RESET')->ordered();
+        $connection->expects('statement')
             ->with($grammar->compileRebuild('main'))
-            ->andReturnTrue()
+            ->returns(true)
             ->ordered();
-        $connection->shouldReceive('executeSessionStatement')
-            ->once()
+        $connection->expects('executeSessionStatement')
             ->with('pragma writable_schema = 1')
-            ->andThrow($failure)
+            ->throws($failure)
             ->ordered();
 
         try {
@@ -741,11 +722,11 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testDropAllTablesRejectsAnActiveTransactionBeforeInspectingTheSchema(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new SQLiteGrammar($connection));
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(1);
-        $connection->shouldReceive('scalar')->never();
-        $connection->shouldReceive('statement')->never();
+        $connection = Double::for(Connection::class);
+        $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
+        $connection->expects('transactionLevel')->returns(1);
+        $connection->expects('scalar')->never();
+        $connection->expects('statement')->never();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('SQLite cannot drop all tables within an active transaction.');
@@ -755,11 +736,11 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testDropAllViewsRejectsAnActiveTransactionBeforeInspectingTheSchema(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new SQLiteGrammar($connection));
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(1);
-        $connection->shouldReceive('scalar')->never();
-        $connection->shouldReceive('statement')->never();
+        $connection = Double::for(Connection::class);
+        $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
+        $connection->expects('transactionLevel')->returns(1);
+        $connection->expects('scalar')->never();
+        $connection->expects('statement')->never();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('SQLite cannot drop all views within an active transaction.');
@@ -769,14 +750,14 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testRefreshDatabaseFileUsesTheCanonicalMainDatabasePath(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new SQLiteGrammar($connection));
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('getDatabaseName')->once()->andReturn('file:database.sqlite?mode=rwc');
-        $connection->shouldReceive('scalar')->once()->with('pragma journal_mode', [], false)->andReturn('delete');
+        $connection = Double::for(Connection::class);
+        $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
+        $connection->expects('transactionLevel')->returns(0);
+        $connection->expects('getDatabaseName')->returns('file:database.sqlite?mode=rwc');
+        $connection->expects('scalar')->with('pragma journal_mode', [], false)->returns('delete');
 
-        $builder = m::mock(SQLiteBuilder::class, [$connection])->makePartial();
-        $builder->shouldReceive('getSchemas')->once()->andReturn([
+        $builder = Double::for(new SQLiteBuilder($connection))->passthru();
+        $builder->expects('getSchemas')->returns([
             ['name' => 'main', 'path' => '/canonical/database.sqlite'],
         ]);
 
@@ -787,12 +768,12 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testRefreshDatabaseFileRejectsWalForTheConnectedDatabase(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new SQLiteGrammar($connection));
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('getDatabaseName')->once()->andReturn('/database.sqlite');
-        $connection->shouldReceive('scalar')->once()->with('pragma journal_mode', [], false)->andReturn('wal');
-        $connection->shouldReceive('selectFromWriteConnection')->never();
+        $connection = Double::for(Connection::class);
+        $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
+        $connection->expects('transactionLevel')->returns(0);
+        $connection->expects('getDatabaseName')->returns('/database.sqlite');
+        $connection->expects('scalar')->with('pragma journal_mode', [], false)->returns('wal');
+        $connection->expects('selectFromWriteConnection')->never();
         File::shouldReceive('put')->never();
 
         $this->expectException(RuntimeException::class);
@@ -805,11 +786,11 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testRefreshDatabaseFileRejectsAnActiveTransactionBeforeInspectingTheDatabase(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new SQLiteGrammar($connection));
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(1);
-        $connection->shouldReceive('getDatabaseName')->never();
-        $connection->shouldReceive('scalar')->never();
+        $connection = Double::for(Connection::class);
+        $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
+        $connection->expects('transactionLevel')->returns(1);
+        $connection->expects('getDatabaseName')->never();
+        $connection->expects('scalar')->never();
         File::shouldReceive('put')->never();
 
         $this->expectException(RuntimeException::class);
@@ -820,12 +801,12 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testRefreshDatabaseFileWithAnExplicitPathDoesNotInspectTheConnection(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new SQLiteGrammar($connection));
-        $connection->shouldReceive('transactionLevel')->never();
-        $connection->shouldReceive('getDatabaseName')->never();
-        $connection->shouldReceive('scalar')->never();
-        $connection->shouldReceive('selectFromWriteConnection')->never();
+        $connection = Double::for(Connection::class);
+        $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
+        $connection->expects('transactionLevel')->never();
+        $connection->expects('getDatabaseName')->never();
+        $connection->expects('scalar')->never();
+        $connection->expects('selectFromWriteConnection')->never();
         File::shouldReceive('put')->once()->with('/database.sqlite', '')->andReturn(0);
 
         (new SQLiteBuilder($connection))->refreshDatabaseFile('/database.sqlite');
@@ -834,11 +815,11 @@ class DatabaseSQLiteBuilderTest extends TestCase
     #[DataProvider('inMemoryDatabaseNames')]
     public function testRefreshDatabaseFileRejectsInMemoryDatabasesWithoutWritingAFile(string $database): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new SQLiteGrammar($connection));
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('getDatabaseName')->once()->andReturn($database);
-        $connection->shouldReceive('scalar')->never();
+        $connection = Double::for(Connection::class);
+        $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
+        $connection->expects('transactionLevel')->returns(0);
+        $connection->expects('getDatabaseName')->returns($database);
+        $connection->expects('scalar')->never();
         File::shouldReceive('put')->never();
 
         $this->expectException(InvalidArgumentException::class);
@@ -863,8 +844,8 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testRefreshDatabaseFileThrowsWhenTheFileCannotBeWritten(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new SQLiteGrammar($connection));
+        $connection = Double::for(Connection::class);
+        $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
 
         File::shouldReceive('put')
             ->once()
@@ -885,9 +866,9 @@ class DatabaseSQLiteBuilderTest extends TestCase
      */
     protected function executionBlueprint(array $statements, array $commands): Blueprint
     {
-        $blueprint = m::mock(Blueprint::class);
-        $blueprint->shouldReceive('toSql')->once()->andReturn($statements);
-        $blueprint->shouldReceive('getCommands')->andReturn($commands);
+        $blueprint = Double::for(Blueprint::class);
+        $blueprint->expects('toSql')->returns($statements);
+        $blueprint->allows('getCommands')->returns($commands);
 
         return $blueprint;
     }
