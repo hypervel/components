@@ -12,23 +12,26 @@ use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseEloquentCreateOrFirstValidationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('creationHelpers')]
     public function testRelatedBuilderValidationRunsBeforeQueriesAndValueCallbacks(string $relation, string $method): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
-        $connection->shouldReceive('query')->andReturnUsing(fn () => new QueryBuilder($connection, new Grammar($connection), new Processor));
-        $connection->shouldNotReceive('select');
-        $connection->shouldNotReceive('insert');
-        $connection->shouldNotReceive('update');
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->andReturn($connection);
+        $connection = Double::for(Connection::class);
+        $connection->allows('getTablePrefix')->returns('');
+        $connection->allows('query')->resolves(fn () => new QueryBuilder($connection, new Grammar($connection), new Processor));
+        $connection->expects('select')->never();
+        $connection->expects('insert')->never();
+        $connection->expects('update')->never();
+        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver->allows('connection')->returns($connection);
         Model::setConnectionResolver($resolver);
         $parent = new CreationValidationParent(['id' => 1]);
         $related = CreationValidationModel::class;

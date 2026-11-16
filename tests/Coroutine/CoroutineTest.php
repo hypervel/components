@@ -20,7 +20,8 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -32,6 +33,8 @@ use function Hypervel\Coroutine\go;
 
 class CoroutineTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('cancellationExceptions')]
     public function testCancellationClassificationRespectsCoroutineBoundaries(Throwable $exception, bool $expected): void
     {
@@ -159,34 +162,25 @@ class CoroutineTest extends TestCase
     public function testCoroutineAndDeferWithException(): void
     {
         $container = new Container;
-        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class);
         $container->instance(ExceptionHandlerContract::class, $handler);
         Container::setInstance($container);
 
         $exception = new Exception;
-        $handler->shouldReceive('report')->with($exception)->twice();
+        $handler->expects('report')->with($exception)->times(2);
 
-        $chan = new Channel(1);
-        go(static function () use ($chan, $exception) {
-            Coroutine::defer(static function () use ($chan, $exception) {
-                try {
-                    throw $exception;
-                } finally {
-                    $chan->push(1);
-                }
-            });
+        go(static function () use ($exception): never {
+            Coroutine::defer(static fn () => throw $exception);
 
             throw $exception;
         });
-
-        $this->assertTrue(true);
     }
 
     public function testTerminalCancellationIsNotReported(): void
     {
         $container = new Container;
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldNotReceive('report');
+        $handler = Double::for(ExceptionHandlerContract::class);
+        $handler->expects('report')->never();
         $container->instance(ExceptionHandlerContract::class, $handler);
         Container::setInstance($container);
         $blocker = new Channel(1);
@@ -202,9 +196,9 @@ class CoroutineTest extends TestCase
     public function testTerminalBoundaryReportsCleanupFailureDuringCancellationOnce(): void
     {
         $container = new Container;
-        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class);
         $failure = new RuntimeException('Coroutine cleanup failed.');
-        $handler->shouldReceive('report')->once()->with($failure);
+        $handler->expects('report')->with($failure);
         $container->instance(ExceptionHandlerContract::class, $handler);
         Container::setInstance($container);
         $blocker = new Channel(1);
@@ -232,14 +226,14 @@ class CoroutineTest extends TestCase
     public function testTerminalBoundaryContainsCancellationDuringReporting(bool $cleanupFails): void
     {
         $container = new Container;
-        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class);
         $container->instance(ExceptionHandlerContract::class, $handler);
         Container::setInstance($container);
         $failure = new RuntimeException('The coroutine failed.');
         $cleanupFailure = new RuntimeException('The reporter cleanup failed.');
         $blocker = new Channel(1);
-        $handler->shouldReceive('report')->once()->with($failure)
-            ->andReturnUsing(static function () use ($blocker, $cleanupFails, $cleanupFailure): void {
+        $handler->expects('report')->with($failure)
+            ->resolves(static function () use ($blocker, $cleanupFails, $cleanupFailure): void {
                 try {
                     $blocker->pop();
                 } finally {
@@ -414,11 +408,11 @@ class CoroutineTest extends TestCase
     {
         try {
             $container = new Container;
-            $handler = m::mock(ExceptionHandlerContract::class);
+            $handler = Double::for(ExceptionHandlerContract::class);
             $container->instance(ExceptionHandlerContract::class, $handler);
             Container::setInstance($container);
 
-            $handler->shouldReceive('report')->once();
+            $handler->expects('report');
 
             Coroutine::reportExceptions(false);
             Coroutine::create(function () {
@@ -442,10 +436,10 @@ class CoroutineTest extends TestCase
     public function testAfterCreatedCallbackExceptionDoesNotStopOthers(): void
     {
         $container = new Container;
-        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class);
         $container->instance(ExceptionHandlerContract::class, $handler);
         Container::setInstance($container);
-        $handler->shouldReceive('report')->once();
+        $handler->expects('report');
 
         $secondCallbackRan = false;
         $mainCallableRan = false;
@@ -471,7 +465,7 @@ class CoroutineTest extends TestCase
     public function testOwnedCoroutineTransfersOwnershipBeforeStartupFailureReportingCanSuspend(bool $cleanupFails): void
     {
         $container = new Container;
-        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class);
         $container->instance(ExceptionHandlerContract::class, $handler);
         Container::setInstance($container);
         CoroutineContext::set('request-id', 'child-request');
@@ -485,10 +479,9 @@ class CoroutineTest extends TestCase
         $secondCallbackRan = false;
         $mainCallableRan = false;
 
-        $handler->shouldReceive('report')
-            ->once()
+        $handler->expects('report')
             ->with($exception)
-            ->andReturnUsing(static function () use ($reportStarted, $releaseReport, &$reportedContext, $cleanupFails, $cleanupFailure): void {
+            ->resolves(static function () use ($reportStarted, $releaseReport, &$reportedContext, $cleanupFails, $cleanupFailure): void {
                 $reportedContext = CoroutineContext::get('request-id');
                 $reportStarted->push(true);
                 try {
@@ -501,7 +494,7 @@ class CoroutineTest extends TestCase
             });
 
         if ($cleanupFails) {
-            $handler->shouldReceive('report')->once()->with($cleanupFailure);
+            $handler->expects('report')->with($cleanupFailure);
         }
 
         Coroutine::afterCreated(static function () use ($exception): void {
@@ -564,10 +557,9 @@ class CoroutineTest extends TestCase
 
         try {
             $container = new Container;
-            $handler = m::mock(ExceptionHandlerContract::class);
-            $handler->shouldReceive('report')
-                ->once()
-                ->andThrow(new RuntimeException('The exception reporter failed.'));
+            $handler = Double::for(ExceptionHandlerContract::class);
+            $handler->expects('report')
+                ->throws(new RuntimeException('The exception reporter failed.'));
             $container->instance(ExceptionHandlerContract::class, $handler);
             Container::setInstance($container);
 

@@ -18,23 +18,20 @@ class PutTest extends RedisCacheTestCase
 
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('setex')
-            ->once()
+        $connection->client()->expects('setex')
             ->with('prefix:mykey', 60, serialize('myvalue'))
-            ->andReturn($connection)
+            ->returns($connection->client())
             ->ordered();
 
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
-            ->andReturn($connection)
+        $connection->client()->expects('zadd')
+            ->with('prefix:_all:tag:users:entries', 1061.0, 'mykey')
+            ->returns($connection->client())
             ->ordered();
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([true, 1]);
+        $connection->client()->expects('exec')
+            ->returns([true, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->put()->execute(
@@ -53,29 +50,25 @@ class PutTest extends RedisCacheTestCase
 
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $expectedScore = 1121;
+        $expectedScore = 1121.0;
 
         // ZADD for each tag
-        $connection->shouldReceive('zadd')
-            ->once()
+        $connection->client()->expects('zadd')
             ->with('prefix:_all:tag:users:entries', $expectedScore, 'mykey')
-            ->andReturn($connection);
-        $connection->shouldReceive('zadd')
-            ->once()
+            ->returns($connection->client());
+        $connection->client()->expects('zadd')
             ->with('prefix:_all:tag:posts:entries', $expectedScore, 'mykey')
-            ->andReturn($connection);
+            ->returns($connection->client());
 
         // SETEX for cache value
-        $connection->shouldReceive('setex')
-            ->once()
+        $connection->client()->expects('setex')
             ->with('prefix:mykey', 120, serialize('myvalue'))
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([true, 1, 1]);
+        $connection->client()->expects('exec')
+            ->returns([true, 1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->put()->execute(
@@ -92,18 +85,16 @@ class PutTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         // No ZADD calls expected
         // SETEX for cache value
-        $connection->shouldReceive('setex')
-            ->once()
+        $connection->client()->expects('setex')
             ->with('prefix:mykey', 60, serialize('myvalue'))
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([true]);
+        $connection->client()->expects('exec')
+            ->returns([true]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->put()->execute(
@@ -122,21 +113,18 @@ class PutTest extends RedisCacheTestCase
 
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('custom:_all:tag:users:entries', 1031, 'mykey')
-            ->andReturn($connection);
+        $connection->client()->expects('zadd')
+            ->with('custom:_all:tag:users:entries', 1031.0, 'mykey')
+            ->returns($connection->client());
 
-        $connection->shouldReceive('setex')
-            ->once()
+        $connection->client()->expects('setex')
             ->with('custom:mykey', 30, serialize('myvalue'))
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([true, 1]);
+        $connection->client()->expects('exec')
+            ->returns([true, 1]);
 
         $store = $this->createStore($connection, 'custom:');
         $result = $store->allTagOps()->put()->execute(
@@ -153,15 +141,14 @@ class PutTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zadd')->andReturn($connection);
-        $connection->shouldReceive('setex')->andReturn($connection);
+        $connection->client()->allows('zadd')->returns($connection->client());
+        $connection->client()->allows('setex')->returns($connection->client());
 
         // SETEX returns false (failure)
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([false, 1]);
+        $connection->client()->expects('exec')
+            ->returns([false, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->put()->execute(
@@ -177,10 +164,10 @@ class PutTest extends RedisCacheTestCase
     public function testPutReturnsFalseWhenPipelineMembershipWriteFails(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('setex')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, false]);
+        $connection->client()->expects('pipeline')->returns($connection->client());
+        $connection->client()->expects('setex')->returns($connection->client());
+        $connection->client()->expects('zadd')->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, false]);
 
         $store = $this->createStore($connection);
 
@@ -195,10 +182,10 @@ class PutTest extends RedisCacheTestCase
     public function testPutTreatsZeroPipelineMembershipResultAsSuccess(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('setex')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 0]);
+        $connection->client()->expects('pipeline')->returns($connection->client());
+        $connection->client()->expects('setex')->returns($connection->client());
+        $connection->client()->expects('zadd')->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, 0]);
 
         $store = $this->createStore($connection);
 
@@ -214,21 +201,16 @@ class PutTest extends RedisCacheTestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
 
-        [$store, , $connection] = $this->createClusterStore();
+        [$store, $client] = $this->createClusterStore();
 
-        // Should NOT use pipeline in cluster mode
-        $connection->shouldNotReceive('pipeline');
-
-        $connection->shouldReceive('setex')
-            ->once()
+        $client->expects('setex')
             ->with('prefix:mykey', 60, serialize('myvalue'))
-            ->andReturn(true)
+            ->returns(true)
             ->ordered();
 
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
-            ->andReturn(1)
+        $client->expects('zadd')
+            ->with('prefix:_all:tag:users:entries', 1061.0, 'mykey')
+            ->returns(1)
             ->ordered();
 
         $result = $store->allTagOps()->put()->execute(
@@ -243,18 +225,18 @@ class PutTest extends RedisCacheTestCase
 
     public function testPutInClusterModeDoesNotPublishTagsWhenTheValueWriteFails(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
-        $connection->expects('setex')->with('prefix:mykey', 60, serialize('myvalue'))->andReturnFalse();
-        $connection->shouldNotReceive('zadd');
+        [$store, $client] = $this->createClusterStore();
+        $client->expects('setex')->with('prefix:mykey', 60, serialize('myvalue'))->returns(false);
+        $client->expects('zadd')->never();
 
         $this->assertFalse($store->allTagOps()->put()->execute('mykey', 'myvalue', 60, ['_all:tag:users:entries']));
     }
 
     public function testPutReturnsFalseWhenClusterMembershipWriteFails(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
-        $connection->shouldReceive('setex')->once()->andReturn(true);
-        $connection->shouldReceive('zadd')->once()->andReturn(false);
+        [$store, $client] = $this->createClusterStore();
+        $client->expects('setex')->returns(true);
+        $client->expects('zadd')->returns(false);
 
         $this->assertFalse($store->allTagOps()->put()->execute(
             'mykey',
@@ -266,9 +248,9 @@ class PutTest extends RedisCacheTestCase
 
     public function testPutTreatsZeroClusterMembershipResultAsSuccess(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
-        $connection->shouldReceive('setex')->once()->andReturn(true);
-        $connection->shouldReceive('zadd')->once()->andReturn(0);
+        [$store, $client] = $this->createClusterStore();
+        $client->expects('setex')->returns(true);
+        $client->expects('zadd')->returns(0);
 
         $this->assertTrue($store->allTagOps()->put()->execute(
             'mykey',
@@ -283,22 +265,19 @@ class PutTest extends RedisCacheTestCase
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 1002, 'mykey')
-            ->andReturn($connection);
+        $connection->client()->expects('zadd')
+            ->with('prefix:_all:tag:users:entries', 1002.0, 'mykey')
+            ->returns($connection->client());
 
         // TTL should be at least 1
-        $connection->shouldReceive('setex')
-            ->once()
+        $connection->client()->expects('setex')
             ->with('prefix:mykey', 1, serialize('myvalue'))
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([true, 1]);
+        $connection->client()->expects('exec')
+            ->returns([true, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->put()->execute(
@@ -315,19 +294,17 @@ class PutTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zadd')->andReturn($connection);
+        $connection->client()->allows('zadd')->returns($connection->client());
 
         // Numeric values are NOT serialized (optimization)
-        $connection->shouldReceive('setex')
-            ->once()
+        $connection->client()->expects('setex')
             ->with('prefix:mykey', 60, 42)
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([true, 1]);
+        $connection->client()->expects('exec')
+            ->returns([true, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->put()->execute(

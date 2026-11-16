@@ -19,7 +19,8 @@ use Hypervel\Support\Facades\File;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Doctor\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -27,6 +28,8 @@ use Throwable;
 
 class CacheStoreIsReachableTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private string $directory;
 
     private ?string $originalEnvironmentFile;
@@ -367,9 +370,9 @@ class CacheStoreIsReachableTest extends TestCase
             $cleanupCanceled => new CanceledException('cleanup canceled'),
             default => new RuntimeException('cleanup failed'),
         };
-        $store = m::mock(Store::class);
-        $store->expects('put')->andThrow($primary);
-        $store->expects('forget')->andThrow($cleanup);
+        $store = Double::for(Store::class);
+        $store->expects('put')->throws($primary);
+        $store->expects('forget')->throws($cleanup);
         Cache::extend('probe', fn (): Repository => new Repository($store));
         config(['cache.default' => 'probe', 'cache.stores.probe' => ['driver' => 'probe']]);
         $caught = null;

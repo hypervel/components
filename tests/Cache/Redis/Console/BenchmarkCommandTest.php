@@ -16,7 +16,8 @@ use Hypervel\Console\Command;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -25,6 +26,8 @@ use Throwable;
 
 class BenchmarkCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testSetupPreservesZeroStoreOption(): void
     {
         $this->mockCacheStore('0');
@@ -76,8 +79,8 @@ class BenchmarkCommandTest extends TestCase
             'file' => ['driver' => 'file'],
         ]);
 
-        $cache = m::mock(CacheContract::class);
-        $cache->shouldNotReceive('store');
+        $cache = Double::for(CacheContract::class);
+        $cache->expects('store')->never();
         $this->app->instance(CacheContract::class, $cache);
 
         $command = $this->createCommand();
@@ -99,8 +102,8 @@ class BenchmarkCommandTest extends TestCase
             'all-tag-pattern:*',
         ];
 
-        $context = m::mock(BenchmarkContext::class);
-        $context->expects('getCleanupPatterns')->once()->andReturn($patterns);
+        $context = Double::for(BenchmarkContext::class);
+        $context->expects('getCleanupPatterns')->returns($patterns);
 
         $command = $this->createCommand();
         $output = new BufferedOutput;
@@ -168,7 +171,7 @@ class BenchmarkCommandTest extends TestCase
     {
         $this->mockFullCacheStore('redis');
         $context = $this->mockBenchmarkContext();
-        $context->expects('getStoreInstance')->andReturn(m::mock(RedisStore::class));
+        $context->expects('getStoreInstance')->returns(Double::for(RedisStore::class));
         $command = $this->createFullCommand($context);
 
         $this->assertSame(Command::SUCCESS, $command->run(new ArrayInput([
@@ -279,16 +282,19 @@ class BenchmarkCommandTest extends TestCase
         );
     }
 
+    /**
+     * Configure a Redis cache store for command setup.
+     */
     private function mockCacheStore(string $name): void
     {
-        $store = m::mock(RedisStore::class);
+        $store = Double::for(RedisStore::class);
 
-        $repository = m::mock(Repository::class);
-        $repository->shouldReceive('getStore')->once()->andReturn($store);
-        $repository->shouldReceive('get')->once()->with('test')->andReturnNull();
+        $repository = Double::for(Repository::class);
+        $repository->expects('getStore')->returns($store);
+        $repository->expects('get')->with('test')->returns(null);
 
-        $cache = m::mock(CacheContract::class);
-        $cache->shouldReceive('store')->twice()->with($name)->andReturn($repository);
+        $cache = Double::for(CacheContract::class);
+        $cache->expects('store')->times(2)->with($name)->returns($repository);
 
         $this->app->instance(CacheContract::class, $cache);
     }
@@ -298,30 +304,29 @@ class BenchmarkCommandTest extends TestCase
      */
     private function mockFullCacheStore(string $name, ?Throwable $displayException = null): void
     {
-        $store = m::mock(RedisStore::class);
+        $store = Double::for(RedisStore::class);
 
         if ($displayException === null) {
-            $storeContext = m::mock(StoreContext::class);
-            $storeContext->shouldReceive('withConnection')
-                ->once()
-                ->andReturn(['redis_version' => '8.0.0']);
+            $storeContext = Double::for(StoreContext::class);
+            $storeContext->expects('withConnection')
+                ->returns(['redis_version' => '8.0.0']);
 
-            $store->shouldReceive('getContext')->once()->andReturn($storeContext);
-            $store->shouldReceive('getTagMode')->once()->andReturn(TagMode::Any);
+            $store->expects('getContext')->returns($storeContext);
+            $store->expects('getTagMode')->returns(TagMode::Any);
         } else {
-            $store->shouldNotReceive('getContext');
-            $store->shouldNotReceive('getTagMode');
+            $store->expects('getContext')->never();
+            $store->expects('getTagMode')->never();
         }
 
-        $repository = m::mock(Repository::class);
+        $repository = Double::for(Repository::class);
 
         if ($displayException === null) {
-            $repository->shouldReceive('getStore')->twice()->andReturn($store);
+            $repository->expects('getStore')->times(2)->returns($store);
         } else {
             $getStoreCalls = 0;
-            $repository->shouldReceive('getStore')
-                ->twice()
-                ->andReturnUsing(function () use (&$getStoreCalls, $displayException, $store): RedisStore {
+            $repository->expects('getStore')
+                ->times(2)
+                ->resolves(function () use (&$getStoreCalls, $displayException, $store): RedisStore {
                     ++$getStoreCalls;
 
                     if ($getStoreCalls === 2) {
@@ -332,10 +337,10 @@ class BenchmarkCommandTest extends TestCase
                 });
         }
 
-        $repository->shouldReceive('get')->once()->with('test')->andReturnNull();
+        $repository->expects('get')->with('test')->returns(null);
 
-        $cacheManager = m::mock(CacheContract::class);
-        $cacheManager->shouldReceive('store')->times(3)->with($name)->andReturn($repository);
+        $cacheManager = Double::for(CacheContract::class);
+        $cacheManager->expects('store')->times(3)->with($name)->returns($repository);
 
         $this->app->instance(CacheContract::class, $cacheManager);
     }
@@ -345,14 +350,12 @@ class BenchmarkCommandTest extends TestCase
      */
     private function mockBenchmarkContext(?Throwable $cleanupException = null): BenchmarkContext
     {
-        $context = m::mock(BenchmarkContext::class);
-        $context->allows('getCleanupPatterns')->andReturn(['cache:_bench:*']);
-        $cleanup = $context->shouldReceive('cleanup')->once();
+        $context = Double::for(BenchmarkContext::class);
+        $context->allows('getCleanupPatterns')->returns(['cache:_bench:*']);
+        $cleanup = $context->expects('cleanup');
 
-        if ($cleanupException === null) {
-            $cleanup->andReturnNull();
-        } else {
-            $cleanup->andThrow($cleanupException);
+        if ($cleanupException !== null) {
+            $cleanup->throws($cleanupException);
         }
 
         return $context;
@@ -372,6 +375,9 @@ class BenchmarkCommandTest extends TestCase
         ]);
     }
 
+    /**
+     * Create a command limited to setup.
+     */
     private function createCommand(): TestableBenchmarkCommand
     {
         $command = new TestableBenchmarkCommand;

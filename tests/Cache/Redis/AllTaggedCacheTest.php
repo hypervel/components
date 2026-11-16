@@ -27,7 +27,9 @@ use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\CarbonImmutable;
-use Mockery as m;
+use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -45,15 +47,15 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         $key = hash('xxh128', '_all:tag:people:entries|_all:tag:author:entries') . ':name';
 
         // Combined operation: SET + ZADD for both tags (forever uses score -1)
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:people:entries', -1, $key)->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:author:entries', -1, $key)->andReturn($connection);
-        $connection->shouldReceive('set')->once()->with("prefix:{$key}", serialize('Sally'))->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 1, 1]);
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:people:entries', -1.0, $key)->returns($connection->client());
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:author:entries', -1.0, $key)->returns($connection->client());
+        $connection->client()->expects('set')->with("prefix:{$key}", serialize('Sally'))->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, 1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['people', 'author'])->forever('name', 'Sally');
@@ -65,15 +67,15 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         $key = hash('xxh128', '_all:tag:people:entries|_all:tag:author:entries') . ':age';
 
         // Numeric values are NOT serialized (optimization)
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:people:entries', -1, $key)->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:author:entries', -1, $key)->andReturn($connection);
-        $connection->shouldReceive('set')->once()->with("prefix:{$key}", 30)->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 1, 1]);
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:people:entries', -1.0, $key)->returns($connection->client());
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:author:entries', -1.0, $key)->returns($connection->client());
+        $connection->client()->expects('set')->with("prefix:{$key}", 30)->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, 1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['people', 'author'])->forever('age', 30);
@@ -85,14 +87,14 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         $key = hash('xxh128', '_all:tag:votes:entries') . ':person-1';
 
         // Combined operation: INCRBY + ZADD NX in single pipeline
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:votes:entries', ['NX'], -1, $key)->andReturn($connection);
-        $connection->shouldReceive('incrby')->once()->with("prefix:{$key}", 1)->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([1, 1]);
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:votes:entries', ['NX'], -1, $key)->returns($connection->client());
+        $connection->client()->expects('incrby')->with("prefix:{$key}", 1)->returns($connection->client());
+        $connection->client()->expects('exec')->returns([1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['votes'])->increment('person-1');
@@ -104,14 +106,14 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         $key = hash('xxh128', '_all:tag:votes:entries') . ':person-1';
 
         // Combined operation: DECRBY + ZADD NX in single pipeline
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:votes:entries', ['NX'], -1, $key)->andReturn($connection);
-        $connection->shouldReceive('decrby')->once()->with("prefix:{$key}", 1)->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([9, 1]);
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:votes:entries', ['NX'], -1, $key)->returns($connection->client());
+        $connection->client()->expects('decrby')->with("prefix:{$key}", 1)->returns($connection->client());
+        $connection->client()->expects('exec')->returns([9, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['votes'])->decrement('person-1');
@@ -123,14 +125,13 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         // FlushStaleEntries uses pipeline for zRemRangeByScore
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
+        $connection->client()->expects('zRemRangeByScore')
             ->with('prefix:_all:tag:people:entries', '0', (string) now()->timestamp)
-            ->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([0]);
+            ->returns($connection->client());
+        $connection->client()->expects('exec')->returns([0]);
 
         $store = $this->createStore($connection);
         $store->tags(['people'])->flushStale();
@@ -140,16 +141,16 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         $key = hash('xxh128', '_all:tag:people:entries|_all:tag:author:entries') . ':name';
         $expectedScore = now()->timestamp + 5;
 
         // Combined operation: SETEX + ZADD for both tags in single pipeline
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:people:entries', $expectedScore, $key)->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:author:entries', $expectedScore, $key)->andReturn($connection);
-        $connection->shouldReceive('setex')->once()->with("prefix:{$key}", 5, serialize('Sally'))->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 1, 1]);
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:people:entries', (float) $expectedScore, $key)->returns($connection->client());
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:author:entries', (float) $expectedScore, $key)->returns($connection->client());
+        $connection->client()->expects('setex')->with("prefix:{$key}", 5, serialize('Sally'))->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, 1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['people', 'author'])->put('name', 'Sally', 5);
@@ -161,16 +162,16 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         $key = hash('xxh128', '_all:tag:people:entries|_all:tag:author:entries') . ':age';
         $expectedScore = now()->timestamp + 5;
 
         // Numeric values are NOT serialized
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:people:entries', $expectedScore, $key)->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:author:entries', $expectedScore, $key)->andReturn($connection);
-        $connection->shouldReceive('setex')->once()->with("prefix:{$key}", 5, 30)->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 1, 1]);
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:people:entries', (float) $expectedScore, $key)->returns($connection->client());
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:author:entries', (float) $expectedScore, $key)->returns($connection->client());
+        $connection->client()->expects('setex')->with("prefix:{$key}", 5, 30)->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, 1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['people', 'author'])->put('age', 30, 5);
@@ -182,30 +183,28 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         $namespace = hash('xxh128', '_all:tag:people:entries|_all:tag:author:entries') . ':';
         $expectedScore = now()->timestamp + 5;
 
         // PutMany uses variadic ZADD: one command per tag with all keys as members
         // First tag (people) gets both keys in one ZADD
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:people:entries', $expectedScore, $namespace . 'name', $expectedScore, $namespace . 'age')
-            ->andReturn($connection);
+        $connection->client()->expects('zadd')
+            ->with('prefix:_all:tag:people:entries', (float) $expectedScore, $namespace . 'name', $expectedScore, $namespace . 'age')
+            ->returns($connection->client());
 
         // Second tag (author) gets both keys in one ZADD
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:author:entries', $expectedScore, $namespace . 'name', $expectedScore, $namespace . 'age')
-            ->andReturn($connection);
+        $connection->client()->expects('zadd')
+            ->with('prefix:_all:tag:author:entries', (float) $expectedScore, $namespace . 'name', $expectedScore, $namespace . 'age')
+            ->returns($connection->client());
 
         // SETEX for each key
-        $connection->shouldReceive('setex')->once()->with("prefix:{$namespace}name", 5, serialize('Sally'))->andReturn($connection);
-        $connection->shouldReceive('setex')->once()->with("prefix:{$namespace}age", 5, 30)->andReturn($connection);
+        $connection->client()->expects('setex')->with("prefix:{$namespace}name", 5, serialize('Sally'))->returns($connection->client());
+        $connection->client()->expects('setex')->with("prefix:{$namespace}age", 5, 30)->returns($connection->client());
 
         // Results: 2 SETEXs + 2 ZADDs
-        $connection->shouldReceive('exec')->once()->andReturn([true, true, 2, 2]);
+        $connection->client()->expects('exec')->returns([true, true, 2, 2]);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['people', 'author'])->put([
@@ -224,21 +223,20 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $namespace = '_all:tag:people:entries|_all:tag:author:entries';
         $prefix = hash('xxh128', $namespace) . ':';
 
-        $connection->shouldReceive('mget')
-            ->once()
+        $connection->client()->expects('mget')
             ->with([
                 "prefix:{$prefix}name",
                 "prefix:{$prefix}age",
                 "prefix:{$prefix}missing",
             ])
-            ->andReturn([
+            ->returns([
                 serialize('Sally'),
                 '30',
                 null,
             ]);
 
-        $tags = m::mock(AllTagSet::class, [$store, ['people', 'author']])->makePartial();
-        $tags->shouldReceive('getNamespace')->once()->andReturn($namespace);
+        $tags = Double::for(new AllTagSet($store, ['people', 'author']))->passthru();
+        $tags->expects('getNamespace')->returns($namespace);
 
         $result = (new AllTaggedCache($store, $tags))->many([
             'name' => 'unused',
@@ -259,14 +257,13 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $key = hash('xxh128', '_all:tag:users:entries') . ':';
         $events = [];
 
-        $connection->shouldReceive('mget')
-            ->once()
+        $connection->client()->expects('mget')
             ->with(["prefix:{$key}profile", "prefix:{$key}missing"])
-            ->andReturn([serialize('cached'), null]);
+            ->returns([serialize('cached'), null]);
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->andReturnUsing(function (object $event) use (&$events): void {
+        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher->allows('hasListeners')->returns(true);
+        $dispatcher->allows('dispatch')->resolves(function (object $event) use (&$events): void {
             $events[] = $event;
         });
 
@@ -295,61 +292,60 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
     public function testFlush(): void
     {
-        $connection = $this->mockConnection();
+        $client = new FakeRedisClient(
+            zScanResults: [
+                'prefix:_all:tag:people:entries' => [
+                    ['members' => ['key1' => 0, 'key2' => 0], 'iterator' => 0],
+                ],
+            ],
+            evalShaResults: [1],
+        );
+        $store = $this->createStoreWithFakeClient($client);
 
-        // Flush operation scans tag sets and deletes entries
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:people:entries', null, '*', 1000)
-            ->andReturnUsing(function ($key, &$cursor) {
-                $cursor = 0;
-
-                return ['key1' => 0, 'key2' => 0];
-            });
-        $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_all:tag:people:entries', 'prefix:key1', 'prefix:key2'], ['key1', 'key2'])
-            ->andReturn(1);
-
-        $store = $this->createStore($connection);
-        $result = $store->tags(['people'])->flush();
-
-        $this->assertTrue($result);
+        $this->assertTrue($store->tags(['people'])->flush());
+        $this->assertSame([
+            ['key' => 'prefix:_all:tag:people:entries', 'iterator' => null, 'pattern' => '*', 'count' => 1000],
+        ], $client->getZScanCalls());
+        $calls = $client->getEvalShaCalls();
+        $this->assertCount(1, $calls);
+        $this->assertSame(['prefix:_all:tag:people:entries', 'prefix:key1', 'prefix:key2', 'key1', 'key2'], $calls[0]['args']);
+        $this->assertSame(3, $calls[0]['num_keys']);
     }
 
     public function testClearFlushesTaggedItems(): void
     {
-        $connection = $this->mockConnection();
+        $client = new FakeRedisClient(
+            zScanResults: [
+                'prefix:_all:tag:people:entries' => [
+                    ['members' => ['key1' => 0, 'key2' => 0], 'iterator' => 0],
+                ],
+            ],
+            evalShaResults: [1],
+        );
+        $store = $this->createStoreWithFakeClient($client);
 
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:people:entries', null, '*', 1000)
-            ->andReturnUsing(function ($key, &$cursor) {
-                $cursor = 0;
-
-                return ['key1' => 0, 'key2' => 0];
-            });
-        $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_all:tag:people:entries', 'prefix:key1', 'prefix:key2'], ['key1', 'key2'])
-            ->andReturn(1);
-
-        $store = $this->createStore($connection);
-        $result = $store->tags(['people'])->clear();
-
-        $this->assertTrue($result);
+        $this->assertTrue($store->tags(['people'])->clear());
+        $this->assertSame([
+            ['key' => 'prefix:_all:tag:people:entries', 'iterator' => null, 'pattern' => '*', 'count' => 1000],
+        ], $client->getZScanCalls());
+        $calls = $client->getEvalShaCalls();
+        $this->assertCount(1, $calls);
+        $this->assertSame(['prefix:_all:tag:people:entries', 'prefix:key1', 'prefix:key2', 'key1', 'key2'], $calls[0]['args']);
+        $this->assertSame(3, $calls[0]['num_keys']);
     }
 
     public function testPutNullTtlCallsForever(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         $key = hash('xxh128', '_all:tag:users:entries') . ':name';
 
         // Null TTL should call forever (SET + ZADD with -1)
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:users:entries', -1, $key)->andReturn($connection);
-        $connection->shouldReceive('set')->once()->with("prefix:{$key}", serialize('John'))->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 1]);
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:users:entries', -1.0, $key)->returns($connection->client());
+        $connection->client()->expects('set')->with("prefix:{$key}", serialize('John'))->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['users'])->put('name', 'John', null);
@@ -364,10 +360,9 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $key = hash('xxh128', '_all:tag:users:entries') . ':name';
 
         // Zero TTL should delete the key (Forget operation uses connection)
-        $connection->shouldReceive('del')
-            ->once()
+        $connection->client()->expects('del')
             ->with("prefix:{$key}")
-            ->andReturn(1);
+            ->returns(1);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['users'])->put('name', 'John', 0);
@@ -381,14 +376,12 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $namespace = hash('xxh128', '_all:tag:users:entries') . ':';
 
-        $connection->shouldReceive('del')
-            ->once()
+        $connection->client()->expects('del')
             ->with("prefix:{$namespace}name")
-            ->andReturn(1);
-        $connection->shouldReceive('del')
-            ->once()
+            ->returns(1);
+        $connection->client()->expects('del')
             ->with("prefix:{$namespace}age")
-            ->andReturn(1);
+            ->returns(1);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['users'])->putMany([
@@ -407,16 +400,15 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $key = hash('xxh128', '_all:tag:users:entries') . ':name';
 
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->withArgs(function (string $script, array $keys, array $args) use ($key): bool {
+        $connection->expects('evalWithShaCache')
+            ->with(Argument::all(function (string $script, array $keys, array $args) use ($key): bool {
                 $this->assertSame(["prefix:{$key}", 'prefix:_all:tag:users:entries'], $keys);
                 $this->assertSame(60, $args[0]);
                 $this->assertSame($key, $args[2]);
 
                 return true;
-            })
-            ->andReturn($succeeded);
+            }))
+            ->returns($succeeded);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['users'])->touch('name', 60);
@@ -430,8 +422,8 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $key = hash('xxh128', '_all:tag:users:entries') . ':name';
 
-        $connection->shouldNotReceive('evalWithShaCache');
-        $connection->expects('del')->twice()->with("prefix:{$key}")->andReturn(1);
+        $connection->expects('evalWithShaCache')->never();
+        $connection->client()->expects('del')->times(2)->with("prefix:{$key}")->returns(1);
 
         $store = $this->createStore($connection);
         $tagged = $store->tags(['users']);
@@ -444,13 +436,13 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         $key = hash('xxh128', '_all:tag:counters:entries') . ':hits';
 
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:counters:entries', ['NX'], -1, $key)->andReturn($connection);
-        $connection->shouldReceive('incrby')->once()->with("prefix:{$key}", 5)->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([15, 1]);
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:counters:entries', ['NX'], -1, $key)->returns($connection->client());
+        $connection->client()->expects('incrby')->with("prefix:{$key}", 5)->returns($connection->client());
+        $connection->client()->expects('exec')->returns([15, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['counters'])->increment('hits', 5);
@@ -462,13 +454,13 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         $key = hash('xxh128', '_all:tag:counters:entries') . ':stock';
 
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:counters:entries', ['NX'], -1, $key)->andReturn($connection);
-        $connection->shouldReceive('decrby')->once()->with("prefix:{$key}", 3)->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([7, 0]);
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:counters:entries', ['NX'], -1, $key)->returns($connection->client());
+        $connection->client()->expects('decrby')->with("prefix:{$key}", 3)->returns($connection->client());
+        $connection->client()->expects('exec')->returns([7, 0]);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['counters'])->decrement('stock', 3);
@@ -482,10 +474,9 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $key = hash('xxh128', '_all:tag:users:entries') . ':profile';
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with("prefix:{$key}")
-            ->andReturn(serialize('cached_value'));
+            ->returns(serialize('cached_value'));
 
         $store = $this->createStore($connection);
         $result = $store->tags(['users'])->remember('profile', 60, fn () => 'new_value');
@@ -501,16 +492,15 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $expectedScore = now()->timestamp + 60;
 
         // Cache miss
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with("prefix:{$key}")
-            ->andReturnNull();
+            ->returns(null);
 
         // Pipeline for SETEX + ZADD on miss
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:users:entries', $expectedScore, $key)->andReturn($connection);
-        $connection->shouldReceive('setex')->once()->with("prefix:{$key}", 60, serialize('computed_value'))->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 1]);
+        $connection->client()->expects('pipeline')->returns($connection->client());
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:users:entries', (float) $expectedScore, $key)->returns($connection->client());
+        $connection->client()->expects('setex')->with("prefix:{$key}", 60, serialize('computed_value'))->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, 1]);
 
         $callCount = 0;
         $store = $this->createStore($connection);
@@ -531,17 +521,17 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $key = hash('xxh128', '_all:tag:users:entries') . ':0';
         $expectedScore = now()->timestamp + 60;
 
-        $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:users:entries', $expectedScore, $key)->andReturn($connection);
-        $connection->shouldReceive('setex')->once()->with("prefix:{$key}", 60, serialize('computed_value'))->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 1]);
+        $connection->client()->expects('get')->with("prefix:{$key}")->returns(null);
+        $connection->client()->expects('pipeline')->returns($connection->client());
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:users:entries', (float) $expectedScore, $key)->returns($connection->client());
+        $connection->client()->expects('setex')->with("prefix:{$key}", 60, serialize('computed_value'))->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, 1]);
 
         $captured = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
-        $events->shouldReceive('dispatch')
-            ->andReturnUsing(function (object $event) use (&$captured): void {
+        $events = Double::for(Dispatcher::class);
+        $events->allows('hasListeners')->returns(true);
+        $events->allows('dispatch')
+            ->resolves(function (object $event) use (&$captured): void {
                 $captured[] = $event;
             });
 
@@ -567,10 +557,9 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $key = hash('xxh128', '_all:tag:users:entries') . ':data';
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with("prefix:{$key}")
-            ->andReturn(serialize('existing_value'));
+            ->returns(serialize('existing_value'));
 
         $callCount = 0;
         $store = $this->createStore($connection);
@@ -590,11 +579,11 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $key = hash('xxh128', '_all:tag:users:entries') . ':profile';
         $expectedScore = now()->timestamp + 60;
 
-        $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:users:entries', $expectedScore, $key)->andReturn($connection);
-        $connection->shouldReceive('setex')->once()->with("prefix:{$key}", 60, serialize('computed'))->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 1]);
+        $connection->client()->expects('get')->with("prefix:{$key}")->returns(null);
+        $connection->client()->expects('pipeline')->returns($connection->client());
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:users:entries', (float) $expectedScore, $key)->returns($connection->client());
+        $connection->client()->expects('setex')->with("prefix:{$key}", 60, serialize('computed'))->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['users'])->rememberNullable('profile', 60, fn () => 'computed');
@@ -608,18 +597,17 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $key = hash('xxh128', '_all:tag:users:entries') . ':profile';
         $expectedScore = now()->timestamp + 60;
 
-        $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:users:entries', $expectedScore, $key)->andReturn($connection);
-        $connection->shouldReceive('setex')
-            ->once()
+        $connection->client()->expects('get')->with("prefix:{$key}")->returns(null);
+        $connection->client()->expects('pipeline')->returns($connection->client());
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:users:entries', (float) $expectedScore, $key)->returns($connection->client());
+        $connection->client()->expects('setex')
             ->with(
                 "prefix:{$key}",
                 60,
-                m::on(fn (string $serialized): bool => unserialize($serialized) === NullSentinel::VALUE)
+                Argument::satisfies(fn (string $serialized): bool => unserialize($serialized) === NullSentinel::VALUE)
             )
-            ->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 1]);
+            ->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['users'])->rememberNullable('profile', 60, fn () => null);
@@ -632,10 +620,9 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $key = hash('xxh128', '_all:tag:users:entries') . ':profile';
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with("prefix:{$key}")
-            ->andReturn(serialize(NullSentinel::VALUE));
+            ->returns(serialize(NullSentinel::VALUE));
 
         $invoked = false;
         $store = $this->createStore($connection);
@@ -653,16 +640,15 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $key = hash('xxh128', '_all:tag:users:entries') . ':profile';
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with("prefix:{$key}")
-            ->andReturn(serialize(NullSentinel::VALUE));
+            ->returns(serialize(NullSentinel::VALUE));
 
         $captured = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
-        $events->shouldReceive('dispatch')
-            ->andReturnUsing(function ($event) use (&$captured) {
+        $events = Double::for(Dispatcher::class);
+        $events->allows('hasListeners')->returns(true);
+        $events->allows('dispatch')
+            ->resolves(function ($event) use (&$captured) {
                 $captured[] = $event;
             });
 
@@ -684,17 +670,17 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $key = hash('xxh128', '_all:tag:users:entries') . ':profile';
         $expectedScore = now()->timestamp + 60;
 
-        $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:users:entries', $expectedScore, $key)->andReturn($connection);
-        $connection->shouldReceive('setex')->once()->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 1]);
+        $connection->client()->expects('get')->with("prefix:{$key}")->returns(null);
+        $connection->client()->expects('pipeline')->returns($connection->client());
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:users:entries', (float) $expectedScore, $key)->returns($connection->client());
+        $connection->client()->expects('setex')->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, 1]);
 
         $captured = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
-        $events->shouldReceive('dispatch')
-            ->andReturnUsing(function ($event) use (&$captured) {
+        $events = Double::for(Dispatcher::class);
+        $events->allows('hasListeners')->returns(true);
+        $events->allows('dispatch')
+            ->resolves(function ($event) use (&$captured) {
                 $captured[] = $event;
             });
 
@@ -719,10 +705,9 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $key = hash('xxh128', '_all:tag:users:entries') . ':profile';
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with("prefix:{$key}")
-            ->andReturn(serialize(NullSentinel::VALUE));
+            ->returns(serialize(NullSentinel::VALUE));
 
         $invoked = false;
         $store = $this->createStore($connection);
@@ -741,10 +726,9 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $key = hash('xxh128', '_all:tag:config:entries') . ':settings';
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with("prefix:{$key}")
-            ->andReturn(serialize('cached_settings'));
+            ->returns(serialize('cached_settings'));
 
         $store = $this->createStore($connection);
         $result = $store->tags(['config'])->rememberForever('settings', fn () => 'new_settings');
@@ -758,16 +742,15 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $key = hash('xxh128', '_all:tag:config:entries') . ':1';
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with("prefix:{$key}")
-            ->andReturn(serialize('cached_settings'));
+            ->returns(serialize('cached_settings'));
 
         $captured = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
-        $events->shouldReceive('dispatch')
-            ->andReturnUsing(function (object $event) use (&$captured): void {
+        $events = Double::for(Dispatcher::class);
+        $events->allows('hasListeners')->returns(true);
+        $events->allows('dispatch')
+            ->resolves(function (object $event) use (&$captured): void {
                 $captured[] = $event;
             });
 
@@ -791,16 +774,15 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $key = hash('xxh128', '_all:tag:config:entries') . ':settings';
 
         // Cache miss
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with("prefix:{$key}")
-            ->andReturnNull();
+            ->returns(null);
 
         // Pipeline for SET + ZADD (score -1) on miss
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:config:entries', -1, $key)->andReturn($connection);
-        $connection->shouldReceive('set')->once()->with("prefix:{$key}", serialize('computed_settings'))->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 1]);
+        $connection->client()->expects('pipeline')->returns($connection->client());
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:config:entries', -1.0, $key)->returns($connection->client());
+        $connection->client()->expects('set')->with("prefix:{$key}", serialize('computed_settings'))->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['config'])->rememberForever('settings', fn () => 'computed_settings');
@@ -813,17 +795,16 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $key = hash('xxh128', '_all:tag:config:entries') . ':settings';
 
-        $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:config:entries', -1, $key)->andReturn($connection);
-        $connection->shouldReceive('set')
-            ->once()
+        $connection->client()->expects('get')->with("prefix:{$key}")->returns(null);
+        $connection->client()->expects('pipeline')->returns($connection->client());
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:config:entries', -1.0, $key)->returns($connection->client());
+        $connection->client()->expects('set')
             ->with(
                 "prefix:{$key}",
-                m::on(fn (string $serialized): bool => unserialize($serialized) === NullSentinel::VALUE)
+                Argument::satisfies(fn (string $serialized): bool => unserialize($serialized) === NullSentinel::VALUE)
             )
-            ->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 1]);
+            ->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['config'])->rememberForeverNullable('settings', fn () => null);
@@ -836,17 +817,16 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $key = hash('xxh128', '_all:tag:config:entries') . ':settings';
 
-        $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:config:entries', -1, $key)->andReturn($connection);
-        $connection->shouldReceive('set')
-            ->once()
+        $connection->client()->expects('get')->with("prefix:{$key}")->returns(null);
+        $connection->client()->expects('pipeline')->returns($connection->client());
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:config:entries', -1.0, $key)->returns($connection->client());
+        $connection->client()->expects('set')
             ->with(
                 "prefix:{$key}",
-                m::on(fn (string $serialized): bool => unserialize($serialized) === NullSentinel::VALUE)
+                Argument::satisfies(fn (string $serialized): bool => unserialize($serialized) === NullSentinel::VALUE)
             )
-            ->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 1]);
+            ->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['config'])->searNullable('settings', fn () => null);
@@ -862,10 +842,9 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $key = hash('xxh128', '_all:tag:config:entries') . ':settings';
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with("prefix:{$key}")
-            ->andReturn(serialize(NullSentinel::VALUE));
+            ->returns(serialize(NullSentinel::VALUE));
 
         $invoked = false;
         $store = $this->createStore($connection);
@@ -884,10 +863,9 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $key = hash('xxh128', '_all:tag:users:entries') . ':data';
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with("prefix:{$key}")
-            ->andReturnNull();
+            ->returns(null);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Callback failed');
@@ -904,10 +882,9 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $key = hash('xxh128', '_all:tag:config:entries') . ':data';
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with("prefix:{$key}")
-            ->andReturnNull();
+            ->returns(null);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Forever callback failed');
@@ -926,17 +903,16 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $expectedScore = now()->timestamp + 120;
 
         // Cache miss
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->client()->expects('get')
             ->with("prefix:{$key}")
-            ->andReturnNull();
+            ->returns(null);
 
         // Pipeline for SETEX + ZADDs on miss
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:users:entries', $expectedScore, $key)->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:posts:entries', $expectedScore, $key)->andReturn($connection);
-        $connection->shouldReceive('setex')->once()->with("prefix:{$key}", 120, serialize('activity_data'))->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 1, 1]);
+        $connection->client()->expects('pipeline')->returns($connection->client());
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:users:entries', (float) $expectedScore, $key)->returns($connection->client());
+        $connection->client()->expects('zadd')->with('prefix:_all:tag:posts:entries', (float) $expectedScore, $key)->returns($connection->client());
+        $connection->client()->expects('setex')->with("prefix:{$key}", 120, serialize('activity_data'))->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, 1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['users', 'posts'])->remember('activity', 120, fn () => 'activity_data');
@@ -953,10 +929,9 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         // flexible() reads both keys via a single manyRaw() → store->many() → MGET.
         // phpredis's mget() returns a numeric array in input order.
-        $connection->shouldReceive('mget')
-            ->once()
+        $connection->client()->expects('mget')
             ->with(["prefix:{$valueKey}", "prefix:{$markerKey}"])
-            ->andReturn([serialize(NullSentinel::VALUE), serialize($now)]);
+            ->returns([serialize(NullSentinel::VALUE), serialize($now)]);
 
         $invoked = false;
         $store = $this->createStore($connection);
@@ -971,16 +946,16 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
     public function testAllTaggedCacheSkipsEventDispatchSeamWithoutListenersAndEntersItWithListeners(): void
     {
-        $put = m::mock(Put::class);
-        $put->shouldReceive('execute')->twice()->andReturnTrue();
-        $operations = m::mock(AllTagOperations::class);
-        $operations->shouldReceive('put')->twice()->andReturn($put);
-        $store = m::mock(RedisStore::class);
-        $store->shouldReceive('allTagOps')->twice()->andReturn($operations);
-        $tags = m::mock(AllTagSet::class);
-        $tags->shouldReceive('getNamespace')->andReturn('namespace');
-        $tags->shouldReceive('tagIds')->andReturn([]);
-        $tags->shouldReceive('getNames')->andReturn(['users']);
+        $put = Double::for(Put::class);
+        $put->expects('execute')->times(2)->returns(true);
+        $operations = Double::for(AllTagOperations::class);
+        $operations->expects('put')->times(2)->returns($put);
+        $store = Double::for(RedisStore::class);
+        $store->expects('allTagOps')->times(2)->returns($operations);
+        $tags = Double::for(AllTagSet::class);
+        $tags->allows('getNamespace')->returns('namespace');
+        $tags->allows('tagIds')->returns([]);
+        $tags->allows('getNames')->returns(['users']);
 
         $cache = new class($store, $tags) extends AllTaggedCache {
             public int $eventCalls = 0;
@@ -992,9 +967,9 @@ class AllTaggedCacheTest extends RedisCacheTestCase
                 parent::event($event);
             }
         };
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnFalse();
-        $events->shouldNotReceive('dispatch');
+        $events = Double::for(Dispatcher::class);
+        $events->allows('hasListeners')->returns(false);
+        $events->expects('dispatch')->never();
         $cache->setEventDispatcher($events);
 
         $this->assertTrue($cache->put('first', 'value', 60));
@@ -1018,16 +993,14 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $key = hash('xxh128', '_all:tag:users:entries') . ':name';
         $score = now()->timestamp + 60;
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', $score, $key)
-            ->andReturn($connection);
-        $connection->shouldReceive('setex')
-            ->once()
+        $connection->client()->expects('pipeline')->returns($connection->client());
+        $connection->client()->expects('zadd')
+            ->with('prefix:_all:tag:users:entries', (float) $score, $key)
+            ->returns($connection->client());
+        $connection->client()->expects('setex')
             ->with("prefix:{$key}", 60, serialize('John'))
-            ->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 1]);
+            ->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, 1]);
 
         $captured = [];
         $tagged = (new Repository($this->createStore($connection), ['store' => 'redis']))->tags(['users']);
@@ -1050,17 +1023,15 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $key = hash('xxh128', '_all:tag:users:entries') . ':name';
 
-        $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', -1, $key)
-            ->andReturn($connection);
-        $connection->shouldReceive('set')
-            ->once()
+        $connection->client()->expects('get')->with("prefix:{$key}")->returns(null);
+        $connection->client()->expects('pipeline')->returns($connection->client());
+        $connection->client()->expects('zadd')
+            ->with('prefix:_all:tag:users:entries', -1.0, $key)
+            ->returns($connection->client());
+        $connection->client()->expects('set')
             ->with("prefix:{$key}", serialize('John'))
-            ->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 1]);
+            ->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, 1]);
 
         $captured = [];
         $tagged = (new Repository($this->createStore($connection), ['store' => 'redis']))->tags(['users']);
@@ -1085,16 +1056,14 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $key = hash('xxh128', '_all:tag:users:entries') . ':name';
         $score = now()->timestamp + 60;
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', $score, $key)
-            ->andReturn($connection);
-        $connection->shouldReceive('setex')
-            ->once()
+        $connection->client()->expects('pipeline')->returns($connection->client());
+        $connection->client()->expects('zadd')
+            ->with('prefix:_all:tag:users:entries', (float) $score, $key)
+            ->returns($connection->client());
+        $connection->client()->expects('setex')
             ->with("prefix:{$key}", 60, serialize('John'))
-            ->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([false, 1]);
+            ->returns($connection->client());
+        $connection->client()->expects('exec')->returns([false, 1]);
 
         $captured = [];
         $tagged = (new Repository($this->createStore($connection), ['store' => 'redis']))->tags(['users']);
@@ -1109,11 +1078,11 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     public function testPutDispatchesTheRepositoryFailureEventWhenTheOperationThrows(): void
     {
         $exception = new RuntimeException('write failed');
-        $put = m::mock(Put::class);
-        $put->shouldReceive('execute')->once()->andThrow($exception);
+        $put = Double::for(Put::class);
+        $put->expects('execute')->throws($exception);
 
-        $operations = m::mock(AllTagOperations::class);
-        $operations->shouldReceive('put')->once()->andReturn($put);
+        $operations = Double::for(AllTagOperations::class);
+        $operations->expects('put')->returns($put);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
 
@@ -1137,11 +1106,11 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
         }
-        $put = m::mock(Put::class);
-        $put->shouldReceive('execute')->once()->andThrow($cancellation);
+        $put = Double::for(Put::class);
+        $put->expects('execute')->throws($cancellation);
 
-        $operations = m::mock(AllTagOperations::class);
-        $operations->shouldReceive('put')->once()->andReturn($put);
+        $operations = Double::for(AllTagOperations::class);
+        $operations->expects('put')->returns($put);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
 
@@ -1159,11 +1128,11 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $exception = new RuntimeException('batch write failed');
         $values = ['name' => 'John', 'age' => 30];
-        $putMany = m::mock(PutMany::class);
-        $putMany->shouldReceive('execute')->once()->andThrow($exception);
+        $putMany = Double::for(PutMany::class);
+        $putMany->expects('execute')->throws($exception);
 
-        $operations = m::mock(AllTagOperations::class);
-        $operations->shouldReceive('putMany')->once()->andReturn($putMany);
+        $operations = Double::for(AllTagOperations::class);
+        $operations->expects('putMany')->returns($putMany);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
 
@@ -1192,11 +1161,11 @@ class AllTaggedCacheTest extends RedisCacheTestCase
             $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
         }
         $values = ['name' => 'John', 'age' => 30];
-        $putMany = m::mock(PutMany::class);
-        $putMany->shouldReceive('execute')->once()->andThrow($cancellation);
+        $putMany = Double::for(PutMany::class);
+        $putMany->expects('execute')->throws($cancellation);
 
-        $operations = m::mock(AllTagOperations::class);
-        $operations->shouldReceive('putMany')->once()->andReturn($putMany);
+        $operations = Double::for(AllTagOperations::class);
+        $operations->expects('putMany')->returns($putMany);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
 
@@ -1212,12 +1181,12 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
     public function testEmptyPutManyReturnsTrueWithoutOperationOrEvents(): void
     {
-        $store = m::mock(RedisStore::class);
-        $store->shouldNotReceive('allTagOps');
-        $tags = m::mock(AllTagSet::class);
-        $events = m::mock(Dispatcher::class);
-        $events->shouldNotReceive('hasListeners');
-        $events->shouldNotReceive('dispatch');
+        $store = Double::for(RedisStore::class);
+        $store->expects('allTagOps')->never();
+        $tags = Double::for(AllTagSet::class);
+        $events = Double::for(Dispatcher::class);
+        $events->expects('hasListeners')->never();
+        $events->expects('dispatch')->never();
         $tagged = new AllTaggedCache($store, $tags);
         $tagged->setEventDispatcher($events);
 
@@ -1227,11 +1196,11 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     public function testForeverDispatchesTheRepositoryFailureEventWhenTheOperationThrows(): void
     {
         $exception = new RuntimeException('forever write failed');
-        $forever = m::mock(Forever::class);
-        $forever->shouldReceive('execute')->once()->andThrow($exception);
+        $forever = Double::for(Forever::class);
+        $forever->expects('execute')->throws($exception);
 
-        $operations = m::mock(AllTagOperations::class);
-        $operations->shouldReceive('forever')->once()->andReturn($forever);
+        $operations = Double::for(AllTagOperations::class);
+        $operations->expects('forever')->returns($forever);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
 
@@ -1255,11 +1224,11 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
         }
-        $forever = m::mock(Forever::class);
-        $forever->shouldReceive('execute')->once()->andThrow($cancellation);
+        $forever = Double::for(Forever::class);
+        $forever->expects('execute')->throws($cancellation);
 
-        $operations = m::mock(AllTagOperations::class);
-        $operations->shouldReceive('forever')->once()->andReturn($forever);
+        $operations = Double::for(AllTagOperations::class);
+        $operations->expects('forever')->returns($forever);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
 
@@ -1279,26 +1248,23 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $namespace = hash('xxh128', '_all:tag:users:entries') . ':';
         $score = now()->timestamp + 60;
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')
-            ->once()
+        $connection->client()->expects('pipeline')->returns($connection->client());
+        $connection->client()->expects('zadd')
             ->with(
                 'prefix:_all:tag:users:entries',
-                $score,
+                (float) $score,
                 $namespace . 'name',
                 $score,
                 $namespace . 'age'
             )
-            ->andReturn($connection);
-        $connection->shouldReceive('setex')
-            ->once()
+            ->returns($connection->client());
+        $connection->client()->expects('setex')
             ->with("prefix:{$namespace}name", 60, serialize('John'))
-            ->andReturn($connection);
-        $connection->shouldReceive('setex')
-            ->once()
+            ->returns($connection->client());
+        $connection->client()->expects('setex')
             ->with("prefix:{$namespace}age", 60, 30)
-            ->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, true, 2]);
+            ->returns($connection->client());
+        $connection->client()->expects('exec')->returns([true, true, 2]);
 
         $captured = [];
         $tagged = (new Repository($this->createStore($connection), ['store' => 'redis']))->tags(['users']);
@@ -1320,20 +1286,18 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
     public function testFlushDispatchesTheRepositoryEventsWithStoreNameAndTags(): void
     {
-        $connection = $this->mockConnection();
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
-            ->andReturnUsing(function ($key, &$cursor) {
-                $cursor = 0;
-
-                return [];
-            });
+        $client = new FakeRedisClient(zScanResults: [
+            'prefix:_all:tag:users:entries' => [['members' => [], 'iterator' => 0]],
+        ]);
         $captured = [];
-        $tagged = (new Repository($this->createStore($connection), ['store' => 'redis']))->tags(['users']);
+        $tagged = (new Repository($this->createStoreWithFakeClient($client), ['store' => 'redis']))->tags(['users']);
         $tagged->setEventDispatcher($this->capturingDispatcher($captured));
 
         $this->assertTrue($tagged->flush());
+        $this->assertSame([
+            ['key' => 'prefix:_all:tag:users:entries', 'iterator' => null, 'pattern' => '*', 'count' => 1000],
+        ], $client->getZScanCalls());
+        $this->assertSame([], $client->getEvalShaCalls());
         $this->assertSame([CacheFlushing::class, CacheFlushed::class], array_map(get_class(...), $captured));
 
         foreach ($captured as $event) {
@@ -1345,11 +1309,11 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     public function testFlushDispatchesFailureEventWithExactOperationException(): void
     {
         $exception = new RuntimeException('flush failed');
-        $flush = m::mock(Flush::class);
-        $flush->shouldReceive('execute')->once()->andThrow($exception);
+        $flush = Double::for(Flush::class);
+        $flush->expects('execute')->throws($exception);
 
-        $operations = m::mock(AllTagOperations::class);
-        $operations->shouldReceive('flush')->once()->andReturn($flush);
+        $operations = Double::for(AllTagOperations::class);
+        $operations->expects('flush')->returns($flush);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
 
@@ -1372,11 +1336,11 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
         }
-        $flush = m::mock(Flush::class);
-        $flush->shouldReceive('execute')->once()->andThrow($cancellation);
+        $flush = Double::for(Flush::class);
+        $flush->expects('execute')->throws($cancellation);
 
-        $operations = m::mock(AllTagOperations::class);
-        $operations->shouldReceive('flush')->once()->andReturn($flush);
+        $operations = Double::for(AllTagOperations::class);
+        $operations->expects('flush')->returns($flush);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
 
@@ -1397,10 +1361,10 @@ class AllTaggedCacheTest extends RedisCacheTestCase
      */
     private function capturingDispatcher(array &$captured): Dispatcher
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')
-            ->andReturnUsing(function (object $event) use (&$captured): void {
+        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher->allows('hasListeners')->returns(true);
+        $dispatcher->allows('dispatch')
+            ->resolves(function (object $event) use (&$captured): void {
                 $captured[] = $event;
             });
 
@@ -1409,16 +1373,16 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
     private function taggedCacheWithOperations(AllTagOperations $operations, array &$captured): AllTaggedCache
     {
-        $store = m::mock(RedisStore::class);
-        $store->shouldReceive('allTagOps')->once()->andReturn($operations);
+        $store = Double::for(RedisStore::class);
+        $store->expects('allTagOps')->returns($operations);
 
-        $tags = m::mock(AllTagSet::class);
-        $tags->shouldReceive('getNames')->andReturn(['users']);
-        $tags->shouldReceive('getNamespace')->andReturn('users');
-        $tags->shouldReceive('tagIds')->andReturn(['users-id']);
+        $tags = Double::for(AllTagSet::class);
+        $tags->allows('getNames')->returns(['users']);
+        $tags->allows('getNamespace')->returns('users');
+        $tags->allows('tagIds')->returns(['users-id']);
 
         $cache = new AllTaggedCache($store, $tags);
-        $store->shouldReceive('tags')->once()->with(['users'])->andReturn($cache);
+        $store->expects('tags')->with(['users'])->returns($cache);
 
         $tagged = (new Repository($store, ['store' => 'redis']))->tags(['users']);
         $tagged->setEventDispatcher($this->capturingDispatcher($captured));

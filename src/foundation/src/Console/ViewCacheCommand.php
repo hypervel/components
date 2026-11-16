@@ -7,7 +7,6 @@ namespace Hypervel\Foundation\Console;
 use Hypervel\Console\Command;
 use Hypervel\Support\Collection;
 use Hypervel\View\Engines\CompilerEngine;
-use Hypervel\View\FileViewFinder;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Finder\Finder;
@@ -86,7 +85,6 @@ class ViewCacheCommand extends Command
      */
     protected function paths(): Collection
     {
-        /** @var FileViewFinder $finder */
         $finder = $this->hypervel->make('view')->getFinder();
 
         $paths = (new Collection($finder->getPaths()))->merge(

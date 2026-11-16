@@ -26,11 +26,12 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use League\Flysystem\Filesystem;
 use League\Flysystem\FilesystemOperator;
 use League\Flysystem\Local\LocalFilesystemAdapter;
 use League\Flysystem\UnableToReadFile;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -39,6 +40,8 @@ use Throwable;
 
 class FilesystemPoolProxyTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private string $tempDir;
 
     private Filesystem $driver;
@@ -83,9 +86,9 @@ class FilesystemPoolProxyTest extends TestCase
     public function testRemoteOperationsReleaseIdleDatabaseSessionsButPathFormattingDoesNot(string $operation): void
     {
         $this->driver->write('file.txt', 'contents');
-        $adapter = m::mock(FilesystemAdapter::class, [$this->driver, $this->adapter, ['root' => $this->tempDir]])->makePartial();
+        $adapter = Double::for(new FilesystemAdapter($this->driver, $this->adapter, ['root' => $this->tempDir]))->passthru();
         if ($operation === 'url') {
-            $adapter->shouldReceive('url')->once()->with('file.txt')->andReturn('https://storage.example/file.txt');
+            $adapter->expects('url')->with('file.txt')->returns('https://storage.example/file.txt');
         }
         $proxy = $this->proxy(static fn (): FilesystemAdapter => $adapter);
         $connection = DB::connection('filesystem_release');
@@ -292,8 +295,8 @@ class FilesystemPoolProxyTest extends TestCase
     #[DataProvider('bufferedReadProvider')]
     public function testBufferedReadsReleaseTheWholeDriverImmediately(string $uri, ?int $start, ?int $end, string $expected): void
     {
-        $driver = m::mock(FilesystemOperator::class);
-        $driver->shouldReceive('readStream')->once()->with('file.txt')->andReturnUsing(static function () use ($uri): mixed {
+        $driver = Double::for(FilesystemOperator::class);
+        $driver->expects('readStream')->with('file.txt')->resolves(static function () use ($uri): mixed {
             $stream = fopen($uri, 'w+b');
             fwrite($stream, '0123456789');
             rewind($stream);
@@ -339,8 +342,8 @@ class FilesystemPoolProxyTest extends TestCase
             return ++$reads === 1 ? 'remote bytes' : false;
         });
         $range = StreamWrapper::getResource(new LimitStream(new CachingStream($source), 3));
-        $driver = m::mock(FilesystemOperator::class);
-        $driver->shouldReceive('readStream')->once()->with('file.txt')->andReturn($range);
+        $driver = Double::for(FilesystemOperator::class);
+        $driver->expects('readStream')->with('file.txt')->returns($range);
         $proxy = $this->proxy(fn (): FilesystemAdapter => new FilesystemAdapter($driver, $this->adapter));
         $stream = $proxy->readStream('file.txt');
 
@@ -454,8 +457,8 @@ class FilesystemPoolProxyTest extends TestCase
 
     public function testContractOnlyFilesystemPoolsWhenCallbacksAreUnset(): void
     {
-        $filesystem = m::mock(FilesystemContract::class);
-        $filesystem->shouldReceive('exists')->once()->with('file.txt')->andReturnTrue();
+        $filesystem = Double::for(FilesystemContract::class);
+        $filesystem->expects('exists')->with('file.txt')->returns(true);
         $proxy = $this->proxy(static fn (): FilesystemContract => $filesystem);
 
         $this->assertTrue($proxy->exists('file.txt'));
@@ -465,7 +468,7 @@ class FilesystemPoolProxyTest extends TestCase
 
     public function testSettingCallbacksOnAContractOnlyFilesystemFailsAndDiscardsIt(): void
     {
-        $filesystem = m::mock(FilesystemContract::class);
+        $filesystem = Double::for(FilesystemContract::class);
         $proxy = $this->proxy(static fn (): FilesystemContract => $filesystem);
         $proxy->buildTemporaryUrlsUsing(static fn (): string => 'url');
 

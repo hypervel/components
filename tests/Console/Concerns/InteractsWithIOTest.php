@@ -9,7 +9,9 @@ use Hypervel\Console\Command;
 use Hypervel\Console\Concerns\InteractsWithIO;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\ArgvInput;
@@ -18,6 +20,8 @@ use Symfony\Component\Console\Question\Question;
 
 class InteractsWithIOTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('iterableDataProvider')]
     public function testWithProgressBarIterable(array $iterable): void
     {
@@ -70,7 +74,7 @@ class InteractsWithIOTest extends TestCase
     {
         $command = new CommandInteractsWithIO;
         $bufferedOutput = new BufferedOutput;
-        $output = m::mock(OutputStyle::class, [new ArgvInput, $bufferedOutput])->makePartial();
+        $output = Double::for(new OutputStyle(new ArgvInput, $bufferedOutput))->passthru();
         $command->setOutput($output);
 
         $generator = (function () {
@@ -78,10 +82,9 @@ class InteractsWithIOTest extends TestCase
             yield 'second' => 'b';
         })();
 
-        $output->shouldReceive('createProgressBar')
-            ->once()
+        $output->expects('createProgressBar')
             ->with(0)
-            ->andReturnUsing(fn (int $steps): ProgressBar => new ProgressBar($bufferedOutput, $steps));
+            ->resolves(fn (int $steps): ProgressBar => new ProgressBar($bufferedOutput, $steps));
 
         $values = [];
         $result = $command->withProgressBar($generator, function (string $value, ProgressBar $bar, string $key) use (&$values): void {
@@ -96,7 +99,7 @@ class InteractsWithIOTest extends TestCase
     public function testAskWithCompletionAcceptsGeneratorValues(): void
     {
         $command = new CommandInteractsWithIO;
-        $output = m::mock(OutputStyle::class);
+        $output = Double::for(OutputStyle::class);
         $command->setOutput($output);
 
         $choices = (function () {
@@ -104,14 +107,13 @@ class InteractsWithIOTest extends TestCase
             yield 'bravo';
         })();
 
-        $output->shouldReceive('askQuestion')
-            ->once()
-            ->with(m::on(function (Question $question): bool {
+        $output->expects('askQuestion')
+            ->with(Argument::satisfies(function (Question $question): bool {
                 $this->assertSame(['alpha', 'bravo'], $question->getAutocompleterValues());
 
                 return true;
             }))
-            ->andReturn('bravo');
+            ->returns('bravo');
 
         $this->assertSame('bravo', $command->anticipate('Choose', $choices));
     }

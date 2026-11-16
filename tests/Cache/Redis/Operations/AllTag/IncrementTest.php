@@ -15,23 +15,20 @@ class IncrementTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('incrby')
-            ->once()
+        $connection->client()->expects('incrby')
             ->with('prefix:counter', 1)
-            ->andReturn($connection)
+            ->returns($connection->client())
             ->ordered();
 
-        $connection->shouldReceive('zadd')
-            ->once()
+        $connection->client()->expects('zadd')
             ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
-            ->andReturn($connection)
+            ->returns($connection->client())
             ->ordered();
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([5, 1]);
+        $connection->client()->expects('exec')
+            ->returns([5, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->increment()->execute(
@@ -47,21 +44,18 @@ class IncrementTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zadd')
-            ->once()
+        $connection->client()->expects('zadd')
             ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('incrby')
-            ->once()
+        $connection->client()->expects('incrby')
             ->with('prefix:counter', 10)
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([15, 0]); // 0 means tag membership already existed
+        $connection->client()->expects('exec')
+            ->returns([15, 0]); // 0 means tag membership already existed
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->increment()->execute(
@@ -77,26 +71,22 @@ class IncrementTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         // ZADD NX for each tag
-        $connection->shouldReceive('zadd')
-            ->once()
+        $connection->client()->expects('zadd')
             ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
-            ->andReturn($connection);
-        $connection->shouldReceive('zadd')
-            ->once()
+            ->returns($connection->client());
+        $connection->client()->expects('zadd')
             ->with('prefix:_all:tag:posts:entries', ['NX'], -1, 'counter')
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('incrby')
-            ->once()
+        $connection->client()->expects('incrby')
             ->with('prefix:counter', 1)
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([1, 1, 1]);
+        $connection->client()->expects('exec')
+            ->returns([1, 1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->increment()->execute(
@@ -112,17 +102,15 @@ class IncrementTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         // No ZADD calls expected
-        $connection->shouldReceive('incrby')
-            ->once()
+        $connection->client()->expects('incrby')
             ->with('prefix:counter', 1)
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([1]);
+        $connection->client()->expects('exec')
+            ->returns([1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->increment()->execute(
@@ -136,18 +124,15 @@ class IncrementTest extends RedisCacheTestCase
 
     public function testIncrementInClusterModeUsesSequentialCommands(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
+        [$store, $client] = $this->createClusterStore();
 
-        $connection->shouldNotReceive('pipeline');
-
-        $connection->expects('incrby')
+        $client->expects('incrby')
             ->with('prefix:counter', 1)
-            ->andReturn(10)
+            ->returns(10)
             ->ordered();
-        $connection->expects('zadd')
-            ->once()
+        $client->expects('zadd')
             ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
-            ->andReturn(1)
+            ->returns(1)
             ->ordered();
 
         $result = $store->allTagOps()->increment()->execute(
@@ -161,10 +146,10 @@ class IncrementTest extends RedisCacheTestCase
 
     public function testIncrementInClusterModeDoesNotPublishTagsWhenTheCounterFails(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
+        [$store, $client] = $this->createClusterStore();
 
-        $connection->expects('incrby')->with('prefix:counter', 1)->andReturnFalse();
-        $connection->shouldNotReceive('zadd');
+        $client->expects('incrby')->with('prefix:counter', 1)->returns(false);
+        $client->expects('zadd')->never();
 
         $this->assertFalse($store->allTagOps()->increment()->execute(
             'counter',
@@ -177,14 +162,13 @@ class IncrementTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zadd')->andReturn($connection);
-        $connection->shouldReceive('incrby')->andReturn($connection);
+        $connection->client()->allows('zadd')->returns($connection->client());
+        $connection->client()->allows('incrby')->returns($connection->client());
 
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn(false);
+        $connection->client()->expects('exec')
+            ->returns(false);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->increment()->execute(

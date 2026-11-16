@@ -14,7 +14,6 @@ use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Foundation\Testing\TestCase as FoundationTestCase;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use ReflectionMethod;
 
 class BootTraitsTest extends TestCase
@@ -78,20 +77,14 @@ class BootTraitsTest extends TestCase
                 ],
             ],
         ]));
-        $testCase = m::mock(TestCaseWithComposedDatabaseResets::class, ['foo'])
-            ->makePartial()->shouldAllowMockingProtectedMethods();
-        $testCase->expects('refreshDatabase')->ordered()->andReturnUsing(function (): void {
-            $this->assertFalse(RefreshDatabaseState::$migrated);
-            RefreshDatabaseState::$migrated = true;
-        });
-        $testCase->expects('truncateDatabaseTables')->ordered()->andReturnUsing(function (): void {
-            $this->assertTrue(RefreshDatabaseState::$migrated);
-        });
+        $testCase = new TestCaseWithComposedDatabaseResets('foo');
         RefreshDatabaseState::$migrated = true;
         RefreshDatabaseState::$inMemoryConnections = [];
 
         try {
             $testCase->prepare($app);
+
+            $this->assertSame([['refresh', false], ['truncate', true]], $testCase->migrationStates);
         } finally {
             RefreshDatabaseState::$migrated = false;
             RefreshDatabaseState::$inMemoryConnections = [];
@@ -105,6 +98,25 @@ class TestCaseWithComposedDatabaseResets extends FoundationTestCase
     use DatabaseTruncation;
 
     protected array $connectionsToTruncate = ['secondary'];
+
+    public array $migrationStates = [];
+
+    /**
+     * Record the migration state before refreshing it.
+     */
+    public function refreshDatabase(): void
+    {
+        $this->migrationStates[] = ['refresh', RefreshDatabaseState::$migrated];
+        RefreshDatabaseState::$migrated = true;
+    }
+
+    /**
+     * Record the migration state when truncation starts.
+     */
+    protected function truncateDatabaseTables(): void
+    {
+        $this->migrationStates[] = ['truncate', RefreshDatabaseState::$migrated];
+    }
 
     /**
      * Run Foundation's database setup without booting a Testbench application.

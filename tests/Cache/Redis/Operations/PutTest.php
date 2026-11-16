@@ -14,10 +14,9 @@ class PutTest extends RedisCacheTestCase
     public function testSetMethodProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('setex')
-            ->once()
+        $connection->client()->expects('setex')
             ->with('prefix:foo', 60, serialize('foo'))
-            ->andReturn(true);
+            ->returns(true);
 
         $redis = $this->createStore($connection);
         $result = $redis->put('foo', 'foo', 60);
@@ -27,10 +26,9 @@ class PutTest extends RedisCacheTestCase
     public function testSetMethodProperlyCallsRedisForNumerics(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('setex')
-            ->once()
+        $connection->client()->expects('setex')
             ->with('prefix:foo', 60, 1)
-            ->andReturn(false);
+            ->returns(false);
 
         $redis = $this->createStore($connection);
         $result = $redis->put('foo', 1, 60);
@@ -41,10 +39,9 @@ class PutTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
         $array = ['nested' => ['data' => 'value']];
-        $connection->shouldReceive('setex')
-            ->once()
+        $connection->client()->expects('setex')
             ->with('prefix:foo', 60, serialize($array))
-            ->andReturn(true);
+            ->returns(true);
 
         $redis = $this->createStore($connection);
         $this->assertTrue($redis->put('foo', $array, 60));
@@ -54,10 +51,9 @@ class PutTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
         // TTL of 0 should become 1 (Redis requires positive TTL for SETEX)
-        $connection->shouldReceive('setex')
-            ->once()
+        $connection->client()->expects('setex')
             ->with('prefix:foo', 1, serialize('bar'))
-            ->andReturn(true);
+            ->returns(true);
 
         $redis = $this->createStore($connection);
         $this->assertTrue($redis->put('foo', 'bar', 0));

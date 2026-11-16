@@ -19,11 +19,13 @@ use Hypervel\Image\ImageException;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use League\Flysystem\CorruptedPathDetected;
 use League\Flysystem\Filesystem;
+use League\Flysystem\FilesystemOperator;
 use League\Flysystem\Local\LocalFilesystemAdapter;
 use League\Flysystem\PathTraversalDetected;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -34,6 +36,8 @@ use function Hypervel\Coroutine\parallel;
 
 class ScopedFilesystemProxyTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private string $tempDir;
 
     private FilesystemAdapter $disk;
@@ -68,14 +72,14 @@ class ScopedFilesystemProxyTest extends TestCase
         $stream = fopen('php://temp', 'w+b');
         fwrite($stream, 'contents');
         rewind($stream);
-        $source = m::mock(FilesystemContract::class);
-        $source->shouldReceive('readStream')->once()->with('tenant/file.txt')->andReturn($stream);
-        $destination = $sameDisk ? $source : m::mock(FilesystemContract::class);
-        $destination->shouldReceive('writeStream')->once()
-            ->with(($sameDisk ? 'tenant/' : '') . ($to ?? 'file.txt'), $stream)->andReturnTrue();
+        $source = Double::for(FilesystemContract::class);
+        $source->expects('readStream')->with('tenant/file.txt')->returns($stream);
+        $destination = $sameDisk ? $source : Double::for(FilesystemContract::class);
+        $destination->expects('writeStream')
+            ->with(($sameDisk ? 'tenant/' : '') . ($to ?? 'file.txt'), $stream)->returns(true);
 
         if ($method === 'moveToDisk') {
-            $source->shouldReceive('delete')->once()->with('tenant/file.txt')->andReturnTrue();
+            $source->expects('delete')->with('tenant/file.txt')->returns(true);
         }
 
         $diskCalls = $prefixCalls = 0;
@@ -126,8 +130,7 @@ class ScopedFilesystemProxyTest extends TestCase
         mixed $innerResult,
         mixed $expectedResult,
     ): void {
-        $inner = m::mock(FilesystemAdapter::class);
-        $inner->shouldReceive($method)->once()->with(...$innerArguments)->andReturn($innerResult);
+        $inner = $this->expectInnerCall($method, $innerArguments, $innerResult);
         $prefixCalls = 0;
         $proxy = new ScopedFilesystemProxy($inner, function () use (&$prefixCalls): string {
             ++$prefixCalls;
@@ -149,8 +152,7 @@ class ScopedFilesystemProxyTest extends TestCase
         mixed $innerResult,
         mixed $expectedResult,
     ): void {
-        $inner = m::mock(FilesystemAdapter::class);
-        $inner->shouldReceive($method)->once()->with(...$innerArguments)->andReturn($innerResult);
+        $inner = $this->expectInnerCall($method, $innerArguments, $innerResult);
         $diskCalls = 0;
         $proxy = new ScopedFilesystemProxy(
             function () use ($inner, &$diskCalls): FilesystemContract {
@@ -222,6 +224,27 @@ class ScopedFilesystemProxyTest extends TestCase
         ];
     }
 
+    /**
+     * Expect the mapped call on its declared adapter or Flysystem boundary.
+     */
+    private function expectInnerCall(string $method, array $arguments, mixed $result): FilesystemAdapter
+    {
+        if (method_exists(FilesystemAdapter::class, $method)) {
+            $inner = $target = Double::for(FilesystemAdapter::class);
+        } else {
+            $target = Double::for(FilesystemOperator::class);
+            $inner = new FilesystemAdapter($target, $this->disk->getAdapter());
+        }
+
+        $expectation = $target->expects($method)->with(...$arguments);
+
+        if ($result !== null) {
+            $expectation->returns($result);
+        }
+
+        return $inner;
+    }
+
     public function testFlysystemMethodsAndConditionableUseTheScopedBoundary(): void
     {
         $prefixCalls = 0;
@@ -255,13 +278,13 @@ class ScopedFilesystemProxyTest extends TestCase
 
     public function testReadAndWriteStreamsAreMappedWithoutConsumingDeferredResults(): void
     {
-        $inner = m::mock(FilesystemAdapter::class);
+        $inner = Double::for(FilesystemAdapter::class);
         $readStream = fopen('php://temp', 'r+');
         $writeStream = fopen('php://temp', 'r+');
         $this->assertIsResource($readStream);
         $this->assertIsResource($writeStream);
-        $inner->shouldReceive('readStream')->once()->with('tenant/read.txt')->andReturn($readStream);
-        $inner->shouldReceive('writeStream')->once()->with('tenant/write.txt', $writeStream, ['visibility' => 'private'])->andReturnTrue();
+        $inner->expects('readStream')->with('tenant/read.txt')->returns($readStream);
+        $inner->expects('writeStream')->with('tenant/write.txt', $writeStream, ['visibility' => 'private'])->returns(true);
         $prefixCalls = 0;
         $proxy = new ScopedFilesystemProxy($inner, function () use (&$prefixCalls): string {
             ++$prefixCalls;
@@ -283,15 +306,13 @@ class ScopedFilesystemProxyTest extends TestCase
         $path = $this->tempDir . '/upload.txt';
         file_put_contents($path, 'upload');
         $upload = new UploadedFile($path, 'upload.txt', test: true);
-        $inner = m::mock(FilesystemAdapter::class);
-        $inner->shouldReceive('putFile')
-            ->once()
+        $inner = Double::for(FilesystemAdapter::class);
+        $inner->expects('putFile')
             ->with('tenant', $upload, [])
-            ->andReturn('tenant/generated.txt');
-        $inner->shouldReceive('putFileAs')
-            ->once()
+            ->returns('tenant/generated.txt');
+        $inner->expects('putFileAs')
             ->with('tenant/named.txt', $upload, '', [])
-            ->andReturn('tenant/named.txt');
+            ->returns('tenant/named.txt');
         $prefixCalls = 0;
         $proxy = new ScopedFilesystemProxy($inner, function () use (&$prefixCalls): string {
             ++$prefixCalls;
@@ -326,17 +347,16 @@ class ScopedFilesystemProxyTest extends TestCase
     public function testImageCapturesTheNormalizedPrefixAndResolvedDiskBeforeLazyReading(): void
     {
         $readCalls = 0;
-        $first = m::mock(FilesystemContract::class);
-        $first->shouldReceive('get')
-            ->once()
+        $first = Double::for(FilesystemContract::class);
+        $first->expects('get')
             ->with('tenants/first/photo.jpg')
-            ->andReturnUsing(function () use (&$readCalls): string {
+            ->resolves(function () use (&$readCalls): string {
                 ++$readCalls;
 
                 return 'first image';
             });
-        $second = m::mock(FilesystemContract::class);
-        $second->shouldNotReceive('get');
+        $second = Double::for(FilesystemContract::class);
+        $second->expects('get')->never();
         $currentDisk = $first;
         $currentPrefix = 'tenants/first/images/..';
         $diskCalls = 0;
@@ -391,8 +411,8 @@ class ScopedFilesystemProxyTest extends TestCase
 
     public function testMissingImageReportsOnlyTheCallerPath(): void
     {
-        $inner = m::mock(FilesystemContract::class);
-        $inner->shouldReceive('get')->once()->with('secret-tenant/missing.jpg')->andReturnNull();
+        $inner = Double::for(FilesystemContract::class);
+        $inner->expects('get')->with('secret-tenant/missing.jpg')->returns(null);
         $proxy = new ScopedFilesystemProxy($inner, static fn (): string => 'secret-tenant');
         $image = $proxy->image('missing.jpg');
 
@@ -410,10 +430,10 @@ class ScopedFilesystemProxyTest extends TestCase
 
     public function testNoPathMethodsDoNotResolveThePrefix(): void
     {
-        $inner = m::mock(FilesystemAdapter::class);
-        $inner->shouldReceive('providesTemporaryUrls')->once()->andReturnTrue();
-        $inner->shouldReceive('providesTemporaryUploadUrls')->once()->andReturnFalse();
-        $inner->shouldReceive('getConfig')->once()->andReturn(['driver' => 'local']);
+        $inner = Double::for(FilesystemAdapter::class);
+        $inner->expects('providesTemporaryUrls')->returns(true);
+        $inner->expects('providesTemporaryUploadUrls')->returns(false);
+        $inner->expects('getConfig')->returns(['driver' => 'local']);
         $proxy = new ScopedFilesystemProxy(
             $inner,
             static fn (): never => throw new RuntimeException('prefix must not be resolved'),
@@ -426,10 +446,10 @@ class ScopedFilesystemProxyTest extends TestCase
 
     public function testNoPathMethodsResolveTheDiskOncePerCallWithoutResolvingThePrefix(): void
     {
-        $inner = m::mock(FilesystemAdapter::class);
-        $inner->shouldReceive('providesTemporaryUrls')->once()->andReturnTrue();
-        $inner->shouldReceive('providesTemporaryUploadUrls')->once()->andReturnFalse();
-        $inner->shouldReceive('getConfig')->once()->andReturn(['driver' => 'local']);
+        $inner = Double::for(FilesystemAdapter::class);
+        $inner->expects('providesTemporaryUrls')->returns(true);
+        $inner->expects('providesTemporaryUploadUrls')->returns(false);
+        $inner->expects('getConfig')->returns(['driver' => 'local']);
         $diskCalls = 0;
         $proxy = new ScopedFilesystemProxy(
             function () use ($inner, &$diskCalls): FilesystemContract {
@@ -448,12 +468,12 @@ class ScopedFilesystemProxyTest extends TestCase
 
     public function testEveryAssertionMapsPathsAndReturnsTheScopedProxy(): void
     {
-        $inner = m::mock(FilesystemAdapter::class);
-        $inner->shouldReceive('assertExists')->once()->with(['tenant/a.txt', 'tenant/b.txt'], 'content')->andReturnSelf();
-        $inner->shouldReceive('assertMissing')->once()->with(['tenant/c.txt', 'tenant/d.txt'])->andReturnSelf();
-        $inner->shouldReceive('assertCount')->once()->with('tenant/dir', 2, true)->andReturnSelf();
-        $inner->shouldReceive('assertDirectoryEmpty')->once()->with('tenant/empty')->andReturnSelf();
-        $inner->shouldReceive('assertDirectoryEmpty')->once()->with('tenant')->andReturnSelf();
+        $inner = Double::for(FilesystemAdapter::class);
+        $inner->expects('assertExists')->with(['tenant/a.txt', 'tenant/b.txt'], 'content');
+        $inner->expects('assertMissing')->with(['tenant/c.txt', 'tenant/d.txt']);
+        $inner->expects('assertCount')->with('tenant/dir', 2, true);
+        $inner->expects('assertDirectoryEmpty')->with('tenant/empty');
+        $inner->expects('assertDirectoryEmpty')->with('tenant');
         $prefixCalls = 0;
         $proxy = new ScopedFilesystemProxy($inner, function () use (&$prefixCalls): string {
             ++$prefixCalls;
@@ -528,9 +548,9 @@ class ScopedFilesystemProxyTest extends TestCase
 
     public function testInternalTraversalNormalizesWhilePercentEncodingRemainsLiteral(): void
     {
-        $inner = m::mock(FilesystemAdapter::class);
-        $inner->shouldReceive('exists')->once()->with('tenant/b.txt')->andReturnTrue();
-        $inner->shouldReceive('exists')->once()->with('tenant/%2e%2e%2fsecret')->andReturnTrue();
+        $inner = Double::for(FilesystemAdapter::class);
+        $inner->expects('exists')->with('tenant/b.txt')->returns(true);
+        $inner->expects('exists')->with('tenant/%2e%2e%2fsecret')->returns(true);
         $proxy = new ScopedFilesystemProxy($inner, static fn (): string => 'tenant');
 
         $this->assertTrue($proxy->exists('a/../b.txt'));
@@ -540,8 +560,8 @@ class ScopedFilesystemProxyTest extends TestCase
     #[DataProvider('foreignReturnedPathProvider')]
     public function testReturnedPathsOutsideTheNormalizedPrefixFailClosed(string $returned): void
     {
-        $inner = m::mock(FilesystemAdapter::class);
-        $inner->shouldReceive('files')->once()->with('tenant', false)->andReturn([$returned]);
+        $inner = Double::for(FilesystemAdapter::class);
+        $inner->expects('files')->with('tenant', false)->returns([$returned]);
         $proxy = new ScopedFilesystemProxy($inner, static fn (): string => 'tenant');
 
         $this->expectException(RuntimeException::class);
@@ -584,10 +604,10 @@ class ScopedFilesystemProxyTest extends TestCase
 
     public function testDiskIsResolvedPerOperation(): void
     {
-        $first = m::mock(FilesystemContract::class);
-        $first->shouldReceive('get')->once()->with('tenant/file.txt')->andReturn('first');
-        $second = m::mock(FilesystemContract::class);
-        $second->shouldReceive('get')->once()->with('tenant/file.txt')->andReturn('second');
+        $first = Double::for(FilesystemContract::class);
+        $first->expects('get')->with('tenant/file.txt')->returns('first');
+        $second = Double::for(FilesystemContract::class);
+        $second->expects('get')->with('tenant/file.txt')->returns('second');
         $current = $first;
         $diskCalls = 0;
         $proxy = new ScopedFilesystemProxy(
@@ -697,7 +717,7 @@ class ScopedFilesystemProxyTest extends TestCase
             $this->assertStringContainsString('unmapped calls could bypass', $exception->getMessage());
         }
 
-        $inner = m::mock(FilesystemContract::class);
+        $inner = Double::for(FilesystemContract::class);
         $proxy = new ScopedFilesystemProxy($inner, static fn (): string => 'tenant');
 
         $this->expectException(BadMethodCallException::class);
@@ -736,7 +756,7 @@ class ScopedFilesystemProxyTest extends TestCase
 
     public function testResolvedDiskWithoutMappedCapabilityIsRejected(): void
     {
-        $inner = m::mock(FilesystemContract::class);
+        $inner = Double::for(FilesystemContract::class);
         $proxy = new ScopedFilesystemProxy(
             static fn (): FilesystemContract => $inner,
             static fn (): string => 'tenant',
@@ -750,8 +770,8 @@ class ScopedFilesystemProxyTest extends TestCase
 
     public function testCloudVariantMapsUrlAndResolvesPrefixOnce(): void
     {
-        $inner = m::mock(Cloud::class);
-        $inner->shouldReceive('url')->once()->with('tenant/file.txt')->andReturn('https://example.test/file.txt');
+        $inner = Double::for(Cloud::class);
+        $inner->expects('url')->with('tenant/file.txt')->returns('https://example.test/file.txt');
         $prefixCalls = 0;
         $proxy = new ScopedCloudFilesystemProxy($inner, function () use (&$prefixCalls): string {
             ++$prefixCalls;
@@ -765,8 +785,8 @@ class ScopedFilesystemProxyTest extends TestCase
 
     public function testCloudVariantResolvesTheDiskOnce(): void
     {
-        $inner = m::mock(Cloud::class);
-        $inner->shouldReceive('url')->once()->with('tenant/file.txt')->andReturn('https://example.test/file.txt');
+        $inner = Double::for(Cloud::class);
+        $inner->expects('url')->with('tenant/file.txt')->returns('https://example.test/file.txt');
         $diskCalls = 0;
         $proxy = new ScopedCloudFilesystemProxy(
             function () use ($inner, &$diskCalls): Cloud {
@@ -784,11 +804,10 @@ class ScopedFilesystemProxyTest extends TestCase
     public function testCloudVariantInheritsLazyImageScoping(): void
     {
         $readCalls = 0;
-        $inner = m::mock(Cloud::class);
-        $inner->shouldReceive('get')
-            ->once()
+        $inner = Double::for(Cloud::class);
+        $inner->expects('get')
             ->with('tenant/photo.jpg')
-            ->andReturnUsing(function () use (&$readCalls): string {
+            ->resolves(function () use (&$readCalls): string {
                 ++$readCalls;
 
                 return 'cloud image';
@@ -804,7 +823,7 @@ class ScopedFilesystemProxyTest extends TestCase
 
     public function testCloudVariantRejectsANonCloudResolvedDisk(): void
     {
-        $inner = m::mock(FilesystemContract::class);
+        $inner = Double::for(FilesystemContract::class);
         $proxy = new ScopedCloudFilesystemProxy(
             static fn (): FilesystemContract => $inner,
             static fn (): string => 'tenant',

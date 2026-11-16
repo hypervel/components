@@ -12,7 +12,8 @@ use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 /**
  * Tests that Model, Pivot, and MorphPivot delegate to the connection's
@@ -21,17 +22,19 @@ use Mockery as m;
  */
 class NewBaseQueryBuilderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testModelUsesConnectionQueryMethod(): void
     {
-        $mockConnection = m::mock(Connection::class);
+        $mockConnection = Double::for(Connection::class);
         $customBuilder = new CustomQueryBuilder(
             $mockConnection,
             new Grammar($mockConnection),
             new Processor
         );
 
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('query')->once()->andReturn($customBuilder);
+        $connection = Double::for(Connection::class);
+        $connection->expects('query')->returns($customBuilder);
 
         $model = new NewBaseQueryBuilderTestModel;
         $model->setTestConnection($connection);
@@ -44,15 +47,15 @@ class NewBaseQueryBuilderTest extends TestCase
 
     public function testPivotUsesConnectionQueryMethod(): void
     {
-        $mockConnection = m::mock(Connection::class);
+        $mockConnection = Double::for(Connection::class);
         $customBuilder = new CustomQueryBuilder(
             $mockConnection,
             new Grammar($mockConnection),
             new Processor
         );
 
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('query')->once()->andReturn($customBuilder);
+        $connection = Double::for(Connection::class);
+        $connection->expects('query')->returns($customBuilder);
 
         $pivot = new NewBaseQueryBuilderTestPivot;
         $pivot->setTestConnection($connection);
@@ -65,15 +68,15 @@ class NewBaseQueryBuilderTest extends TestCase
 
     public function testMorphPivotUsesConnectionQueryMethod(): void
     {
-        $mockConnection = m::mock(Connection::class);
+        $mockConnection = Double::for(Connection::class);
         $customBuilder = new CustomQueryBuilder(
             $mockConnection,
             new Grammar($mockConnection),
             new Processor
         );
 
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('query')->once()->andReturn($customBuilder);
+        $connection = Double::for(Connection::class);
+        $connection->expects('query')->returns($customBuilder);
 
         $morphPivot = new NewBaseQueryBuilderTestMorphPivot;
         $morphPivot->setTestConnection($connection);

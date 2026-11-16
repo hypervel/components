@@ -11,7 +11,8 @@ use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -21,6 +22,8 @@ use Throwable;
 
 class KernelTerminateTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testTerminateDispatchesTerminatingEventAndAppTerminateInOrder(): void
     {
         $called = [];
@@ -53,17 +56,14 @@ class KernelTerminateTest extends TestCase
 
     public function testTerminateDoesNotConstructOrDispatchAnEventWithoutListeners(): void
     {
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')
-            ->once()
+        $events = Double::for(Dispatcher::class);
+        $events->expects('hasListeners')
             ->with(Terminating::class)
-            ->andReturnFalse();
-        $events->shouldNotReceive('dispatch');
+            ->returns(false);
+        $events->expects('dispatch')->never();
         $kernel = new ConsoleKernel($this->app, $events);
 
         $kernel->terminate(new StringInput(''), 0);
-
-        $this->addToAssertionCount(1);
     }
 
     public function testCommandStartedAtIsNullBeforeHandle(): void

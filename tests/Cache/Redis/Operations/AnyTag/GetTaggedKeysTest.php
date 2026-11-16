@@ -17,14 +17,12 @@ class GetTaggedKeysTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         // Small hash (below threshold) uses HKEYS
-        $connection->shouldReceive('hlen')
-            ->once()
+        $connection->client()->expects('hlen')
             ->with('prefix:_any:tag:users:entries')
-            ->andReturn(5);
-        $connection->shouldReceive('hkeys')
-            ->once()
+            ->returns(5);
+        $connection->client()->expects('hkeys')
             ->with('prefix:_any:tag:users:entries')
-            ->andReturn(['key1', 'key2', 'key3']);
+            ->returns(['key1', 'key2', 'key3']);
 
         $redis = $this->createStore($connection);
         $redis->setTagMode('any');
@@ -35,43 +33,34 @@ class GetTaggedKeysTest extends RedisCacheTestCase
 
     public function testGetTaggedKeysUsesHscanForLargeHashes(): void
     {
-        $connection = $this->mockConnection();
+        $tagKey = 'prefix:_any:tag:users:entries';
+        $client = new FakeRedisClient(
+            hLenResults: [$tagKey => 5000],
+            hScanResults: [
+                $tagKey => [['fields' => ['key1' => '1', 'key2' => '1', 'key3' => '1'], 'iterator' => 0]],
+            ],
+        );
+        $store = $this->createStoreWithFakeClient($client, tagMode: 'any');
 
-        // Large hash (above threshold of 1000) uses HSCAN
-        $connection->shouldReceive('hlen')
-            ->once()
-            ->with('prefix:_any:tag:users:entries')
-            ->andReturn(5000);
-
-        // HSCAN returns key-value pairs, iterator updates by reference
-        $connection->shouldReceive('hscan')
-            ->once()
-            ->withArgs(function ($key, &$iterator, $pattern, $count) {
-                $this->assertNull($iterator);
-                $iterator = 0; // Done after first iteration
-                return true;
-            })
-            ->andReturn(['key1' => '1', 'key2' => '1', 'key3' => '1']);
-
-        $redis = $this->createStore($connection);
-        $redis->setTagMode('any');
-        $keys = iterator_to_array($redis->anyTagOps()->getTaggedKeys()->execute('users'));
+        $keys = iterator_to_array($store->anyTagOps()->getTaggedKeys()->execute('users'));
 
         $this->assertSame(['key1', 'key2', 'key3'], $keys);
+        $this->assertSame([$tagKey], $client->getHLenCalls());
+        $this->assertSame([
+            ['key' => $tagKey, 'iterator' => null, 'pattern' => null, 'count' => 1000],
+        ], $client->getHScanCalls());
     }
 
     public function testGetTaggedKeysReturnsEmptyForNonExistentTag(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('hlen')
-            ->once()
+        $connection->client()->expects('hlen')
             ->with('prefix:_any:tag:nonexistent:entries')
-            ->andReturn(0);
-        $connection->shouldReceive('hkeys')
-            ->once()
+            ->returns(0);
+        $connection->client()->expects('hkeys')
             ->with('prefix:_any:tag:nonexistent:entries')
-            ->andReturn([]);
+            ->returns([]);
 
         $redis = $this->createStore($connection);
         $redis->setTagMode('any');
@@ -84,8 +73,7 @@ class GetTaggedKeysTest extends RedisCacheTestCase
      * Verifies that HSCAN correctly handles multiple batches with per-batch connection checkout.
      * The iterator must be passed by reference correctly across withConnection() calls.
      *
-     * Uses FakeRedisClient instead of Mockery because Mockery doesn't properly propagate
-     * modifications to reference parameters (like &$iterator) back to the caller.
+     * A concrete fake preserves the scan cursor changes that generated doubles cannot return.
      */
     public function testGetTaggedKeysHandlesMultipleHscanBatches(): void
     {
@@ -114,7 +102,7 @@ class GetTaggedKeysTest extends RedisCacheTestCase
         $this->assertSame(['key1', 'key2', 'key3', 'key4', 'key5'], $keys);
 
         // Verify all 3 HSCAN batches were called
-        $this->assertSame(3, $fakeClient->getHScanCallCount());
+        $this->assertSame([null, 100, 200], array_column($fakeClient->getHScanCalls(), 'iterator'));
     }
 
     public function testGetTaggedKeysContinuesAfterAnEmptyNonterminalPage(): void

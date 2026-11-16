@@ -9,11 +9,14 @@ use Hypervel\Doctor\Support\InstalledPackages;
 use Hypervel\Support\Facades\File;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Doctor\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class InstalledPackagesTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private string $path;
 
     private InstalledPackages $packages;
@@ -128,8 +131,8 @@ class InstalledPackagesTest extends TestCase
      */
     private function snapshot(array $root): array
     {
-        $composer = m::mock(ComposerJson::class);
-        $composer->allows('contents')->andReturn($root);
+        $composer = Double::for(ComposerJson::class);
+        $composer->allows('contents')->returns($root);
 
         return $this->packages->platformRequirements($composer);
     }

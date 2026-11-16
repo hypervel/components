@@ -11,10 +11,13 @@ use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\Di\Fixtures\Aspect\NoPriorityAspect;
 use Hypervel\Tests\Di\Fixtures\Aspect\TestAspect;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class ServiceProviderDiTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testAspectsRegistersIntoCollector(): void
     {
         $provider = new TestServiceProvider($this->createMockApp());
@@ -61,7 +64,7 @@ class ServiceProviderDiTest extends TestCase
      */
     protected function createMockApp(): ApplicationContract
     {
-        return m::mock(ApplicationContract::class);
+        return Double::for(ApplicationContract::class, override: true)->instance();
     }
 }
 

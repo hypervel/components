@@ -10,11 +10,15 @@ use Hypervel\Container\Container;
 use Hypervel\Coroutine\SignalRegistry;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use ReflectionProperty;
 
 class InteractsWithSignalsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testTrapCreatesRegistry(): void
     {
         $command = new InteractsWithSignalsTestStub;
@@ -22,8 +26,8 @@ class InteractsWithSignalsTest extends TestCase
         $invoker = new ClassInvoker($command);
         $this->assertNull($invoker->signalRegistry);
 
-        $signalRegistry = m::mock(SignalRegistry::class)->shouldIgnoreMissing();
-        $signalRegistry->shouldReceive('register')->once();
+        $signalRegistry = Double::for(SignalRegistry::class);
+        $signalRegistry->expects('register');
         Container::getInstance()->instance(SignalRegistry::class, $signalRegistry);
 
         $command->callTrap(SIGTERM, fn (int $signo) => null);
@@ -33,8 +37,8 @@ class InteractsWithSignalsTest extends TestCase
 
     public function testTrapReusesExistingRegistry(): void
     {
-        $signalRegistry = m::mock(SignalRegistry::class)->shouldIgnoreMissing();
-        $signalRegistry->shouldReceive('register')->twice();
+        $signalRegistry = Double::for(SignalRegistry::class);
+        $signalRegistry->expects('register')->times(2);
 
         $command = new InteractsWithSignalsTestStub;
         $this->setSignalRegistry($command, $signalRegistry);
@@ -46,9 +50,9 @@ class InteractsWithSignalsTest extends TestCase
     public function testUntrapDelegatesToRegistry(): void
     {
         $command = new InteractsWithSignalsTestStub;
-        $signalRegistry = m::mock(SignalRegistry::class)->shouldIgnoreMissing();
-        $signalRegistry->shouldReceive('register')->once();
-        $signalRegistry->shouldReceive('unregister')->with($command, SIGTERM)->once();
+        $signalRegistry = Double::for(SignalRegistry::class);
+        $signalRegistry->expects('register');
+        $signalRegistry->expects('unregister')->with(Argument::same($command), SIGTERM);
 
         $this->setSignalRegistry($command, $signalRegistry);
 
@@ -68,9 +72,9 @@ class InteractsWithSignalsTest extends TestCase
     public function testUntrapAllSignals(): void
     {
         $command = new InteractsWithSignalsTestStub;
-        $signalRegistry = m::mock(SignalRegistry::class)->shouldIgnoreMissing();
-        $signalRegistry->shouldReceive('register')->once();
-        $signalRegistry->shouldReceive('unregister')->with($command, null)->once();
+        $signalRegistry = Double::for(SignalRegistry::class);
+        $signalRegistry->expects('register');
+        $signalRegistry->expects('unregister')->with(Argument::same($command), null);
 
         $this->setSignalRegistry($command, $signalRegistry);
 
@@ -87,8 +91,8 @@ class InteractsWithSignalsTest extends TestCase
             yield SIGINT;
         })();
         $callback = static fn (int $signal): null => null;
-        $registry = m::mock(SignalRegistry::class)->shouldIgnoreMissing();
-        $registry->expects('register')->with($command, $signals, $callback);
+        $registry = Double::for(SignalRegistry::class);
+        $registry->expects('register')->with(Argument::same($command), Argument::same($signals), Argument::same($callback));
         Container::getInstance()->instance(SignalRegistry::class, $registry);
         $calls = 0;
 

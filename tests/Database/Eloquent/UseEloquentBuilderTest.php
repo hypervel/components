@@ -7,15 +7,19 @@ namespace Hypervel\Tests\Database\Eloquent;
 use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class UseEloquentBuilderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testNewModelBuilderReturnsDefaultBuilderWhenNoAttribute(): void
     {
         $model = new UseEloquentBuilderTestModel;
-        $query = m::mock(\Hypervel\Database\Query\Builder::class);
+        $query = Double::for(QueryBuilder::class);
 
         $builder = $model->newEloquentBuilder($query);
 
@@ -26,7 +30,7 @@ class UseEloquentBuilderTest extends TestCase
     public function testNewModelBuilderReturnsCustomBuilderWhenAttributePresent(): void
     {
         $model = new UseEloquentBuilderTestModelWithAttribute;
-        $query = m::mock(\Hypervel\Database\Query\Builder::class);
+        $query = Double::for(QueryBuilder::class);
 
         $builder = $model->newEloquentBuilder($query);
 
@@ -37,7 +41,7 @@ class UseEloquentBuilderTest extends TestCase
     {
         $model1 = new UseEloquentBuilderTestModelWithAttribute;
         $model2 = new UseEloquentBuilderTestModelWithAttribute;
-        $query = m::mock(\Hypervel\Database\Query\Builder::class);
+        $query = Double::for(QueryBuilder::class);
 
         // First call should resolve and cache
         $builder1 = $model1->newEloquentBuilder($query);
@@ -72,7 +76,7 @@ class UseEloquentBuilderTest extends TestCase
     {
         $modelWithoutAttribute = new UseEloquentBuilderTestModel;
         $modelWithAttribute = new UseEloquentBuilderTestModelWithAttribute;
-        $query = m::mock(\Hypervel\Database\Query\Builder::class);
+        $query = Double::for(QueryBuilder::class);
 
         $builder1 = $modelWithoutAttribute->newEloquentBuilder($query);
         $builder2 = $modelWithAttribute->newEloquentBuilder($query);

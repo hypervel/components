@@ -10,30 +10,32 @@ use Hypervel\Foundation\Bootstrap\RegisterProviders;
 use Hypervel\Foundation\PackageManifest;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class RegisterProvidersTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRegisterProviders(): void
     {
         $mergedProviders = null;
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('array')
-            ->twice()
+        $config = Double::for(Repository::class);
+        $config->expects('array')
+            ->times(2)
             ->with('app.providers')
-            ->andReturnUsing(function () use (&$mergedProviders) {
+            ->resolves(function () use (&$mergedProviders) {
                 return $mergedProviders ?? [TestTwoServiceProvider::class];
             });
-        $config->shouldReceive('set')
-            ->with('app.providers', m::type('array'))
-            ->once()
-            ->andReturnUsing(function (string $key, array $value) use (&$mergedProviders) {
+        $config->expects('set')
+            ->with('app.providers', Argument::type('array'))
+            ->resolves(function (string $key, array $value) use (&$mergedProviders) {
                 $mergedProviders = $value;
             });
-        $manifest = m::mock(PackageManifest::class);
-        $manifest->shouldReceive('providers')
-            ->once()
-            ->andReturn([
+        $manifest = Double::for(PackageManifest::class);
+        $manifest->expects('providers')
+            ->returns([
                 TestOneServiceProvider::class,
             ]);
 

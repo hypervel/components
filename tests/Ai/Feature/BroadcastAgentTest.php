@@ -17,13 +17,16 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ConversationalAgent;
 use Hypervel\Tests\Ai\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Throwable;
 
 class BroadcastAgentTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testThenCallbackReceivesStreamedAgentResponse(): void
     {
         Event::fake();
@@ -169,10 +172,10 @@ class BroadcastAgentTest extends TestCase
     {
         AssistantAgent::fake(['Hello world']);
 
-        $pending = m::mock(AnonymousEvent::class);
-        $pending->shouldReceive('as')->andReturnSelf();
-        $pending->shouldReceive('with')->andReturnSelf();
-        $pending->shouldReceive('sendNow')->atLeast()->once()->andThrow(new BroadcastException('Payload too large'));
+        $pending = Double::for(AnonymousEvent::class);
+        $pending->allows('as');
+        $pending->allows('with');
+        $pending->expects('sendNow')->times(minimum: 1)->throws(new BroadcastException('Payload too large'));
 
         Broadcast::shouldReceive('on')->andReturn($pending);
 

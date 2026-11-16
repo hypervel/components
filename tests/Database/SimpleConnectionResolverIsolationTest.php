@@ -9,7 +9,8 @@ use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\SimpleConnectionResolver;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 /**
  * Regression guard: SimpleConnectionResolver must keep its default connection
@@ -26,17 +27,12 @@ use Mockery as m;
  */
 class SimpleConnectionResolverIsolationTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        CoroutineContext::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
-
-        parent::tearDown();
-    }
+    use VerifiesDoubles;
 
     public function testTwoInstancesHaveIndependentDefaults(): void
     {
-        $resolverA = new SimpleConnectionResolver(m::mock(DatabaseManager::class));
-        $resolverB = new SimpleConnectionResolver(m::mock(DatabaseManager::class));
+        $resolverA = new SimpleConnectionResolver(Double::for(DatabaseManager::class));
+        $resolverB = new SimpleConnectionResolver(Double::for(DatabaseManager::class));
 
         $resolverA->setDefaultConnection('alpha');
         $resolverB->setDefaultConnection('beta');
@@ -47,7 +43,7 @@ class SimpleConnectionResolverIsolationTest extends TestCase
 
     public function testSetDefaultConnectionDoesNotWriteToSharedContext(): void
     {
-        $resolver = new SimpleConnectionResolver(m::mock(DatabaseManager::class));
+        $resolver = new SimpleConnectionResolver(Double::for(DatabaseManager::class));
 
         // Pre-set Context to a sentinel — SimpleConnectionResolver must NOT
         // touch this key, otherwise its setter is leaking into the pooled

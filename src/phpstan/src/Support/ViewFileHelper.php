@@ -7,7 +7,6 @@ namespace Hypervel\PHPStan\Support;
 use Generator;
 use Hypervel\PHPStan\Concerns\HasContainer;
 use Hypervel\View\Factory as ViewFactory;
-use Hypervel\View\FileViewFinder;
 use Hypervel\View\ViewFinderInterface;
 use PHPStan\Analyser\DependencyTracker;
 use PHPStan\Analyser\Scope;
@@ -74,10 +73,7 @@ class ViewFileHelper
             $finder = $this->finder();
             $viewDirectories = $finder->getPaths();
 
-            // Hypervel's finder contract has no namespace hints; the standard finder does.
-            if ($finder instanceof FileViewFinder) {
-                $hintDirectories = array_merge(...array_values($finder->getHints()));
-            }
+            $hintDirectories = array_merge(...array_values($finder->getHints()));
         }
 
         // View names are derived from these directories, so a relative directory is

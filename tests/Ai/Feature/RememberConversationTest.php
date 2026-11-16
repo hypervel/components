@@ -47,7 +47,9 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingAssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\OpenAiHelpers;
 use Hypervel\Tests\Ai\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -59,6 +61,7 @@ class RememberConversationTest extends TestCase
 {
     use OpenAiHelpers;
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     public function testACompleteTurnUpdatesConversationActivityOnce(): void
     {
@@ -80,12 +83,11 @@ class RememberConversationTest extends TestCase
         };
         $agent->continue($conversationId);
         $agent->continuations = 0;
-        $provider = m::mock(TextProvider::class);
-        $provider->shouldReceive('name')->andReturn('test');
+        $provider = Double::for(TextProvider::class);
+        $provider->allows('name')->returns('test');
         $prompt = new AgentPrompt($agent, 'Hello', [], $provider, 'model');
-        $middleware = m::mock(RememberConversation::class, [$store, $provider])
-            ->makePartial()->shouldAllowMockingProtectedMethods();
-        $middleware->shouldNotReceive('generateTitle');
+        $middleware = Double::for(new RememberConversation($store, $provider))->passthru();
+        $middleware->expects('generateTitle')->never();
         DB::enableQueryLog();
 
         $response = $middleware->handle($prompt, fn (): AgentResponse => $this->response());
@@ -103,17 +105,17 @@ class RememberConversationTest extends TestCase
         config(['ai.providers.openai.key' => 'test-key']);
         $participant = $originalParticipant = (object) ['id' => 1];
         $conversationId = null;
-        $agent = m::mock(Agent::class, RemembersConversations::class);
-        $agent->shouldReceive('currentConversation')->andReturnUsing(function () use (&$conversationId): ?string {
+        $agent = Double::for(Agent::class, RemembersConversations::class);
+        $agent->allows('currentConversation')->resolves(function () use (&$conversationId): ?string {
             return $conversationId;
         });
-        $agent->shouldReceive('conversationParticipant')->andReturnUsing(function () use (&$participant): object {
+        $agent->allows('conversationParticipant')->resolves(function () use (&$participant): object {
             return $participant;
         });
         $history = [new UserMessage('Earlier message')];
-        $agent->shouldReceive('messages')->once()->andReturn($history);
-        $agent->shouldReceive('instructions')->andReturn('Be helpful.');
-        $agent->shouldNotReceive('continue');
+        $agent->expects('messages')->returns($history);
+        $agent->allows('instructions')->returns('Be helpful.');
+        $agent->expects('continue')->never();
         $provider = Ai::textProvider('openai');
         $prompt = new AgentPrompt($agent, 'Hello', [], $provider, 'model');
 
@@ -141,8 +143,8 @@ class RememberConversationTest extends TestCase
     public function testFailedAtomicPersistenceDoesNotLeaveHalfATurnOrChangeTheAgent(): void
     {
         $failure = new RuntimeException('Cannot store assistant');
-        $store = m::mock(DatabaseConversationStore::class, [null])->makePartial();
-        $store->shouldReceive('storeAssistantMessage')->once()->andThrow($failure);
+        $store = Double::for(new DatabaseConversationStore)->passthru();
+        $store->expects('storeAssistantMessage')->throws($failure);
         $prompt = $this->prompt();
 
         $this->assertThrowsSame($failure, fn () => (new RememberConversation($store, $prompt->provider()))->handle($prompt, fn (): AgentResponse => $this->response()));
@@ -325,11 +327,10 @@ class RememberConversationTest extends TestCase
     {
         config(['ai.conversations.generate_title' => true, 'ai.conversations.concurrent_title' => $concurrent]);
         $prompt = $this->prompt(Decisions::from(['call' => true]));
-        $loop = new TextGenerationLoop(m::mock(StepTextGateway::class));
+        $loop = new TextGenerationLoop(Double::for(StepTextGateway::class));
         $titleRequests = 0;
-        $middleware = m::mock(RememberConversation::class, [new DatabaseConversationStore, $prompt->provider()])
-            ->makePartial()->shouldAllowMockingProtectedMethods();
-        $middleware->shouldReceive('generateTitle')->andReturnUsing(function () use (&$titleRequests): string {
+        $middleware = Double::for(new RememberConversation(new DatabaseConversationStore, $prompt->provider()))->passthru();
+        $middleware->allows('generateTitle')->resolves(function () use (&$titleRequests): string {
             ++$titleRequests;
 
             return 'Unexpected title';
@@ -356,10 +357,10 @@ class RememberConversationTest extends TestCase
 
     public function testASequentialStoreCanChooseItsOwnIdWhenContinuingAnEmptyId(): void
     {
-        $store = m::mock(ConversationStore::class);
-        $store->shouldReceive('storeConversation')->once()->andReturn('custom-conversation');
-        $store->shouldReceive('storeUserMessage')->once()->with('custom-conversation', null, null, RememberingAssistantAgent::class, m::type('object'))->andReturn('user-message');
-        $store->shouldReceive('storeAssistantMessage')->once()->with('custom-conversation', null, null, m::type(AgentPrompt::class), m::type(AgentResponse::class), null)->andReturn('assistant-message');
+        $store = Double::for(ConversationStore::class);
+        $store->expects('storeConversation')->returns('custom-conversation');
+        $store->expects('storeUserMessage')->with('custom-conversation', null, null, RememberingAssistantAgent::class, Argument::type('object'))->returns('user-message');
+        $store->expects('storeAssistantMessage')->with('custom-conversation', null, null, Argument::type(AgentPrompt::class), Argument::type(AgentResponse::class), null)->returns('assistant-message');
         $prompt = $this->prompt();
         $prompt->agent->continue('');
 
@@ -391,9 +392,8 @@ class RememberConversationTest extends TestCase
                 CoroutineContext::set('title-test.account', $previous);
             }
         });
-        $middleware = m::mock(RememberConversation::class, [new DatabaseConversationStore, $prompt->provider()])
-            ->makePartial()->shouldAllowMockingProtectedMethods();
-        $middleware->shouldReceive('generateTitle')->once()->andReturnUsing(function () use ($waiting, &$active, &$titleAccount): string {
+        $middleware = Double::for(new RememberConversation(new DatabaseConversationStore, $prompt->provider()))->passthru();
+        $middleware->expects('generateTitle')->resolves(function () use ($waiting, &$active, &$titleAccount): string {
             $this->assertSame('title-request', Context::get('request_id'));
             $titleAccount = CoroutineContext::get('title-test.account');
             $active = true;
@@ -481,12 +481,11 @@ class RememberConversationTest extends TestCase
     {
         config(['ai.conversations.generate_title' => true, 'ai.conversations.concurrent_title' => true]);
         $prompt = $this->prompt();
-        $middleware = m::mock(RememberConversation::class, [new DatabaseConversationStore, $prompt->provider()])
-            ->makePartial()->shouldAllowMockingProtectedMethods();
+        $middleware = Double::for(new RememberConversation(new DatabaseConversationStore, $prompt->provider()))->passthru();
         $failure = $wrapped
             ? new RuntimeException('Title cleanup failed.', previous: new CanceledException)
             : new CanceledException;
-        $middleware->shouldReceive('generateTitle')->once()->andThrow($failure);
+        $middleware->expects('generateTitle')->throws($failure);
 
         $response = $middleware->handle($prompt, fn () => $this->response());
 
@@ -504,9 +503,8 @@ class RememberConversationTest extends TestCase
         $active = false;
         $resumed = false;
         $failure = new RuntimeException('Provider failed before any work');
-        $middleware = m::mock(RememberConversation::class, [new DatabaseConversationStore, $prompt->provider()])
-            ->makePartial()->shouldAllowMockingProtectedMethods();
-        $middleware->shouldReceive('generateTitle')->once()->andReturnUsing(function () use ($waiting, &$active, &$resumed): string {
+        $middleware = Double::for(new RememberConversation(new DatabaseConversationStore, $prompt->provider()))->passthru();
+        $middleware->expects('generateTitle')->resolves(function () use ($waiting, &$active, &$resumed): string {
             $active = true;
 
             try {
@@ -549,9 +547,8 @@ class RememberConversationTest extends TestCase
         config(['ai.conversations.generate_title' => true, 'ai.conversations.concurrent_title' => true]);
         $prompt = $this->prompt();
         $failure = new RuntimeException('Provider failed after a tool');
-        $middleware = m::mock(RememberConversation::class, [new DatabaseConversationStore, $prompt->provider()])
-            ->makePartial()->shouldAllowMockingProtectedMethods();
-        $middleware->shouldReceive('generateTitle')->once()->andReturn('Failed conversation');
+        $middleware = Double::for(new RememberConversation(new DatabaseConversationStore, $prompt->provider()))->passthru();
+        $middleware->expects('generateTitle')->returns('Failed conversation');
         $generate = function () use ($prompt, $failure): never {
             $prompt->setRunContext($context = $this->context($prompt));
             $context->recordStep($this->step());
@@ -579,8 +576,8 @@ class RememberConversationTest extends TestCase
         $prompt = $this->prompt();
         $cancellation = new CanceledException;
         $storageFailure = new RuntimeException('Conversation storage failed.');
-        $store = m::mock(DatabaseConversationStore::class);
-        $store->shouldReceive('storeTurn')->once()->andThrow($storageFailure);
+        $store = Double::for(DatabaseConversationStore::class);
+        $store->expects('storeTurn')->throws($storageFailure);
         $middleware = new RememberConversation($store, $prompt->provider());
         $generate = function () use ($prompt, $cancellation): never {
             $prompt->setRunContext($context = $this->context($prompt));
@@ -629,11 +626,10 @@ class RememberConversationTest extends TestCase
         if ($cleanupThrows) {
             $failure = new RuntimeException('Stream cleanup failed.', previous: $failure);
         }
-        $middleware = m::mock(RememberConversation::class, [new DatabaseConversationStore, $prompt->provider()])
-            ->makePartial()->shouldAllowMockingProtectedMethods();
+        $middleware = Double::for(new RememberConversation(new DatabaseConversationStore, $prompt->provider()))->passthru();
 
         if ($concurrent) {
-            $middleware->shouldReceive('generateTitle')->once()->andReturnUsing(function () use ($waiting, &$active, &$finished): string {
+            $middleware->expects('generateTitle')->resolves(function () use ($waiting, &$active, &$finished): string {
                 $active = true;
 
                 try {
@@ -646,7 +642,7 @@ class RememberConversationTest extends TestCase
                 }
             });
         } else {
-            $middleware->shouldNotReceive('generateTitle');
+            $middleware->expects('generateTitle')->never();
         }
 
         $stream = new StreamableAgentResponse('invocation', function () use ($prompt, $failure, $abandoned, $concurrent, &$active): Generator {
@@ -704,9 +700,8 @@ class RememberConversationTest extends TestCase
         $waiting = new Channel(1);
         $active = false;
         $started = false;
-        $middleware = m::mock(RememberConversation::class, [new DatabaseConversationStore, $prompt->provider()])
-            ->makePartial()->shouldAllowMockingProtectedMethods();
-        $middleware->shouldReceive('generateTitle')->once()->andReturnUsing(function () use ($waiting, &$active, &$started): string {
+        $middleware = Double::for(new RememberConversation(new DatabaseConversationStore, $prompt->provider()))->passthru();
+        $middleware->expects('generateTitle')->resolves(function () use ($waiting, &$active, &$started): string {
             $active = $started = true;
 
             try {
@@ -746,9 +741,8 @@ class RememberConversationTest extends TestCase
         $prompt = $this->prompt();
         Ai::fakeAgent($prompt->agent::class);
         $generated = false;
-        $middleware = m::mock(RememberConversation::class, [new DatabaseConversationStore, $prompt->provider()])
-            ->makePartial()->shouldAllowMockingProtectedMethods();
-        $middleware->shouldReceive('generateTitle')->once()->andReturnUsing(function () use (&$generated): string {
+        $middleware = Double::for(new RememberConversation(new DatabaseConversationStore, $prompt->provider()))->passthru();
+        $middleware->expects('generateTitle')->resolves(function () use (&$generated): string {
             $this->assertTrue($generated);
 
             return 'Fake conversation';
@@ -771,9 +765,8 @@ class RememberConversationTest extends TestCase
         $waiting = new Channel(1);
         $active = false;
         $caught = null;
-        $middleware = m::mock(RememberConversation::class, [new DatabaseConversationStore, $prompt->provider()])
-            ->makePartial()->shouldAllowMockingProtectedMethods();
-        $middleware->shouldReceive('generateTitle')->once()->andReturnUsing(function () use ($waiting, &$active): string {
+        $middleware = Double::for(new RememberConversation(new DatabaseConversationStore, $prompt->provider()))->passthru();
+        $middleware->expects('generateTitle')->resolves(function () use ($waiting, &$active): string {
             $active = true;
 
             try {
@@ -837,9 +830,8 @@ class RememberConversationTest extends TestCase
         $caught = null;
         $reported = null;
         $failure = new RuntimeException('Provider failed after a tool');
-        $middleware = m::mock(RememberConversation::class, [$store, $prompt->provider()])
-            ->makePartial()->shouldAllowMockingProtectedMethods();
-        $middleware->shouldReceive('generateTitle')->once()->andReturnUsing(function () use ($waiting, &$active): string {
+        $middleware = Double::for(new RememberConversation($store, $prompt->provider()))->passthru();
+        $middleware->expects('generateTitle')->resolves(function () use ($waiting, &$active): string {
             $active = true;
 
             try {
@@ -937,8 +929,8 @@ class RememberConversationTest extends TestCase
         if ($cleanupThrows) {
             $failure = new RuntimeException('Title cleanup failed.', previous: $failure);
         }
-        $prompt->provider()->shouldReceive('prompt')->once()->andThrow($failure);
-        $prompt->provider()->shouldReceive('cheapestTextModel')->once()->andReturn('title-model');
+        $prompt->provider()->expects('prompt')->throws($failure);
+        $prompt->provider()->expects('cheapestTextModel')->returns('title-model');
 
         $response = $this->response();
         $this->assertThrowsSame($failure, fn () => (new RememberConversation(new DatabaseConversationStore, $prompt->provider()))
@@ -955,10 +947,10 @@ class RememberConversationTest extends TestCase
         $prompt = $this->prompt();
         $cancellation = new CanceledException('Title request canceled.');
         $storageFailure = new RuntimeException('Conversation storage failed.');
-        $prompt->provider()->shouldReceive('prompt')->once()->andThrow($cancellation);
-        $prompt->provider()->shouldReceive('cheapestTextModel')->once()->andReturn('title-model');
-        $store = m::mock(DatabaseConversationStore::class);
-        $store->shouldReceive('storeTurn')->once()->andThrow($storageFailure);
+        $prompt->provider()->expects('prompt')->throws($cancellation);
+        $prompt->provider()->expects('cheapestTextModel')->returns('title-model');
+        $store = Double::for(DatabaseConversationStore::class);
+        $store->expects('storeTurn')->throws($storageFailure);
         $caught = null;
 
         try {
@@ -978,8 +970,8 @@ class RememberConversationTest extends TestCase
      */
     private function prompt(?Decisions $decisions = null): AgentPrompt
     {
-        $provider = m::mock(TextProvider::class);
-        $provider->shouldReceive('name')->andReturn('test');
+        $provider = Double::for(TextProvider::class);
+        $provider->allows('name')->returns('test');
 
         return new AgentPrompt((new RememberingAssistantAgent)->forUser((object) ['id' => 1]), 'Hello', [], $provider, 'model', approvalDecisions: $decisions);
     }

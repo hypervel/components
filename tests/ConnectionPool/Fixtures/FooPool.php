@@ -6,12 +6,12 @@ namespace Hypervel\Tests\ConnectionPool\Fixtures;
 
 use Hypervel\ConnectionPool\ConnectionPool;
 use Hypervel\Contracts\ConnectionPool\Connection;
-use Mockery as m;
+use JMac\Testing\Double;
 
 class FooPool extends ConnectionPool
 {
     protected function createConnection(): Connection
     {
-        return m::mock(Connection::class);
+        return Double::for(Connection::class);
     }
 }

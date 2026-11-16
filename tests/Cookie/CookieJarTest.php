@@ -10,7 +10,8 @@ use Hypervel\Cookie\CookieJar;
 use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use stdClass;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -35,6 +36,8 @@ enum CookieJarTestNameIntEnum: int
 
 class CookieJarTest extends TestCase
 {
+    use VerifiesDoubles;
+
     // =========================================================================
     // Laravel CookieTest (adapted for Context-based storage)
     // =========================================================================
@@ -374,9 +377,7 @@ class CookieJarTest extends TestCase
 
     public function testHas(): void
     {
-        $request = m::mock(Request::class);
-        $request->shouldReceive('cookie')->with('foo', null)->andReturn('bar');
-        RequestContext::set($request);
+        RequestContext::set(Request::create('/', 'GET', [], ['foo' => 'bar']));
 
         $manager = new CookieJar;
 
@@ -385,9 +386,7 @@ class CookieJarTest extends TestCase
 
     public function testGet(): void
     {
-        $request = m::mock(Request::class);
-        $request->shouldReceive('cookie')->with('foo', null)->andReturn('bar');
-        RequestContext::set($request);
+        RequestContext::set(Request::create('/', 'GET', [], ['foo' => 'bar']));
 
         $manager = new CookieJar;
 
@@ -424,9 +423,7 @@ class CookieJarTest extends TestCase
 
     public function testHasAcceptsStringBackedEnum(): void
     {
-        $request = m::mock(Request::class);
-        $request->shouldReceive('cookie')->with('session_id', null)->andReturn('abc123');
-        RequestContext::set($request);
+        RequestContext::set(Request::create('/', 'GET', [], ['session_id' => 'abc123']));
 
         $manager = new CookieJar;
 
@@ -435,9 +432,7 @@ class CookieJarTest extends TestCase
 
     public function testHasAcceptsUnitEnum(): void
     {
-        $request = m::mock(Request::class);
-        $request->shouldReceive('cookie')->with('theme', null)->andReturn('dark');
-        RequestContext::set($request);
+        RequestContext::set(Request::create('/', 'GET', [], ['theme' => 'dark']));
 
         $manager = new CookieJar;
 
@@ -446,9 +441,7 @@ class CookieJarTest extends TestCase
 
     public function testGetAcceptsStringBackedEnum(): void
     {
-        $request = m::mock(Request::class);
-        $request->shouldReceive('cookie')->with('session_id', null)->andReturn('abc123');
-        RequestContext::set($request);
+        RequestContext::set(Request::create('/', 'GET', [], ['session_id' => 'abc123']));
 
         $manager = new CookieJar;
 
@@ -457,9 +450,7 @@ class CookieJarTest extends TestCase
 
     public function testGetAcceptsUnitEnum(): void
     {
-        $request = m::mock(Request::class);
-        $request->shouldReceive('cookie')->with('theme', null)->andReturn('dark');
-        RequestContext::set($request);
+        RequestContext::set(Request::create('/', 'GET', [], ['theme' => 'dark']));
 
         $manager = new CookieJar;
 
@@ -528,9 +519,9 @@ class CookieJarTest extends TestCase
 
     public function testIntegerBackedEnumNamesAreNormalizedAcrossRequestCreationAndQueuePaths(): void
     {
-        $request = m::mock(Request::class);
-        $request->shouldReceive('cookie')->once()->with('0', null)->andReturn('request-value');
-        RequestContext::set($request);
+        $request = Double::for(Request::class, override: true);
+        $request->expects('cookie')->with('0', null)->returns('request-value');
+        RequestContext::set($request->instance());
 
         $jar = new CookieJar;
 

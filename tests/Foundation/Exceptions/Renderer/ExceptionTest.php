@@ -10,17 +10,20 @@ use Hypervel\Foundation\Exceptions\Renderer\Exception;
 use Hypervel\Foundation\Exceptions\Renderer\Listener;
 use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use Symfony\Component\ErrorHandler\Exception\FlattenException;
 
 class ExceptionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testApplicationQueriesPreserveBindingText(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->once()->andReturn(null);
-        $connection->shouldReceive('prepareBindings')->once()->andReturnUsing(fn (array $bindings): array => $bindings);
+        $connection = Double::for(Connection::class);
+        $connection->expects('getName')->returns(null);
+        $connection->expects('prepareBindings')->resolves(fn (array $bindings): array => $bindings);
 
         $listener = new Listener;
         $listener->onQueryExecuted(new QueryExecuted(

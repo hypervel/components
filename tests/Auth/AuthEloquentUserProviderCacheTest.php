@@ -15,10 +15,12 @@ use Hypervel\Cache\ModelCacheCoordinator;
 use Hypervel\Cache\ModelCacheStoreValidator;
 use Hypervel\Cache\NullStore;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Cache\Repository;
 use Hypervel\Cache\SessionStore;
 use Hypervel\Cache\StackStore;
 use Hypervel\Cache\StorageStore;
 use Hypervel\Cache\SwooleStore;
+use Hypervel\Cache\TaggedCache;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
@@ -26,50 +28,54 @@ use Hypervel\Contracts\Hashing\Hasher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Query\Builder as QueryBuilder;
+use Hypervel\Foundation\Auth\User;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use ReflectionClass;
 
 class AuthEloquentUserProviderCacheTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected const string MODEL = EloquentCacheProviderUserStub::class;
 
     protected const string DEFAULT_KEY_PREFIX = EloquentUserProvider::DEFAULT_CACHE_PREFIX;
 
-    protected MockInterface $cacheManager;
+    protected CacheManager&DoubleInterface $cacheManager;
 
-    protected MockInterface $storeValidator;
+    protected ModelCacheStoreValidator&DoubleInterface $storeValidator;
 
-    protected MockInterface $cacheCoordinator;
+    protected ModelCacheCoordinator&DoubleInterface $cacheCoordinator;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         $container = Container::setInstance(new Container);
-        $this->cacheManager = m::mock(CacheManager::class);
-        $this->storeValidator = m::mock(ModelCacheStoreValidator::class);
-        $this->cacheCoordinator = m::mock(ModelCacheCoordinator::class);
-        $this->storeValidator->shouldReceive('validate')->byDefault();
-        $this->storeValidator->shouldReceive('validateAnyModeTags')->byDefault();
+        $this->cacheManager = Double::for(CacheManager::class);
+        $this->storeValidator = Double::for(ModelCacheStoreValidator::class);
+        $this->cacheCoordinator = Double::for(ModelCacheCoordinator::class);
         $container->instance('cache', $this->cacheManager);
         $container->instance(ModelCacheStoreValidator::class, $this->storeValidator);
         $container->instance(ModelCacheCoordinator::class, $this->cacheCoordinator);
     }
 
     // ------------------------------------------------------------------
-    // Cache disabled (default behaviour)
+    // Cache disabled (default behavior)
     // ------------------------------------------------------------------
 
     public function testRetrieveByIdWithoutCacheDoesNotTouchCache(): void
     {
-        $this->cacheManager->shouldNotReceive('store');
+        $this->cacheManager->expects('store')->never();
 
-        $user = m::mock(Authenticatable::class);
+        $user = Double::for(Authenticatable::class);
         $provider = $this->providerExpectingDbFetch($user, 42, useWritePdo: false);
 
         $this->assertSame($user, $provider->retrieveById(42));
@@ -82,7 +88,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     public function testRetrieveByIdCachesMissedLookup(): void
     {
         $repo = $this->stubCache(RedisStore::class);
-        $user = m::mock(Authenticatable::class);
+        $user = Double::for(Authenticatable::class);
         $key = $this->buildDefaultKey(42);
 
         $this->expectCoordinatorFill($repo, $key, $user, readSource: true, expectedWriter: $repo);
@@ -96,7 +102,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     public function testRetrieveByIdReturnsCachedUser(): void
     {
         $repo = $this->stubCache(RedisStore::class);
-        $user = m::mock(Authenticatable::class);
+        $user = Double::for(Authenticatable::class);
 
         $this->expectCoordinatorFill($repo, $this->buildDefaultKey(42), $user);
 
@@ -134,14 +140,14 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     public function testRetrieveByCredentialsIsNeverCached(): void
     {
         $repo = $this->stubCache(RedisStore::class);
-        $this->cacheCoordinator->shouldNotReceive('fill');
+        $this->cacheCoordinator->expects('fill')->never();
 
-        $expectedUser = m::mock(Authenticatable::class);
-        $model = m::mock(Model::class);
-        $builder = m::mock(Builder::class);
-        $model->shouldReceive('newQuery')->once()->andReturn($builder);
-        $builder->shouldReceive('where')->once()->with('username', 'u');
-        $builder->shouldReceive('first')->once()->andReturn($expectedUser);
+        $expectedUser = Double::for(Authenticatable::class);
+        $model = Double::for(User::class);
+        $builder = Double::for(Builder::class);
+        $model->expects('newQuery')->returns($builder);
+        $builder->expects('where')->with('username', 'u');
+        $builder->expects('first')->returns($expectedUser);
 
         $provider = $this->providerMock();
         $provider->expects($this->once())->method('createModel')->willReturn($model);
@@ -153,16 +159,16 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     public function testRetrieveByTokenIsNeverCached(): void
     {
         $repo = $this->stubCache(RedisStore::class);
-        $this->cacheCoordinator->shouldNotReceive('fill');
+        $this->cacheCoordinator->expects('fill')->never();
 
-        $user = m::mock(Authenticatable::class);
-        $user->shouldReceive('getRememberToken')->once()->andReturn('tok');
-        $model = m::mock(Model::class);
-        $builder = m::mock(Builder::class);
-        $model->shouldReceive('newQuery')->once()->andReturn($builder);
-        $model->shouldReceive('getAuthIdentifierName')->once()->andReturn('id');
-        $builder->shouldReceive('where')->once()->with('id', 1)->andReturn($builder);
-        $builder->shouldReceive('first')->once()->andReturn($user);
+        $user = Double::for(Authenticatable::class);
+        $user->expects('getRememberToken')->returns('tok');
+        $model = Double::for(User::class);
+        $builder = Double::for(Builder::class);
+        $model->expects('newQuery')->returns($builder);
+        $model->expects('getAuthIdentifierName')->returns('id');
+        $builder->expects('where')->with('id', 1)->returns($builder);
+        $builder->expects('first')->returns($user);
 
         $provider = $this->providerMock();
         $provider->expects($this->once())->method('createModel')->willReturn($model);
@@ -180,7 +186,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $repo = $this->stubCache(RedisStore::class);
         $expectedKey = self::DEFAULT_KEY_PREFIX . ':' . self::MODEL . ':42';
 
-        $this->expectCoordinatorFill($repo, $expectedKey, m::mock(Authenticatable::class));
+        $this->expectCoordinatorFill($repo, $expectedKey, Double::for(Authenticatable::class));
 
         $provider = $this->providerWithoutDbFetch();
         $provider->enableCache(null);
@@ -193,17 +199,17 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         // Two enableCache() calls with blank prefixes (null and '') should both
         // produce keys using the provider default. We set up two distinct
         // repositories returned in sequence from store(null).
-        $repo1 = m::mock(CacheRepository::class);
-        $repo1->shouldReceive('getStore')->andReturn(m::mock(RedisStore::class));
-        $repo2 = m::mock(CacheRepository::class);
-        $repo2->shouldReceive('getStore')->andReturn(m::mock(RedisStore::class));
+        $repo1 = Double::for(CacheRepository::class);
+        $repo1->allows('getStore')->returns(Double::for(RedisStore::class));
+        $repo2 = Double::for(CacheRepository::class);
+        $repo2->allows('getStore')->returns(Double::for(RedisStore::class));
 
-        $this->cacheManager->shouldReceive('store')->with(null)
-            ->andReturn($repo1, $repo2);
+        $this->cacheManager->allows('store')->with(null)
+            ->returns($repo1, $repo2);
 
         $expectedKey = self::DEFAULT_KEY_PREFIX . ':' . self::MODEL . ':42';
-        $this->expectCoordinatorFill($repo1, $expectedKey, m::mock(Authenticatable::class));
-        $this->expectCoordinatorFill($repo2, $expectedKey, m::mock(Authenticatable::class));
+        $this->expectCoordinatorFill($repo1, $expectedKey, Double::for(Authenticatable::class));
+        $this->expectCoordinatorFill($repo2, $expectedKey, Double::for(Authenticatable::class));
 
         $providerNull = $this->providerWithoutDbFetch();
         $providerNull->enableCache(null, 300, null);
@@ -220,7 +226,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
 
         $repo = $this->stubCache(RedisStore::class);
         $expectedKey = self::DEFAULT_KEY_PREFIX . ':' . self::MODEL . ':tenant5:42';
-        $this->expectCoordinatorFill($repo, $expectedKey, m::mock(Authenticatable::class));
+        $this->expectCoordinatorFill($repo, $expectedKey, Double::for(Authenticatable::class));
 
         $provider = $this->providerWithoutDbFetch();
         $provider->enableCache(null);
@@ -242,7 +248,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         });
 
         $repo = $this->stubCache(RedisStore::class);
-        $this->expectCoordinatorFill($repo, $this->buildDefaultKey(42), m::mock(Authenticatable::class));
+        $this->expectCoordinatorFill($repo, $this->buildDefaultKey(42), Double::for(Authenticatable::class));
 
         $provider = $this->providerWithoutDbFetch();
         $provider->enableCache(null);
@@ -260,7 +266,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->expectCoordinatorFill(
             $repo,
             self::DEFAULT_KEY_PREFIX . ':' . self::MODEL . ':wrapper:42',
-            m::mock(Authenticatable::class),
+            Double::for(Authenticatable::class),
         );
 
         $provider = $this->providerWithoutDbFetch();
@@ -277,7 +283,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->expectCoordinatorFill(
             $repo,
             self::DEFAULT_KEY_PREFIX . ':' . EloquentCacheProviderAlternateUserStub::class . ':42',
-            m::mock(Authenticatable::class),
+            Double::for(Authenticatable::class),
         );
 
         $provider = $this->providerWithoutDbFetch();
@@ -336,7 +342,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     #[DataProvider('invalidCacheTtlProvider')]
     public function testEnableCacheRejectsNonPositiveTtl(int $ttl): void
     {
-        $this->cacheManager->shouldNotReceive('store');
+        $this->cacheManager->expects('store')->never();
 
         $provider = $this->providerWithoutDbFetch();
 
@@ -360,9 +366,8 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     public function testEnableCacheAcceptsSupportedStores(string $storeClass): void
     {
         $repo = $this->stubCache($storeClass);
-        $this->storeValidator->shouldReceive('validate')
-            ->once()
-            ->with($repo, 'Auth user cache for model [' . self::MODEL . ']');
+        $this->storeValidator->expects('validate')
+            ->with(Argument::same($repo), 'Auth user cache for model [' . self::MODEL . ']');
 
         $provider = $this->providerWithoutDbFetch();
         $provider->enableCache(null);
@@ -386,10 +391,9 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     public function testEnableCacheRejectsUnsupportedStores(string $storeClass): void
     {
         $repo = $this->stubCache($storeClass);
-        $this->storeValidator->shouldReceive('validate')
-            ->once()
-            ->with($repo, 'Auth user cache for model [' . self::MODEL . ']')
-            ->andThrow(new InvalidArgumentException('does not support cache store'));
+        $this->storeValidator->expects('validate')
+            ->with(Argument::same($repo), 'Auth user cache for model [' . self::MODEL . ']')
+            ->throws(new InvalidArgumentException('does not support cache store'));
 
         $provider = $this->providerWithoutDbFetch();
 
@@ -412,12 +416,11 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     public function testEnableCacheLeavesProviderInDisabledStateWhenValidationFails(): void
     {
         $repo = $this->stubCache(ArrayStore::class);
-        $this->storeValidator->shouldReceive('validate')
-            ->once()
-            ->with($repo, 'Auth user cache for model [' . self::MODEL . ']')
-            ->andThrow(new InvalidArgumentException('does not support cache store'));
+        $this->storeValidator->expects('validate')
+            ->with(Argument::same($repo), 'Auth user cache for model [' . self::MODEL . ']')
+            ->throws(new InvalidArgumentException('does not support cache store'));
 
-        $user = m::mock(Authenticatable::class);
+        $user = Double::for(Authenticatable::class);
         $provider = $this->providerExpectingDbFetch($user, 42, useWritePdo: false);
 
         try {
@@ -442,20 +445,18 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     public function testModelStoreValidationRunsBeforeAuthTagValidation(): void
     {
         $sequence = [];
-        $store = m::mock(RedisStore::class);
-        $repo = m::mock(CacheRepository::class);
-        $repo->shouldReceive('getStore')->andReturn($store);
-        $this->cacheManager->shouldReceive('store')->once()->with(null)->andReturn($repo);
-        $this->storeValidator->shouldReceive('validate')
-            ->once()
-            ->with($repo, 'Auth user cache for model [' . self::MODEL . ']')
-            ->andReturnUsing(function () use (&$sequence): void {
+        $store = Double::for(RedisStore::class);
+        $repo = Double::for(CacheRepository::class);
+        $repo->allows('getStore')->returns($store);
+        $this->cacheManager->expects('store')->with(null)->returns($repo);
+        $this->storeValidator->expects('validate')
+            ->with(Argument::same($repo), 'Auth user cache for model [' . self::MODEL . ']')
+            ->resolves(function () use (&$sequence): void {
                 $sequence[] = 'model';
             });
-        $this->storeValidator->shouldReceive('validateAnyModeTags')
-            ->once()
-            ->with($repo, 'Auth user cache for model [' . self::MODEL . ']')
-            ->andReturnUsing(function () use (&$sequence): void {
+        $this->storeValidator->expects('validateAnyModeTags')
+            ->with(Argument::same($repo), 'Auth user cache for model [' . self::MODEL . ']')
+            ->resolves(function () use (&$sequence): void {
                 $sequence[] = 'tags';
             });
 
@@ -471,9 +472,8 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     public function testClearUserCacheRemovesCachedEntry(): void
     {
         $repo = $this->stubCache(RedisStore::class);
-        $this->cacheCoordinator->shouldReceive('invalidate')
-            ->once()
-            ->with($repo, $this->buildDefaultKey(42));
+        $this->cacheCoordinator->expects('invalidate')
+            ->with(Argument::same($repo), $this->buildDefaultKey(42));
 
         $provider = $this->providerForCacheClear();
         $provider->enableCache(null);
@@ -496,7 +496,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
 
         $repo = $this->stubCache(RedisStore::class);
         $expectedKey = self::DEFAULT_KEY_PREFIX . ':' . self::MODEL . ':tenant:42';
-        $this->cacheCoordinator->shouldReceive('invalidate')->once()->with($repo, $expectedKey);
+        $this->cacheCoordinator->expects('invalidate')->with(Argument::same($repo), $expectedKey);
 
         $provider = $this->providerForCacheClear();
         $provider->enableCache(null);
@@ -508,7 +508,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
 
     public function testClearUserCacheIsNoOpWhenCacheDisabled(): void
     {
-        $this->cacheManager->shouldNotReceive('store');
+        $this->cacheManager->expects('store')->never();
 
         $provider = $this->providerWithoutDbFetch();
 
@@ -547,7 +547,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     #[DataProvider('invalidCacheTagsProvider')]
     public function testEnableCacheRejectsNonStringTagsBeforeResolvingStore(array $tags): void
     {
-        $this->cacheManager->shouldNotReceive('store');
+        $this->cacheManager->expects('store')->never();
 
         $provider = $this->providerWithoutDbFetch();
 
@@ -567,9 +567,8 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     public function testEnableCacheAcceptsTagsWhenValidationPasses(): void
     {
         $repo = $this->stubCache(RedisStore::class);
-        $this->storeValidator->shouldReceive('validateAnyModeTags')
-            ->once()
-            ->with($repo, 'Auth user cache for model [' . self::MODEL . ']');
+        $this->storeValidator->expects('validateAnyModeTags')
+            ->with(Argument::same($repo), 'Auth user cache for model [' . self::MODEL . ']');
 
         $provider = $this->providerWithoutDbFetch();
         $provider->enableCache(null, tags: ['auth_users']);
@@ -580,10 +579,9 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     public function testEnableCacheRejectsTagsWithAllModeStore(): void
     {
         $repo = $this->stubCache(RedisStore::class);
-        $this->storeValidator->shouldReceive('validateAnyModeTags')
-            ->once()
-            ->with($repo, 'Auth user cache for model [' . self::MODEL . ']')
-            ->andThrow(new InvalidArgumentException('TagMode::Any is required.'));
+        $this->storeValidator->expects('validateAnyModeTags')
+            ->with(Argument::same($repo), 'Auth user cache for model [' . self::MODEL . ']')
+            ->throws(new InvalidArgumentException('TagMode::Any is required.'));
 
         $provider = $this->providerWithoutDbFetch();
 
@@ -597,10 +595,9 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     public function testEnableCacheRejectsTagsWithNonTaggableStore(string $storeClass): void
     {
         $repo = $this->stubCache($storeClass);
-        $this->storeValidator->shouldReceive('validateAnyModeTags')
-            ->once()
-            ->with($repo, 'Auth user cache for model [' . self::MODEL . ']')
-            ->andThrow(new InvalidArgumentException('The cache store does not support tags.'));
+        $this->storeValidator->expects('validateAnyModeTags')
+            ->with(Argument::same($repo), 'Auth user cache for model [' . self::MODEL . ']')
+            ->throws(new InvalidArgumentException('The cache store does not support tags.'));
 
         $provider = $this->providerWithoutDbFetch();
 
@@ -620,11 +617,11 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     public function testRetrieveByIdMissUsesTaggedRepoForPutWhenTagsConfigured(): void
     {
         $plainRepo = $this->stubCache(RedisStore::class);
-        $taggedRepo = m::mock(CacheRepository::class);
-        $user = m::mock(Authenticatable::class);
+        $taggedRepo = Double::for(TaggedCache::class);
+        $user = Double::for(Authenticatable::class);
         $key = $this->buildDefaultKey(42);
 
-        $plainRepo->shouldReceive('tags')->once()->with(['auth_users'])->andReturn($taggedRepo);
+        $plainRepo->expects('tags')->with(['auth_users'])->returns($taggedRepo);
         $this->expectCoordinatorFill($plainRepo, $key, $user, readSource: true, expectedWriter: $taggedRepo);
 
         $provider = $this->providerExpectingDbFetch($user, 42);
@@ -636,10 +633,9 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     public function testRetrieveByIdUsesTaggedRepoWhenTagsConfigured(): void
     {
         $plainRepo = $this->stubCache(RedisStore::class);
-        $taggedRepo = m::mock(CacheRepository::class);
-        $user = m::mock(Authenticatable::class);
+        $user = Double::for(Authenticatable::class);
 
-        $plainRepo->shouldNotReceive('tags');
+        $plainRepo->expects('tags')->never();
         $this->expectCoordinatorFill($plainRepo, $this->buildDefaultKey(42), $user);
 
         $provider = $this->providerWithoutDbFetch();
@@ -652,10 +648,9 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     {
         $plainRepo = $this->stubCache(RedisStore::class);
 
-        $this->cacheCoordinator->shouldReceive('invalidate')
-            ->once()
-            ->with($plainRepo, $this->buildDefaultKey(42));
-        $plainRepo->shouldNotReceive('tags');
+        $this->cacheCoordinator->expects('invalidate')
+            ->with(Argument::same($plainRepo), $this->buildDefaultKey(42));
+        $plainRepo->expects('tags')->never();
 
         $provider = $this->providerForCacheClear();
         $provider->enableCache(null, tags: ['auth_users']);
@@ -668,11 +663,11 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         EloquentUserProvider::resolveUserCacheTagsUsing(fn (): array => ['scope:a']);
 
         $plainRepo = $this->stubCache(RedisStore::class);
-        $taggedRepo = m::mock(CacheRepository::class);
-        $user = m::mock(Authenticatable::class);
+        $taggedRepo = Double::for(TaggedCache::class);
+        $user = Double::for(Authenticatable::class);
         $key = $this->buildDefaultKey(42);
 
-        $plainRepo->shouldReceive('tags')->once()->with(['auth_users', 'scope:a'])->andReturn($taggedRepo);
+        $plainRepo->expects('tags')->with(['auth_users', 'scope:a'])->returns($taggedRepo);
         $this->expectCoordinatorFill($plainRepo, $key, $user, readSource: true, expectedWriter: $taggedRepo);
 
         $provider = $this->providerExpectingDbFetch($user, 42);
@@ -684,11 +679,11 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     public function testEffectiveTagsAreJustStaticWhenNoResolver(): void
     {
         $plainRepo = $this->stubCache(RedisStore::class);
-        $taggedRepo = m::mock(CacheRepository::class);
-        $user = m::mock(Authenticatable::class);
+        $taggedRepo = Double::for(TaggedCache::class);
+        $user = Double::for(Authenticatable::class);
         $key = $this->buildDefaultKey(42);
 
-        $plainRepo->shouldReceive('tags')->once()->with(['auth_users'])->andReturn($taggedRepo);
+        $plainRepo->expects('tags')->with(['auth_users'])->returns($taggedRepo);
         $this->expectCoordinatorFill($plainRepo, $key, $user, readSource: true, expectedWriter: $taggedRepo);
 
         $provider = $this->providerExpectingDbFetch($user, 42);
@@ -707,34 +702,36 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         });
 
         $plainRepo = $this->stubCache(RedisStore::class);
-        $taggedRepo1 = m::mock(CacheRepository::class);
-        $taggedRepo2 = m::mock(CacheRepository::class);
-        $user1 = m::mock(Authenticatable::class);
-        $user2 = m::mock(Authenticatable::class);
+        $taggedRepo1 = Double::for(TaggedCache::class);
+        $taggedRepo2 = Double::for(TaggedCache::class);
+        $user1 = Double::for(Authenticatable::class);
+        $user2 = Double::for(Authenticatable::class);
         $key1 = $this->buildDefaultKey(42);
         $key2 = $this->buildDefaultKey(43);
 
-        $plainRepo->shouldReceive('tags')->once()->with(['auth_users', 'scope:1'])->andReturn($taggedRepo1);
-        $plainRepo->shouldReceive('tags')->once()->with(['auth_users', 'scope:2'])->andReturn($taggedRepo2);
+        $plainRepo->expects('tags')->with(['auth_users', 'scope:1'])->returns($taggedRepo1);
+        $plainRepo->expects('tags')->with(['auth_users', 'scope:2'])->returns($taggedRepo2);
         $this->expectCoordinatorFill($plainRepo, $key1, $user1, readSource: true, expectedWriter: $taggedRepo1);
         $this->expectCoordinatorFill($plainRepo, $key2, $user2, readSource: true, expectedWriter: $taggedRepo2);
 
         // Set up two DB fetches with distinct models/IDs.
-        $model1 = m::mock(Model::class);
-        $builder1 = m::mock(Builder::class);
-        $model1->shouldReceive('newQuery')->once()->andReturn($builder1);
-        $model1->shouldReceive('getAuthIdentifierName')->once()->andReturn('id');
-        $builder1->shouldReceive('useWritePdo')->once()->andReturnSelf();
-        $builder1->shouldReceive('where')->once()->with('id', 42)->andReturn($builder1);
-        $builder1->shouldReceive('first')->once()->andReturn($user1);
+        $model1 = Double::for(User::class);
+        $query1 = Double::for(QueryBuilder::class);
+        $builder1 = Double::for(new Builder($query1))->passthru();
+        $model1->expects('newQuery')->returns($builder1);
+        $model1->expects('getAuthIdentifierName')->returns('id');
+        $query1->expects('useWritePdo');
+        $builder1->expects('where')->with('id', 42)->returns($builder1);
+        $builder1->expects('first')->returns($user1);
 
-        $model2 = m::mock(Model::class);
-        $builder2 = m::mock(Builder::class);
-        $model2->shouldReceive('newQuery')->once()->andReturn($builder2);
-        $model2->shouldReceive('getAuthIdentifierName')->once()->andReturn('id');
-        $builder2->shouldReceive('useWritePdo')->once()->andReturnSelf();
-        $builder2->shouldReceive('where')->once()->with('id', 43)->andReturn($builder2);
-        $builder2->shouldReceive('first')->once()->andReturn($user2);
+        $model2 = Double::for(User::class);
+        $query2 = Double::for(QueryBuilder::class);
+        $builder2 = Double::for(new Builder($query2))->passthru();
+        $model2->expects('newQuery')->returns($builder2);
+        $model2->expects('getAuthIdentifierName')->returns('id');
+        $query2->expects('useWritePdo');
+        $builder2->expects('where')->with('id', 43)->returns($builder2);
+        $builder2->expects('first')->returns($user2);
 
         $provider = $this->providerMock();
         $provider->expects($this->exactly(2))->method('createModel')->willReturnOnConsecutiveCalls($model1, $model2);
@@ -756,11 +753,11 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         });
 
         $plainRepo = $this->stubCache(RedisStore::class);
-        $user = m::mock(Authenticatable::class);
+        $user = Double::for(Authenticatable::class);
         $key = $this->buildDefaultKey(42);
 
         $this->expectCoordinatorFill($plainRepo, $key, $user, readSource: true, expectedWriter: $plainRepo);
-        $plainRepo->shouldNotReceive('tags');
+        $plainRepo->expects('tags')->never();
 
         $provider = $this->providerExpectingDbFetch($user, 42);
         $provider->enableCache(null);
@@ -785,12 +782,11 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     public function testEnableCacheLeavesProviderInDisabledStateWhenTagValidationFails(): void
     {
         $repo = $this->stubCache(RedisStore::class);
-        $this->storeValidator->shouldReceive('validateAnyModeTags')
-            ->once()
-            ->with($repo, 'Auth user cache for model [' . self::MODEL . ']')
-            ->andThrow(new InvalidArgumentException('TagMode::Any is required.'));
+        $this->storeValidator->expects('validateAnyModeTags')
+            ->with(Argument::same($repo), 'Auth user cache for model [' . self::MODEL . ']')
+            ->throws(new InvalidArgumentException('TagMode::Any is required.'));
 
-        $user = m::mock(Authenticatable::class);
+        $user = Double::for(Authenticatable::class);
         $provider = $this->providerExpectingDbFetch($user, 42, useWritePdo: false);
 
         try {
@@ -817,15 +813,15 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         // First call uses a Redis store in any-mode (tag-valid), second
         // call uses a plain Redis store (no tags). Set up both upfront so
         // the cache manager returns them in sequence from store(null).
-        $store1 = m::mock(RedisStore::class);
-        $repo1 = m::mock(CacheRepository::class);
-        $repo1->shouldReceive('getStore')->andReturn($store1);
+        $store1 = Double::for(RedisStore::class);
+        $repo1 = Double::for(CacheRepository::class);
+        $repo1->allows('getStore')->returns($store1);
 
-        $store2 = m::mock(RedisStore::class);
-        $repo2 = m::mock(CacheRepository::class);
-        $repo2->shouldReceive('getStore')->andReturn($store2);
+        $store2 = Double::for(RedisStore::class);
+        $repo2 = Double::for(CacheRepository::class);
+        $repo2->allows('getStore')->returns($store2);
 
-        $this->cacheManager->shouldReceive('store')->with(null)->andReturn($repo1, $repo2);
+        $this->cacheManager->allows('store')->with(null)->returns($repo1, $repo2);
 
         $provider = $this->providerWithoutDbFetch();
         $provider->enableCache(null, tags: ['auth_users']);
@@ -846,7 +842,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
 
     protected function providerMock(): EloquentUserProvider&MockObject
     {
-        $hasher = m::mock(Hasher::class);
+        $hasher = Double::for(Hasher::class);
 
         return $this->getMockBuilder(EloquentUserProvider::class)
             ->onlyMethods(['createModel'])
@@ -863,17 +859,18 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         mixed $id,
         bool $useWritePdo = true,
     ): EloquentUserProvider&MockObject {
-        $model = m::mock(Model::class);
-        $builder = m::mock(Builder::class);
-        $model->shouldReceive('newQuery')->once()->andReturn($builder);
-        $model->shouldReceive('getAuthIdentifierName')->once()->andReturn('id');
+        $model = Double::for(User::class);
+        $query = Double::for(QueryBuilder::class);
+        $builder = Double::for(new Builder($query))->passthru();
+        $model->expects('newQuery')->returns($builder);
+        $model->expects('getAuthIdentifierName')->returns('id');
         if ($useWritePdo) {
-            $builder->shouldReceive('useWritePdo')->once()->andReturnSelf();
+            $query->expects('useWritePdo');
         } else {
-            $builder->shouldNotReceive('useWritePdo');
+            $query->expects('useWritePdo')->never();
         }
-        $builder->shouldReceive('where')->once()->with('id', $id)->andReturn($builder);
-        $builder->shouldReceive('first')->once()->andReturn($user);
+        $builder->expects('where')->with('id', $id)->returns($builder);
+        $builder->expects('first')->returns($user);
 
         $provider = $this->providerMock();
         $provider->expects($this->once())->method('createModel')->willReturn($model);
@@ -886,14 +883,13 @@ class AuthEloquentUserProviderCacheTest extends TestCase
      */
     protected function providerForCacheClear(): EloquentUserProvider&MockObject
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('afterCommitOrNow')
-            ->once()
-            ->with(m::type(Closure::class))
-            ->andReturnUsing(static fn (Closure $callback): mixed => $callback());
+        $connection = Double::for(Connection::class);
+        $connection->expects('afterCommitOrNow')
+            ->with(Argument::type(Closure::class))
+            ->resolves(static fn (Closure $callback): mixed => $callback());
 
-        $model = m::mock(Model::class);
-        $model->shouldReceive('getConnection')->once()->andReturn($connection);
+        $model = Double::for(User::class);
+        $model->expects('getConnection')->returns($connection);
 
         $provider = $this->providerMock();
         $provider->expects($this->once())->method('createModel')->willReturn($model);
@@ -911,18 +907,17 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         bool $readSource = false,
         ?CacheRepository $expectedWriter = null,
     ): void {
-        $this->cacheCoordinator->shouldReceive('fill')
-            ->once()
+        $this->cacheCoordinator->expects('fill')
             ->with(
-                $repository,
-                m::type(Closure::class),
+                Argument::same($repository),
+                Argument::type(Closure::class),
                 $key,
                 300,
-                m::type(Closure::class),
+                Argument::type(Closure::class),
                 true,
-                m::type(Closure::class),
+                Argument::type(Closure::class),
             )
-            ->andReturnUsing(function (
+            ->resolves(function (
                 CacheRepository $cache,
                 Closure $source,
                 string $receivedKey,
@@ -955,13 +950,13 @@ class AuthEloquentUserProviderCacheTest extends TestCase
      * instance of $storeClass. Returns the repository mock so tests can
      * set further expectations on it.
      */
-    protected function stubCache(string $storeClass, ?string $name = null): MockInterface
+    protected function stubCache(string $storeClass, ?string $name = null): Repository&DoubleInterface
     {
-        $store = m::mock($storeClass);
+        $store = Double::for($storeClass);
 
-        $repo = m::mock(CacheRepository::class);
-        $repo->shouldReceive('getStore')->andReturn($store);
-        $this->cacheManager->shouldReceive('store')->with($name)->andReturn($repo);
+        $repo = Double::for(Repository::class);
+        $repo->allows('getStore')->returns($store);
+        $this->cacheManager->allows('store')->with($name)->returns($repo);
 
         return $repo;
     }
@@ -972,10 +967,10 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     }
 }
 
-class EloquentCacheProviderUserStub extends Model
+class EloquentCacheProviderUserStub extends User
 {
 }
 
-class EloquentCacheProviderAlternateUserStub extends Model
+class EloquentCacheProviderAlternateUserStub extends User
 {
 }

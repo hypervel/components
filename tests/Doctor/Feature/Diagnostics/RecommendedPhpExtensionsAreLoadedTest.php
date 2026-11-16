@@ -9,16 +9,19 @@ use Hypervel\Doctor\Support\ComposerJson;
 use Hypervel\Support\Facades\File;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Doctor\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
 class RecommendedPhpExtensionsAreLoadedTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[RequiresPhpExtension('Zend OPcache')]
     public function testRecognizesComposerNormalizedExtensionNames(): void
     {
-        $composer = m::mock(ComposerJson::class);
-        $composer->shouldReceive('suggestedExtensions')->andReturn(['zend-opcache']);
+        $composer = Double::for(ComposerJson::class);
+        $composer->allows('suggestedExtensions')->returns(['zend-opcache']);
 
         $result = (new RecommendedPhpExtensionsAreLoaded($composer))->check();
 

@@ -19,10 +19,13 @@ use Hypervel\Support\Carbon as HypervelCarbon;
 use Hypervel\Support\CarbonImmutable as HypervelCarbonImmutable;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class DateTimeInterfaceTransformerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function getPackageProviders(Application $app): array
     {
         return [DataServiceProvider::class];
@@ -74,7 +77,7 @@ class DateTimeInterfaceTransformerTest extends TestCase
         DateTimeInterface $date,
     ): string {
         return $transformer->transform(
-            m::mock(DataProperty::class),
+            Double::for(DataProperty::class),
             $date,
             new TransformationContext,
         );

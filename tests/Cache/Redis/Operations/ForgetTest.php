@@ -14,7 +14,7 @@ class ForgetTest extends RedisCacheTestCase
     public function testForgetReturnsTrueWhenKeyExists(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('del')->once()->with('prefix:foo')->andReturn(1);
+        $connection->client()->expects('del')->with('prefix:foo')->returns(1);
 
         $redis = $this->createStore($connection);
         $this->assertTrue($redis->forget('foo'));
@@ -24,7 +24,7 @@ class ForgetTest extends RedisCacheTestCase
     {
         // Redis del() returns 0 when key doesn't exist, cast to bool = false
         $connection = $this->mockConnection();
-        $connection->shouldReceive('del')->once()->with('prefix:nonexistent')->andReturn(0);
+        $connection->client()->expects('del')->with('prefix:nonexistent')->returns(0);
 
         $redis = $this->createStore($connection);
         $this->assertFalse($redis->forget('nonexistent'));

@@ -14,11 +14,14 @@ use Hypervel\Redis\RedisConfig;
 use Hypervel\Support\Env;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class InteractsWithRedisParallelTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Redis-related environment keys mutated by these tests.
      *
@@ -473,7 +476,7 @@ class InteractsWithRedisParallelTest extends TestCase
 
     public function testTeardownClosesPoolsAndPropagatesAFlushFailure(): void
     {
-        $pools = m::mock(PoolManager::class);
+        $pools = Double::for(PoolManager::class);
         $pools->expects('purgeAll');
         $this->app->instance(PoolManager::class, $pools);
         $harness = $this->harness();

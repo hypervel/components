@@ -10,7 +10,8 @@ use Hypervel\Doctor\Diagnostics\DatabaseConnectionIsReachable;
 use Hypervel\Doctor\Results\Link;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Doctor\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
@@ -18,6 +19,8 @@ use stdClass;
 
 class DatabaseConnectionIsReachableTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('databaseConfigurations')]
     public function testChecksTheDefaultDatabaseConnection(array $configuration): void
     {
@@ -143,13 +146,13 @@ class DatabaseConnectionIsReachableTest extends TestCase
             'database.default' => 'analytics',
             'database.connections.analytics' => ['driver' => 'custom', 'options' => 'transport-owned'],
         ]);
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class);
         $version = $connection->expects('getServerVersion');
 
         if ($fails) {
-            $version->andThrow(new RuntimeException('Custom transport unavailable.'));
+            $version->throws(new RuntimeException('Custom transport unavailable.'));
         } else {
-            $version->andReturn('1.0');
+            $version->returns('1.0');
         }
 
         $connection->expects('disconnect');
@@ -265,9 +268,9 @@ class DatabaseConnectionIsReachableTest extends TestCase
                 'read' => ['driver' => 'replica', 'options' => 'transport-owned'],
             ],
         ]);
-        $custom = m::mock(Connection::class);
+        $custom = Double::for(Connection::class);
         if ($suffix === '::read') {
-            $custom->expects('getServerVersion')->andReturn('1.0');
+            $custom->expects('getServerVersion')->returns('1.0');
             $custom->expects('disconnect');
         }
         DB::extend('replica', function (array $configuration) use ($custom, $suffix): Connection {

@@ -10,57 +10,54 @@ use Hypervel\Auth\Passwords\PasswordResetServiceProvider;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
+use JMac\Testing\OverriddenDouble;
 
 class AuthPasswordResetServiceProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testEventRebindDoesNotResolveAnUnusedPasswordManager(): void
     {
         [$application, $callback] = $this->registerProvider();
-        $events = m::mock(Dispatcher::class);
-        $application->shouldReceive('resolved')->once()->with('auth.password')->andReturnFalse();
-        $application->shouldNotReceive('make')->with('auth.password');
+        $events = Double::for(Dispatcher::class);
+        $application->expects('resolved')->with('auth.password')->returns(false);
+        $application->expects('make')->never()->with('auth.password');
 
-        $callback($application, $events);
+        $callback($application->instance(), $events);
     }
 
     public function testEventRebindRefreshesAnAlreadyResolvedPasswordManager(): void
     {
         [$application, $callback] = $this->registerProvider();
-        $events = m::mock(Dispatcher::class);
-        $manager = m::mock(PasswordBrokerManager::class);
-        $application->shouldReceive('resolved')->once()->with('auth.password')->andReturnTrue();
-        $application->shouldReceive('make')->once()->with('auth.password')->andReturn($manager);
-        $manager->shouldReceive('refreshEventDispatcher')->once()->with($events);
+        $events = Double::for(Dispatcher::class);
+        $manager = Double::for(PasswordBrokerManager::class);
+        $application->expects('resolved')->with('auth.password')->returns(true);
+        $application->expects('make')->with('auth.password')->returns($manager);
+        $manager->expects('refreshEventDispatcher')->with(Argument::same($events));
 
-        $callback($application, $events);
+        $callback($application->instance(), $events);
     }
 
     /**
      * Register the provider and return its event-rebind callback.
      *
-     * @return array{Application&MockInterface, Closure}
+     * @return array{OverriddenDouble, Closure}
      */
     private function registerProvider(): array
     {
         $callback = null;
-        $application = m::mock(Application::class);
-        $application->shouldReceive('singleton')
-            ->once()
-            ->with('auth.password', m::type(Closure::class));
-        $application->shouldReceive('bind')
-            ->once()
-            ->with('auth.password.broker', m::type(Closure::class));
-        $application->shouldReceive('rebinding')
-            ->once()
-            ->with('events', m::on(function (mixed $registered) use (&$callback): bool {
-                $callback = $registered;
+        $application = Double::for(Application::class, override: true);
+        $application->expects('singleton')
+            ->with('auth.password', Argument::type(Closure::class));
+        $application->expects('bind')
+            ->with('auth.password.broker', Argument::type(Closure::class));
+        $application->expects('rebinding')
+            ->with('events', Argument::capture($callback));
 
-                return $registered instanceof Closure;
-            }));
-
-        (new PasswordResetServiceProvider($application))->register();
+        (new PasswordResetServiceProvider($application->instance()))->register();
 
         $this->assertInstanceOf(Closure::class, $callback);
 

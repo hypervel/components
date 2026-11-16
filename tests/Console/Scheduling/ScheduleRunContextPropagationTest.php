@@ -21,13 +21,16 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Stringable;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ReflectionMethod;
 use ReflectionProperty;
 use Swoole\Coroutine;
 
 class ScheduleRunContextPropagationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Dispatcher $dispatcher;
 
     protected ExceptionHandler $handler;
@@ -38,11 +41,11 @@ class ScheduleRunContextPropagationTest extends TestCase
     {
         parent::setUp();
 
-        $this->dispatcher = m::mock(Dispatcher::class);
-        $this->dispatcher->shouldReceive('hasListeners')->andReturnTrue();
-        $this->dispatcher->shouldReceive('dispatch');
+        $this->dispatcher = Double::for(Dispatcher::class);
+        $this->dispatcher->allows('hasListeners')->returns(true);
+        $this->dispatcher->allows('dispatch');
 
-        $this->handler = m::mock(ExceptionHandler::class);
+        $this->handler = Double::for(ExceptionHandler::class)->strict();
     }
 
     /**
@@ -132,9 +135,9 @@ class ScheduleRunContextPropagationTest extends TestCase
         ContextRepository::getInstance()->add('parent_key', 'original');
         $childValues = [];
 
-        $eventMutex = m::mock(EventMutex::class);
-        $eventMutex->shouldReceive('create')->andReturn(true);
-        $eventMutex->shouldReceive('forget');
+        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex->allows('create')->returns(true);
+        $eventMutex->allows('forget');
 
         $event = new CallbackEvent($eventMutex, function () use (&$childValues) {
             $context = ContextRepository::getInstance();
@@ -166,7 +169,7 @@ class ScheduleRunContextPropagationTest extends TestCase
             ->addHidden('token', 'secret');
 
         $context = null;
-        $event = new Event(m::mock(EventMutex::class), 'printf %s "$__HYPERVEL_CONTEXT"', isSystem: true);
+        $event = new Event(Double::for(EventMutex::class), 'printf %s "$__HYPERVEL_CONTEXT"', isSystem: true);
         $event->thenWithOutput(static function (Stringable $output) use (&$context): void {
             $context = (string) $output;
         });
@@ -186,12 +189,12 @@ class ScheduleRunContextPropagationTest extends TestCase
      */
     protected function makeBackgroundEvent(callable $callback): Event
     {
-        $eventMutex = m::mock(EventMutex::class);
-        $eventMutex->shouldReceive('create')->andReturn(true);
-        $eventMutex->shouldReceive('forget');
+        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex->allows('create')->returns(true);
+        $eventMutex->allows('forget');
 
-        $event = m::mock(Event::class, [$eventMutex, 'test:context', null, false])->makePartial();
-        $event->shouldReceive('run')->once()->andReturnUsing(function () use ($callback) {
+        $event = Double::for(new Event($eventMutex, 'test:context', null, false))->passthru();
+        $event->expects('run')->resolves(function () use ($callback) {
             $callback();
         });
         $event->runInBackground();
@@ -223,13 +226,12 @@ class ScheduleRunContextPropagationTest extends TestCase
         $command = new ScheduleRunCommand;
         $command->setHypervel($this->app);
 
-        (new ReflectionProperty($command, 'schedule'))->setValue($command, m::mock(Schedule::class));
+        (new ReflectionProperty($command, 'schedule'))->setValue($command, Double::for(Schedule::class));
         (new ReflectionProperty($command, 'dispatcher'))->setValue($command, $this->dispatcher);
-        $cache = m::mock(Cache::class);
-        $cache->shouldReceive('get')
-            ->byDefault()
+        $cache = Double::for(Cache::class);
+        $cache->allows('get')
             ->with('hypervel:schedule:paused', false)
-            ->andReturnFalse();
+            ->returns(false);
         (new ReflectionProperty($command, 'cache'))->setValue($command, $cache);
         (new ReflectionProperty($command, 'handler'))->setValue($command, $this->handler);
 

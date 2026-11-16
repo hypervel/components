@@ -24,8 +24,9 @@ use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -36,6 +37,8 @@ use Throwable;
 
 class FoundationApplicationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected ?string $namespaceApplicationPath = null;
 
     protected ?string $cacheApplicationPath = null;
@@ -58,9 +61,9 @@ class FoundationApplicationTest extends TestCase
     public function testSetLocaleSetsLocaleAndFiresLocaleChangedEvent(): void
     {
         $events = new EventFake(new EventDispatcher);
-        $translator = m::mock(TranslatorContract::class);
-        $translator->expects('getLocale')->andReturn('bar')->ordered();
-        $translator->expects('setLocale')->with('foo')->ordered()->andReturnUsing(function () use ($events): void {
+        $translator = Double::for(TranslatorContract::class);
+        $translator->expects('getLocale')->returns('bar')->ordered();
+        $translator->expects('setLocale')->with('foo')->ordered()->resolves(function () use ($events): void {
             $events->assertNothingDispatched();
         });
         $config = new Repository(['app' => ['locale' => 'en']]);
@@ -83,12 +86,12 @@ class FoundationApplicationTest extends TestCase
 
     public function testSetLocaleDoesNotDispatchWhenLocaleEventHasNoListeners(): void
     {
-        $translator = m::mock(TranslatorContract::class);
-        $translator->expects('getLocale')->andReturn('bar');
+        $translator = Double::for(TranslatorContract::class);
+        $translator->expects('getLocale')->returns('bar');
         $translator->expects('setLocale')->with('foo');
-        $events = m::mock(DispatcherContract::class);
-        $events->expects('hasListeners')->with(LocaleUpdated::class)->andReturn(false);
-        $events->shouldReceive('dispatch')->never();
+        $events = Double::for(DispatcherContract::class);
+        $events->expects('hasListeners')->with(LocaleUpdated::class)->returns(false);
+        $events->expects('dispatch')->never();
 
         $app = new Application;
         $app->singleton('translator', fn (): TranslatorContract => $translator);
@@ -99,7 +102,7 @@ class FoundationApplicationTest extends TestCase
 
     public function testSetFallbackLocaleSetsTranslatorFallback(): void
     {
-        $translator = m::mock(TranslatorContract::class);
+        $translator = Double::for(TranslatorContract::class);
         $translator->expects('setFallback')->with('fr');
         $config = new Repository(['app' => ['fallback_locale' => 'en']]);
 
@@ -124,8 +127,8 @@ class FoundationApplicationTest extends TestCase
             ],
         ]));
 
-        $manifest = m::mock(PackageManifest::class);
-        $manifest->expects('aliases')->andReturn([]);
+        $manifest = Double::for(PackageManifest::class);
+        $manifest->expects('aliases')->returns([]);
         $app->singleton(PackageManifest::class, fn (): PackageManifest => $manifest);
 
         (new RegisterFacades)->bootstrap($app);
@@ -139,8 +142,8 @@ class FoundationApplicationTest extends TestCase
 
     public function testGetLocaleReadsFromTranslator(): void
     {
-        $translator = m::mock(TranslatorContract::class);
-        $translator->expects('getLocale')->andReturn('en');
+        $translator = Double::for(TranslatorContract::class);
+        $translator->expects('getLocale')->returns('en');
 
         $app = new Application;
         $app->singleton('translator', fn (): TranslatorContract => $translator);
@@ -150,8 +153,8 @@ class FoundationApplicationTest extends TestCase
 
     public function testGetFallbackLocaleReadsFromTranslator(): void
     {
-        $translator = m::mock(TranslatorContract::class);
-        $translator->expects('getFallback')->andReturn('en');
+        $translator = Double::for(TranslatorContract::class);
+        $translator->expects('getFallback')->returns('en');
 
         $app = new Application;
         $app->singleton('translator', fn (): TranslatorContract => $translator);
@@ -537,7 +540,7 @@ class FoundationApplicationTest extends TestCase
         $application->singleton(HttpKernelContract::class, function () use (&$events): HttpKernelContract {
             $events[] = 'kernel';
 
-            return m::mock(HttpKernelContract::class);
+            return Double::for(HttpKernelContract::class);
         });
         $application->booting(function () use (&$events): void {
             $events[] = 'booting';

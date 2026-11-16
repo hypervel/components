@@ -10,12 +10,15 @@ use Hypervel\Foundation\FileBasedMaintenanceMode;
 use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Support\Json;
 use Hypervel\Testbench\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonException;
-use Mockery as m;
 use RuntimeException;
 
 class FoundationFileBasedMaintenanceModeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function tearDown(): void
     {
         @unlink(storage_path('framework/down'));
@@ -73,10 +76,10 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
     public function testCachedActivityReturnsFalseWhenFileDisappearsDuringRead(): void
     {
         $path = storage_path('framework/down');
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('exists')->with($path)->andReturn(true, false);
-        $files->shouldReceive('get')->once()->with($path)
-            ->andThrow(new FileNotFoundException('removed'));
+        $files = Double::for(Filesystem::class);
+        $files->allows('exists')->with($path)->returns(true, false);
+        $files->expects('get')->with($path)
+            ->throws(new FileNotFoundException('removed'));
 
         $mode = new WorkerCachedMaintenanceMode(new FileBasedMaintenanceMode($files));
 
@@ -88,9 +91,9 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
     {
         $path = storage_path('framework/down');
         $exception = new FileNotFoundException('unreadable');
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('exists')->once()->with($path)->andReturnTrue();
-        $files->shouldReceive('get')->once()->with($path)->andThrow($exception);
+        $files = Double::for(Filesystem::class);
+        $files->expects('exists')->with($path)->returns(true);
+        $files->expects('get')->with($path)->throws($exception);
 
         try {
             (new FileBasedMaintenanceMode($files))->data();
@@ -127,11 +130,10 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
         $path = storage_path('framework/down');
         file_put_contents($path, '{"status":503}');
 
-        $files = m::mock(Filesystem::class)->makePartial();
-        $files->shouldReceive('replace')
-            ->once()
+        $files = Double::for(new Filesystem)->passthru();
+        $files->expects('replace')
             ->with($path, "{\n    \"status\": 418\n}")
-            ->andThrow($exception = new RuntimeException('publication failed'));
+            ->throws($exception = new RuntimeException('publication failed'));
 
         try {
             (new FileBasedMaintenanceMode($files))->activate(['status' => 418]);
@@ -207,9 +209,9 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
     public function testDeactivateFailsWhenDeleteReturnsFalseAndFileRemains(): void
     {
         $path = storage_path('framework/down');
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('exists')->twice()->with($path)->andReturnTrue();
-        $files->shouldReceive('delete')->once()->with($path)->andReturnFalse();
+        $files = Double::for(Filesystem::class);
+        $files->expects('exists')->times(2)->with($path)->returns(true);
+        $files->expects('delete')->with($path)->returns(false);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs("Unable to remove the maintenance mode file [{$path}].");
@@ -220,9 +222,9 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
     public function testDeactivateSucceedsWhenAnotherOwnerRemovesTheFile(): void
     {
         $path = storage_path('framework/down');
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('exists')->twice()->with($path)->andReturn(true, false);
-        $files->shouldReceive('delete')->once()->with($path)->andReturnFalse();
+        $files = Double::for(Filesystem::class);
+        $files->expects('exists')->times(2)->with($path)->returns(true, false);
+        $files->expects('delete')->with($path)->returns(false);
 
         (new FileBasedMaintenanceMode($files))->deactivate();
 

@@ -17,18 +17,21 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithServer;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTypesense;
 use Hypervel\Support\Env;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Meilisearch\Client as MeilisearchClient;
 use Meilisearch\Contracts\IndexesResults;
 use Meilisearch\Contracts\TasksResults;
 use Meilisearch\Endpoints\Indexes;
 use Meilisearch\Exceptions\TimeOutException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Throwable;
 
 class ExternalServiceOptInTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * External-service host keys mutated by these tests.
      *
@@ -178,16 +181,14 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testMeilisearchWaitAcceptsSuccessfulTasks(): void
     {
-        $client = m::mock(MeilisearchClient::class);
-        $client->shouldReceive('getTasks')
-            ->once()
-            ->andReturn(new TasksResults([
+        $client = Double::for(MeilisearchClient::class);
+        $client->expects('getTasks')
+            ->returns(new TasksResults([
                 'results' => [['uid' => 17, 'indexUid' => 'test_users', 'status' => 'enqueued']],
             ]));
-        $client->shouldReceive('waitForTask')
-            ->once()
+        $client->expects('waitForTask')
             ->with(17, 5000)
-            ->andReturn(['uid' => 17, 'status' => 'succeeded']);
+            ->returns(['uid' => 17, 'status' => 'succeeded']);
 
         $harness = new MeilisearchOptInHarness;
         $harness->usePrefix('test_');
@@ -197,16 +198,14 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testMeilisearchWaitRejectsFailedTasks(): void
     {
-        $client = m::mock(MeilisearchClient::class);
-        $client->shouldReceive('getTasks')
-            ->once()
-            ->andReturn(new TasksResults([
+        $client = Double::for(MeilisearchClient::class);
+        $client->expects('getTasks')
+            ->returns(new TasksResults([
                 'results' => [['uid' => 17, 'indexUid' => 'test_users', 'status' => 'processing']],
             ]));
-        $client->shouldReceive('waitForTask')
-            ->once()
+        $client->expects('waitForTask')
             ->with(17, 5000)
-            ->andReturn([
+            ->returns([
                 'uid' => 17,
                 'status' => 'failed',
                 'error' => ['message' => 'Document identifier is invalid.'],
@@ -225,16 +224,14 @@ class ExternalServiceOptInTest extends TestCase
     public function testMeilisearchWaitPropagatesTimeouts(): void
     {
         $timeout = new TimeOutException;
-        $client = m::mock(MeilisearchClient::class);
-        $client->shouldReceive('getTasks')
-            ->once()
-            ->andReturn(new TasksResults([
+        $client = Double::for(MeilisearchClient::class);
+        $client->expects('getTasks')
+            ->returns(new TasksResults([
                 'results' => [['uid' => 17, 'indexUid' => 'test_users', 'status' => 'enqueued']],
             ]));
-        $client->shouldReceive('waitForTask')
-            ->once()
+        $client->expects('waitForTask')
             ->with(17, 5000)
-            ->andThrow($timeout);
+            ->throws($timeout);
 
         $harness = new MeilisearchOptInHarness;
         $harness->usePrefix('test_');
@@ -247,44 +244,38 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testMeilisearchWaitIgnoresPendingTasksForOtherPrefixes(): void
     {
-        $client = m::mock(MeilisearchClient::class);
-        $client->shouldReceive('getTasks')
-            ->once()
-            ->andReturn(new TasksResults([
+        $client = Double::for(MeilisearchClient::class);
+        $client->expects('getTasks')
+            ->returns(new TasksResults([
                 'results' => [['uid' => 17, 'indexUid' => 'other_users', 'status' => 'enqueued']],
             ]));
-        $client->shouldNotReceive('waitForTask');
+        $client->expects('waitForTask')->never();
 
         $harness = new MeilisearchOptInHarness;
         $harness->usePrefix('test_');
         $harness->useClient($client);
         $harness->waitForTasks();
-
-        $this->assertTrue(true);
     }
 
     public function testMeilisearchCleanupWaitsForExactDeletionTasks(): void
     {
-        $index = m::mock(Indexes::class);
-        $index->shouldReceive('getUid')->andReturn('test_users');
+        $index = Double::for(Indexes::class);
+        $index->allows('getUid')->returns('test_users');
 
-        $client = m::mock(MeilisearchClient::class);
-        $client->shouldReceive('getIndexes')
-            ->once()
-            ->andReturn(new IndexesResults([
+        $client = Double::for(MeilisearchClient::class);
+        $client->expects('getIndexes')
+            ->returns(new IndexesResults([
                 'results' => [$index],
                 'offset' => 0,
                 'limit' => 20,
                 'total' => 1,
             ]));
-        $client->shouldReceive('deleteIndex')
-            ->once()
+        $client->expects('deleteIndex')
             ->with('test_users')
-            ->andReturn(['taskUid' => 29]);
-        $client->shouldReceive('waitForTask')
-            ->once()
+            ->returns(['taskUid' => 29]);
+        $client->expects('waitForTask')
             ->with(29, 5000)
-            ->andReturn(['uid' => 29, 'status' => 'succeeded']);
+            ->returns(['uid' => 29, 'status' => 'succeeded']);
 
         $harness = new MeilisearchOptInHarness;
         $harness->usePrefix('test_');
@@ -294,26 +285,23 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testMeilisearchCleanupPropagatesDeletionTaskFailures(): void
     {
-        $index = m::mock(Indexes::class);
-        $index->shouldReceive('getUid')->andReturn('test_users');
+        $index = Double::for(Indexes::class);
+        $index->allows('getUid')->returns('test_users');
 
-        $client = m::mock(MeilisearchClient::class);
-        $client->shouldReceive('getIndexes')
-            ->once()
-            ->andReturn(new IndexesResults([
+        $client = Double::for(MeilisearchClient::class);
+        $client->expects('getIndexes')
+            ->returns(new IndexesResults([
                 'results' => [$index],
                 'offset' => 0,
                 'limit' => 20,
                 'total' => 1,
             ]));
-        $client->shouldReceive('deleteIndex')
-            ->once()
+        $client->expects('deleteIndex')
             ->with('test_users')
-            ->andReturn(['taskUid' => 29]);
-        $client->shouldReceive('waitForTask')
-            ->once()
+            ->returns(['taskUid' => 29]);
+        $client->expects('waitForTask')
             ->with(29, 5000)
-            ->andReturn([
+            ->returns([
                 'uid' => 29,
                 'status' => 'failed',
                 'error' => ['message' => 'Index deletion failed.'],
@@ -420,9 +408,9 @@ class ExternalServiceOptInTest extends TestCase
         $expectedPrefix = $testToken === '' ? 'test_' : "test_{$testToken}_";
 
         $originalClient = Algolia::getHttpClient();
-        $previousClient = m::mock(HttpClientInterface::class);
-        $testClient = m::mock(HttpClientInterface::class);
-        $testClient->shouldReceive('sendRequest')->times(3)->andReturn(
+        $previousClient = Double::for(HttpClientInterface::class);
+        $testClient = Double::for(HttpClientInterface::class);
+        $testClient->expects('sendRequest')->times(3)->returns(
             new Response(200, ['content-type' => 'application/json'], '{"items":[]}')
         );
 
@@ -451,8 +439,8 @@ class ExternalServiceOptInTest extends TestCase
         $this->setExternalServiceEnvironmentValue('ALGOLIA_SECRET', 'secret');
 
         $originalClient = Algolia::getHttpClient();
-        $testClient = m::mock(HttpClientInterface::class);
-        $testClient->shouldReceive('sendRequest')->times(3)->andReturn(
+        $testClient = Double::for(HttpClientInterface::class);
+        $testClient->expects('sendRequest')->times(3)->returns(
             new Response(200, ['content-type' => 'application/json'], '{"items":[]}')
         );
 
@@ -472,21 +460,18 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testAlgoliaCleanupWaitsForExactDeletionTasks(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
-        $client->shouldReceive('listIndices')
-            ->once()
-            ->andReturn(['items' => [
+        $client = Double::for(AlgoliaSearchClient::class);
+        $client->expects('listIndices')
+            ->returns(['items' => [
                 ['name' => 'test_users'],
                 ['name' => 'production_users'],
             ]]);
-        $client->shouldReceive('deleteIndex')
-            ->once()
+        $client->expects('deleteIndex')
             ->with('test_users')
-            ->andReturn(['taskID' => 31]);
-        $client->shouldReceive('waitForTask')
-            ->once()
+            ->returns(['taskID' => 31]);
+        $client->expects('waitForTask')
             ->with('test_users', 31)
-            ->andReturn(['status' => 'published']);
+            ->returns(['status' => 'published']);
 
         $harness = new AlgoliaOptInHarness;
         $harness->usePrefix('test_');
@@ -497,18 +482,15 @@ class ExternalServiceOptInTest extends TestCase
     #[DataProvider('incompleteAlgoliaDeletionTasks')]
     public function testAlgoliaCleanupRejectsIncompleteDeletionTasks(?array $task): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
-        $client->shouldReceive('listIndices')
-            ->once()
-            ->andReturn(['items' => [['name' => 'test_users']]]);
-        $client->shouldReceive('deleteIndex')
-            ->once()
+        $client = Double::for(AlgoliaSearchClient::class);
+        $client->expects('listIndices')
+            ->returns(['items' => [['name' => 'test_users']]]);
+        $client->expects('deleteIndex')
             ->with('test_users')
-            ->andReturn(['taskID' => 31]);
-        $client->shouldReceive('waitForTask')
-            ->once()
+            ->returns(['taskID' => 31]);
+        $client->expects('waitForTask')
             ->with('test_users', 31)
-            ->andReturn($task);
+            ->returns($task);
 
         $harness = new AlgoliaOptInHarness;
         $harness->usePrefix('test_');
@@ -535,29 +517,24 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testAlgoliaCleanupWaitsForRemainingTasksBeforeRejectingAnIncompleteResult(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
-        $client->shouldReceive('listIndices')
-            ->once()
-            ->andReturn(['items' => [
+        $client = Double::for(AlgoliaSearchClient::class);
+        $client->expects('listIndices')
+            ->returns(['items' => [
                 ['name' => 'test_users'],
                 ['name' => 'test_orders'],
             ]]);
-        $client->shouldReceive('deleteIndex')
-            ->once()
+        $client->expects('deleteIndex')
             ->with('test_users')
-            ->andReturn(['taskID' => 31]);
-        $client->shouldReceive('deleteIndex')
-            ->once()
+            ->returns(['taskID' => 31]);
+        $client->expects('deleteIndex')
             ->with('test_orders')
-            ->andReturn(['taskID' => 32]);
-        $client->shouldReceive('waitForTask')
-            ->once()
+            ->returns(['taskID' => 32]);
+        $client->expects('waitForTask')
             ->with('test_users', 31)
-            ->andReturn(null);
-        $client->shouldReceive('waitForTask')
-            ->once()
+            ->returns(null);
+        $client->expects('waitForTask')
             ->with('test_orders', 32)
-            ->andReturn(['status' => 'published']);
+            ->returns(['status' => 'published']);
 
         $harness = new AlgoliaOptInHarness;
         $harness->usePrefix('test_');
@@ -572,26 +549,22 @@ class ExternalServiceOptInTest extends TestCase
     public function testAlgoliaCleanupPropagatesDeletionTaskFailures(): void
     {
         $failure = new RuntimeException('Index deletion failed.');
-        $client = m::mock(AlgoliaSearchClient::class);
-        $client->shouldReceive('listIndices')
-            ->once()
-            ->andReturn(['items' => [
+        $client = Double::for(AlgoliaSearchClient::class);
+        $client->expects('listIndices')
+            ->returns(['items' => [
                 ['name' => 'test_users'],
                 ['name' => 'test_orders'],
             ]]);
-        $client->shouldReceive('deleteIndex')
-            ->once()
+        $client->expects('deleteIndex')
             ->with('test_users')
-            ->andReturn(['taskID' => 31]);
-        $client->shouldReceive('deleteIndex')
-            ->once()
+            ->returns(['taskID' => 31]);
+        $client->expects('deleteIndex')
             ->with('test_orders')
-            ->andReturn(['taskID' => 32]);
-        $client->shouldReceive('waitForTask')
-            ->once()
+            ->returns(['taskID' => 32]);
+        $client->expects('waitForTask')
             ->with('test_users', 31)
-            ->andThrow($failure);
-        $client->shouldNotReceive('waitForTask')
+            ->throws($failure);
+        $client->expects('waitForTask')->never()
             ->with('test_orders', 32);
 
         $harness = new AlgoliaOptInHarness;
@@ -609,10 +582,10 @@ class ExternalServiceOptInTest extends TestCase
         $this->setExternalServiceEnvironmentValue('ALGOLIA_SECRET', 'secret');
 
         $originalClient = Algolia::getHttpClient();
-        $previousClient = m::mock(HttpClientInterface::class);
+        $previousClient = Double::for(HttpClientInterface::class);
         $failure = new RuntimeException('Algolia probe failed');
-        $testClient = m::mock(HttpClientInterface::class);
-        $testClient->shouldReceive('sendRequest')->andThrow($failure);
+        $testClient = Double::for(HttpClientInterface::class);
+        $testClient->allows('sendRequest')->throws($failure);
 
         Algolia::setHttpClient($previousClient);
 

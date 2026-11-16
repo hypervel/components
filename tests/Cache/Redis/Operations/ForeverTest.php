@@ -14,10 +14,9 @@ class ForeverTest extends RedisCacheTestCase
     public function testStoreItemForeverProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('set')
-            ->once()
+        $connection->client()->expects('set')
             ->with('prefix:foo', serialize('foo'))
-            ->andReturn(true);
+            ->returns(true);
 
         $redis = $this->createStore($connection);
         $result = $redis->forever('foo', 'foo');
@@ -27,10 +26,9 @@ class ForeverTest extends RedisCacheTestCase
     public function testForeverWithNumericValue(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('set')
-            ->once()
+        $connection->client()->expects('set')
             ->with('prefix:foo', 99)
-            ->andReturn(true);
+            ->returns(true);
 
         $redis = $this->createStore($connection);
         $this->assertTrue($redis->forever('foo', 99));

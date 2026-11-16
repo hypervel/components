@@ -9,26 +9,27 @@ use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
 use Hypervel\Foundation\PackageManifest;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class RegisterFacadesTest extends TestCase
 {
+    use VerifiesDoubles;
+
     // REMOVED: Laravel's AliasLoader real-time facade path; Hypervel supports
     // only explicit facade aliases.
     public function testRegisterAliases(): void
     {
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('array')
+        $config = Double::for(Repository::class);
+        $config->expects('array')
             ->with('app.aliases')
-            ->once()
-            ->andReturn([
+            ->returns([
                 'FooAlias' => 'FooClass',
             ]);
 
-        $manifest = m::mock(PackageManifest::class);
-        $manifest->shouldReceive('aliases')
-            ->once()
-            ->andReturn([
+        $manifest = Double::for(PackageManifest::class);
+        $manifest->expects('aliases')
+            ->returns([
                 'TestAlias' => 'TestClass',
             ]);
 

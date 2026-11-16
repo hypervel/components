@@ -25,10 +25,11 @@ use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use League\Flysystem\FilesystemAdapter as FlysystemAdapter;
 use League\Flysystem\FilesystemOperator;
 use League\Flysystem\UnableToReadFile;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Http\Message\StreamInterface;
@@ -40,6 +41,8 @@ use function Hypervel\Coroutine\parallel;
 
 class AwsS3V3AdapterTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testConfiguredAndNativeUrlsEncodeRawPathsIdentically(): void
     {
         $path = 'nested/report%2F v?x#y+z.txt';
@@ -329,10 +332,10 @@ class AwsS3V3AdapterTest extends TestCase
             'report' => true,
             'options' => ['@http' => ['timeout' => 12]],
         ]);
-        $adapter->getDriver()->shouldReceive('fileExists')->andReturn(true);
-        $emptyDriver = m::mock(FilesystemOperator::class);
-        $emptyDriver->shouldReceive('fileExists')->andReturn(false);
-        $empty = new FilesystemAdapter($emptyDriver, m::mock(FlysystemAdapter::class));
+        $adapter->getDriver()->allows('fileExists')->returns(true);
+        $emptyDriver = Double::for(FilesystemOperator::class);
+        $emptyDriver->allows('fileExists')->returns(false);
+        $empty = new FilesystemAdapter($emptyDriver, Double::for(FlysystemAdapter::class));
         $pools = new PoolManager;
         $definition = new PoolDefinition('filesystem:read-through-range', 's3', 'test', PoolOptions::fromArray([]));
         $cloud = match ($poolType) {
@@ -351,8 +354,8 @@ class AwsS3V3AdapterTest extends TestCase
             ),
             null => $adapter,
         };
-        $exceptionHandler = m::mock(ExceptionHandler::class);
-        $exceptionHandler->shouldNotReceive('report');
+        $exceptionHandler = Double::for(ExceptionHandler::class);
+        $exceptionHandler->expects('report')->never();
         Container::getInstance()->instance(ExceptionHandler::class, $exceptionHandler);
         $manager = new FilesystemManager(Container::getInstance());
         $manager->set('primary', $primary ? $cloud : $empty);
@@ -432,8 +435,8 @@ class AwsS3V3AdapterTest extends TestCase
     {
         $cancellation = new CanceledException('read canceled');
         $failure = $wrapped ? new S3Exception('SDK request canceled.', new Command('GetObject'), previous: $cancellation) : $cancellation;
-        $exceptionHandler = m::mock(ExceptionHandler::class);
-        $exceptionHandler->shouldNotReceive('report');
+        $exceptionHandler = Double::for(ExceptionHandler::class);
+        $exceptionHandler->expects('report')->never();
         Container::getInstance()->bind(ExceptionHandler::class, static fn () => $exceptionHandler);
         $handler = new MockHandler([$failure]);
         $adapter = $this->adapter($handler, [
@@ -456,8 +459,9 @@ class AwsS3V3AdapterTest extends TestCase
 
     public function testReadStreamRangeRejectsAResultWithoutAResource(): void
     {
-        $body = m::mock(StreamInterface::class);
-        $body->shouldReceive('isReadable', 'isWritable')->andReturnFalse();
+        $body = Double::for(StreamInterface::class);
+        $body->allows('isReadable')->returns(false);
+        $body->allows('isWritable')->returns(false);
         $handler = new MockHandler([new Result(['Body' => $body])]);
         $adapter = $this->adapter($handler, ['bucket' => 'bucket', 'throw' => true]);
 
@@ -529,8 +533,8 @@ class AwsS3V3AdapterTest extends TestCase
         ]);
 
         return new AwsS3V3Adapter(
-            m::mock(FilesystemOperator::class),
-            m::mock(FlysystemAdapter::class),
+            Double::for(FilesystemOperator::class),
+            Double::for(FlysystemAdapter::class),
             $config,
             $client,
         );

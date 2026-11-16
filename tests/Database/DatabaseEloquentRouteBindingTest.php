@@ -10,18 +10,21 @@ use Hypervel\Database\Eloquent\Concerns\HasUuids;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
 class DatabaseEloquentRouteBindingTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('invalidIntegerKeyProvider')]
     public function testItRejectsValuesThatCannotAddressAnIntegerKeyWithoutQuerying(mixed $value): void
     {
-        $query = m::mock(Builder::class);
-        $query->shouldNotReceive('where');
+        $query = Double::for(Builder::class);
+        $query->expects('where')->never();
 
         $this->expectException(ModelNotFoundException::class);
 
@@ -52,8 +55,8 @@ class DatabaseEloquentRouteBindingTest extends TestCase
     #[DataProvider('validIntegerKeyProvider')]
     public function testItPassesThroughValuesTheDatabaseCanStillMatch(int|string $value): void
     {
-        $query = m::mock(Builder::class);
-        $query->shouldReceive('where')->once()->with('id', $value)->andReturnSelf();
+        $query = Double::for(Builder::class);
+        $query->expects('where')->with('id', $value);
 
         $this->assertSame($query, (new RouteBindingIntKeyModel)->resolveRouteBindingQuery($query, $value));
     }
@@ -80,8 +83,8 @@ class DatabaseEloquentRouteBindingTest extends TestCase
     #[TestWith(['integer'])]
     public function testItValidatesQualifiedKeyColumnsFromChildBindings(string $keyType): void
     {
-        $query = m::mock(Builder::class);
-        $query->shouldNotReceive('where');
+        $query = Double::for(Builder::class);
+        $query->expects('where')->never();
 
         $this->expectException(ModelNotFoundException::class);
 
@@ -90,16 +93,16 @@ class DatabaseEloquentRouteBindingTest extends TestCase
 
     public function testItDoesNotValidateNonKeyBindingFields(): void
     {
-        $query = m::mock(Builder::class);
-        $query->shouldReceive('where')->once()->with('slug', 'abc')->andReturnSelf();
+        $query = Double::for(Builder::class);
+        $query->expects('where')->with('slug', 'abc');
 
         (new RouteBindingIntKeyModel)->resolveRouteBindingQuery($query, 'abc', 'slug');
     }
 
     public function testItDoesNotValidateModelsWithStringKeys(): void
     {
-        $query = m::mock(Builder::class);
-        $query->shouldReceive('where')->once()->with('id', 'abc')->andReturnSelf();
+        $query = Double::for(Builder::class);
+        $query->expects('where')->with('id', 'abc');
 
         (new RouteBindingStringKeyModel)->resolveRouteBindingQuery($query, 'abc');
     }
@@ -109,8 +112,8 @@ class DatabaseEloquentRouteBindingTest extends TestCase
 
     public function testItValidatesNonIncrementingModelsWithTheDefaultKeyType(): void
     {
-        $query = m::mock(Builder::class);
-        $query->shouldNotReceive('where');
+        $query = Double::for(Builder::class);
+        $query->expects('where')->never();
 
         $this->expectException(ModelNotFoundException::class);
 
@@ -119,16 +122,16 @@ class DatabaseEloquentRouteBindingTest extends TestCase
 
     public function testItDoesNotValidateNullValuesForModelsWithStringKeys(): void
     {
-        $query = m::mock(Builder::class);
-        $query->shouldReceive('where')->once()->with('id', null)->andReturnSelf();
+        $query = Double::for(Builder::class);
+        $query->expects('where')->with('id', null);
 
         (new RouteBindingStringKeyModel)->resolveRouteBindingQuery($query, null);
     }
 
     public function testTheInvalidKeyHandlerMayBeOverridden(): void
     {
-        $query = m::mock(Builder::class);
-        $query->shouldNotReceive('where');
+        $query = Double::for(Builder::class);
+        $query->expects('where')->never();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Invalid id: abc');
@@ -138,7 +141,7 @@ class DatabaseEloquentRouteBindingTest extends TestCase
 
     public function testTheExceptionCarriesTheModelAndValue(): void
     {
-        $query = m::mock(Builder::class);
+        $query = Double::for(Builder::class);
 
         try {
             (new RouteBindingIntKeyModel)->resolveRouteBindingQuery($query, 'abc');
@@ -158,8 +161,8 @@ class DatabaseEloquentRouteBindingTest extends TestCase
     #[DataProvider('nullRouteKeyModelProvider')]
     public function testNullValuesCarryNoIdentifiers(string $model): void
     {
-        $query = m::mock(Builder::class);
-        $query->shouldNotReceive('where');
+        $query = Double::for(Builder::class);
+        $query->expects('where')->never();
 
         try {
             (new $model)->resolveRouteBindingQuery($query, null);
@@ -187,8 +190,8 @@ class DatabaseEloquentRouteBindingTest extends TestCase
 
     public function testItValidatesQualifiedUniqueIdColumnsFromChildBindings(): void
     {
-        $query = m::mock(Builder::class);
-        $query->shouldNotReceive('where');
+        $query = Double::for(Builder::class);
+        $query->expects('where')->never();
 
         $this->expectException(ModelNotFoundException::class);
 
@@ -199,8 +202,8 @@ class DatabaseEloquentRouteBindingTest extends TestCase
     {
         $uuid = '0190ecbd-0aa7-7cc8-9d51-4b4f6fb3a3c7';
 
-        $query = m::mock(Builder::class);
-        $query->shouldReceive('where')->once()->with('route_binding_uuid_key_models.id', $uuid)->andReturnSelf();
+        $query = Double::for(Builder::class);
+        $query->expects('where')->with('route_binding_uuid_key_models.id', $uuid);
 
         $this->assertSame($query, (new RouteBindingUuidKeyModel)->resolveRouteBindingQuery($query, $uuid, 'route_binding_uuid_key_models.id'));
     }

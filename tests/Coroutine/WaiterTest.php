@@ -18,7 +18,8 @@ use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Support\Sleep;
 use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
@@ -30,6 +31,8 @@ use function Hypervel\Coroutine\wait;
 
 class WaiterTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -168,7 +171,7 @@ class WaiterTest extends TestCase
     #[DataProvider('copyContexts')]
     public function testParentCancellationDuringStartupReportingCancelsThePublishedChild(bool $copyContext): void
     {
-        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class);
         Container::getInstance()->instance(ExceptionHandlerContract::class, $handler);
         $waiter = new Waiter;
         $hookFailure = new RuntimeException('The startup hook failed.');
@@ -179,10 +182,9 @@ class WaiterTest extends TestCase
         $childCoroutineId = null;
         $childBodyRan = false;
 
-        $handler->shouldReceive('report')
-            ->once()
+        $handler->expects('report')
             ->with($hookFailure)
-            ->andReturnUsing(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
+            ->resolves(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
                 $childCoroutineId = EngineCoroutine::id();
                 $reportStarted->push(true);
                 $releaseReport->pop();

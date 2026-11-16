@@ -17,48 +17,44 @@ use Hypervel\ServerProcess\AbstractProcess;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use Swoole\Server as SwooleServer;
 
 class CacheServiceProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testConsoleFinalizationRunsAfterEveryProviderCanContribute(): void
     {
         $manager = $this->manager();
         $manager->allowSerializableClassesUsing(
             static fn (): array => [CachePolicyEarlyContribution::class],
         );
-        $events = m::mock(Dispatcher::class);
+        $events = Double::for(Dispatcher::class);
         $listeners = [];
-        $events->shouldReceive('listen')
+        $events->expects('listen')
             ->times(2)
-            ->andReturnUsing(function (mixed $event, mixed $listener) use (&$listeners): void {
+            ->resolves(function (mixed $event, mixed $listener) use (&$listeners): void {
                 $listeners[$event][] = $listener;
             });
         $bootedCallback = null;
-        $application = m::mock(Application::class);
-        $application->shouldReceive('make')
-            ->once()
+        $application = Double::for(Application::class, override: true);
+        $application->expects('make')
             ->with(CacheManager::class)
-            ->andReturn($manager);
-        $application->shouldReceive('make')
-            ->once()
+            ->returns($manager);
+        $application->expects('make')
             ->with('events')
-            ->andReturn($events);
-        $application->shouldReceive('runningInConsole')
-            ->once()
-            ->andReturnTrue();
-        $application->shouldReceive('booted')
-            ->once()
-            ->with(m::on(function (mixed $callback) use (&$bootedCallback): bool {
-                $bootedCallback = $callback;
+            ->returns($events);
+        $application->expects('runningInConsole')
+            ->returns(true);
+        $application->expects('booted')
+            ->with(Argument::capture($bootedCallback));
 
-                return $callback instanceof Closure;
-            }));
-
-        (new CacheServiceProvider($application))->boot();
+        (new CacheServiceProvider($application->instance()))->boot();
 
         $manager->allowSerializableClassesUsing(
             static fn (): array => [CachePolicyLateContribution::class],
@@ -89,29 +85,26 @@ class CacheServiceProviderTest extends TestCase
     public function testServerFinalizationResolvesTheWorkerManagerAtEventTime(bool $customProcess): void
     {
         $workerManager = $this->manager();
-        $events = m::mock(Dispatcher::class);
+        $events = Double::for(Dispatcher::class);
         $listeners = [];
-        $events->shouldReceive('listen')
+        $events->expects('listen')
             ->times(3)
-            ->andReturnUsing(function (mixed $event, mixed $listener) use (&$listeners): void {
+            ->resolves(function (mixed $event, mixed $listener) use (&$listeners): void {
                 foreach ((array) $event as $name) {
                     $listeners[$name][] = $listener;
                 }
             });
-        $application = m::mock(Application::class);
-        $application->shouldReceive('make')
-            ->once()
+        $application = Double::for(Application::class, override: true);
+        $application->expects('make')
             ->with(CacheManager::class)
-            ->andReturn($workerManager);
-        $application->shouldReceive('make')
-            ->once()
+            ->returns($workerManager);
+        $application->expects('make')
             ->with('events')
-            ->andReturn($events);
-        $application->shouldReceive('runningInConsole')
-            ->once()
-            ->andReturnFalse();
-        $application->shouldNotReceive('booted');
-        $provider = new CacheServiceProviderFixture($application);
+            ->returns($events);
+        $application->expects('runningInConsole')
+            ->returns(false);
+        $application->expects('booted')->never();
+        $provider = new CacheServiceProviderFixture($application->instance());
 
         $provider->boot();
 
@@ -120,9 +113,9 @@ class CacheServiceProviderTest extends TestCase
         $this->assertCount(2, $listeners[AfterWorkerStart::class]);
 
         if ($customProcess) {
-            $event = new BeforeProcessHandle(m::mock(AbstractProcess::class), 0);
+            $event = new BeforeProcessHandle(Double::for(AbstractProcess::class), 0);
         } else {
-            $server = m::mock(SwooleServer::class);
+            $server = Double::for(SwooleServer::class);
             // Policy finalization runs in request workers and taskworkers, unlike Swoole timer registration.
             $server->taskworker = true;
             $event = new AfterWorkerStart($server, 9);
@@ -138,12 +131,10 @@ class CacheServiceProviderTest extends TestCase
     public function testFacadeCallsTheManagerExtensionWithoutResolvingAStore(): void
     {
         $resolver = static fn (): array => [CachePolicyEarlyContribution::class];
-        $manager = m::mock(CacheManager::class);
-        $manager->shouldReceive('allowSerializableClassesUsing')
-            ->once()
-            ->with($resolver)
-            ->andReturnSelf();
-        $manager->shouldNotReceive('store');
+        $manager = Double::for(CacheManager::class);
+        $manager->expects('allowSerializableClassesUsing')
+            ->with(Argument::same($resolver));
+        $manager->expects('store')->never();
         Cache::setFacadeApplication(null);
         Cache::swap($manager);
 

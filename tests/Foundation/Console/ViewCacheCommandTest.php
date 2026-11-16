@@ -11,10 +11,13 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Hypervel\View\Factory;
 use Hypervel\View\ViewFinderInterface;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class ViewCacheCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Filesystem $files;
 
     protected string $tempDir;
@@ -42,8 +45,10 @@ class ViewCacheCommandTest extends TestCase
         $nested = $views . '/nested';
         $viewsAdmin = $this->tempDir . '/views-admin';
         $missing = $this->tempDir . '/missing';
+        $package = $this->tempDir . '/package';
         $this->files->ensureDirectoryExists($nested);
         $this->files->ensureDirectoryExists($viewsAdmin);
+        $this->files->ensureDirectoryExists($package);
 
         $command = $this->commandWithPaths([
             $views,
@@ -52,9 +57,9 @@ class ViewCacheCommandTest extends TestCase
             $viewsAdmin,
             $missing . DIRECTORY_SEPARATOR,
             $missing,
-        ]);
+        ], ['package' => [$package]]);
 
-        $this->assertSame([$views, $viewsAdmin, $missing], $command->viewPaths());
+        $this->assertSame([$views, $viewsAdmin, $missing, $package], $command->viewPaths());
     }
 
     public function testPathsRetainFilesystemRoot(): void
@@ -66,20 +71,23 @@ class ViewCacheCommandTest extends TestCase
         $this->assertSame([DIRECTORY_SEPARATOR], $command->viewPaths());
     }
 
-    protected function commandWithPaths(array $paths): TestViewCacheCommand
+    /**
+     * Create a command with the given view roots and namespace hints.
+     */
+    protected function commandWithPaths(array $paths, array $hints = []): TestViewCacheCommand
     {
-        $finder = m::mock(ViewFinderInterface::class);
-        $finder->shouldReceive('getPaths')->once()->andReturn($paths);
-        $finder->shouldReceive('getHints')->once()->andReturn([]);
+        $finder = Double::for(ViewFinderInterface::class);
+        $finder->expects('getPaths')->returns($paths);
+        $finder->expects('getHints')->returns($hints);
 
-        $factory = m::mock(Factory::class);
-        $factory->shouldReceive('getFinder')->once()->andReturn($finder);
+        $factory = Double::for(Factory::class);
+        $factory->expects('getFinder')->returns($finder);
 
-        $application = m::mock(Application::class);
-        $application->shouldReceive('make')->once()->with('view')->andReturn($factory);
+        $application = Double::for(Application::class, override: true);
+        $application->expects('make')->with('view')->returns($factory);
 
         $command = new TestViewCacheCommand;
-        $command->setHypervel($application);
+        $command->setHypervel($application->instance());
 
         return $command;
     }

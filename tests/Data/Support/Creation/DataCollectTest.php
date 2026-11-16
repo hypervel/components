@@ -22,11 +22,14 @@ use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use stdClass;
 
 class DataCollectTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Get package providers for the test application.
      */
@@ -218,8 +221,8 @@ class DataCollectTest extends TestCase
 
     public function testContractOnlyPaginatorCanTargetANonPaginatorWithoutCollectMethodDispatch(): void
     {
-        $paginator = m::mock(PaginatorContract::class);
-        $paginator->shouldReceive('items')->once()->andReturn([
+        $paginator = Double::for(PaginatorContract::class);
+        $paginator->expects('items')->returns([
             ['id' => '1'],
         ]);
 

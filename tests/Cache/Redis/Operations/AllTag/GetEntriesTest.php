@@ -10,7 +10,10 @@ use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
-use Mockery as m;
+use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
+use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 
 /**
  * Tests for the GetEntries operation.
@@ -19,123 +22,74 @@ class GetEntriesTest extends RedisCacheTestCase
 {
     public function testGetEntriesReturnsLazyCollection(): void
     {
-        $connection = $this->mockConnection();
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
-            ->andReturnUsing(function ($key, &$cursor) {
-                $cursor = 0;
+        $client = new FakeRedisClient(zScanResults: [
+            'prefix:_all:tag:users:entries' => [
+                ['members' => ['key1' => 1, 'key2' => 2], 'iterator' => 0],
+            ],
+        ]);
 
-                return ['key1' => 1, 'key2' => 2];
-            });
-
-        $store = $this->createStore($connection);
+        $store = $this->createStoreWithFakeClient($client);
         $operation = new GetEntries($store->getContext());
 
         $entries = $operation->execute(['_all:tag:users:entries']);
 
         $this->assertInstanceOf(LazyCollection::class, $entries);
         $this->assertSame(['key1', 'key2'], $entries->all());
+        $this->assertSame([
+            ['key' => 'prefix:_all:tag:users:entries', 'iterator' => null, 'pattern' => '*', 'count' => 1000],
+        ], $client->getZScanCalls());
     }
 
     public function testGetEntriesWithEmptyTagReturnsEmptyCollection(): void
     {
-        $connection = $this->mockConnection();
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
-            ->andReturnUsing(function ($key, &$cursor) {
-                $cursor = 0;
+        $client = new FakeRedisClient(zScanResults: [
+            'prefix:_all:tag:users:entries' => [
+                ['members' => [], 'iterator' => 0],
+            ],
+        ]);
 
-                return [];
-            });
-
-        $store = $this->createStore($connection);
+        $store = $this->createStoreWithFakeClient($client);
         $operation = new GetEntries($store->getContext());
 
         $entries = $operation->execute(['_all:tag:users:entries']);
 
         $this->assertSame([], $entries->all());
+        $this->assertSame([
+            ['key' => 'prefix:_all:tag:users:entries', 'iterator' => null, 'pattern' => '*', 'count' => 1000],
+        ], $client->getZScanCalls());
     }
 
     public function testGetEntriesWithMultipleTags(): void
     {
-        $connection = $this->mockConnection();
+        $client = new FakeRedisClient(zScanResults: [
+            'prefix:_all:tag:users:entries' => [
+                ['members' => ['user_key1' => 1, 'user_key2' => 2], 'iterator' => 0],
+            ],
+            'prefix:_all:tag:posts:entries' => [
+                ['members' => ['post_key1' => 1], 'iterator' => 0],
+            ],
+        ]);
 
-        // First tag
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
-            ->andReturnUsing(function ($key, &$cursor) {
-                $cursor = 0;
-
-                return ['user_key1' => 1, 'user_key2' => 2];
-            });
-
-        // Second tag
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:posts:entries', null, '*', 1000)
-            ->andReturnUsing(function ($key, &$cursor) {
-                $cursor = 0;
-
-                return ['post_key1' => 1];
-            });
-
-        $store = $this->createStore($connection);
+        $store = $this->createStoreWithFakeClient($client);
         $operation = new GetEntries($store->getContext());
 
         $entries = $operation->execute(['_all:tag:users:entries', '_all:tag:posts:entries']);
 
         // Should combine entries from both tags
         $this->assertSame(['user_key1', 'user_key2', 'post_key1'], $entries->all());
-    }
-
-    public function testGetEntriesReturnsTheMembersInEachPage(): void
-    {
-        $connection = $this->mockConnection();
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
-            ->andReturnUsing(function ($key, &$cursor) {
-                $cursor = 0;
-
-                return ['key1' => 1, 'key2' => 2];
-            });
-
-        $store = $this->createStore($connection);
-        $operation = new GetEntries($store->getContext());
-
-        $entries = $operation->execute(['_all:tag:users:entries']);
-
-        $this->assertSame(['key1', 'key2'], $entries->all());
-    }
-
-    public function testGetEntriesHandlesNullScanResult(): void
-    {
-        $connection = $this->mockConnection();
-        // zScan returns null/false when done or empty
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
-            ->andReturnNull();
-
-        $store = $this->createStore($connection);
-        $operation = new GetEntries($store->getContext());
-
-        $entries = $operation->execute(['_all:tag:users:entries']);
-
-        $this->assertSame([], $entries->all());
+        $this->assertSame([
+            ['key' => 'prefix:_all:tag:users:entries', 'iterator' => null, 'pattern' => '*', 'count' => 1000],
+            ['key' => 'prefix:_all:tag:posts:entries', 'iterator' => null, 'pattern' => '*', 'count' => 1000],
+        ], $client->getZScanCalls());
     }
 
     public function testGetEntriesHandlesFalseScanResult(): void
     {
         $connection = $this->mockConnection();
-        // zScan can return false in some cases
-        $connection->shouldReceive('zScan')
-            ->once()
+        // Native zScan returns false when no members are available.
+        $connection->client()->expects('zScan')
             ->with('prefix:_all:tag:users:entries', null, '*', 1000)
-            ->andReturn(false);
+            ->returns(false);
 
         $store = $this->createStore($connection);
         $operation = new GetEntries($store->getContext());
@@ -149,7 +103,7 @@ class GetEntriesTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
         // No zScan calls should be made
-        $connection->shouldNotReceive('zScan');
+        $connection->expects('zScan')->never();
 
         $store = $this->createStore($connection);
         $operation = new GetEntries($store->getContext());
@@ -161,92 +115,74 @@ class GetEntriesTest extends RedisCacheTestCase
 
     public function testGetEntriesUsesCorrectPrefix(): void
     {
-        $connection = $this->mockConnection();
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('custom_prefix:_all:tag:users:entries', null, '*', 1000)
-            ->andReturnUsing(function ($key, &$cursor) {
-                $cursor = 0;
+        $client = new FakeRedisClient(zScanResults: [
+            'custom_prefix:_all:tag:users:entries' => [
+                ['members' => ['key1' => 1], 'iterator' => 0],
+            ],
+        ]);
 
-                return ['key1' => 1];
-            });
-
-        $store = $this->createStore($connection, 'custom_prefix:');
+        $store = $this->createStoreWithFakeClient($client, 'custom_prefix:');
         $operation = new GetEntries($store->getContext());
 
         $entries = $operation->execute(['_all:tag:users:entries']);
 
         $this->assertSame(['key1'], $entries->all());
+        $this->assertSame([
+            ['key' => 'custom_prefix:_all:tag:users:entries', 'iterator' => null, 'pattern' => '*', 'count' => 1000],
+        ], $client->getZScanCalls());
     }
 
     public function testGetEntriesHandlesPaginatedResults(): void
     {
-        $connection = $this->mockConnection();
+        $client = new FakeRedisClient(zScanResults: [
+            'prefix:_all:tag:users:entries' => [
+                ['members' => ['key1' => 1, 'key2' => 2], 'iterator' => 123],
+                ['members' => ['key3' => 3], 'iterator' => 0],
+            ],
+        ]);
 
-        // First page
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
-            ->andReturnUsing(function ($key, &$cursor) {
-                $cursor = 123; // Non-zero cursor indicates more data
-
-                return ['key1' => 1, 'key2' => 2];
-            });
-
-        // Second page (returns remaining entries)
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 123, '*', 1000)
-            ->andReturnUsing(function ($key, &$cursor) {
-                $cursor = 0; // Zero cursor indicates end
-
-                return ['key3' => 3];
-            });
-
-        $store = $this->createStore($connection);
+        $store = $this->createStoreWithFakeClient($client);
         $operation = new GetEntries($store->getContext());
 
         $entries = $operation->execute(['_all:tag:users:entries']);
 
         $this->assertSame(['key1', 'key2', 'key3'], $entries->all());
+        $this->assertSame([
+            ['key' => 'prefix:_all:tag:users:entries', 'iterator' => null, 'pattern' => '*', 'count' => 1000],
+            ['key' => 'prefix:_all:tag:users:entries', 'iterator' => 123, 'pattern' => '*', 'count' => 1000],
+        ], $client->getZScanCalls());
     }
 
     public function testGetEntriesContinuesAfterAnEmptyNonterminalPageAndChecksOutPerPage(): void
     {
-        $connection = $this->mockConnection();
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
-            ->andReturnUsing(function ($key, &$cursor) {
-                $cursor = 123;
+        $client = new FakeRedisClient(zScanResults: [
+            'prefix:_all:tag:users:entries' => [
+                ['members' => [], 'iterator' => 123],
+                ['members' => ['key1' => 1], 'iterator' => 0],
+            ],
+        ]);
 
-                return [];
-            });
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 123, '*', 1000)
-            ->andReturnUsing(function ($key, &$cursor) {
-                $cursor = 0;
+        $connection = (new PhpRedisConnectionStub)->setActiveConnection($client)->shouldTransform(false);
+        $proxy = Double::for(RedisProxy::class);
+        $proxy->expects('withConnection')
+            ->times(2)
+            ->with(Argument::type('callable'), false)
+            ->resolves(fn (callable $callback) => $callback($connection));
 
-                return ['key1' => 1];
-            });
-
-        $proxy = m::mock(RedisProxy::class);
-        $proxy->shouldReceive('withConnection')
-            ->twice()
-            ->with(m::type('callable'), false)
-            ->andReturnUsing(fn (callable $callback) => $callback($connection));
-
-        $redis = m::mock(RedisFactory::class);
-        $redis->shouldReceive('connection')
-            ->twice()
+        $redis = Double::for(RedisFactory::class);
+        $redis->expects('connection')
+            ->times(2)
             ->with('default')
-            ->andReturn($proxy);
+            ->returns($proxy);
 
         $store = new RedisStore($redis, 'prefix:', 'default');
         $operation = new GetEntries($store->getContext());
 
         $this->assertSame(['key1'], $operation->execute(['_all:tag:users:entries'])->all());
+        $this->assertSame([
+            ['key' => 'prefix:_all:tag:users:entries', 'iterator' => null, 'pattern' => '*', 'count' => 1000],
+            ['key' => 'prefix:_all:tag:users:entries', 'iterator' => 123, 'pattern' => '*', 'count' => 1000],
+        ], $client->getZScanCalls());
     }
 
     /**
@@ -256,34 +192,25 @@ class GetEntriesTest extends RedisCacheTestCase
      */
     public function testGetEntriesDoesNotDeduplicateAcrossTags(): void
     {
-        $connection = $this->mockConnection();
+        $client = new FakeRedisClient(zScanResults: [
+            'prefix:_all:tag:users:entries' => [
+                ['members' => ['shared_key' => 1, 'user_only' => 2], 'iterator' => 0],
+            ],
+            'prefix:_all:tag:posts:entries' => [
+                ['members' => ['shared_key' => 1, 'post_only' => 2], 'iterator' => 0],
+            ],
+        ]);
 
-        // First tag has 'shared_key'
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
-            ->andReturnUsing(function ($key, &$cursor) {
-                $cursor = 0;
-
-                return ['shared_key' => 1, 'user_only' => 2];
-            });
-
-        // Second tag also has 'shared_key'
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:posts:entries', null, '*', 1000)
-            ->andReturnUsing(function ($key, &$cursor) {
-                $cursor = 0;
-
-                return ['shared_key' => 1, 'post_only' => 2];
-            });
-
-        $store = $this->createStore($connection);
+        $store = $this->createStoreWithFakeClient($client);
         $operation = new GetEntries($store->getContext());
 
         $entries = $operation->execute(['_all:tag:users:entries', '_all:tag:posts:entries']);
 
         // 'shared_key' appears twice - once from each tag
         $this->assertSame(['shared_key', 'user_only', 'shared_key', 'post_only'], $entries->all());
+        $this->assertSame([
+            ['key' => 'prefix:_all:tag:users:entries', 'iterator' => null, 'pattern' => '*', 'count' => 1000],
+            ['key' => 'prefix:_all:tag:posts:entries', 'iterator' => null, 'pattern' => '*', 'count' => 1000],
+        ], $client->getZScanCalls());
     }
 }

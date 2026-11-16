@@ -15,7 +15,6 @@ use Hypervel\Support\Composer;
 use Hypervel\Testbench\Bootstrap\LoadConfiguration as TestbenchLoadConfiguration;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Foundation\Config as TestbenchConfig;
-use Hypervel\View\FileViewFinder;
 use LogicException;
 use PHPStan\Analyser\DeclarationDependencyTracker;
 use PHPStan\Analyser\DependencyTracker;
@@ -322,10 +321,8 @@ class RuntimeInputs
         $finder = $this->application()->make('view')->getFinder();
         $directories = $finder->getPaths();
 
-        if ($finder instanceof FileViewFinder) {
-            foreach ($finder->getHints() as $paths) {
-                $directories = [...$directories, ...$paths];
-            }
+        foreach ($finder->getHints() as $paths) {
+            $directories = [...$directories, ...$paths];
         }
 
         $listings = [];

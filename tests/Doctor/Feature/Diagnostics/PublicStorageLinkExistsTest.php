@@ -12,13 +12,16 @@ use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\Facades\File;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Doctor\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
 class PublicStorageLinkExistsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private string $basePath;
 
     /**
@@ -159,8 +162,8 @@ class PublicStorageLinkExistsTest extends TestCase
             'filesystems.disks.public' => ['driver' => 'local', 'root' => $root],
             'filesystems.links' => [$link => $root, $this->basePath . '/missing' => $root],
         ]);
-        $kernel = m::mock(Kernel::class);
-        $kernel->shouldNotReceive('call');
+        $kernel = Double::for(Kernel::class);
+        $kernel->expects('call')->never();
         Artisan::swap($kernel);
         $diagnostic = new PublicStorageLinkExists;
         $result = $diagnostic->check();
@@ -198,20 +201,20 @@ class PublicStorageLinkExistsTest extends TestCase
             'filesystems.disks.public' => ['driver' => 'local', 'root' => $root],
             'filesystems.links' => [$this->basePath . '/uploads' => $root],
         ]);
-        $kernel = m::mock(Kernel::class);
+        $kernel = Double::for(Kernel::class);
         Artisan::swap($kernel);
-        $command = $kernel->shouldReceive('call')->once()->with('storage:link');
+        $command = $kernel->expects('call')->with('storage:link');
 
         if ($exceptionClass !== null) {
             $exception = new $exceptionClass('The link could not be created.');
-            $command->andThrow($exception);
+            $command->throws($exception);
 
             if ($exception instanceof CanceledException) {
                 $this->expectExceptionObject($exception);
             }
         } else {
-            $command->andReturn($exitCode);
-            $kernel->shouldReceive('output')->once()->andReturn('The link could not be created.');
+            $command->returns($exitCode);
+            $kernel->expects('output')->returns('The link could not be created.');
         }
 
         $diagnostic = new PublicStorageLinkExists;

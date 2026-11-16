@@ -10,22 +10,25 @@ use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Hashing\Hasher;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class CacheTokenRepositoryTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCreateStoresHashedTokenAndReturnsPlainToken(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
-        $cache = m::mock(Repository::class);
-        $hasher = m::mock(Hasher::class);
-        $user = m::mock(CanResetPassword::class);
-        $user->shouldReceive('getEmailForPasswordReset')->andReturn('foo@bar.com');
+        $cache = Double::for(Repository::class);
+        $hasher = Double::for(Hasher::class);
+        $user = Double::for(CanResetPassword::class);
+        $user->allows('getEmailForPasswordReset')->returns('foo@bar.com');
 
-        $hasher->shouldReceive('make')->once()->andReturnUsing(fn ($token) => 'hashed_' . $token);
-        $cache->shouldReceive('forget')->once(); // delete() called first
-        $cache->shouldReceive('put')->once()->andReturnUsing(function ($key, $value, $ttl) {
+        $hasher->expects('make')->resolves(fn ($token) => 'hashed_' . $token);
+        $cache->expects('forget'); // delete() called first
+        $cache->expects('put')->resolves(function ($key, $value, $ttl) {
             $this->assertIsString($key);
             $this->assertIsArray($value);
             $this->assertCount(2, $value);
@@ -47,16 +50,16 @@ class CacheTokenRepositoryTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
-        $cache = m::mock(Repository::class);
-        $hasher = m::mock(Hasher::class);
-        $user = m::mock(CanResetPassword::class);
-        $user->shouldReceive('getEmailForPasswordReset')->andReturn('foo@bar.com');
+        $cache = Double::for(Repository::class);
+        $hasher = Double::for(Hasher::class);
+        $user = Double::for(CanResetPassword::class);
+        $user->allows('getEmailForPasswordReset')->returns('foo@bar.com');
 
-        $cache->shouldReceive('get')->once()->andReturn([
+        $cache->expects('get')->returns([
             'hashed_token',
             '2024-01-01 11:59:00', // Created 1 minute ago
         ]);
-        $hasher->shouldReceive('check')->with('plain_token', 'hashed_token')->andReturnTrue();
+        $hasher->expects('check')->with('plain_token', 'hashed_token')->returns(true);
 
         $repository = new CacheTokenRepository($cache, $hasher, 'test-hash-key', 3600);
 
@@ -67,12 +70,13 @@ class CacheTokenRepositoryTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
-        $cache = m::mock(Repository::class);
-        $hasher = m::mock(Hasher::class);
-        $user = m::mock(CanResetPassword::class);
-        $user->shouldReceive('getEmailForPasswordReset')->andReturn('foo@bar.com');
+        $cache = Double::for(Repository::class);
+        $hasher = Double::for(Hasher::class);
+        $hasher->expects('check')->never();
+        $user = Double::for(CanResetPassword::class);
+        $user->allows('getEmailForPasswordReset')->returns('foo@bar.com');
 
-        $cache->shouldReceive('get')->once()->andReturn([
+        $cache->expects('get')->returns([
             'hashed_token',
             '2024-01-01 10:00:00', // Created 2 hours ago, expired with 3600s TTL
         ]);
@@ -86,16 +90,16 @@ class CacheTokenRepositoryTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
-        $cache = m::mock(Repository::class);
-        $hasher = m::mock(Hasher::class);
-        $user = m::mock(CanResetPassword::class);
-        $user->shouldReceive('getEmailForPasswordReset')->andReturn('foo@bar.com');
+        $cache = Double::for(Repository::class);
+        $hasher = Double::for(Hasher::class);
+        $user = Double::for(CanResetPassword::class);
+        $user->allows('getEmailForPasswordReset')->returns('foo@bar.com');
 
-        $cache->shouldReceive('get')->once()->andReturn([
+        $cache->expects('get')->returns([
             'hashed_token',
             '2024-01-01 11:59:00',
         ]);
-        $hasher->shouldReceive('check')->with('wrong_token', 'hashed_token')->andReturnFalse();
+        $hasher->expects('check')->with('wrong_token', 'hashed_token')->returns(false);
 
         $repository = new CacheTokenRepository($cache, $hasher, 'test-hash-key', 3600);
 
@@ -106,12 +110,12 @@ class CacheTokenRepositoryTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
-        $cache = m::mock(Repository::class);
-        $hasher = m::mock(Hasher::class);
-        $user = m::mock(CanResetPassword::class);
-        $user->shouldReceive('getEmailForPasswordReset')->andReturn('foo@bar.com');
+        $cache = Double::for(Repository::class);
+        $hasher = Double::for(Hasher::class);
+        $user = Double::for(CanResetPassword::class);
+        $user->allows('getEmailForPasswordReset')->returns('foo@bar.com');
 
-        $cache->shouldReceive('get')->once()->andReturn([
+        $cache->expects('get')->returns([
             'hashed_token',
             '2024-01-01 11:59:30', // Created 30 seconds ago
         ]);
@@ -126,12 +130,12 @@ class CacheTokenRepositoryTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
-        $cache = m::mock(Repository::class);
-        $hasher = m::mock(Hasher::class);
-        $user = m::mock(CanResetPassword::class);
-        $user->shouldReceive('getEmailForPasswordReset')->andReturn('foo@bar.com');
+        $cache = Double::for(Repository::class);
+        $hasher = Double::for(Hasher::class);
+        $user = Double::for(CanResetPassword::class);
+        $user->allows('getEmailForPasswordReset')->returns('foo@bar.com');
 
-        $cache->shouldReceive('get')->once()->andReturn([
+        $cache->expects('get')->returns([
             'hashed_token',
             '2024-01-01 11:58:00', // Created 2 minutes ago
         ]);
@@ -146,12 +150,12 @@ class CacheTokenRepositoryTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
-        $cache = m::mock(Repository::class);
-        $hasher = m::mock(Hasher::class);
-        $user = m::mock(CanResetPassword::class);
-        $user->shouldReceive('getEmailForPasswordReset')->andReturn('foo@bar.com');
+        $cache = Double::for(Repository::class);
+        $hasher = Double::for(Hasher::class);
+        $user = Double::for(CanResetPassword::class);
+        $user->allows('getEmailForPasswordReset')->returns('foo@bar.com');
 
-        $cache->shouldReceive('get')->once()->andReturn([
+        $cache->expects('get')->returns([
             'hashed_token',
             '2024-01-01 11:59:59', // Created 1 second ago
         ]);
@@ -164,13 +168,13 @@ class CacheTokenRepositoryTest extends TestCase
 
     public function testDeleteRemovesFromCache(): void
     {
-        $cache = m::mock(Repository::class);
-        $hasher = m::mock(Hasher::class);
-        $user = m::mock(CanResetPassword::class);
-        $user->shouldReceive('getEmailForPasswordReset')->andReturn('foo@bar.com');
+        $cache = Double::for(Repository::class);
+        $hasher = Double::for(Hasher::class);
+        $user = Double::for(CanResetPassword::class);
+        $user->allows('getEmailForPasswordReset')->returns('foo@bar.com');
 
         $expectedKey = hash('sha256', 'foo@bar.com');
-        $cache->shouldReceive('forget')->with($expectedKey)->once();
+        $cache->expects('forget')->with($expectedKey);
 
         $repository = new CacheTokenRepository($cache, $hasher, 'test-hash-key');
         $repository->delete($user);
@@ -178,10 +182,10 @@ class CacheTokenRepositoryTest extends TestCase
 
     public function testCacheKeyHashesEmail(): void
     {
-        $cache = m::mock(Repository::class);
-        $hasher = m::mock(Hasher::class);
-        $user = m::mock(CanResetPassword::class);
-        $user->shouldReceive('getEmailForPasswordReset')->andReturn('foo@bar.com');
+        $cache = Double::for(Repository::class);
+        $hasher = Double::for(Hasher::class);
+        $user = Double::for(CanResetPassword::class);
+        $user->allows('getEmailForPasswordReset')->returns('foo@bar.com');
 
         $repository = new CacheTokenRepository($cache, $hasher, 'test-hash-key');
 
@@ -190,14 +194,14 @@ class CacheTokenRepositoryTest extends TestCase
 
     public function testDeleteExpiredIsNoOp(): void
     {
-        $cache = m::mock(Repository::class);
-        $hasher = m::mock(Hasher::class);
+        $cache = Double::for(Repository::class);
+        $hasher = Double::for(Hasher::class);
 
         // No cache interaction expected — TTL handles expiry
         $repository = new CacheTokenRepository($cache, $hasher, 'test-hash-key');
         $repository->deleteExpired();
 
-        // If we get here without exceptions, it's a no-op as expected
-        $this->assertTrue(true);
+        $cache->unused();
+        $hasher->unused();
     }
 }

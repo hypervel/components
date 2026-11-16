@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Data\Support;
 
 use Hypervel\Data\Attributes\DataCollectionOf;
 use Hypervel\Data\Contracts\BaseData;
+use Hypervel\Data\Data;
 use Hypervel\Data\DataCollection;
 use Hypervel\Data\Enums\DataTypeKind;
 use Hypervel\Data\Optional;
@@ -24,7 +25,6 @@ use Hypervel\Tests\Data\Fixtures\Collections\SimpleDataCollection;
 use Hypervel\Tests\Data\Fixtures\SimpleData;
 use Hypervel\Tests\Data\Fixtures\Types\ImportedData as GroupedImportedData;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use ReflectionMethod;
@@ -147,7 +147,7 @@ class DataTypeFactoryTest extends TestCase
 
         $this->assertInstanceOf(UnionType::class, $itemType);
         $this->assertTrue($itemType->acceptsValue('value'));
-        $this->assertTrue($itemType->acceptsValue(m::mock(DataTypeFactoryItemData::class)));
+        $this->assertTrue($itemType->acceptsValue(new DataTypeFactoryItemData));
         $this->assertSame(DataTypeFactoryItemData::class, $unionItems->getNamedTypes()[0]->dataClass);
         $this->assertSame($strings->getIterableTypes()[0], $strings->getNonDataIterableType());
         $this->assertCount(2, $ambiguousIterables->getIterableTypes());
@@ -275,7 +275,7 @@ class DataTypeFactoryTest extends TestCase
         $this->assertSame($data->getNamedTypes()[0], $data->getDataObjectType());
         $this->assertSame(DataTypeFactoryItemData::class, $data->getDataObjectClass());
         $this->assertNull($data->getDataCollectableType());
-        $this->assertTrue($data->acceptsValue(m::mock(DataTypeFactoryItemData::class)));
+        $this->assertTrue($data->acceptsValue(new DataTypeFactoryItemData));
         $this->assertSame(
             $dataCollection->getNamedTypes()[0],
             $dataCollection->getDataCollectableType(),
@@ -492,7 +492,7 @@ class DataTypeFactoryBothTypes implements DataTypeFactoryFirstType, DataTypeFact
 {
 }
 
-abstract class DataTypeFactoryItemData implements BaseData
+class DataTypeFactoryItemData extends Data
 {
 }
 

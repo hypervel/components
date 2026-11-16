@@ -13,7 +13,8 @@ use Hypervel\Engine\Exceptions\SocketConnectException;
 use Hypervel\Engine\SafeSocket;
 use Hypervel\Engine\Socket;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Psr\Log\LoggerInterface;
 use ReflectionProperty;
@@ -29,6 +30,8 @@ use function Hypervel\Coroutine\go;
 
 class SocketTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testSocketConnectFailed(): void
     {
         try {
@@ -371,13 +374,13 @@ class SocketTest extends TestCase
     {
         $sendFailure = new RuntimeException('Send failed.');
         $loggingFailure = new RuntimeException('Logging failed.');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($loggingFailure);
+        $handler = Double::for(ExceptionHandler::class);
+        $handler->expects('report')->with($loggingFailure);
         $container = new Container;
         $container->instance(ExceptionHandler::class, $handler);
         Container::setInstance($container);
-        $logger = m::mock(LoggerInterface::class);
-        $logger->shouldReceive('critical')->once()->with((string) $sendFailure)->andThrow($loggingFailure);
+        $logger = Double::for(LoggerInterface::class);
+        $logger->expects('critical')->with((string) $sendFailure)->throws($loggingFailure);
         $nativeSocket = new FailingSendSocket($sendFailure);
         $socket = new SafeSocket($nativeSocket, logger: $logger);
         /** @var Channel $channel */

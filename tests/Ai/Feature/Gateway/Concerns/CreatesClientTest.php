@@ -13,10 +13,13 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class CreatesClientTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Configure an application-owned provider before package boot.
      */
@@ -52,8 +55,8 @@ class CreatesClientTest extends TestCase
         config(['ai.providers.added-later' => ['driver' => 'openai', 'key' => 'test-key']]);
 
         foreach (['configured', 'on-demand', 'added-later'] as $name) {
-            $provider = m::mock(Provider::class);
-            $provider->shouldReceive('name')->andReturn($name);
+            $provider = Double::for(Provider::class);
+            $provider->allows('name')->returns($name);
             $client = $this->httpClient(provider: $provider);
 
             $this->assertSame(
@@ -77,10 +80,10 @@ class CreatesClientTest extends TestCase
         $requests = [];
 
         foreach (['first', 'second'] as $index => $key) {
-            $provider = m::mock(BaseProvider::class);
-            $provider->shouldReceive('name')->andReturn('configured');
-            $provider->shouldReceive('providerCredentials')->andReturn(['key' => $key]);
-            $provider->shouldReceive('additionalConfiguration')->andReturn(['headers' => ['X-Request' => $key]]);
+            $provider = Double::for(BaseProvider::class);
+            $provider->allows('name')->returns('configured');
+            $provider->allows('providerCredentials')->returns(['key' => $key]);
+            $provider->allows('additionalConfiguration')->returns(['headers' => ['X-Request' => $key]]);
             $requests[] = $gateway->client($provider, $index + 1);
         }
 

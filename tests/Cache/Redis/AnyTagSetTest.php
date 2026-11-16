@@ -7,19 +7,15 @@ namespace Hypervel\Tests\Cache\Redis;
 use Generator;
 use Hypervel\Cache\Redis\AnyTagSet;
 use Hypervel\Cache\RedisStore;
-use Mockery as m;
+use Hypervel\Redis\PhpRedisConnection;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Matching\Argument;
 
-/**
- * Tests for AnyTagSet class.
- *
- * Uses MocksRedisConnections to mock at the Redis client level,
- * allowing the full operation chain to execute.
- */
 class AnyTagSetTest extends RedisCacheTestCase
 {
     private RedisStore $store;
 
-    private m\MockInterface $connection;
+    private PhpRedisConnection&DoubleInterface $connection;
 
     /**
      * Set up test fixtures.
@@ -59,15 +55,13 @@ class AnyTagSetTest extends RedisCacheTestCase
         $tagSet = new AnyTagSet($this->store, ['users']);
 
         // GetTaggedKeys checks HLEN then uses HKEYS for small hashes
-        $this->connection->shouldReceive('hlen')
-            ->once()
+        $this->connection->client()->expects('hlen')
             ->with('prefix:_any:tag:users:entries')
-            ->andReturn(3);
+            ->returns(3);
 
-        $this->connection->shouldReceive('hkeys')
-            ->once()
+        $this->connection->client()->expects('hkeys')
             ->with('prefix:_any:tag:users:entries')
-            ->andReturn(['key1', 'key2', 'key3']);
+            ->returns(['key1', 'key2', 'key3']);
 
         $entries = $tagSet->entries();
 
@@ -80,24 +74,20 @@ class AnyTagSetTest extends RedisCacheTestCase
         $tagSet = new AnyTagSet($this->store, ['users', 'posts']);
 
         // First tag 'users' has keys key1, key2
-        $this->connection->shouldReceive('hlen')
-            ->once()
+        $this->connection->client()->expects('hlen')
             ->with('prefix:_any:tag:users:entries')
-            ->andReturn(2);
-        $this->connection->shouldReceive('hkeys')
-            ->once()
+            ->returns(2);
+        $this->connection->client()->expects('hkeys')
             ->with('prefix:_any:tag:users:entries')
-            ->andReturn(['key1', 'key2']);
+            ->returns(['key1', 'key2']);
 
         // Second tag 'posts' has keys key2, key3 (key2 is duplicate)
-        $this->connection->shouldReceive('hlen')
-            ->once()
+        $this->connection->client()->expects('hlen')
             ->with('prefix:_any:tag:posts:entries')
-            ->andReturn(2);
-        $this->connection->shouldReceive('hkeys')
-            ->once()
+            ->returns(2);
+        $this->connection->client()->expects('hkeys')
             ->with('prefix:_any:tag:posts:entries')
-            ->andReturn(['key2', 'key3']);
+            ->returns(['key2', 'key3']);
 
         $entries = $tagSet->entries();
 
@@ -111,14 +101,12 @@ class AnyTagSetTest extends RedisCacheTestCase
     {
         $tagSet = new AnyTagSet($this->store, ['users']);
 
-        $this->connection->shouldReceive('hlen')
-            ->once()
+        $this->connection->client()->expects('hlen')
             ->with('prefix:_any:tag:users:entries')
-            ->andReturn(0);
-        $this->connection->shouldReceive('hkeys')
-            ->once()
+            ->returns(0);
+        $this->connection->client()->expects('hkeys')
             ->with('prefix:_any:tag:users:entries')
-            ->andReturn([]);
+            ->returns([]);
 
         $entries = $tagSet->entries();
 
@@ -139,21 +127,19 @@ class AnyTagSetTest extends RedisCacheTestCase
         $tagSet = new AnyTagSet($this->store, ['users']);
 
         // GetTaggedKeys for the flush operation
-        $this->connection->shouldReceive('hlen')
-            ->once()
+        $this->connection->client()->expects('hlen')
             ->with('prefix:_any:tag:users:entries')
-            ->andReturn(2);
-        $this->connection->shouldReceive('hkeys')
-            ->once()
+            ->returns(2);
+        $this->connection->client()->expects('hkeys')
             ->with('prefix:_any:tag:users:entries')
-            ->andReturn(['key1', 'key2']);
+            ->returns(['key1', 'key2']);
 
         $this->connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key2:_any:tags', 'prefix:key1', 'prefix:key2'], [2, 'key1', 'key2'])
-            ->andReturn(1);
+            ->with(Argument::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key2:_any:tags', 'prefix:key1', 'prefix:key2'], [2, 'key1', 'key2'])
+            ->returns(1);
         $this->connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
-            ->andReturn([1, 1]);
+            ->with(Argument::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
+            ->returns([1, 1]);
 
         $this->assertTrue($tagSet->flush());
     }
@@ -163,21 +149,19 @@ class AnyTagSetTest extends RedisCacheTestCase
         $tagSet = new AnyTagSet($this->store, ['users', 'posts']);
 
         // GetTaggedKeys for the flush operation (only 'users' tag)
-        $this->connection->shouldReceive('hlen')
-            ->once()
+        $this->connection->client()->expects('hlen')
             ->with('prefix:_any:tag:users:entries')
-            ->andReturn(1);
-        $this->connection->shouldReceive('hkeys')
-            ->once()
+            ->returns(1);
+        $this->connection->client()->expects('hkeys')
             ->with('prefix:_any:tag:users:entries')
-            ->andReturn(['key1']);
+            ->returns(['key1']);
 
         $this->connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key1'], [1, 'key1'])
-            ->andReturn(1);
+            ->with(Argument::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key1'], [1, 'key1'])
+            ->returns(1);
         $this->connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
-            ->andReturn([1, 1]);
+            ->with(Argument::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
+            ->returns([1, 1]);
 
         $result = $tagSet->flushTag('users');
 
@@ -189,33 +173,29 @@ class AnyTagSetTest extends RedisCacheTestCase
         $tagSet = new AnyTagSet($this->store, ['users', 'posts']);
 
         // GetTaggedKeys for both tags
-        $this->connection->shouldReceive('hlen')
-            ->once()
+        $this->connection->client()->expects('hlen')
             ->with('prefix:_any:tag:users:entries')
-            ->andReturn(1);
-        $this->connection->shouldReceive('hkeys')
-            ->once()
+            ->returns(1);
+        $this->connection->client()->expects('hkeys')
             ->with('prefix:_any:tag:users:entries')
-            ->andReturn(['key1']);
+            ->returns(['key1']);
 
-        $this->connection->shouldReceive('hlen')
-            ->once()
+        $this->connection->client()->expects('hlen')
             ->with('prefix:_any:tag:posts:entries')
-            ->andReturn(1);
-        $this->connection->shouldReceive('hkeys')
-            ->once()
+            ->returns(1);
+        $this->connection->client()->expects('hkeys')
             ->with('prefix:_any:tag:posts:entries')
-            ->andReturn(['key2']);
+            ->returns(['key2']);
 
         $this->connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key1'], [1, 'key1'])
-            ->andReturn(1);
+            ->with(Argument::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key1'], [1, 'key1'])
+            ->returns(1);
         $this->connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:posts:entries', 'prefix:key2:_any:tags', 'prefix:key2'], [1, 'key2'])
-            ->andReturn(1);
+            ->with(Argument::type('string'), ['prefix:_any:tag:posts:entries', 'prefix:key2:_any:tags', 'prefix:key2'], [1, 'key2'])
+            ->returns(1);
         $this->connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries', 'prefix:_any:tag:posts:entries'], ['users', 'posts'])
-            ->andReturn([2, 2]);
+            ->with(Argument::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries', 'prefix:_any:tag:posts:entries'], ['users', 'posts'])
+            ->returns([2, 2]);
 
         $this->assertTrue($tagSet->reset());
     }

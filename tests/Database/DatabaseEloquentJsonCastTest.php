@@ -18,11 +18,14 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Fluent;
 use Hypervel\Testbench\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonException;
-use Mockery as m;
 
 class DatabaseEloquentJsonCastTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testPrimitiveJsonCastRoundTripsAtTheMaximumNestingDepth(): void
     {
         $value = $this->nestedValue(512);
@@ -137,7 +140,7 @@ class DatabaseEloquentJsonCastTest extends TestCase
     {
         $model = new JsonCastModel;
         $model->mergeCasts(['encrypted_payload' => 'encrypted:array']);
-        $encrypter = m::mock(Encrypter::class);
+        $encrypter = Double::for(Encrypter::class);
         $encrypter->expects('encrypt')->never();
         Model::encryptUsing($encrypter);
 

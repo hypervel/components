@@ -11,16 +11,20 @@ use Hypervel\Contracts\Cache\Lock;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class CacheStackStoreLocksTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testLockDelegatesToBottomLayer(): void
     {
-        $bottom = m::mock(Store::class, LockProvider::class);
-        $lock = m::mock(Lock::class);
+        $bottom = Double::for(Store::class, LockProvider::class);
+        $lock = Double::for(Lock::class);
 
-        $bottom->shouldReceive('lock')->once()->with('name', 30, 'owner')->andReturn($lock);
+        $bottom->expects('lock')->with('name', 30, 'owner')->returns($lock);
 
         $stack = new StackStore([$this->plainStore(), $bottom]);
 
@@ -29,10 +33,10 @@ class CacheStackStoreLocksTest extends TestCase
 
     public function testRestoreLockDelegatesToBottomLayer(): void
     {
-        $bottom = m::mock(Store::class, LockProvider::class);
-        $lock = m::mock(Lock::class);
+        $bottom = Double::for(Store::class, LockProvider::class);
+        $lock = Double::for(Lock::class);
 
-        $bottom->shouldReceive('restoreLock')->once()->with('name', 'owner')->andReturn($lock);
+        $bottom->expects('restoreLock')->with('name', 'owner')->returns($lock);
 
         $stack = new StackStore([$this->plainStore(), $bottom]);
 
@@ -51,16 +55,16 @@ class CacheStackStoreLocksTest extends TestCase
 
     public function testSupportsFlushingLocksReflectsBottomLayerProbe(): void
     {
-        $bottom = m::mock(Store::class, CanFlushLocks::class);
-        $bottom->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
+        $bottom = Double::for(Store::class, CanFlushLocks::class);
+        $bottom->expects('supportsFlushingLocks')->returns(true);
 
         $this->assertTrue((new StackStore([$this->plainStore(), $bottom]))->supportsFlushingLocks());
     }
 
     public function testSupportsFlushingLocksReturnsFalseWhenBottomLayerProbeIsFalse(): void
     {
-        $bottom = m::mock(Store::class, CanFlushLocks::class);
-        $bottom->shouldReceive('supportsFlushingLocks')->once()->andReturnFalse();
+        $bottom = Double::for(Store::class, CanFlushLocks::class);
+        $bottom->expects('supportsFlushingLocks')->returns(false);
 
         $this->assertFalse((new StackStore([$this->plainStore(), $bottom]))->supportsFlushingLocks());
     }
@@ -72,18 +76,18 @@ class CacheStackStoreLocksTest extends TestCase
 
     public function testFlushLocksDelegatesToBottomLayer(): void
     {
-        $bottom = m::mock(Store::class, CanFlushLocks::class);
-        $bottom->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
-        $bottom->shouldReceive('flushLocks')->once()->andReturnTrue();
+        $bottom = Double::for(Store::class, CanFlushLocks::class);
+        $bottom->expects('supportsFlushingLocks')->returns(true);
+        $bottom->expects('flushLocks')->returns(true);
 
         $this->assertTrue((new StackStore([$this->plainStore(), $bottom]))->flushLocks());
     }
 
     public function testFlushLocksThrowsWhenBottomLayerCannotFlushLocks(): void
     {
-        $bottom = m::mock(Store::class, CanFlushLocks::class);
-        $bottom->shouldReceive('supportsFlushingLocks')->once()->andReturnFalse();
-        $bottom->shouldNotReceive('flushLocks');
+        $bottom = Double::for(Store::class, CanFlushLocks::class);
+        $bottom->expects('supportsFlushingLocks')->returns(false);
+        $bottom->expects('flushLocks')->never();
 
         $stack = new StackStore([$this->plainStore(), $bottom]);
 
@@ -95,14 +99,17 @@ class CacheStackStoreLocksTest extends TestCase
 
     public function testHasSeparateLockStoreDelegatesToBottomLayer(): void
     {
-        $bottom = m::mock(Store::class, CanFlushLocks::class);
-        $bottom->shouldReceive('hasSeparateLockStore')->once()->andReturnTrue();
+        $bottom = Double::for(Store::class, CanFlushLocks::class);
+        $bottom->expects('hasSeparateLockStore')->returns(true);
 
         $this->assertTrue((new StackStore([$this->plainStore(), $bottom]))->hasSeparateLockStore());
     }
 
-    private function plainStore(): Store|m\MockInterface
+    /**
+     * Create a store without lock capabilities.
+     */
+    private function plainStore(): Store&DoubleInterface
     {
-        return m::mock(Store::class);
+        return Double::for(Store::class);
     }
 }

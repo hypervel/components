@@ -17,8 +17,9 @@ use Hypervel\Database\QueryException;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Throwable;
@@ -27,6 +28,8 @@ use function Hypervel\Coroutine\parallel;
 
 class DatabaseDriverConnectionLeaseTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected int $generations = 0;
 
     /**
@@ -190,8 +193,8 @@ class DatabaseDriverConnectionLeaseTest extends TestCase
     public function testQueriesRunWhileReconnectingDoNotReconnectAgain(): void
     {
         $failure = new RuntimeException('The remote database connection was lost.');
-        $detector = m::mock(LostConnectionDetector::class);
-        $detector->shouldReceive('causedByLostConnection')->with($failure)->andReturnTrue();
+        $detector = Double::for(LostConnectionDetector::class);
+        $detector->allows('causedByLostConnection')->with($failure)->returns(true);
         $this->app->instance(LostConnectionDetector::class, $detector);
         $connection = DB::connection('leased');
         $reconnects = 0;

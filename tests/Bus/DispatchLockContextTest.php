@@ -13,6 +13,7 @@ use Hypervel\Cache\Repository;
 use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Lock;
+use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
@@ -24,7 +25,8 @@ use Hypervel\Queue\BackgroundQueue;
 use Hypervel\Queue\DeferredQueue;
 use Hypervel\Queue\SyncQueue;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -34,17 +36,19 @@ use WeakReference;
 
 class DispatchLockContextTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testReleaseAttemptsBothLocksAndPreservesCancellationFromDebounceCleanup(): void
     {
         $failure = new RuntimeException('Debounce cleanup failed.', previous: new CanceledException);
-        $unique = m::mock(Cache::class);
-        $lock = m::mock(Lock::class);
-        $unique->shouldReceive('lock')->once()->with('unique')->andReturn($lock);
-        $lock->shouldReceive('forceRelease')->once()->andThrow(new RuntimeException('Unique release failed.'));
-        $debounce = m::mock(Cache::class);
-        $debounce->shouldReceive('get')->once()->with('debounce')->andReturn('owner');
-        $debounce->shouldReceive('forget')->once()->with('debounce')->andThrow($failure);
-        $debounce->shouldReceive('forget')->once()->with('debounce:first_dispatched_at')->andReturnTrue();
+        $unique = Double::for(Cache::class, LockProvider::class);
+        $lock = Double::for(Lock::class);
+        $unique->expects('lock')->with('unique')->returns($lock);
+        $lock->expects('forceRelease')->throws(new RuntimeException('Unique release failed.'));
+        $debounce = Double::for(Cache::class);
+        $debounce->expects('get')->with('debounce')->returns('owner');
+        $debounce->expects('forget')->with('debounce')->throws($failure);
+        $debounce->expects('forget')->with('debounce:first_dispatched_at')->returns(true);
         $job = new DispatchLockContextJob('cleanup');
         DispatchLockContext::registerUnique($job, $unique, null, 'unique', '');
         DispatchLockContext::registerDebounce($job, $debounce, 'debounce', 'owner');
@@ -200,17 +204,16 @@ class DispatchLockContextTest extends TestCase
     public function testMetadataSurvivesUntilAfterCommitPayloadCreation(string $queueClass, bool $delayed): void
     {
         $container = new Container;
-        $container->instance(Cache::class, m::mock(Cache::class));
+        $container->instance(Cache::class, Double::for(Cache::class));
         $container->instance(ContainerContract::class, $container);
         $container->instance(EventDispatcher::class, new EventsDispatcher($container));
         Container::setInstance($container);
 
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')
-            ->once()
-            ->andReturnUsing(fn (callable $callback) => $callback());
-        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturnNull();
+        $transactionManager = Double::for(DatabaseTransactionsManager::class);
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')
+            ->resolves(fn (callable $callback) => $callback());
+        $transactionManager->expects('addCallbackForRollback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
 
         $metadata = null;

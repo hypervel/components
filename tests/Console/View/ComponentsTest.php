@@ -22,7 +22,9 @@ use Hypervel\Console\View\TaskResult;
 use Hypervel\Foundation\Application;
 use Hypervel\Tests\Console\Concerns\CreatesAnsweredOutputStyles;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Question\Question;
@@ -30,6 +32,7 @@ use Symfony\Component\Console\Question\Question;
 class ComponentsTest extends TestCase
 {
     use CreatesAnsweredOutputStyles;
+    use VerifiesDoubles;
 
     public function testAlert(): void
     {
@@ -129,16 +132,15 @@ class ComponentsTest extends TestCase
 
     public function testAskWithCompletionAcceptsGeneratorValues(): void
     {
-        $output = m::mock(OutputStyle::class);
+        $output = Double::for(OutputStyle::class);
 
-        $output->shouldReceive('askQuestion')
-            ->with(m::on(function (Question $question): bool {
+        $output->expects('askQuestion')
+            ->with(Argument::satisfies(function (Question $question): bool {
                 $this->assertSame(['a', 'b'], $question->getAutocompleterValues());
 
                 return true;
             }))
-            ->once()
-            ->andReturn('b');
+            ->returns('b');
 
         $choices = (function (): Generator {
             yield 'a';

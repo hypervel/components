@@ -12,15 +12,18 @@ use Hypervel\Cache\Repository;
 use Hypervel\Cache\TagMode;
 use Hypervel\Redis\PhpRedisClusterConnection;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class CleanupVerificationCheckTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testVerificationScansLogicalPatternsThroughTheClusterAwareHelper(): void
     {
-        $connection = m::mock(PhpRedisClusterConnection::class);
-        $store = m::mock(RedisStore::class);
-        $store->allows('getTagMode')->andReturn(TagMode::All);
+        $connection = Double::for(PhpRedisClusterConnection::class);
+        $store = Double::for(RedisStore::class);
+        $store->allows('getTagMode')->returns(TagMode::All);
         $context = new DoctorContext(
             cache: new Repository($store),
             store: $store,
@@ -36,7 +39,7 @@ class CleanupVerificationCheckTest extends TestCase
             'cache:_all:tag:_doctor:test:*',
         ] as $pattern) {
             $connection->expects('safeScan')->with($pattern, 100)
-                ->andReturnUsing(static function () use ($pattern): Generator {
+                ->resolves(static function () use ($pattern): Generator {
                     if ($pattern === 'cache:_doctor:test:*') {
                         yield 'cache:_doctor:test:leftover';
                     }

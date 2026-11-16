@@ -12,7 +12,9 @@ use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use stdClass;
 
 enum CacheRepositoryEnumTestKeyBackedEnum: string
@@ -54,10 +56,12 @@ enum CacheRepositoryEnumTestTagIntBackedEnum: int
 
 class CacheRepositoryEnumTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testGetWithBackedEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->once()->with('user-profile')->andReturn('cached-value');
+        $repo->getStore()->expects('get')->with('user-profile')->returns('cached-value');
 
         $this->assertSame('cached-value', $repo->get(CacheRepositoryEnumTestKeyBackedEnum::UserProfile));
     }
@@ -65,7 +69,7 @@ class CacheRepositoryEnumTest extends TestCase
     public function testGetWithUnitEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->once()->with('Dashboard')->andReturn('dashboard-data');
+        $repo->getStore()->expects('get')->with('Dashboard')->returns('dashboard-data');
 
         $this->assertSame('dashboard-data', $repo->get(CacheRepositoryEnumTestKeyUnitEnum::Dashboard));
     }
@@ -73,7 +77,7 @@ class CacheRepositoryEnumTest extends TestCase
     public function testGetWithIntBackedEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->once()->with('1')->andReturn('counter-value');
+        $repo->getStore()->expects('get')->with('1')->returns('counter-value');
 
         $this->assertSame('counter-value', $repo->get(CacheRepositoryEnumTestKeyIntBackedEnum::Counter));
     }
@@ -163,7 +167,7 @@ class CacheRepositoryEnumTest extends TestCase
     public function testHasWithBackedEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->once()->with('user-profile')->andReturn('value');
+        $repo->getStore()->expects('get')->with('user-profile')->returns('value');
 
         $this->assertTrue($repo->has(CacheRepositoryEnumTestKeyBackedEnum::UserProfile));
     }
@@ -171,7 +175,7 @@ class CacheRepositoryEnumTest extends TestCase
     public function testHasWithUnitEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->once()->with('Dashboard')->andReturn(null);
+        $repo->getStore()->expects('get')->with('Dashboard')->returns(null);
 
         $this->assertFalse($repo->has(CacheRepositoryEnumTestKeyUnitEnum::Dashboard));
     }
@@ -179,7 +183,7 @@ class CacheRepositoryEnumTest extends TestCase
     public function testMissingWithBackedEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->once()->with('settings')->andReturn(null);
+        $repo->getStore()->expects('get')->with('settings')->returns(null);
 
         $this->assertTrue($repo->missing(CacheRepositoryEnumTestKeyBackedEnum::Settings));
     }
@@ -187,7 +191,7 @@ class CacheRepositoryEnumTest extends TestCase
     public function testPutWithBackedEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('put')->once()->with('user-profile', 'value', 60)->andReturn(true);
+        $repo->getStore()->expects('put')->with('user-profile', 'value', 60)->returns(true);
 
         $this->assertTrue($repo->put(CacheRepositoryEnumTestKeyBackedEnum::UserProfile, 'value', 60));
     }
@@ -195,7 +199,7 @@ class CacheRepositoryEnumTest extends TestCase
     public function testPutWithUnitEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('put')->once()->with('Dashboard', 'data', 120)->andReturn(true);
+        $repo->getStore()->expects('put')->with('Dashboard', 'data', 120)->returns(true);
 
         $this->assertTrue($repo->put(CacheRepositoryEnumTestKeyUnitEnum::Dashboard, 'data', 120));
     }
@@ -203,7 +207,7 @@ class CacheRepositoryEnumTest extends TestCase
     public function testSetWithBackedEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('put')->once()->with('settings', 'config', 300)->andReturn(true);
+        $repo->getStore()->expects('put')->with('settings', 'config', 300)->returns(true);
 
         $this->assertTrue($repo->set(CacheRepositoryEnumTestKeyBackedEnum::Settings, 'config', 300));
     }
@@ -211,8 +215,8 @@ class CacheRepositoryEnumTest extends TestCase
     public function testAddWithBackedEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->once()->with('user-profile')->andReturn(null);
-        $repo->getStore()->shouldReceive('put')->once()->with('user-profile', 'new-value', 60)->andReturn(true);
+        $repo->getStore()->expects('get')->with('user-profile')->returns(null);
+        $repo->getStore()->expects('put')->with('user-profile', 'new-value', 60)->returns(true);
 
         $this->assertTrue($repo->add(CacheRepositoryEnumTestKeyBackedEnum::UserProfile, 'new-value', 60));
     }
@@ -220,8 +224,8 @@ class CacheRepositoryEnumTest extends TestCase
     public function testAddWithUnitEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->once()->with('Analytics')->andReturn(null);
-        $repo->getStore()->shouldReceive('put')->once()->with('Analytics', 'data', 60)->andReturn(true);
+        $repo->getStore()->expects('get')->with('Analytics')->returns(null);
+        $repo->getStore()->expects('put')->with('Analytics', 'data', 60)->returns(true);
 
         $this->assertTrue($repo->add(CacheRepositoryEnumTestKeyUnitEnum::Analytics, 'data', 60));
     }
@@ -229,7 +233,7 @@ class CacheRepositoryEnumTest extends TestCase
     public function testIncrementWithBackedEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('increment')->once()->with('user-profile', 1)->andReturn(2);
+        $repo->getStore()->expects('increment')->with('user-profile', 1)->returns(2);
 
         $this->assertSame(2, $repo->increment(CacheRepositoryEnumTestKeyBackedEnum::UserProfile));
     }
@@ -237,7 +241,7 @@ class CacheRepositoryEnumTest extends TestCase
     public function testIncrementWithUnitEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('increment')->once()->with('Dashboard', 5)->andReturn(10);
+        $repo->getStore()->expects('increment')->with('Dashboard', 5)->returns(10);
 
         $this->assertSame(10, $repo->increment(CacheRepositoryEnumTestKeyUnitEnum::Dashboard, 5));
     }
@@ -245,7 +249,7 @@ class CacheRepositoryEnumTest extends TestCase
     public function testDecrementWithBackedEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('decrement')->once()->with('settings', 1)->andReturn(4);
+        $repo->getStore()->expects('decrement')->with('settings', 1)->returns(4);
 
         $this->assertSame(4, $repo->decrement(CacheRepositoryEnumTestKeyBackedEnum::Settings));
     }
@@ -253,7 +257,7 @@ class CacheRepositoryEnumTest extends TestCase
     public function testDecrementWithUnitEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('decrement')->once()->with('Analytics', 3)->andReturn(7);
+        $repo->getStore()->expects('decrement')->with('Analytics', 3)->returns(7);
 
         $this->assertSame(7, $repo->decrement(CacheRepositoryEnumTestKeyUnitEnum::Analytics, 3));
     }
@@ -261,7 +265,7 @@ class CacheRepositoryEnumTest extends TestCase
     public function testForeverWithBackedEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('forever')->once()->with('user-profile', 'permanent')->andReturn(true);
+        $repo->getStore()->expects('forever')->with('user-profile', 'permanent')->returns(true);
 
         $this->assertTrue($repo->forever(CacheRepositoryEnumTestKeyBackedEnum::UserProfile, 'permanent'));
     }
@@ -269,7 +273,7 @@ class CacheRepositoryEnumTest extends TestCase
     public function testForeverWithUnitEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('forever')->once()->with('Dashboard', 'forever-data')->andReturn(true);
+        $repo->getStore()->expects('forever')->with('Dashboard', 'forever-data')->returns(true);
 
         $this->assertTrue($repo->forever(CacheRepositoryEnumTestKeyUnitEnum::Dashboard, 'forever-data'));
     }
@@ -277,8 +281,8 @@ class CacheRepositoryEnumTest extends TestCase
     public function testRememberWithBackedEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->once()->with('settings')->andReturn(null);
-        $repo->getStore()->shouldReceive('put')->once()->with('settings', 'computed', 60)->andReturn(true);
+        $repo->getStore()->expects('get')->with('settings')->returns(null);
+        $repo->getStore()->expects('put')->with('settings', 'computed', 60)->returns(true);
 
         $result = $repo->remember(CacheRepositoryEnumTestKeyBackedEnum::Settings, 60, fn () => 'computed');
 
@@ -288,8 +292,8 @@ class CacheRepositoryEnumTest extends TestCase
     public function testRememberWithUnitEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->once()->with('Analytics')->andReturn(null);
-        $repo->getStore()->shouldReceive('put')->once()->with('Analytics', 'analytics-data', 120)->andReturn(true);
+        $repo->getStore()->expects('get')->with('Analytics')->returns(null);
+        $repo->getStore()->expects('put')->with('Analytics', 'analytics-data', 120)->returns(true);
 
         $result = $repo->remember(CacheRepositoryEnumTestKeyUnitEnum::Analytics, 120, fn () => 'analytics-data');
 
@@ -299,8 +303,8 @@ class CacheRepositoryEnumTest extends TestCase
     public function testRememberForeverWithBackedEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->once()->with('user-profile')->andReturn(null);
-        $repo->getStore()->shouldReceive('forever')->once()->with('user-profile', 'forever-value')->andReturn(true);
+        $repo->getStore()->expects('get')->with('user-profile')->returns(null);
+        $repo->getStore()->expects('forever')->with('user-profile', 'forever-value')->returns(true);
 
         $result = $repo->rememberForever(CacheRepositoryEnumTestKeyBackedEnum::UserProfile, fn () => 'forever-value');
 
@@ -310,8 +314,8 @@ class CacheRepositoryEnumTest extends TestCase
     public function testSearWithUnitEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->once()->with('Dashboard')->andReturn(null);
-        $repo->getStore()->shouldReceive('forever')->once()->with('Dashboard', 'seared')->andReturn(true);
+        $repo->getStore()->expects('get')->with('Dashboard')->returns(null);
+        $repo->getStore()->expects('forever')->with('Dashboard', 'seared')->returns(true);
 
         $result = $repo->sear(CacheRepositoryEnumTestKeyUnitEnum::Dashboard, fn () => 'seared');
 
@@ -321,7 +325,7 @@ class CacheRepositoryEnumTest extends TestCase
     public function testForgetWithBackedEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('forget')->once()->with('user-profile')->andReturn(true);
+        $repo->getStore()->expects('forget')->with('user-profile')->returns(true);
 
         $this->assertTrue($repo->forget(CacheRepositoryEnumTestKeyBackedEnum::UserProfile));
     }
@@ -329,7 +333,7 @@ class CacheRepositoryEnumTest extends TestCase
     public function testForgetWithUnitEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('forget')->once()->with('Dashboard')->andReturn(true);
+        $repo->getStore()->expects('forget')->with('Dashboard')->returns(true);
 
         $this->assertTrue($repo->forget(CacheRepositoryEnumTestKeyUnitEnum::Dashboard));
     }
@@ -337,7 +341,7 @@ class CacheRepositoryEnumTest extends TestCase
     public function testDeleteWithBackedEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('forget')->once()->with('settings')->andReturn(true);
+        $repo->getStore()->expects('forget')->with('settings')->returns(true);
 
         $this->assertTrue($repo->delete(CacheRepositoryEnumTestKeyBackedEnum::Settings));
     }
@@ -345,8 +349,8 @@ class CacheRepositoryEnumTest extends TestCase
     public function testPullWithBackedEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->once()->with('user-profile')->andReturn('pulled-value');
-        $repo->getStore()->shouldReceive('forget')->once()->with('user-profile')->andReturn(true);
+        $repo->getStore()->expects('get')->with('user-profile')->returns('pulled-value');
+        $repo->getStore()->expects('forget')->with('user-profile')->returns(true);
 
         $this->assertSame('pulled-value', $repo->pull(CacheRepositoryEnumTestKeyBackedEnum::UserProfile));
     }
@@ -354,8 +358,8 @@ class CacheRepositoryEnumTest extends TestCase
     public function testPullWithUnitEnum(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->once()->with('Analytics')->andReturn('analytics');
-        $repo->getStore()->shouldReceive('forget')->once()->with('Analytics')->andReturn(true);
+        $repo->getStore()->expects('get')->with('Analytics')->returns('analytics');
+        $repo->getStore()->expects('forget')->with('Analytics')->returns(true);
 
         $this->assertSame('analytics', $repo->pull(CacheRepositoryEnumTestKeyUnitEnum::Analytics));
     }
@@ -438,24 +442,24 @@ class CacheRepositoryEnumTest extends TestCase
 
     public function testTagsWithBackedEnumVariadicArgs(): void
     {
-        $store = m::mock(ArrayStore::class);
+        $store = Double::for(ArrayStore::class);
         $repo = new Repository($store);
 
-        $taggedCache = m::mock(TaggedCache::class);
-        $taggedCache->shouldReceive('setDefaultCacheTime')->andReturnSelf();
-        $store->shouldReceive('tags')->once()->with(['users', 'posts'])->andReturn($taggedCache);
+        $taggedCache = Double::for(TaggedCache::class);
+        $taggedCache->allows('setDefaultCacheTime');
+        $store->expects('tags')->with(['users', 'posts'])->returns($taggedCache);
 
         $repo->tags(CacheRepositoryEnumTestTagBackedEnum::Users, CacheRepositoryEnumTestTagBackedEnum::Posts);
     }
 
     public function testTagsWithUnitEnumVariadicArgs(): void
     {
-        $store = m::mock(ArrayStore::class);
+        $store = Double::for(ArrayStore::class);
         $repo = new Repository($store);
 
-        $taggedCache = m::mock(TaggedCache::class);
-        $taggedCache->shouldReceive('setDefaultCacheTime')->andReturnSelf();
-        $store->shouldReceive('tags')->once()->with(['Reports', 'Exports'])->andReturn($taggedCache);
+        $taggedCache = Double::for(TaggedCache::class);
+        $taggedCache->allows('setDefaultCacheTime');
+        $store->expects('tags')->with(['Reports', 'Exports'])->returns($taggedCache);
 
         $repo->tags(CacheRepositoryEnumTestTagUnitEnum::Reports, CacheRepositoryEnumTestTagUnitEnum::Exports);
     }
@@ -506,10 +510,10 @@ class CacheRepositoryEnumTest extends TestCase
 
     protected function getRepository(): Repository
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
-        $dispatcher->shouldReceive('dispatch')->with(m::any())->andReturnNull();
-        $repository = new Repository(m::mock(Store::class));
+        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher->allows('hasListeners')->returns(true);
+        $dispatcher->allows('dispatch')->with(Argument::any())->returns(null);
+        $repository = new Repository(Double::for(Store::class));
 
         $repository->setEventDispatcher($dispatcher);
 

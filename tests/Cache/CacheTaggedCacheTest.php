@@ -14,7 +14,9 @@ use Hypervel\Cache\TaggedCache;
 use Hypervel\Cache\VersionedTagSet;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -41,6 +43,8 @@ enum TaggedCacheTestKeyUnitEnum
 
 class CacheTaggedCacheTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCacheCanBeSavedWithMultipleTags(): void
     {
         $store = new ArrayStore;
@@ -106,31 +110,29 @@ class CacheTaggedCacheTest extends TestCase
 
     public function testVersionedTagResetAttemptsEveryTagAndAggregatesFalseResults(): void
     {
-        $store = m::mock(Store::class);
-        $store->shouldReceive('forever')
-            ->once()
-            ->with('tag:users:key', m::type('string'))
-            ->andReturnFalse();
-        $store->shouldReceive('forever')
-            ->once()
-            ->with('tag:posts:key', m::type('string'))
-            ->andReturnTrue();
+        $store = Double::for(Store::class);
+        $store->expects('forever')
+            ->with('tag:users:key', Argument::type('string'))
+            ->returns(false);
+        $store->expects('forever')
+            ->with('tag:posts:key', Argument::type('string'))
+            ->returns(true);
 
         $this->assertFalse((new VersionedTagSet($store, ['users', 'posts']))->reset());
     }
 
     public function testVersionedTagFlushAttemptsEveryTagAndTreatsMissingTagKeysAsSuccess(): void
     {
-        $store = m::mock(Store::class);
-        $store->shouldReceive('forget')->once()->with('tag:users:key')->andReturnFalse();
-        $store->shouldReceive('forget')->once()->with('tag:posts:key')->andReturnTrue();
+        $store = Double::for(Store::class);
+        $store->expects('forget')->with('tag:users:key')->returns(false);
+        $store->expects('forget')->with('tag:posts:key')->returns(true);
 
         $this->assertTrue((new VersionedTagSet($store, ['users', 'posts']))->flush());
     }
 
     public function testVersionedTagFlushUsesThePerTagExtensionPoint(): void
     {
-        $tagSet = new class(m::mock(Store::class), ['users', 'posts']) extends VersionedTagSet {
+        $tagSet = new class(Double::for(Store::class), ['users', 'posts']) extends VersionedTagSet {
             public array $flushed = [];
 
             public function flushTag(string $name): string
@@ -147,15 +149,15 @@ class CacheTaggedCacheTest extends TestCase
 
     public function testVersionedFlushTagReturnsItsKeyWhenTheTagDoesNotExist(): void
     {
-        $store = m::mock(Store::class);
-        $store->shouldReceive('forget')->once()->with('tag:users:key')->andReturnFalse();
+        $store = Double::for(Store::class);
+        $store->expects('forget')->with('tag:users:key')->returns(false);
 
         $this->assertSame('tag:users:key', (new VersionedTagSet($store))->flushTag('users'));
     }
 
     public function testVersionedTagResetUsesTheWriteExtensionPoint(): void
     {
-        $tagSet = new class(m::mock(Store::class), ['users', 'posts']) extends VersionedTagSet {
+        $tagSet = new class(Double::for(Store::class), ['users', 'posts']) extends VersionedTagSet {
             public array $written = [];
 
             protected function writeTagId(string $name, string $id): bool
@@ -173,19 +175,16 @@ class CacheTaggedCacheTest extends TestCase
     public function testVersionedTagResetAttemptsLaterTagsAndRethrowsTheFirstException(): void
     {
         $firstException = new RuntimeException('users failed');
-        $store = m::mock(Store::class);
-        $store->shouldReceive('forever')
-            ->once()
-            ->with('tag:users:key', m::type('string'))
-            ->andThrow($firstException);
-        $store->shouldReceive('forever')
-            ->once()
-            ->with('tag:posts:key', m::type('string'))
-            ->andThrow(new RuntimeException('posts failed'));
-        $store->shouldReceive('forever')
-            ->once()
-            ->with('tag:comments:key', m::type('string'))
-            ->andReturnTrue();
+        $store = Double::for(Store::class);
+        $store->expects('forever')
+            ->with('tag:users:key', Argument::type('string'))
+            ->throws($firstException);
+        $store->expects('forever')
+            ->with('tag:posts:key', Argument::type('string'))
+            ->throws(new RuntimeException('posts failed'));
+        $store->expects('forever')
+            ->with('tag:comments:key', Argument::type('string'))
+            ->returns(true);
 
         try {
             (new VersionedTagSet($store, ['users', 'posts', 'comments']))->reset();
@@ -198,13 +197,12 @@ class CacheTaggedCacheTest extends TestCase
     public function testVersionedTagFlushAttemptsLaterTagsAndRethrowsTheFirstException(): void
     {
         $firstException = new RuntimeException('users failed');
-        $store = m::mock(Store::class);
-        $store->shouldReceive('forget')->once()->with('tag:users:key')->andThrow($firstException);
-        $store->shouldReceive('forget')
-            ->once()
+        $store = Double::for(Store::class);
+        $store->expects('forget')->with('tag:users:key')->throws($firstException);
+        $store->expects('forget')
             ->with('tag:posts:key')
-            ->andThrow(new RuntimeException('posts failed'));
-        $store->shouldReceive('forget')->once()->with('tag:comments:key')->andReturnTrue();
+            ->throws(new RuntimeException('posts failed'));
+        $store->expects('forget')->with('tag:comments:key')->returns(true);
 
         try {
             (new VersionedTagSet($store, ['users', 'posts', 'comments']))->flush();
@@ -222,12 +220,11 @@ class CacheTaggedCacheTest extends TestCase
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
         }
-        $store = m::mock(Store::class);
-        $store->shouldReceive('forever')
-            ->once()
-            ->with('tag:users:key', m::type('string'))
-            ->andThrow($cancellation);
-        $store->shouldNotReceive('forever')->with('tag:posts:key', m::type('string'));
+        $store = Double::for(Store::class);
+        $store->expects('forever')
+            ->with('tag:users:key', Argument::type('string'))
+            ->throws($cancellation);
+        $store->expects('forever')->never()->with('tag:posts:key', Argument::type('string'));
 
         try {
             (new VersionedTagSet($store, ['users', 'posts']))->reset();
@@ -245,10 +242,10 @@ class CacheTaggedCacheTest extends TestCase
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
         }
-        $store = m::mock(Store::class);
-        $store->shouldReceive('forget')->once()->with('tag:earlier:key')->andThrow(new RuntimeException('Earlier tag failed.'));
-        $store->shouldReceive('forget')->once()->with('tag:users:key')->andThrow($cancellation);
-        $store->shouldNotReceive('forget')->with('tag:posts:key');
+        $store = Double::for(Store::class);
+        $store->expects('forget')->with('tag:earlier:key')->throws(new RuntimeException('Earlier tag failed.'));
+        $store->expects('forget')->with('tag:users:key')->throws($cancellation);
+        $store->expects('forget')->never()->with('tag:posts:key');
 
         try {
             (new VersionedTagSet($store, ['earlier', 'users', 'posts']))->flush();

@@ -13,24 +13,27 @@ use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonException;
-use Mockery as m;
 use PDO;
 use ReflectionClass;
 
 class DatabaseQueryGrammarTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testJsonContainsBindingRejectsUnencodableValues(): void
     {
         $this->expectException(JsonException::class);
 
-        (new Grammar(m::mock(Connection::class)))->prepareBindingForJsonContains(NAN);
+        (new Grammar(Double::for(Connection::class)))->prepareBindingForJsonContains(NAN);
     }
 
     public function testWrapIdentifierEscapesOneIdentifierWithoutApplyingTheTablePrefix(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldNotReceive('getTablePrefix');
+        $connection = Double::for(Connection::class);
+        $connection->expects('getTablePrefix')->never();
 
         $grammar = new Grammar($connection);
 
@@ -41,8 +44,8 @@ class DatabaseQueryGrammarTest extends TestCase
 
     public function testQualifiedColumnsPrefixOnlyTheTableSegment(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getTablePrefix')->andReturn('app_');
+        $connection = Double::for(Connection::class);
+        $connection->allows('getTablePrefix')->returns('app_');
         $grammar = new Grammar($connection);
 
         $this->assertSame('"id"', $grammar->wrap('id'));
@@ -119,9 +122,9 @@ class DatabaseQueryGrammarTest extends TestCase
         $resourceIdentity = (string) $resource;
 
         try {
-            $connection = m::mock(Connection::class);
-            $connection->shouldReceive('escape')->once()->with('first', false)->andReturn("'first'");
-            $connection->shouldReceive('escape')->once()->with($resourceIdentity, false)->andReturn("'resource'");
+            $connection = Double::for(Connection::class);
+            $connection->expects('escape')->with('first', false)->returns("'first'");
+            $connection->expects('escape')->with($resourceIdentity, false)->returns("'resource'");
 
             $sql = (new Grammar($connection))->substituteBindingsIntoRawSql(
                 "select ?, '?', ??, ?, ?",
@@ -199,10 +202,10 @@ class DatabaseQueryGrammarTest extends TestCase
     public function testRawSqlBindingSubstitutionHandlesLongBindingLists(): void
     {
         $bindings = range(1, 250);
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('escape')
+        $connection = Double::for(Connection::class);
+        $connection->expects('escape')
             ->times(count($bindings))
-            ->andReturnUsing(static fn (int $value, bool $binary): string => (string) $value);
+            ->resolves(static fn (int $value, bool $binary): string => (string) $value);
 
         $sql = (new Grammar($connection))->substituteBindingsIntoRawSql(
             implode(', ', array_fill(0, count($bindings), '?')),
