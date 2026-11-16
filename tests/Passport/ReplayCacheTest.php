@@ -21,14 +21,17 @@ use Hypervel\Foundation\Testing\DatabaseTransactionsManager;
 use Hypervel\Passport\ReplayCache;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
 class ReplayCacheTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Configure separate application and replay databases.
      */
@@ -140,8 +143,8 @@ class ReplayCacheTest extends TestCase
     #[DataProvider('unsupportedStores')]
     public function testLocalAndSwitchingStoresCannotBeUsedForReplayProtection(string $store): void
     {
-        $factory = m::mock(Factory::class);
-        $factory->shouldReceive('store')->with(null)->andReturn(new Repository(m::mock($store)));
+        $factory = Double::for(Factory::class)->strict();
+        $factory->allows('store')->with(null)->returns(new Repository(Double::for($store)->strict()));
         $replays = new ReplayCache($factory, $this->app->make(ConfigRepository::class));
 
         $this->expectException(LogicException::class);
@@ -168,10 +171,10 @@ class ReplayCacheTest extends TestCase
     public function testBackendFailureDoesNotAcceptTheProof(): void
     {
         $failure = new RuntimeException('Replay store unavailable');
-        $store = m::mock(RedisStore::class);
-        $store->shouldReceive('add')->once()->andThrow($failure);
-        $factory = m::mock(Factory::class);
-        $factory->shouldReceive('store')->with(null)->andReturn(new Repository($store));
+        $store = Double::for(RedisStore::class)->strict();
+        $store->expects('add')->throws($failure);
+        $factory = Double::for(Factory::class)->strict();
+        $factory->allows('store')->with(null)->returns(new Repository($store));
 
         $this->expectExceptionObject($failure);
         (new ReplayCache($factory, $this->app->make(ConfigRepository::class)))->consume('assertion', time() + 300);

@@ -30,13 +30,15 @@ use Hypervel\Testbench\Concerns\WithHypervelMigrations;
 use Hypervel\Tests\Passport\Fixtures\JsonWebKeyPair;
 use Hypervel\Tests\Passport\Fixtures\User;
 use Hypervel\Tests\Passport\Fixtures\UserFactory;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use League\OAuth2\Server\ResourceServer;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class TokenGuardTest extends PassportTestCase
 {
+    use VerifiesDoubles;
     use WithHypervelMigrations;
 
     /**
@@ -133,12 +135,12 @@ class TokenGuardTest extends PassportTestCase
         $otherKey = JsonWebKeyPair::generate('RS256');
         $otherPublicKey = openssl_pkey_get_details(openssl_pkey_get_private($otherKey->privateKey))['key'];
         $identifier = 'first';
-        $resolver = m::mock(ServerSettingsResolver::class);
-        $resolver->shouldReceive('current')->andReturnUsing(static function () use (&$identifier): string {
+        $resolver = Double::for(ServerSettingsResolver::class)->strict();
+        $resolver->allows('current')->resolves(static function () use (&$identifier): string {
             return $identifier;
         });
-        $resolver->shouldReceive('resolve')->with('first')->once()->andReturn(new ServerSettings($servers->fileKeys()));
-        $resolver->shouldReceive('resolve')->with('second')->once()->andReturn(new ServerSettings(['other' => new ServerKey($otherPublicKey)]));
+        $resolver->expects('resolve')->with('first')->returns(new ServerSettings($servers->fileKeys()));
+        $resolver->expects('resolve')->with('second')->returns(new ServerSettings(['other' => new ServerKey($otherPublicKey)]));
         $this->app->instance(ServerSettingsResolver::class, $resolver);
         $request = Request::create('/guard');
         $request->headers->set('Authorization', 'Bearer ' . $result->accessToken);
@@ -158,8 +160,8 @@ class TokenGuardTest extends PassportTestCase
         $this->assertSame($user->id, $guard->user()->getKey());
         $this->assertSame($client->id, $guard->client()->getKey());
 
-        $override = m::mock(ResourceServer::class);
-        $override->shouldReceive('validateAuthenticatedRequest')->once()->andThrow(OAuthServerException::accessDenied());
+        $override = Double::for(ResourceServer::class)->strict();
+        $override->expects('validateAuthenticatedRequest')->throws(OAuthServerException::accessDenied());
         CoroutineContext::set(ServerFactory::RESOURCE_SERVER_CONTEXT_KEY, $override);
         $this->assertFalse($guard->hasUser());
         $this->assertNull($guard->user());

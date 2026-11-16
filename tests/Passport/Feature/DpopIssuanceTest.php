@@ -35,11 +35,13 @@ use Hypervel\Testbench\Concerns\WithHypervelMigrations;
 use Hypervel\Testing\TestResponse;
 use Hypervel\Tests\Passport\Fixtures\JsonWebKeyPair;
 use Hypervel\Tests\Passport\Fixtures\UserFactory;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class DpopIssuanceTest extends PassportTestCase
 {
+    use VerifiesDoubles;
     use WithHypervelMigrations;
 
     protected const string ORIGIN = 'https://auth.example';
@@ -270,9 +272,9 @@ class DpopIssuanceTest extends PassportTestCase
     public function testSelectedServerCapsOnlyProofBoundTokens(): void
     {
         $settings = new ServerSettings($this->app->make(ServerFactory::class)->fileKeys(), dpopTokensExpireIn: new DateInterval('PT30S'));
-        $resolver = m::mock(ServerSettingsResolver::class);
-        $resolver->shouldReceive('current')->andReturn('short-lived');
-        $resolver->shouldReceive('resolve')->with('short-lived')->andReturn($settings);
+        $resolver = Double::for(ServerSettingsResolver::class)->strict();
+        $resolver->allows('current')->returns('short-lived');
+        $resolver->allows('resolve')->with('short-lived')->returns($settings);
         $this->app->instance(ServerSettingsResolver::class, $resolver);
         Passport::tokensExpireIn(new DateInterval('PT600S'));
         $client = ClientFactory::new()->asClientCredentials()->create();
@@ -439,11 +441,11 @@ class DpopIssuanceTest extends PassportTestCase
         ], $key)->assertOk()->json('access_token');
         $headers = ['Authorization' => ($proofBound ? 'DPoP ' : 'Bearer ') . $token];
         $this->getJson(self::ORIGIN . '/cached-proof', $headers + ($key === null ? [] : ['DPoP' => $this->proof($key, '/cached-proof', 'GET', $token)]))->assertOk();
-        $replays = m::mock(ReplayCache::class);
+        $replays = Double::for(ReplayCache::class)->strict();
         if ($proofBound && $replayProtection) {
-            $replays->shouldReceive('consume')->once()->andReturnTrue();
+            $replays->expects('consume')->returns(true);
         } else {
-            $replays->shouldNotReceive('consume');
+            $replays->expects('consume')->never();
         }
         // DpopProofValidator already holds the resolved service; replace it to use the counted store.
         $this->app->forgetInstance(DpopProofValidator::class);

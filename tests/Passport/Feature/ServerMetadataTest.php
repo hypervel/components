@@ -20,13 +20,15 @@ use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Concerns\WithHypervelMigrations;
 use Hypervel\Tests\Passport\Fixtures\UserFactory;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use Symfony\Component\HttpFoundation\Response;
 
 #[WithConfig('passport.issuer', 'https://auth.example')]
 class ServerMetadataTest extends PassportTestCase
 {
+    use VerifiesDoubles;
     use WithHypervelMigrations;
 
     public function testDiscoveryPublishesOnlySupportedCapabilitiesAndConditionalResponses(): void
@@ -141,12 +143,12 @@ class ServerMetadataTest extends PassportTestCase
             'second' => new ServerSettings([...$keys, new ServerKey($material['public'])], issuer: 'https://auth.example'),
         ];
         $revision = 'first';
-        $resolver = m::mock(ServerSettingsResolver::class);
-        $resolver->shouldReceive('current')->andReturnUsing(static function () use (&$revision): string {
+        $resolver = Double::for(ServerSettingsResolver::class)->strict();
+        $resolver->allows('current')->resolves(static function () use (&$revision): string {
             return $revision;
         });
-        $resolver->shouldReceive('resolve')->with('first')->once()->andReturn($settings['first']);
-        $resolver->shouldReceive('resolve')->with('second')->once()->andReturn($settings['second']);
+        $resolver->expects('resolve')->with('first')->returns($settings['first']);
+        $resolver->expects('resolve')->with('second')->returns($settings['second']);
         $this->app->instance(ServerSettingsResolver::class, $resolver);
 
         $first = $this->get('https://auth.example/oauth/jwks')->assertOk()->assertExactJson($servers->jwks())

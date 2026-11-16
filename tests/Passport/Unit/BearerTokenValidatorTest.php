@@ -10,6 +10,8 @@ use Hypervel\Passport\Bridge\BearerTokenValidator;
 use Hypervel\Passport\Bridge\ParsedKey;
 use Hypervel\Passport\Bridge\SigningCryptKey;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Lcobucci\JWT\Configuration;
 use Lcobucci\JWT\Signer\Hmac\Sha256 as HmacSha256;
 use Lcobucci\JWT\Signer\Key\InMemory;
@@ -19,12 +21,13 @@ use League\OAuth2\Server\CryptKey;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use League\OAuth2\Server\Repositories\AccessTokenRepositoryInterface;
 use League\OAuth2\Server\ResourceServer;
-use Mockery as m;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class BearerTokenValidatorTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * @var array<int, array{private: string, public: string}>
      */
@@ -46,12 +49,12 @@ class BearerTokenValidatorTest extends TestCase
     #[DataProvider('validationCases')]
     public function testValidationMatchesLeague(string $scenario, bool $valid): void
     {
-        $repository = m::mock(AccessTokenRepositoryInterface::class);
+        $repository = Double::for(AccessTokenRepositoryInterface::class)->strict();
 
         if ($scenario === 'valid' || $scenario === 'revoked') {
-            $repository->shouldReceive('isAccessTokenRevoked')->with('token-id')->twice()->andReturn($scenario === 'revoked');
+            $repository->expects('isAccessTokenRevoked')->with('token-id')->times(2)->returns($scenario === 'revoked');
         } else {
-            $repository->shouldNotReceive('isAccessTokenRevoked');
+            $repository->expects('isAccessTokenRevoked')->never();
         }
 
         $public = ParsedKey::fromPublicKey(self::$keys[0]['public']);
@@ -105,8 +108,8 @@ class BearerTokenValidatorTest extends TestCase
 
     public function testRetainedKeysVerifyNamedAndLegacyTokensThroughTheResourceServer(): void
     {
-        $repository = m::mock(AccessTokenRepositoryInterface::class);
-        $repository->shouldReceive('isAccessTokenRevoked')->with('token-id')->times(3)->andReturnFalse();
+        $repository = Double::for(AccessTokenRepositoryInterface::class)->strict();
+        $repository->expects('isAccessTokenRevoked')->with('token-id')->times(3)->returns(false);
         $current = ParsedKey::fromPublicKey(self::$keys[1]['public']);
         $retained = ParsedKey::fromPublicKey(self::$keys[0]['public']);
         $validator = new BearerTokenValidator($repository, [
@@ -128,8 +131,8 @@ class BearerTokenValidatorTest extends TestCase
     #[DataProvider('invalidKeyIds')]
     public function testInvalidKeyIdsCannotFallBackToAnotherKey(mixed $identifier): void
     {
-        $repository = m::mock(AccessTokenRepositoryInterface::class);
-        $repository->shouldNotReceive('isAccessTokenRevoked');
+        $repository = Double::for(AccessTokenRepositoryInterface::class)->strict();
+        $repository->expects('isAccessTokenRevoked')->never();
         $public = ParsedKey::fromPublicKey(self::$keys[0]['public']);
         $validator = new BearerTokenValidator($repository, [$public->getKeyId() => $public]);
         $request = new ServerRequest('GET', 'https://example.test', [
@@ -151,8 +154,8 @@ class BearerTokenValidatorTest extends TestCase
 
     public function testConfiguredLeewayAppliesToTokenTimes(): void
     {
-        $repository = m::mock(AccessTokenRepositoryInterface::class);
-        $repository->shouldReceive('isAccessTokenRevoked')->with('token-id')->once()->andReturnFalse();
+        $repository = Double::for(AccessTokenRepositoryInterface::class)->strict();
+        $repository->expects('isAccessTokenRevoked')->with('token-id')->returns(false);
         $public = ParsedKey::fromPublicKey(self::$keys[0]['public']);
         $validator = new BearerTokenValidator($repository, [$public->getKeyId() => $public], new DateInterval('PT120S'));
 
@@ -166,8 +169,8 @@ class BearerTokenValidatorTest extends TestCase
     #[DataProvider('invalidIdentifiers')]
     public function testSignedArtifactsWithoutTokenIdentifiersAreRejectedBeforeLookup(string $scenario): void
     {
-        $repository = m::mock(AccessTokenRepositoryInterface::class);
-        $repository->shouldNotReceive('isAccessTokenRevoked');
+        $repository = Double::for(AccessTokenRepositoryInterface::class)->strict();
+        $repository->expects('isAccessTokenRevoked')->never();
         $public = ParsedKey::fromPublicKey(self::$keys[0]['public']);
         $validator = new BearerTokenValidator($repository, [$public->getKeyId() => $public]);
 

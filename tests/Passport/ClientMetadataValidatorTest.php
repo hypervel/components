@@ -17,12 +17,15 @@ use Hypervel\Passport\ServerFactory;
 use Hypervel\Passport\ServerSettings;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class ClientMetadataValidatorTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Load registration settings without requiring signing-key files.
      */
@@ -185,8 +188,8 @@ class ClientMetadataValidatorTest extends TestCase
 
     public function testPrivateKeyAuthenticationRequiresAnIssuerAndPublicKeys(): void
     {
-        $servers = m::mock(ServerFactory::class);
-        $servers->shouldReceive('settings')->andReturn(new ServerSettings([], issuer: 'https://issuer.example'), new ServerSettings([]));
+        $servers = Double::for(ServerFactory::class)->strict();
+        $servers->allows('settings')->returns(new ServerSettings([], issuer: 'https://issuer.example'), new ServerSettings([]));
         $this->app->instance(ServerFactory::class, $servers);
         $validator = $this->app->make(ClientMetadataValidator::class);
         $key = ParsedKey::fromPublicKey((new SigningKeyFactory)->definition()['public_key'])->getJwk();
@@ -238,8 +241,8 @@ class ClientMetadataValidatorTest extends TestCase
 
     public function testInlineKeySetsUseTheRemoteDocumentSizeLimit(): void
     {
-        $servers = m::mock(ServerFactory::class);
-        $servers->shouldReceive('settings')->andReturn(new ServerSettings([], issuer: 'https://issuer.example'));
+        $servers = Double::for(ServerFactory::class)->strict();
+        $servers->allows('settings')->returns(new ServerSettings([], issuer: 'https://issuer.example'));
         $this->app->instance(ServerFactory::class, $servers);
         $key = ParsedKey::fromPublicKey((new SigningKeyFactory)->definition()['public_key'])->getJwk();
 
