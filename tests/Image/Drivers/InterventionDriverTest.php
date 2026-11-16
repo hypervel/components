@@ -10,11 +10,14 @@ use Hypervel\Image\Drivers\InterventionDriver;
 use Hypervel\Image\ImageException;
 use Hypervel\Tests\TestCase;
 use Intervention\Image\Interfaces\ImageManagerInterface;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class InterventionDriverTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRequirementsAreCheckedBeforeManagerCreation(): void
     {
         $managerCreated = false;
@@ -33,7 +36,7 @@ class InterventionDriverTest extends TestCase
 
     public function testTransformationHandlersPersistOnTheDriver(): void
     {
-        $driver = new InspectableInterventionDriver(m::mock(ImageManagerInterface::class));
+        $driver = new InspectableInterventionDriver(Double::for(ImageManagerInterface::class)->strict());
         $callback = static function (): void {
         };
 

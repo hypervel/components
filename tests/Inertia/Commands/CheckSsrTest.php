@@ -7,14 +7,17 @@ namespace Hypervel\Tests\Inertia\Commands;
 use Hypervel\Inertia\Ssr\Gateway;
 use Hypervel\Inertia\Ssr\HasHealthCheck;
 use Hypervel\Tests\Inertia\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class CheckSsrTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testSuccessOnHealthySsrServer(): void
     {
-        $mock = m::mock(Gateway::class, HasHealthCheck::class);
-        $mock->shouldReceive('isHealthy')->andReturn(true);
+        $mock = Double::for(Gateway::class, HasHealthCheck::class)->strict();
+        $mock->allows('isHealthy')->returns(true);
         $this->app->instance(Gateway::class, $mock);
 
         $this->artisan('inertia:check-ssr')
@@ -24,8 +27,8 @@ class CheckSsrTest extends TestCase
 
     public function testFailureOnUnhealthySsrServer(): void
     {
-        $mock = m::mock(Gateway::class, HasHealthCheck::class);
-        $mock->shouldReceive('isHealthy')->andReturn(false);
+        $mock = Double::for(Gateway::class, HasHealthCheck::class)->strict();
+        $mock->allows('isHealthy')->returns(false);
         $this->app->instance(Gateway::class, $mock);
 
         $this->artisan('inertia:check-ssr')
