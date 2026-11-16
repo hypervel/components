@@ -16,7 +16,10 @@ use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\TextPrompt;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use Hypervel\Tests\Console\Fixtures\ComponentsFactory;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionMethod;
@@ -40,6 +43,8 @@ use function Hypervel\Prompts\textarea;
 
 class ConfiguresPromptsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('selectDataProvider')]
     public function testSelectFallback(Closure $prompt, string $answer, string|int $expectedReturn): void
     {
@@ -104,7 +109,7 @@ class ConfiguresPromptsTest extends TestCase
                 $components
                     ->expects('ask')
                     ->with('How many?', null)
-                    ->andReturn('0');
+                    ->returns('0');
                 $components
                     ->expects('error')
                     ->with('Must be at least 1');
@@ -132,22 +137,22 @@ class ConfiguresPromptsTest extends TestCase
         return [
             'text' => [
                 fn () => text('Test', transform: fn (string $value): string => $value . '!'),
-                fn ($components) => $components->expects('ask')->with('Test', null)->andReturn('value'),
+                fn ($components) => $components->expects('ask')->with('Test', null)->returns('value'),
                 'value!',
             ],
             'textarea' => [
                 fn () => textarea('Test', transform: fn (string $value): string => $value . '!'),
-                fn ($components) => $components->expects('ask')->with('Test', null, multiline: true)->andReturn('value'),
+                fn ($components) => $components->expects('ask')->with('Test', null, true)->returns('value'),
                 'value!',
             ],
             'number' => [
                 fn () => number('Test', transform: fn (int $value): int => $value + 1),
-                fn ($components) => $components->expects('ask')->with('Test', null)->andReturn('1'),
+                fn ($components) => $components->expects('ask')->with('Test', null)->returns('1'),
                 2,
             ],
             'password' => [
                 fn () => password('Test', transform: fn (string $value): string => $value . '!'),
-                fn ($components) => $components->expects('secret')->with('Test')->andReturn('value'),
+                fn ($components) => $components->expects('secret')->with('Test')->returns('value'),
                 'value!',
             ],
             'pause' => [
@@ -157,52 +162,52 @@ class ConfiguresPromptsTest extends TestCase
 
                     return $prompt->prompt();
                 },
-                fn ($components) => $components->expects('ask')->with('Test')->andReturnNull(),
+                fn ($components) => $components->expects('ask')->with('Test')->returns(null),
                 true,
             ],
             'confirm' => [
                 fn () => confirm('Test', transform: fn (bool $value): bool => ! $value),
-                fn ($components) => $components->expects('confirm')->with('Test', true)->andReturnTrue(),
+                fn ($components) => $components->expects('confirm')->with('Test', true)->returns(true),
                 false,
             ],
             'select' => [
                 fn () => select('Test', ['a'], transform: fn (string $value): string => $value . '!'),
-                fn ($components) => $components->expects('choice')->with('Test', ['a'], null)->andReturn('a'),
+                fn ($components) => $components->expects('choice')->with('Test', ['a'], null)->returns('a'),
                 'a!',
             ],
             'multiselect' => [
                 fn () => multiselect('Test', ['a'], transform: fn (array $values): array => [...$values, 'b']),
-                fn ($components) => $components->expects('choice')->with('Test', ['None', 'a'], 'None', null, true)->andReturn(['a']),
+                fn ($components) => $components->expects('choice')->with('Test', ['None', 'a'], 'None', null, true)->returns(['a']),
                 ['a', 'b'],
             ],
             'datatable' => [
                 fn () => datatable(['Name'], [['Taylor']], label: 'Test', transform: fn (int $value): string => "row-{$value}"),
-                fn ($components) => $components->expects('choice')->with('Test', [1 => '1: Name: Taylor'])->andReturn('1'),
+                fn ($components) => $components->expects('choice')->with('Test', [1 => '1: Name: Taylor'])->returns('1'),
                 'row-0',
             ],
             'suggest' => [
                 fn () => suggest('Test', ['value'], transform: fn (string $value): string => $value . '!'),
-                fn ($components) => $components->expects('askWithCompletion')->with('Test', ['value'], null)->andReturn('value'),
+                fn ($components) => $components->expects('askWithCompletion')->with('Test', ['value'], null)->returns('value'),
                 'value!',
             ],
             'autocomplete' => [
                 fn () => autocomplete('Test', ['value'], transform: fn (string $value): string => $value . '!'),
-                fn ($components) => $components->expects('askWithCompletion')->with('Test', ['value'], null)->andReturn('value'),
+                fn ($components) => $components->expects('askWithCompletion')->with('Test', ['value'], null)->returns('value'),
                 'value!',
             ],
             'search' => [
                 fn () => search('Test', fn (): array => ['a'], transform: fn (string $value): string => $value . '!'),
                 function ($components): void {
-                    $components->expects('ask')->with('Test')->andReturn('query');
-                    $components->expects('choice')->with('Test', ['a'], null)->andReturn('a');
+                    $components->expects('ask')->with('Test')->returns('query');
+                    $components->expects('choice')->with('Test', ['a'], null)->returns('a');
                 },
                 'a!',
             ],
             'multisearch' => [
                 fn () => multisearch('Test', fn (): array => ['a'], transform: fn (array $values): array => [...$values, 'b']),
                 function ($components): void {
-                    $components->expects('ask')->with('Test')->andReturn('query');
-                    $components->expects('choice')->with('Test', ['None', 'a'], 'None', null, true)->andReturn(['a']);
+                    $components->expects('ask')->with('Test')->returns('query');
+                    $components->expects('choice')->with('Test', ['None', 'a'], 'None', null, true)->returns(['a']);
                 },
                 ['a', 'b'],
             ],
@@ -222,22 +227,22 @@ class ConfiguresPromptsTest extends TestCase
         return [
             'text' => [
                 fn () => text('Test', default: '0'),
-                fn ($components) => $components->expects('ask')->with('Test', '0')->andReturn('answer'),
+                fn ($components) => $components->expects('ask')->with('Test', '0')->returns('answer'),
                 'answer',
             ],
             'textarea' => [
                 fn () => textarea('Test', default: '0'),
-                fn ($components) => $components->expects('ask')->with('Test', '0', multiline: true)->andReturn('answer'),
+                fn ($components) => $components->expects('ask')->with('Test', '0', true)->returns('answer'),
                 'answer',
             ],
             'suggest' => [
                 fn () => suggest('Test', ['answer'], default: '0'),
-                fn ($components) => $components->expects('askWithCompletion')->with('Test', ['answer'], '0')->andReturn('answer'),
+                fn ($components) => $components->expects('askWithCompletion')->with('Test', ['answer'], '0')->returns('answer'),
                 'answer',
             ],
             'autocomplete' => [
                 fn () => autocomplete('Test', ['answer'], default: '0'),
-                fn ($components) => $components->expects('askWithCompletion')->with('Test', ['answer'], '0')->andReturn('answer'),
+                fn ($components) => $components->expects('askWithCompletion')->with('Test', ['answer'], '0')->returns('answer'),
                 'answer',
             ],
         ];
@@ -274,7 +279,7 @@ class ConfiguresPromptsTest extends TestCase
 
         $this->runCommand(
             $command,
-            fn ($components) => $components->expects('ask')->with('Test', null)->andReturn('value'),
+            fn ($components) => $components->expects('ask')->with('Test', null)->returns('value'),
         );
 
         $this->assertSame('value!', $command->answer);
@@ -305,7 +310,7 @@ class ConfiguresPromptsTest extends TestCase
         $status = $this->runCommand(
             $command,
             function ($components): void {
-                $components->expects('ask')->with('Test', null)->andReturn('0');
+                $components->expects('ask')->with('Test', null)->returns('0');
                 $components->expects('error')->with('Must be at least 1');
             },
             runningUnitTests: true,
@@ -345,7 +350,7 @@ class ConfiguresPromptsTest extends TestCase
 
         $this->runPrompt(
             fn () => text('Test', validate: fn (): mixed => $result),
-            fn ($components) => $components->expects('ask')->with('Test', null)->andReturn('value'),
+            fn ($components) => $components->expects('ask')->with('Test', null)->returns('value'),
         );
     }
 
@@ -428,7 +433,7 @@ class ConfiguresPromptsTest extends TestCase
             fn ($components) => $components
                 ->expects('askWithCompletion')
                 ->with('Color?', ['Red', 'Blue'], 'Red')
-                ->andReturn('Blue')
+                ->returns('Blue')
         );
 
         $this->assertSame('Blue', $answer);
@@ -445,13 +450,13 @@ class ConfiguresPromptsTest extends TestCase
             ])),
             fn ($components) => $components
                 ->expects('askWithCompletion')
-                ->with('File?', m::on(function ($completion) {
+                ->with('File?', Argument::satisfies(function ($completion) {
                     $this->assertIsCallable($completion);
                     $this->assertSame(['app/Models/User.php', 'app/Http/Kernel.php'], $completion('app'));
 
                     return true;
                 }), null)
-                ->andReturn('app/Models/User.php')
+                ->returns('app/Models/User.php')
         );
 
         $this->assertSame('app/Models/User.php', $answer);
@@ -468,13 +473,13 @@ class ConfiguresPromptsTest extends TestCase
             ])),
             fn ($components) => $components
                 ->expects('askWithCompletion')
-                ->with('Name?', m::on(function ($completion) {
+                ->with('Name?', Argument::satisfies(function ($completion) {
                     $this->assertIsCallable($completion);
                     $this->assertSame(['T Taylor', 'T Jess'], $completion('T'));
 
                     return true;
                 }), null)
-                ->andReturn('T Taylor')
+                ->returns('T Taylor')
         );
 
         $this->assertSame('T Taylor', $answer);
@@ -490,7 +495,7 @@ class ConfiguresPromptsTest extends TestCase
             fn ($components) => $components
                 ->expects('choice')
                 ->with('Pick', $expectedChoices)
-                ->andReturn($return)
+                ->returns($return)
         );
 
         $this->assertSame($expectedReturn, $answer);
@@ -671,18 +676,18 @@ class ConfiguresPromptsTest extends TestCase
      */
     protected function runCommand(Command $command, Closure $expectations, bool $runningUnitTests = false): int
     {
-        $application = m::mock(Application::class);
-        $command->setHypervel($application);
+        $application = Double::for(Application::class, override: true);
+        $command->setHypervel($application->instance());
 
         $input = new ArrayInput([]);
         $output = new NullOutput;
         $outputStyle = new OutputStyle($input, $output);
-        $application->expects('make')->withArgs(fn (string $abstract): bool => $abstract === OutputStyle::class)->andReturn($outputStyle);
-        $factory = m::mock(Factory::class);
-        $application->expects('make')->withArgs(fn (string $abstract): bool => $abstract === Factory::class)->andReturn($factory);
-        $application->shouldReceive('bound')->andReturn(false);
-        $application->shouldReceive('runningUnitTests')->andReturn($runningUnitTests);
-        $application->expects('call')->with([$command, 'handle'])->andReturnUsing(fn (callable $callback): mixed => call_user_func($callback));
+        $application->expects('make')->with(OutputStyle::class, Argument::remaining())->returns($outputStyle);
+        $factory = Double::for(ComponentsFactory::class);
+        $application->expects('make')->with(Factory::class, Argument::remaining())->returns($factory);
+        $application->allows('bound')->returns(false);
+        $application->allows('runningUnitTests')->returns($runningUnitTests);
+        $application->expects('call')->with(Argument::same([$command, 'handle']))->resolves(fn (callable $callback): mixed => call_user_func($callback));
 
         $expectations($factory);
 

@@ -64,9 +64,13 @@ use Hypervel\Ai\Tools\AgentTool;
 use Hypervel\Ai\Tools\Request;
 use Hypervel\Contracts\JsonSchema\JsonSchema;
 use Hypervel\Events\Dispatcher;
+use Hypervel\Tests\Ai\Fixtures\Tools\ApprovableNamedTool;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -75,6 +79,8 @@ use Throwable;
 
 class TextGenerationLoopTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testItPausesGatedToolCallsWithoutExecutingThemWhileRunningUngatedCallsImmediately(): void
     {
         $gated = new TextGenerationLoopApprovableTool;
@@ -1146,8 +1152,8 @@ class TextGenerationLoopTest extends TestCase
         $regular = new TextGenerationLoopCountingTool;
         $webSearch = new WebSearch;
 
-        $provider = m::mock(TextProvider::class, SupportsWebSearch::class);
-        $provider->shouldReceive('name')->andReturn('fake');
+        $provider = Double::for(TextProvider::class, SupportsWebSearch::class);
+        $provider->allows('name')->returns('fake');
 
         (new TextGenerationLoop($gateway))->generate(
             $provider,
@@ -1400,15 +1406,15 @@ class TextGenerationLoopTest extends TestCase
 
     public function testASubAgentRunsSynchronouslyThroughTheNonStreamingLoop(): void
     {
-        $agent = m::mock(Agent::class, CanActAsTool::class);
-        $agent->shouldReceive('name')->andReturn('research_agent');
-        $agent->shouldReceive('prompt')->once()->andReturn(new AgentResponse(
+        $agent = Double::for(Agent::class, CanActAsTool::class);
+        $agent->allows('name')->returns('research_agent');
+        $agent->expects('prompt')->returns(new AgentResponse(
             'sub-invocation',
             'synchronous result',
             new TextUsage(3, 4),
             new Meta('fake', 'sub-model')
         ));
-        $agent->shouldNotReceive('stream');
+        $agent->expects('stream')->never();
 
         $toolCall = new ToolCall('call-sub-agent', 'research_agent', ['task' => 'Research'], 'call-sub-agent');
         $gateway = new TextGenerationLoopFakeGateway([
@@ -1435,10 +1441,10 @@ class TextGenerationLoopTest extends TestCase
     {
         $parent = null;
 
-        $agent = m::mock(Agent::class, CanActAsTool::class, HasStructuredOutput::class);
-        $agent->shouldReceive('name')->andReturn('research_agent');
-        $agent->shouldNotReceive('stream');
-        $agent->shouldReceive('prompt')->once()->andReturnUsing(function () use (&$parent): StructuredAgentResponse {
+        $agent = Double::for(Agent::class, CanActAsTool::class, HasStructuredOutput::class);
+        $agent->allows('name')->returns('research_agent');
+        $agent->expects('stream')->never();
+        $agent->expects('prompt')->resolves(function () use (&$parent): StructuredAgentResponse {
             $parent = ParentInvocation::current();
 
             return new StructuredAgentResponse(
@@ -1462,7 +1468,7 @@ class TextGenerationLoopTest extends TestCase
 
         textGenerationLoopSubAgentStream([new AgentTool($agent)], [$toolCall], context: new RunContext(
             'invocation-1',
-            m::mock(Agent::class),
+            Double::for(Agent::class),
             textGenerationLoopProvider(),
             'model',
             $dispatcher,
@@ -1475,10 +1481,10 @@ class TextGenerationLoopTest extends TestCase
 
     public function testASubAgentIsNotExecutedOnTheFinalStreamedStep(): void
     {
-        $agent = m::mock(Agent::class, CanActAsTool::class);
-        $agent->shouldReceive('name')->andReturn('research_agent');
-        $agent->shouldNotReceive('prompt');
-        $agent->shouldNotReceive('stream');
+        $agent = Double::for(Agent::class, CanActAsTool::class);
+        $agent->allows('name')->returns('research_agent');
+        $agent->expects('prompt')->never();
+        $agent->expects('stream')->never();
 
         $toolCall = new ToolCall('call-sub-agent', 'research_agent', ['task' => 'Research'], 'call-sub-agent');
 
@@ -1523,7 +1529,7 @@ class TextGenerationLoopTest extends TestCase
 
         $events = textGenerationLoopSubAgentStream([$tool], [$toolCall], context: new RunContext(
             'invocation-1',
-            m::mock(Agent::class),
+            Double::for(Agent::class),
             $provider,
             'model',
             $dispatcher,
@@ -1554,7 +1560,7 @@ class TextGenerationLoopTest extends TestCase
 
         textGenerationLoopSubAgentStream([$tool], [$toolCall], context: new RunContext(
             'invocation-1',
-            m::mock(Agent::class),
+            Double::for(Agent::class),
             $provider,
             'model',
             new Dispatcher,
@@ -1587,31 +1593,31 @@ class TextGenerationLoopTest extends TestCase
     public function testEachResultIsPersistedBeforeTheNextToolRuns(): void
     {
         $provider = textGenerationLoopProvider();
-        $store = m::mock(ClaimsPendingApprovals::class);
+        $store = Double::for(ClaimsPendingApprovals::class);
         $claim = new ApprovalClaim('message', 'token');
         $recorded = [];
         $operations = [];
-        $store->shouldReceive('claimPendingApprovals')->once()->with('conversation', ['first', 'second', 'third'])
-            ->andReturnUsing(function () use (&$operations, $claim): ApprovalClaim {
+        $store->expects('claimPendingApprovals')->with('conversation', ['first', 'second', 'third'])
+            ->resolves(function () use (&$operations, $claim): ApprovalClaim {
                 $operations[] = 'claim';
 
                 return $claim;
             });
-        $store->shouldReceive('recordApprovalResult')->times(3)->with($claim, m::type(ToolResultData::class))
-            ->andReturnUsing(function (ApprovalClaim $claim, ToolResultData $result) use (&$operations, &$recorded): void {
+        $store->expects('recordApprovalResult')->times(3)->with(Argument::same($claim), Argument::type(ToolResultData::class))
+            ->resolves(function (ApprovalClaim $claim, ToolResultData $result) use (&$operations, &$recorded): void {
                 $operations[] = 'record:' . $result->id;
                 $recorded[$result->id] = $result;
             });
 
         $tool = $this->approvalTool();
-        $tool->shouldReceive('handle')->twice()->andReturnUsing(function (Request $request) use (&$operations): string {
+        $tool->expects('handle')->times(2)->resolves(function (Request $request) use (&$operations): string {
             $operations[] = 'execute:' . $request->toolCallId();
 
             return 'done';
         });
-        $gateway = m::mock(StepTextGateway::class);
-        $gateway->shouldReceive('generateTextStep')->once()->andReturn(new StepResponse('Finished', [], FinishReason::Stop, new TextUsage, new Meta));
-        $context = (new RunContext('invocation', m::mock(Agent::class), $provider, 'model', new Dispatcher))->withApprovalStore($store, 'conversation');
+        $gateway = Double::for(StepTextGateway::class);
+        $gateway->expects('generateTextStep')->returns(new StepResponse('Finished', [], FinishReason::Stop, new TextUsage, new Meta));
+        $context = (new RunContext('invocation', Double::for(Agent::class), $provider, 'model', new Dispatcher))->withApprovalStore($store, 'conversation');
 
         (new TextGenerationLoop($gateway))->generate(
             $provider,
@@ -1637,14 +1643,14 @@ class TextGenerationLoopTest extends TestCase
     public function testAnUnavailableClaimPreventsToolExecution(): void
     {
         $provider = textGenerationLoopProvider();
-        $gateway = m::mock(StepTextGateway::class);
-        $gateway->shouldReceive('generateTextStep')->andReturn(new StepResponse('Finished', [], FinishReason::Stop, new TextUsage, new Meta));
-        $store = m::mock(ClaimsPendingApprovals::class);
-        $store->shouldReceive('claimPendingApprovals')->once()->with('conversation', ['call'])->andReturnNull();
-        $store->shouldNotReceive('recordApprovalResult');
+        $gateway = Double::for(StepTextGateway::class);
+        $gateway->allows('generateTextStep')->returns(new StepResponse('Finished', [], FinishReason::Stop, new TextUsage, new Meta));
+        $store = Double::for(ClaimsPendingApprovals::class);
+        $store->expects('claimPendingApprovals')->with('conversation', ['call'])->returns(null);
+        $store->expects('recordApprovalResult')->never();
         $tool = $this->approvalTool();
-        $tool->shouldNotReceive('handle');
-        $context = (new RunContext('invocation', m::mock(Agent::class), $provider, 'model', new Dispatcher))->withApprovalStore($store, 'conversation');
+        $tool->expects('handle')->never();
+        $context = (new RunContext('invocation', Double::for(Agent::class), $provider, 'model', new Dispatcher))->withApprovalStore($store, 'conversation');
 
         $this->expectException(ApprovalMismatchException::class);
 
@@ -1664,19 +1670,19 @@ class TextGenerationLoopTest extends TestCase
     public function testCancellationIsNotRecordedAsACompletedToolFailure(bool $cleanupThrows): void
     {
         $provider = textGenerationLoopProvider();
-        $gateway = m::mock(StepTextGateway::class);
-        $gateway->shouldNotReceive('generateTextStep');
-        $store = m::mock(ClaimsPendingApprovals::class);
+        $gateway = Double::for(StepTextGateway::class);
+        $gateway->expects('generateTextStep')->never();
+        $store = Double::for(ClaimsPendingApprovals::class);
         $claim = new ApprovalClaim('message', 'token');
-        $store->shouldReceive('claimPendingApprovals')->once()->with('conversation', ['call', 'next'])->andReturn($claim);
-        $store->shouldNotReceive('recordApprovalResult');
+        $store->expects('claimPendingApprovals')->with('conversation', ['call', 'next'])->returns($claim);
+        $store->expects('recordApprovalResult')->never();
         $exception = new CanceledException('Canceled while executing the approved tool.');
         if ($cleanupThrows) {
             $exception = new RuntimeException('Tool cleanup failed.', previous: $exception);
         }
         $tool = $this->approvalTool();
-        $tool->shouldReceive('handle')->once()->andThrow($exception);
-        $context = (new RunContext('invocation', m::mock(Agent::class), $provider, 'model', new Dispatcher))->withApprovalStore($store, 'conversation');
+        $tool->expects('handle')->throws($exception);
+        $context = (new RunContext('invocation', Double::for(Agent::class), $provider, 'model', new Dispatcher))->withApprovalStore($store, 'conversation');
 
         try {
             (new TextGenerationLoop($gateway))->generate(
@@ -1699,11 +1705,11 @@ class TextGenerationLoopTest extends TestCase
     /**
      * Create an approval-gated tool for the execution loop.
      */
-    private function approvalTool(): Tool&Approvable&m\MockInterface
+    private function approvalTool(): Tool&Approvable&DoubleInterface
     {
-        $tool = m::mock(Tool::class, Approvable::class);
-        $tool->shouldReceive('name')->andReturn('tool');
-        $tool->shouldReceive('shouldRequestApproval')->andReturn(Approval::required());
+        $tool = Double::for(ApprovableNamedTool::class);
+        $tool->allows('name')->returns('tool');
+        $tool->allows('shouldRequestApproval')->returns(Approval::required());
 
         return $tool;
     }
@@ -1714,8 +1720,8 @@ class TextGenerationLoopTest extends TestCase
  */
 function textGenerationLoopProvider(): TextProvider
 {
-    $provider = m::mock(TextProvider::class);
-    $provider->shouldReceive('name')->andReturn('fake');
+    $provider = Double::for(TextProvider::class);
+    $provider->allows('name')->returns('fake');
 
     return $provider;
 }
@@ -1725,8 +1731,8 @@ function textGenerationLoopProvider(): TextProvider
  */
 function textGenerationLoopToolSearchProvider(): TextProvider
 {
-    $provider = m::mock(TextProvider::class, SupportsToolSearch::class);
-    $provider->shouldReceive('name')->andReturn('fake');
+    $provider = Double::for(TextProvider::class, SupportsToolSearch::class);
+    $provider->allows('name')->returns('fake');
 
     return $provider;
 }
@@ -1926,10 +1932,10 @@ class ExtendedTextGenerationLoop extends TextGenerationLoop
  */
 function textGenerationLoopAgentTool(Closure|string $text = 'sub-agent result'): AgentTool
 {
-    $agent = m::mock(Agent::class, CanActAsTool::class);
-    $agent->shouldReceive('name')->andReturn('research_agent');
-    $agent->shouldNotReceive('prompt');
-    $agent->shouldReceive('stream')->atLeast()->once()->andReturnUsing(fn (): StreamableAgentResponse => new StreamableAgentResponse(
+    $agent = Double::for(Agent::class, CanActAsTool::class);
+    $agent->allows('name')->returns('research_agent');
+    $agent->expects('prompt')->never();
+    $agent->expects('stream')->times(minimum: 1)->resolves(fn (): StreamableAgentResponse => new StreamableAgentResponse(
         'sub-invocation',
         $text instanceof Closure ? $text : fn (): Generator => yield from [
             (new TextDelta('sub-delta', 'sub-message', $text, time()))->withInvocationId('sub-invocation'),

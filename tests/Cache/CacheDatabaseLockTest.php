@@ -17,23 +17,28 @@ use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PDO;
 use PDOException;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class CacheDatabaseLockTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testLockCanBeAcquired(): void
     {
         [$lock, $table] = $this->getLock();
 
-        $table->shouldReceive('insertOrIgnore')->once()->with(m::on(function ($arg) {
+        $table->expects('insertOrIgnore')->with(Argument::satisfies(function ($arg) {
             return is_array($arg)
                 && $arg['key'] === 'foo'
                 && isset($arg['owner'])
                 && is_int($arg['expiration']);
-        }))->andReturn(1);
+        }))->returns(1);
 
         $this->assertTrue($lock->acquire());
     }
@@ -50,8 +55,8 @@ class CacheDatabaseLockTest extends TestCase
         $reader->exec("insert into cache_locks values ('key', 'stale', 1010)");
         $connection = new SQLiteConnection($writer, ':memory:');
         $connection->setReadPdo($reader);
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->andReturn($connection);
+        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver->allows('connection')->returns($connection);
         $lock = new DatabaseLock($resolver, null, 'key', 'cache_locks', 60, 'fresh', null);
 
         $this->assertTrue($lock->isOwnedByCurrentProcess());
@@ -65,18 +70,18 @@ class CacheDatabaseLockTest extends TestCase
         [$lock, $table] = $this->getLock(seconds: 1);
         $owner = $lock->owner();
 
-        $table->shouldReceive('insertOrIgnore')->once()->with([
+        $table->expects('insertOrIgnore')->with([
             'key' => 'foo',
             'owner' => $owner,
             'expiration' => 1002,
-        ])->andReturn(1);
+        ])->returns(1);
 
         $this->assertTrue($lock->acquire());
 
-        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
-        $table->shouldReceive('where')->once()->with('expiration', '>', 1000)->andReturn($table);
-        $table->shouldReceive('update')->once()->with(['expiration' => 1002])->andReturn(1);
+        $table->expects('where')->with('key', 'foo')->returns($table);
+        $table->expects('where')->with('owner', $owner)->returns($table);
+        $table->expects('where')->with('expiration', '>', 1000)->returns($table);
+        $table->expects('update')->with(['expiration' => 1002])->returns(1);
 
         $this->assertTrue($lock->refresh());
     }
@@ -87,22 +92,22 @@ class CacheDatabaseLockTest extends TestCase
         $owner = $lock->owner();
 
         // First attempt inserts nothing because the key exists.
-        $table->shouldReceive('insertOrIgnore')->once()->andReturn(0);
+        $table->expects('insertOrIgnore')->returns(0);
 
         // So it tries to update
-        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->andReturnUsing(function ($callback) use ($table, $owner) {
-            $query = m::mock(Builder::class);
-            $query->shouldReceive('where')->once()->with('owner', $owner)->andReturn($query);
-            $query->shouldReceive('orWhere')->once()->with('expiration', '<=', m::type('int'))->andReturn($query);
+        $table->expects('where')->with('key', 'foo')->returns($table);
+        $table->expects('where')->with(Argument::type(Closure::class))->resolves(function ($callback) use ($table, $owner) {
+            $query = Double::for(Builder::class);
+            $query->expects('where')->with('owner', $owner)->returns($query);
+            $query->expects('orWhere')->with('expiration', '<=', Argument::type('int'))->returns($query);
             $callback($query);
             return $table;
         });
-        $table->shouldReceive('update')->once()->with(m::on(function ($arg) use ($owner) {
+        $table->expects('update')->with(Argument::satisfies(function ($arg) use ($owner) {
             return is_array($arg)
                 && $arg['owner'] === $owner
                 && is_int($arg['expiration']);
-        }))->andReturn(1);
+        }))->returns(1);
 
         $this->assertTrue($lock->acquire());
     }
@@ -112,14 +117,14 @@ class CacheDatabaseLockTest extends TestCase
         [$lock, $table] = $this->getLock();
 
         // Insert finds the existing key.
-        $table->shouldReceive('insertOrIgnore')->once()->andReturn(0);
+        $table->expects('insertOrIgnore')->returns(0);
 
         // Update fails too (someone else owns it)
-        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->andReturnUsing(function ($callback) use ($table, $lock) {
-            $query = m::mock(Builder::class);
-            $query->shouldReceive('where')->once()->with('owner', $lock->owner())->andReturn($query);
-            $query->shouldReceive('orWhere')->once()->with('expiration', '<=', m::type('int'))->andReturn($query);
+        $table->expects('where')->with('key', 'foo')->returns($table);
+        $table->expects('where')->with(Argument::type(Closure::class))->resolves(function ($callback) use ($table, $lock) {
+            $query = Double::for(Builder::class);
+            $query->expects('where')->with('owner', $lock->owner())->returns($query);
+            $query->expects('orWhere')->with('expiration', '<=', Argument::type('int'))->returns($query);
 
             // The callback should return the query
             $result = $callback($query);
@@ -129,7 +134,7 @@ class CacheDatabaseLockTest extends TestCase
 
             return $table;
         });
-        $table->shouldReceive('update')->once()->andReturn(0);
+        $table->expects('update')->returns(0);
 
         $this->assertFalse($lock->acquire());
     }
@@ -139,8 +144,8 @@ class CacheDatabaseLockTest extends TestCase
         [$lock, $table] = $this->getLock();
         $failure = new QueryException('default', 'insert into "cache_locks"', [], new PDOException('SQLSTATE[HY000]: General error: 5 database is locked'));
 
-        $table->shouldReceive('insertOrIgnore')->once()->andThrow($failure);
-        $table->shouldNotReceive('update');
+        $table->expects('insertOrIgnore')->throws($failure);
+        $table->expects('update')->never();
 
         try {
             $lock->acquire();
@@ -153,15 +158,15 @@ class CacheDatabaseLockTest extends TestCase
     public function testSqliteLockHeldByAnotherOwnerIsRefusedWithoutWriting(): void
     {
         // The lottery always prunes, so any write, including pruning, fails the unexpected call.
-        [$lock] = $this->getLock(lockLottery: [1, 1], driver: 'sqlite', tables: [$this->liveOwnerRead(static fn (): string => 'other-owner')]);
+        [$lock] = $this->getLock(lockLottery: [1, 1], driver: 'sqlite', tables: [$this->liveOwnerRead(static fn (): string => 'other-owner')->strict()]);
 
         $this->assertFalse($lock->acquire());
     }
 
     public function testSqliteLockIsInsertedWhenNoLiveLockExists(): void
     {
-        $insert = m::mock(Builder::class);
-        $insert->shouldReceive('insertOrIgnore')->once()->andReturn(1);
+        $insert = Double::for(Builder::class);
+        $insert->expects('insertOrIgnore')->returns(1);
 
         [$lock] = $this->getLock(driver: 'sqlite', tables: [$this->liveOwnerRead(static fn (): null => null), $insert]);
 
@@ -177,12 +182,12 @@ class CacheDatabaseLockTest extends TestCase
         $read = $this->liveOwnerRead(static function () use (&$lock, $own): ?string {
             return $own ? $lock->owner() : null;
         });
-        $insert = m::mock(Builder::class);
-        $insert->shouldReceive('insertOrIgnore')->once()->andReturn(0);
-        $update = m::mock(Builder::class);
-        $update->shouldReceive('where')->once()->with('key', 'foo')->andReturnSelf();
-        $update->shouldReceive('where')->once()->with(m::type(Closure::class))->andReturnSelf();
-        $update->shouldReceive('update')->once()->andReturn(1);
+        $insert = Double::for(Builder::class);
+        $insert->expects('insertOrIgnore')->returns(0);
+        $update = Double::for(Builder::class);
+        $update->expects('where')->with('key', 'foo');
+        $update->expects('where')->with(Argument::type(Closure::class));
+        $update->expects('update')->returns(1);
 
         [$lock] = $this->getLock(driver: 'sqlite', tables: [$read, $insert, $update]);
 
@@ -194,13 +199,13 @@ class CacheDatabaseLockTest extends TestCase
     #[TestWith(['mariadb', true])]
     public function testATakeoverThatChangedNoRowIsConfirmedWithACurrentReadWhereOnlyChangedRowsCount(string $driver, bool $owned): void
     {
-        $insert = m::mock(Builder::class);
-        $insert->shouldReceive('insert')->once()->andThrow(new UniqueConstraintViolationException('', '', [], new Exception));
-        $update = m::mock(Builder::class);
-        $update->shouldReceive('where')->once()->with('key', 'foo')->andReturnSelf();
-        $update->shouldReceive('where')->once()->with(m::type(Closure::class))->andReturnSelf();
-        $update->shouldReceive('update')->once()->andReturn(0);
-        $read = m::mock(Builder::class);
+        $insert = Double::for(Builder::class);
+        $insert->expects('insert')->throws(new UniqueConstraintViolationException('', '', [], new Exception));
+        $update = Double::for(Builder::class);
+        $update->expects('where')->with('key', 'foo');
+        $update->expects('where')->with(Argument::type(Closure::class));
+        $update->expects('update')->returns(0);
+        $read = Double::for(Builder::class);
 
         // A lock object that never acquired: a lost-connection retry can still meet the row its first insert committed.
         [$lock] = $this->getLock(driver: $driver, tables: [$insert, $update, $read]);
@@ -213,12 +218,12 @@ class CacheDatabaseLockTest extends TestCase
     #[TestWith([false])]
     public function testARefreshThatChangedNoRowIsConfirmedWithACurrentReadWhereOnlyChangedRowsCount(bool $owned): void
     {
-        $update = m::mock(Builder::class);
-        $update->shouldReceive('where')->once()->with('key', 'foo')->andReturnSelf();
-        $update->shouldReceive('where')->once()->with('owner', m::type('string'))->andReturnSelf();
-        $update->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturnSelf();
-        $update->shouldReceive('update')->once()->andReturn(0);
-        $read = m::mock(Builder::class);
+        $update = Double::for(Builder::class);
+        $update->expects('where')->with('key', 'foo');
+        $update->expects('where')->with('owner', Argument::type('string'));
+        $update->expects('where')->with('expiration', '>', Argument::type('int'));
+        $update->expects('update')->returns(0);
+        $read = Double::for(Builder::class);
 
         [$lock] = $this->getLock(driver: 'mysql', tables: [$update, $read]);
         $this->expectLiveOwnerCurrentRead($read, $lock->owner(), $owned);
@@ -230,11 +235,11 @@ class CacheDatabaseLockTest extends TestCase
     {
         [$lock, $table] = $this->getLock(lockLottery: [1, 1]); // Always hit lottery
 
-        $table->shouldReceive('insertOrIgnore')->once()->andReturn(1);
+        $table->expects('insertOrIgnore')->returns(1);
 
         // Lottery cleanup
-        $table->shouldReceive('where')->once()->with('expiration', '<=', m::type('int'))->andReturn($table);
-        $table->shouldReceive('delete')->once();
+        $table->expects('where')->with('expiration', '<=', Argument::type('int'))->returns($table);
+        $table->expects('delete');
 
         $this->assertTrue($lock->acquire());
     }
@@ -245,7 +250,7 @@ class CacheDatabaseLockTest extends TestCase
     {
         [$lock, $table] = $this->getLock(lockLottery: $lottery);
 
-        $table->shouldReceive('insertOrIgnore')->once()->andReturn(1);
+        $table->expects('insertOrIgnore')->returns(1);
 
         $this->assertTrue($lock->acquire());
     }
@@ -255,9 +260,9 @@ class CacheDatabaseLockTest extends TestCase
         [$lock, $table] = $this->getLock();
         $owner = $lock->owner();
 
-        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
-        $table->shouldReceive('delete')->once()->andReturn(1);
+        $table->expects('where')->with('key', 'foo')->returns($table);
+        $table->expects('where')->with('owner', $owner)->returns($table);
+        $table->expects('delete')->returns(1);
 
         $this->assertTrue($lock->release());
     }
@@ -266,9 +271,9 @@ class CacheDatabaseLockTest extends TestCase
     {
         [$lock, $table] = $this->getLock();
 
-        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->with('owner', $lock->owner())->andReturn($table);
-        $table->shouldReceive('delete')->once()->andReturn(0);
+        $table->expects('where')->with('key', 'foo')->returns($table);
+        $table->expects('where')->with('owner', $lock->owner())->returns($table);
+        $table->expects('delete')->returns(0);
 
         $this->assertFalse($lock->release());
     }
@@ -277,9 +282,9 @@ class CacheDatabaseLockTest extends TestCase
     {
         [$lock, $table] = $this->getLock();
 
-        $table->shouldReceive('where')->twice()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->twice()->with('expiration', '>', m::type('int'))->andReturn($table);
-        $table->shouldReceive('first')->twice()->andReturn(null);
+        $table->expects('where')->times(2)->with('key', 'foo')->returns($table);
+        $table->expects('where')->times(2)->with('expiration', '>', Argument::type('int'))->returns($table);
+        $table->expects('first')->times(2)->returns(null);
 
         $this->assertFalse($lock->isLocked());
         $this->assertFalse($lock->isOwnedByCurrentProcess());
@@ -289,11 +294,10 @@ class CacheDatabaseLockTest extends TestCase
     {
         [$lock, $table] = $this->getLock();
 
-        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('delete')->once();
+        $table->expects('where')->with('key', 'foo')->returns($table);
+        $table->expects('delete');
 
         $lock->forceRelease();
-        $this->assertTrue(true); // Just verify no exceptions
     }
 
     public function testLockWithDefaultTimeout(): void
@@ -302,12 +306,12 @@ class CacheDatabaseLockTest extends TestCase
 
         [$lock, $table] = $this->getLock(seconds: 0);
 
-        $table->shouldReceive('insertOrIgnore')->once()->with(m::on(function ($arg) use ($now) {
+        $table->expects('insertOrIgnore')->with(Argument::satisfies(function ($arg) use ($now) {
             return is_array($arg)
                 && $arg['key'] === 'foo'
                 && isset($arg['owner'])
                 && $arg['expiration'] === $now->getTimestamp() + 86400; // Default timeout
-        }))->andReturn(1);
+        }))->returns(1);
 
         $this->assertTrue($lock->acquire());
     }
@@ -326,13 +330,13 @@ class CacheDatabaseLockTest extends TestCase
         [$lock, $table] = $this->getLock();
         $owner = $lock->owner();
 
-        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
-        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
-        $table->shouldReceive('update')->once()->with(m::on(function ($arg) use ($now) {
+        $table->expects('where')->with('key', 'foo')->returns($table);
+        $table->expects('where')->with('owner', $owner)->returns($table);
+        $table->expects('where')->with('expiration', '>', Argument::type('int'))->returns($table);
+        $table->expects('update')->with(Argument::satisfies(function ($arg) use ($now) {
             return is_array($arg)
                 && $arg['expiration'] === $now->getTimestamp() + 10;
-        }))->andReturn(1);
+        }))->returns(1);
 
         $this->assertTrue($lock->refresh());
     }
@@ -344,13 +348,13 @@ class CacheDatabaseLockTest extends TestCase
         [$lock, $table] = $this->getLock();
         $owner = $lock->owner();
 
-        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
-        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
-        $table->shouldReceive('update')->once()->with(m::on(function ($arg) use ($now) {
+        $table->expects('where')->with('key', 'foo')->returns($table);
+        $table->expects('where')->with('owner', $owner)->returns($table);
+        $table->expects('where')->with('expiration', '>', Argument::type('int'))->returns($table);
+        $table->expects('update')->with(Argument::satisfies(function ($arg) use ($now) {
             return is_array($arg)
                 && $arg['expiration'] === $now->getTimestamp() + 30;
-        }))->andReturn(1);
+        }))->returns(1);
 
         $this->assertTrue($lock->refresh(30));
     }
@@ -360,10 +364,10 @@ class CacheDatabaseLockTest extends TestCase
         [$lock, $table] = $this->getLock();
         $owner = $lock->owner();
 
-        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
-        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
-        $table->shouldReceive('update')->once()->andReturn(0);
+        $table->expects('where')->with('key', 'foo')->returns($table);
+        $table->expects('where')->with('owner', $owner)->returns($table);
+        $table->expects('where')->with('expiration', '>', Argument::type('int'))->returns($table);
+        $table->expects('update')->returns(0);
 
         $this->assertFalse($lock->refresh());
     }
@@ -375,13 +379,13 @@ class CacheDatabaseLockTest extends TestCase
         [$lock, $table] = $this->getLock(seconds: 0);
         $owner = $lock->owner();
 
-        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
-        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
-        $table->shouldReceive('update')->once()->with(m::on(function ($arg) use ($now) {
+        $table->expects('where')->with('key', 'foo')->returns($table);
+        $table->expects('where')->with('owner', $owner)->returns($table);
+        $table->expects('where')->with('expiration', '>', Argument::type('int'))->returns($table);
+        $table->expects('update')->with(Argument::satisfies(function ($arg) use ($now) {
             return is_array($arg)
                 && $arg['expiration'] === $now->getTimestamp() + 86400;
-        }))->andReturn(1);
+        }))->returns(1);
 
         $this->assertTrue($lock->refresh());
     }
@@ -391,10 +395,10 @@ class CacheDatabaseLockTest extends TestCase
         [$lock, $table] = $this->getLock();
         $owner = $lock->owner();
 
-        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
-        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
-        $table->shouldReceive('update')->once()->andReturn(0);
+        $table->expects('where')->with('key', 'foo')->returns($table);
+        $table->expects('where')->with('owner', $owner)->returns($table);
+        $table->expects('where')->with('expiration', '>', Argument::type('int'))->returns($table);
+        $table->expects('update')->returns(0);
 
         $this->assertFalse($lock->refresh());
     }
@@ -425,9 +429,9 @@ class CacheDatabaseLockTest extends TestCase
 
         [$lock, $table] = $this->getLock();
 
-        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->with('expiration', '>', $now->getTimestamp())->andReturn($table);
-        $table->shouldReceive('first')->once()->andReturn((object) [
+        $table->expects('where')->with('key', 'foo')->returns($table);
+        $table->expects('where')->with('expiration', '>', $now->getTimestamp())->returns($table);
+        $table->expects('first')->returns((object) [
             'expiration' => $now->getTimestamp() + 5,
         ]);
 
@@ -438,9 +442,9 @@ class CacheDatabaseLockTest extends TestCase
     {
         [$lock, $table] = $this->getLock();
 
-        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
-        $table->shouldReceive('first')->once()->andReturn(null);
+        $table->expects('where')->with('key', 'foo')->returns($table);
+        $table->expects('where')->with('expiration', '>', Argument::type('int'))->returns($table);
+        $table->expects('first')->returns(null);
 
         $this->assertNull($lock->getRemainingLifetime());
     }
@@ -451,9 +455,9 @@ class CacheDatabaseLockTest extends TestCase
 
         [$lock, $table] = $this->getLock();
 
-        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->with('expiration', '>', $now->getTimestamp())->andReturn($table);
-        $table->shouldReceive('first')->once()->andReturn(null);
+        $table->expects('where')->with('key', 'foo')->returns($table);
+        $table->expects('where')->with('expiration', '>', $now->getTimestamp())->returns($table);
+        $table->expects('first')->returns(null);
 
         $this->assertNull($lock->getRemainingLifetime());
     }
@@ -462,7 +466,7 @@ class CacheDatabaseLockTest extends TestCase
     {
         [$lock,, $connection] = $this->getLock();
 
-        $connection->shouldReceive('getName')->once()->andReturn('default');
+        $connection->expects('getName')->returns('default');
 
         $this->assertSame('default', $lock->getConnectionName());
     }
@@ -471,7 +475,7 @@ class CacheDatabaseLockTest extends TestCase
     {
         [$lock,, $connection] = $this->getLock(connectionName: null);
 
-        $connection->shouldReceive('getName')->once()->andReturn(null);
+        $connection->expects('getName')->returns(null);
 
         $this->assertNull($lock->getConnectionName());
     }
@@ -483,14 +487,14 @@ class CacheDatabaseLockTest extends TestCase
      */
     protected function getLock(int $seconds = 10, ?array $lockLottery = [0, 1], ?string $connectionName = 'default', string $driver = 'pgsql', array $tables = []): array
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(Connection::class);
-        $table = m::mock(Builder::class);
-        $table->shouldReceive('useWritePdo')->andReturnSelf()->byDefault();
+        $resolver = Double::for(ConnectionResolverInterface::class);
+        $connection = Double::for(Connection::class);
+        $table = Double::for(Builder::class);
+        $table->allows('useWritePdo');
 
-        $resolver->shouldReceive('connection')->with($connectionName)->andReturn($connection);
-        $connection->shouldReceive('getDriverName')->andReturn($driver);
-        $connection->shouldReceive('table')->with('cache_locks')->andReturn(...($tables === [] ? [$table] : $tables));
+        $resolver->allows('connection')->with($connectionName)->returns($connection);
+        $connection->allows('getDriverName')->returns($driver);
+        $connection->allows('table')->with('cache_locks')->returns(...($tables === [] ? [$table] : $tables));
 
         $lock = new DatabaseLock(
             $resolver,
@@ -510,11 +514,11 @@ class CacheDatabaseLockTest extends TestCase
      */
     protected function expectLiveOwnerCurrentRead(Builder $read, string $owner, bool $owned): void
     {
-        $read->shouldReceive('sharedLock')->once()->andReturnSelf();
-        $read->shouldReceive('where')->once()->with('key', 'foo')->andReturnSelf();
-        $read->shouldReceive('where')->once()->with('owner', $owner)->andReturnSelf();
-        $read->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturnSelf();
-        $read->shouldReceive('exists')->once()->andReturn($owned);
+        $read->expects('sharedLock');
+        $read->expects('where')->with('key', 'foo');
+        $read->expects('where')->with('owner', $owner);
+        $read->expects('where')->with('expiration', '>', Argument::type('int'));
+        $read->expects('exists')->returns($owned);
     }
 
     /**
@@ -522,13 +526,13 @@ class CacheDatabaseLockTest extends TestCase
      *
      * @param Closure(): ?string $owner
      */
-    protected function liveOwnerRead(Closure $owner): Builder
+    protected function liveOwnerRead(Closure $owner): Builder&DoubleInterface
     {
-        $read = m::mock(Builder::class);
-        $read->shouldReceive('useWritePdo')->once()->andReturnSelf();
-        $read->shouldReceive('where')->once()->with('key', 'foo')->andReturnSelf();
-        $read->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturnSelf();
-        $read->shouldReceive('value')->once()->with('owner')->andReturnUsing($owner);
+        $read = Double::for(Builder::class);
+        $read->expects('useWritePdo');
+        $read->expects('where')->with('key', 'foo');
+        $read->expects('where')->with('expiration', '>', Argument::type('int'));
+        $read->expects('value')->with('owner')->resolves($owner);
 
         return $read;
     }

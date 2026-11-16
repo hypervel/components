@@ -27,13 +27,15 @@ use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\WithConfig;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 
 #[WithConfig('database.connections.testing.foreign_key_constraints', true)]
 class PartitionStoreTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     private const string ACCOUNT_A = '00000000-0000-4000-8000-000000000001';
 
@@ -146,7 +148,7 @@ class PartitionStoreTest extends TestCase
      */
     private function prompt(?Decisions $decisions = null): AgentPrompt
     {
-        return new AgentPrompt(new AnonymousAgent('', [], []), 'Hello', [], m::mock(TextProvider::class), 'model', approvalDecisions: $decisions);
+        return new AgentPrompt(new AnonymousAgent('', [], []), 'Hello', [], Double::for(TextProvider::class), 'model', approvalDecisions: $decisions);
     }
 
     /**

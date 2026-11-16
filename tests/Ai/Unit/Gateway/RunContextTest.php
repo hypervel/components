@@ -21,11 +21,14 @@ use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\TextUsage;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class RunContextTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testStepAndToolEventsRequireInterestedListeners(): void
     {
         $events = new Dispatcher;
@@ -33,10 +36,10 @@ class RunContextTest extends TestCase
         $events->listen('*', function (string $name) use (&$observed): void {
             $observed[] = $name;
         });
-        $context = new RunContext('invocation', m::mock(Agent::class), m::mock(TextProvider::class), 'model', $events);
+        $context = new RunContext('invocation', Double::for(Agent::class), Double::for(TextProvider::class), 'model', $events);
         $step = new StepContext;
         $response = new StepResponse('Answer', [], FinishReason::Stop, new TextUsage, new Meta);
-        $tool = m::mock(Tool::class);
+        $tool = Double::for(Tool::class);
         $exception = new RuntimeException('Failed');
         $report = static function () use ($context, $step, $response, $tool, $exception): void {
             $context->startingStep($step, [], null);

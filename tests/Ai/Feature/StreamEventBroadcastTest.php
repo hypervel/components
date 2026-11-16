@@ -11,17 +11,20 @@ use Hypervel\Broadcasting\AnonymousEvent;
 use Hypervel\Broadcasting\Channel;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Ai\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class StreamEventBroadcastTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testAgentsBroadcastImmediatelyUnlessQueueingIsRequested(): void
     {
         Event::fake([AnonymousEvent::class]);
 
         $event = new TextDelta('event', 'message', 'Hello', 1);
-        $agent = m::mock(AnonymousAgent::class, ['', [], []])->makePartial();
-        $agent->shouldReceive('stream')->twice()->andReturnUsing(fn (): StreamableAgentResponse => new StreamableAgentResponse('invocation', fn (): array => [$event]));
+        $agent = Double::for(new AnonymousAgent('', [], []))->passthru();
+        $agent->expects('stream')->times(2)->resolves(fn (): StreamableAgentResponse => new StreamableAgentResponse('invocation', fn (): array => [$event]));
 
         $agent->broadcast('Hello', new Channel('conversation'));
         $agent->broadcast('Hello', new Channel('conversation'), now: false);

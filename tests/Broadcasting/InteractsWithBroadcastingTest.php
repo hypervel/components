@@ -10,7 +10,8 @@ use Hypervel\Broadcasting\InteractsWithBroadcasting;
 use Hypervel\Contracts\Broadcasting\Broadcaster;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 enum InteractsWithBroadcastingTestConnectionStringEnum: string
 {
@@ -32,6 +33,8 @@ enum InteractsWithBroadcastingTestConnectionUnitEnum
 
 class InteractsWithBroadcastingTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBroadcastViaAcceptsStringBackedEnum(): void
     {
         $event = new TestBroadcastingEvent;
@@ -105,11 +108,11 @@ class InteractsWithBroadcastingTest extends TestCase
         $event->broadcastVia(InteractsWithBroadcastingTestConnectionIntEnum::Connection1);
 
         $broadcastEvent = new BroadcastEvent($event);
-        $manager = m::mock(BroadcastingFactory::class);
-        $broadcaster = m::mock(Broadcaster::class);
+        $manager = Double::for(BroadcastingFactory::class);
+        $broadcaster = Double::for(Broadcaster::class);
 
-        $manager->shouldReceive('connection')->once()->with('1')->andReturn($broadcaster);
-        $broadcaster->shouldReceive('broadcast')->once();
+        $manager->expects('connection')->with('1')->returns($broadcaster);
+        $broadcaster->expects('broadcast');
 
         $broadcastEvent->handle($manager);
     }

@@ -18,8 +18,10 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -30,11 +32,11 @@ use function Hypervel\Support\defer;
 
 class CacheStackStoreTest extends TestCase
 {
-    /** @var MockInterface|SwooleStore */
-    private SwooleStore $swoole;
+    use VerifiesDoubles;
 
-    /** @var MockInterface|RedisStore */
-    private RedisStore $redis;
+    private SwooleStore&DoubleInterface $swoole;
+
+    private RedisStore&DoubleInterface $redis;
 
     private StackStore $store;
 
@@ -55,21 +57,21 @@ class CacheStackStoreTest extends TestCase
         $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
         $record = compact('value', 'expiration');
 
-        $this->swoole->shouldReceive('get')->once()->with($key)->andReturn(null);
-        $this->redis->shouldReceive('get')->once()->with($key)->andReturn($record);
-        $this->swoole->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(true);
+        $this->swoole->expects('get')->with($key)->returns(null);
+        $this->redis->expects('get')->with($key)->returns($record);
+        $this->swoole->expects('put')->with($key, $record, $ttl)->returns(true);
 
         $this->assertSame($value, $this->store->get($key));
     }
 
     public function testAuthoritativeReadUsesBottomLayerWithoutRepairingUpperLayer(): void
     {
-        $top = m::mock(ArrayStore::class);
-        $bottom = m::mock(ArrayStore::class);
-        $bottom->shouldReceive('get')->once()->with('key')->andReturn(['value' => 'fresh']);
-        $top->shouldNotReceive('get');
-        $top->shouldNotReceive('put');
-        $top->shouldNotReceive('forever');
+        $top = Double::for(ArrayStore::class);
+        $bottom = Double::for(ArrayStore::class);
+        $bottom->expects('get')->with('key')->returns(['value' => 'fresh']);
+        $top->expects('get')->never();
+        $top->expects('put')->never();
+        $top->expects('forever')->never();
 
         $store = new StackStore([$top, $bottom]);
 
@@ -112,8 +114,8 @@ class CacheStackStoreTest extends TestCase
     #[DataProvider('authoritativeRecordProvider')]
     public function testAuthoritativeReadHandlesSingleLayerRecords(mixed $record, mixed $expected): void
     {
-        $store = m::mock(ArrayStore::class);
-        $store->shouldReceive('get')->once()->with('key')->andReturn($record);
+        $store = Double::for(ArrayStore::class);
+        $store->expects('get')->with('key')->returns($record);
 
         $this->assertSame($expected, (new StackStore([$store]))->getAuthoritativeRaw('key'));
     }
@@ -131,14 +133,14 @@ class CacheStackStoreTest extends TestCase
 
     public function testAuthoritativeReadRecursesThroughBottomStack(): void
     {
-        $outerTop = m::mock(ArrayStore::class);
-        $innerTop = m::mock(ArrayStore::class);
-        $innerBottom = m::mock(ArrayStore::class);
-        $innerBottom->shouldReceive('get')->once()->with('key')->andReturn([
+        $outerTop = Double::for(ArrayStore::class);
+        $innerTop = Double::for(ArrayStore::class);
+        $innerBottom = Double::for(ArrayStore::class);
+        $innerBottom->expects('get')->with('key')->returns([
             'value' => ['value' => 'fresh'],
         ]);
-        $outerTop->shouldNotReceive('get');
-        $innerTop->shouldNotReceive('get');
+        $outerTop->expects('get')->never();
+        $innerTop->expects('get')->never();
 
         $store = new StackStore([
             $outerTop,
@@ -150,14 +152,14 @@ class CacheStackStoreTest extends TestCase
 
     public function testAuthoritativeReadRecursesThroughBottomFailoverStore(): void
     {
-        $top = m::mock(ArrayStore::class);
-        $bottom = m::mock(ArrayStore::class);
-        $bottom->shouldReceive('get')->once()->with('key')->andReturn(['value' => 'fresh']);
-        $top->shouldNotReceive('get');
+        $top = Double::for(ArrayStore::class);
+        $bottom = Double::for(ArrayStore::class);
+        $bottom->expects('get')->with('key')->returns(['value' => 'fresh']);
+        $top->expects('get')->never();
 
-        $cache = m::mock(CacheManager::class);
-        $cache->shouldReceive('store')->once()->with('bottom')->andReturn(new Repository($bottom));
-        $failover = new FailoverStore($cache, m::mock(Dispatcher::class), ['bottom']);
+        $cache = Double::for(CacheManager::class);
+        $cache->expects('store')->with('bottom')->returns(new Repository($bottom));
+        $failover = new FailoverStore($cache, Double::for(Dispatcher::class), ['bottom']);
 
         $this->assertSame('fresh', (new StackStore([$top, $failover]))->getAuthoritativeRaw('key'));
     }
@@ -168,9 +170,9 @@ class CacheStackStoreTest extends TestCase
 
         $record = ['value' => 'bar'];
 
-        $this->swoole->shouldReceive('get')->once()->with('foo')->andReturnNull();
-        $this->redis->shouldReceive('get')->once()->with('foo')->andReturn($record);
-        $this->swoole->shouldReceive('forever')->once()->with('foo', $record)->andReturnFalse();
+        $this->swoole->expects('get')->with('foo')->returns(null);
+        $this->redis->expects('get')->with('foo')->returns($record);
+        $this->swoole->expects('forever')->with('foo', $record)->returns(false);
 
         $this->assertSame('bar', $this->store->get('foo'));
     }
@@ -179,8 +181,8 @@ class CacheStackStoreTest extends TestCase
     {
         $this->createStores();
 
-        $this->swoole->shouldReceive('get')->once()->with('foo')->andReturnNull();
-        $this->redis->shouldReceive('get')->once()->with('foo')->andReturn(['expiration' => 123]);
+        $this->swoole->expects('get')->with('foo')->returns(null);
+        $this->redis->expects('get')->with('foo')->returns(['expiration' => 123]);
 
         $this->assertNull($this->store->get('foo'));
     }
@@ -192,9 +194,9 @@ class CacheStackStoreTest extends TestCase
         $exception = new RuntimeException('repair failed');
         $record = ['value' => 'bar'];
 
-        $this->swoole->shouldReceive('get')->once()->with('foo')->andReturnNull();
-        $this->redis->shouldReceive('get')->once()->with('foo')->andReturn($record);
-        $this->swoole->shouldReceive('forever')->once()->with('foo', $record)->andThrow($exception);
+        $this->swoole->expects('get')->with('foo')->returns(null);
+        $this->redis->expects('get')->with('foo')->returns($record);
+        $this->swoole->expects('forever')->with('foo', $record)->throws($exception);
 
         try {
             $this->store->get('foo');
@@ -206,16 +208,16 @@ class CacheStackStoreTest extends TestCase
 
     public function testThreeLayerReadContinuesRepairAfterInnerFailure(): void
     {
-        $top = m::mock(ArrayStore::class);
-        $middle = m::mock(ArrayStore::class);
-        $bottom = m::mock(ArrayStore::class);
+        $top = Double::for(ArrayStore::class);
+        $middle = Double::for(ArrayStore::class);
+        $bottom = Double::for(ArrayStore::class);
         $record = ['value' => 'bar'];
 
-        $top->shouldReceive('get')->once()->with('foo')->andReturnNull();
-        $middle->shouldReceive('get')->once()->with('foo')->andReturnNull();
-        $bottom->shouldReceive('get')->once()->with('foo')->andReturn($record);
-        $middle->shouldReceive('forever')->once()->with('foo', $record)->andReturnFalse();
-        $top->shouldReceive('forever')->once()->with('foo', $record)->andReturnTrue();
+        $top->expects('get')->with('foo')->returns(null);
+        $middle->expects('get')->with('foo')->returns(null);
+        $bottom->expects('get')->with('foo')->returns($record);
+        $middle->expects('forever')->with('foo', $record)->returns(false);
+        $top->expects('forever')->with('foo', $record)->returns(true);
 
         $this->assertSame('bar', (new StackStore([$top, $middle, $bottom]))->get('foo'));
     }
@@ -240,9 +242,9 @@ class CacheStackStoreTest extends TestCase
 
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(50));
 
-        $this->swoole->shouldReceive('get')->once()->with($key)->andReturn(null);
-        $this->redis->shouldReceive('get')->once()->with($key)->andReturn($record);
-        $this->swoole->shouldReceive('put')->once()->with($key, $record, $ttl - 50)->andReturn(true);
+        $this->swoole->expects('get')->with($key)->returns(null);
+        $this->redis->expects('get')->with($key)->returns($record);
+        $this->swoole->expects('put')->with($key, $record, $ttl - 50)->returns(true);
 
         $this->assertSame($value, $this->store->get($key));
     }
@@ -257,9 +259,11 @@ class CacheStackStoreTest extends TestCase
         $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
         $record = compact('value', 'expiration');
 
-        $this->swoole->shouldReceive('get')->once()->with($key)->andReturn($record);
+        $this->swoole->expects('get')->with($key)->returns($record);
 
         $this->assertSame($value, $this->store->get($key));
+
+        $this->redis->unused();
     }
 
     public function testMissingItemsReturnNull(): void
@@ -268,8 +272,8 @@ class CacheStackStoreTest extends TestCase
 
         $key = 'foo';
 
-        $this->swoole->shouldReceive('get')->once()->with($key)->andReturn(null);
-        $this->redis->shouldReceive('get')->once()->with($key)->andReturn(null);
+        $this->swoole->expects('get')->with($key)->returns(null);
+        $this->redis->expects('get')->with($key)->returns(null);
 
         $this->assertNull($this->store->get($key));
     }
@@ -309,8 +313,8 @@ class CacheStackStoreTest extends TestCase
         $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
         $record = compact('value', 'expiration');
 
-        $this->swoole->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(true);
-        $this->redis->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(true);
+        $this->swoole->expects('put')->with($key, $record, $ttl)->returns(true);
+        $this->redis->expects('put')->with($key, $record, $ttl)->returns(true);
 
         $this->assertTrue($this->store->put($key, $value, $ttl));
     }
@@ -325,9 +329,11 @@ class CacheStackStoreTest extends TestCase
         $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
         $record = compact('value', 'expiration');
 
-        $this->swoole->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(false);
+        $this->swoole->expects('put')->with($key, $record, $ttl)->returns(false);
 
         $this->assertFalse($this->store->put($key, $value, $ttl));
+
+        $this->redis->unused();
     }
 
     public function testPutItemToStoreFailedAndRollback(): void
@@ -340,25 +346,34 @@ class CacheStackStoreTest extends TestCase
         $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
         $record = compact('value', 'expiration');
 
-        $this->swoole->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(true);
-        $this->redis->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(false);
-        $this->swoole->shouldReceive('forget')->once()->with($key)->andReturn(true);
+        $this->swoole->expects('put')->with($key, $record, $ttl)->returns(true);
+        $this->redis->expects('put')->with($key, $record, $ttl)->returns(false);
+        $this->swoole->expects('forget')->with($key)->returns(true);
 
         $this->assertFalse($this->store->put($key, $value, $ttl));
     }
 
     public function testPutCompensatesEarlierLayerWhenLowerLayerThrows(): void
     {
-        $top = m::mock(ArrayStore::class);
-        $middle = m::mock(ArrayStore::class);
-        $bottom = m::mock(ArrayStore::class);
+        $sequence = [];
+        $top = Double::for(ArrayStore::class);
+        $middle = Double::for(ArrayStore::class);
+        $bottom = Double::for(ArrayStore::class);
         $exception = new RuntimeException('write failed');
 
-        $top->shouldReceive('put')->once()->andReturnTrue();
-        $middle->shouldReceive('put')->once()->andThrow($exception);
-        $bottom->shouldNotReceive('put');
-        $middle->shouldReceive('forget')->once()->with('foo')->globally()->ordered()->andReturnTrue();
-        $top->shouldReceive('forget')->once()->with('foo')->globally()->ordered()->andReturnTrue();
+        $top->expects('put')->returns(true);
+        $middle->expects('put')->throws($exception);
+        $bottom->expects('put')->never();
+        $middle->expects('forget')->with('foo')->resolves(function () use (&$sequence): bool {
+            $sequence[] = 'middle';
+
+            return true;
+        });
+        $top->expects('forget')->with('foo')->resolves(function () use (&$sequence): bool {
+            $sequence[] = 'top';
+
+            return true;
+        });
 
         try {
             (new StackStore([$top, $middle, $bottom]))->put('foo', 'bar', 60);
@@ -366,45 +381,58 @@ class CacheStackStoreTest extends TestCase
         } catch (RuntimeException $throwable) {
             $this->assertSame($exception, $throwable);
         }
+
+        $this->assertSame(['middle', 'top'], $sequence);
     }
 
     public function testPutCompensatesCompletedLayersInReverseOrder(): void
     {
-        $top = m::mock(ArrayStore::class);
-        $middle = m::mock(ArrayStore::class);
-        $bottom = m::mock(ArrayStore::class);
+        $sequence = [];
+        $top = Double::for(ArrayStore::class);
+        $middle = Double::for(ArrayStore::class);
+        $bottom = Double::for(ArrayStore::class);
 
-        $top->shouldReceive('put')->once()->andReturnTrue();
-        $middle->shouldReceive('put')->once()->andReturnTrue();
-        $bottom->shouldReceive('put')->once()->andReturnFalse();
-        $middle->shouldReceive('forget')->once()->with('foo')->globally()->ordered()->andReturnTrue();
-        $top->shouldReceive('forget')->once()->with('foo')->globally()->ordered()->andReturnTrue();
+        $top->expects('put')->returns(true);
+        $middle->expects('put')->returns(true);
+        $bottom->expects('put')->returns(false);
+        $middle->expects('forget')->with('foo')->resolves(function () use (&$sequence): bool {
+            $sequence[] = 'middle';
+
+            return true;
+        });
+        $top->expects('forget')->with('foo')->resolves(function () use (&$sequence): bool {
+            $sequence[] = 'top';
+
+            return true;
+        });
 
         $this->assertFalse((new StackStore([$top, $middle, $bottom]))->put('foo', 'bar', 60));
+
+        $this->assertSame(['middle', 'top'], $sequence);
     }
 
     public function testPutPreservesFalseResultWhenCompensationThrows(): void
     {
-        $top = m::mock(ArrayStore::class);
-        $bottom = m::mock(ArrayStore::class);
+        $top = Double::for(ArrayStore::class);
+        $bottom = Double::for(ArrayStore::class);
 
-        $top->shouldReceive('put')->once()->andReturnTrue();
-        $bottom->shouldReceive('put')->once()->andReturnFalse();
-        $top->shouldReceive('forget')->once()->with('foo')->andThrow(new RuntimeException('cleanup failed'));
+        $top->expects('put')->returns(true);
+        $bottom->expects('put')->returns(false);
+        $top->expects('forget')->with('foo')->throws(new RuntimeException('cleanup failed'));
 
         $this->assertFalse((new StackStore([$top, $bottom]))->put('foo', 'bar', 60));
     }
 
     public function testPutPreservesWriteFailureWhenCompensationAlsoThrows(): void
     {
-        $top = m::mock(ArrayStore::class);
-        $bottom = m::mock(ArrayStore::class);
+        $top = Double::for(ArrayStore::class);
+        $bottom = Double::for(ArrayStore::class);
         $exception = new RuntimeException('write failed');
 
-        $top->shouldReceive('put')->once()->andReturnTrue();
-        $bottom->shouldReceive('put')->once()->andThrow($exception);
-        $bottom->shouldReceive('forget')->once()->with('foo')->andThrow(new RuntimeException('current cleanup failed'));
-        $top->shouldReceive('forget')->once()->with('foo')->andThrow(new RuntimeException('cleanup failed'));
+        $top->expects('put')->returns(true);
+        $bottom->expects('put')->throws($exception);
+        $bottom->expects('forget')->with('foo')->throws(new RuntimeException('current cleanup failed'));
+        $top->expects('forget')->with('foo')->throws(new RuntimeException('cleanup failed'));
 
         try {
             (new StackStore([$top, $bottom]))->put('foo', 'bar', 60);
@@ -416,13 +444,13 @@ class CacheStackStoreTest extends TestCase
 
     public function testPutCompensatesLayerWhoseWriteThrows(): void
     {
-        $top = m::mock(ArrayStore::class);
-        $bottom = m::mock(ArrayStore::class);
+        $top = Double::for(ArrayStore::class);
+        $bottom = Double::for(ArrayStore::class);
         $exception = new RuntimeException('write failed');
 
-        $top->shouldReceive('put')->once()->andThrow($exception);
-        $top->shouldReceive('forget')->once()->with('foo')->andReturnTrue();
-        $bottom->shouldNotReceive('put');
+        $top->expects('put')->throws($exception);
+        $top->expects('forget')->with('foo')->returns(true);
+        $bottom->expects('put')->never();
 
         try {
             (new StackStore([$top, $bottom]))->put('foo', 'bar', 60);
@@ -494,18 +522,27 @@ class CacheStackStoreTest extends TestCase
     #[TestWith([true])]
     public function testPutPreservesOriginalCancellationAndCompletesCompensation(bool $cleanupThrows): void
     {
-        $top = m::mock(ArrayStore::class);
-        $bottom = m::mock(ArrayStore::class);
+        $sequence = [];
+        $top = Double::for(ArrayStore::class);
+        $bottom = Double::for(ArrayStore::class);
         $cancellation = new CanceledException('write canceled');
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Write cleanup failed.', previous: $cancellation);
         }
         $cleanupCancellation = new CanceledException('cleanup canceled');
 
-        $top->shouldReceive('put')->once()->andReturnTrue();
-        $bottom->shouldReceive('put')->once()->andThrow($cancellation);
-        $bottom->shouldReceive('forget')->once()->with('foo')->globally()->ordered()->andThrow($cleanupCancellation);
-        $top->shouldReceive('forget')->once()->with('foo')->globally()->ordered()->andReturnTrue();
+        $top->expects('put')->returns(true);
+        $bottom->expects('put')->throws($cancellation);
+        $bottom->expects('forget')->with('foo')->resolves(function () use (&$sequence, $cleanupCancellation): never {
+            $sequence[] = 'bottom';
+
+            throw $cleanupCancellation;
+        });
+        $top->expects('forget')->with('foo')->resolves(function () use (&$sequence): bool {
+            $sequence[] = 'top';
+
+            return true;
+        });
 
         try {
             (new StackStore([$top, $bottom]))->put('foo', 'bar', 60);
@@ -513,23 +550,34 @@ class CacheStackStoreTest extends TestCase
         } catch (Throwable $exception) {
             $this->assertSame($cancellation, $exception);
         }
+
+        $this->assertSame(['bottom', 'top'], $sequence);
     }
 
     #[TestWith([false])]
     #[TestWith([true])]
     public function testPutCleanupCancellationSupersedesOrdinaryWriteFailure(bool $cleanupThrows): void
     {
-        $top = m::mock(ArrayStore::class);
-        $bottom = m::mock(ArrayStore::class);
+        $sequence = [];
+        $top = Double::for(ArrayStore::class);
+        $bottom = Double::for(ArrayStore::class);
         $cleanupCancellation = new CanceledException('cleanup canceled');
         if ($cleanupThrows) {
             $cleanupCancellation = new RuntimeException('Release cleanup failed.', previous: $cleanupCancellation);
         }
 
-        $top->shouldReceive('put')->once()->andReturnTrue();
-        $bottom->shouldReceive('put')->once()->andThrow(new RuntimeException('write failed'));
-        $bottom->shouldReceive('forget')->once()->with('foo')->globally()->ordered()->andThrow($cleanupCancellation);
-        $top->shouldReceive('forget')->once()->with('foo')->globally()->ordered()->andReturnTrue();
+        $top->expects('put')->returns(true);
+        $bottom->expects('put')->throws(new RuntimeException('write failed'));
+        $bottom->expects('forget')->with('foo')->resolves(function () use (&$sequence, $cleanupCancellation): never {
+            $sequence[] = 'bottom';
+
+            throw $cleanupCancellation;
+        });
+        $top->expects('forget')->with('foo')->resolves(function () use (&$sequence): bool {
+            $sequence[] = 'top';
+
+            return true;
+        });
 
         try {
             (new StackStore([$top, $bottom]))->put('foo', 'bar', 60);
@@ -537,22 +585,24 @@ class CacheStackStoreTest extends TestCase
         } catch (Throwable $exception) {
             $this->assertSame($cleanupCancellation, $exception);
         }
+
+        $this->assertSame(['bottom', 'top'], $sequence);
     }
 
     #[TestWith([false])]
     #[TestWith([true])]
     public function testPutCleanupCancellationSupersedesFalseWriteResult(bool $cleanupThrows): void
     {
-        $top = m::mock(ArrayStore::class);
-        $bottom = m::mock(ArrayStore::class);
+        $top = Double::for(ArrayStore::class);
+        $bottom = Double::for(ArrayStore::class);
         $cleanupCancellation = new CanceledException('cleanup canceled');
         if ($cleanupThrows) {
             $cleanupCancellation = new RuntimeException('Release cleanup failed.', previous: $cleanupCancellation);
         }
 
-        $top->shouldReceive('put')->once()->andReturnTrue();
-        $bottom->shouldReceive('put')->once()->andReturnFalse();
-        $top->shouldReceive('forget')->once()->with('foo')->andThrow($cleanupCancellation);
+        $top->expects('put')->returns(true);
+        $bottom->expects('put')->returns(false);
+        $top->expects('forget')->with('foo')->throws($cleanupCancellation);
 
         try {
             (new StackStore([$top, $bottom]))->put('foo', 'bar', 60);
@@ -566,20 +616,21 @@ class CacheStackStoreTest extends TestCase
     {
         $this->createStores();
 
-        $this->swoole->shouldReceive('many')->once()->with(['foo', 'bar'])->andReturn([
+        $this->swoole->expects('many')->with(['foo', 'bar'])->returns([
             'foo' => ['value' => 'bar'],
             'bar' => ['value' => 'baz'],
         ]);
-        $this->redis->shouldNotReceive('many');
+        $this->redis->expects('many')->never();
 
         $this->assertEquals(['foo' => 'bar', 'bar' => 'baz'], $this->store->many(['foo', 'bar']));
     }
 
     public function testManyReadsEachLayerOnceAndRestoresLowerHitsWithBatchedWrites(): void
     {
-        $top = m::mock(ArrayStore::class);
-        $middle = m::mock(ArrayStore::class);
-        $bottom = m::mock(ArrayStore::class);
+        $sequence = [];
+        $top = Double::for(ArrayStore::class);
+        $middle = Double::for(ArrayStore::class);
+        $bottom = Double::for(ArrayStore::class);
         $expiration = CarbonImmutable::now()->getTimestamp() + 100;
         $shorterExpiration = CarbonImmutable::now()->getTimestamp() + 50;
         $middleRecord = ['value' => 'middle', 'expiration' => $expiration];
@@ -589,7 +640,7 @@ class CacheStackStoreTest extends TestCase
 
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(30));
 
-        $top->shouldReceive('many')->once()->with(['top', 'middle', 'bottom', 'shorter', 'forever', 'missing', 'malformed'])->andReturn([
+        $top->expects('many')->with(['top', 'middle', 'bottom', 'shorter', 'forever', 'missing', 'malformed'])->returns([
             'top' => ['value' => 'top'],
             'middle' => null,
             'bottom' => null,
@@ -598,7 +649,7 @@ class CacheStackStoreTest extends TestCase
             'missing' => null,
             'malformed' => null,
         ]);
-        $middle->shouldReceive('many')->once()->with(['middle', 'bottom', 'shorter', 'forever', 'missing', 'malformed'])->andReturn([
+        $middle->expects('many')->with(['middle', 'bottom', 'shorter', 'forever', 'missing', 'malformed'])->returns([
             'middle' => $middleRecord,
             'bottom' => null,
             'shorter' => null,
@@ -606,19 +657,27 @@ class CacheStackStoreTest extends TestCase
             'missing' => null,
             'malformed' => ['expiration' => 123],
         ]);
-        $bottom->shouldReceive('many')->once()->with(['bottom', 'shorter', 'forever', 'missing'])->andReturn([
+        $bottom->expects('many')->with(['bottom', 'shorter', 'forever', 'missing'])->returns([
             'bottom' => $bottomRecord,
             'shorter' => $shorterRecord,
             'forever' => $foreverRecord,
             'missing' => null,
         ]);
 
-        $middle->shouldReceive('putMany')->once()->with(['bottom' => $bottomRecord], 70)->globally()->ordered()->andReturnTrue();
-        $middle->shouldReceive('putMany')->once()->with(['shorter' => $shorterRecord], 20)->andReturnTrue();
-        $middle->shouldReceive('forever')->once()->with('forever', $foreverRecord)->andReturnTrue();
-        $top->shouldReceive('putMany')->once()->with(['middle' => $middleRecord, 'bottom' => $bottomRecord], 70)->globally()->ordered()->andReturnTrue();
-        $top->shouldReceive('putMany')->once()->with(['shorter' => $shorterRecord], 20)->andReturnTrue();
-        $top->shouldReceive('forever')->once()->with('forever', $foreverRecord)->andReturnTrue();
+        $middle->expects('putMany')->with(['bottom' => $bottomRecord], 70)->resolves(function () use (&$sequence): bool {
+            $sequence[] = 'middle';
+
+            return true;
+        });
+        $middle->expects('putMany')->with(['shorter' => $shorterRecord], 20)->returns(true);
+        $middle->expects('forever')->with('forever', $foreverRecord)->returns(true);
+        $top->expects('putMany')->with(['middle' => $middleRecord, 'bottom' => $bottomRecord], 70)->resolves(function () use (&$sequence): bool {
+            $sequence[] = 'top';
+
+            return true;
+        });
+        $top->expects('putMany')->with(['shorter' => $shorterRecord], 20)->returns(true);
+        $top->expects('forever')->with('forever', $foreverRecord)->returns(true);
 
         $this->assertSame([
             'top' => 'top',
@@ -629,13 +688,15 @@ class CacheStackStoreTest extends TestCase
             'missing' => null,
             'malformed' => null,
         ], (new StackStore([$top, $middle, $bottom]))->many(['top', 'middle', 'bottom', 'shorter', 'forever', 'missing', 'malformed']));
+
+        $this->assertSame(['middle', 'top'], $sequence);
     }
 
     public function testManyMeasuresRemainingTtlBeforeEachRestoreAndSkipsRecordsThatExpired(): void
     {
-        $top = m::mock(ArrayStore::class);
-        $middle = m::mock(ArrayStore::class);
-        $bottom = m::mock(ArrayStore::class);
+        $top = Double::for(ArrayStore::class);
+        $middle = Double::for(ArrayStore::class);
+        $bottom = Double::for(ArrayStore::class);
         $expiringRecord = ['value' => 'expiring', 'expiration' => CarbonImmutable::now()->getTimestamp() + 1];
         $bottomRecord = ['value' => 'bottom', 'expiration' => CarbonImmutable::now()->getTimestamp() + 100];
         $advance = static function (int $seconds, mixed $result): Closure {
@@ -646,12 +707,12 @@ class CacheStackStoreTest extends TestCase
             };
         };
 
-        $top->shouldReceive('many')->once()->with(['expiring', 'bottom'])->andReturn(['expiring' => null, 'bottom' => null]);
-        $middle->shouldReceive('many')->once()->with(['expiring', 'bottom'])->andReturn(['expiring' => $expiringRecord, 'bottom' => null]);
-        $bottom->shouldReceive('many')->once()->with(['bottom'])->andReturnUsing($advance(5, ['bottom' => $bottomRecord]));
-        $middle->shouldReceive('putMany')->once()->with(['bottom' => $bottomRecord], 95)->andReturnUsing($advance(10, true));
-        $top->shouldReceive('putMany')->once()->with(['bottom' => $bottomRecord], 85)->andReturnTrue();
-        $top->shouldNotReceive('forever');
+        $top->expects('many')->with(['expiring', 'bottom'])->returns(['expiring' => null, 'bottom' => null]);
+        $middle->expects('many')->with(['expiring', 'bottom'])->returns(['expiring' => $expiringRecord, 'bottom' => null]);
+        $bottom->expects('many')->with(['bottom'])->resolves($advance(5, ['bottom' => $bottomRecord]));
+        $middle->expects('putMany')->with(['bottom' => $bottomRecord], 95)->resolves($advance(10, true));
+        $top->expects('putMany')->with(['bottom' => $bottomRecord], 85)->returns(true);
+        $top->expects('forever')->never();
 
         $this->assertSame(
             ['expiring' => 'expiring', 'bottom' => 'bottom'],
@@ -665,14 +726,14 @@ class CacheStackStoreTest extends TestCase
 
         $record = ['value' => 'bar', 'expiration' => CarbonImmutable::now()->getTimestamp() + 1];
 
-        $this->swoole->shouldReceive('get')->once()->with('foo')->andReturnNull();
-        $this->redis->shouldReceive('get')->once()->with('foo')->andReturnUsing(function () use ($record): array {
+        $this->swoole->expects('get')->with('foo')->returns(null);
+        $this->redis->expects('get')->with('foo')->resolves(function () use ($record): array {
             CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(2));
 
             return $record;
         });
-        $this->swoole->shouldReceive('forget')->once()->with('foo')->andReturnTrue();
-        $this->swoole->shouldNotReceive('put');
+        $this->swoole->expects('forget')->with('foo')->returns(true);
+        $this->swoole->expects('put')->never();
 
         $this->assertSame('bar', $this->store->get('foo'));
     }
@@ -688,8 +749,8 @@ class CacheStackStoreTest extends TestCase
             'bar' => ['value' => 'baz', 'expiration' => $expiration],
         ];
 
-        $this->swoole->shouldReceive('putMany')->once()->with($records, $ttl)->andReturn(true);
-        $this->redis->shouldReceive('putMany')->once()->with($records, $ttl)->andReturn(true);
+        $this->swoole->expects('putMany')->with($records, $ttl)->returns(true);
+        $this->redis->expects('putMany')->with($records, $ttl)->returns(true);
 
         $this->assertTrue($this->store->putMany(['foo' => 'bar', 'bar' => 'baz'], $ttl));
     }
@@ -701,12 +762,12 @@ class CacheStackStoreTest extends TestCase
         $ttl = 100;
         $now = CarbonImmutable::now()->getTimestamp();
 
-        $this->swoole->shouldReceive('putMany')->once()->with(['foo' => ['value' => 'bar', 'expiration' => $now + $ttl]], $ttl)->andReturnUsing(function (): bool {
+        $this->swoole->expects('putMany')->with(['foo' => ['value' => 'bar', 'expiration' => $now + $ttl]], $ttl)->resolves(function (): bool {
             CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(5));
 
             return true;
         });
-        $this->redis->shouldReceive('putMany')->once()->with(['foo' => ['value' => 'bar', 'expiration' => $now + 5 + $ttl]], $ttl)->andReturnTrue();
+        $this->redis->expects('putMany')->with(['foo' => ['value' => 'bar', 'expiration' => $now + 5 + $ttl]], $ttl)->returns(true);
 
         $this->assertTrue($this->store->putMany(['foo' => 'bar'], $ttl));
     }
@@ -716,23 +777,45 @@ class CacheStackStoreTest extends TestCase
         $this->createStores();
 
         $this->assertTrue($this->store->putMany([], 100));
+
+        $this->swoole->unused();
+        $this->redis->unused();
     }
 
     public function testPutManyFailureForgetsTheBatchFromTheFailedAndCompletedLayersDeepestFirst(): void
     {
-        $top = m::mock(ArrayStore::class);
-        $middle = m::mock(ArrayStore::class);
-        $bottom = m::mock(ArrayStore::class);
+        $sequence = [];
+        $top = Double::for(ArrayStore::class);
+        $middle = Double::for(ArrayStore::class);
+        $bottom = Double::for(ArrayStore::class);
 
-        $top->shouldReceive('putMany')->once()->andReturnTrue();
-        $middle->shouldReceive('putMany')->once()->andReturnFalse();
-        $bottom->shouldNotReceive('putMany');
-        $middle->shouldReceive('forget')->once()->with('first')->globally()->ordered()->andReturnTrue();
-        $middle->shouldReceive('forget')->once()->with('second')->globally()->ordered()->andReturnTrue();
-        $top->shouldReceive('forget')->once()->with('first')->globally()->ordered()->andReturnTrue();
-        $top->shouldReceive('forget')->once()->with('second')->globally()->ordered()->andReturnTrue();
+        $top->expects('putMany')->returns(true);
+        $middle->expects('putMany')->returns(false);
+        $bottom->expects('putMany')->never();
+        $middle->expects('forget')->with('first')->resolves(function () use (&$sequence): bool {
+            $sequence[] = 'middle:first';
+
+            return true;
+        });
+        $middle->expects('forget')->with('second')->resolves(function () use (&$sequence): bool {
+            $sequence[] = 'middle:second';
+
+            return true;
+        });
+        $top->expects('forget')->with('first')->resolves(function () use (&$sequence): bool {
+            $sequence[] = 'top:first';
+
+            return true;
+        });
+        $top->expects('forget')->with('second')->resolves(function () use (&$sequence): bool {
+            $sequence[] = 'top:second';
+
+            return true;
+        });
 
         $this->assertFalse((new StackStore([$top, $middle, $bottom]))->putMany(['first' => 'one', 'second' => 'two'], 60));
+
+        $this->assertSame(['middle:first', 'middle:second', 'top:first', 'top:second'], $sequence);
     }
 
     public function testPutManyForgetsKeysALayerStoredBeforeThrowing(): void
@@ -772,21 +855,42 @@ class CacheStackStoreTest extends TestCase
     #[TestWith([true])]
     public function testPutManyCleanupContinuesAfterCancellationStopsAtOrdinaryFailureAndKeepsCancellation(bool $cleanupThrows): void
     {
-        $top = m::mock(ArrayStore::class);
-        $bottom = m::mock(ArrayStore::class);
+        $sequence = [];
+        $top = Double::for(ArrayStore::class);
+        $bottom = Double::for(ArrayStore::class);
         $cleanupCancellation = new CanceledException('cleanup canceled');
         if ($cleanupThrows) {
             $cleanupCancellation = new RuntimeException('Release cleanup failed.', previous: $cleanupCancellation);
         }
 
-        $top->shouldReceive('putMany')->once()->andReturnTrue();
-        $bottom->shouldReceive('putMany')->once()->andThrow(new RuntimeException('write failed'));
-        $bottom->shouldReceive('forget')->once()->with('first')->globally()->ordered()->andThrow($cleanupCancellation);
-        $bottom->shouldReceive('forget')->once()->with('second')->globally()->ordered()->andThrow(new RuntimeException('cleanup failed'));
-        $bottom->shouldNotReceive('forget')->with('third');
-        $top->shouldReceive('forget')->once()->with('first')->globally()->ordered()->andReturnTrue();
-        $top->shouldReceive('forget')->once()->with('second')->globally()->ordered()->andReturnTrue();
-        $top->shouldReceive('forget')->once()->with('third')->globally()->ordered()->andReturnTrue();
+        $top->expects('putMany')->returns(true);
+        $bottom->expects('putMany')->throws(new RuntimeException('write failed'));
+        $bottom->expects('forget')->with('first')->resolves(function () use (&$sequence, $cleanupCancellation): never {
+            $sequence[] = 'bottom:first';
+
+            throw $cleanupCancellation;
+        });
+        $bottom->expects('forget')->with('second')->resolves(function () use (&$sequence): never {
+            $sequence[] = 'bottom:second';
+
+            throw new RuntimeException('cleanup failed');
+        });
+        $bottom->expects('forget')->never()->with('third');
+        $top->expects('forget')->with('first')->resolves(function () use (&$sequence): bool {
+            $sequence[] = 'top:first';
+
+            return true;
+        });
+        $top->expects('forget')->with('second')->resolves(function () use (&$sequence): bool {
+            $sequence[] = 'top:second';
+
+            return true;
+        });
+        $top->expects('forget')->with('third')->resolves(function () use (&$sequence): bool {
+            $sequence[] = 'top:third';
+
+            return true;
+        });
 
         try {
             (new StackStore([$top, $bottom]))->putMany(['first' => 'one', 'second' => 'two', 'third' => 'three'], 60);
@@ -794,13 +898,15 @@ class CacheStackStoreTest extends TestCase
         } catch (Throwable $exception) {
             $this->assertSame($cleanupCancellation, $exception);
         }
+
+        $this->assertSame(['bottom:first', 'bottom:second', 'top:first', 'top:second', 'top:third'], $sequence);
     }
 
     #[DataProvider('proxyPutManyTtlProvider')]
     public function testProxyPutManyAppliesLayerTtl(?int $layerTtl, int $requestedTtl, int $expectedTtl): void
     {
-        $store = m::mock(ArrayStore::class);
-        $store->shouldReceive('putMany')->once()->with(['key' => 'value'], $expectedTtl)->andReturnTrue();
+        $store = Double::for(ArrayStore::class);
+        $store->expects('putMany')->with(['key' => 'value'], $expectedTtl)->returns(true);
 
         $proxy = new StackStoreProxy($store, $layerTtl);
 
@@ -819,8 +925,8 @@ class CacheStackStoreTest extends TestCase
 
     public function testProxyPutManyReturnsUnderlyingResult(): void
     {
-        $store = m::mock(ArrayStore::class);
-        $store->shouldReceive('putMany')->once()->with(['key' => 'value'], 60)->andReturnFalse();
+        $store = Double::for(ArrayStore::class);
+        $store->expects('putMany')->with(['key' => 'value'], 60)->returns(false);
 
         $this->assertFalse((new StackStoreProxy($store, 60))->putMany(['key' => 'value'], 90));
     }
@@ -831,13 +937,12 @@ class CacheStackStoreTest extends TestCase
 
         $key = 'foo';
 
-        $this->swoole->shouldReceive('get')->once()->with($key)->andReturn(null);
-        $this->redis->shouldReceive('get')->once()->with($key)->andReturn(null);
-        $this->swoole->shouldReceive('forever')->once()->with($key, ['value' => 1])->andReturn(true);
-        $this->redis->shouldReceive('forever')->once()->with($key, ['value' => 1])->andReturn(true);
-        $this->swoole->shouldReceive('get')->once()->with($key)->andReturn(['value' => 1]);
-        $this->swoole->shouldReceive('forever')->once()->with($key, ['value' => 3])->andReturn(true);
-        $this->redis->shouldReceive('forever')->once()->with($key, ['value' => 3])->andReturn(true);
+        $this->swoole->expects('get')->times(2)->with($key)->returns(null, ['value' => 1]);
+        $this->redis->expects('get')->with($key)->returns(null);
+        $this->swoole->expects('forever')->with($key, ['value' => 1])->returns(true);
+        $this->redis->expects('forever')->with($key, ['value' => 1])->returns(true);
+        $this->swoole->expects('forever')->with($key, ['value' => 3])->returns(true);
+        $this->redis->expects('forever')->with($key, ['value' => 3])->returns(true);
 
         $this->assertSame(1, $this->store->increment($key));
         $this->assertSame(3, $this->store->increment($key, 2));
@@ -851,9 +956,9 @@ class CacheStackStoreTest extends TestCase
         $ttl = 100;
         $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
 
-        $this->swoole->shouldReceive('get')->once()->with($key)->andReturn(['value' => 1, 'expiration' => $expiration]);
-        $this->swoole->shouldReceive('put')->once()->with($key, ['value' => 2, 'expiration' => $expiration], $ttl)->andReturn(true);
-        $this->redis->shouldReceive('put')->once()->with($key, ['value' => 2, 'expiration' => $expiration], $ttl)->andReturn(true);
+        $this->swoole->expects('get')->with($key)->returns(['value' => 1, 'expiration' => $expiration]);
+        $this->swoole->expects('put')->with($key, ['value' => 2, 'expiration' => $expiration], $ttl)->returns(true);
+        $this->redis->expects('put')->with($key, ['value' => 2, 'expiration' => $expiration], $ttl)->returns(true);
 
         $this->assertSame(2, $this->store->increment($key));
     }
@@ -865,13 +970,13 @@ class CacheStackStoreTest extends TestCase
         $record = ['value' => 5];
         $incrementedRecord = ['value' => 6];
 
-        $this->swoole->shouldReceive('get')->twice()->with('counter')->andReturnNull();
-        $this->redis->shouldReceive('get')->twice()->with('counter')->andReturn($record);
-        $this->swoole->shouldReceive('forever')->twice()->with('counter', $record)->andReturnFalse();
+        $this->swoole->expects('get')->times(2)->with('counter')->returns(null);
+        $this->redis->expects('get')->times(2)->with('counter')->returns($record);
+        $this->swoole->expects('forever')->times(2)->with('counter', $record)->returns(false);
 
-        $this->swoole->shouldReceive('forever')->once()->with('counter', $incrementedRecord)->andReturnTrue();
-        $this->redis->shouldReceive('forever')->once()->with('counter', $incrementedRecord)->andReturnFalse();
-        $this->swoole->shouldReceive('forget')->once()->with('counter')->andReturnTrue();
+        $this->swoole->expects('forever')->with('counter', $incrementedRecord)->returns(true);
+        $this->redis->expects('forever')->with('counter', $incrementedRecord)->returns(false);
+        $this->swoole->expects('forget')->with('counter')->returns(true);
 
         $this->assertFalse($this->store->increment('counter'));
         $this->assertSame(5, $this->store->get('counter'));
@@ -883,13 +988,12 @@ class CacheStackStoreTest extends TestCase
 
         $key = 'foo';
 
-        $this->swoole->shouldReceive('get')->once()->with($key)->andReturn(null);
-        $this->redis->shouldReceive('get')->once()->with($key)->andReturn(null);
-        $this->swoole->shouldReceive('forever')->once()->with($key, ['value' => -1])->andReturn(true);
-        $this->redis->shouldReceive('forever')->once()->with($key, ['value' => -1])->andReturn(true);
-        $this->swoole->shouldReceive('get')->once()->with($key)->andReturn(['value' => -1]);
-        $this->swoole->shouldReceive('forever')->once()->with($key, ['value' => -3])->andReturn(true);
-        $this->redis->shouldReceive('forever')->once()->with($key, ['value' => -3])->andReturn(true);
+        $this->swoole->expects('get')->times(2)->with($key)->returns(null, ['value' => -1]);
+        $this->redis->expects('get')->with($key)->returns(null);
+        $this->swoole->expects('forever')->with($key, ['value' => -1])->returns(true);
+        $this->redis->expects('forever')->with($key, ['value' => -1])->returns(true);
+        $this->swoole->expects('forever')->with($key, ['value' => -3])->returns(true);
+        $this->redis->expects('forever')->with($key, ['value' => -3])->returns(true);
 
         $this->assertSame(-1, $this->store->decrement($key));
         $this->assertSame(-3, $this->store->decrement($key, 2));
@@ -903,9 +1007,9 @@ class CacheStackStoreTest extends TestCase
         $ttl = 100;
         $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
 
-        $this->swoole->shouldReceive('get')->once()->with($key)->andReturn(['value' => 2, 'expiration' => $expiration]);
-        $this->swoole->shouldReceive('put')->once()->with($key, ['value' => 1, 'expiration' => $expiration], $ttl)->andReturn(true);
-        $this->redis->shouldReceive('put')->once()->with($key, ['value' => 1, 'expiration' => $expiration], $ttl)->andReturn(true);
+        $this->swoole->expects('get')->with($key)->returns(['value' => 2, 'expiration' => $expiration]);
+        $this->swoole->expects('put')->with($key, ['value' => 1, 'expiration' => $expiration], $ttl)->returns(true);
+        $this->redis->expects('put')->with($key, ['value' => 1, 'expiration' => $expiration], $ttl)->returns(true);
 
         $this->assertSame(1, $this->store->decrement($key));
     }
@@ -914,8 +1018,8 @@ class CacheStackStoreTest extends TestCase
     {
         $this->createStores();
 
-        $this->swoole->shouldReceive('forever')->once()->with('foo', ['value' => 'bar'])->andReturn(true);
-        $this->redis->shouldReceive('forever')->once()->with('foo', ['value' => 'bar'])->andReturn(true);
+        $this->swoole->expects('forever')->with('foo', ['value' => 'bar'])->returns(true);
+        $this->redis->expects('forever')->with('foo', ['value' => 'bar'])->returns(true);
 
         $this->assertTrue($this->store->forever('foo', 'bar'));
     }
@@ -924,18 +1028,20 @@ class CacheStackStoreTest extends TestCase
     {
         $this->createStores();
 
-        $this->swoole->shouldReceive('forever')->once()->with('foo', ['value' => 'bar'])->andReturn(false);
+        $this->swoole->expects('forever')->with('foo', ['value' => 'bar'])->returns(false);
 
         $this->assertFalse($this->store->forever('foo', 'bar'));
+
+        $this->redis->unused();
     }
 
     public function testForeverFailedWithRollback(): void
     {
         $this->createStores();
 
-        $this->swoole->shouldReceive('forever')->once()->with('foo', ['value' => 'bar'])->andReturn(true);
-        $this->redis->shouldReceive('forever')->once()->with('foo', ['value' => 'bar'])->andReturn(false);
-        $this->swoole->shouldReceive('forget')->once()->with('foo')->andReturn(true);
+        $this->swoole->expects('forever')->with('foo', ['value' => 'bar'])->returns(true);
+        $this->redis->expects('forever')->with('foo', ['value' => 'bar'])->returns(false);
+        $this->swoole->expects('forget')->with('foo')->returns(true);
 
         $this->assertFalse($this->store->forever('foo', 'bar'));
     }
@@ -944,8 +1050,8 @@ class CacheStackStoreTest extends TestCase
     {
         $this->createStores();
 
-        $this->swoole->shouldReceive('forget')->once()->with('foo')->andReturn(true);
-        $this->redis->shouldReceive('forget')->once()->with('foo')->andReturn(true);
+        $this->swoole->expects('forget')->with('foo')->returns(true);
+        $this->redis->expects('forget')->with('foo')->returns(true);
 
         $this->assertTrue($this->store->forget('foo'));
     }
@@ -954,22 +1060,22 @@ class CacheStackStoreTest extends TestCase
     {
         $this->createStores();
 
-        $this->swoole->shouldReceive('forget')->once()->with('foo')->andReturn(false);
-        $this->redis->shouldReceive('forget')->once()->with('foo')->andReturn(true);
+        $this->swoole->expects('forget')->with('foo')->returns(false);
+        $this->redis->expects('forget')->with('foo')->returns(true);
 
         $this->assertFalse($this->store->forget('foo'));
     }
 
     public function testForgetAttemptsEveryLayerAndPreservesTheEarliestFailure(): void
     {
-        $top = m::mock(ArrayStore::class);
-        $middle = m::mock(ArrayStore::class);
-        $bottom = m::mock(ArrayStore::class);
+        $top = Double::for(ArrayStore::class);
+        $middle = Double::for(ArrayStore::class);
+        $bottom = Double::for(ArrayStore::class);
         $exception = new RuntimeException('first failure');
 
-        $top->shouldReceive('forget')->once()->with('foo')->andThrow($exception);
-        $middle->shouldReceive('forget')->once()->with('foo')->andReturnFalse();
-        $bottom->shouldReceive('forget')->once()->with('foo')->andThrow(new RuntimeException('second failure'));
+        $top->expects('forget')->with('foo')->throws($exception);
+        $middle->expects('forget')->with('foo')->returns(false);
+        $bottom->expects('forget')->with('foo')->throws(new RuntimeException('second failure'));
 
         try {
             (new StackStore([$top, $middle, $bottom]))->forget('foo');
@@ -983,17 +1089,17 @@ class CacheStackStoreTest extends TestCase
     #[TestWith([true])]
     public function testForgetCancellationSupersedesEarlierFailureAndStopsFurtherLayers(bool $cleanupThrows): void
     {
-        $top = m::mock(ArrayStore::class);
-        $middle = m::mock(ArrayStore::class);
-        $bottom = m::mock(ArrayStore::class);
+        $top = Double::for(ArrayStore::class);
+        $middle = Double::for(ArrayStore::class);
+        $bottom = Double::for(ArrayStore::class);
         $cancellation = new CanceledException('forget canceled');
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Forget cleanup failed.', previous: $cancellation);
         }
 
-        $top->shouldReceive('forget')->once()->with('foo')->andThrow(new RuntimeException('first failure'));
-        $middle->shouldReceive('forget')->once()->with('foo')->andThrow($cancellation);
-        $bottom->shouldNotReceive('forget');
+        $top->expects('forget')->with('foo')->throws(new RuntimeException('first failure'));
+        $middle->expects('forget')->with('foo')->throws($cancellation);
+        $bottom->expects('forget')->never();
 
         try {
             (new StackStore([$top, $middle, $bottom]))->forget('foo');
@@ -1007,8 +1113,8 @@ class CacheStackStoreTest extends TestCase
     {
         $this->createStores();
 
-        $this->swoole->shouldReceive('flush')->once()->withNoArgs()->andReturn(true);
-        $this->redis->shouldReceive('flush')->once()->withNoArgs()->andReturn(true);
+        $this->swoole->expects('flush')->with(Argument::none())->returns(true);
+        $this->redis->expects('flush')->with(Argument::none())->returns(true);
 
         $this->assertTrue($this->store->flush());
     }
@@ -1017,22 +1123,22 @@ class CacheStackStoreTest extends TestCase
     {
         $this->createStores();
 
-        $this->swoole->shouldReceive('flush')->once()->withNoArgs()->andReturn(false);
-        $this->redis->shouldReceive('flush')->once()->withNoArgs()->andReturn(true);
+        $this->swoole->expects('flush')->with(Argument::none())->returns(false);
+        $this->redis->expects('flush')->with(Argument::none())->returns(true);
 
         $this->assertFalse($this->store->flush());
     }
 
     public function testFlushAttemptsEveryLayerAndPreservesTheEarliestFailure(): void
     {
-        $top = m::mock(ArrayStore::class);
-        $middle = m::mock(ArrayStore::class);
-        $bottom = m::mock(ArrayStore::class);
+        $top = Double::for(ArrayStore::class);
+        $middle = Double::for(ArrayStore::class);
+        $bottom = Double::for(ArrayStore::class);
         $exception = new RuntimeException('first failure');
 
-        $top->shouldReceive('flush')->once()->withNoArgs()->andThrow($exception);
-        $middle->shouldReceive('flush')->once()->withNoArgs()->andReturnFalse();
-        $bottom->shouldReceive('flush')->once()->withNoArgs()->andThrow(new RuntimeException('second failure'));
+        $top->expects('flush')->with(Argument::none())->throws($exception);
+        $middle->expects('flush')->with(Argument::none())->returns(false);
+        $bottom->expects('flush')->with(Argument::none())->throws(new RuntimeException('second failure'));
 
         try {
             (new StackStore([$top, $middle, $bottom]))->flush();
@@ -1044,12 +1150,9 @@ class CacheStackStoreTest extends TestCase
 
     public function testThreeStores(): void
     {
-        /** @var ArrayStore|MockInterface $array */
-        $array = m::mock(ArrayStore::class);
-        /** @var MockInterface|SwooleStore $swoole */
-        $swoole = m::mock(SwooleStore::class);
-        /** @var MockInterface|RedisStore $redis */
-        $redis = m::mock(RedisStore::class);
+        $array = Double::for(ArrayStore::class);
+        $swoole = Double::for(SwooleStore::class);
+        $redis = Double::for(RedisStore::class);
 
         $store = new StackStore([$array, $swoole, $redis]);
 
@@ -1059,36 +1162,25 @@ class CacheStackStoreTest extends TestCase
         $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
         $record = compact('value', 'expiration');
 
-        $array->shouldReceive('get')->once()->with($key)->andReturn($record);
+        $array->expects('get')->times(4)->with($key)->returns($record, null, null, null);
+        $swoole->expects('get')->times(3)->with($key)->returns($record, null, null);
+        $redis->expects('get')->times(2)->with($key)->returns($record, null);
+        $array->expects('put')->times(4)->with($key, $record, $ttl)->returns(true);
+        $swoole->expects('put')->times(3)->with($key, $record, $ttl)->returns(true);
+        $redis->expects('put')->times(2)->with($key, $record, $ttl)->returns(true, false);
+        $swoole->expects('forget')->with($key)->returns(true);
+        $array->expects('forget')->with($key)->returns(true);
+
         $this->assertSame($value, $store->get($key));
 
-        $array->shouldReceive('get')->once()->with($key)->andReturn(null);
-        $swoole->shouldReceive('get')->once()->with($key)->andReturn($record);
-        $array->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(true);
         $this->assertSame($value, $store->get($key));
 
-        $array->shouldReceive('get')->once()->with($key)->andReturn(null);
-        $swoole->shouldReceive('get')->once()->with($key)->andReturn(null);
-        $redis->shouldReceive('get')->once()->with($key)->andReturn($record);
-        $array->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(true);
-        $swoole->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(true);
         $this->assertSame($value, $store->get($key));
 
-        $array->shouldReceive('get')->once()->with($key)->andReturn(null);
-        $swoole->shouldReceive('get')->once()->with($key)->andReturn(null);
-        $redis->shouldReceive('get')->once()->with($key)->andReturn(null);
         $this->assertNull($store->get($key));
 
-        $array->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(true);
-        $swoole->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(true);
-        $redis->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(true);
         $this->assertTrue($store->put($key, $value, $ttl));
 
-        $array->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(true);
-        $swoole->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(true);
-        $redis->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(false);
-        $swoole->shouldReceive('forget')->once()->with($key)->andReturn(true);
-        $array->shouldReceive('forget')->once()->with($key)->andReturn(true);
         $this->assertFalse($store->put($key, $value, $ttl));
     }
 
@@ -1098,20 +1190,17 @@ class CacheStackStoreTest extends TestCase
 
         $key = 'foo';
 
-        $this->swoole->shouldReceive('get')->once()->with($key)->andReturn('invalid record');
+        $this->swoole->expects('get')->times(2)->with($key)->returns('invalid record', null);
         $this->assertNull($this->store->get($key));
 
-        $this->swoole->shouldReceive('get')->once()->with($key)->andReturn(null);
-        $this->redis->shouldReceive('get')->once()->with($key)->andReturn('invalid record');
+        $this->redis->expects('get')->with($key)->returns('invalid record');
         $this->assertNull($this->store->get($key));
     }
 
     public function testProxyMaxTTL(): void
     {
-        /** @var MockInterface|SwooleStore $swoole */
-        $swoole = m::mock(SwooleStore::class);
-        /** @var MockInterface|RedisStore $redis */
-        $redis = m::mock(RedisStore::class);
+        $swoole = Double::for(SwooleStore::class);
+        $redis = Double::for(RedisStore::class);
 
         $key = 'foo';
         $value = 'bar';
@@ -1125,18 +1214,16 @@ class CacheStackStoreTest extends TestCase
             new StackStoreProxy($redis),
         ]);
 
-        $swoole->shouldReceive('put')->once()->with($key, $record, $maxTTL)->andReturn(true);
-        $redis->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(true);
+        $swoole->expects('put')->with($key, $record, $maxTTL)->returns(true);
+        $redis->expects('put')->with($key, $record, $ttl)->returns(true);
 
         $this->assertTrue($store->put($key, $value, $ttl));
     }
 
     public function testProxyMaxTTLWithForever(): void
     {
-        /** @var MockInterface|SwooleStore $swoole */
-        $swoole = m::mock(SwooleStore::class);
-        /** @var MockInterface|RedisStore $redis */
-        $redis = m::mock(RedisStore::class);
+        $swoole = Double::for(SwooleStore::class);
+        $redis = Double::for(RedisStore::class);
 
         $key = 'foo';
         $value = 'bar';
@@ -1148,8 +1235,8 @@ class CacheStackStoreTest extends TestCase
             new StackStoreProxy($redis),
         ]);
 
-        $swoole->shouldReceive('put')->once()->with($key, $record, $maxTTL)->andReturn(true);
-        $redis->shouldReceive('forever')->once()->with($key, $record)->andReturn(true);
+        $swoole->expects('put')->with($key, $record, $maxTTL)->returns(true);
+        $redis->expects('forever')->with($key, $record)->returns(true);
 
         $this->assertTrue($store->forever($key, $value));
     }
@@ -1163,9 +1250,9 @@ class CacheStackStoreTest extends TestCase
         $value = 'bar';
         $record = ['value' => $value, 'ttl' => 30];
 
-        $this->swoole->shouldReceive('get')->once()->with($key)->andReturn($record);
-        $this->swoole->shouldReceive('put')->once()->with($key, m::on(fn ($r) => $r['value'] === $value && isset($r['expiration'])), 60)->andReturn(true);
-        $this->redis->shouldReceive('put')->once()->with($key, m::on(fn ($r) => $r['value'] === $value && isset($r['expiration'])), 60)->andReturn(true);
+        $this->swoole->expects('get')->with($key)->returns($record);
+        $this->swoole->expects('put')->with($key, Argument::satisfies(fn ($r) => $r['value'] === $value && isset($r['expiration'])), 60)->returns(true);
+        $this->redis->expects('put')->with($key, Argument::satisfies(fn ($r) => $r['value'] === $value && isset($r['expiration'])), 60)->returns(true);
 
         $this->assertTrue($this->store->touch($key, 60));
     }
@@ -1174,8 +1261,8 @@ class CacheStackStoreTest extends TestCase
     {
         $this->createStores();
 
-        $this->swoole->shouldReceive('get')->once()->with('nonexistent')->andReturn(null);
-        $this->redis->shouldReceive('get')->once()->with('nonexistent')->andReturn(null);
+        $this->swoole->expects('get')->with('nonexistent')->returns(null);
+        $this->redis->expects('get')->with('nonexistent')->returns(null);
 
         $this->assertFalse($this->store->touch('nonexistent', 60));
     }
@@ -1184,10 +1271,8 @@ class CacheStackStoreTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::now());
 
-        /** @var MockInterface|SwooleStore $swoole */
-        $swoole = m::mock(SwooleStore::class);
-        /** @var MockInterface|RedisStore $redis */
-        $redis = m::mock(RedisStore::class);
+        $swoole = Double::for(SwooleStore::class);
+        $redis = Double::for(RedisStore::class);
 
         $key = 'foo';
         $value = 'bar';
@@ -1199,17 +1284,20 @@ class CacheStackStoreTest extends TestCase
             new StackStoreProxy($redis),
         ]);
 
-        $swoole->shouldReceive('get')->once()->with($key)->andReturn($record);
-        $swoole->shouldReceive('put')->once()->with($key, m::on(fn ($r) => $r['value'] === $value && isset($r['expiration'])), $maxTTL)->andReturn(true);
-        $redis->shouldReceive('put')->once()->with($key, m::on(fn ($r) => $r['value'] === $value && isset($r['expiration'])), 60)->andReturn(true);
+        $swoole->expects('get')->with($key)->returns($record);
+        $swoole->expects('put')->with($key, Argument::satisfies(fn ($r) => $r['value'] === $value && isset($r['expiration'])), $maxTTL)->returns(true);
+        $redis->expects('put')->with($key, Argument::satisfies(fn ($r) => $r['value'] === $value && isset($r['expiration'])), 60)->returns(true);
 
         $this->assertTrue($store->touch($key, 60));
     }
 
-    private function createStores()
+    /**
+     * Create a stack with isolated cache layer doubles.
+     */
+    private function createStores(): void
     {
-        $this->redis = m::mock(RedisStore::class);
-        $this->swoole = m::mock(SwooleStore::class);
+        $this->redis = Double::for(RedisStore::class);
+        $this->swoole = Double::for(SwooleStore::class);
         $this->store = new StackStore([$this->swoole, $this->redis]);
     }
 }

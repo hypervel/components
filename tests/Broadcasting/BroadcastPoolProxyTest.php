@@ -15,11 +15,14 @@ use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class BroadcastPoolProxyTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /** @var list<PoolManager> */
     private array $poolManagers = [];
 
@@ -32,7 +35,7 @@ class BroadcastPoolProxyTest extends TestCase
 
     public function testAuthenticatedUserResolverStateIsWrittenOnEveryBorrowIncludingNull(): void
     {
-        $broadcaster = new PoolProxyUserAuthenticationBroadcaster(m::mock(ContainerContract::class));
+        $broadcaster = new PoolProxyUserAuthenticationBroadcaster(Double::for(ContainerContract::class, override: true)->instance());
         [$configured, $pools, $definition] = $this->proxy(fn () => $broadcaster);
         [$unconfigured] = $this->proxy(fn () => $broadcaster, $pools, $definition);
         $configured->resolveAuthenticatedUserUsing(function (Request $request): array {
@@ -61,7 +64,7 @@ class BroadcastPoolProxyTest extends TestCase
     public function testReplacingAndClearingAuthenticatedUserResolverUpdatesBorrowedBroadcaster(): void
     {
         [$proxy] = $this->proxy(
-            fn () => new PoolProxyUserAuthenticationBroadcaster(m::mock(ContainerContract::class))
+            fn () => new PoolProxyUserAuthenticationBroadcaster(Double::for(ContainerContract::class, override: true)->instance())
         );
         $request = Request::create('/broadcasting/user-auth', 'POST');
 
@@ -107,7 +110,7 @@ class BroadcastPoolProxyTest extends TestCase
     public function testChannelRegistrationReturnsTheProxy(): void
     {
         [$proxy] = $this->proxy(
-            fn () => new PoolProxyUserAuthenticationBroadcaster(m::mock(ContainerContract::class))
+            fn () => new PoolProxyUserAuthenticationBroadcaster(Double::for(ContainerContract::class, override: true)->instance())
         );
 
         $this->assertSame($proxy, $proxy->channel('orders.{order}', fn (): bool => true));

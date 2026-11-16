@@ -24,12 +24,15 @@ use Hypervel\Mcp\Client;
 use Hypervel\Mcp\Client\Primitives\Tool;
 use Hypervel\Mcp\Enums\ProtocolVersion;
 use Hypervel\Mcp\WebClient;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Process\Process;
 
 class McpClientTransportTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testConcurrentAiToolsUseIndependentHttpExchanges(): void
     {
         $this->withServer('concurrent', function (WebClient $client): void {
@@ -87,16 +90,16 @@ class McpClientTransportTest extends TestCase
      */
     private function generate(Client $client, bool $completes = true): TextResponse
     {
-        $gateway = m::mock(StepTextGateway::class);
-        $gateway->shouldReceive('generateTextStep')->times($completes ? 2 : 1)->andReturn(
+        $gateway = Double::for(StepTextGateway::class);
+        $gateway->expects('generateTextStep')->times($completes ? 2 : 1)->returns(
             new StepResponse('', [
                 new ToolCall('first-call', 'mcp_tools_first', []),
                 new ToolCall('second-call', 'mcp_tools_second', []),
             ], FinishReason::ToolCalls, new TextUsage, new Meta),
             new StepResponse('Finished', [], FinishReason::Stop, new TextUsage, new Meta),
         );
-        $provider = m::mock(TextProvider::class);
-        $provider->shouldReceive('name')->andReturn('local-test');
+        $provider = Double::for(TextProvider::class);
+        $provider->allows('name')->returns('local-test');
         $tools = array_map(static fn (string $name): McpTool => new McpTool(Tool::from($client, [
             'name' => $name,
             'inputSchema' => ['type' => 'object'],

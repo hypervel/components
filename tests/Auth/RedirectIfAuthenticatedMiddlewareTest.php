@@ -17,11 +17,14 @@ use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\HttpFoundation\Response;
 
 class RedirectIfAuthenticatedMiddlewareTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -96,15 +99,15 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
 
     public function testMultipleGuardsRedirectsIfAnyAuthenticated(): void
     {
-        $guestGuard = m::mock(Guard::class);
-        $guestGuard->shouldReceive('check')->andReturn(false);
+        $guestGuard = Double::for(Guard::class);
+        $guestGuard->allows('check')->returns(false);
 
-        $authGuard = m::mock(Guard::class);
-        $authGuard->shouldReceive('check')->andReturn(true);
+        $authGuard = Double::for(Guard::class);
+        $authGuard->allows('check')->returns(true);
 
-        $factory = m::mock(AuthFactory::class);
-        $factory->shouldReceive('guard')->with('web')->andReturn($guestGuard);
-        $factory->shouldReceive('guard')->with('api')->andReturn($authGuard);
+        $factory = Double::for(AuthFactory::class);
+        $factory->expects('guard')->with('web')->returns($guestGuard);
+        $factory->expects('guard')->with('api')->returns($authGuard);
         Auth::swap($factory);
 
         $request = Request::create('/login', 'GET');
@@ -117,16 +120,16 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
 
     public function testPassesThroughWhenAllGuardsAreGuests(): void
     {
-        $guard1 = m::mock(Guard::class);
-        $guard1->shouldReceive('check')->andReturn(false);
+        $guard1 = Double::for(Guard::class);
+        $guard1->allows('check')->returns(false);
 
-        $guard2 = m::mock(Guard::class);
-        $guard2->shouldReceive('check')->andReturn(false);
+        $guard2 = Double::for(Guard::class);
+        $guard2->allows('check')->returns(false);
 
-        $factory = m::mock(AuthFactory::class);
-        $factory->shouldReceive('guard')->with('web')->andReturn($guard1);
-        $factory->shouldReceive('guard')->with('api')->andReturn($guard2);
-        $factory->shouldReceive('shouldUse')->once()->with('web');
+        $factory = Double::for(AuthFactory::class);
+        $factory->expects('guard')->with('web')->returns($guard1);
+        $factory->expects('guard')->with('api')->returns($guard2);
+        $factory->expects('shouldUse')->with('web');
         Auth::swap($factory);
 
         $request = Request::create('/login', 'GET');
@@ -237,11 +240,11 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
      */
     protected function swapAuthGuard(bool $authenticated): void
     {
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('check')->andReturn($authenticated);
+        $guard = Double::for(Guard::class);
+        $guard->allows('check')->returns($authenticated);
 
-        $factory = m::mock(AuthFactory::class);
-        $factory->shouldReceive('guard')->andReturn($guard);
+        $factory = Double::for(AuthFactory::class);
+        $factory->allows('guard')->returns($guard);
         Auth::swap($factory);
     }
 
@@ -265,16 +268,16 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
 
         $auth->extend('web', fn (): RequestGuard => new RequestGuard(
             'web',
-            static fn (): ?Authenticatable => $webAuthenticated ? m::mock(Authenticatable::class) : null,
+            static fn (): ?Authenticatable => $webAuthenticated ? Double::for(Authenticatable::class) : null,
             $container,
-            m::mock(EloquentUserProvider::class),
+            Double::for(EloquentUserProvider::class),
         ));
 
         $auth->extend('secondary', fn (): RequestGuard => new RequestGuard(
             'secondary',
-            static fn (): ?Authenticatable => $secondaryAuthenticated ? m::mock(Authenticatable::class) : null,
+            static fn (): ?Authenticatable => $secondaryAuthenticated ? Double::for(Authenticatable::class) : null,
             $container,
-            m::mock(EloquentUserProvider::class),
+            Double::for(EloquentUserProvider::class),
         ));
 
         return $auth;

@@ -14,7 +14,6 @@ use Hypervel\Ai\Contracts\CanActAsTool;
 use Hypervel\Ai\Contracts\Gateway\Gateway;
 use Hypervel\Ai\Contracts\Gateway\StepTextGateway;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
-use Hypervel\Ai\Contracts\Tool;
 use Hypervel\Ai\Events\ToolFailed;
 use Hypervel\Ai\Gateway\RunContext;
 use Hypervel\Ai\Gateway\StepResponse;
@@ -39,8 +38,10 @@ use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Support\Facades\Context;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Tests\Ai\Fixtures\Tools\NamedTool;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -49,6 +50,8 @@ use Throwable;
 
 class ConcurrentToolsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('deliveryModes')]
     public function testOptedInToolsAreBoundedOrderedAndUseTheCapturedContext(bool $streaming): void
     {
@@ -71,7 +74,7 @@ class ConcurrentToolsTest extends TestCase
         Coroutine::afterCreated(static function (): void {
             CoroutineContext::set('tool-test.account', 'startup');
         });
-        $providerGateway = m::mock(Gateway::class);
+        $providerGateway = Double::for(Gateway::class);
         Ai::extend('tool-test', static fn (Application $app, array $config): Provider => new class($providerGateway, $config, $app->make(Dispatcher::class)) extends Provider {});
         $accountProvider = Ai::build(['name' => 'tool-account', 'driver' => 'tool-test', 'key' => 'account-key']);
         $active = 0;
@@ -79,9 +82,9 @@ class ConcurrentToolsTest extends TestCase
         $accounts = [];
         $requestIds = [];
         $resolvedProviders = [];
-        $tool = m::mock(Tool::class);
-        $tool->shouldReceive('name')->andReturn('tool');
-        $tool->shouldReceive('handle')->times(3)->andReturnUsing(function (Request $request) use (&$active, &$maximum, &$accounts, &$requestIds, &$resolvedProviders): string {
+        $tool = Double::for(NamedTool::class);
+        $tool->allows('name')->returns('tool');
+        $tool->expects('handle')->times(3)->resolves(function (Request $request) use (&$active, &$maximum, &$accounts, &$requestIds, &$resolvedProviders): string {
             $this->assertSame('tool-connection', DB::getDefaultConnection());
             $maximum = max($maximum, ++$active);
             $accounts[] = CoroutineContext::get('tool-test.account');
@@ -97,8 +100,8 @@ class ConcurrentToolsTest extends TestCase
             }
         });
         $calls = [new ToolCall('first', 'tool', []), new ToolCall('second', 'tool', []), new ToolCall('third', 'tool', [])];
-        $provider = m::mock(TextProvider::class);
-        $provider->shouldReceive('name')->andReturn('provider');
+        $provider = Double::for(TextProvider::class);
+        $provider->allows('name')->returns('provider');
         $results = [];
         $gateway = $this->gateway($streaming, $calls, $results);
         $loop = new TextGenerationLoop($gateway);
@@ -131,10 +134,10 @@ class ConcurrentToolsTest extends TestCase
 
     public function testInvalidConcurrencyFailsClearlyThroughTheLoop(): void
     {
-        $provider = m::mock(TextProvider::class);
-        $provider->shouldReceive('name')->andReturn('provider');
-        $gateway = m::mock(StepTextGateway::class);
-        $gateway->shouldReceive('generateTextStep')->once()->andReturn(new StepResponse('Finished', [], FinishReason::Stop, new TextUsage, new Meta));
+        $provider = Double::for(TextProvider::class);
+        $provider->allows('name')->returns('provider');
+        $gateway = Double::for(StepTextGateway::class);
+        $gateway->expects('generateTextStep')->returns(new StepResponse('Finished', [], FinishReason::Stop, new TextUsage, new Meta));
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Tool concurrency must be at least one.');
@@ -161,9 +164,9 @@ class ConcurrentToolsTest extends TestCase
 
         $active = 0;
         $resumed = false;
-        $tool = m::mock(Tool::class);
-        $tool->shouldReceive('name')->andReturn('tool');
-        $tool->shouldReceive('handle')->twice()->andReturnUsing(function (Request $request) use ($failure, &$active, &$resumed): string {
+        $tool = Double::for(NamedTool::class);
+        $tool->allows('name')->returns('tool');
+        $tool->expects('handle')->times(2)->resolves(function (Request $request) use ($failure, &$active, &$resumed): string {
             ++$active;
 
             try {
@@ -181,14 +184,14 @@ class ConcurrentToolsTest extends TestCase
                 --$active;
             }
         });
-        $provider = m::mock(TextProvider::class);
-        $provider->shouldReceive('name')->andReturn('provider');
+        $provider = Double::for(TextProvider::class);
+        $provider->allows('name')->returns('provider');
         $results = [];
         $gateway = $this->gateway(false, [new ToolCall('first', 'tool', []), new ToolCall('second', 'tool', [])], $results, completes: false);
         $caught = null;
 
         try {
-            (new TextGenerationLoop($gateway))->generate($provider, 'model', '', tools: [$tool], options: new TextGenerationOptions(agent: new ConcurrentToolsTestAgent('', [], [])), context: new RunContext('invocation', m::mock(Agent::class), $provider, 'model', $events));
+            (new TextGenerationLoop($gateway))->generate($provider, 'model', '', tools: [$tool], options: new TextGenerationOptions(agent: new ConcurrentToolsTestAgent('', [], [])), context: new RunContext('invocation', Double::for(Agent::class), $provider, 'model', $events));
         } catch (Throwable $exception) {
             $caught = $exception;
         }
@@ -210,9 +213,9 @@ class ConcurrentToolsTest extends TestCase
         $active = 0;
         $resumed = false;
         $waiting = new Channel(1);
-        $agent = m::mock(Agent::class, CanActAsTool::class);
-        $agent->shouldReceive('name')->andReturn('child');
-        $agent->shouldReceive('stream')->twice()->andReturnUsing(function (string $task) use (&$active, &$resumed, $waiting): StreamableAgentResponse {
+        $agent = Double::for(Agent::class, CanActAsTool::class);
+        $agent->allows('name')->returns('child');
+        $agent->expects('stream')->times(2)->resolves(function (string $task) use (&$active, &$resumed, $waiting): StreamableAgentResponse {
             return new StreamableAgentResponse($task, function () use ($task, &$active, &$resumed, $waiting): Generator {
                 ++$active;
 
@@ -225,8 +228,8 @@ class ConcurrentToolsTest extends TestCase
                 }
             });
         });
-        $provider = m::mock(TextProvider::class);
-        $provider->shouldReceive('name')->andReturn('provider');
+        $provider = Double::for(TextProvider::class);
+        $provider->allows('name')->returns('provider');
         $results = [];
         $gateway = $this->gateway(true, [
             new ToolCall('first', 'child', ['task' => 'first']),
@@ -267,9 +270,9 @@ class ConcurrentToolsTest extends TestCase
         $resumed = false;
         $caught = null;
         $waiting = new Channel(1);
-        $tool = m::mock(Tool::class);
-        $tool->shouldReceive('name')->andReturn('tool');
-        $tool->shouldReceive('handle')->twice()->andReturnUsing(function () use ($waiting, &$active, &$resumed): string {
+        $tool = Double::for(NamedTool::class);
+        $tool->allows('name')->returns('tool');
+        $tool->expects('handle')->times(2)->resolves(function () use ($waiting, &$active, &$resumed): string {
             ++$active;
 
             try {
@@ -281,8 +284,8 @@ class ConcurrentToolsTest extends TestCase
                 --$active;
             }
         });
-        $provider = m::mock(TextProvider::class);
-        $provider->shouldReceive('name')->andReturn('provider');
+        $provider = Double::for(TextProvider::class);
+        $provider->allows('name')->returns('provider');
         $results = [];
         $gateway = $this->gateway(true, [new ToolCall('first', 'tool', []), new ToolCall('second', 'tool', [])], $results, completes: false);
         $loop = new TextGenerationLoop($gateway);
@@ -332,16 +335,16 @@ class ConcurrentToolsTest extends TestCase
 
             return new StepResponse('Finished', [], FinishReason::Stop, new TextUsage, new Meta);
         };
-        $gateway = m::mock(StepTextGateway::class);
+        $gateway = Double::for(StepTextGateway::class);
 
         if ($streaming) {
-            $gateway->shouldReceive('generateStreamStep')->times($completes ? 2 : 1)->andReturnUsing(static function (...$arguments) use ($response): Generator {
+            $gateway->expects('generateStreamStep')->times($completes ? 2 : 1)->resolves(static function (...$arguments) use ($response): Generator {
                 yield from [];
 
                 return $response($arguments[4]);
             });
         } else {
-            $gateway->shouldReceive('generateTextStep')->times($completes ? 2 : 1)->andReturnUsing(static fn (...$arguments): StepResponse => $response($arguments[3]));
+            $gateway->expects('generateTextStep')->times($completes ? 2 : 1)->resolves(static fn (...$arguments): StepResponse => $response($arguments[3]));
         }
 
         return $gateway;

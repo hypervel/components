@@ -69,7 +69,8 @@ use Hypervel\Tests\Ai\Fixtures\Tools\ApprovableNumberGenerator;
 use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
 use Hypervel\Tests\Ai\Fixtures\Tools\NamedTool;
 use Hypervel\Tests\Ai\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -86,6 +87,7 @@ require_once __DIR__ . '/../Fixtures/helpers.php';
 class AgentEventsTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     public function testASynchronousPromptThreadsOneInvocationIdThroughThePromptAndItsEvents(): void
     {
@@ -786,8 +788,8 @@ class AgentEventsTest extends TestCase
             'ai.providers.primary' => ['driver' => 'groq', 'key' => 'test-key'],
             'ai.providers.backup' => ['driver' => 'groq', 'key' => 'test-key'],
         ]);
-        $tool = m::mock(NamedTool::class, ['send_email'])->makePartial();
-        $tool->shouldReceive('handle')->once()->andReturn('Sent');
+        $tool = Double::for(new NamedTool('send_email'))->passthru();
+        $tool->expects('handle')->returns('Sent');
         Http::preventStrayRequests();
         Http::fakeSequence()
             ->pushResponse(fakeGroqToolCallResponse('send_email'))
@@ -1027,8 +1029,8 @@ class AgentEventsTest extends TestCase
     {
         $cancellation = new CanceledException;
         $observerFailure = new RuntimeException('Tool failure observer failed.');
-        $tool = m::mock(NamedTool::class, ['cancel_tool'])->makePartial();
-        $tool->shouldReceive('handle')->once()->andThrow($cancellation);
+        $tool = Double::for(new NamedTool('cancel_tool'))->passthru();
+        $tool->expects('handle')->throws($cancellation);
         ToolUsingAgent::fake([new ToolCall('call_1', 'cancel_tool', [])]);
         $agent = (new ToolUsingAgent)->withTools([$tool]);
         Event::listen(ToolFailed::class, static fn () => throw $observerFailure);
@@ -1095,8 +1097,8 @@ class AgentEventsTest extends TestCase
         config(['ai.conversations.generate_title' => false]);
         RememberingAssistantAgent::fake(['Hello']);
         $exception = new RuntimeException('Database unavailable.');
-        $store = m::mock(FakeConversationStore::class)->makePartial();
-        $store->shouldReceive('storeConversation')->once()->andThrow($exception);
+        $store = Double::for(FakeConversationStore::class)->passthru();
+        $store->expects('storeConversation')->throws($exception);
         app()->instance(ConversationStore::class, $store);
         $response = (new RememberingAssistantAgent)->forUser((object) ['id' => 1])->stream('Hi');
 

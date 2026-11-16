@@ -410,7 +410,7 @@ class RedisStoreTest extends TestCase
 
         $this->assertSame(2, $store->connection()->zcard($tagSet));
 
-        // The scan has to recognise it is back at its starting cursor, or this never returns...
+        // The scan has to recognize it is back at its starting cursor, or this never returns...
         $store->flushStaleTags();
 
         $this->assertSame(1, $store->connection()->zcard($tagSet));

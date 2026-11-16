@@ -12,17 +12,19 @@ use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\SwooleTableManager;
 use Hypervel\Cache\SwooleTableState;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use ReflectionMethod;
 use stdClass;
 use TypeError;
@@ -30,6 +32,7 @@ use TypeError;
 class CacheSwooleStoreTest extends TestCase
 {
     use InteractsWithSwooleTables;
+    use VerifiesDoubles;
 
     public function testCanRetrieveItemsFromStore(): void
     {
@@ -50,37 +53,35 @@ class CacheSwooleStoreTest extends TestCase
 
     public function testMissingSwooleTableConfigThrowsTableNotDefinedException(): void
     {
-        $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('get')
-            ->once()
+        $config = Double::for(ConfigRepository::class);
+        $config->expects('get')
             ->with('cache.swoole_tables.missing')
-            ->andReturn(null);
+            ->returns(null);
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->once()->with('config')->andReturn($config);
+        $container = Double::for(ContainerContract::class, override: true);
+        $container->expects('make')->with('config')->returns($config);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs('Swoole table [missing] is not defined.');
 
-        (new SwooleTableManager($container))->get('missing');
+        (new SwooleTableManager($container->instance()))->get('missing');
     }
 
     public function testSealingRetainsExistingTablesAndRejectsLateCreation(): void
     {
-        $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('get')
-            ->once()
+        $config = Double::for(ConfigRepository::class);
+        $config->expects('get')
             ->with('cache.swoole_tables.first')
-            ->andReturn([
+            ->returns([
                 'rows' => 64,
                 'bytes' => 1024,
                 'conflict_proportion' => 0.2,
             ]);
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->once()->with('config')->andReturn($config);
+        $container = Double::for(ContainerContract::class, override: true);
+        $container->expects('make')->with('config')->returns($config);
 
-        $manager = new SwooleTableManager($container);
+        $manager = new SwooleTableManager($container->instance());
         $first = $manager->get('first');
         $this->trackSwooleTable($first->table());
 
@@ -1001,7 +1002,7 @@ class CacheSwooleStoreTest extends TestCase
         float $conflictProportion = 0.2,
         int $hashSeed = 12345
     ): SwooleTableState {
-        $state = (new SwooleTableManager(m::mock(Container::class)))
+        $state = (new SwooleTableManager(new Container))
             ->createState($rows, $bytes, $conflictProportion, $hashSeed);
 
         $this->trackSwooleTable($state->table());

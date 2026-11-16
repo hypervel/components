@@ -7,10 +7,9 @@ namespace Hypervel\Tests\Cache;
 use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\SwooleTableManager;
 use Hypervel\Cache\SwooleTableState;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Container\Container;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use ReflectionMethod;
 use RuntimeException;
 use Swoole\Atomic;
@@ -498,7 +497,7 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
 
     private function createState(): SwooleTableState
     {
-        $state = (new SwooleTableManager(m::mock(Container::class)))
+        $state = (new SwooleTableManager(new Container))
             ->createState(128, 10240, 0.2, 12345);
 
         $this->trackSwooleTable($state->table());

@@ -25,19 +25,22 @@ use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Redis;
 
 class ModelCacheStoreValidatorTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testAcceptsSupportedStoresAndSubclasses(): void
     {
         $validator = $this->validator();
 
         foreach ([
-            m::mock(DatabaseStore::class),
-            m::mock(FileStore::class),
-            m::mock(SwooleStore::class),
+            Double::for(DatabaseStore::class),
+            Double::for(FileStore::class),
+            Double::for(SwooleStore::class),
             $this->redisStore(),
         ] as $store) {
             $validator->validate($this->repository($store), 'Auth user cache');
@@ -60,7 +63,7 @@ class ModelCacheStoreValidatorTest extends TestCase
     public function testAcceptsAnyModeTagsThroughAValidStack(): void
     {
         $store = new StackStore([
-            m::mock(FileStore::class),
+            Double::for(FileStore::class),
             $this->redisStore()->setTagMode(TagMode::Any),
         ]);
 
@@ -87,9 +90,9 @@ class ModelCacheStoreValidatorTest extends TestCase
 
     public function testRejectsStoresWithoutTagSupportBeforeReadingTheMode(): void
     {
-        $store = m::mock(StackStore::class);
-        $store->shouldReceive('supportsTags')->once()->andReturnFalse();
-        $store->shouldNotReceive('getTagMode');
+        $store = Double::for(StackStore::class);
+        $store->expects('supportsTags')->returns(false);
+        $store->expects('getTagMode')->never();
 
         $this->expectException(UnsupportedModelCacheStoreException::class);
         $this->expectExceptionMessageIsOrContains('does not support tags');
@@ -108,9 +111,9 @@ class ModelCacheStoreValidatorTest extends TestCase
             new ArrayStore,
             new WorkerArrayStore,
             new NullStore,
-            m::mock(SessionStore::class),
-            m::mock(FailoverStore::class),
-            m::mock(StorageStore::class),
+            Double::for(SessionStore::class),
+            Double::for(FailoverStore::class),
+            Double::for(StorageStore::class),
         ] as $store) {
             try {
                 $validator->validate($this->repository($store), 'Sanctum token cache');
@@ -125,7 +128,7 @@ class ModelCacheStoreValidatorTest extends TestCase
     public function testRejectsStacksBecauseOtherWorkersAndNodesCanRetainUpperLayerCopies(): void
     {
         $stack = new StackStore([
-            m::mock(FileStore::class),
+            Double::for(FileStore::class),
             $this->redisStore(),
         ]);
 
@@ -143,8 +146,8 @@ class ModelCacheStoreValidatorTest extends TestCase
             ['SeRiAlIzEr' => Redis::SERIALIZER_NONE, 'compression' => 1],
             [Redis::OPT_SERIALIZER => Redis::SERIALIZER_NONE],
         ] as $options) {
-            $redis = m::mock(RedisFactory::class);
-            $redis->shouldNotReceive('connection');
+            $redis = Double::for(RedisFactory::class);
+            $redis->expects('connection')->never();
             $store = new RedisStore($redis, connection: 'cache');
 
             $this->validator(connectionOptions: $options)->validate(
@@ -324,8 +327,8 @@ class ModelCacheStoreValidatorTest extends TestCase
      */
     private function redisStore(): RedisStore
     {
-        $redis = m::mock(RedisFactory::class);
-        $redis->shouldNotReceive('connection');
+        $redis = Double::for(RedisFactory::class);
+        $redis->expects('connection')->never();
 
         return new RedisStore($redis, connection: 'cache');
     }

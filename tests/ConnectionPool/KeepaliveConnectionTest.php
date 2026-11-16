@@ -21,7 +21,9 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\ConnectionPool\Fixtures\HeartbeatPoolStub;
 use Hypervel\Tests\ConnectionPool\Fixtures\KeepaliveConnectionStub;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use RuntimeException;
@@ -31,6 +33,8 @@ use Throwable;
 
 class KeepaliveConnectionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function tearDown(): void
     {
         CoroutineContext::set('test.pool.heartbeat_connection', []);
@@ -61,13 +65,13 @@ class KeepaliveConnectionTest extends TestCase
 
     public function testConnectionAcceptsPoolContract(): void
     {
-        $pool = m::mock(ConnectionPool::class);
+        $pool = Double::for(ConnectionPool::class);
         $connection = new KeepaliveConnectionStub(
-            m::mock(ContainerContract::class),
+            new Container,
             $pool,
         );
 
-        $pool->shouldReceive('release')->once()->with($connection);
+        $pool->expects('release')->with(Argument::same($connection));
 
         $connection->release();
     }
@@ -220,7 +224,6 @@ class KeepaliveConnectionTest extends TestCase
 
         try {
             $container = $this->getContainer(['heartbeat_interval' => 0.001]);
-            $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnFalse();
             $pool = $container->make(HeartbeatPoolStub::class);
             /** @var KeepaliveConnectionStub $connection */
             $connection = $pool->borrow();
@@ -398,15 +401,15 @@ class KeepaliveConnectionTest extends TestCase
     public function testConcurrentReconnectKeepsOneSocketAndOneTimer(?Throwable $closeFailure): void
     {
         $container = new Container;
-        $logger = m::mock(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class);
         $container->instance(StdoutLoggerInterface::class, $logger);
 
         if ($closeFailure !== null && ! $closeFailure instanceof CanceledException) {
-            $logger->shouldReceive('error')->once()->with(m::on(
+            $logger->expects('error')->with(Argument::satisfies(
                 static fn (string $message): bool => str_contains($message, $closeFailure->getMessage()),
             ));
         } else {
-            $logger->shouldNotReceive('error');
+            $logger->expects('error')->never();
         }
 
         $pool = new HeartbeatPoolStub($container, 'test', ['heartbeat_interval' => 3600.0]);
@@ -762,22 +765,22 @@ class KeepaliveConnectionTest extends TestCase
     public function testHeartbeatCancellationRemainsPrimaryWhenProtocolCloseFails(): void
     {
         $container = new Container;
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldNotReceive('error');
+        $logger = Double::for(StdoutLoggerInterface::class);
+        $logger->expects('error')->never();
         $container->instance(StdoutLoggerInterface::class, $logger);
         $pool = new HeartbeatPoolStub($container, 'test', ['heartbeat_interval' => 3600.0]);
         $connection = $pool->borrow();
         $connection->setActiveConnection(new stdClass);
         $callback = null;
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('tick')->once()->andReturnUsing(
+        $timer = Double::for(Timer::class);
+        $timer->expects('tick')->resolves(
             function (float $interval, callable $heartbeat) use (&$callback): int {
                 $callback = $heartbeat;
 
                 return 1;
             },
         );
-        $timer->shouldReceive('clear')->once()->with(1);
+        $timer->expects('clear')->with(1);
         $connection->timer = $timer;
         $cancellation = new CanceledException('heartbeat canceled');
         $connection->heartbeatFailure = $cancellation;
@@ -805,13 +808,13 @@ class KeepaliveConnectionTest extends TestCase
     public function testLateHeartbeatFailureDoesNotCloseTheReplacement(Throwable $failure): void
     {
         $container = new Container;
-        $logger = m::mock(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class);
         $container->instance(StdoutLoggerInterface::class, $logger);
 
         if ($failure instanceof CanceledException) {
-            $logger->shouldNotReceive('error');
+            $logger->expects('error')->never();
         } else {
-            $logger->shouldReceive('error')->once()->with(m::on(
+            $logger->expects('error')->with(Argument::satisfies(
                 static fn (string $message): bool => str_contains($message, $failure->getMessage()),
             ));
         }
@@ -824,15 +827,15 @@ class KeepaliveConnectionTest extends TestCase
         $connection->createCallback = static fn () => new stdClass;
         $callbacks = [];
         $cleared = [];
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('tick')->twice()->andReturnUsing(
+        $timer = Double::for(Timer::class);
+        $timer->expects('tick')->times(2)->resolves(
             function (float $interval, callable $heartbeat) use (&$callbacks): int {
                 $callbacks[] = $heartbeat;
 
                 return count($callbacks);
             },
         );
-        $timer->shouldReceive('clear')->andReturnUsing(function (int $id) use (&$cleared): void {
+        $timer->allows('clear')->resolves(function (int $id) use (&$cleared): void {
             $cleared[] = $id;
         });
         $connection->timer = $timer;
@@ -887,12 +890,9 @@ class KeepaliveConnectionTest extends TestCase
 
     protected function getContainer(array $poolConfig = []): ContainerContract
     {
-        $container = m::mock(Container::class);
+        $container = new Container;
         Container::setInstance($container);
-
-        $container->shouldReceive('make')->with(HeartbeatPoolStub::class)->andReturnUsing(function () use ($container, $poolConfig) {
-            return new HeartbeatPoolStub($container, 'test', $poolConfig);
-        });
+        $container->bind(HeartbeatPoolStub::class, fn () => new HeartbeatPoolStub($container, 'test', $poolConfig));
 
         return $container;
     }

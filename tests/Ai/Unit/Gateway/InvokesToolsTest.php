@@ -19,7 +19,8 @@ use Hypervel\Contracts\JsonSchema\JsonSchema;
 use Hypervel\Events\Dispatcher;
 use Hypervel\JsonSchema\Types\Type;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use Stringable;
 
@@ -82,8 +83,8 @@ function stubRunContext(Dispatcher $events, string $invocationId = 'inv_1'): Run
 {
     return new RunContext(
         $invocationId,
-        m::mock(Agent::class),
-        m::mock(TextProvider::class),
+        Double::for(Agent::class),
+        Double::for(TextProvider::class),
         'stub-model',
         $events,
     );
@@ -91,6 +92,8 @@ function stubRunContext(Dispatcher $events, string $invocationId = 'inv_1'): Run
 
 class InvokesToolsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testEachToolInvocationReportsAgainstTheContextItWasGiven(): void
     {
         $seen = [];

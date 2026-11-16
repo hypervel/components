@@ -9,13 +9,16 @@ use Hypervel\ApiClient\ApiRequest;
 use Hypervel\Http\Client\Request as HttpRequest;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\StreamInterface;
 
 class ApiRequestTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private ApiRequest $request;
 
     protected function setUp(): void
@@ -359,8 +362,8 @@ class ApiRequestTest extends TestCase
 
     public function testCreateFromPreservesDataAndAttributes(): void
     {
-        $body = m::mock(StreamInterface::class);
-        $body->shouldReceive('__toString')->once()->andReturn('[]');
+        $body = Double::for(StreamInterface::class);
+        $body->expects('__toString')->returns('[]');
         $request = (new HttpRequest(new Psr7Request(
             'POST',
             'https://api.example.com',

@@ -32,9 +32,10 @@ use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Tests\Ai\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use League\Flysystem\PathTraversalDetected;
 use League\Flysystem\UnableToRetrieveMetadata;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -47,6 +48,8 @@ require_once __DIR__ . '/../Fixtures/helpers.php';
 
 class FilesystemToolsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Create an isolated local disk for each test.
      */
@@ -73,13 +76,14 @@ class FilesystemToolsTest extends TestCase
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Filesystem cleanup failed.', previous: $cancellation);
         }
-        $disk = m::mock(FilesystemAdapter::class);
-        $disk->shouldReceive('fileExists')->andReturn(true);
-        $disk->shouldReceive('size')->andReturn(10)->byDefault();
-        $disk->shouldReceive('lastModified')->andReturn(1)->byDefault();
-        $disk->shouldReceive('mimeType')->andReturn('text/plain')->byDefault();
-        $disk->shouldReceive('getVisibility')->andReturn('public')->byDefault();
-        $disk->shouldReceive($method)->once()->andThrow($cancellation);
+        $disk = Double::for(FilesystemAdapter::class);
+        $disk->allows('fileExists')->returns(true);
+        foreach (['size' => 10, 'lastModified' => 1, 'mimeType' => 'text/plain', 'getVisibility' => 'public'] as $operation => $value) {
+            if ($operation !== $method) {
+                $disk->allows($operation)->returns($value);
+            }
+        }
+        $disk->expects($method)->throws($cancellation);
         $caught = null;
 
         try {
@@ -151,9 +155,9 @@ class FilesystemToolsTest extends TestCase
     {
         Exceptions::fake();
         $failure = UnableToRetrieveMetadata::fileSize('file.txt', 'Access denied.');
-        $disk = m::mock(FilesystemAdapter::class);
-        $disk->shouldReceive('size')->once()->with('file.txt')->andThrow($failure);
-        $disk->shouldReceive('fileExists')->once()->with('file.txt')->andReturnTrue();
+        $disk = Double::for(FilesystemAdapter::class);
+        $disk->expects('size')->with('file.txt')->throws($failure);
+        $disk->expects('fileExists')->with('file.txt')->returns(true);
 
         $this->assertSame($result, (new $toolClass($disk))->handle(new Request(['path' => 'file.txt'])));
 
@@ -235,9 +239,9 @@ class FilesystemToolsTest extends TestCase
 
     public function testReadFileReportsAnUnreadableFile(): void
     {
-        $disk = m::mock(FilesystemAdapter::class);
-        $disk->shouldReceive('size')->once()->with('note.txt')->andReturn(10);
-        $disk->shouldReceive('get')->once()->with('note.txt')->andReturnNull();
+        $disk = Double::for(FilesystemAdapter::class);
+        $disk->expects('size')->with('note.txt')->returns(10);
+        $disk->expects('get')->with('note.txt')->returns(null);
 
         $result = (new ReadFile($disk))->handle(new Request(['path' => 'note.txt']));
 
@@ -356,9 +360,9 @@ class FilesystemToolsTest extends TestCase
 
     public function testDeleteFileReportsDeleteFailures(): void
     {
-        $disk = m::mock(Filesystem::class);
-        $disk->shouldReceive('fileExists')->with('gone.txt')->andReturn(true);
-        $disk->shouldReceive('delete')->with('gone.txt')->andReturn(false);
+        $disk = Double::for(Filesystem::class);
+        $disk->expects('fileExists')->with('gone.txt')->returns(true);
+        $disk->expects('delete')->with('gone.txt')->returns(false);
 
         $result = (new DeleteFile($disk))->handle(new Request(['path' => 'gone.txt']));
 
@@ -395,9 +399,9 @@ class FilesystemToolsTest extends TestCase
 
     public function testCopyFileReportsCopyFailures(): void
     {
-        $disk = m::mock(Filesystem::class);
-        $disk->expects('fileExists')->with('a.txt')->andReturnTrue();
-        $disk->expects('copy')->with('a.txt', 'b.txt')->andReturnFalse();
+        $disk = Double::for(Filesystem::class);
+        $disk->expects('fileExists')->with('a.txt')->returns(true);
+        $disk->expects('copy')->with('a.txt', 'b.txt')->returns(false);
 
         $result = (new CopyFile($disk))->handle(new Request(['from' => 'a.txt', 'to' => 'b.txt']));
 
@@ -435,9 +439,9 @@ class FilesystemToolsTest extends TestCase
 
     public function testMoveFileReportsMoveFailures(): void
     {
-        $disk = m::mock(Filesystem::class);
-        $disk->shouldReceive('fileExists')->with('a.txt')->andReturn(true);
-        $disk->shouldReceive('move')->with('a.txt', 'b.txt')->andReturn(false);
+        $disk = Double::for(Filesystem::class);
+        $disk->expects('fileExists')->with('a.txt')->returns(true);
+        $disk->expects('move')->with('a.txt', 'b.txt')->returns(false);
 
         $result = (new MoveFile($disk))->handle(new Request(['from' => 'a.txt', 'to' => 'b.txt']));
 

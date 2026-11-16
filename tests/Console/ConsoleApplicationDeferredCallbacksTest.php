@@ -15,7 +15,8 @@ use Hypervel\Contracts\Console\Isolatable;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -28,6 +29,8 @@ use Throwable;
 
 class ConsoleApplicationDeferredCallbacksTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected bool $runTestsInCoroutine = false;
 
     public function testPassiveObserverDoesNotCauseArtisanStartingEventToDispatch(): void
@@ -50,13 +53,13 @@ class ConsoleApplicationDeferredCallbacksTest extends TestCase
     {
         $application = $this->createConsoleApplication();
         $calls = [];
-        $mutex = m::mock(CommandMutex::class);
-        $mutex->shouldReceive('create')->once()->andReturnUsing(function () use (&$calls): bool {
+        $mutex = Double::for(CommandMutex::class);
+        $mutex->expects('create')->resolves(function () use (&$calls): bool {
             $calls[] = 'mutex-created';
 
             return true;
         });
-        $mutex->shouldReceive('forget')->once()->andReturnUsing(function () use (&$calls): bool {
+        $mutex->expects('forget')->resolves(function () use (&$calls): bool {
             $calls[] = 'mutex-released';
 
             return true;

@@ -18,7 +18,8 @@ use Hypervel\Ai\Tools\Request;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Ai\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -26,6 +27,8 @@ use Throwable;
 
 class AgentToolTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testAnAgentToolStreamsItsEventsByDefaultAndReturnsItsFinalText(): void
     {
         $stream = new StreamableAgentResponse('invocation-sub', fn (): Generator => yield from [
@@ -33,9 +36,9 @@ class AgentToolTest extends TestCase
             new StreamEnd('event-2', 'stop', new TextUsage, time()),
         ], new Meta('fake', 'model'));
 
-        $agent = m::mock(Agent::class);
-        $agent->shouldReceive('stream')->once()->with('Do the thing')->andReturn($stream);
-        $agent->shouldNotReceive('prompt');
+        $agent = Double::for(Agent::class);
+        $agent->expects('stream')->with('Do the thing')->returns($stream);
+        $agent->expects('prompt')->never();
 
         $generator = (new AgentTool($agent))->stream(new Request(['task' => 'Do the thing']));
 
@@ -48,9 +51,9 @@ class AgentToolTest extends TestCase
 
     public function testAStructuredSubAgentAnswersThroughARegularPromptOnTheStreamingPath(): void
     {
-        $agent = m::mock(Agent::class, HasStructuredOutput::class);
-        $agent->shouldNotReceive('stream');
-        $agent->shouldReceive('prompt')->once()->andReturn(new StructuredAgentResponse(
+        $agent = Double::for(Agent::class, HasStructuredOutput::class);
+        $agent->expects('stream')->never();
+        $agent->expects('prompt')->returns(new StructuredAgentResponse(
             'invocation-sub',
             ['answer' => 42],
             '{"answer":42}',
@@ -70,8 +73,8 @@ class AgentToolTest extends TestCase
         Exceptions::fake();
         $exception = new RuntimeException('provider exploded');
 
-        $agent = m::mock(Agent::class);
-        $agent->shouldReceive('stream')->once()->andThrow($exception);
+        $agent = Double::for(Agent::class);
+        $agent->expects('stream')->throws($exception);
 
         $generator = (new AgentTool($agent))->stream(new Request(['task' => 'Do the thing']));
 
@@ -89,9 +92,9 @@ class AgentToolTest extends TestCase
         Exceptions::fake();
         $exception = new RuntimeException('provider exploded');
 
-        $agent = $structuredStream ? m::mock(Agent::class, HasStructuredOutput::class) : m::mock(Agent::class);
-        $agent->shouldNotReceive('stream');
-        $agent->shouldReceive('prompt')->once()->andThrow($exception);
+        $agent = $structuredStream ? Double::for(Agent::class, HasStructuredOutput::class) : Double::for(Agent::class);
+        $agent->expects('stream')->never();
+        $agent->expects('prompt')->throws($exception);
 
         $tool = new AgentTool($agent);
         $request = new Request(['task' => 'Do the thing']);
@@ -127,16 +130,16 @@ class AgentToolTest extends TestCase
         if ($cleanupThrows) {
             $exception = new RuntimeException('Sub-agent cleanup failed.', previous: $exception);
         }
-        $agent = m::mock(Agent::class);
+        $agent = Double::for(Agent::class);
 
         if ($streaming) {
-            $agent->shouldReceive('stream')->once()->andReturn(new StreamableAgentResponse('invocation', function () use ($exception): Generator {
+            $agent->expects('stream')->returns(new StreamableAgentResponse('invocation', function () use ($exception): Generator {
                 yield new TextDelta('event', 'message', 'Partial', time());
 
                 throw $exception;
             }));
         } else {
-            $agent->shouldReceive('prompt')->once()->andThrow($exception);
+            $agent->expects('prompt')->throws($exception);
         }
 
         $tool = new AgentTool($agent);

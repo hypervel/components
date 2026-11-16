@@ -21,12 +21,16 @@ use Hypervel\Tests\Auth\Fixtures\DummyWithUsePolicyPolicy;
 use Hypervel\Tests\Auth\Fixtures\SubDummyWithUsePolicy;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 
 class AuthAccessGateTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBasicClosuresCanBeDefined(): void
     {
         $gate = $this->getBasicGate();
@@ -1561,9 +1565,9 @@ class AuthAccessGateTest extends TestCase
     public function testGateEvaluationSkipsDispatchWhenThereAreNoListeners(): void
     {
         $container = new Container;
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(GateEvaluated::class)->andReturnFalse();
-        $events->shouldNotReceive('dispatch');
+        $events = Double::for(Dispatcher::class);
+        $events->expects('hasListeners')->with(GateEvaluated::class)->returns(false);
+        $events->expects('dispatch')->never();
         $container->instance(Dispatcher::class, $events);
 
         $gate = new Gate($container, fn () => new stdClass);
@@ -1575,11 +1579,10 @@ class AuthAccessGateTest extends TestCase
     public function testGateEvaluationDispatchesWhenThereIsAListener(): void
     {
         $container = new Container;
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(GateEvaluated::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')
-            ->once()
-            ->with(m::on(fn (GateEvaluated $event): bool => $event->ability === 'allowed'));
+        $events = Double::for(Dispatcher::class);
+        $events->expects('hasListeners')->with(GateEvaluated::class)->returns(true);
+        $events->expects('dispatch')
+            ->with(Argument::satisfies(fn (GateEvaluated $event): bool => $event->ability === 'allowed'));
         $container->instance(Dispatcher::class, $events);
 
         $gate = new Gate($container, fn () => new stdClass);

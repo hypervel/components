@@ -4,28 +4,25 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\ApiClient;
 
-use BadMethodCallException;
+use Error;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Hypervel\ApiClient\ApiRequest;
 use Hypervel\ApiClient\ApiResource;
 use Hypervel\ApiClient\ApiResponse;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonException;
 use LogicException;
-use Mockery as m;
-use Mockery\MockInterface;
 
 class ApiResourceTest extends TestCase
 {
-    /**
-     * @var ApiResponse&MockInterface
-     */
-    private $response;
+    use VerifiesDoubles;
 
-    /**
-     * @var ApiRequest&MockInterface
-     */
-    private $request;
+    private ApiResponse&DoubleInterface $response;
+
+    private ApiRequest&DoubleInterface $request;
 
     private ApiResource $resource;
 
@@ -33,10 +30,9 @@ class ApiResourceTest extends TestCase
     {
         parent::setUp();
 
-        $this->response = m::mock(ApiResponse::class);
-        $this->request = m::mock(ApiRequest::class);
+        $this->response = Double::for(ApiResponse::class);
+        $this->request = Double::for(ApiRequest::class);
 
-        // Create the resource with our mocks
         $this->resource = new ApiResource($this->response, $this->request);
     }
 
@@ -52,8 +48,8 @@ class ApiResourceTest extends TestCase
     public function testToString(): void
     {
         $this->response
-            ->shouldReceive('body')
-            ->andReturn($responseBody = '{"key": "value"}');
+            ->expects('body')
+            ->returns($responseBody = '{"key": "value"}');
 
         $this->assertEquals($responseBody, (string) $this->resource);
     }
@@ -61,8 +57,8 @@ class ApiResourceTest extends TestCase
     public function testResolve(): void
     {
         $this->response
-            ->shouldReceive('toArray')
-            ->andReturn($jsonData = ['key' => 'value']);
+            ->expects('toArray')
+            ->returns($jsonData = ['key' => 'value']);
 
         $this->assertEquals($jsonData, $this->resource->resolve());
     }
@@ -70,8 +66,8 @@ class ApiResourceTest extends TestCase
     public function testToArray(): void
     {
         $this->response
-            ->shouldReceive('toArray')
-            ->andReturn($jsonData = ['key' => 'value']);
+            ->expects('toArray')
+            ->returns($jsonData = ['key' => 'value']);
 
         $this->assertEquals($jsonData, $this->resource->toArray());
     }
@@ -79,15 +75,15 @@ class ApiResourceTest extends TestCase
     public function testJsonSerialize(): void
     {
         $this->response
-            ->shouldReceive('toArray')
-            ->andReturn($jsonData = ['key' => 'value']);
+            ->expects('toArray')
+            ->returns($jsonData = ['key' => 'value']);
 
         $this->assertEquals($jsonData, $this->resource->jsonSerialize());
     }
 
     public function testToJsonThrowsForInvalidUtf8(): void
     {
-        $this->response->shouldReceive('toArray')->once()->andReturn(['value' => "\xB1\x31"]);
+        $this->response->expects('toArray')->returns(['value' => "\xB1\x31"]);
 
         $this->expectException(JsonException::class);
 
@@ -96,7 +92,7 @@ class ApiResourceTest extends TestCase
 
     public function testToJsonHonorsInvalidUtf8Substitution(): void
     {
-        $this->response->shouldReceive('toArray')->once()->andReturn(['value' => "\xB1\x31"]);
+        $this->response->expects('toArray')->returns(['value' => "\xB1\x31"]);
 
         $this->assertSame(
             '{"value":"\ufffd1"}',
@@ -106,7 +102,7 @@ class ApiResourceTest extends TestCase
 
     public function testToPrettyJsonPreservesCallerOptions(): void
     {
-        $this->response->shouldReceive('toArray')->once()->andReturn(['value' => '/path']);
+        $this->response->expects('toArray')->returns(['value' => '/path']);
 
         $this->assertSame(
             "{\n    \"value\": \"/path\"\n}",
@@ -116,18 +112,18 @@ class ApiResourceTest extends TestCase
 
     public function testArrayAccessOffsetExists(): void
     {
-        $this->response->shouldReceive('offsetExists')
+        $this->response->expects('offsetExists')
             ->with('key')
-            ->andReturn(true);
+            ->returns(true);
 
         $this->assertTrue($this->resource->offsetExists('key'));
     }
 
     public function testArrayAccessOffsetGet(): void
     {
-        $this->response->shouldReceive('offsetGet')
+        $this->response->expects('offsetGet')
             ->with('key')
-            ->andReturn($value = 'someValue');
+            ->returns($value = 'someValue');
 
         $this->assertEquals($value, $this->resource->offsetGet('key'));
     }
@@ -151,8 +147,8 @@ class ApiResourceTest extends TestCase
     public function testMagicIssetMethod(): void
     {
         $this->response
-            ->shouldReceive('json')
-            ->andReturn($jsonData = ['existingKey' => 'value']);
+            ->expects('json')->times(2)
+            ->returns($jsonData = ['existingKey' => 'value']);
 
         $this->assertTrue(isset($this->resource->existingKey));
         $this->assertFalse(isset($this->resource->nonExistingKey));
@@ -176,11 +172,10 @@ class ApiResourceTest extends TestCase
 
     public function testMagicGetMethod(): void
     {
-        $this->response->shouldReceive('offsetGet')
+        $this->response->expects('offsetGet')
             ->with('key')
-            ->andReturn($value = 'value');
+            ->returns($value = 'value');
 
-        /* @phpstan-ignore-next-line */
         $this->assertEquals($value, $this->resource->key);
     }
 
@@ -197,8 +192,8 @@ class ApiResourceTest extends TestCase
 
     public function testCallMethodOnResponse(): void
     {
-        $this->response->shouldReceive('status')
-            ->andReturn($expectedResult = 200);
+        $this->response->expects('status')
+            ->returns($expectedResult = 200);
 
         $this->assertEquals($expectedResult, $this->resource->status());
     }
@@ -217,9 +212,11 @@ class ApiResourceTest extends TestCase
 
     public function testCallNonExistentMethodThrowsException(): void
     {
-        $this->expectException(BadMethodCallException::class);
+        $resource = new ApiResource(new ApiResponse(new Psr7Response), $this->request);
 
-        /* @phpstan-ignore-next-line */
-        $this->resource->nonExistentMethod();
+        $this->expectException(Error::class);
+        $this->expectExceptionMessageIs('Call to undefined method GuzzleHttp\Psr7\Response::nonExistentMethod()');
+
+        $resource->nonExistentMethod();
     }
 }

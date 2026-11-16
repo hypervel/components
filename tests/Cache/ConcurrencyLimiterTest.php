@@ -20,7 +20,8 @@ use Hypervel\Contracts\Limiters\RefreshableLease;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -28,6 +29,8 @@ use Throwable;
 
 class ConcurrencyLimiterTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Repository $repository;
 
     protected function setUp(): void
@@ -644,9 +647,9 @@ class ConcurrencyLimiterTest extends TestCase
         ?LimiterFailingReleaseLock &$lock = null,
         ?Throwable $releaseFailure = null,
     ): Store&LockProvider {
-        $store = m::mock(Store::class, LockProvider::class);
-        $store->shouldReceive('lock')
-            ->andReturnUsing(function (string $name, int $seconds, ?string $owner) use (&$lock, $releaseFailure): LockContract {
+        $store = Double::for(Store::class, LockProvider::class);
+        $store->allows('lock')
+            ->resolves(function (string $name, int $seconds, ?string $owner) use (&$lock, $releaseFailure): LockContract {
                 return $lock = new LimiterFailingReleaseLock($name, $seconds, $owner, $releaseFailure);
             });
 
