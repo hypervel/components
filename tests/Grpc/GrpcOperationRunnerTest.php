@@ -18,8 +18,9 @@ use Hypervel\Grpc\ServerGrpcOperation;
 use Hypervel\Grpc\Status;
 use Hypervel\Grpc\StatusCode;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -27,6 +28,8 @@ use Throwable;
 
 class GrpcOperationRunnerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testClientObserversReplaceMetadataInRegistrationOrder(): void
     {
         $runner = new GrpcOperationRunner;
@@ -121,7 +124,7 @@ class GrpcOperationRunnerTest extends TestCase
                 throw $startingFailure;
             },
         ));
-        $this->bindReportingHandler()->shouldReceive('report')->once()->with($completionFailure);
+        $this->bindReportingHandler()->expects('report')->with($completionFailure);
 
         try {
             $runner->start($this->clientOperation());
@@ -160,7 +163,7 @@ class GrpcOperationRunnerTest extends TestCase
         ));
         $handle = $runner->start($this->clientOperation());
         $result = new GrpcOperationResult(new Status(StatusCode::Ok), null, 2);
-        $this->bindReportingHandler()->shouldReceive('report')->once()->with($secondFailure);
+        $this->bindReportingHandler()->expects('report')->with($secondFailure);
 
         try {
             $handle->finish($result);
@@ -193,7 +196,7 @@ class GrpcOperationRunnerTest extends TestCase
                     throw $observerFailure;
                 },
             ));
-            $this->bindReportingHandler()->shouldReceive('report')->once()->with($observerFailure);
+            $this->bindReportingHandler()->expects('report')->with($observerFailure);
 
             $runner->start($this->clientOperation())->finish($result);
 
@@ -212,7 +215,7 @@ class GrpcOperationRunnerTest extends TestCase
             },
         ));
         $reported = [];
-        $this->bindReportingHandler()->shouldReceive('report')->andReturnUsing(function (Throwable $throwable) use (&$reported): void {
+        $this->bindReportingHandler()->allows('report')->resolves(function (Throwable $throwable) use (&$reported): void {
             $reported[] = $throwable;
         });
 
@@ -301,7 +304,7 @@ class GrpcOperationRunnerTest extends TestCase
                 throw $observerFailure;
             },
         ));
-        $this->bindReportingHandler()->shouldReceive('report')->once()->with($observerFailure);
+        $this->bindReportingHandler()->expects('report')->with($observerFailure);
         $handle = $runner->start($this->clientOperation());
 
         $handle->finish(new GrpcOperationResult(null, new CanceledException, 1));
@@ -330,11 +333,11 @@ class GrpcOperationRunnerTest extends TestCase
     /**
      * Bind a mocked exception handler for displaced failure reports.
      */
-    private function bindReportingHandler(): MockInterface
+    private function bindReportingHandler(): ExceptionHandler&DoubleInterface
     {
         $container = new Container;
         Container::setInstance($container);
-        $handler = m::mock(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $container->instance(ExceptionHandler::class, $handler);
 
         return $handler;
