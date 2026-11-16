@@ -66,8 +66,8 @@ class CacheStackStoreTest extends TestCase
 
     public function testAuthoritativeReadUsesBottomLayerWithoutRepairingUpperLayer(): void
     {
-        $top = Double::for(ArrayStore::class);
-        $bottom = Double::for(ArrayStore::class);
+        $top = Double::for(ArrayStore::class)->strict();
+        $bottom = Double::for(ArrayStore::class)->strict();
         $bottom->expects('get')->with('key')->returns(['value' => 'fresh']);
         $top->expects('get')->never();
         $top->expects('put')->never();
@@ -114,7 +114,7 @@ class CacheStackStoreTest extends TestCase
     #[DataProvider('authoritativeRecordProvider')]
     public function testAuthoritativeReadHandlesSingleLayerRecords(mixed $record, mixed $expected): void
     {
-        $store = Double::for(ArrayStore::class);
+        $store = Double::for(ArrayStore::class)->strict();
         $store->expects('get')->with('key')->returns($record);
 
         $this->assertSame($expected, (new StackStore([$store]))->getAuthoritativeRaw('key'));
@@ -133,9 +133,9 @@ class CacheStackStoreTest extends TestCase
 
     public function testAuthoritativeReadRecursesThroughBottomStack(): void
     {
-        $outerTop = Double::for(ArrayStore::class);
-        $innerTop = Double::for(ArrayStore::class);
-        $innerBottom = Double::for(ArrayStore::class);
+        $outerTop = Double::for(ArrayStore::class)->strict();
+        $innerTop = Double::for(ArrayStore::class)->strict();
+        $innerBottom = Double::for(ArrayStore::class)->strict();
         $innerBottom->expects('get')->with('key')->returns([
             'value' => ['value' => 'fresh'],
         ]);
@@ -152,8 +152,8 @@ class CacheStackStoreTest extends TestCase
 
     public function testAuthoritativeReadRecursesThroughBottomFailoverStore(): void
     {
-        $top = Double::for(ArrayStore::class);
-        $bottom = Double::for(ArrayStore::class);
+        $top = Double::for(ArrayStore::class)->strict();
+        $bottom = Double::for(ArrayStore::class)->strict();
         $bottom->expects('get')->with('key')->returns(['value' => 'fresh']);
         $top->expects('get')->never();
 
@@ -208,9 +208,9 @@ class CacheStackStoreTest extends TestCase
 
     public function testThreeLayerReadContinuesRepairAfterInnerFailure(): void
     {
-        $top = Double::for(ArrayStore::class);
-        $middle = Double::for(ArrayStore::class);
-        $bottom = Double::for(ArrayStore::class);
+        $top = Double::for(ArrayStore::class)->strict();
+        $middle = Double::for(ArrayStore::class)->strict();
+        $bottom = Double::for(ArrayStore::class)->strict();
         $record = ['value' => 'bar'];
 
         $top->expects('get')->with('foo')->returns(null);
@@ -356,9 +356,9 @@ class CacheStackStoreTest extends TestCase
     public function testPutCompensatesEarlierLayerWhenLowerLayerThrows(): void
     {
         $sequence = [];
-        $top = Double::for(ArrayStore::class);
-        $middle = Double::for(ArrayStore::class);
-        $bottom = Double::for(ArrayStore::class);
+        $top = Double::for(ArrayStore::class)->strict();
+        $middle = Double::for(ArrayStore::class)->strict();
+        $bottom = Double::for(ArrayStore::class)->strict();
         $exception = new RuntimeException('write failed');
 
         $top->expects('put')->returns(true);
@@ -388,9 +388,9 @@ class CacheStackStoreTest extends TestCase
     public function testPutCompensatesCompletedLayersInReverseOrder(): void
     {
         $sequence = [];
-        $top = Double::for(ArrayStore::class);
-        $middle = Double::for(ArrayStore::class);
-        $bottom = Double::for(ArrayStore::class);
+        $top = Double::for(ArrayStore::class)->strict();
+        $middle = Double::for(ArrayStore::class)->strict();
+        $bottom = Double::for(ArrayStore::class)->strict();
 
         $top->expects('put')->returns(true);
         $middle->expects('put')->returns(true);
@@ -413,8 +413,8 @@ class CacheStackStoreTest extends TestCase
 
     public function testPutPreservesFalseResultWhenCompensationThrows(): void
     {
-        $top = Double::for(ArrayStore::class);
-        $bottom = Double::for(ArrayStore::class);
+        $top = Double::for(ArrayStore::class)->strict();
+        $bottom = Double::for(ArrayStore::class)->strict();
 
         $top->expects('put')->returns(true);
         $bottom->expects('put')->returns(false);
@@ -425,8 +425,8 @@ class CacheStackStoreTest extends TestCase
 
     public function testPutPreservesWriteFailureWhenCompensationAlsoThrows(): void
     {
-        $top = Double::for(ArrayStore::class);
-        $bottom = Double::for(ArrayStore::class);
+        $top = Double::for(ArrayStore::class)->strict();
+        $bottom = Double::for(ArrayStore::class)->strict();
         $exception = new RuntimeException('write failed');
 
         $top->expects('put')->returns(true);
@@ -444,8 +444,8 @@ class CacheStackStoreTest extends TestCase
 
     public function testPutCompensatesLayerWhoseWriteThrows(): void
     {
-        $top = Double::for(ArrayStore::class);
-        $bottom = Double::for(ArrayStore::class);
+        $top = Double::for(ArrayStore::class)->strict();
+        $bottom = Double::for(ArrayStore::class)->strict();
         $exception = new RuntimeException('write failed');
 
         $top->expects('put')->throws($exception);
@@ -523,8 +523,8 @@ class CacheStackStoreTest extends TestCase
     public function testPutPreservesOriginalCancellationAndCompletesCompensation(bool $cleanupThrows): void
     {
         $sequence = [];
-        $top = Double::for(ArrayStore::class);
-        $bottom = Double::for(ArrayStore::class);
+        $top = Double::for(ArrayStore::class)->strict();
+        $bottom = Double::for(ArrayStore::class)->strict();
         $cancellation = new CanceledException('write canceled');
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Write cleanup failed.', previous: $cancellation);
@@ -559,8 +559,8 @@ class CacheStackStoreTest extends TestCase
     public function testPutCleanupCancellationSupersedesOrdinaryWriteFailure(bool $cleanupThrows): void
     {
         $sequence = [];
-        $top = Double::for(ArrayStore::class);
-        $bottom = Double::for(ArrayStore::class);
+        $top = Double::for(ArrayStore::class)->strict();
+        $bottom = Double::for(ArrayStore::class)->strict();
         $cleanupCancellation = new CanceledException('cleanup canceled');
         if ($cleanupThrows) {
             $cleanupCancellation = new RuntimeException('Release cleanup failed.', previous: $cleanupCancellation);
@@ -593,8 +593,8 @@ class CacheStackStoreTest extends TestCase
     #[TestWith([true])]
     public function testPutCleanupCancellationSupersedesFalseWriteResult(bool $cleanupThrows): void
     {
-        $top = Double::for(ArrayStore::class);
-        $bottom = Double::for(ArrayStore::class);
+        $top = Double::for(ArrayStore::class)->strict();
+        $bottom = Double::for(ArrayStore::class)->strict();
         $cleanupCancellation = new CanceledException('cleanup canceled');
         if ($cleanupThrows) {
             $cleanupCancellation = new RuntimeException('Release cleanup failed.', previous: $cleanupCancellation);
@@ -628,9 +628,9 @@ class CacheStackStoreTest extends TestCase
     public function testManyReadsEachLayerOnceAndRestoresLowerHitsWithBatchedWrites(): void
     {
         $sequence = [];
-        $top = Double::for(ArrayStore::class);
-        $middle = Double::for(ArrayStore::class);
-        $bottom = Double::for(ArrayStore::class);
+        $top = Double::for(ArrayStore::class)->strict();
+        $middle = Double::for(ArrayStore::class)->strict();
+        $bottom = Double::for(ArrayStore::class)->strict();
         $expiration = CarbonImmutable::now()->getTimestamp() + 100;
         $shorterExpiration = CarbonImmutable::now()->getTimestamp() + 50;
         $middleRecord = ['value' => 'middle', 'expiration' => $expiration];
@@ -694,9 +694,9 @@ class CacheStackStoreTest extends TestCase
 
     public function testManyMeasuresRemainingTtlBeforeEachRestoreAndSkipsRecordsThatExpired(): void
     {
-        $top = Double::for(ArrayStore::class);
-        $middle = Double::for(ArrayStore::class);
-        $bottom = Double::for(ArrayStore::class);
+        $top = Double::for(ArrayStore::class)->strict();
+        $middle = Double::for(ArrayStore::class)->strict();
+        $bottom = Double::for(ArrayStore::class)->strict();
         $expiringRecord = ['value' => 'expiring', 'expiration' => CarbonImmutable::now()->getTimestamp() + 1];
         $bottomRecord = ['value' => 'bottom', 'expiration' => CarbonImmutable::now()->getTimestamp() + 100];
         $advance = static function (int $seconds, mixed $result): Closure {
@@ -785,9 +785,9 @@ class CacheStackStoreTest extends TestCase
     public function testPutManyFailureForgetsTheBatchFromTheFailedAndCompletedLayersDeepestFirst(): void
     {
         $sequence = [];
-        $top = Double::for(ArrayStore::class);
-        $middle = Double::for(ArrayStore::class);
-        $bottom = Double::for(ArrayStore::class);
+        $top = Double::for(ArrayStore::class)->strict();
+        $middle = Double::for(ArrayStore::class)->strict();
+        $bottom = Double::for(ArrayStore::class)->strict();
 
         $top->expects('putMany')->returns(true);
         $middle->expects('putMany')->returns(false);
@@ -856,8 +856,8 @@ class CacheStackStoreTest extends TestCase
     public function testPutManyCleanupContinuesAfterCancellationStopsAtOrdinaryFailureAndKeepsCancellation(bool $cleanupThrows): void
     {
         $sequence = [];
-        $top = Double::for(ArrayStore::class);
-        $bottom = Double::for(ArrayStore::class);
+        $top = Double::for(ArrayStore::class)->strict();
+        $bottom = Double::for(ArrayStore::class)->strict();
         $cleanupCancellation = new CanceledException('cleanup canceled');
         if ($cleanupThrows) {
             $cleanupCancellation = new RuntimeException('Release cleanup failed.', previous: $cleanupCancellation);
@@ -905,7 +905,7 @@ class CacheStackStoreTest extends TestCase
     #[DataProvider('proxyPutManyTtlProvider')]
     public function testProxyPutManyAppliesLayerTtl(?int $layerTtl, int $requestedTtl, int $expectedTtl): void
     {
-        $store = Double::for(ArrayStore::class);
+        $store = Double::for(ArrayStore::class)->strict();
         $store->expects('putMany')->with(['key' => 'value'], $expectedTtl)->returns(true);
 
         $proxy = new StackStoreProxy($store, $layerTtl);
@@ -925,7 +925,7 @@ class CacheStackStoreTest extends TestCase
 
     public function testProxyPutManyReturnsUnderlyingResult(): void
     {
-        $store = Double::for(ArrayStore::class);
+        $store = Double::for(ArrayStore::class)->strict();
         $store->expects('putMany')->with(['key' => 'value'], 60)->returns(false);
 
         $this->assertFalse((new StackStoreProxy($store, 60))->putMany(['key' => 'value'], 90));
@@ -1068,9 +1068,9 @@ class CacheStackStoreTest extends TestCase
 
     public function testForgetAttemptsEveryLayerAndPreservesTheEarliestFailure(): void
     {
-        $top = Double::for(ArrayStore::class);
-        $middle = Double::for(ArrayStore::class);
-        $bottom = Double::for(ArrayStore::class);
+        $top = Double::for(ArrayStore::class)->strict();
+        $middle = Double::for(ArrayStore::class)->strict();
+        $bottom = Double::for(ArrayStore::class)->strict();
         $exception = new RuntimeException('first failure');
 
         $top->expects('forget')->with('foo')->throws($exception);
@@ -1089,9 +1089,9 @@ class CacheStackStoreTest extends TestCase
     #[TestWith([true])]
     public function testForgetCancellationSupersedesEarlierFailureAndStopsFurtherLayers(bool $cleanupThrows): void
     {
-        $top = Double::for(ArrayStore::class);
-        $middle = Double::for(ArrayStore::class);
-        $bottom = Double::for(ArrayStore::class);
+        $top = Double::for(ArrayStore::class)->strict();
+        $middle = Double::for(ArrayStore::class)->strict();
+        $bottom = Double::for(ArrayStore::class)->strict();
         $cancellation = new CanceledException('forget canceled');
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Forget cleanup failed.', previous: $cancellation);
@@ -1131,9 +1131,9 @@ class CacheStackStoreTest extends TestCase
 
     public function testFlushAttemptsEveryLayerAndPreservesTheEarliestFailure(): void
     {
-        $top = Double::for(ArrayStore::class);
-        $middle = Double::for(ArrayStore::class);
-        $bottom = Double::for(ArrayStore::class);
+        $top = Double::for(ArrayStore::class)->strict();
+        $middle = Double::for(ArrayStore::class)->strict();
+        $bottom = Double::for(ArrayStore::class)->strict();
         $exception = new RuntimeException('first failure');
 
         $top->expects('flush')->with(Argument::none())->throws($exception);
@@ -1150,9 +1150,9 @@ class CacheStackStoreTest extends TestCase
 
     public function testThreeStores(): void
     {
-        $array = Double::for(ArrayStore::class);
-        $swoole = Double::for(SwooleStore::class);
-        $redis = Double::for(RedisStore::class);
+        $array = Double::for(ArrayStore::class)->strict();
+        $swoole = Double::for(SwooleStore::class)->strict();
+        $redis = Double::for(RedisStore::class)->strict();
 
         $store = new StackStore([$array, $swoole, $redis]);
 
@@ -1199,8 +1199,8 @@ class CacheStackStoreTest extends TestCase
 
     public function testProxyMaxTTL(): void
     {
-        $swoole = Double::for(SwooleStore::class);
-        $redis = Double::for(RedisStore::class);
+        $swoole = Double::for(SwooleStore::class)->strict();
+        $redis = Double::for(RedisStore::class)->strict();
 
         $key = 'foo';
         $value = 'bar';
@@ -1222,8 +1222,8 @@ class CacheStackStoreTest extends TestCase
 
     public function testProxyMaxTTLWithForever(): void
     {
-        $swoole = Double::for(SwooleStore::class);
-        $redis = Double::for(RedisStore::class);
+        $swoole = Double::for(SwooleStore::class)->strict();
+        $redis = Double::for(RedisStore::class)->strict();
 
         $key = 'foo';
         $value = 'bar';
@@ -1271,8 +1271,8 @@ class CacheStackStoreTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::now());
 
-        $swoole = Double::for(SwooleStore::class);
-        $redis = Double::for(RedisStore::class);
+        $swoole = Double::for(SwooleStore::class)->strict();
+        $redis = Double::for(RedisStore::class)->strict();
 
         $key = 'foo';
         $value = 'bar';
@@ -1296,8 +1296,8 @@ class CacheStackStoreTest extends TestCase
      */
     private function createStores(): void
     {
-        $this->redis = Double::for(RedisStore::class);
-        $this->swoole = Double::for(SwooleStore::class);
+        $this->redis = Double::for(RedisStore::class)->strict();
+        $this->swoole = Double::for(SwooleStore::class)->strict();
         $this->store = new StackStore([$this->swoole, $this->redis]);
     }
 }

@@ -250,6 +250,7 @@ class CacheDatabaseLockTest extends TestCase
     {
         [$lock, $table] = $this->getLock(lockLottery: $lottery);
 
+        $table->strict();
         $table->expects('insertOrIgnore')->returns(1);
 
         $this->assertTrue($lock->acquire());
