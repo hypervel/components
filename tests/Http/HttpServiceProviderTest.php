@@ -13,48 +13,49 @@ use Hypervel\Http\HttpServiceProvider;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Swoole\Server;
 
 class HttpServiceProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBeforeForkClearsResolvedConnectionHandlers(): void
     {
         $listeners = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('listen')
-            ->once()
-            ->andReturnUsing(function (string $event, callable $listener) use (&$listeners): void {
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('listen')
+            ->resolves(function (string $event, callable $listener) use (&$listeners): void {
                 $listeners[$event] = $listener;
             });
-        $factory = m::mock(Factory::class);
-        $factory->shouldReceive('forgetConnectionHandlers')->once()->andReturnSelf();
-        $application = m::mock(Application::class);
-        $application->shouldReceive('make')->once()->with('events')->andReturn($events);
-        $application->shouldReceive('resolved')->once()->with(Factory::class)->andReturnTrue();
-        $application->shouldReceive('make')->once()->with(Factory::class)->andReturn($factory);
+        $factory = Double::for(Factory::class)->strict();
+        $factory->expects('forgetConnectionHandlers');
+        $application = Double::for(Application::class, override: true)->strict();
+        $application->expects('make')->with('events')->returns($events);
+        $application->expects('resolved')->with(Factory::class)->returns(true);
+        $application->expects('make')->with(Factory::class)->returns($factory);
 
-        (new HttpServiceProvider($application))->boot();
+        (new HttpServiceProvider($application->instance()))->boot();
 
-        $listeners[BeforeServerFork::class](new BeforeServerFork(m::mock(Server::class)));
+        $listeners[BeforeServerFork::class](new BeforeServerFork(Double::for(Server::class)->strict()));
     }
 
     public function testBeforeForkDoesNotResolveAnUnusedFactory(): void
     {
         $listeners = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('listen')
-            ->once()
-            ->andReturnUsing(function (string $event, callable $listener) use (&$listeners): void {
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('listen')
+            ->resolves(function (string $event, callable $listener) use (&$listeners): void {
                 $listeners[$event] = $listener;
             });
-        $application = m::mock(Application::class);
-        $application->shouldReceive('make')->once()->with('events')->andReturn($events);
-        $application->shouldReceive('resolved')->once()->with(Factory::class)->andReturnFalse();
+        $application = Double::for(Application::class, override: true)->strict();
+        $application->expects('make')->with('events')->returns($events);
+        $application->expects('resolved')->with(Factory::class)->returns(false);
 
-        (new HttpServiceProvider($application))->boot();
+        (new HttpServiceProvider($application->instance()))->boot();
 
-        $listeners[BeforeServerFork::class](new BeforeServerFork(m::mock(Server::class)));
+        $listeners[BeforeServerFork::class](new BeforeServerFork(Double::for(Server::class)->strict()));
     }
 
     public function testAScopedEventFakeReachesTheResolvedFactoryAndIsRemovedAfterwards(): void

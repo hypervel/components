@@ -60,9 +60,11 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Http\Fixtures\LoopbackHttpServer;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use JsonException;
 use JsonSerializable;
-use Mockery as m;
 use OutOfBoundsException;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -83,6 +85,8 @@ use function Hypervel\Coroutine\run;
 
 class HttpClientTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected bool $runTestsInCoroutine = false;
 
     protected Factory $factory;
@@ -1773,8 +1777,8 @@ class HttpClientTest extends TestCase
 
     public function testEmptyRequestDataIsDecodedOnlyOnce(): void
     {
-        $body = m::mock(StreamInterface::class);
-        $body->expects('__toString')->andReturn('[]');
+        $body = Double::for(StreamInterface::class)->strict();
+        $body->expects('__toString')->returns('[]');
         $request = new Request(new GuzzleRequest(
             'POST',
             'https://example.test',
@@ -3698,11 +3702,11 @@ class HttpClientTest extends TestCase
 
     public function testAsyncResponseBearingFailuresCanRetryWithoutReportingAConnectionFailure(): void
     {
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->andReturnTrue();
-        $events->shouldReceive('dispatch')->with(m::type(RequestSending::class))->twice();
-        $events->shouldReceive('dispatch')->with(m::type(ResponseReceived::class))->once();
-        $events->shouldNotReceive('dispatch')->with(m::type(ConnectionFailedEvent::class));
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->allows('hasListeners')->returns(true);
+        $events->expects('dispatch')->with(Argument::type(RequestSending::class))->times(2);
+        $events->expects('dispatch')->with(Argument::type(ResponseReceived::class));
+        $events->expects('dispatch')->never()->with(Argument::type(ConnectionFailedEvent::class));
         $factory = new Factory($events);
         $factory->fakeSequence()->push('first')->push('second');
         $seen = 0;
@@ -3803,10 +3807,10 @@ class HttpClientTest extends TestCase
     {
         $this->factory->fakeSequence()->push('abc123');
         $failure = new RuntimeException('Unable to rewind PSR stream');
-        $stream = m::mock(StreamInterface::class);
-        $stream->expects('write')->with('abc123')->andReturn(6);
-        $stream->expects('isSeekable')->andReturnTrue();
-        $stream->expects('rewind')->andThrow($failure);
+        $stream = Double::for(StreamInterface::class)->strict();
+        $stream->expects('write')->with('abc123')->returns(6);
+        $stream->expects('isSeekable')->returns(true);
+        $stream->expects('rewind')->throws($failure);
 
         try {
             $this->factory->sink($stream)->get('https://example.com');
@@ -4557,10 +4561,10 @@ class HttpClientTest extends TestCase
 
     public function testRequestEventsAreNotDispatchedWithoutListeners(): void
     {
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->with(RequestSending::class)->andReturn(false);
-        $events->expects('hasListeners')->with(ResponseReceived::class)->andReturn(false);
-        $events->shouldNotReceive('dispatch');
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(RequestSending::class)->returns(false);
+        $events->expects('hasListeners')->with(ResponseReceived::class)->returns(false);
+        $events->expects('dispatch')->never();
 
         $factory = new Factory($events);
         $factory->fake();
@@ -4570,11 +4574,11 @@ class HttpClientTest extends TestCase
 
     public function testTheConnectionFailedEventIsFiredWhenARequestFailsToConnect(): void
     {
-        $events = m::mock(Dispatcher::class);
-        $events->expects('hasListeners')->with(RequestSending::class)->andReturn(true);
-        $events->expects('hasListeners')->with(ConnectionFailedEvent::class)->andReturn(true);
-        $events->expects('dispatch')->with(m::type(RequestSending::class));
-        $events->expects('dispatch')->with(m::type(ConnectionFailedEvent::class));
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(RequestSending::class)->returns(true);
+        $events->expects('hasListeners')->with(ConnectionFailedEvent::class)->returns(true);
+        $events->expects('dispatch')->with(Argument::type(RequestSending::class));
+        $events->expects('dispatch')->with(Argument::type(ConnectionFailedEvent::class));
 
         $factory = new Factory($events);
         $factory->fake($factory::failedConnection('Fake'));
@@ -4796,9 +4800,9 @@ class HttpClientTest extends TestCase
         $failure = new RuntimeException('Sink cleanup failed.', previous: new CanceledException('Request canceled.'));
         $attempts = 0;
         $policyCalled = false;
-        $sink = m::mock(StreamInterface::class);
-        $sink->shouldReceive('isWritable')->andReturnTrue();
-        $sink->shouldReceive('write')->andReturnUsing(function () use (&$attempts, $failure): never {
+        $sink = Double::for(StreamInterface::class)->strict();
+        $sink->allows('isWritable')->returns(true);
+        $sink->allows('write')->resolves(function () use (&$attempts, $failure): never {
             ++$attempts;
 
             throw $failure;
@@ -7085,21 +7089,20 @@ class HttpClientTest extends TestCase
     {
         $onStatsFunctionCalled = false;
 
-        $client = m::mock(ClientInterface::class);
+        $client = Double::for(ClientInterface::class)->strict();
         $client->expects('request')
-            ->withArgs(function ($method, $url, $options) {
+            ->with('GET', 'https://example.com', Argument::type('array'))
+            ->resolves(function ($method, $url, $options) {
                 $options['on_stats'](new TransferStats(
-                    new \GuzzleHttp\Psr7\Request($method, $url),
+                    new GuzzleRequest($method, $url),
                     new Psr7Response(200, [], 'ok'),
                     0.123,
                     null,
                     ['original' => 'value'],
                 ));
 
-                return $method === 'GET'
-                    && $url === 'https://example.com';
-            })
-            ->andReturn(new Psr7Response(200, [], 'ok'));
+                return new Psr7Response(200, [], 'ok');
+            });
 
         $stats = (new PendingRequest($this->factory))
             ->setClient($client)

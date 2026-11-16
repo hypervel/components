@@ -14,7 +14,10 @@ use Hypervel\HttpServer\ResponseBridge;
 use Hypervel\Server\ResponseCancellation;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use RuntimeException;
@@ -31,6 +34,8 @@ use function Hypervel\Coroutine\parallel;
 
 class ResponseBridgeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected string $tempDirectory;
 
     protected function setUp(): void
@@ -54,9 +59,9 @@ class ResponseBridgeTest extends TestCase
         $response = new Response('Hello World', 200, ['X-Custom' => 'value']);
         $swooleResponse = $this->mockSwooleResponse();
 
-        $swooleResponse->shouldReceive('status')->once()->with(200)->andReturnTrue();
-        $swooleResponse->shouldReceive('header')->atLeast()->once()->andReturnTrue();
-        $swooleResponse->shouldReceive('end')->once()->with('Hello World')->andReturnTrue();
+        $swooleResponse->expects('status')->with(200)->returns(true);
+        $swooleResponse->expects('header')->times(minimum: 1)->returns(true);
+        $swooleResponse->expects('end')->with('Hello World')->returns(true);
 
         ResponseBridge::send($response, $swooleResponse);
     }
@@ -66,9 +71,9 @@ class ResponseBridgeTest extends TestCase
         $response = new Response('Not Found', 404);
         $swooleResponse = $this->mockSwooleResponse();
 
-        $swooleResponse->shouldReceive('status')->once()->with(404)->andReturnTrue();
-        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
-        $swooleResponse->shouldReceive('end')->once()->with('Not Found')->andReturnTrue();
+        $swooleResponse->expects('status')->with(404)->returns(true);
+        $swooleResponse->allows('header')->returns(true);
+        $swooleResponse->expects('end')->with('Not Found')->returns(true);
 
         ResponseBridge::send($response, $swooleResponse);
     }
@@ -83,13 +88,13 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse = $this->mockSwooleResponse();
 
         $sentHeaders = [];
-        $swooleResponse->shouldReceive('status')->once()->with(200)->andReturnTrue();
-        $swooleResponse->shouldReceive('header')->andReturnUsing(function (string $name, string|array $value) use (&$sentHeaders): bool {
+        $swooleResponse->expects('status')->with(200)->returns(true);
+        $swooleResponse->allows('header')->resolves(function (string $name, string|array $value) use (&$sentHeaders): bool {
             $sentHeaders[$name] = $value;
 
             return true;
         });
-        $swooleResponse->shouldReceive('end')->once()->andReturnTrue();
+        $swooleResponse->expects('end')->returns(true);
 
         ResponseBridge::send($response, $swooleResponse);
 
@@ -102,9 +107,10 @@ class ResponseBridgeTest extends TestCase
     public function testSendNumericOnlyHeaderNameAsString(string $name): void
     {
         $response = new Response('OK', headers: [$name => 'value']);
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'end');
 
-        $swooleResponse->shouldReceive('header')->once()->with($name, 'value')->andReturnTrue();
+        $swooleResponse->allows('header')->with(Argument::not($name), Argument::any())->returns(true);
+        $swooleResponse->expects('header')->with($name, 'value')->returns(true);
 
         ResponseBridge::send($response, $swooleResponse);
     }
@@ -124,13 +130,13 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse = $this->mockSwooleResponse();
 
         $sentCookies = [];
-        $swooleResponse->shouldReceive('status')->once()->andReturnTrue();
-        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturn(true);
-        $swooleResponse->shouldReceive('cookie')->andReturnUsing(function (...$args) use (&$sentCookies) {
+        $swooleResponse->expects('status')->returns(true);
+        $swooleResponse->allows('header')->returns(true);
+        $swooleResponse->allows('cookie')->resolves(function (...$args) use (&$sentCookies) {
             $sentCookies[] = $args;
             return true;
         });
-        $swooleResponse->shouldReceive('end')->once()->andReturnTrue();
+        $swooleResponse->expects('end')->returns(true);
 
         ResponseBridge::send($response, $swooleResponse);
 
@@ -145,10 +151,10 @@ class ResponseBridgeTest extends TestCase
         $response->headers->setCookie(
             Cookie::create('raw', 'a%2Fb')->withRaw()->withPartitioned()
         );
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header', 'end');
 
-        $swooleResponse->shouldNotReceive('cookie');
-        $swooleResponse->shouldReceive('rawcookie')->once()->with(
+        $swooleResponse->expects('cookie')->never();
+        $swooleResponse->expects('rawcookie')->with(
             'raw',
             'a%2Fb',
             0,
@@ -159,7 +165,7 @@ class ResponseBridgeTest extends TestCase
             'lax',
             '',
             true,
-        )->andReturnTrue();
+        )->returns(true);
 
         ResponseBridge::send($response, $swooleResponse);
     }
@@ -169,9 +175,9 @@ class ResponseBridgeTest extends TestCase
         $response = new Response('This body should not be sent', 200, ['Content-Length' => '28']);
         $swooleResponse = $this->mockSwooleResponse();
 
-        $swooleResponse->shouldReceive('status')->once()->with(200)->andReturnTrue();
-        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+        $swooleResponse->expects('status')->with(200)->returns(true);
+        $swooleResponse->allows('header')->returns(true);
+        $swooleResponse->expects('end')->with()->returns(true);
 
         ResponseBridge::send($response, $swooleResponse, withBody: false);
     }
@@ -181,9 +187,9 @@ class ResponseBridgeTest extends TestCase
         $response = new HypervelResponse('Normal content', 200);
         $swooleResponse = $this->mockSwooleResponse();
 
-        $swooleResponse->shouldReceive('status')->once()->with(200)->andReturnTrue();
-        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
-        $swooleResponse->shouldReceive('end')->once()->with('Normal content')->andReturnTrue();
+        $swooleResponse->expects('status')->with(200)->returns(true);
+        $swooleResponse->allows('header')->returns(true);
+        $swooleResponse->expects('end')->with('Normal content')->returns(true);
 
         ResponseBridge::send($response, $swooleResponse);
     }
@@ -194,9 +200,9 @@ class ResponseBridgeTest extends TestCase
         $response = new BinaryFileResponse($path);
         $swooleResponse = $this->mockSwooleResponse();
 
-        $swooleResponse->shouldReceive('status')->once()->andReturnTrue();
-        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
-        $swooleResponse->shouldReceive('sendfile')->once()->with($path, 0, 0)->andReturnTrue();
+        $swooleResponse->expects('status')->returns(true);
+        $swooleResponse->allows('header')->returns(true);
+        $swooleResponse->expects('sendfile')->with($path, 0, 0)->returns(true);
 
         ResponseBridge::send($response, $swooleResponse);
     }
@@ -206,12 +212,12 @@ class ResponseBridgeTest extends TestCase
         $path = $this->temporaryFile();
         $response = new BinaryFileResponse($path);
         $response->prepare(Request::create('/', 'GET', server: ['HTTP_RANGE' => 'bytes=2-5']));
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('header');
 
-        $swooleResponse->shouldReceive('status')->once()->with(206)->andReturnTrue();
-        $swooleResponse->shouldReceive('sendfile')->once()->with($path, 2, 4)->andReturnTrue();
-        $swooleResponse->shouldNotReceive('write');
-        $swooleResponse->shouldNotReceive('end');
+        $swooleResponse->expects('status')->with(206)->returns(true);
+        $swooleResponse->expects('sendfile')->with($path, 2, 4)->returns(true);
+        $swooleResponse->expects('write')->never();
+        $swooleResponse->expects('end')->never();
 
         ResponseBridge::send($response, $swooleResponse);
     }
@@ -223,26 +229,26 @@ class ResponseBridgeTest extends TestCase
         $response->setChunkSize(4);
         $response->prepare(Request::create('/'));
         $response->headers->set('Transfer-Encoding', 'chunked');
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status');
         $headers = [];
         $chunks = [];
 
-        $swooleResponse->shouldReceive('header')->andReturnUsing(
+        $swooleResponse->allows('header')->resolves(
             static function (string $name, string|array $value) use (&$headers): bool {
                 $headers[strtolower($name)] = $value;
 
                 return true;
             }
         );
-        $swooleResponse->shouldReceive('sendfile')->never();
-        $swooleResponse->shouldReceive('write')->times(4)->andReturnUsing(
+        $swooleResponse->expects('sendfile')->never();
+        $swooleResponse->expects('write')->times(4)->resolves(
             static function (string $chunk) use (&$chunks): bool {
                 $chunks[] = $chunk;
 
                 return true;
             }
         );
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+        $swooleResponse->expects('end')->with()->returns(true);
 
         ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/2');
 
@@ -257,18 +263,18 @@ class ResponseBridgeTest extends TestCase
         $response = new BinaryFileResponse($path);
         $response->setChunkSize(2);
         $response->prepare(Request::create('/', 'GET', server: ['HTTP_RANGE' => 'bytes=5-8']));
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header');
         $chunks = [];
 
-        $swooleResponse->shouldReceive('sendfile')->never();
-        $swooleResponse->shouldReceive('write')->twice()->andReturnUsing(
+        $swooleResponse->expects('sendfile')->never();
+        $swooleResponse->expects('write')->times(2)->resolves(
             static function (string $chunk) use (&$chunks): bool {
                 $chunks[] = $chunk;
 
                 return true;
             }
         );
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+        $swooleResponse->expects('end')->with()->returns(true);
 
         ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/2');
 
@@ -282,18 +288,18 @@ class ResponseBridgeTest extends TestCase
         $response = new BinaryFileResponse($file);
         $response->setChunkSize(4);
         $response->prepare(Request::create('/'));
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header');
         $chunks = [];
 
-        $swooleResponse->shouldReceive('sendfile')->never();
-        $swooleResponse->shouldReceive('write')->andReturnUsing(
+        $swooleResponse->expects('sendfile')->never();
+        $swooleResponse->allows('write')->resolves(
             static function (string $chunk) use (&$chunks): bool {
                 $chunks[] = $chunk;
 
                 return true;
             }
         );
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+        $swooleResponse->expects('end')->with()->returns(true);
 
         ResponseBridge::send($response, $swooleResponse);
 
@@ -307,26 +313,26 @@ class ResponseBridgeTest extends TestCase
         $response->setChunkSize(4);
         $response->deleteFileAfterSend();
         $response->prepare(Request::create('/'));
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status');
         $headers = [];
         $chunks = [];
 
-        $swooleResponse->shouldReceive('header')->andReturnUsing(
+        $swooleResponse->allows('header')->resolves(
             static function (string $name, string|array $value) use (&$headers): bool {
                 $headers[strtolower($name)] = $value;
 
                 return true;
             }
         );
-        $swooleResponse->shouldReceive('sendfile')->never();
-        $swooleResponse->shouldReceive('write')->andReturnUsing(
+        $swooleResponse->expects('sendfile')->never();
+        $swooleResponse->allows('write')->resolves(
             static function (string $chunk) use (&$chunks): bool {
                 $chunks[] = $chunk;
 
                 return true;
             }
         );
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+        $swooleResponse->expects('end')->with()->returns(true);
 
         ResponseBridge::send($response, $swooleResponse);
 
@@ -342,10 +348,10 @@ class ResponseBridgeTest extends TestCase
         $response = new BinaryFileResponse($path);
         $response->deleteFileAfterSend();
         $response->prepare(Request::create('/'));
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header');
 
-        $swooleResponse->shouldReceive('write')->once()->andReturnFalse();
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnFalse();
+        $swooleResponse->expects('write')->returns(false);
+        $swooleResponse->expects('end')->with()->returns(false);
 
         try {
             ResponseBridge::send($response, $swooleResponse);
@@ -365,10 +371,10 @@ class ResponseBridgeTest extends TestCase
         $response->prepare(Request::create('/', 'GET', server: ['HTTP_RANGE' => 'bytes=0-11']));
         file_put_contents($path, 'short');
         clearstatcache(true, $path);
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header');
 
-        $swooleResponse->shouldReceive('write')->once()->with('short')->andReturnTrue();
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+        $swooleResponse->expects('write')->with('short')->returns(true);
+        $swooleResponse->expects('end')->with()->returns(true);
 
         try {
             ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/2');
@@ -389,10 +395,10 @@ class ResponseBridgeTest extends TestCase
         $response = new BinaryFileResponse($path);
         $response->deleteFileAfterSend();
         $response->prepare(Request::create('/'));
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header');
 
-        $swooleResponse->shouldReceive('write')->andReturnTrue();
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnFalse();
+        $swooleResponse->allows('write')->returns(true);
+        $swooleResponse->expects('end')->with()->returns(false);
 
         try {
             ResponseBridge::send($response, $swooleResponse);
@@ -412,10 +418,10 @@ class ResponseBridgeTest extends TestCase
         $response->prepare(Request::create('/'));
         $swooleResponse = $this->mockSwooleResponse();
 
-        $swooleResponse->shouldReceive('status')->once()->andReturnFalse();
-        $swooleResponse->shouldNotReceive('header');
-        $swooleResponse->shouldNotReceive('write');
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnFalse();
+        $swooleResponse->expects('status')->returns(false);
+        $swooleResponse->expects('header')->never();
+        $swooleResponse->expects('write')->never();
+        $swooleResponse->expects('end')->with()->returns(false);
 
         try {
             ResponseBridge::send($response, $swooleResponse);
@@ -433,8 +439,8 @@ class ResponseBridgeTest extends TestCase
         $response = new BinaryFileResponse($path);
         $response->deleteFileAfterSend();
         $response->prepare(Request::create('/'));
-        $swooleResponse = $this->mockSwooleResponse();
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header', 'write');
+        $swooleResponse->expects('end')->with()->returns(true);
         $exception = null;
 
         try {
@@ -460,11 +466,11 @@ class ResponseBridgeTest extends TestCase
             $response = new BinaryFileResponse($path);
             $response->deleteFileAfterSend();
             $response->prepare($request);
-            $swooleResponse = $this->mockSwooleResponse();
+            $swooleResponse = $this->mockSwooleResponse('status', 'header');
 
-            $swooleResponse->shouldNotReceive('sendfile');
-            $swooleResponse->shouldNotReceive('write');
-            $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+            $swooleResponse->expects('sendfile')->never();
+            $swooleResponse->expects('write')->never();
+            $swooleResponse->expects('end')->with()->returns(true);
 
             ResponseBridge::send($response, $swooleResponse, withBody: false, request: $request);
 
@@ -481,11 +487,11 @@ class ResponseBridgeTest extends TestCase
         $response = new BinaryFileResponse($path, $status);
         $response->deleteFileAfterSend();
         $response->prepare(Request::create('/'));
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header');
 
-        $swooleResponse->shouldNotReceive('sendfile');
-        $swooleResponse->shouldNotReceive('write');
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+        $swooleResponse->expects('sendfile')->never();
+        $swooleResponse->expects('write')->never();
+        $swooleResponse->expects('end')->with()->returns(true);
 
         ResponseBridge::send($response, $swooleResponse);
 
@@ -513,12 +519,13 @@ class ResponseBridgeTest extends TestCase
             $response = new BinaryFileResponse($path);
             $response->deleteFileAfterSend();
             $response->prepare($request);
-            $swooleResponse = $this->mockSwooleResponse();
+            $swooleResponse = $this->mockSwooleResponse('status');
 
-            $swooleResponse->shouldNotReceive('sendfile');
-            $swooleResponse->shouldNotReceive('write');
-            $swooleResponse->shouldReceive('header')->with('X-Sendfile', $path)->andReturnTrue();
-            $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+            $swooleResponse->expects('sendfile')->never();
+            $swooleResponse->expects('write')->never();
+            $swooleResponse->allows('header')->with(Argument::not('X-Sendfile'), Argument::any())->returns(true);
+            $swooleResponse->expects('header')->with('X-Sendfile', $path)->returns(true);
+            $swooleResponse->expects('end')->with()->returns(true);
 
             ResponseBridge::send($response, $swooleResponse, request: $request);
 
@@ -542,12 +549,13 @@ class ResponseBridgeTest extends TestCase
             $response = new BinaryFileResponse($path);
             $response->deleteFileAfterSend();
             $response->prepare($request);
-            $swooleResponse = $this->mockSwooleResponse();
+            $swooleResponse = $this->mockSwooleResponse('status');
 
-            $swooleResponse->shouldNotReceive('sendfile');
-            $swooleResponse->shouldNotReceive('write');
-            $swooleResponse->shouldReceive('header')->with('X-LIGHTTPD-send-file', $path)->andReturnTrue();
-            $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+            $swooleResponse->expects('sendfile')->never();
+            $swooleResponse->expects('write')->never();
+            $swooleResponse->allows('header')->with(Argument::not('X-LIGHTTPD-send-file'), Argument::any())->returns(true);
+            $swooleResponse->expects('header')->with('X-LIGHTTPD-send-file', $path)->returns(true);
+            $swooleResponse->expects('end')->with()->returns(true);
 
             ResponseBridge::send($response, $swooleResponse, withBody: false, request: $request);
 
@@ -566,14 +574,14 @@ class ResponseBridgeTest extends TestCase
         });
 
         $swooleResponse = $this->mockSwooleResponse();
-        $swooleResponse->shouldReceive('status')->once()->andReturnTrue();
-        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
-        $swooleResponse->shouldReceive('write')->andReturnUsing(function (string $chunk) use (&$chunks): bool {
+        $swooleResponse->expects('status')->returns(true);
+        $swooleResponse->allows('header')->returns(true);
+        $swooleResponse->allows('write')->resolves(function (string $chunk) use (&$chunks): bool {
             $chunks[] = $chunk;
 
             return true;
         });
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnFalse();
+        $swooleResponse->expects('end')->with()->returns(false);
 
         ResponseBridge::send($response, $swooleResponse);
 
@@ -598,10 +606,10 @@ class ResponseBridgeTest extends TestCase
         $response = new IterableStreamedResponse($chunks);
         unset($chunks);
         $swooleResponse = $this->mockSwooleResponse();
-        $swooleResponse->shouldReceive('status')->once()->andReturnTrue();
-        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
-        $swooleResponse->shouldReceive('write')->once()->with('first')->andReturnFalse();
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnFalse();
+        $swooleResponse->expects('status')->returns(true);
+        $swooleResponse->allows('header')->returns(true);
+        $swooleResponse->expects('write')->with('first')->returns(false);
+        $swooleResponse->expects('end')->with()->returns(false);
 
         ResponseBridge::send($response, $swooleResponse);
 
@@ -622,10 +630,10 @@ class ResponseBridgeTest extends TestCase
         $response = new IterableStreamedResponse($chunks);
         unset($chunks);
         $swooleResponse = $this->mockSwooleResponse();
-        $swooleResponse->shouldReceive('status')->once()->andReturnTrue();
-        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
-        $swooleResponse->shouldReceive('write')->once()->andThrow(new RuntimeException('write failed'));
-        $swooleResponse->shouldReceive('end')->once()->andThrow(new RuntimeException('end failed'));
+        $swooleResponse->expects('status')->returns(true);
+        $swooleResponse->allows('header')->returns(true);
+        $swooleResponse->expects('write')->throws(new RuntimeException('write failed'));
+        $swooleResponse->expects('end')->throws(new RuntimeException('end failed'));
 
         try {
             ResponseBridge::send($response, $swooleResponse);
@@ -646,10 +654,10 @@ class ResponseBridgeTest extends TestCase
             $callbackCompleted = true;
         });
         $swooleResponse = $this->mockSwooleResponse();
-        $swooleResponse->shouldReceive('status')->once()->andReturnTrue();
-        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
-        $swooleResponse->shouldReceive('write')->once()->with('first')->andReturnFalse();
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnFalse();
+        $swooleResponse->expects('status')->returns(true);
+        $swooleResponse->allows('header')->returns(true);
+        $swooleResponse->expects('write')->with('first')->returns(false);
+        $swooleResponse->expects('end')->with()->returns(false);
 
         ResponseBridge::send($response, $swooleResponse);
 
@@ -662,10 +670,10 @@ class ResponseBridgeTest extends TestCase
             echo 'first';
         });
         $swooleResponse = $this->mockSwooleResponse();
-        $swooleResponse->shouldReceive('status')->once()->andReturnTrue();
-        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
-        $swooleResponse->shouldReceive('write')->once()->andThrow(new RuntimeException('write failed'));
-        $swooleResponse->shouldReceive('end')->once()->andThrow(new RuntimeException('end failed'));
+        $swooleResponse->expects('status')->returns(true);
+        $swooleResponse->allows('header')->returns(true);
+        $swooleResponse->expects('write')->throws(new RuntimeException('write failed'));
+        $swooleResponse->expects('end')->throws(new RuntimeException('end failed'));
 
         try {
             ResponseBridge::send($response, $swooleResponse);
@@ -685,14 +693,14 @@ class ResponseBridgeTest extends TestCase
 
         $swooleResponse = $this->mockSwooleResponse();
         $sentHeaders = [];
-        $swooleResponse->shouldReceive('status')->once()->andReturnTrue();
-        $swooleResponse->shouldReceive('header')->andReturnUsing(function (string $name, string|array $value) use (&$sentHeaders): bool {
+        $swooleResponse->expects('status')->returns(true);
+        $swooleResponse->allows('header')->resolves(function (string $name, string|array $value) use (&$sentHeaders): bool {
             $sentHeaders[$name] = $value;
 
             return true;
         });
-        $swooleResponse->shouldReceive('write')->andReturnTrue();
-        $swooleResponse->shouldReceive('end')->once()->andReturnFalse();
+        $swooleResponse->allows('write')->returns(true);
+        $swooleResponse->expects('end')->returns(false);
 
         ResponseBridge::send($response, $swooleResponse);
 
@@ -708,10 +716,10 @@ class ResponseBridgeTest extends TestCase
         });
 
         $swooleResponse = $this->mockSwooleResponse();
-        $swooleResponse->shouldReceive('status')->once()->andReturnTrue();
-        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
-        $swooleResponse->shouldReceive('write')->andReturnTrue();
-        $swooleResponse->shouldReceive('end')->once()->andReturnFalse();
+        $swooleResponse->expects('status')->returns(true);
+        $swooleResponse->allows('header')->returns(true);
+        $swooleResponse->allows('write')->returns(true);
+        $swooleResponse->expects('end')->returns(false);
 
         $levelBefore = ob_get_level();
 
@@ -733,14 +741,14 @@ class ResponseBridgeTest extends TestCase
 
         $swooleResponse = $this->mockSwooleResponse();
         $cookieNames = [];
-        $swooleResponse->shouldReceive('status')->once()->andReturnTrue();
-        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
-        $swooleResponse->shouldReceive('cookie')->andReturnUsing(function (string $name) use (&$cookieNames): bool {
+        $swooleResponse->expects('status')->returns(true);
+        $swooleResponse->allows('header')->returns(true);
+        $swooleResponse->allows('cookie')->resolves(function (string $name) use (&$cookieNames): bool {
             $cookieNames[] = $name;
 
             return true;
         });
-        $swooleResponse->shouldReceive('end')->once()->andReturnTrue();
+        $swooleResponse->expects('end')->returns(true);
 
         ResponseBridge::send($response, $swooleResponse);
 
@@ -753,9 +761,9 @@ class ResponseBridgeTest extends TestCase
         $response = new Response('', 204);
         $swooleResponse = $this->mockSwooleResponse();
 
-        $swooleResponse->shouldReceive('status')->once()->with(204)->andReturnTrue();
-        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
-        $swooleResponse->shouldReceive('end')->once()->with('')->andReturnTrue();
+        $swooleResponse->expects('status')->with(204)->returns(true);
+        $swooleResponse->allows('header')->returns(true);
+        $swooleResponse->expects('end')->with('')->returns(true);
 
         ResponseBridge::send($response, $swooleResponse);
     }
@@ -778,17 +786,17 @@ class ResponseBridgeTest extends TestCase
             },
         );
         $response->headers->set('Content-Length', '4');
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status');
         $headers = [];
 
-        $swooleResponse->shouldReceive('header')->andReturnUsing(function (string $name, string|array $value) use (&$headers): bool {
+        $swooleResponse->allows('header')->resolves(function (string $name, string|array $value) use (&$headers): bool {
             $headers[strtolower($name)] = $value;
 
             return true;
         });
-        $swooleResponse->shouldNotReceive('write');
-        $swooleResponse->shouldNotReceive('trailer');
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+        $swooleResponse->expects('write')->never();
+        $swooleResponse->expects('trailer')->never();
+        $swooleResponse->expects('end')->with()->returns(true);
 
         ResponseBridge::send($response, $swooleResponse, withBody: false);
 
@@ -803,9 +811,9 @@ class ResponseBridgeTest extends TestCase
         $response = new ResponseBridgeTrailerBinaryFileResponse($this->temporaryFile());
         $swooleResponse = $this->mockSwooleResponse();
 
-        $swooleResponse->shouldNotReceive('status');
-        $swooleResponse->shouldNotReceive('header');
-        $swooleResponse->shouldNotReceive('sendfile');
+        $swooleResponse->expects('status')->never();
+        $swooleResponse->expects('header')->never();
+        $swooleResponse->expects('sendfile')->never();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Binary file responses cannot emit trailers.');
@@ -827,24 +835,24 @@ class ResponseBridgeTest extends TestCase
         );
         $swooleResponse = $this->mockSwooleResponse();
 
-        $swooleResponse->shouldReceive('status')->once()->andReturnUsing(function () use (&$operations): bool {
+        $swooleResponse->expects('status')->resolves(function () use (&$operations): bool {
             $operations[] = 'status';
 
             return true;
         });
-        $swooleResponse->shouldReceive('header')->andReturnUsing(function (string $name) use (&$operations): bool {
+        $swooleResponse->allows('header')->resolves(function (string $name) use (&$operations): bool {
             if (strtolower($name) === 'trailer') {
                 $operations[] = 'announce';
             }
 
             return true;
         });
-        $swooleResponse->shouldReceive('trailer')->once()->with('x-final', 'value')->andReturnUsing(function () use (&$operations): bool {
+        $swooleResponse->expects('trailer')->with('x-final', 'value')->resolves(function () use (&$operations): bool {
             $operations[] = 'trailer';
 
             return true;
         });
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnUsing(function () use (&$operations): bool {
+        $swooleResponse->expects('end')->with()->resolves(function () use (&$operations): bool {
             $operations[] = 'end';
 
             return true;
@@ -859,10 +867,10 @@ class ResponseBridgeTest extends TestCase
     {
         $response = new ResponseBridgeTrailerResponse('body', ['X-Known', 'x-new'], []);
         $response->headers->set('Trailer', 'X-Existing, x-known');
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'end', 'trailer');
         $announcement = null;
 
-        $swooleResponse->shouldReceive('header')->andReturnUsing(function (string $name, string|array $value) use (&$announcement): bool {
+        $swooleResponse->allows('header')->resolves(function (string $name, string|array $value) use (&$announcement): bool {
             if (strtolower($name) === 'trailer') {
                 $announcement = $value;
             }
@@ -881,8 +889,8 @@ class ResponseBridgeTest extends TestCase
         $response = new ResponseBridgeTrailerResponse('body', [$name], []);
         $swooleResponse = $this->mockSwooleResponse();
 
-        $swooleResponse->shouldNotReceive('status');
-        $swooleResponse->shouldNotReceive('header');
+        $swooleResponse->expects('status')->never();
+        $swooleResponse->expects('header')->never();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs($message);
@@ -898,7 +906,7 @@ class ResponseBridgeTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs($message);
 
-        ResponseBridge::send($response, $this->mockSwooleResponse());
+        ResponseBridge::send($response, $this->mockSwooleResponse('status', 'header'));
     }
 
     public static function invalidTrailerNames(): array
@@ -923,17 +931,18 @@ class ResponseBridgeTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Response trailer names must be unique after normalization.');
 
-        ResponseBridge::send($response, $this->mockSwooleResponse());
+        ResponseBridge::send($response, $this->mockSwooleResponse('status', 'header'));
     }
 
     #[DataProvider('numericOnlyFieldNames')]
     public function testNumericOnlyFinalTrailerNameIsEmittedAsString(string $name): void
     {
         $response = new ResponseBridgeTrailerResponse('body', [$name], [$name => 'value']);
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'end');
 
-        $swooleResponse->shouldReceive('header')->once()->with('Trailer', $name)->andReturnTrue();
-        $swooleResponse->shouldReceive('trailer')->once()->with($name, 'value')->andReturnTrue();
+        $swooleResponse->allows('header')->with(Argument::not('Trailer'), Argument::any())->returns(true);
+        $swooleResponse->expects('header')->with('Trailer', $name)->returns(true);
+        $swooleResponse->expects('trailer')->with($name, 'value')->returns(true);
 
         ResponseBridge::send($response, $swooleResponse);
     }
@@ -945,7 +954,7 @@ class ResponseBridgeTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Response trailer values must be strings.');
 
-        ResponseBridge::send($response, $this->mockSwooleResponse());
+        ResponseBridge::send($response, $this->mockSwooleResponse('status', 'header'));
     }
 
     public function testFinalTrailerValuesCannotContainLineBreaks(): void
@@ -955,7 +964,7 @@ class ResponseBridgeTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Response trailer values cannot contain line breaks.');
 
-        ResponseBridge::send($response, $this->mockSwooleResponse());
+        ResponseBridge::send($response, $this->mockSwooleResponse('status', 'header'));
     }
 
     #[DataProvider('trailerChunkCases')]
@@ -1044,19 +1053,19 @@ class ResponseBridgeTest extends TestCase
                 return ['x-status' => 'ok'];
             },
         );
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header');
 
-        $swooleResponse->shouldReceive('write')->once()->with('one')->andReturnUsing(function () use (&$operations): bool {
+        $swooleResponse->expects('write')->with('one')->resolves(function () use (&$operations): bool {
             $operations[] = 'write-one';
 
             return true;
         });
-        $swooleResponse->shouldReceive('trailer')->once()->andReturnUsing(function () use (&$operations): bool {
+        $swooleResponse->expects('trailer')->resolves(function () use (&$operations): bool {
             $operations[] = 'trailer';
 
             return true;
         });
-        $swooleResponse->shouldReceive('end')->once()->with('two')->andReturnUsing(function () use (&$operations): bool {
+        $swooleResponse->expects('end')->with('two')->resolves(function () use (&$operations): bool {
             $operations[] = 'end-two';
 
             return true;
@@ -1095,11 +1104,11 @@ class ResponseBridgeTest extends TestCase
             ['x-status'],
             ['x-status' => 'ok'],
         );
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header');
 
-        $swooleResponse->shouldReceive('write')->once()->with('one')->andReturnFalse();
-        $swooleResponse->shouldNotReceive('trailer');
-        $swooleResponse->shouldNotReceive('end');
+        $swooleResponse->expects('write')->with('one')->returns(false);
+        $swooleResponse->expects('trailer')->never();
+        $swooleResponse->expects('end')->never();
 
         try {
             ResponseBridge::send($response, $swooleResponse);
@@ -1128,11 +1137,11 @@ class ResponseBridgeTest extends TestCase
             ['x-status'],
             ['x-status' => 'ok'],
         );
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header');
 
-        $swooleResponse->shouldReceive('write')->once()->with('one')->andThrow($writeFailure);
-        $swooleResponse->shouldNotReceive('trailer');
-        $swooleResponse->shouldNotReceive('end');
+        $swooleResponse->expects('write')->with('one')->throws($writeFailure);
+        $swooleResponse->expects('trailer')->never();
+        $swooleResponse->expects('end')->never();
 
         try {
             ResponseBridge::send($response, $swooleResponse);
@@ -1155,11 +1164,11 @@ class ResponseBridgeTest extends TestCase
             ['x-status'],
             ['x-status' => 'ok'],
         );
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header');
 
-        $swooleResponse->shouldReceive('write')->once()->with('rejected')->andReturnFalse();
-        $swooleResponse->shouldNotReceive('trailer');
-        $swooleResponse->shouldNotReceive('end');
+        $swooleResponse->expects('write')->with('rejected')->returns(false);
+        $swooleResponse->expects('trailer')->never();
+        $swooleResponse->expects('end')->never();
 
         ob_start();
 
@@ -1187,9 +1196,9 @@ class ResponseBridgeTest extends TestCase
             ['x-status'],
             ['x-status' => 'ok'],
         );
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header');
 
-        $swooleResponse->shouldReceive('write')->once()->andReturnFalse();
+        $swooleResponse->expects('write')->returns(false);
 
         try {
             ResponseBridge::send($response, $swooleResponse);
@@ -1212,9 +1221,9 @@ class ResponseBridgeTest extends TestCase
             ['x-status'],
             ['x-status' => 'ok'],
         );
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header');
 
-        $swooleResponse->shouldReceive('write')->once()->andThrow($writeFailure);
+        $swooleResponse->expects('write')->throws($writeFailure);
 
         try {
             ResponseBridge::send($response, $swooleResponse);
@@ -1228,8 +1237,8 @@ class ResponseBridgeTest extends TestCase
     {
         $swooleResponse = $this->mockSwooleResponse();
 
-        $swooleResponse->shouldReceive('status')->once()->andReturnFalse();
-        $swooleResponse->shouldNotReceive('header');
+        $swooleResponse->expects('status')->returns(false);
+        $swooleResponse->expects('header')->never();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Unable to set the response status.');
@@ -1253,12 +1262,12 @@ class ResponseBridgeTest extends TestCase
                     $closed[] = $producer;
                 }
             })());
-            $native = $this->mockSwooleResponse();
+            $native = $this->mockSwooleResponse('status', 'header', 'end', 'write');
             $native->fd = $connection;
 
             if ($cancel) {
                 $response->cancelOnDisconnect();
-                $native->expects('isWritable')->andReturnTrue();
+                $native->expects('isWritable')->returns(true);
             }
 
             try {
@@ -1319,9 +1328,9 @@ class ResponseBridgeTest extends TestCase
             $results = parallel([
                 'producer' => function () use ($sent, $continue): mixed {
                     $response = (new IterableStreamedResponse(['body']))->cancelOnDisconnect();
-                    $native = $this->mockSwooleResponse();
+                    $native = $this->mockSwooleResponse('status', 'header', 'end', 'write');
                     $native->fd = 10;
-                    $native->expects('isWritable')->andReturnTrue();
+                    $native->expects('isWritable')->returns(true);
                     ResponseBridge::send($response, $native);
                     $sent->push(true);
 
@@ -1349,9 +1358,9 @@ class ResponseBridgeTest extends TestCase
             $started = true;
             yield 'body';
         })()))->cancelOnDisconnect();
-        $native = $this->mockSwooleResponse();
-        $native->expects('isWritable')->andReturnFalse();
-        $native->shouldNotReceive('write');
+        $native = $this->mockSwooleResponse('status', 'header', 'end');
+        $native->expects('isWritable')->returns(false);
+        $native->expects('write')->never();
 
         try {
             ResponseBridge::send($response, $native);
@@ -1363,10 +1372,11 @@ class ResponseBridgeTest extends TestCase
 
     public function testHeaderFailureThrowsBeforeBody(): void
     {
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status');
 
-        $swooleResponse->shouldReceive('header')->with('X-Fail', 'value')->andReturnFalse();
-        $swooleResponse->shouldNotReceive('end');
+        $swooleResponse->allows('header')->with(Argument::not('X-Fail'), Argument::any())->returns(true);
+        $swooleResponse->allows('header')->with('X-Fail', 'value')->returns(false);
+        $swooleResponse->expects('end')->never();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Unable to set a response header.');
@@ -1378,10 +1388,10 @@ class ResponseBridgeTest extends TestCase
     {
         $response = new Response('body');
         $response->headers->setCookie(Cookie::create('failed', 'value'));
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header');
 
-        $swooleResponse->shouldReceive('cookie')->once()->andReturnFalse();
-        $swooleResponse->shouldNotReceive('end');
+        $swooleResponse->expects('cookie')->returns(false);
+        $swooleResponse->expects('end')->never();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Unable to set a response cookie.');
@@ -1392,10 +1402,10 @@ class ResponseBridgeTest extends TestCase
     public function testTrailerFailureThrowsBeforeEnd(): void
     {
         $response = new ResponseBridgeTrailerResponse('body', ['x-value'], ['x-value' => 'value']);
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header');
 
-        $swooleResponse->shouldReceive('trailer')->once()->andReturnFalse();
-        $swooleResponse->shouldNotReceive('end');
+        $swooleResponse->expects('trailer')->returns(false);
+        $swooleResponse->expects('end')->never();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Unable to set a response trailer.');
@@ -1405,9 +1415,9 @@ class ResponseBridgeTest extends TestCase
 
     public function testFixedResponseEndFailureThrows(): void
     {
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header');
 
-        $swooleResponse->shouldReceive('end')->once()->andReturnFalse();
+        $swooleResponse->expects('end')->returns(false);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Unable to complete the response.');
@@ -1417,9 +1427,9 @@ class ResponseBridgeTest extends TestCase
 
     public function testHeadResponseEndFailureThrows(): void
     {
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header');
 
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnFalse();
+        $swooleResponse->expects('end')->with()->returns(false);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Unable to complete the response.');
@@ -1430,9 +1440,9 @@ class ResponseBridgeTest extends TestCase
     public function testTrailerResponseEndFailureThrows(): void
     {
         $response = new ResponseBridgeTrailerResponse('body', ['x-value'], ['x-value' => 'value']);
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header', 'trailer');
 
-        $swooleResponse->shouldReceive('end')->once()->with('body')->andReturnFalse();
+        $swooleResponse->expects('end')->with('body')->returns(false);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Unable to complete the response.');
@@ -1443,9 +1453,9 @@ class ResponseBridgeTest extends TestCase
     public function testSendFileFailureThrows(): void
     {
         $path = $this->temporaryFile();
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status', 'header');
 
-        $swooleResponse->shouldReceive('sendfile')->once()->with($path, 0, 0)->andReturnFalse();
+        $swooleResponse->expects('sendfile')->with($path, 0, 0)->returns(false);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Unable to send the response file.');
@@ -1453,19 +1463,18 @@ class ResponseBridgeTest extends TestCase
         ResponseBridge::send(new BinaryFileResponse($path), $swooleResponse);
     }
 
-    private function mockSwooleResponse(): SwooleResponse
+    /**
+     * Create a strict response double with only incidental successful operations stubbed.
+     */
+    private function mockSwooleResponse(string ...$successfulMethods): SwooleResponse&DoubleInterface
     {
-        $swooleResponse = m::mock(SwooleResponse::class);
-        $swooleResponse->shouldReceive('status')->byDefault()->andReturnTrue();
-        $swooleResponse->shouldReceive('header')->byDefault()->andReturnTrue();
-        $swooleResponse->shouldReceive('cookie')->byDefault()->andReturnTrue();
-        $swooleResponse->shouldReceive('rawcookie')->byDefault()->andReturnTrue();
-        $swooleResponse->shouldReceive('write')->byDefault()->andReturnTrue();
-        $swooleResponse->shouldReceive('trailer')->byDefault()->andReturnTrue();
-        $swooleResponse->shouldReceive('end')->byDefault()->andReturnTrue();
-        $swooleResponse->shouldReceive('sendfile')->byDefault()->andReturnTrue();
+        $response = Double::for(SwooleResponse::class)->strict();
 
-        return $swooleResponse;
+        foreach ($successfulMethods as $method) {
+            $response->allows($method)->returns(true);
+        }
+
+        return $response;
     }
 
     private function temporaryFile(): string
@@ -1483,30 +1492,30 @@ class ResponseBridgeTest extends TestCase
      */
     private function sendTrailerStream(Response $response): array
     {
-        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse = $this->mockSwooleResponse('status');
         $writes = [];
         $endContent = null;
         $announcement = null;
         $trailers = [];
 
-        $swooleResponse->shouldReceive('header')->andReturnUsing(function (string $name, string|array $value) use (&$announcement): bool {
+        $swooleResponse->allows('header')->resolves(function (string $name, string|array $value) use (&$announcement): bool {
             if (strtolower($name) === 'trailer') {
                 $announcement = $value;
             }
 
             return true;
         });
-        $swooleResponse->shouldReceive('write')->andReturnUsing(function (string $chunk) use (&$writes): bool {
+        $swooleResponse->allows('write')->resolves(function (string $chunk) use (&$writes): bool {
             $writes[] = $chunk;
 
             return true;
         });
-        $swooleResponse->shouldReceive('trailer')->andReturnUsing(function (string $name, string $value) use (&$trailers): bool {
+        $swooleResponse->allows('trailer')->resolves(function (string $name, string $value) use (&$trailers): bool {
             $trailers[$name] = $value;
 
             return true;
         });
-        $swooleResponse->shouldReceive('end')->once()->andReturnUsing(function (...$arguments) use (&$endContent): bool {
+        $swooleResponse->expects('end')->resolves(function (...$arguments) use (&$endContent): bool {
             $endContent = $arguments[0] ?? null;
 
             return true;

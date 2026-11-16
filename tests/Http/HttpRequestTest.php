@@ -14,7 +14,8 @@ use Hypervel\Support\Stringable;
 use Hypervel\Tests\Database\Fixtures\Models\Money\Price;
 use Hypervel\Tests\Support\Concerns\TestsInteractsWithDataContract;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Exception\SessionNotFoundException;
@@ -26,6 +27,7 @@ use Symfony\Component\HttpFoundation\Session\SessionInterface;
 class HttpRequestTest extends TestCase
 {
     use TestsInteractsWithDataContract;
+    use VerifiesDoubles;
 
     public function testInstanceMethod(): void
     {
@@ -1212,11 +1214,11 @@ class HttpRequestTest extends TestCase
     public function testOldMethodReturnsNonStringInputAndDefaults(): void
     {
         $request = Request::create('/');
-        $model = m::mock(Price::class);
-        $model->expects('getAttribute')->with('stock')->andReturn(7);
-        $session = m::mock(Store::class);
-        $session->expects('getOldInput')->with('quantity', 0)->andReturn(3);
-        $session->expects('getOldInput')->with('stock', 7)->andReturn(7);
+        $model = Double::for(Price::class)->strict();
+        $model->expects('getAttribute')->with('stock')->returns(7);
+        $session = Double::for(Store::class)->strict();
+        $session->expects('getOldInput')->with('quantity', 0)->returns(3);
+        $session->expects('getOldInput')->with('stock', 7)->returns(7);
         $request->setHypervelSession($session);
 
         $this->assertSame(3, $request->old('quantity', 0));

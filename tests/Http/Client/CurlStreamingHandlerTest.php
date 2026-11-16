@@ -18,7 +18,8 @@ use Hypervel\Http\Client\Factory;
 use Hypervel\Http\Client\RequestException;
 use Hypervel\Tests\Http\Fixtures\LoopbackHttpServer;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -33,6 +34,8 @@ use function Hypervel\Coroutine\parallel;
 
 class CurlStreamingHandlerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('ambiguousHosts')]
     public function testAmbiguousHostsAreRejectedBeforeConnecting(string $url, array $headers, string $message): void
     {
@@ -230,8 +233,8 @@ class CurlStreamingHandlerTest extends TestCase
         $server = LoopbackHttpServer::start([['body' => ''], ['body' => 'retried']]);
         $nativeFactory = new CurlFactory(0);
         $first = true;
-        $factory = m::mock(CurlFactoryInterface::class);
-        $factory->shouldReceive('create')->andReturnUsing(static function (RequestInterface $request, array $options) use ($nativeFactory, &$first): EasyHandle {
+        $factory = Double::for(CurlFactoryInterface::class)->strict();
+        $factory->allows('create')->resolves(static function (RequestInterface $request, array $options) use ($nativeFactory, &$first): EasyHandle {
             $easy = $nativeFactory->create($request, $options);
 
             if ($first) {
@@ -242,7 +245,7 @@ class CurlStreamingHandlerTest extends TestCase
 
             return $easy;
         });
-        $factory->shouldReceive('release')->andReturnUsing($nativeFactory->release(...));
+        $factory->allows('release')->resolves($nativeFactory->release(...));
         $handler = new CurlStreamingHandler;
         (new ReflectionProperty($handler, 'factory'))->setValue($handler, $factory);
         $callbacks = 0;

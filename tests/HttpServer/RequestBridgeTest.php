@@ -10,7 +10,8 @@ use Hypervel\Http\UploadedFile;
 use Hypervel\HttpServer\RequestBridge;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use Swoole\Http\Request as SwooleRequest;
@@ -18,6 +19,8 @@ use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 class RequestBridgeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected string $tempDirectory;
 
     protected function setUp(): void
@@ -639,14 +642,14 @@ class RequestBridgeTest extends TestCase
         ?array $files = null,
         string|false $rawContent = false,
     ): SwooleRequest {
-        $swooleRequest = m::mock(SwooleRequest::class);
+        $swooleRequest = Double::for(SwooleRequest::class)->strict();
         $swooleRequest->server = $server;
         $swooleRequest->header = $header;
         $swooleRequest->get = $get;
         $swooleRequest->post = $post;
         $swooleRequest->cookie = $cookie;
         $swooleRequest->files = $files;
-        $swooleRequest->shouldReceive('rawContent')->andReturn($rawContent);
+        $swooleRequest->allows('rawContent')->returns($rawContent);
 
         return $swooleRequest;
     }

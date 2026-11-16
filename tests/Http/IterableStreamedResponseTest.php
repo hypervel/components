@@ -8,11 +8,14 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class IterableStreamedResponseTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testSendContentConsumesLazyChunksOnce(): void
     {
         $iterations = 0;
@@ -90,8 +93,8 @@ class IterableStreamedResponseTest extends TestCase
         $response = new IterableStreamedResponse($chunks);
         unset($chunks);
 
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($releaseFailure);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with($releaseFailure);
         Container::getInstance()->instance(ExceptionHandler::class, $handler);
 
         try {
@@ -121,8 +124,8 @@ class IterableStreamedResponseTest extends TestCase
         $response = new IterableStreamedResponse($chunks);
         unset($chunks);
 
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($releaseFailure);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with($releaseFailure);
         Container::getInstance()->instance(ExceptionHandler::class, $handler);
 
         $level = ob_get_level();
