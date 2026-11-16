@@ -37,7 +37,7 @@
         "ext-pcntl": "*",
         "ext-pdo": "*",
         "ext-posix": "*",
-        "ext-redis": "^6.1",
+        "ext-redis": "^6.3",
         "ext-session": "*",
         "ext-simplexml": "*",
         "ext-sockets": "*",
