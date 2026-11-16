@@ -14,12 +14,15 @@ use Hypervel\Tests\Notifications\Fixtures\NotificationStub;
 use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 use function Hypervel\Coroutine\parallel;
 
 class CoroutineIsolationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testManagerOverridesAreIsolatedBetweenCoroutines(): void
     {
         $application = new Application;
@@ -60,7 +63,7 @@ class CoroutineIsolationTest extends TestCase
     {
         $application = new Application;
         $application->instance('config', new ConfigRepository([]));
-        $application->instance(BusDispatcher::class, m::mock(BusDispatcher::class));
+        $application->instance(BusDispatcher::class, Double::for(BusDispatcher::class)->strict());
         $translator = new Translator(new ArrayLoader, 'en');
         $application->instance('translator', $translator);
         $manager = new ChannelManager($application);
