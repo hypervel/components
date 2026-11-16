@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 use Hypervel\Cache\Redis\Operations\AllTag\FlushStale;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
-use Mockery as m;
+use JMac\Testing\Matching\Argument;
 
 /**
  * Tests for the FlushStale operation.
@@ -18,14 +18,13 @@ class FlushStaleTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
+        $connection->client()->expects('zRemRangeByScore')
             ->with('prefix:_all:tag:users:entries', '0', (string) now()->getTimestamp())
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')->once();
+        $connection->client()->expects('exec');
 
         $store = $this->createStore($connection);
         $operation = new FlushStale($store->getContext());
@@ -37,23 +36,20 @@ class FlushStaleTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         // All tags should be processed in a single pipeline
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
+        $connection->client()->expects('zRemRangeByScore')
             ->with('prefix:_all:tag:users:entries', '0', (string) now()->getTimestamp())
-            ->andReturn($connection);
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
+            ->returns($connection->client());
+        $connection->client()->expects('zRemRangeByScore')
             ->with('prefix:_all:tag:posts:entries', '0', (string) now()->getTimestamp())
-            ->andReturn($connection);
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
+            ->returns($connection->client());
+        $connection->client()->expects('zRemRangeByScore')
             ->with('prefix:_all:tag:comments:entries', '0', (string) now()->getTimestamp())
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')->once();
+        $connection->client()->expects('exec');
 
         $store = $this->createStore($connection);
         $operation = new FlushStale($store->getContext());
@@ -66,7 +62,7 @@ class FlushStaleTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         // Should NOT create pipeline or execute any commands for empty array
-        $connection->shouldNotReceive('pipeline');
+        $connection->client()->expects('pipeline')->never();
 
         $store = $this->createStore($connection);
         $operation = new FlushStale($store->getContext());
@@ -78,14 +74,13 @@ class FlushStaleTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
+        $connection->client()->expects('zRemRangeByScore')
             ->with('custom_prefix:_all:tag:users:entries', '0', (string) now()->getTimestamp())
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')->once();
+        $connection->client()->expects('exec');
 
         $store = $this->createStore($connection, 'custom_prefix:');
         $operation = new FlushStale($store->getContext());
@@ -101,16 +96,15 @@ class FlushStaleTest extends RedisCacheTestCase
 
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         // Lower bound is '0' (to exclude -1 forever items)
         // Upper bound is current timestamp
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
+        $connection->client()->expects('zRemRangeByScore')
             ->with('prefix:_all:tag:users:entries', '0', $expectedTimestamp)
-            ->andReturn($connection);
+            ->returns($connection->client());
 
-        $connection->shouldReceive('exec')->once();
+        $connection->client()->expects('exec');
 
         $store = $this->createStore($connection);
         $operation = new FlushStale($store->getContext());
@@ -129,12 +123,11 @@ class FlushStaleTest extends RedisCacheTestCase
 
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1001.900000'));
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
+        $connection->client()->expects('pipeline')->returns($connection->client());
+        $connection->client()->expects('zRemRangeByScore')
             ->with('prefix:_all:tag:users:entries', '0', '1001')
-            ->andReturn($connection);
-        $connection->shouldReceive('exec')->once();
+            ->returns($connection->client());
+        $connection->client()->expects('exec');
 
         (new FlushStale($store->getContext()))->execute(['_all:tag:users:entries']);
     }
@@ -145,22 +138,21 @@ class FlushStaleTest extends RedisCacheTestCase
         // intentionally excludes items with score -1 (forever items)
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->client()->expects('pipeline')->returns($connection->client());
 
         // The lower bound is '0', not '-inf', so -1 scores are excluded
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', '0', m::type('string'))
-            ->andReturnUsing(function ($key, $min, $max) use ($connection) {
+        $connection->client()->expects('zRemRangeByScore')
+            ->with('prefix:_all:tag:users:entries', '0', Argument::type('string'))
+            ->resolves(function ($key, $min, $max) use ($connection) {
                 // Verify lower bound excludes -1 forever items
                 $this->assertSame('0', $min);
                 // Verify upper bound is a valid timestamp
                 $this->assertIsNumeric($max);
 
-                return $connection;
+                return $connection->client();
             });
 
-        $connection->shouldReceive('exec')->once();
+        $connection->client()->expects('exec');
 
         $store = $this->createStore($connection);
         $operation = new FlushStale($store->getContext());
@@ -170,15 +162,13 @@ class FlushStaleTest extends RedisCacheTestCase
 
     public function testFlushStaleEntriesClusterModeUsesSequentialCommands(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
+        [$store, $client] = $this->createClusterStore();
 
-        $connection->shouldNotReceive('pipeline');
-        $connection->shouldNotReceive('multi');
+        $client->expects('multi')->never();
 
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
+        $client->expects('zRemRangeByScore')
             ->with('prefix:_all:tag:users:entries', '0', (string) now()->getTimestamp())
-            ->andReturn(5);
+            ->returns(5);
 
         $operation = new FlushStale($store->getContext());
         $operation->execute(['_all:tag:users:entries']);
@@ -186,24 +176,20 @@ class FlushStaleTest extends RedisCacheTestCase
 
     public function testFlushStaleEntriesClusterModeWithMultipleTags(): void
     {
-        [$store, , $connection] = $this->createClusterStore();
+        [$store, $client] = $this->createClusterStore();
 
-        $connection->shouldNotReceive('pipeline');
-        $connection->shouldNotReceive('multi');
+        $client->expects('multi')->never();
 
         $timestamp = (string) now()->getTimestamp();
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
+        $client->expects('zRemRangeByScore')
             ->with('prefix:_all:tag:users:entries', '0', $timestamp)
-            ->andReturn(3);
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
+            ->returns(3);
+        $client->expects('zRemRangeByScore')
             ->with('prefix:_all:tag:posts:entries', '0', $timestamp)
-            ->andReturn(2);
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
+            ->returns(2);
+        $client->expects('zRemRangeByScore')
             ->with('prefix:_all:tag:comments:entries', '0', $timestamp)
-            ->andReturn(0);
+            ->returns(0);
 
         $operation = new FlushStale($store->getContext());
         $operation->execute(['_all:tag:users:entries', '_all:tag:posts:entries', '_all:tag:comments:entries']);
@@ -211,14 +197,13 @@ class FlushStaleTest extends RedisCacheTestCase
 
     public function testFlushStaleEntriesClusterModeUsesCorrectPrefix(): void
     {
-        [$store, , $connection] = $this->createClusterStore(prefix: 'custom_prefix:');
+        [$store, $client] = $this->createClusterStore(prefix: 'custom_prefix:');
 
-        $connection->shouldNotReceive('multi');
+        $client->expects('multi')->never();
 
-        $connection->shouldReceive('zRemRangeByScore')
-            ->once()
+        $client->expects('zRemRangeByScore')
             ->with('custom_prefix:_all:tag:users:entries', '0', (string) now()->getTimestamp())
-            ->andReturn(1);
+            ->returns(1);
 
         $operation = new FlushStale($store->getContext());
         $operation->execute(['_all:tag:users:entries']);

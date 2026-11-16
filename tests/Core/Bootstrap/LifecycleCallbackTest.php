@@ -30,12 +30,16 @@ use Hypervel\Core\Events\OnStart;
 use Hypervel\Core\Events\OnWorkerError;
 use Hypervel\Core\Events\OnWorkerStop;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Swoole\Server;
 
 class LifecycleCallbackTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('callbacks')]
     public function testCallbackSkipsEventWithoutListeners(
         string $callbackClass,
@@ -43,13 +47,13 @@ class LifecycleCallbackTest extends TestCase
         string $eventClass,
         array $arguments,
     ): void {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with($eventClass)->andReturnFalse();
-        $dispatcher->shouldNotReceive('dispatch');
+        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher->expects('hasListeners')->with($eventClass)->returns(false);
+        $dispatcher->expects('dispatch')->never();
 
         $callback = new $callbackClass($dispatcher);
 
-        $this->assertNull($callback->{$method}(m::mock(Server::class), ...$arguments));
+        $this->assertNull($callback->{$method}(Double::for(Server::class), ...$arguments));
     }
 
     #[DataProvider('callbacks')]
@@ -59,13 +63,13 @@ class LifecycleCallbackTest extends TestCase
         string $eventClass,
         array $arguments,
     ): void {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('hasListeners')->once()->with($eventClass)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->with(m::type($eventClass));
+        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher->expects('hasListeners')->with($eventClass)->returns(true);
+        $dispatcher->expects('dispatch')->with(Argument::type($eventClass));
 
         $callback = new $callbackClass($dispatcher);
 
-        $this->assertNull($callback->{$method}(m::mock(Server::class), ...$arguments));
+        $this->assertNull($callback->{$method}(Double::for(Server::class), ...$arguments));
     }
 
     /**

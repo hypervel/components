@@ -8,18 +8,21 @@ use Hypervel\Contracts\Cookie\QueueingFactory as CookieJar;
 use Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Response;
 
 class AddQueuedCookiesToResponseTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testHandle(): void
     {
         $queuedCookie = new Cookie('foo', 'bar');
 
-        $cookieManager = m::mock(CookieJar::class);
-        $cookieManager->shouldReceive('getQueuedCookies')->once()->andReturn([$queuedCookie]);
+        $cookieManager = Double::for(CookieJar::class);
+        $cookieManager->expects('getQueuedCookies')->returns([$queuedCookie]);
 
         $request = Request::create('/test');
         $response = new Response('OK');

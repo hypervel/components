@@ -6,9 +6,9 @@ namespace Hypervel\Tests\Cache\Redis\Operations;
 
 use Hypervel\Cache\Redis\Operations\Flush;
 use Hypervel\Cache\Redis\Support\StoreContext;
-use Hypervel\Redis\RedisConnection;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 
 /**
  * Tests for the Flush operation.
@@ -18,7 +18,7 @@ class FlushTest extends RedisCacheTestCase
     public function testFlushesCached(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('flushdb')->once()->andReturn(true);
+        $connection->client()->expects('flushdb')->returns(true);
 
         $redis = $this->createStore($connection);
         $result = $redis->flush();
@@ -27,12 +27,12 @@ class FlushTest extends RedisCacheTestCase
 
     public function testFlushEnablesTransformsAndPropagatesFailure(): void
     {
-        $connection = m::mock(RedisConnection::class);
-        $connection->expects('flushdb')->once()->andReturnFalse();
-        $context = m::mock(StoreContext::class);
+        $connection = $this->mockConnection();
+        $connection->client()->expects('flushdb')->returns(false);
+        $context = Double::for(StoreContext::class);
         $context->expects('withConnection')
-            ->with(m::type('callable'), true)
-            ->andReturnUsing(fn (callable $callback) => $callback($connection));
+            ->with(Argument::type('callable'), true)
+            ->resolves(fn (callable $callback) => $callback($connection->shouldTransform(true)));
 
         $this->assertFalse((new Flush($context))->execute());
     }

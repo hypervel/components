@@ -4,35 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 
 class DatabaseIntegrationTest extends TestCase
 {
-    protected array $listeners = [];
-
     protected function setUp(): void
     {
         parent::setUp();
-
-        $this->listeners = [];
-
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('listen')->andReturnUsing(function ($event, $callback) {
-            $this->listeners[$event] = $callback;
-        });
-        $dispatcher->shouldReceive('hasListeners')->andReturnUsing(function ($event) {
-            return isset($this->listeners[$event]);
-        });
-        $dispatcher->shouldReceive('dispatch')->andReturnUsing(function ($event) {
-            $eventClass = get_class($event);
-            if (isset($this->listeners[$eventClass])) {
-                ($this->listeners[$eventClass])($event);
-            }
-        });
 
         $db = new DB;
         $db->addConnection([
@@ -40,7 +21,7 @@ class DatabaseIntegrationTest extends TestCase
             'database' => ':memory:',
         ]);
         $db->setAsGlobal();
-        $db->setEventDispatcher($dispatcher);
+        $db->setEventDispatcher(new Dispatcher);
     }
 
     public function testQueryExecutedToRawSql(): void

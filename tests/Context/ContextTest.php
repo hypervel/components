@@ -15,7 +15,6 @@ use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Http\Request;
 use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use RuntimeException;
 use stdClass;
 use Swoole\Event;
@@ -418,11 +417,11 @@ class ContextTest extends TestCase
 
     public function testRequestContext(): void
     {
-        $request = m::mock(Request::class);
+        $request = Request::create('/');
         RequestContext::set($request);
         $this->assertSame($request, RequestContext::get());
 
-        CoroutineContext::set(Request::class, $req = m::mock(Request::class));
+        CoroutineContext::set(Request::class, $req = Request::create('/'));
         $this->assertNotSame($request, RequestContext::get());
         $this->assertSame($req, RequestContext::get());
         $this->assertSame($req, CoroutineContext::get(Request::class));

@@ -14,10 +14,9 @@ class ManyTest extends RedisCacheTestCase
     public function testRedisMultipleValuesAreReturned(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('mget')
-            ->once()
+        $connection->client()->expects('mget')
             ->with(['prefix:foo', 'prefix:fizz', 'prefix:norf', 'prefix:null'])
-            ->andReturn([
+            ->returns([
                 serialize('bar'),
                 serialize('buzz'),
                 serialize('quz'),
@@ -47,10 +46,9 @@ class ManyTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
         // Return values in same order as requested
-        $connection->shouldReceive('mget')
-            ->once()
+        $connection->client()->expects('mget')
             ->with(['prefix:a', 'prefix:b', 'prefix:c'])
-            ->andReturn([
+            ->returns([
                 serialize('value_a'),
                 null,
                 serialize('value_c'),

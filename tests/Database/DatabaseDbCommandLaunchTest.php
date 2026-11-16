@@ -12,18 +12,20 @@ use Hypervel\Database\Console\DbCommand;
 use Hypervel\Database\DatabaseCliConfiguration;
 use Hypervel\Database\DatabaseCliManager;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use PHPUnit\Framework\Attributes\PreserveGlobalState;
-use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Process\Process;
 
-// Process overloads must never enter the shared PHPUnit worker.
-#[RunTestsInSeparateProcesses]
-#[PreserveGlobalState(false)]
 class DatabaseDbCommandLaunchTest extends TestCase
 {
+    use VerifiesDoubles;
+
+    private DoubleInterface $application;
+
     public function testBuiltInLaunchUsesThePublicAndProtectedOverrides(): void
     {
         $command = new class extends DbCommand {
@@ -108,16 +110,16 @@ class DatabaseDbCommandLaunchTest extends TestCase
      */
     private function prepareCommand(DbCommand $command, DatabaseCliManager $manager, array $connection): BufferedOutput
     {
-        $application = m::mock(Application::class);
-        $application->shouldReceive('make')->once()->with(DatabaseCliManager::class)->andReturn($manager);
-        $application->shouldReceive('make')->once()->with('config')->andReturn(new Repository([
+        $this->application = Double::for(Application::class, override: true);
+        $this->application->expects('make')->with(DatabaseCliManager::class)->returns($manager);
+        $this->application->expects('make')->with('config')->returns(new Repository([
             'database' => ['default' => 'testing', 'connections' => ['testing' => $connection]],
         ]));
 
         $input = new ArrayInput([]);
         $input->bind($command->getDefinition());
         $output = new BufferedOutput;
-        $command->setHypervel($application);
+        $command->setHypervel($this->application->instance());
         $command->setInput($input);
         $command->setOutput(new OutputStyle($input, $output));
 
@@ -129,17 +131,19 @@ class DatabaseDbCommandLaunchTest extends TestCase
      */
     private function expectProcess(array $arguments, array $environment): void
     {
-        $execution = m::mock();
-        $execution->shouldReceive('setTty')->once()->with(true)->andReturnSelf();
-        $execution->shouldReceive('mustRun')->once()->with(m::type(Closure::class))
-            ->andReturnUsing(function (Closure $callback) use ($execution): m\MockInterface {
+        $process = Double::for(Process::class);
+        $process->expects('setTimeout')->with(null);
+        $process->expects('setTty')->with(true);
+        $process->expects('mustRun')->with(Argument::type(Closure::class))
+            ->resolves(function (Closure $callback) use ($process): Process {
                 $callback('out', 'connected');
 
-                return $execution;
+                return $process;
             });
 
-        $process = m::mock('overload:' . Process::class);
-        $process->shouldReceive('__construct')->once()->with($arguments, null, $environment);
-        $process->shouldReceive('setTimeout')->once()->with(null)->andReturn($execution);
+        $this->application->expects('make')->with(Process::class, [
+            'command' => $arguments,
+            'env' => $environment,
+        ])->returns($process);
     }
 }

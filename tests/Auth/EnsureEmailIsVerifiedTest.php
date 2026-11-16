@@ -29,12 +29,12 @@ class EnsureEmailIsVerifiedTest extends TestCase
         $user = Double::for(Authenticatable::class, MustVerifyEmail::class);
         $user->allows('hasVerifiedEmail')->returns(true);
 
-        $request = Double::for(Request::class, override: true);
-        $request->allows('user')->returns($user);
+        $request = Request::create('/');
+        $request->setUserResolver(fn () => $user);
 
         $expectedResponse = new Response('ok');
         $middleware = new EnsureEmailIsVerified;
-        $result = $middleware->handle($request->instance(), fn () => $expectedResponse);
+        $result = $middleware->handle($request, fn () => $expectedResponse);
 
         $this->assertSame($expectedResponse, $result);
     }
@@ -44,26 +44,26 @@ class EnsureEmailIsVerifiedTest extends TestCase
         // User implements Authenticatable but does not implement MustVerifyEmail.
         $user = Double::for(Authenticatable::class);
 
-        $request = Double::for(Request::class, override: true);
-        $request->allows('user')->returns($user);
+        $request = Request::create('/');
+        $request->setUserResolver(fn () => $user);
 
         $expectedResponse = new Response('ok');
         $middleware = new EnsureEmailIsVerified;
-        $result = $middleware->handle($request->instance(), fn () => $expectedResponse);
+        $result = $middleware->handle($request, fn () => $expectedResponse);
 
         $this->assertSame($expectedResponse, $result);
     }
 
     public function testGuestRequestReturnsJsonWhenExpectsJson(): void
     {
-        $request = Double::for(Request::class, override: true);
-        $request->allows('user')->returns(null);
-        $request->allows('expectsJson')->returns(true);
+        $request = Request::create('/');
+        $request->setUserResolver(fn () => null);
+        $request->headers->set('Accept', 'application/json');
 
         $this->expectException(HttpException::class);
 
         $middleware = new EnsureEmailIsVerified;
-        $middleware->handle($request->instance(), fn () => new Response('should not reach'));
+        $middleware->handle($request, fn () => new Response('should not reach'));
     }
 
     public function testUnverifiedUserReturnsJsonWhenExpectsJson(): void
@@ -71,14 +71,14 @@ class EnsureEmailIsVerifiedTest extends TestCase
         $user = Double::for(Authenticatable::class, MustVerifyEmail::class);
         $user->allows('hasVerifiedEmail')->returns(false);
 
-        $request = Double::for(Request::class, override: true);
-        $request->allows('user')->returns($user);
-        $request->allows('expectsJson')->returns(true);
+        $request = Request::create('/');
+        $request->setUserResolver(fn () => $user);
+        $request->headers->set('Accept', 'application/json');
 
         $this->expectException(HttpException::class);
 
         $middleware = new EnsureEmailIsVerified;
-        $middleware->handle($request->instance(), fn () => new Response('should not reach'));
+        $middleware->handle($request, fn () => new Response('should not reach'));
     }
 
     public function testUnverifiedUserRedirectsWhenNotJson(): void
@@ -89,12 +89,11 @@ class EnsureEmailIsVerifiedTest extends TestCase
         $user = Double::for(Authenticatable::class, MustVerifyEmail::class);
         $user->allows('hasVerifiedEmail')->returns(false);
 
-        $request = Double::for(Request::class, override: true);
-        $request->allows('user')->returns($user);
-        $request->allows('expectsJson')->returns(false);
+        $request = Request::create('/');
+        $request->setUserResolver(fn () => $user);
 
         $middleware = new EnsureEmailIsVerified;
-        $result = $middleware->handle($request->instance(), fn () => new Response('should not reach'), 'verify.email');
+        $result = $middleware->handle($request, fn () => new Response('should not reach'), 'verify.email');
 
         $this->assertSame(302, $result->getStatusCode());
     }
@@ -103,12 +102,11 @@ class EnsureEmailIsVerifiedTest extends TestCase
     {
         $this->app->make('router')->get('/email/verify', fn () => 'verify')->name('verify.email');
 
-        $request = Double::for(Request::class, override: true);
-        $request->allows('user')->returns(null);
-        $request->allows('expectsJson')->returns(false);
+        $request = Request::create('/');
+        $request->setUserResolver(fn () => null);
 
         $middleware = new EnsureEmailIsVerified;
-        $result = $middleware->handle($request->instance(), fn () => new Response('should not reach'), 'verify.email');
+        $result = $middleware->handle($request, fn () => new Response('should not reach'), 'verify.email');
 
         $this->assertSame(302, $result->getStatusCode());
     }

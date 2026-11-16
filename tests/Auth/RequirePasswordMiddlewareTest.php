@@ -31,9 +31,9 @@ class RequirePasswordMiddlewareTest extends TestCase
             ->with('auth.password_confirmed_at_web', 0)
             ->returns(0); // Never confirmed
 
-        $request = Double::for(Request::class, override: true);
-        $request->allows('session')->returns($session);
-        $request->allows('expectsJson')->returns(true);
+        $request = Request::create('/');
+        $request->setHypervelSession($session);
+        $request->headers->set('Accept', 'application/json');
 
         $jsonResponse = new JsonResponse(['message' => 'Password confirmation required.'], 423);
         $responseFactory = Double::for(ResponseFactory::class);
@@ -44,7 +44,7 @@ class RequirePasswordMiddlewareTest extends TestCase
         $urlGenerator = Double::for(UrlGenerator::class);
 
         $middleware = $this->middleware(responseFactory: $responseFactory, urlGenerator: $urlGenerator);
-        $result = $middleware->handle($request->instance(), fn () => new Response('should not reach'));
+        $result = $middleware->handle($request, fn () => new Response('should not reach'));
 
         $this->assertSame($jsonResponse, $result);
 
@@ -60,8 +60,8 @@ class RequirePasswordMiddlewareTest extends TestCase
             ->with('auth.password_confirmed_at_web', 0)
             ->returns(990); // Confirmed 10 seconds ago
 
-        $request = Double::for(Request::class, override: true);
-        $request->allows('session')->returns($session);
+        $request = Request::create('/');
+        $request->setHypervelSession($session);
 
         $responseFactory = Double::for(ResponseFactory::class);
         $urlGenerator = Double::for(UrlGenerator::class);
@@ -70,18 +70,18 @@ class RequirePasswordMiddlewareTest extends TestCase
 
         // With default timeout (10800), 10 seconds would pass through
         $expectedResponse = new Response('ok');
-        $result = $middleware->handle($request->instance(), fn () => $expectedResponse);
+        $result = $middleware->handle($request, fn () => $expectedResponse);
         $this->assertSame($expectedResponse, $result);
 
         // With custom timeout of 5 seconds, 10 seconds ago is stale
-        $request->allows('expectsJson')->returns(true);
+        $request->headers->set('Accept', 'application/json');
         $jsonResponse = new JsonResponse(['message' => 'Password confirmation required.'], 423);
         $responseFactory->expects('json')
             ->with(['message' => 'Password confirmation required.'], 423)
             ->returns($jsonResponse);
 
         $result = $middleware->handle(
-            $request->instance(),
+            $request,
             fn () => new Response('should not reach'),
             null,
             5,
@@ -100,9 +100,9 @@ class RequirePasswordMiddlewareTest extends TestCase
             ->with('auth.password_confirmed_at_admin', 0)
             ->returns(0);
 
-        $request = Double::for(Request::class, override: true);
-        $request->allows('session')->returns($session);
-        $request->allows('expectsJson')->returns(true);
+        $request = Request::create('/');
+        $request->setHypervelSession($session);
+        $request->headers->set('Accept', 'application/json');
 
         $responseFactory = Double::for(ResponseFactory::class);
         $responseFactory->expects('json')
@@ -110,7 +110,7 @@ class RequirePasswordMiddlewareTest extends TestCase
             ->returns($jsonResponse = new JsonResponse(['message' => 'Password confirmation required.'], 423));
 
         $result = $this->middleware(responseFactory: $responseFactory, guard: 'admin')
-            ->handle($request->instance(), fn () => new Response('should not reach'));
+            ->handle($request, fn () => new Response('should not reach'));
 
         $this->assertSame($jsonResponse, $result);
 
@@ -127,8 +127,8 @@ class RequirePasswordMiddlewareTest extends TestCase
             ->times(2)
             ->returns(989, 991);
 
-        $request = Double::for(Request::class, override: true);
-        $request->allows('session')->returns($session);
+        $request = Request::create('/');
+        $request->setHypervelSession($session);
 
         $responseFactory = Double::for(ResponseFactory::class);
         $responseFactory->expects('json')
@@ -147,12 +147,12 @@ class RequirePasswordMiddlewareTest extends TestCase
 
         $middleware = $this->middleware(responseFactory: $responseFactory, config: $config, guard: 'admin');
 
-        $request->allows('expectsJson')->returns(true);
-        $result = $middleware->handle($request->instance(), fn () => new Response('should not reach'));
+        $request->headers->set('Accept', 'application/json');
+        $result = $middleware->handle($request, fn () => new Response('should not reach'));
         $this->assertSame($jsonResponse, $result);
 
         $expectedResponse = new Response('ok');
-        $result = $middleware->handle($request->instance(), fn () => $expectedResponse);
+        $result = $middleware->handle($request, fn () => $expectedResponse);
         $this->assertSame($expectedResponse, $result);
 
         CarbonImmutable::setTestNow();
@@ -167,9 +167,9 @@ class RequirePasswordMiddlewareTest extends TestCase
             ->with('auth.password_confirmed_at_admin', 0)
             ->returns(994);
 
-        $request = Double::for(Request::class, override: true);
-        $request->allows('session')->returns($session);
-        $request->allows('expectsJson')->returns(true);
+        $request = Request::create('/');
+        $request->setHypervelSession($session);
+        $request->headers->set('Accept', 'application/json');
 
         $responseFactory = Double::for(ResponseFactory::class);
         $responseFactory->expects('json')
@@ -187,7 +187,7 @@ class RequirePasswordMiddlewareTest extends TestCase
         ]);
 
         $result = $this->middleware(responseFactory: $responseFactory, config: $config, guard: 'admin')
-            ->handle($request->instance(), fn () => new Response('should not reach'), null, 5);
+            ->handle($request, fn () => new Response('should not reach'), null, 5);
 
         $this->assertSame($jsonResponse, $result);
 

@@ -57,8 +57,9 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Grpc\Fixtures\ClientCallClient;
 use Hypervel\Tests\Grpc\Fixtures\ClientCallClientFactory;
 use Hypervel\Tests\Socialite\Fixtures\GenericTestProviderStub;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
@@ -74,6 +75,8 @@ use function Hypervel\Coroutine\parallel;
 
 class DatabaseConnectionLeaseTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Configure a single physical slot shared by independently owned connections.
      */
@@ -1022,13 +1025,13 @@ class DatabaseConnectionLeaseTest extends TestCase
             'database' => ':memory:',
             'prefix' => '',
         ]);
-        $pool = m::mock(DatabasePool::class);
-        $wrapper = m::mock(PooledConnection::class);
-        $pool->expects('borrow')->once()->andReturn($wrapper);
-        $wrapper->expects('attachLease')->twice();
-        $wrapper->expects('getDriverConnection')->once()->andReturn($physical);
-        $wrapper->expects('dispatchConnectionEstablishedEvent')->once()->andThrow($setupFailure);
-        $wrapper->expects('discard')->once()->andThrow($cleanupFailure);
+        $pool = Double::for(DatabasePool::class);
+        $wrapper = Double::for(PooledConnection::class);
+        $pool->expects('borrow')->returns($wrapper);
+        $wrapper->expects('attachLease')->times(2);
+        $wrapper->expects('getDriverConnection')->returns($physical);
+        $wrapper->expects('dispatchConnectionEstablishedEvent')->throws($setupFailure);
+        $wrapper->expects('discard')->throws($cleanupFailure);
 
         $lease = new ConnectionLease($pool, $wrapper, $this->app->make('db.factory'), $physical);
         $lease->detach();

@@ -19,10 +19,9 @@ class AddTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         // SET returns true/OK when key was set
-        $connection->shouldReceive('set')
-            ->once()
+        $connection->client()->expects('set')
             ->with('prefix:foo', serialize('bar'), ['EX' => 60, 'NX'])
-            ->andReturn(true);
+            ->returns(true);
 
         $redis = $this->createStore($connection);
         $result = $redis->add('foo', 'bar', 60);
@@ -33,11 +32,10 @@ class AddTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        // SET with NX returns null/false when key already exists
-        $connection->shouldReceive('set')
-            ->once()
+        // Native phpredis returns false when NX finds an existing key.
+        $connection->client()->expects('set')
             ->with('prefix:foo', serialize('bar'), ['EX' => 60, 'NX'])
-            ->andReturn(null);
+            ->returns(false);
 
         $redis = $this->createStore($connection);
         $result = $redis->add('foo', 'bar', 60);
@@ -49,10 +47,9 @@ class AddTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         // Numeric values are NOT serialized (optimization)
-        $connection->shouldReceive('set')
-            ->once()
+        $connection->client()->expects('set')
             ->with('prefix:foo', 42, ['EX' => 60, 'NX'])
-            ->andReturn(true);
+            ->returns(true);
 
         $redis = $this->createStore($connection);
         $result = $redis->add('foo', 42, 60);
@@ -64,10 +61,9 @@ class AddTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         // TTL should be at least 1
-        $connection->shouldReceive('set')
-            ->once()
+        $connection->client()->expects('set')
             ->with('prefix:foo', serialize('bar'), ['EX' => 1, 'NX'])
-            ->andReturn(true);
+            ->returns(true);
 
         $redis = $this->createStore($connection);
         $result = $redis->add('foo', 'bar', 0);
@@ -80,10 +76,9 @@ class AddTest extends RedisCacheTestCase
 
         $value = ['key' => 'value', 'nested' => ['a', 'b']];
 
-        $connection->shouldReceive('set')
-            ->once()
+        $connection->client()->expects('set')
             ->with('prefix:foo', serialize($value), ['EX' => 120, 'NX'])
-            ->andReturn(true);
+            ->returns(true);
 
         $redis = $this->createStore($connection);
         $result = $redis->add('foo', $value, 120);

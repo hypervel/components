@@ -10,13 +10,17 @@ use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Redis;
 use RuntimeException;
 
 class StoreContextTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testPrefixReturnsConfiguredPrefix(): void
     {
         $context = $this->createContext(prefix: 'myapp:');
@@ -77,13 +81,13 @@ class StoreContextTest extends TestCase
 
     public function testWithConnectionExecutesCallbackAndReturnsResult(): void
     {
-        $connection = m::mock(PhpRedisConnection::class);
+        $connection = Double::for(PhpRedisConnection::class);
         $context = $this->createContextWithRedisFactory('default', function ($callback) use ($connection) {
             return $callback($connection);
         });
 
-        $result = $context->withConnection(function ($conn) use ($connection) {
-            $this->assertSame($connection, $conn);
+        $result = $context->withConnection(function ($actualConnection) use ($connection) {
+            $this->assertSame($connection, $actualConnection);
 
             return 'callback-result';
         });
@@ -93,7 +97,7 @@ class StoreContextTest extends TestCase
 
     public function testWithConnectionCanEnableLaravelStyleTransforms(): void
     {
-        $connection = m::mock(PhpRedisConnection::class);
+        $connection = Double::for(PhpRedisConnection::class);
         $transform = null;
         $context = $this->createContextWithRedisFactory(
             'default',
@@ -113,7 +117,7 @@ class StoreContextTest extends TestCase
     public function testWithConnectionPropagatesExceptions(): void
     {
         $context = $this->createContextWithRedisFactory('default', function ($callback) {
-            return $callback(m::mock(PhpRedisConnection::class));
+            return $callback(Double::for(PhpRedisConnection::class));
         });
 
         $this->expectException(RuntimeException::class);
@@ -127,7 +131,7 @@ class StoreContextTest extends TestCase
     public function testIsClusterReturnsTrueForRedisCluster(): void
     {
         $context = $this->createContextWithRedisFactory('default', function ($callback) {
-            return $callback(m::mock(PhpRedisConnection::class));
+            return $callback(Double::for(PhpRedisConnection::class));
         }, isCluster: true);
 
         $this->assertTrue($context->isCluster());
@@ -136,7 +140,7 @@ class StoreContextTest extends TestCase
     public function testIsClusterReturnsFalseForRegularRedis(): void
     {
         $context = $this->createContextWithRedisFactory('default', function ($callback) {
-            return $callback(m::mock(PhpRedisConnection::class));
+            return $callback(Double::for(PhpRedisConnection::class));
         }, isCluster: false);
 
         $this->assertFalse($context->isCluster());
@@ -144,10 +148,11 @@ class StoreContextTest extends TestCase
 
     public function testOptPrefixReturnsRedisOptionPrefix(): void
     {
-        $connection = m::mock(PhpRedisConnection::class);
-        $connection->shouldReceive('getOption')
+        $client = Double::for(Redis::class)->strict();
+        $connection = (new PhpRedisConnectionStub)->setActiveConnection($client)->shouldTransform(false);
+        $client->allows('getOption')
             ->with(Redis::OPT_PREFIX)
-            ->andReturn('redis_prefix:');
+            ->returns('redis_prefix:');
 
         $context = $this->createContext(prefix: 'cache:');
 
@@ -156,10 +161,11 @@ class StoreContextTest extends TestCase
 
     public function testOptPrefixReturnsEmptyStringWhenNotSet(): void
     {
-        $connection = m::mock(PhpRedisConnection::class);
-        $connection->shouldReceive('getOption')
+        $client = Double::for(Redis::class)->strict();
+        $connection = (new PhpRedisConnectionStub)->setActiveConnection($client)->shouldTransform(false);
+        $client->allows('getOption')
             ->with(Redis::OPT_PREFIX)
-            ->andReturn(null);
+            ->returns(null);
 
         $context = $this->createContext(prefix: 'cache:');
 
@@ -168,10 +174,11 @@ class StoreContextTest extends TestCase
 
     public function testFullTagPrefixIncludesOptPrefix(): void
     {
-        $connection = m::mock(PhpRedisConnection::class);
-        $connection->shouldReceive('getOption')
+        $client = Double::for(Redis::class)->strict();
+        $connection = (new PhpRedisConnectionStub)->setActiveConnection($client)->shouldTransform(false);
+        $client->allows('getOption')
             ->with(Redis::OPT_PREFIX)
-            ->andReturn('redis:');
+            ->returns('redis:');
 
         $context = $this->createContext(prefix: 'cache:');
 
@@ -180,10 +187,11 @@ class StoreContextTest extends TestCase
 
     public function testFullRegistryKeyIncludesOptPrefix(): void
     {
-        $connection = m::mock(PhpRedisConnection::class);
-        $connection->shouldReceive('getOption')
+        $client = Double::for(Redis::class)->strict();
+        $connection = (new PhpRedisConnectionStub)->setActiveConnection($client)->shouldTransform(false);
+        $client->allows('getOption')
             ->with(Redis::OPT_PREFIX)
-            ->andReturn('redis:');
+            ->returns('redis:');
 
         $context = $this->createContext(prefix: 'cache:');
 
@@ -204,7 +212,7 @@ class StoreContextTest extends TestCase
         string $prefix = 'prefix:',
         TagMode $tagMode = TagMode::Any
     ): StoreContext {
-        return new StoreContext(m::mock(RedisFactory::class), $connectionName, $prefix, $tagMode);
+        return new StoreContext(Double::for(RedisFactory::class)->strict(), $connectionName, $prefix, $tagMode);
     }
 
     /**
@@ -219,17 +227,16 @@ class StoreContextTest extends TestCase
     ): StoreContext {
         $contextConnectionName ??= $expectedConnectionName;
 
-        $redisProxy = m::mock(RedisProxy::class);
-        $redisProxy->shouldReceive('withConnection')
-            ->andReturnUsing($withConnectionHandler);
-        $redisProxy->shouldReceive('isCluster')
-            ->andReturn($isCluster)
-            ->byDefault();
+        $redisProxy = Double::for(RedisProxy::class)->strict();
+        $redisProxy->allows('withConnection')
+            ->resolves($withConnectionHandler);
+        $redisProxy->allows('isCluster')
+            ->returns($isCluster);
 
-        $redisFactory = m::mock(RedisFactory::class);
-        $redisFactory->shouldReceive('connection')
+        $redisFactory = Double::for(RedisFactory::class)->strict();
+        $redisFactory->allows('connection')
             ->with($expectedConnectionName)
-            ->andReturn($redisProxy);
+            ->returns($redisProxy);
 
         return new StoreContext($redisFactory, $contextConnectionName, $prefix, TagMode::Any);
     }

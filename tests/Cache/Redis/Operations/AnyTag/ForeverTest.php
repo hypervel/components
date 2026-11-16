@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Cache\Redis\Operations\AnyTag;
 
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
+use JMac\Testing\Matching\Argument;
 
 /**
  * Tests for the Forever operation (union tags).
@@ -16,9 +17,8 @@ class ForeverTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->withArgs(function ($script, $keys, $args) {
+        $connection->expects('evalWithShaCache')
+            ->with(Argument::all(function ($script, $keys, $args) {
                 // Forever uses SET (no TTL), HSET (no expiration), ZADD with max expiry
                 $this->assertStringContainsString("redis.call('SET'", $script);
                 $this->assertStringContainsString('HSET', $script);
@@ -26,8 +26,8 @@ class ForeverTest extends RedisCacheTestCase
                 $this->assertCount(2, $keys);
 
                 return true;
-            })
-            ->andReturn(true);
+            }))
+            ->returns(true);
 
         $redis = $this->createStore($connection);
         $redis->setTagMode('any');
