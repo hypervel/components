@@ -26,6 +26,14 @@ interface View extends Renderable
     public function getData(): array;
 
     /**
+     * Get the data used to render the view.
+     *
+     * Unlike Laravel, the contract declares this method because response assertions
+     * inspect rendering data, including shared values, through the view contract.
+     */
+    public function gatherData(): array;
+
+    /**
      * Get the path to the view file.
      */
     public function getPath(): string;

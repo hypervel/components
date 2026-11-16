@@ -436,6 +436,14 @@ class MarkdownTestView implements ViewContract
         return [];
     }
 
+    /**
+     * Get the data used to render the view.
+     */
+    public function gatherData(): array
+    {
+        return $this->getData();
+    }
+
     public function getPath(): string
     {
         return __FILE__;

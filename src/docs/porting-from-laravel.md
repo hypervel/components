@@ -180,6 +180,8 @@ Some packages also define package-local contracts, such as `Hypervel\Permission\
 
 `Hypervel\Contracts\Support\MessageBag` extends `Stringable`, so a custom message bag without `__toString()` fails at class declaration rather than later when `ViewErrorBag` renders it.
 
+Custom `Hypervel\Contracts\View\View` implementations must provide `gatherData(): array`, returning the data used to render the view, including any shared values. Extending `Hypervel\View\View` supplies it.
+
 <a name="missing-equivalents"></a>
 ### Missing Equivalents
 
