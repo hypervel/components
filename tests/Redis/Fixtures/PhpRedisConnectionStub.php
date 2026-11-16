@@ -67,7 +67,7 @@ class PhpRedisConnectionStub extends PhpRedisConnection
     /**
      * Get the underlying Redis connection for test mocking.
      */
-    public function getConnection(): Redis|RedisCluster
+    public function nativeClientForTest(): Redis|RedisCluster
     {
         $this->getActiveConnection();
 

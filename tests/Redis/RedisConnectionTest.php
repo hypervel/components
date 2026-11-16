@@ -1765,7 +1765,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('get')
             ->with($key = 'foo')
             ->once()
@@ -1783,7 +1783,7 @@ class RedisConnectionTest extends TestCase
 
         foreach ([['nested' => true], $object, 42] as $index => $value) {
             $key = "key-{$index}";
-            $connection->getConnection()
+            $connection->nativeClientForTest()
                 ->shouldReceive('get')
                 ->with($key)
                 ->once()
@@ -1797,7 +1797,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('mGet')
             ->with(['key1', 'key2', 'key3'])
             ->once()
@@ -1812,7 +1812,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('mGet')
             ->with(['key1', 'key2'])
             ->once()
@@ -1824,7 +1824,7 @@ class RedisConnectionTest extends TestCase
     public function testMgetReturnsAnEmptyArrayWithoutCallingRedisForEmptyKeys(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
-        $connection->getConnection()->shouldReceive('mGet')->never();
+        $connection->nativeClientForTest()->shouldReceive('mGet')->never();
 
         $this->assertSame([], $connection->__call('mget', [[]]));
     }
@@ -1833,7 +1833,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('set')
             ->with('key', 'value', ['NX', 'EX' => 3600])
             ->once()
@@ -1885,7 +1885,7 @@ class RedisConnectionTest extends TestCase
 
         foreach ([true, false] as $index => $result) {
             $key = "key-{$index}";
-            $connection->getConnection()
+            $connection->nativeClientForTest()
                 ->shouldReceive('set')
                 ->with($key, 'value', ['GET'])
                 ->once()
@@ -1899,7 +1899,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('setNx')
             ->with('key', 123)
             ->once()
@@ -1914,7 +1914,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('hMGet')
             ->with('hash', ['field1', 'field2'])
             ->once()
@@ -1929,7 +1929,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('hMGet')
             ->with('hash', ['field1', 'field2'])
             ->once()
@@ -1944,7 +1944,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('hMGet')
             ->with('hash', ['field1', 'field2'])
             ->once()
@@ -1957,7 +1957,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('hMSet')
             ->with('hash', ['field1' => 'value1', 'field2' => 'value2'])
             ->once()
@@ -1973,7 +1973,7 @@ class RedisConnectionTest extends TestCase
         $connection = $this->mockRedisConnection(transform: true);
         $value = ['nested' => 'value'];
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('hSetNx')
             ->with('hash', 'field', $value)
             ->once()
@@ -1988,7 +1988,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('lRem')
             ->with('list', 'value', 2)
             ->once()
@@ -2003,7 +2003,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('blPop')
             ->with('list1', 'list2', 10)
             ->once()
@@ -2018,7 +2018,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('blPop')
             ->with('list1', 10)
             ->once()
@@ -2033,7 +2033,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('brPop')
             ->with('list1', 'list2', 10)
             ->once()
@@ -2048,7 +2048,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('brPop')
             ->with('list1', 10)
             ->once()
@@ -2063,7 +2063,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('sPop')
             ->with('myset', 2)
             ->once()
@@ -2080,7 +2080,7 @@ class RedisConnectionTest extends TestCase
         $connection = $this->mockRedisConnection(transform: true);
         $cursor = null;
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('scan')
             ->with(null, $pattern, $count)
             ->once()
@@ -2137,7 +2137,7 @@ class RedisConnectionTest extends TestCase
         $connection = $this->mockRedisConnection(transform: true);
         $cursor = 0;
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('scan')
             ->with(0, 'prefix:*', 20)
             ->once()
@@ -2153,7 +2153,7 @@ class RedisConnectionTest extends TestCase
         $connection = $this->mockRedisConnection(transform: true);
         $cursor = 0;
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('scan')
             ->with(0, '*', 10)
             ->once()
@@ -2169,7 +2169,7 @@ class RedisConnectionTest extends TestCase
         $connection = $this->mockRedisConnection(transform: true);
         $cursor = 5;
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('zscan')
             ->with('sortedset', 5, '*', 10)
             ->once()
@@ -2190,7 +2190,7 @@ class RedisConnectionTest extends TestCase
         $connection = $this->mockRedisConnection(transform: true);
         $cursor = 5;
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('hscan')
             ->with('hash', 5, '*', 10)
             ->once()
@@ -2211,7 +2211,7 @@ class RedisConnectionTest extends TestCase
         $connection = $this->mockRedisConnection(transform: true);
         $cursor = 5;
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('sscan')
             ->with('set', 5, '*', 10)
             ->once()
@@ -2231,7 +2231,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $redisConnection = $connection->getConnection();
+        $redisConnection = $connection->nativeClientForTest();
         $redisConnection->shouldReceive('script')
             ->with('load', 'script')
             ->once()
@@ -2251,7 +2251,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('zAdd')
             ->with('sortedset', ['NX', 'CH'], 1.0, 'member1', 2.0, 'member2')
             ->once()
@@ -2266,12 +2266,12 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('zAdd')
             ->with('sortedset', ['INCR'], 1.5, 'member')
             ->once()
             ->andReturn(2.5);
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('zAdd')
             ->with('sortedset', ['XX'], 1.5, 'missing')
             ->once()
@@ -2285,7 +2285,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('zAdd')
             ->with('sortedset', [], 1.0, 'member1', 2.0, 'member2')
             ->once()
@@ -2300,7 +2300,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('zRangeByScore')
             ->with('sortedset', '1', '5', ['limit' => [0, 10]])
             ->once()
@@ -2315,7 +2315,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('zRangeByScore')
             ->with('sortedset', '1', '5', [])
             ->once()
@@ -2328,7 +2328,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('flushdb')
             ->with(true)
             ->once()
@@ -2343,7 +2343,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('flushdb')
             ->with()
             ->once()
@@ -2358,7 +2358,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('rawCommand')
             ->with('CUSTOM', 'arg1', 'arg2')
             ->once()
@@ -2373,7 +2373,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('zinterstore')
             ->with('output', ['set1', 'set2'], [1, 2], 'max')
             ->once()
@@ -2388,7 +2388,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('zinterstore')
             ->with('output', ['set1', 'set2'], null, 'sum')
             ->once()
@@ -2401,7 +2401,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('zunionstore')
             ->with('output', ['set1', 'set2'], null, 'sum')
             ->once()
@@ -2415,7 +2415,7 @@ class RedisConnectionTest extends TestCase
         $connection = $this->mockRedisConnection();
         $connection->shouldTransform(false);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('zunionstore')
             ->withAnyArgs()
             ->once()
@@ -2430,7 +2430,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('get')
             ->with('key')
             ->once()
@@ -2445,7 +2445,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('set')
             ->with('key', 'value', null)
             ->once()
@@ -2460,7 +2460,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('setNx')
             ->with('key', 'value')
             ->once()
@@ -2475,7 +2475,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('hMSet')
             ->with('hash', ['field1' => 'value1', 'field2' => 'value2'])
             ->once()
@@ -2491,7 +2491,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('zAdd')
             ->with('zset', [], 1.0, 'member1', 2.0, 'member2')
             ->once()
@@ -2506,7 +2506,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('zRangeByScore')
             ->with('zset', '-inf', '+inf', ['limit' => [5, 20]])
             ->once()
@@ -2522,7 +2522,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('zRevRangeByScore')
             ->with('zset', '+inf', '-inf', ['limit' => [0, 5]])
             ->once()
@@ -2537,7 +2537,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('zRevRangeByScore')
             ->with('zset', '+inf', '-inf', [])
             ->once()
@@ -2550,7 +2550,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('zinterstore')
             ->with('output', ['set1', 'set2'], null, 'sum')
             ->once()
@@ -2566,7 +2566,7 @@ class RedisConnectionTest extends TestCase
         $connection = $this->mockRedisConnection(transform: false);
 
         // Without transform, get() returns false (not null)
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('get')
             ->with('key')
             ->once()
@@ -2581,7 +2581,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection();
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('getOption')
             ->with(Redis::OPT_SERIALIZER)
             ->andReturn(Redis::SERIALIZER_PHP);
@@ -2593,7 +2593,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection();
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('getOption')
             ->with(Redis::OPT_SERIALIZER)
             ->andReturn(Redis::SERIALIZER_NONE);
@@ -2609,7 +2609,7 @@ class RedisConnectionTest extends TestCase
 
         $connection = $this->mockRedisConnection();
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('getOption')
             ->with(Redis::OPT_COMPRESSION)
             ->andReturn(Redis::COMPRESSION_LZF);
@@ -2621,7 +2621,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection();
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('getOption')
             ->with(Redis::OPT_COMPRESSION)
             ->andReturn(Redis::COMPRESSION_NONE);
@@ -2718,7 +2718,7 @@ class RedisConnectionTest extends TestCase
     public function testWithoutSerializationOrCompressionDisablesSerializerAndRestores(): void
     {
         $connection = $this->mockRedisConnection();
-        $redis = $connection->getConnection();
+        $redis = $connection->nativeClientForTest();
 
         // serialized() check + saving old value
         $redis->shouldReceive('getOption')
@@ -2752,7 +2752,7 @@ class RedisConnectionTest extends TestCase
         }
 
         $connection = $this->mockRedisConnection();
-        $redis = $connection->getConnection();
+        $redis = $connection->nativeClientForTest();
 
         // serialized() check
         $redis->shouldReceive('getOption')
@@ -2786,7 +2786,7 @@ class RedisConnectionTest extends TestCase
         }
 
         $connection = $this->mockRedisConnection();
-        $redis = $connection->getConnection();
+        $redis = $connection->nativeClientForTest();
 
         // serialized() check + saving old value
         $redis->shouldReceive('getOption')
@@ -2822,7 +2822,7 @@ class RedisConnectionTest extends TestCase
     public function testWithoutSerializationOrCompressionSkipsWhenNeitherConfigured(): void
     {
         $connection = $this->mockRedisConnection();
-        $redis = $connection->getConnection();
+        $redis = $connection->nativeClientForTest();
 
         // Neither serialized nor compressed
         $redis->shouldReceive('getOption')
@@ -2843,7 +2843,7 @@ class RedisConnectionTest extends TestCase
     public function testWithoutSerializationOrCompressionRestoresOnException(): void
     {
         $connection = $this->mockRedisConnection();
-        $redis = $connection->getConnection();
+        $redis = $connection->nativeClientForTest();
 
         // serialized() check + saving old value
         $redis->shouldReceive('getOption')
@@ -2925,12 +2925,12 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection();
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('_pack')
             ->with('value1')
             ->once()
             ->andReturn('packed1');
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('_pack')
             ->with('value2')
             ->once()
@@ -2945,12 +2945,12 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection();
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('_pack')
             ->with('value1')
             ->once()
             ->andReturn('packed1');
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('_pack')
             ->with('value2')
             ->once()
@@ -2970,7 +2970,7 @@ class RedisConnectionTest extends TestCase
         $script = 'return KEYS[1]';
         $sha = sha1($script);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('evalSha')
             ->with($sha, ['mykey', 'arg1', 'arg2'], 1)
             ->once()
@@ -2987,7 +2987,7 @@ class RedisConnectionTest extends TestCase
         $script = 'invalid lua syntax';
         $sha = sha1($script);
 
-        $redisConnection = $connection->getConnection();
+        $redisConnection = $connection->nativeClientForTest();
 
         $redisConnection->shouldReceive('evalSha')
             ->with($sha, ['mykey'], 1)
@@ -3031,7 +3031,7 @@ class RedisConnectionTest extends TestCase
         $script = 'return false';
         $sha = sha1($script);
 
-        $redisConnection = $connection->getConnection();
+        $redisConnection = $connection->nativeClientForTest();
 
         // Script returns false legitimately (no error)
         $redisConnection->shouldReceive('evalSha')
@@ -3054,7 +3054,7 @@ class RedisConnectionTest extends TestCase
         $script = 'return 42';
         $sha = sha1($script);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('evalSha')
             ->with($sha, [], 0)
             ->once()
@@ -3071,7 +3071,7 @@ class RedisConnectionTest extends TestCase
         $script = 'return {KEYS[1], KEYS[2], ARGV[1], ARGV[2]}';
         $sha = sha1($script);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('evalSha')
             ->with($sha, ['key1', 'key2', 'arg1', 'arg2'], 2)
             ->once()
@@ -3088,7 +3088,7 @@ class RedisConnectionTest extends TestCase
         $script = 'return "ok"';
         $sha = sha1($script);
 
-        $redisConnection = $connection->getConnection();
+        $redisConnection = $connection->nativeClientForTest();
 
         // Verify clearLastError is called before evalSha using ordered expectations
         $redisConnection->shouldReceive('clearLastError')
@@ -3113,7 +3113,7 @@ class RedisConnectionTest extends TestCase
         $connection = $this->mockRedisConnection(transform: true);
 
         // Without count, phpredis sPop returns a single string
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('sPop')
             ->once()
             ->with('myset')
@@ -3129,7 +3129,7 @@ class RedisConnectionTest extends TestCase
         $connection = $this->mockRedisConnection(transform: true);
 
         // With count, phpredis sPop returns an array
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('sPop')
             ->once()
             ->with('myset', 3)
@@ -3144,7 +3144,7 @@ class RedisConnectionTest extends TestCase
     {
         $connection = $this->mockRedisConnection(transform: true);
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('sPop')
             ->once()
             ->with('emptyset')
@@ -3955,7 +3955,7 @@ class RedisConnectionTest extends TestCase
         $connection = $this->mockRedisConnection(transform: true);
         $cursor = 0;
 
-        $connection->getConnection()
+        $connection->nativeClientForTest()
             ->shouldReceive('scan')
             ->with(0, 'prefix:*', 20)
             ->once()
