@@ -5,24 +5,22 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Mail;
 
 use Exception;
-use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Transport\ResendTransport;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Resend\Contracts\Client;
 use Resend\Email as ResendEmail;
+use Resend\Service\Email as EmailService;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
 
 class MailResendTransportTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-        $this->app->instance('view', m::mock(ViewFactory::class));
-    }
+    use VerifiesDoubles;
 
     public function testGetTransport(): void
     {
@@ -50,9 +48,9 @@ class MailResendTransportTest extends TestCase
         $message->bcc('bcc@example.com');
         $message->replyTo(new Address('reply@example.com', 'Reply'));
 
-        $emails = m::mock();
-        $emails->shouldReceive('send')->once()
-            ->with(m::on(function ($arg) {
+        $emails = Double::for(EmailService::class);
+        $emails->expects('send')
+            ->with(Argument::satisfies(function (array $arg): bool {
                 return $arg['from'] === 'sender@example.com'
                     && $arg['to'] === ['recipient@example.com']
                     && $arg['cc'] === ['cc@example.com']
@@ -62,10 +60,16 @@ class MailResendTransportTest extends TestCase
                     && $arg['html'] === '<p>Test body</p>'
                     && $arg['text'] === 'Test body';
             }))
-            ->andReturn(new ResendEmail(['id' => 'resend-message-id']));
+            ->returns(new ResendEmail(['id' => 'resend-message-id']));
 
-        $client = m::mock(Client::class);
-        $client->emails = $emails;
+        $client = new class($emails) implements Client {
+            /**
+             * Create a client backed by the test email service.
+             */
+            public function __construct(public EmailService $emails)
+            {
+            }
+        };
 
         $sentMessage = (new ResendTransport($client))->send($message);
 
@@ -84,12 +88,18 @@ class MailResendTransportTest extends TestCase
         $message->sender('sender@example.com');
         $message->to('recipient@example.com');
 
-        $emails = m::mock();
-        $emails->shouldReceive('send')->once()
-            ->andThrow(new Exception('API key is invalid'));
+        $emails = Double::for(EmailService::class);
+        $emails->expects('send')
+            ->throws(new Exception('API key is invalid'));
 
-        $client = m::mock(Client::class);
-        $client->emails = $emails;
+        $client = new class($emails) implements Client {
+            /**
+             * Create a client backed by the test email service.
+             */
+            public function __construct(public EmailService $emails)
+            {
+            }
+        };
 
         $this->expectException(TransportException::class);
         $this->expectExceptionMessageIs('Request to Resend API failed. Reason: API key is invalid.');

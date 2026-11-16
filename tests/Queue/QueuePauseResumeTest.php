@@ -8,6 +8,7 @@ use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Events\Dispatcher;
@@ -19,13 +20,16 @@ use Hypervel\Queue\Events\QueuesResumed;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use UnitEnum;
 
 class QueuePauseResumeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected QueueManager $manager;
 
     protected CacheRepository $cache;
@@ -61,23 +65,9 @@ class QueuePauseResumeTest extends TestCase
                 ],
             ],
         ]));
-        $container->instance('cache', new class($cache) {
-            /**
-             * Create a cache manager fixture.
-             */
-            public function __construct(
-                private readonly CacheContract $repository,
-            ) {
-            }
-
-            /**
-             * Get the cache repository.
-             */
-            public function store(?string $name = null): CacheContract
-            {
-                return $this->repository;
-            }
-        });
+        $cacheManager = Double::for(CacheFactory::class);
+        $cacheManager->allows('store')->returns($cache);
+        $container->instance('cache', $cacheManager);
         $container->instance('events', $this->events);
         $container->instance(DispatcherContract::class, $this->events);
 
@@ -275,12 +265,12 @@ class QueuePauseResumeTest extends TestCase
 
     public function testGetPausedQueuesUsesTheCacheRepositoryContract(): void
     {
-        $cache = m::mock(CacheContract::class);
-        $cache->shouldReceive('get')->once()->with('illuminate:queues:paused', false)->andReturn(false);
-        $cache->shouldReceive('get')->once()->with([
+        $cache = Double::for(CacheContract::class);
+        $cache->expects('get')->with('illuminate:queues:paused', false)->returns(false);
+        $cache->expects('get')->with([
             'illuminate:queue:paused:redis:default',
             'illuminate:queue:paused:redis:emails',
-        ])->andReturn([
+        ])->returns([
             'illuminate:queue:paused:redis:default' => null,
             'illuminate:queue:paused:redis:emails' => true,
         ]);

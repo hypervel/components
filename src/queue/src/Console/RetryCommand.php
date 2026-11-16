@@ -107,7 +107,10 @@ class RetryCommand extends Command
             return $failer->ids();
         }
 
-        if ($queue = $this->option('queue')) {
+        $queue = $this->option('queue');
+
+        // A queue named "0" is valid; only an omitted or empty option means no queue.
+        if ($queue !== null && $queue !== '') {
             return $this->getJobIdsByQueue($queue);
         }
 
@@ -115,7 +118,8 @@ class RetryCommand extends Command
             $ids = array_merge($ids, $this->getJobIdsByRanges($ranges));
         }
 
-        return array_values(array_filter(array_unique($ids)));
+        // Nonempty IDs, including "0", must reach the provider for a result or not-found message.
+        return array_values(array_filter(array_unique($ids), static fn (int|string $id): bool => $id !== ''));
     }
 
     /**

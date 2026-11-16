@@ -7,10 +7,13 @@ namespace Hypervel\Tests\View\Blade;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\TestCase;
 use Hypervel\View\Compilers\BladeCompiler;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 abstract class AbstractBladeTestCase extends TestCase
 {
+    use VerifiesDoubles;
+
     protected BladeCompiler $compiler;
 
     protected function setUp(): void
@@ -20,8 +23,11 @@ abstract class AbstractBladeTestCase extends TestCase
         $this->compiler = new BladeCompiler($this->getFiles(), __DIR__);
     }
 
+    /**
+     * Create the compiler's filesystem double.
+     */
     protected function getFiles(): Filesystem
     {
-        return m::mock(Filesystem::class);
+        return Double::for(Filesystem::class);
     }
 }

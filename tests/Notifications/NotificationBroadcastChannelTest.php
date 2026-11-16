@@ -12,20 +12,24 @@ use Hypervel\Notifications\Events\BroadcastNotificationCreated;
 use Hypervel\Notifications\Messages\BroadcastMessage;
 use Hypervel\Notifications\Notification;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
-use Mockery as m;
 use stdClass;
 
 class NotificationBroadcastChannelTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testDatabaseChannelCreatesDatabaseRecordWithProperData(): void
     {
         $notification = new NotificationBroadcastChannelTestNotification;
         $notification->id = '1';
         $notifiable = new stdClass;
 
-        $events = m::mock(Dispatcher::class);
-        $events->expects('dispatch')->with(m::type(BroadcastNotificationCreated::class));
+        $events = Double::for(Dispatcher::class);
+        $events->expects('dispatch')->with(Argument::type(BroadcastNotificationCreated::class));
         $channel = new BroadcastChannel($events);
         $channel->send($notifiable, $notification);
     }
@@ -134,8 +138,8 @@ class NotificationBroadcastChannelTest extends TestCase
         $notification->id = '1';
         $notifiable = new stdClass;
 
-        $events = m::mock(Dispatcher::class);
-        $events->expects('dispatch')->with(m::on(function (BroadcastNotificationCreated $event): bool {
+        $events = Double::for(Dispatcher::class);
+        $events->expects('dispatch')->with(Argument::satisfies(function (BroadcastNotificationCreated $event): bool {
             return $event->connection === 'sync';
         }));
         $channel = new BroadcastChannel($events);

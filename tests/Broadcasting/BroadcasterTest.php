@@ -6,20 +6,25 @@ namespace Hypervel\Tests\Broadcasting;
 
 use Exception;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Routing\BindingRegistrar;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
 use Hypervel\Routing\RouteBinding;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class BroadcasterTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Container $container;
 
     protected FakeBroadcaster $broadcaster;
@@ -31,8 +36,7 @@ class BroadcasterTest extends TestCase
     {
         parent::setUp();
 
-        $this->container = m::mock(Container::class);
-        $this->container->shouldReceive('bound')->with(BindingRegistrar::class)->andReturnFalse()->byDefault();
+        $this->container = new Container;
 
         $this->broadcaster = new FakeBroadcaster($this->container);
     }
@@ -68,12 +72,11 @@ class BroadcasterTest extends TestCase
         $this->assertSame([], $parameters);
 
         // Test Explicit Binding...
-        $binder = m::mock(BindingRegistrar::class);
-        $binder->expects('getBindingCallback')->times(2)->with('model')->andReturn(function (): string {
+        $binder = Double::for(BindingRegistrar::class);
+        $binder->expects('getBindingCallback')->times(2)->with('model')->returns(function (): string {
             return 'bound';
         });
-        $this->container->shouldReceive('bound')->with(BindingRegistrar::class)->andReturnTrue();
-        $this->container->shouldReceive('make')->with(BindingRegistrar::class)->andReturn($binder);
+        $this->container->instance(BindingRegistrar::class, $binder);
         $callback = function (mixed $user, mixed $model): void {
         };
         $parameters = $this->broadcaster->extractAuthParameters('something.{model}', 'something.1', $callback);
@@ -93,12 +96,12 @@ class BroadcasterTest extends TestCase
     public function testCallableChannelHandlersReceiveTheUserAndBoundModel(callable $handler): void
     {
         $user = new DummyUser;
-        $request = m::mock(Request::class);
-        $request->expects('user')->withNoArgs()->andReturn($user);
+        $request = Double::for(Request::class, override: true);
+        $request->expects('user')->with(Argument::none())->returns($user);
 
         $this->broadcaster->channel('orders.{order}', $handler);
 
-        $result = $this->broadcaster->verifyAccess($request, 'orders.5');
+        $result = $this->broadcaster->verifyAccess($request->instance(), 'orders.5');
 
         $this->assertSame($user, $result['user']);
         $this->assertInstanceOf(BroadcasterTestEloquentModelStub::class, $result['order']);
@@ -119,13 +122,11 @@ class BroadcasterTest extends TestCase
 
     public function testModelRouteBinding(): void
     {
-        $binder = m::mock(BindingRegistrar::class);
+        $binder = Double::for(BindingRegistrar::class);
         $routeModelCallback = RouteBinding::forModel($this->container, BroadcasterTestEloquentModelStub::class);
 
-        $binder->expects('getBindingCallback')->times(2)->with('model')->andReturn($routeModelCallback);
-        $this->container->shouldReceive('bound')->with(BindingRegistrar::class)->andReturnTrue();
-        $this->container->shouldReceive('make')->with(BindingRegistrar::class)->andReturn($binder);
-        $this->container->shouldReceive('make')->with(BroadcasterTestEloquentModelStub::class)->andReturn(new BroadcasterTestEloquentModelStub);
+        $binder->expects('getBindingCallback')->times(2)->with('model')->returns($routeModelCallback);
+        $this->container->instance(BindingRegistrar::class, $binder);
         $callback = function (mixed $user, mixed $model): void {
         };
         $parameters = $this->broadcaster->extractAuthParameters('something.{model}', 'something.1', $callback);
@@ -219,15 +220,27 @@ class BroadcasterTest extends TestCase
         );
     }
 
+    /**
+     * Create a request and record the guards used to resolve its user.
+     */
+    protected function requestResolvingUsers(array $users, array &$guards = []): Request
+    {
+        $request = new Request;
+        $request->setUserResolver(function (?string $guard = null) use ($users, &$guards): ?DummyUser {
+            $guards[] = $guard;
+
+            return $users[$guard ?? ''] ?? null;
+        });
+
+        return $request;
+    }
+
     public function testRetrieveUserWithoutGuard(): void
     {
         $this->broadcaster->channel('somechannel', function (): void {
         });
 
-        $request = m::mock(Request::class);
-        $request->expects('user')
-            ->withNoArgs()
-            ->andReturn(new DummyUser);
+        $request = $this->requestResolvingUsers(['' => new DummyUser]);
 
         $this->assertInstanceOf(
             DummyUser::class,
@@ -240,10 +253,7 @@ class BroadcasterTest extends TestCase
         $this->broadcaster->channel('somechannel', function (): void {
         }, ['guards' => 'myguard']);
 
-        $request = m::mock(Request::class);
-        $request->expects('user')
-            ->with('myguard')
-            ->andReturn(new DummyUser);
+        $request = $this->requestResolvingUsers(['myguard' => new DummyUser]);
 
         $this->assertInstanceOf(
             DummyUser::class,
@@ -258,15 +268,8 @@ class BroadcasterTest extends TestCase
         $this->broadcaster->channel('someotherchannel', function (): void {
         }, ['guards' => ['myguard2', 'myguard1']]);
 
-        $request = m::mock(Request::class);
-        $request->expects('user')
-            ->with('myguard1')
-            ->andReturn(null);
-        $request->expects('user')
-            ->times(2)
-            ->with('myguard2')
-            ->andReturn(new DummyUser)
-            ->ordered('user');
+        $guards = [];
+        $request = $this->requestResolvingUsers(['myguard1' => null, 'myguard2' => new DummyUser], $guards);
 
         $this->assertInstanceOf(
             DummyUser::class,
@@ -277,6 +280,8 @@ class BroadcasterTest extends TestCase
             DummyUser::class,
             $this->broadcaster->retrieveUser($request, 'someotherchannel')
         );
+
+        $this->assertSame(['myguard1', 'myguard2', 'myguard2'], $guards);
     }
 
     public function testRetrieveUserDontUseDefaultGuardWhenOneGuardSpecified(): void
@@ -284,14 +289,12 @@ class BroadcasterTest extends TestCase
         $this->broadcaster->channel('somechannel', function (): void {
         }, ['guards' => 'myguard']);
 
-        $request = m::mock(Request::class);
-        $request->expects('user')
-            ->with('myguard')
-            ->andReturn(null);
-        $request->shouldNotReceive('user')
-            ->withNoArgs();
+        $guards = [];
+        $request = $this->requestResolvingUsers(['myguard' => null], $guards);
 
         $this->broadcaster->retrieveUser($request, 'somechannel');
+
+        $this->assertSame(['myguard'], $guards);
     }
 
     public function testRetrieveUserDontUseDefaultGuardWhenMultipleGuardsSpecified(): void
@@ -299,17 +302,12 @@ class BroadcasterTest extends TestCase
         $this->broadcaster->channel('somechannel', function (): void {
         }, ['guards' => ['myguard1', 'myguard2']]);
 
-        $request = m::mock(Request::class);
-        $request->expects('user')
-            ->with('myguard1')
-            ->andReturn(null);
-        $request->expects('user')
-            ->with('myguard2')
-            ->andReturn(null);
-        $request->shouldNotReceive('user')
-            ->withNoArgs();
+        $guards = [];
+        $request = $this->requestResolvingUsers(['myguard1' => null, 'myguard2' => null], $guards);
 
         $this->broadcaster->retrieveUser($request, 'somechannel');
+
+        $this->assertSame(['myguard1', 'myguard2'], $guards);
     }
 
     public function testUserAuthenticationWithValidUser(): void
@@ -350,9 +348,9 @@ class BroadcasterTest extends TestCase
 
     public function testChannelAuthorizerRewritesTheNameBeforeGuardLookupBindingAndInvocation(): void
     {
-        $request = m::mock(Request::class);
+        $request = Double::for(Request::class, override: true);
         $user = new DummyUser;
-        $request->expects('user')->times(2)->with('members')->andReturn($user);
+        $request->expects('user')->times(2)->with('members')->returns($user);
 
         $calls = 0;
         $receivedUser = null;
@@ -379,7 +377,7 @@ class BroadcasterTest extends TestCase
 
         $this->assertTrue(
             $this->broadcaster->verifyAccess(
-                $request,
+                $request->instance(),
                 'application.tenant.orders.5',
                 guarded: true,
             ),
@@ -403,7 +401,7 @@ class BroadcasterTest extends TestCase
         });
 
         try {
-            $this->broadcaster->verifyAccess(m::mock(Request::class), 'orders');
+            $this->broadcaster->verifyAccess(new Request, 'orders');
             $this->fail('Channel authorization should have been denied.');
         } catch (AccessDeniedHttpException) {
             $this->assertFalse($callbackRan);
@@ -412,9 +410,9 @@ class BroadcasterTest extends TestCase
 
     public function testChannelAuthorizerLeavesUnchangedNamesOnTheNativePath(): void
     {
-        $request = m::mock(Request::class);
+        $request = Double::for(Request::class, override: true);
         $user = new DummyUser;
-        $request->expects('user')->withNoArgs()->andReturn($user);
+        $request->expects('user')->with(Argument::none())->returns($user);
 
         Broadcaster::authorizeChannelsUsing(
             static fn (Request $request, string $channel): string => $channel,
@@ -426,13 +424,13 @@ class BroadcasterTest extends TestCase
                 && $order === '5',
         );
 
-        $this->assertTrue($this->broadcaster->verifyAccess($request, 'orders.5'));
+        $this->assertTrue($this->broadcaster->verifyAccess($request->instance(), 'orders.5'));
     }
 
     public function testChannelAuthorizerIsSingleOwner(): void
     {
-        $request = m::mock(Request::class);
-        $request->expects('user')->withNoArgs()->andReturn(new DummyUser);
+        $request = Double::for(Request::class, override: true);
+        $request->expects('user')->with(Argument::none())->returns(new DummyUser);
 
         Broadcaster::authorizeChannelsUsing(static fn (Request $request, string $channel): ?string => null);
         Broadcaster::authorizeChannelsUsing(
@@ -441,33 +439,33 @@ class BroadcasterTest extends TestCase
 
         $this->broadcaster->channel('orders', static fn (): bool => true);
 
-        $this->assertTrue($this->broadcaster->verifyAccess($request, 'orders'));
+        $this->assertTrue($this->broadcaster->verifyAccess($request->instance(), 'orders'));
     }
 
     public function testPassingNullRemovesChannelAuthorizer(): void
     {
-        $request = m::mock(Request::class);
-        $request->expects('user')->withNoArgs()->andReturn(new DummyUser);
+        $request = Double::for(Request::class, override: true);
+        $request->expects('user')->with(Argument::none())->returns(new DummyUser);
 
         Broadcaster::authorizeChannelsUsing(static fn (Request $request, string $channel): ?string => null);
         Broadcaster::authorizeChannelsUsing(null);
 
         $this->broadcaster->channel('orders', static fn (): bool => true);
 
-        $this->assertTrue($this->broadcaster->verifyAccess($request, 'orders'));
+        $this->assertTrue($this->broadcaster->verifyAccess($request->instance(), 'orders'));
     }
 
     public function testBaseChannelResponsePathPreservesPublicOverrides(): void
     {
-        $request = m::mock(Request::class);
-        $request->expects('user')->withNoArgs()->andReturn(new DummyUser);
+        $request = Double::for(Request::class, override: true);
+        $request->expects('user')->with(Argument::none())->returns(new DummyUser);
 
         $broadcaster = new PublicResponseOnlyBroadcaster($this->container);
         $broadcaster->channel('orders', static fn (): array => ['allowed' => true]);
 
         $this->assertSame(
             ['result' => ['allowed' => true]],
-            $broadcaster->verifyAccess($request, 'orders'),
+            $broadcaster->verifyAccess($request->instance(), 'orders'),
         );
     }
 
@@ -530,16 +528,16 @@ class BroadcasterTest extends TestCase
         $this->assertSame([], $this->broadcaster->retrieveChannelOptions('orders'));
         $this->assertSame(['orders'], $this->broadcaster->formatOutgoingChannels(['orders']));
 
-        $request = m::mock(Request::class);
-        $request->expects('user')->withNoArgs()->andReturn(new DummyUser);
+        $request = Double::for(Request::class, override: true);
+        $request->expects('user')->with(Argument::none())->returns(new DummyUser);
         $this->broadcaster->channel('orders', static fn (): bool => true);
-        $this->assertTrue($this->broadcaster->verifyAccess($request, 'orders'));
+        $this->assertTrue($this->broadcaster->verifyAccess($request->instance(), 'orders'));
     }
 
     public function testChannelFormatterIsSharedAcrossBroadcasterInstances(): void
     {
-        $broadcasterA = new FakeBroadcaster(m::mock(Container::class));
-        $broadcasterB = new FakeBroadcaster(m::mock(Container::class));
+        $broadcasterA = new FakeBroadcaster(new Container);
+        $broadcasterB = new FakeBroadcaster(new Container);
 
         $broadcasterA::formatChannelsUsing(
             static fn (array $channels): array => ['formatted.' . $channels[0]],
@@ -582,13 +580,13 @@ class BroadcasterTest extends TestCase
     public function testChannelsAreSharedAcrossBroadcasterInstances(): void
     {
         // Simulate boot time: register channel on first broadcaster instance
-        $broadcasterA = new FakeBroadcaster(m::mock(Container::class));
+        $broadcasterA = new FakeBroadcaster(new Container);
         $broadcasterA->channel('App.Models.User.{id}', function (mixed $user, string $id): bool {
             return (int) $user->id === (int) $id;
         });
 
         // Simulate auth request time: create a second broadcaster instance
-        $broadcasterB = new FakeBroadcaster(m::mock(Container::class));
+        $broadcasterB = new FakeBroadcaster(new Container);
 
         // The second instance should see the channel registered on the first
         $channels = $broadcasterB->getChannels();
@@ -604,7 +602,7 @@ class FakeBroadcaster extends Broadcaster
      * Create a new broadcaster instance.
      */
     public function __construct(
-        protected Container $container
+        protected ContainerContract $container
     ) {
     }
 

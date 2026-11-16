@@ -34,12 +34,15 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Database\Fixtures\Models\Money\Price;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 
 class DatabaseEloquentFactoryTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Set up the test environment.
      */
@@ -51,9 +54,9 @@ class DatabaseEloquentFactoryTest extends TestCase
         $container->singleton(Generator::class, function (Container $app, array $parameters): Generator {
             return FakerFactory::create('en_US');
         });
-        $app = m::mock(Application::class);
-        $app->shouldReceive('getNamespace')->andReturn('App\\');
-        $container->instance(Application::class, $app);
+        $app = Double::for(Application::class, override: true);
+        $app->allows('getNamespace')->returns('App\\');
+        $container->instance(Application::class, $app->instance());
 
         $db = new DB;
 
@@ -843,9 +846,9 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testResolveNestedModelNameFromFactory(): void
     {
-        $app = m::mock(Application::class);
-        $app->shouldReceive('getNamespace')->andReturn('Hypervel\Tests\Database\Fixtures\\');
-        Container::getInstance()->instance(Application::class, $app);
+        $app = Double::for(Application::class, override: true);
+        $app->expects('getNamespace')->returns('Hypervel\Tests\Database\Fixtures\\');
+        Container::getInstance()->instance(Application::class, $app->instance());
 
         Factory::useNamespace('Hypervel\Tests\Database\Fixtures\Factories\\');
 
@@ -856,9 +859,9 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testResolveNonAppNestedModelFactories(): void
     {
-        $app = m::mock(Application::class);
-        $app->shouldReceive('getNamespace')->andReturn('Foo\\');
-        Container::getInstance()->instance(Application::class, $app);
+        $app = Double::for(Application::class, override: true);
+        $app->allows('getNamespace')->returns('Foo\\');
+        Container::getInstance()->instance(Application::class, $app->instance());
 
         Factory::useNamespace('Factories\\');
 

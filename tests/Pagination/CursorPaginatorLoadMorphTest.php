@@ -9,10 +9,13 @@ use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Pagination\AbstractCursorPaginator;
 use Hypervel\Support\HtmlString;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class CursorPaginatorLoadMorphTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCollectionLoadMorphCanChainOnThePaginator(): void
     {
         $relations = [
@@ -20,7 +23,7 @@ class CursorPaginatorLoadMorphTest extends TestCase
             'App\Company' => ['employees', 'calendars'],
         ];
 
-        $items = m::mock(Collection::class);
+        $items = Double::for(Collection::class);
         $items->expects('loadMorph')->with('parentable', $relations);
 
         $p = (new class extends AbstractCursorPaginator {

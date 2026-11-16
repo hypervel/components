@@ -4,86 +4,88 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\DatabaseEloquentHasManyCreateOrFirstTest;
 
+use ArrayObject;
 use Closure;
-use Exception;
-use Hypervel\Database\Connection;
-use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\HasMany;
-use Hypervel\Database\Query\Builder;
-use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 {
+    /**
+     * Set up independent writer and replica databases.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
         CarbonImmutable::setTestNow('2023-01-01 00:00:00');
+
+        $db = new DB;
+
+        $db->addConnection(['driver' => 'sqlite', 'database' => ':memory:']);
+
+        // Reads come from a replica that has not caught up with the writer yet...
+        $db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'read' => ['database' => ':memory:'],
+            'write' => ['database' => ':memory:'],
+        ], 'replicated');
+
+        $db->setEventDispatcher(new Dispatcher);
+        $db->bootEloquent();
+        $db->setAsGlobal();
+
+        $schema = 'create table "child_table" (
+            "id" integer primary key autoincrement not null,
+            "parent_id" integer not null,
+            "attr" varchar not null,
+            "val" varchar null,
+            "created_at" datetime null,
+            "updated_at" datetime null,
+            unique ("parent_id", "attr")
+        )';
+
+        $db->getConnection()->getPdo()->exec($schema);
+        $db->getConnection('replicated')->getPdo()->exec($schema);
+        $db->getConnection('replicated')->getReadPdo()->exec($schema);
     }
 
     #[DataProvider('createOrFirstValues')]
     public function testCreateOrFirstMethodCreatesNewRecord(Closure|array $values): void
     {
-        $model = new ParentModel;
-        $model->id = 123;
-        $this->mockConnectionForModel($model, 'SQLite', [456]);
-        $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
+        $result = $this->children()->createOrFirst(['attr' => 'foo'], $values);
 
-        $model->getConnection()->expects('insert')->with(
-            'insert into "child_table" ("attr", "val", "parent_id", "updated_at", "created_at") values (?, ?, ?, ?, ?)',
-            ['foo', 'bar', 123, '2023-01-01 00:00:00', '2023-01-01 00:00:00'],
-        )->andReturnTrue();
-
-        $result = $model->children()->createOrFirst(['attr' => 'foo'], $values);
         $this->assertTrue($result->wasRecentlyCreated);
         $this->assertEquals([
-            'id' => 456,
+            'id' => 1,
             'parent_id' => 123,
             'attr' => 'foo',
             'val' => 'bar',
             'created_at' => '2023-01-01T00:00:00.000000Z',
             'updated_at' => '2023-01-01T00:00:00.000000Z',
         ], $result->toArray());
+        $this->assertSame(1, $this->rows());
     }
 
     public function testCreateOrFirstMethodRetrievesExistingRecord(): void
     {
-        $model = new ParentModel;
-        $model->id = 123;
-        $this->mockConnectionForModel($model, 'SQLite');
-        $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
+        $this->seedRecord(['parent_id' => 123, 'attr' => 'foo', 'val' => 'bar']);
 
-        $sql = 'insert into "child_table" ("attr", "val", "parent_id", "updated_at", "created_at") values (?, ?, ?, ?, ?)';
-        $bindings = ['foo', 'bar', 123, '2023-01-01 00:00:00', '2023-01-01 00:00:00'];
+        $result = $this->children()->createOrFirst(['attr' => 'foo'], ['val' => 'baz']);
 
-        $model->getConnection()
-            ->expects('insert')
-            ->with($sql, $bindings)
-            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception));
-
-        $model->getConnection()
-            ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], false, [])
-            ->andReturn([[
-                'id' => 456,
-                'parent_id' => 123,
-                'attr' => 'foo',
-                'val' => 'bar',
-                'created_at' => '2023-01-01 00:00:00',
-                'updated_at' => '2023-01-01 00:00:00',
-            ]]);
-
-        $result = $model->children()->createOrFirst(['attr' => 'foo'], ['val' => 'bar']);
         $this->assertFalse($result->wasRecentlyCreated);
+        $this->assertSame(1, $result->id);
+        $this->assertSame('bar', $result->val);
+        $this->assertSame(1, $this->rows());
         $this->assertEquals([
-            'id' => 456,
+            'id' => 1,
             'parent_id' => 123,
             'attr' => 'foo',
             'val' => 'bar',
@@ -94,51 +96,27 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodCreatesNewRecord(): void
     {
-        $model = new ParentModel;
-        $model->id = 123;
-        $this->mockConnectionForModel($model, 'SQLite', [456]);
-        $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
+        $result = $this->children()->firstOrCreate(['attr' => 'foo'], ['val' => 'bar']);
 
-        $model->getConnection()
-            ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true, [])
-            ->andReturn([]);
-
-        $model->getConnection()->expects('insert')->with(
-            'insert into "child_table" ("attr", "val", "parent_id", "updated_at", "created_at") values (?, ?, ?, ?, ?)',
-            ['foo', 'bar', 123, '2023-01-01 00:00:00', '2023-01-01 00:00:00'],
-        )->andReturnTrue();
-
-        $result = $model->children()->firstOrCreate(['attr' => 'foo'], ['val' => 'bar']);
         $this->assertTrue($result->wasRecentlyCreated);
         $this->assertEquals([
-            'id' => 456,
+            'id' => 1,
             'parent_id' => 123,
             'attr' => 'foo',
             'val' => 'bar',
             'created_at' => '2023-01-01T00:00:00.000000Z',
             'updated_at' => '2023-01-01T00:00:00.000000Z',
         ], $result->toArray());
+        $this->assertSame(1, $this->rows());
     }
 
     public function testCreateOrFirstMethodCreatesNewRecordWithoutValues(): void
     {
-        $model = new ParentModel;
-        $model->id = 123;
-        $this->mockConnectionForModel($model, 'SQLite', [456]);
-        $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
+        $result = $this->children()->createOrFirst(['attr' => 'foo']);
 
-        $model->getConnection()->expects('insert')->with(
-            'insert into "child_table" ("attr", "parent_id", "updated_at", "created_at") values (?, ?, ?, ?)',
-            ['foo', 123, '2023-01-01 00:00:00', '2023-01-01 00:00:00'],
-        )->andReturnTrue();
-
-        $result = $model->children()->createOrFirst(['attr' => 'foo']);
         $this->assertTrue($result->wasRecentlyCreated);
         $this->assertEquals([
-            'id' => 456,
+            'id' => 1,
             'parent_id' => 123,
             'attr' => 'foo',
             'created_at' => '2023-01-01T00:00:00.000000Z',
@@ -148,26 +126,11 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodCreatesNewRecordWithoutValues(): void
     {
-        $model = new ParentModel;
-        $model->id = 123;
-        $this->mockConnectionForModel($model, 'SQLite', [456]);
-        $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
+        $result = $this->children()->firstOrCreate(['attr' => 'foo']);
 
-        $model->getConnection()
-            ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true, [])
-            ->andReturn([]);
-
-        $model->getConnection()->expects('insert')->with(
-            'insert into "child_table" ("attr", "parent_id", "updated_at", "created_at") values (?, ?, ?, ?)',
-            ['foo', 123, '2023-01-01 00:00:00', '2023-01-01 00:00:00'],
-        )->andReturnTrue();
-
-        $result = $model->children()->firstOrCreate(['attr' => 'foo']);
         $this->assertTrue($result->wasRecentlyCreated);
         $this->assertEquals([
-            'id' => 456,
+            'id' => 1,
             'parent_id' => 123,
             'attr' => 'foo',
             'created_at' => '2023-01-01T00:00:00.000000Z',
@@ -177,28 +140,16 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodRetrievesExistingRecord(): void
     {
-        $model = new ParentModel;
-        $model->id = 123;
-        $this->mockConnectionForModel($model, 'SQLite');
-        $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
+        $this->seedRecord(['parent_id' => 123, 'attr' => 'foo', 'val' => 'bar']);
 
-        $model->getConnection()
-            ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true, [])
-            ->andReturn([[
-                'id' => 456,
-                'parent_id' => 123,
-                'attr' => 'foo',
-                'val' => 'bar',
-                'created_at' => '2023-01-01T00:00:00.000000Z',
-                'updated_at' => '2023-01-01T00:00:00.000000Z',
-            ]]);
+        $result = $this->children()->firstOrCreate(['attr' => 'foo'], ['val' => 'baz']);
 
-        $result = $model->children()->firstOrCreate(['attr' => 'foo'], ['val' => 'bar']);
         $this->assertFalse($result->wasRecentlyCreated);
+        $this->assertSame(1, $result->id);
+        $this->assertSame('bar', $result->val);
+        $this->assertSame(1, $this->rows());
         $this->assertEquals([
-            'id' => 456,
+            'id' => 1,
             'parent_id' => 123,
             'attr' => 'foo',
             'val' => 'bar',
@@ -209,108 +160,102 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodRetrievesRecordCreatedJustNow(): void
     {
-        $model = new ParentModel;
-        $model->id = 123;
-        $this->mockConnectionForModel($model, 'SQLite');
-        $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
+        // The replica has not seen the record yet, so the insert collides and the writer is asked again...
+        $this->seedRecord(['parent_id' => 123, 'attr' => 'foo', 'val' => 'bar'], 'replicated');
 
-        $model->getConnection()
-            ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true, [])
-            ->andReturn([]);
+        $result = $this->children('replicated')->firstOrCreate(['attr' => 'foo'], ['val' => 'baz']);
 
-        $sql = 'insert into "child_table" ("attr", "val", "parent_id", "updated_at", "created_at") values (?, ?, ?, ?, ?)';
-        $bindings = ['foo', 'bar', 123, '2023-01-01 00:00:00', '2023-01-01 00:00:00'];
-
-        $model->getConnection()
-            ->expects('insert')
-            ->with($sql, $bindings)
-            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception));
-
-        $model->getConnection()
-            ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], false, [])
-            ->andReturn([[
-                'id' => 456,
-                'parent_id' => 123,
-                'attr' => 'foo',
-                'val' => 'bar',
-                'created_at' => '2023-01-01 00:00:00',
-                'updated_at' => '2023-01-01 00:00:00',
-            ]]);
-
-        $result = $model->children()->firstOrCreate(['attr' => 'foo'], ['val' => 'bar']);
         $this->assertFalse($result->wasRecentlyCreated);
+        $this->assertSame(1, $result->id);
+        $this->assertSame('bar', $result->val);
+        $this->assertSame(1, $this->rows('replicated'));
         $this->assertEquals([
-            'id' => 456,
+            'id' => 1,
             'parent_id' => 123,
             'attr' => 'foo',
             'val' => 'bar',
             'created_at' => '2023-01-01T00:00:00.000000Z',
             'updated_at' => '2023-01-01T00:00:00.000000Z',
         ], $result->toArray());
+    }
+
+    public function testFirstOrCreateRetriesWithinTheParentWhenAnotherParentHasTheSameRecord(): void
+    {
+        $this->seedRecord(['parent_id' => 999, 'attr' => 'foo', 'val' => 'other'], 'replicated');
+        $this->seedRecord(['parent_id' => 123, 'attr' => 'foo', 'val' => 'bar'], 'replicated');
+
+        $result = $this->children('replicated')->firstOrCreate(['attr' => 'foo'], ['val' => 'baz']);
+
+        $this->assertFalse($result->wasRecentlyCreated);
+        $this->assertSame(123, $result->parent_id);
+        $this->assertSame('bar', $result->val);
+    }
+
+    public function testFirstOrCreateDoesNotTouchTheWriterWhenTheReplicaHasTheRecord(): void
+    {
+        $this->seedReplica(['parent_id' => 123, 'attr' => 'foo', 'val' => 'bar']);
+        $sides = new ArrayObject;
+        DB::connection('replicated')->listen(fn (QueryExecuted $query) => $sides[] = $query->readWriteType);
+
+        $result = $this->children('replicated')->firstOrCreate(['attr' => 'foo'], ['val' => 'baz']);
+
+        $this->assertFalse($result->wasRecentlyCreated);
+        $this->assertSame('bar', $result->val);
+        $this->assertNotContains('write', $sides->getArrayCopy());
+    }
+
+    public function testFirstOrCreateIgnoresRecordsOwnedByOtherParents(): void
+    {
+        $this->seedRecord(['parent_id' => 999, 'attr' => 'foo', 'val' => 'other']);
+
+        $result = $this->children()->firstOrCreate(['attr' => 'foo'], ['val' => 'bar']);
+
+        $this->assertTrue($result->wasRecentlyCreated);
+        $this->assertSame(123, $result->parent_id);
+        $this->assertSame('bar', $result->val);
+        $this->assertSame(2, $this->rows());
+    }
+
+    public function testCreateOrFirstIgnoresRecordsOwnedByOtherParents(): void
+    {
+        $this->seedRecord(['parent_id' => 999, 'attr' => 'foo', 'val' => 'other']);
+
+        $result = $this->children()->createOrFirst(['attr' => 'foo'], ['val' => 'bar']);
+
+        $this->assertTrue($result->wasRecentlyCreated);
+        $this->assertSame(123, $result->parent_id);
+        $this->assertSame(2, $this->rows());
     }
 
     public function testUpdateOrCreateMethodCreatesNewRecord(): void
     {
-        $model = new ParentModel;
-        $model->id = 123;
-        $this->mockConnectionForModel($model, 'SQLite', [456]);
-        $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
+        $result = $this->children()->updateOrCreate(['attr' => 'foo'], ['val' => 'bar']);
 
-        $model->getConnection()
-            ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true, [])
-            ->andReturn([]);
-
-        $model->getConnection()->expects('insert')->with(
-            'insert into "child_table" ("attr", "val", "parent_id", "updated_at", "created_at") values (?, ?, ?, ?, ?)',
-            ['foo', 'bar', 123, '2023-01-01 00:00:00', '2023-01-01 00:00:00'],
-        )->andReturnTrue();
-
-        $result = $model->children()->updateOrCreate(['attr' => 'foo'], ['val' => 'bar']);
         $this->assertTrue($result->wasRecentlyCreated);
         $this->assertEquals([
-            'id' => 456,
+            'id' => 1,
             'parent_id' => 123,
             'attr' => 'foo',
             'val' => 'bar',
             'created_at' => '2023-01-01T00:00:00.000000Z',
             'updated_at' => '2023-01-01T00:00:00.000000Z',
         ], $result->toArray());
+        $this->assertSame(1, $this->rows());
     }
 
     public function testUpdateOrCreateMethodUpdatesExistingRecord(): void
     {
-        $model = new ParentModel;
-        $model->id = 123;
-        $this->mockConnectionForModel($model, 'SQLite');
-        $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
+        $this->seedRecord(['parent_id' => 123, 'attr' => 'foo', 'val' => 'bar']);
 
-        $model->getConnection()
-            ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true, [])
-            ->andReturn([[
-                'id' => 456,
-                'parent_id' => 123,
-                'attr' => 'foo',
-                'val' => 'bar',
-                'created_at' => '2023-01-01T00:00:00.000000Z',
-                'updated_at' => '2023-01-01T00:00:00.000000Z',
-            ]]);
+        $result = $this->children()->updateOrCreate(['attr' => 'foo'], ['val' => 'baz']);
 
-        $model->getConnection()->expects('update')->with(
-            'update "child_table" set "val" = ?, "updated_at" = ? where "id" = ?',
-            ['baz', '2023-01-01 00:00:00', 456],
-        )->andReturn(1);
-
-        $result = $model->children()->updateOrCreate(['attr' => 'foo'], ['val' => 'baz']);
         $this->assertFalse($result->wasRecentlyCreated);
+        $this->assertSame(1, $result->id);
+        $this->assertSame('baz', $result->val);
+        $this->assertSame('baz', $this->fresh()->val);
+        $this->assertSame(1, $this->rows());
         $this->assertEquals([
-            'id' => 456,
+            'id' => 1,
             'parent_id' => 123,
             'attr' => 'foo',
             'val' => 'baz',
@@ -321,46 +266,17 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodUpdatesRecordCreatedJustNow(): void
     {
-        $model = new ParentModel;
-        $model->id = 123;
-        $this->mockConnectionForModel($model, 'SQLite');
-        $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
+        $this->seedRecord(['parent_id' => 123, 'attr' => 'foo', 'val' => 'bar'], 'replicated');
 
-        $model->getConnection()
-            ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true, [])
-            ->andReturn([]);
+        $result = $this->children('replicated')->updateOrCreate(['attr' => 'foo'], ['val' => 'baz']);
 
-        $sql = 'insert into "child_table" ("attr", "val", "parent_id", "updated_at", "created_at") values (?, ?, ?, ?, ?)';
-        $bindings = ['foo', 'baz', 123, '2023-01-01 00:00:00', '2023-01-01 00:00:00'];
-
-        $model->getConnection()
-            ->expects('insert')
-            ->with($sql, $bindings)
-            ->andThrow(new UniqueConstraintViolationException('sqlite', $sql, $bindings, new Exception));
-
-        $model->getConnection()
-            ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], false, [])
-            ->andReturn([[
-                'id' => 456,
-                'parent_id' => 123,
-                'attr' => 'foo',
-                'val' => 'bar',
-                'created_at' => '2023-01-01 00:00:00',
-                'updated_at' => '2023-01-01 00:00:00',
-            ]]);
-
-        $model->getConnection()->expects('update')->with(
-            'update "child_table" set "val" = ?, "updated_at" = ? where "id" = ?',
-            ['baz', '2023-01-01 00:00:00', 456],
-        )->andReturn(1);
-
-        $result = $model->children()->updateOrCreate(['attr' => 'foo'], ['val' => 'baz']);
         $this->assertFalse($result->wasRecentlyCreated);
+        $this->assertSame(1, $result->id);
+        $this->assertSame('baz', $result->val);
+        $this->assertSame('baz', $this->fresh('replicated', onWriter: true)->val);
+        $this->assertSame(1, $this->rows('replicated'));
         $this->assertEquals([
-            'id' => 456,
+            'id' => 1,
             'parent_id' => 123,
             'attr' => 'foo',
             'val' => 'baz',
@@ -369,28 +285,25 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
         ], $result->toArray());
     }
 
+    public function testUpdateOrCreateDoesNotUpdateRecordsOwnedByOtherParents(): void
+    {
+        $this->seedRecord(['parent_id' => 999, 'attr' => 'foo', 'val' => 'other']);
+
+        $result = $this->children()->updateOrCreate(['attr' => 'foo'], ['val' => 'bar']);
+
+        $this->assertTrue($result->wasRecentlyCreated);
+        $this->assertSame('other', DB::table('child_table')->where('parent_id', 999)->value('val'));
+        $this->assertSame('bar', $this->fresh()->val);
+    }
+
     #[DataProvider('createOrFirstValues')]
     public function testUpdateOrCreateMethodAcceptsClosureValuesAndCreates(Closure|array $values): void
     {
-        $model = new ParentModel;
-        $model->id = 123;
-        $this->mockConnectionForModel($model, 'SQLite', [456]);
-        $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
+        $result = $this->children()->updateOrCreate(['attr' => 'foo'], $values);
 
-        $model->getConnection()
-            ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true, [])
-            ->andReturn([]);
-
-        $model->getConnection()->expects('insert')->with(
-            'insert into "child_table" ("attr", "val", "parent_id", "updated_at", "created_at") values (?, ?, ?, ?, ?)',
-            ['foo', 'bar', 123, '2023-01-01 00:00:00', '2023-01-01 00:00:00'],
-        )->andReturnTrue();
-
-        $result = $model->children()->updateOrCreate(['attr' => 'foo'], $values);
         $this->assertTrue($result->wasRecentlyCreated);
         $this->assertSame('bar', $result->val);
+        $this->assertSame('bar', $this->fresh()->val);
     }
 
     public static function createOrFirstValues(): array
@@ -403,56 +316,21 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodAcceptsClosureValuesAndUpdates(): void
     {
-        $model = new ParentModel;
-        $model->id = 123;
-        $this->mockConnectionForModel($model, 'SQLite');
-        $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
+        $this->seedRecord(['parent_id' => 123, 'attr' => 'foo', 'val' => 'bar']);
 
-        $model->getConnection()
-            ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true, [])
-            ->andReturn([[
-                'id' => 456,
-                'parent_id' => 123,
-                'attr' => 'foo',
-                'val' => 'bar',
-                'created_at' => '2023-01-01T00:00:00.000000Z',
-                'updated_at' => '2023-01-01T00:00:00.000000Z',
-            ]]);
+        $result = $this->children()->updateOrCreate(['attr' => 'foo'], fn () => ['val' => 'baz']);
 
-        $model->getConnection()->expects('update')->with(
-            'update "child_table" set "val" = ?, "updated_at" = ? where "id" = ?',
-            ['baz', '2023-01-01 00:00:00', 456],
-        )->andReturn(1);
-
-        $result = $model->children()->updateOrCreate(['attr' => 'foo'], fn () => ['val' => 'baz']);
         $this->assertFalse($result->wasRecentlyCreated);
         $this->assertSame('baz', $result->val);
+        $this->assertSame('baz', $this->fresh()->val);
     }
 
     public function testFirstOrNewDoesNotInvokeClosureWhenRecordExists(): void
     {
-        $model = new ParentModel;
-        $model->id = 123;
-        $this->mockConnectionForModel($model, 'SQLite');
-        $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
-
-        $model->getConnection()
-            ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true, [])
-            ->andReturn([[
-                'id' => 456,
-                'parent_id' => 123,
-                'attr' => 'foo',
-                'val' => 'bar',
-                'created_at' => '2023-01-01 00:00:00',
-                'updated_at' => '2023-01-01 00:00:00',
-            ]]);
+        $this->seedRecord(['parent_id' => 123, 'attr' => 'foo', 'val' => 'bar']);
 
         $callCount = 0;
-        $result = $model->children()->firstOrNew(['attr' => 'foo'], function () use (&$callCount) {
+        $result = $this->children()->firstOrNew(['attr' => 'foo'], function () use (&$callCount) {
             ++$callCount;
 
             return ['val' => 'should-not-be-called'];
@@ -463,27 +341,58 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
         $this->assertSame('bar', $result->val);
     }
 
-    protected function mockConnectionForModel(Model $model, string $database, array $lastInsertIds = []): void
+    /**
+     * Get the parent's children on the given connection.
+     */
+    protected function children(string $connection = 'default'): HasMany
     {
-        $grammarClass = 'Hypervel\Database\Query\Grammars\\' . $database . 'Grammar';
-        $processorClass = 'Hypervel\Database\Query\Processors\\' . $database . 'Processor';
-        $processor = new $processorClass;
-        $connection = m::mock(Connection::class, ['getPostProcessor' => $processor]);
-        $grammar = new $grammarClass($connection);
-        $connection->shouldReceive('getQueryGrammar')->andReturn($grammar);
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
-        $connection->shouldReceive('query')->andReturnUsing(function () use ($connection, $grammar, $processor) {
-            return new Builder($connection, $grammar, $processor);
-        });
-        $connection->shouldReceive('getDatabaseName')->andReturn('database');
-        $resolver = m::mock(ConnectionResolverInterface::class, ['connection' => $connection]);
+        $parent = (new ParentModel)->setConnection($connection);
+        $parent->id = 123;
 
-        $class = get_class($model);
-        $class::setConnectionResolver($resolver);
+        return $parent->children();
+    }
 
-        foreach ($lastInsertIds as $id) {
-            $connection->expects('getLastInsertId')->andReturn($id);
-        }
+    /**
+     * Insert a child on the writer.
+     */
+    protected function seedRecord(array $attributes, string $connection = 'default'): void
+    {
+        DB::connection($connection)->table('child_table')->insert($attributes + [
+            'created_at' => '2023-01-01 00:00:00',
+            'updated_at' => '2023-01-01 00:00:00',
+        ]);
+    }
+
+    /**
+     * Insert a child on the replica.
+     */
+    protected function seedReplica(array $attributes): void
+    {
+        $attributes += ['created_at' => '2023-01-01 00:00:00', 'updated_at' => '2023-01-01 00:00:00'];
+
+        DB::connection('replicated')->getReadPdo()->exec(sprintf(
+            'insert into "child_table" (%s) values (%s)',
+            implode(', ', array_map(fn ($column) => "\"{$column}\"", array_keys($attributes))),
+            implode(', ', array_map(fn ($value) => "'{$value}'", $attributes))
+        ));
+    }
+
+    /**
+     * Retrieve the stored child.
+     */
+    protected function fresh(string $connection = 'default', bool $onWriter = false): ChildModel
+    {
+        $query = $this->children($connection);
+
+        return ($onWriter ? $query->useWritePdo() : $query)->where('attr', 'foo')->firstOrFail();
+    }
+
+    /**
+     * Count the children on the writer.
+     */
+    protected function rows(string $connection = 'default'): int
+    {
+        return DB::connection($connection)->table('child_table')->useWritePdo()->count();
     }
 }
 
@@ -496,6 +405,9 @@ class ParentModel extends Model
 
     protected array $guarded = [];
 
+    /**
+     * Get the parent's children.
+     */
     public function children(): HasMany
     {
         return $this->hasMany(ChildModel::class, 'parent_id');

@@ -30,7 +30,9 @@ use Hypervel\Tests\Console\Fixtures\Commands\FooProhibitableCommand;
 use Hypervel\Tests\Console\Fixtures\Commands\FooTraitCommand;
 use Hypervel\Tests\Console\Fixtures\Commands\SwooleFlagsCommand;
 use Hypervel\Tests\Console\Fixtures\Commands\Traits\Foo;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use stdClass;
 use Symfony\Component\Console\Application as ConsoleApplication;
@@ -49,6 +51,7 @@ enum CommandInputType: string
 class CommandTest extends TestCase
 {
     use CreatesAnsweredOutputStyles;
+    use VerifiesDoubles;
 
     public function testHookFlags(): void
     {
@@ -61,17 +64,17 @@ class CommandTest extends TestCase
 
     public function testExceptionPropagatesFromExecute(): void
     {
-        $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
-        $application = m::mock(ConsoleApplication::class);
-        $application->shouldReceive('getHelperSet');
+        $output = Double::for(OutputStyle::class);
+        $application = Double::for(ConsoleApplication::class);
+        $application->allows('getHelperSet');
 
         $instance = new FooExceptionCommand('foo');
         $instance->setHypervel($this->app);
         $command = new ClassInvoker($instance);
         $command->setApplication($application);
         $command->setOutput($output);
-        $input = m::mock(InputInterface::class);
-        $input->shouldReceive('getOption')->andReturn(true);
+        $input = Double::for(InputInterface::class);
+        $input->allows('getOption')->returns(true);
 
         $this->expectException(RuntimeException::class);
         $command->execute($input, $output);
@@ -79,11 +82,11 @@ class CommandTest extends TestCase
 
     public function testExitCodeFromExitExceptionAndNormalCommand(): void
     {
-        $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
-        $application = m::mock(ConsoleApplication::class);
-        $application->shouldReceive('getHelperSet');
-        $input = m::mock(InputInterface::class);
-        $input->shouldReceive('getOption')->andReturn(true);
+        $output = Double::for(OutputStyle::class);
+        $application = Double::for(ConsoleApplication::class);
+        $application->allows('getHelperSet');
+        $input = Double::for(InputInterface::class);
+        $input->allows('getOption')->returns(true);
 
         /** @var FooExitCommand $command */
         $instance = new FooExitCommand;
@@ -106,11 +109,11 @@ class CommandTest extends TestCase
 
     public function testSetUpTraits(): void
     {
-        $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
-        $application = m::mock(ConsoleApplication::class);
-        $application->shouldReceive('getHelperSet');
-        $input = m::mock(InputInterface::class);
-        $input->shouldReceive('getOption')->andReturnFalse();
+        $output = Double::for(OutputStyle::class);
+        $application = Double::for(ConsoleApplication::class);
+        $application->allows('getHelperSet');
+        $input = Double::for(InputInterface::class);
+        $input->allows('getOption')->returns(false);
 
         $command = new FooTraitCommand;
         $command->setApplication($application);
@@ -122,9 +125,9 @@ class CommandTest extends TestCase
     public function testSignalHandlersAreRemovedWhenTraitSetupFails(): void
     {
         $command = new CommandTestFailingTraitSetupCommand;
-        $registry = m::mock(SignalRegistry::class);
-        $registry->expects('register')->with($command, SIGTERM, m::type('callable'));
-        $registry->expects('unregister')->with($command, null);
+        $registry = Double::for(SignalRegistry::class);
+        $registry->expects('register')->with(Argument::same($command), SIGTERM, Argument::type('callable'));
+        $registry->expects('unregister')->with(Argument::same($command), null);
 
         $command->setHypervel($this->app);
         $command->setSignalRegistryForTest($registry);
@@ -236,31 +239,31 @@ class CommandTest extends TestCase
 
     public function testProhibitableCommand(): void
     {
-        $application = m::mock(ConsoleApplication::class);
-        $application->shouldReceive('getHelperSet');
+        $application = Double::for(ConsoleApplication::class);
+        $application->allows('getHelperSet');
 
-        $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
+        $output = Double::for(OutputStyle::class);
         $instance = new FooProhibitableCommand;
         $instance->setHypervel($this->app);
         $command = new ClassInvoker($instance);
         $command->setApplication($application);
         $command->setOutput($output);
-        $input = m::mock(InputInterface::class);
-        $input->shouldReceive('getOption')->andReturn(true);
+        $input = Double::for(InputInterface::class);
+        $input->allows('getOption')->returns(true);
         $result = $command->execute($input, $output);
         $this->assertSame(FooProhibitableCommand::SUCCESS, $result);
 
         FooProhibitableCommand::prohibit(true);
 
-        $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
+        $output = Double::for(OutputStyle::class);
         $instance = new FooProhibitableCommand;
         $instance->setHypervel($this->app);
         $instance->setApplication($application);
         $instance->setOutput($output);
         (fn () => $this->components = new Factory($output))->call($instance);
         $command = new ClassInvoker($instance);
-        $input = m::mock(InputInterface::class);
-        $input->shouldReceive('getOption')->andReturn(true);
+        $input = Double::for(InputInterface::class);
+        $input->allows('getOption')->returns(true);
         $result = $command->execute($input, $output);
         $this->assertSame(FooProhibitableCommand::FAILURE, $result);
 
@@ -320,28 +323,29 @@ class CommandTest extends TestCase
             }
         };
 
-        $application = m::mock(Application::class);
-        $command->setHypervel($application);
+        $application = Double::for(Application::class, override: true);
+        $hypervel = $application->instance();
+        $command->setHypervel($hypervel);
 
         $input = new ArrayInput([]);
         $output = new NullOutput;
         $outputStyle = new OutputStyle($input, $output);
-        $application->expects('make')->with(OutputStyle::class, ['input' => $input, 'output' => $output])->andReturn($outputStyle);
-        $application->expects('make')->with(Factory::class, ['output' => $outputStyle])->andReturn(new Factory($outputStyle));
-        $application->shouldReceive('bound')->andReturn(false);
+        $application->expects('make')->with(OutputStyle::class, ['input' => $input, 'output' => $output])->returns($outputStyle);
+        $application->expects('make')->with(Factory::class, ['output' => $outputStyle])->returns(new Factory($outputStyle));
+        $application->allows('bound')->returns(false);
 
-        $application->expects('call')->with([$command, 'handle'])->andReturnUsing(function () use ($command, $application): void {
-            $commandCalled = m::mock(Command::class);
+        $application->expects('call')->with([$command, 'handle'])->resolves(function () use ($command, $application, $hypervel): void {
+            $commandCalled = Double::for(Command::class);
 
-            $application->expects('make')->with(Command::class)->andReturn($commandCalled);
+            $application->expects('make')->with(Command::class)->returns($commandCalled);
 
             $commandCalled->expects('setApplication')->with(null);
-            $commandCalled->expects('setHypervel')->with($application);
+            $commandCalled->expects('setHypervel')->with(Argument::same($hypervel));
             $commandCalled->expects('run');
 
             $command->call(Command::class);
         });
-        $application->shouldReceive('runningUnitTests')->andReturn(true);
+        $application->allows('runningUnitTests')->returns(true);
 
         $command->run($input, $output);
     }
@@ -501,10 +505,8 @@ class CommandTest extends TestCase
 
     public function testTheOutputSetterOverwrite(): void
     {
-        $output = m::mock(OutputStyle::class);
-        $output->expects('writeln')->withArgs(function (...$args) {
-            return $args[0] === '<info>foo</info>';
-        });
+        $output = Double::for(OutputStyle::class);
+        $output->expects('writeln')->with('<info>foo</info>', Argument::remaining());
 
         $command = new CommandTestStubCommand;
         $command->setOutput($output);

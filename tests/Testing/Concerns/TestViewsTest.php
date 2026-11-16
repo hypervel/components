@@ -14,7 +14,6 @@ use Hypervel\Testing\Concerns\TestViews;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Hypervel\View\Compilers\BladeCompiler;
-use Mockery as m;
 use ReflectionMethod;
 use ReflectionProperty;
 
@@ -135,7 +134,7 @@ class TestViewsTest extends TestCase
     public function testSwitchToCompiledViewPathUpdatesCompilerCachePath(): void
     {
         $container = Container::getInstance();
-        $compiler = new BladeCompiler(m::mock(Filesystem::class), '/original/path');
+        $compiler = new BladeCompiler($this->filesystem, '/original/path');
 
         $container->instance('blade.compiler', $compiler);
 

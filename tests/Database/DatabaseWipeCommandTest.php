@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Config\Repository;
-use Hypervel\Console\CommandMutex;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\Console\WipeCommand;
@@ -185,10 +184,6 @@ class ApplicationDatabaseWipeStub extends Application
 {
     public function __construct(array $data = [])
     {
-        $mutex = m::mock(CommandMutex::class);
-        $mutex->shouldReceive('create')->andReturn(true);
-        $mutex->shouldReceive('release')->andReturn(true);
-        $this->instance(CommandMutex::class, $mutex);
         $this->instance('env', 'development');
 
         foreach ($data as $abstract => $instance) {

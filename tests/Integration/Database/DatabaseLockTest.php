@@ -13,13 +13,17 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\WithMigration;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PDOException;
 use PHPUnit\Framework\Attributes\TestWith;
 
 #[WithMigration('cache')]
 class DatabaseLockTest extends DatabaseTestCase
 {
+    use VerifiesDoubles;
+
     public function testLockCanHaveASeparateConnection(): void
     {
         $config = $this->app->make('config');
@@ -273,15 +277,15 @@ class DatabaseLockTest extends DatabaseTestCase
     #[TestWith(['Table does not exist', 1146, false])]
     public function testIgnoresConcurrencyException(string $message, int $code, bool $hasConcurrencyError): void
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(Connection::class);
-        $insertBuilder = m::mock(Builder::class);
-        $deleteBuilder = m::mock(Builder::class);
+        $resolver = Double::for(ConnectionResolverInterface::class);
+        $connection = Double::for(Connection::class);
+        $insertBuilder = Double::for(Builder::class);
+        $deleteBuilder = Double::for(Builder::class);
 
-        $insertBuilder->expects('insert')->andReturn(true);
+        $insertBuilder->expects('insert')->returns(true);
 
-        $deleteBuilder->expects('where')->with('expiration', '<=', m::any())->andReturnSelf();
-        $deleteBuilder->expects('delete')->andThrow(
+        $deleteBuilder->expects('where')->with('expiration', '<=', Argument::any())->returns($deleteBuilder);
+        $deleteBuilder->expects('delete')->throws(
             new QueryException(
                 'mysql',
                 'delete from cache_locks where expiration <= ?',
@@ -290,10 +294,10 @@ class DatabaseLockTest extends DatabaseTestCase
             )
         );
 
-        $connection->shouldReceive('getDriverName')->andReturn('mysql');
-        $connection->allows('transactionLevel')->andReturn(0);
-        $connection->expects('table')->times(2)->with('cache_locks')->andReturn($insertBuilder, $deleteBuilder);
-        $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
+        $connection->allows('getDriverName')->returns('mysql');
+        $connection->expects('transactionLevel')->times($hasConcurrencyError ? 1 : 0)->returns(0);
+        $connection->expects('table')->times(2)->with('cache_locks')->returns($insertBuilder, $deleteBuilder);
+        $resolver->allows('connection')->with(null)->returns($connection);
 
         $lock = new DatabaseLock($resolver, null, 'foo', 'cache_locks', 0, lottery: [1, 1]);
 
@@ -309,11 +313,11 @@ class DatabaseLockTest extends DatabaseTestCase
     {
         // REMOVED: upstream's case where a deadlock outside a transaction falls back to a takeover. Insert failures other
         // than an existing lock always propagate; see CacheDatabaseLockTest::testInsertFailureOtherThanAnExistingLockPropagatesWithoutTakingOver().
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(Connection::class);
-        $insertBuilder = m::mock(Builder::class);
+        $resolver = Double::for(ConnectionResolverInterface::class);
+        $connection = Double::for(Connection::class);
+        $insertBuilder = Double::for(Builder::class);
 
-        $insertBuilder->expects('insert')->andThrow(
+        $insertBuilder->expects('insert')->throws(
             new QueryException(
                 'mysql',
                 'insert into cache_locks (key, owner, expiration) values (?, ?, ?)',
@@ -322,10 +326,10 @@ class DatabaseLockTest extends DatabaseTestCase
             )
         );
 
-        $connection->shouldReceive('getDriverName')->andReturn('mysql');
-        $connection->allows('transactionLevel')->andReturn(1);
-        $connection->expects('table')->with('cache_locks')->andReturn($insertBuilder);
-        $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
+        $connection->allows('getDriverName')->returns('mysql');
+        $connection->allows('transactionLevel')->returns(1);
+        $connection->expects('table')->with('cache_locks')->returns($insertBuilder);
+        $resolver->allows('connection')->with(null)->returns($connection);
 
         $lock = new DatabaseLock($resolver, null, 'foo', 'cache_locks', 10, lottery: null);
 
@@ -338,15 +342,15 @@ class DatabaseLockTest extends DatabaseTestCase
     #[TestWith(['Table does not exist', 1146, false])]
     public function testReleaseIgnoresConcurrencyException(string $message, int $code, bool $hasConcurrencyError): void
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(Connection::class);
-        $deleteBuilder = m::mock(Builder::class);
+        $resolver = Double::for(ConnectionResolverInterface::class);
+        $connection = Double::for(Connection::class);
+        $deleteBuilder = Double::for(Builder::class);
 
         $owner = 'owner-123';
 
-        $deleteBuilder->expects('where')->with('key', 'foo')->andReturnSelf();
-        $deleteBuilder->expects('where')->with('owner', $owner)->andReturnSelf();
-        $deleteBuilder->expects('delete')->andThrow(
+        $deleteBuilder->expects('where')->with('key', 'foo')->returns($deleteBuilder);
+        $deleteBuilder->expects('where')->with('owner', $owner)->returns($deleteBuilder);
+        $deleteBuilder->expects('delete')->throws(
             new QueryException(
                 'mysql',
                 'delete from cache_locks where key = ? and owner = ?',
@@ -355,9 +359,9 @@ class DatabaseLockTest extends DatabaseTestCase
             )
         );
 
-        $connection->allows('transactionLevel')->andReturn(0);
-        $connection->expects('table')->with('cache_locks')->andReturn($deleteBuilder);
-        $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
+        $connection->expects('transactionLevel')->times($hasConcurrencyError ? 1 : 0)->returns(0);
+        $connection->expects('table')->with('cache_locks')->returns($deleteBuilder);
+        $resolver->allows('connection')->with(null)->returns($connection);
 
         $lock = new DatabaseLock($resolver, null, 'foo', 'cache_locks', 10, $owner);
 
@@ -372,12 +376,12 @@ class DatabaseLockTest extends DatabaseTestCase
 
     public function testPruneThrowsConcurrencyExceptionInsideTransaction(): void
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(Connection::class);
-        $deleteBuilder = m::mock(Builder::class);
+        $resolver = Double::for(ConnectionResolverInterface::class);
+        $connection = Double::for(Connection::class);
+        $deleteBuilder = Double::for(Builder::class);
 
-        $deleteBuilder->expects('where')->with('expiration', '<=', m::any())->andReturnSelf();
-        $deleteBuilder->expects('delete')->andThrow(
+        $deleteBuilder->expects('where')->with('expiration', '<=', Argument::any())->returns($deleteBuilder);
+        $deleteBuilder->expects('delete')->throws(
             new QueryException(
                 'mysql',
                 'delete from cache_locks where expiration <= ?',
@@ -386,9 +390,9 @@ class DatabaseLockTest extends DatabaseTestCase
             )
         );
 
-        $connection->allows('transactionLevel')->andReturn(1);
-        $connection->expects('table')->with('cache_locks')->andReturn($deleteBuilder);
-        $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
+        $connection->expects('transactionLevel')->returns(1);
+        $connection->expects('table')->with('cache_locks')->returns($deleteBuilder);
+        $resolver->allows('connection')->with(null)->returns($connection);
 
         $lock = new DatabaseLock($resolver, null, 'foo', 'cache_locks', 10);
 
@@ -399,15 +403,15 @@ class DatabaseLockTest extends DatabaseTestCase
 
     public function testReleaseThrowsConcurrencyExceptionInsideTransaction(): void
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(Connection::class);
-        $deleteBuilder = m::mock(Builder::class);
+        $resolver = Double::for(ConnectionResolverInterface::class);
+        $connection = Double::for(Connection::class);
+        $deleteBuilder = Double::for(Builder::class);
 
         $owner = 'owner-123';
 
-        $deleteBuilder->expects('where')->with('key', 'foo')->andReturnSelf();
-        $deleteBuilder->expects('where')->with('owner', $owner)->andReturnSelf();
-        $deleteBuilder->expects('delete')->andThrow(
+        $deleteBuilder->expects('where')->with('key', 'foo')->returns($deleteBuilder);
+        $deleteBuilder->expects('where')->with('owner', $owner)->returns($deleteBuilder);
+        $deleteBuilder->expects('delete')->throws(
             new QueryException(
                 'mysql',
                 'delete from cache_locks where key = ? and owner = ?',
@@ -416,9 +420,9 @@ class DatabaseLockTest extends DatabaseTestCase
             )
         );
 
-        $connection->allows('transactionLevel')->andReturn(1);
-        $connection->expects('table')->with('cache_locks')->andReturn($deleteBuilder);
-        $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
+        $connection->expects('transactionLevel')->returns(1);
+        $connection->expects('table')->with('cache_locks')->returns($deleteBuilder);
+        $resolver->allows('connection')->with(null)->returns($connection);
 
         $lock = new DatabaseLock($resolver, null, 'foo', 'cache_locks', 10, $owner);
 

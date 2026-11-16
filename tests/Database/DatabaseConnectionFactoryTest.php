@@ -15,14 +15,18 @@ use Hypervel\Database\Connectors\ConnectorInterface;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
-use Mockery as m;
 use PDO;
 use ReflectionProperty;
 use stdClass;
 
 class DatabaseConnectionFactoryTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected DB $db;
 
     /**
@@ -318,12 +322,12 @@ class DatabaseConnectionFactoryTest extends TestCase
     public function testReadEndpointMetadataMatchesTheSelectedPdoConfiguration(): void
     {
         $container = new Container;
-        $pdo = m::mock(PDO::class);
-        $connector = m::mock(ConnectorInterface::class);
-        $connector->expects('connect')->withArgs(
+        $pdo = Double::for(PDO::class);
+        $connector = Double::for(ConnectorInterface::class);
+        $connector->expects('connect')->with(Argument::satisfies(
             static fn (array $config): bool => $config['host'] === 'first-reader'
             && $config['options'][PDO::ATTR_EMULATE_PREPARES] === true
-        )->andReturn($pdo);
+        ))->returns($pdo);
         $container->instance('db.connector.pgsql', $connector);
         $factory = new AlternatingReadConnectionFactory($container);
         $connection = $factory->make([
@@ -357,19 +361,19 @@ class DatabaseConnectionFactoryTest extends TestCase
     {
         $this->expectExceptionObject(new InvalidArgumentException('Unsupported driver [foo]'));
 
-        $container = m::mock(Container::class);
-        $container->expects('bound')->andReturn(false);
-        $factory = new ConnectionFactory($container);
+        $container = Double::for(Container::class, override: true);
+        $container->expects('bound')->returns(false);
+        $factory = new ConnectionFactory($container->instance());
         $factory->createConnector(['driver' => 'foo']);
     }
 
     public function testCustomConnectorsCanBeResolvedViaContainer(): void
     {
-        $connector = m::mock(ConnectorInterface::class);
-        $container = m::mock(Container::class);
-        $container->expects('bound')->with('db.connector.foo')->andReturn(true);
-        $container->expects('make')->with('db.connector.foo')->andReturn($connector);
-        $factory = new ConnectionFactory($container);
+        $connector = Double::for(ConnectorInterface::class);
+        $container = Double::for(Container::class, override: true);
+        $container->expects('bound')->with('db.connector.foo')->returns(true);
+        $container->expects('make')->with('db.connector.foo')->returns($connector);
+        $factory = new ConnectionFactory($container->instance());
 
         $this->assertSame($connector, $factory->createConnector(['driver' => 'foo']));
     }
@@ -516,8 +520,8 @@ class DatabaseConnectionFactoryTest extends TestCase
 
     public function testConfigFirstExtensionCreatesNeutralConnectionWithoutResolvingAConnector(): void
     {
-        $container = m::mock(Container::class);
-        $factory = new ConnectionFactory($container);
+        $container = Double::for(Container::class, override: true);
+        $factory = new ConnectionFactory($container->instance());
         $receivedConfig = null;
 
         $factory->extend('http', function (array $config, ?string $name) use (&$receivedConfig): FactoryNonPdoConnection {
@@ -542,6 +546,7 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertSame('http', $receivedConfig['driver']);
         $this->assertSame('https://database.test', $receivedConfig['endpoint']);
         $this->assertSame('', $receivedConfig['prefix']);
+        $container->unused();
     }
 
     public function testConfigFirstExtensionReceivesLiteralUrlCredentials(): void

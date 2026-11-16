@@ -4,20 +4,23 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
-use Exception;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
-use Mockery as m;
 
 class DatabaseEloquentCollectionQueueableTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testSerializesPivotsEntitiesId(): void
     {
-        $spy = m::spy(Pivot::class);
-        $spy->expects('getQueueableId')->andReturn('project_id:1:user_id:2');
+        $spy = Double::for(Pivot::class);
+        $spy->expects('getQueueableId')->with(Argument::none())->returns('project_id:1:user_id:2');
 
         $c = new Collection([$spy]);
 
@@ -26,8 +29,8 @@ class DatabaseEloquentCollectionQueueableTest extends TestCase
 
     public function testSerializesModelEntitiesById(): void
     {
-        $spy = m::spy(Model::class);
-        $spy->expects('getQueueableId')->andReturn(1);
+        $spy = Double::for(Model::class);
+        $spy->expects('getQueueableId')->with(Argument::none())->returns(1);
 
         $c = new Collection([$spy]);
 
@@ -60,18 +63,14 @@ class DatabaseEloquentCollectionQueueableTest extends TestCase
         );
     }
 
-    /**
-     * @throws Exception
-     */
     public function testJsonSerializationOfCollectionQueueableIdsWorks(): void
     {
         // When the ID of a Model is binary instead of int or string, the Collection
         // serialization + JSON encoding breaks because of UTF-8 issues. Encoding
         // of a QueueableCollection must favor QueueableEntity::queueableId().
-        $mock = m::mock(Model::class, [
-            'getKey' => random_bytes(10),
-            'getQueueableId' => 'mocked',
-        ]);
+        $mock = Double::for(Model::class);
+        $mock->expects('getKey')->never();
+        $mock->expects('getQueueableId')->returns('mocked');
 
         $c = new Collection([$mock]);
 

@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis;
 
+use __PHP_Incomplete_Class;
 use Hypervel\Cache\Redis\AllTaggedCache;
 use Hypervel\Cache\Redis\AnyTaggedCache;
 use Hypervel\Cache\RedisLock;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Redis\RedisProxy;
@@ -17,25 +19,52 @@ use Mockery as m;
 use ReflectionClass;
 use ReflectionNamedType;
 use ReflectionProperty;
+use stdClass;
 
-/**
- * Tests for RedisStore core functionality.
- *
- * Operation-specific tests have been moved to the Operations/ directory.
- * This file contains only store-level tests (prefix, connection, tags, locks).
- */
 class RedisStoreTest extends RedisCacheTestCase
 {
-    public function testGetAndSetPrefix(): void
+    public function testSerializableClassesControlRedisValues(): void
+    {
+        $denyingConnection = $this->mockConnection();
+        $denyingConnection->expects('get')
+            ->with('prefix:object')
+            ->andReturn(serialize(new stdClass));
+        $allowingConnection = $this->mockConnection();
+        $allowingConnection->expects('get')
+            ->with('prefix:object')
+            ->andReturn(serialize(new stdClass));
+
+        $denyingStore = new RedisStore(
+            $this->createRedisFactory($denyingConnection),
+            'prefix:',
+            'default',
+            false,
+        );
+        $allowingStore = new RedisStore(
+            $this->createRedisFactory($allowingConnection),
+            'prefix:',
+            'default',
+            serializableClasses: [stdClass::class],
+        );
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $denyingStore->get('object'));
+        $this->assertInstanceOf(stdClass::class, $allowingStore->get('object'));
+    }
+
+    public function testSerializableClassPolicyControlsRedisValues(): void
     {
         $connection = $this->mockConnection();
-        $redis = $this->createStore($connection);
+        $connection->expects('get')
+            ->with('prefix:object')
+            ->andReturn(serialize(new stdClass));
+        $store = new RedisStore(
+            $this->createRedisFactory($connection),
+            'prefix:',
+            'default',
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): false => false),
+        );
 
-        $this->assertSame('prefix:', $redis->getPrefix());
-        $redis->setPrefix('foo:');
-        $this->assertSame('foo:', $redis->getPrefix());
-        $redis->setPrefix('');
-        $this->assertEmpty($redis->getPrefix());
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $store->get('object'));
     }
 
     public function testCounterFailuresAreReturnedWithoutCoercion(): void

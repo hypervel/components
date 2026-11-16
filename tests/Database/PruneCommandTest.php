@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Closure;
-use Hypervel\Console\CommandMutex;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Console\PruneCommand;
@@ -22,7 +21,6 @@ use Hypervel\Tests\Database\Fixtures\Pruning\Models\PrunableTestModelWithPrunabl
 use Hypervel\Tests\Database\Fixtures\Pruning\Models\PrunableTestSoftDeletedModelWithPrunableRecords;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 
@@ -48,10 +46,6 @@ class PruneCommandTest extends TestCase
 
         $container->alias(DispatcherContract::class, 'events');
 
-        $mutex = m::mock(CommandMutex::class);
-        $mutex->shouldReceive('create')->andReturn(true);
-        $mutex->shouldReceive('release')->andReturn(true);
-        $container->instance(CommandMutex::class, $mutex);
         $container->instance('env', 'development');
     }
 
@@ -76,6 +70,7 @@ class PruneCommandTest extends TestCase
             $output,
         );
 
+        // Hypervel reports the final total without installing temporary event listeners.
         $this->assertStringContainsString(
             '20 records',
             $output,
@@ -279,14 +274,18 @@ class PruneCommandTest extends TestCase
         $startingEvents = [];
         $prunedEvents = [];
         $finishedEvents = [];
-        $events->listen(ModelPruningStarting::class, static function (ModelPruningStarting $event) use (&$startingEvents): void {
+        $eventOrder = [];
+        $events->listen(ModelPruningStarting::class, static function (ModelPruningStarting $event) use (&$startingEvents, &$eventOrder): void {
             $startingEvents[] = $event;
+            $eventOrder[] = $event::class;
         });
-        $events->listen(ModelsPruned::class, static function (ModelsPruned $event) use (&$prunedEvents): void {
+        $events->listen(ModelsPruned::class, static function (ModelsPruned $event) use (&$prunedEvents, &$eventOrder): void {
             $prunedEvents[] = $event;
+            $eventOrder[] = $event::class;
         });
-        $events->listen(ModelPruningFinished::class, static function (ModelPruningFinished $event) use (&$finishedEvents): void {
+        $events->listen(ModelPruningFinished::class, static function (ModelPruningFinished $event) use (&$finishedEvents, &$eventOrder): void {
             $finishedEvents[] = $event;
+            $eventOrder[] = $event::class;
         });
 
         $this->artisan(['--model' => PrunableTestModelWithPrunableRecords::class]);
@@ -297,6 +296,10 @@ class PruneCommandTest extends TestCase
         $this->assertCount(2, $startingEvents);
         $this->assertCount(4, $prunedEvents);
         $this->assertCount(2, $finishedEvents);
+        $this->assertSame([
+            ModelPruningStarting::class, ModelsPruned::class, ModelsPruned::class, ModelPruningFinished::class,
+            ModelPruningStarting::class, ModelsPruned::class, ModelsPruned::class, ModelPruningFinished::class,
+        ], $eventOrder);
         $this->assertSame([10, 20, 10, 20], array_column($prunedEvents, 'count'));
         $this->assertSame(
             [PrunableTestModelWithPrunableRecords::class],

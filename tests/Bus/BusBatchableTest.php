@@ -11,10 +11,13 @@ use Hypervel\Container\Container;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Testing\Fakes\BatchFake;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class BusBatchableTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBatchMayBeRetrieved(): void
     {
         $class = new class {
@@ -26,9 +29,9 @@ class BusBatchableTest extends TestCase
 
         Container::setInstance($container = new Container);
 
-        $repository = m::mock(BatchRepository::class);
-        $batch = m::mock(Batch::class);
-        $repository->expects('find')->with('test-batch-id')->andReturn($batch);
+        $repository = Double::for(BatchRepository::class);
+        $batch = Double::for(Batch::class);
+        $repository->expects('find')->with('test-batch-id')->returns($batch);
         $container->instance(BatchRepository::class, $repository);
 
         $this->assertSame($batch, $class->batch());
@@ -59,9 +62,9 @@ class BusBatchableTest extends TestCase
 
         Container::setInstance($container = new Container);
 
-        $repository = m::mock(BatchRepository::class);
-        $batch = m::mock(Batch::class);
-        $repository->expects('find')->with('0')->andReturn($batch);
+        $repository = Double::for(BatchRepository::class);
+        $batch = Double::for(Batch::class);
+        $repository->expects('find')->with('0')->returns($batch);
         $container->instance(BatchRepository::class, $repository);
 
         $job->withBatchId('0');

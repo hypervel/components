@@ -16,13 +16,16 @@ use Hypervel\Database\Query\Builder;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Hashing\BcryptHasher;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 
 use function Hypervel\Coroutine\parallel;
 
 class AuthDatabaseUserProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRetrieveByIDReturnsUserWhenUserIsFound(): void
     {
         $provider = $this->newProvider();
@@ -43,20 +46,20 @@ class AuthDatabaseUserProviderTest extends TestCase
 
     public function testResolverBackedProviderResolvesTheConfiguredConnectionForEveryOperation(): void
     {
-        $firstConnection = m::mock(Connection::class);
-        $firstQuery = m::mock(Builder::class);
-        $firstConnection->shouldReceive('table')->once()->with('foo')->andReturn($firstQuery);
-        $firstQuery->shouldReceive('find')->once()->with(1)->andReturn(['id' => 1, 'name' => 'First']);
+        $firstConnection = Double::for(Connection::class);
+        $firstQuery = Double::for(Builder::class);
+        $firstConnection->expects('table')->with('foo')->returns($firstQuery);
+        $firstQuery->expects('find')->with(1)->returns(['id' => 1, 'name' => 'First']);
 
-        $secondConnection = m::mock(Connection::class);
-        $secondQuery = m::mock(Builder::class);
-        $secondConnection->shouldReceive('table')->once()->with('foo')->andReturn($secondQuery);
-        $secondQuery->shouldReceive('find')->once()->with(2)->andReturn(['id' => 2, 'name' => 'Second']);
+        $secondConnection = Double::for(Connection::class);
+        $secondQuery = Double::for(Builder::class);
+        $secondConnection->expects('table')->with('foo')->returns($secondQuery);
+        $secondQuery->expects('find')->with(2)->returns(['id' => 2, 'name' => 'Second']);
 
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->twice()->with('auth')->andReturn($firstConnection, $secondConnection);
+        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver->expects('connection')->times(2)->with('auth')->returns($firstConnection, $secondConnection);
 
-        $provider = new DatabaseUserProvider($resolver, m::mock(Hasher::class), 'foo', 'auth');
+        $provider = new DatabaseUserProvider($resolver, Double::for(Hasher::class), 'foo', 'auth');
 
         $this->assertSame('First', $provider->retrieveById(1)?->name);
         $this->assertSame('Second', $provider->retrieveById(2)?->name);
@@ -64,19 +67,19 @@ class AuthDatabaseUserProviderTest extends TestCase
 
     public function testResolverBackedProviderDoesNotRetainConnectionsAcrossExecutions(): void
     {
-        $firstConnection = m::mock(Connection::class);
-        $firstQuery = m::mock(Builder::class);
-        $firstConnection->shouldReceive('table')->once()->with('foo')->andReturn($firstQuery);
-        $firstQuery->shouldReceive('find')->once()->andReturn(['id' => 1, 'name' => 'First']);
+        $firstConnection = Double::for(Connection::class);
+        $firstQuery = Double::for(Builder::class);
+        $firstConnection->expects('table')->with('foo')->returns($firstQuery);
+        $firstQuery->expects('find')->returns(['id' => 1, 'name' => 'First']);
 
-        $secondConnection = m::mock(Connection::class);
-        $secondQuery = m::mock(Builder::class);
-        $secondConnection->shouldReceive('table')->once()->with('foo')->andReturn($secondQuery);
-        $secondQuery->shouldReceive('find')->once()->andReturn(['id' => 2, 'name' => 'Second']);
+        $secondConnection = Double::for(Connection::class);
+        $secondQuery = Double::for(Builder::class);
+        $secondConnection->expects('table')->with('foo')->returns($secondQuery);
+        $secondQuery->expects('find')->returns(['id' => 2, 'name' => 'Second']);
 
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->twice()->with('auth')->andReturn($firstConnection, $secondConnection);
-        $provider = new DatabaseUserProvider($resolver, m::mock(Hasher::class), 'foo', 'auth');
+        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver->expects('connection')->times(2)->with('auth')->returns($firstConnection, $secondConnection);
+        $provider = new DatabaseUserProvider($resolver, Double::for(Hasher::class), 'foo', 'auth');
 
         $names = parallel([
             fn () => $provider->retrieveById(1)?->name,
@@ -89,31 +92,31 @@ class AuthDatabaseUserProviderTest extends TestCase
 
     public function testResolverBackedProviderUsesTheDefaultConnectionWhenNoNameIsConfigured(): void
     {
-        $connection = m::mock(Connection::class);
-        $query = m::mock(Builder::class);
-        $connection->shouldReceive('table')->once()->with('foo')->andReturn($query);
-        $query->shouldReceive('find')->once()->with(1)->andReturn(null);
+        $connection = Double::for(Connection::class);
+        $query = Double::for(Builder::class);
+        $connection->expects('table')->with('foo')->returns($query);
+        $query->expects('find')->with(1)->returns(null);
 
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver->expects('connection')->with(null)->returns($connection);
 
-        $provider = new DatabaseUserProvider($resolver, m::mock(Hasher::class), 'foo');
+        $provider = new DatabaseUserProvider($resolver, Double::for(Hasher::class), 'foo');
 
         $this->assertNull($provider->retrieveById(1));
     }
 
     public function testResolverContractTakesPrecedenceForObjectsImplementingBothConnectionContracts(): void
     {
-        $resolvedConnection = m::mock(Connection::class);
-        $query = m::mock(Builder::class);
-        $resolvedConnection->shouldReceive('table')->once()->with('foo')->andReturn($query);
-        $query->shouldReceive('find')->once()->with(1)->andReturn(null);
+        $resolvedConnection = Double::for(Connection::class);
+        $query = Double::for(Builder::class);
+        $resolvedConnection->expects('table')->with('foo')->returns($query);
+        $query->expects('find')->with(1)->returns(null);
 
-        $connectionResolver = m::mock(ConnectionInterface::class . ', ' . ConnectionResolverInterface::class);
-        $connectionResolver->shouldReceive('connection')->once()->with('auth')->andReturn($resolvedConnection);
-        $connectionResolver->shouldNotReceive('table');
+        $connectionResolver = Double::for(ConnectionInterface::class, ConnectionResolverInterface::class);
+        $connectionResolver->expects('connection')->with('auth')->returns($resolvedConnection);
+        $connectionResolver->expects('table')->never();
 
-        $provider = new DatabaseUserProvider($connectionResolver, m::mock(Hasher::class), 'foo', 'auth');
+        $provider = new DatabaseUserProvider($connectionResolver, Double::for(Hasher::class), 'foo', 'auth');
 
         $this->assertNull($provider->retrieveById(1));
     }
@@ -213,11 +216,11 @@ class AuthDatabaseUserProviderTest extends TestCase
     public function testCredentialValidationFailsGracefullyWithNullPassword(): void
     {
         $conn = new PdoConnection(new PDO('sqlite::memory:'));
-        $hasher = m::mock(Hasher::class);
-        $hasher->shouldReceive('check')->never();
+        $hasher = Double::for(Hasher::class);
+        $hasher->expects('check')->never();
         $provider = new DatabaseUserProvider($conn, $hasher, 'foo');
-        $user = m::mock(Authenticatable::class);
-        $user->expects('getAuthPassword')->andReturn(null);
+        $user = Double::for(Authenticatable::class);
+        $user->expects('getAuthPassword')->returns(null);
         $result = $provider->validateCredentials($user, ['password' => 'plain']);
 
         $this->assertFalse($result);

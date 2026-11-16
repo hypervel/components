@@ -29,8 +29,9 @@ use Hypervel\Support\ViewErrorBag;
 use Hypervel\Testing\Fluent\AssertableJson;
 use Hypervel\Testing\TestResponse;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonSerializable;
-use Mockery as m;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\ExpectationFailedException;
@@ -44,6 +45,8 @@ use Symfony\Component\VarDumper\VarDumper;
 
 class TestResponseTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testAssertViewIs(): void
     {
         $response = $this->makeMockResponse([
@@ -3856,8 +3859,14 @@ EOT,
      */
     private function makeMockResponse(array $content): TestResponse
     {
-        $baseResponse = tap(new Response, function ($response) use ($content) {
-            $response->setContent(m::mock(View::class, $content));
+        $view = Double::for(View::class);
+
+        foreach ($content as $method => $value) {
+            $view->allows($method)->returns($value);
+        }
+
+        $baseResponse = tap(new Response, function ($response) use ($view) {
+            $response->setContent($view);
         });
 
         return TestResponse::fromBaseResponse($baseResponse);

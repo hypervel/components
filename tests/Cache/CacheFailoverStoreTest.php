@@ -22,7 +22,9 @@ use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -32,6 +34,8 @@ use Throwable;
 
 class CacheFailoverStoreTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testImplementsCanFlushLocks(): void
     {
         $store = $this->makeFailoverStore([]);
@@ -47,9 +51,9 @@ class CacheFailoverStoreTest extends TestCase
         $this->assertTrue($storeA->lock('lock-a', 60)->get());
         $this->assertTrue($storeB->lock('lock-b', 60)->get());
 
-        $cache = m::mock(CacheManager::class);
-        $cache->expects('store')->with('store-a')->andReturn(new Repository($storeA));
-        $cache->expects('store')->with('store-b')->andReturn(new Repository($storeB));
+        $cache = Double::for(CacheManager::class);
+        $cache->expects('store')->with('store-a')->returns(new Repository($storeA));
+        $cache->expects('store')->with('store-b')->returns(new Repository($storeB));
 
         $failover = new FailoverStore($cache, new EventDispatcher, ['store-a', 'store-b']);
 
@@ -81,8 +85,8 @@ class CacheFailoverStoreTest extends TestCase
 
     public function testAuthoritativeReadDelegatesToCapableRepository(): void
     {
-        $backingStore = m::mock(Store::class, AuthoritativeRawReadable::class);
-        $backingStore->shouldReceive('getAuthoritativeRaw')->once()->with('key')->andReturn(NullSentinel::VALUE);
+        $backingStore = Double::for(Store::class, AuthoritativeRawReadable::class);
+        $backingStore->expects('getAuthoritativeRaw')->with('key')->returns(NullSentinel::VALUE);
 
         $store = $this->makeFailoverStore(['cache' => $backingStore]);
 
@@ -123,12 +127,13 @@ class CacheFailoverStoreTest extends TestCase
     public function testAuthoritativeReadFailsOverAfterStoreFailure(): void
     {
         $failure = new RuntimeException('primary unavailable');
-        $primary = m::mock(Store::class, AuthoritativeRawReadable::class);
-        $primary->shouldReceive('getAuthoritativeRaw')->once()->with('key')->andThrow($failure);
-        $secondary = m::mock(Store::class, AuthoritativeRawReadable::class);
-        $secondary->shouldReceive('getAuthoritativeRaw')->once()->with('key')->andReturn('value');
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(CacheFailedOver::class)->andReturnFalse();
+        $primary = Double::for(Store::class, AuthoritativeRawReadable::class);
+        $primary->expects('getAuthoritativeRaw')->with('key')->throws($failure);
+        $secondary = Double::for(Store::class, AuthoritativeRawReadable::class);
+        $secondary->expects('getAuthoritativeRaw')->with('key')->returns('value');
+        $events = Double::for(Dispatcher::class);
+        $events->expects('hasListeners')->with(CacheFailedOver::class)->returns(false);
+        $events->expects('dispatch')->never();
 
         $store = $this->makeFailoverStore(
             ['primary' => $primary, 'secondary' => $secondary],
@@ -140,13 +145,13 @@ class CacheFailoverStoreTest extends TestCase
 
     public function testRawReadsFallBackToContractRepositoryWithLossyNullSemantics(): void
     {
-        $repository = m::mock(RepositoryContract::class);
-        $repository->shouldReceive('get')->once()->with('key')->andReturn('value');
-        $repository->shouldReceive('get')->once()->with(['cached-null', 'miss'])->andReturn([
+        $repository = Double::for(RepositoryContract::class);
+        $repository->expects('get')->with('key')->returns('value');
+        $repository->expects('get')->with(['cached-null', 'miss'])->returns([
             'cached-null' => null,
             'miss' => null,
         ]);
-        $repository->shouldReceive('get')->once()->with('null')->andReturnNull();
+        $repository->expects('get')->with('null')->returns(null);
 
         $store = $this->makeFailoverStore(['custom' => $repository]);
 
@@ -162,9 +167,9 @@ class CacheFailoverStoreTest extends TestCase
 
     public function testCountersPreserveEveryContractValidResult(): void
     {
-        $backingStore = m::mock(Store::class);
-        $backingStore->expects('increment')->with('increment', 2)->andReturnTrue();
-        $backingStore->expects('decrement')->with('decrement', 3)->andReturnFalse();
+        $backingStore = Double::for(Store::class);
+        $backingStore->expects('increment')->with('increment', 2)->returns(true);
+        $backingStore->expects('decrement')->with('decrement', 3)->returns(false);
         $store = $this->makeFailoverStore(['cache' => $backingStore]);
 
         $this->assertTrue($store->increment('increment', 2));
@@ -175,7 +180,7 @@ class CacheFailoverStoreTest extends TestCase
     public function testLockFlushCapabilityRequiresAtLeastOneLockProvider(bool $hasStore): void
     {
         $store = $this->makeFailoverStore($hasStore ? [
-            'plain' => m::mock(Store::class),
+            'plain' => Double::for(Store::class),
         ] : []);
 
         $this->assertFalse($store->supportsFlushingLocks());
@@ -201,12 +206,12 @@ class CacheFailoverStoreTest extends TestCase
     public function testLockFlushCapabilityRequiresEveryLockProviderToSupportFlushing(): void
     {
         $flushable = $this->lockStore();
-        $flushable->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
+        $flushable->expects('supportsFlushingLocks')->returns(true);
 
-        $unsupported = m::mock(implode(',', [Store::class, LockProvider::class]));
+        $unsupported = Double::for(Store::class, LockProvider::class);
 
         $store = $this->makeFailoverStore([
-            'plain' => m::mock(Store::class),
+            'plain' => Double::for(Store::class),
             'flushable' => $flushable,
             'unsupported' => $unsupported,
         ]);
@@ -217,10 +222,10 @@ class CacheFailoverStoreTest extends TestCase
     public function testLockFlushCapabilityRequiresEveryFlushableStoreToBeCurrentlySupported(): void
     {
         $supported = $this->lockStore();
-        $supported->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
+        $supported->expects('supportsFlushingLocks')->returns(true);
 
         $unsupported = $this->lockStore();
-        $unsupported->shouldReceive('supportsFlushingLocks')->once()->andReturnFalse();
+        $unsupported->expects('supportsFlushingLocks')->returns(false);
 
         $store = $this->makeFailoverStore([
             'supported' => $supported,
@@ -233,13 +238,13 @@ class CacheFailoverStoreTest extends TestCase
     public function testLockFlushCapabilityIsTrueWhenEveryLockProviderSupportsIt(): void
     {
         $first = $this->lockStore();
-        $first->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
+        $first->expects('supportsFlushingLocks')->returns(true);
 
         $second = $this->lockStore();
-        $second->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
+        $second->expects('supportsFlushingLocks')->returns(true);
 
         $store = $this->makeFailoverStore([
-            'plain' => m::mock(Store::class),
+            'plain' => Double::for(Store::class),
             'first' => $first,
             'second' => $second,
         ]);
@@ -250,12 +255,12 @@ class CacheFailoverStoreTest extends TestCase
     public function testFlushLocksPreflightsEveryLockProviderBeforeChangingState(): void
     {
         $first = $this->lockStore();
-        $first->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
-        $first->shouldNotReceive('flushLocks');
+        $first->expects('supportsFlushingLocks')->returns(true);
+        $first->expects('flushLocks')->never();
 
         $second = $this->lockStore();
-        $second->shouldReceive('supportsFlushingLocks')->once()->andReturnFalse();
-        $second->shouldNotReceive('flushLocks');
+        $second->expects('supportsFlushingLocks')->returns(false);
+        $second->expects('flushLocks')->never();
 
         $store = $this->makeFailoverStore([
             'first' => $first,
@@ -274,12 +279,12 @@ class CacheFailoverStoreTest extends TestCase
     public function testFlushLocksAttemptsEveryStoreAndAggregatesFalseResults(): void
     {
         $first = $this->lockStore();
-        $first->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
-        $first->shouldReceive('flushLocks')->once()->andReturnFalse();
+        $first->expects('supportsFlushingLocks')->returns(true);
+        $first->expects('flushLocks')->returns(false);
 
         $second = $this->lockStore();
-        $second->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
-        $second->shouldReceive('flushLocks')->once()->andReturnTrue();
+        $second->expects('supportsFlushingLocks')->returns(true);
+        $second->expects('flushLocks')->returns(true);
 
         $store = $this->makeFailoverStore([
             'first' => $first,
@@ -292,12 +297,12 @@ class CacheFailoverStoreTest extends TestCase
     public function testFlushLocksAttemptsEveryStoreAndPreservesTheEarliestFailure(): void
     {
         $first = $this->lockStore();
-        $first->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
-        $first->shouldReceive('flushLocks')->once()->andThrow(new RuntimeException('first failure'));
+        $first->expects('supportsFlushingLocks')->returns(true);
+        $first->expects('flushLocks')->throws(new RuntimeException('first failure'));
 
         $second = $this->lockStore();
-        $second->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
-        $second->shouldReceive('flushLocks')->once()->andThrow(new RuntimeException('second failure'));
+        $second->expects('supportsFlushingLocks')->returns(true);
+        $second->expects('flushLocks')->throws(new RuntimeException('second failure'));
 
         $store = $this->makeFailoverStore([
             'first' => $first,
@@ -319,11 +324,11 @@ class CacheFailoverStoreTest extends TestCase
             $cancellation = new RuntimeException('Lock cleanup failed.', previous: $cancellation);
         }
         $first = $this->lockStore();
-        $first->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
-        $first->shouldReceive('flushLocks')->once()->andThrow($cancellation);
+        $first->expects('supportsFlushingLocks')->returns(true);
+        $first->expects('flushLocks')->throws($cancellation);
         $second = $this->lockStore();
-        $second->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
-        $second->shouldNotReceive('flushLocks');
+        $second->expects('supportsFlushingLocks')->returns(true);
+        $second->expects('flushLocks')->never();
         $store = $this->makeFailoverStore([
             'first' => $first,
             'second' => $second,
@@ -345,16 +350,16 @@ class CacheFailoverStoreTest extends TestCase
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Read cleanup failed.', previous: $cancellation);
         }
-        $first = m::mock(Store::class);
-        $first->shouldReceive('get')->once()->with('key')->andThrow(new RuntimeException('first failure'));
-        $second = m::mock(Store::class);
-        $second->shouldReceive('get')->once()->with('key')->andThrow($cancellation);
-        $third = m::mock(Store::class);
-        $third->shouldNotReceive('get');
+        $first = Double::for(Store::class);
+        $first->expects('get')->with('key')->throws(new RuntimeException('first failure'));
+        $second = Double::for(Store::class);
+        $second->expects('get')->with('key')->throws($cancellation);
+        $third = Double::for(Store::class);
+        $third->expects('get')->never();
         $failedStores = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(CacheFailedOver::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->once()->andReturnUsing(
+        $events = Double::for(Dispatcher::class);
+        $events->expects('hasListeners')->with(CacheFailedOver::class)->returns(true);
+        $events->expects('dispatch')->resolves(
             function (CacheFailedOver $event) use (&$failedStores): void {
                 $failedStores[] = $event->storeName;
             }
@@ -382,12 +387,12 @@ class CacheFailoverStoreTest extends TestCase
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Forget cleanup failed.', previous: $cancellation);
         }
-        $first = m::mock(Store::class);
-        $first->shouldReceive('forget')->once()->with('key')->andReturnTrue();
-        $second = m::mock(Store::class);
-        $second->shouldReceive('forget')->once()->with('key')->andThrow($cancellation);
-        $third = m::mock(Store::class);
-        $third->shouldNotReceive('forget');
+        $first = Double::for(Store::class);
+        $first->expects('forget')->with('key')->returns(true);
+        $second = Double::for(Store::class);
+        $second->expects('forget')->with('key')->throws($cancellation);
+        $third = Double::for(Store::class);
+        $third->expects('forget')->never();
         $store = $this->makeFailoverStore([
             'first' => $first,
             'second' => $second,
@@ -405,19 +410,19 @@ class CacheFailoverStoreTest extends TestCase
     public function testFirstSuccessListenerFailurePreservesObservedAndUnattemptedFailures(): void
     {
         $listenerFailure = new RuntimeException('listener failure');
-        $first = m::mock(Store::class);
-        $first->shouldReceive('forget')->once()->with('key')->andReturnTrue();
-        $first->shouldReceive('get')->twice()->with('key')->andThrow(new RuntimeException('first failure'));
-        $second = m::mock(Store::class);
-        $second->shouldReceive('forget')->once()->with('key')->andThrow(new RuntimeException('second failure'));
-        $second->shouldReceive('get')->once()->with('key')->andThrow(new RuntimeException('second failure'));
-        $third = m::mock(Store::class);
-        $third->shouldReceive('forget')->once()->with('key')->andReturnTrue();
-        $third->shouldReceive('get')->once()->with('key')->andReturn('value');
+        $first = Double::for(Store::class);
+        $first->expects('forget')->with('key')->returns(true);
+        $first->expects('get')->times(2)->with('key')->throws(new RuntimeException('first failure'));
+        $second = Double::for(Store::class);
+        $second->expects('forget')->with('key')->throws(new RuntimeException('second failure'));
+        $second->expects('get')->with('key')->throws(new RuntimeException('second failure'));
+        $third = Double::for(Store::class);
+        $third->expects('forget')->with('key')->returns(true);
+        $third->expects('get')->with('key')->returns('value');
         $failedStores = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->with(CacheFailedOver::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->andReturnUsing(
+        $events = Double::for(Dispatcher::class);
+        $events->allows('hasListeners')->with(CacheFailedOver::class)->returns(true);
+        $events->allows('dispatch')->resolves(
             function (CacheFailedOver $event) use (&$failedStores, $listenerFailure): void {
                 $failedStores[] = $event->storeName;
 
@@ -448,8 +453,8 @@ class CacheFailoverStoreTest extends TestCase
     {
         $listenerFailure = new RuntimeException('listener failure');
         $firstCall = 0;
-        $first = m::mock(Store::class);
-        $first->shouldReceive('forget')->times(3)->with('key')->andReturnUsing(
+        $first = Double::for(Store::class);
+        $first->expects('forget')->times(3)->with('key')->resolves(
             function () use (&$firstCall): bool {
                 ++$firstCall;
 
@@ -458,14 +463,14 @@ class CacheFailoverStoreTest extends TestCase
                     : throw new RuntimeException('first failure');
             }
         );
-        $second = m::mock(Store::class);
-        $second->shouldReceive('forget')->twice()->with('key')->andThrow(new RuntimeException('second failure'));
-        $third = m::mock(Store::class);
-        $third->shouldReceive('forget')->twice()->with('key')->andReturnTrue();
+        $second = Double::for(Store::class);
+        $second->expects('forget')->times(2)->with('key')->throws(new RuntimeException('second failure'));
+        $third = Double::for(Store::class);
+        $third->expects('forget')->times(2)->with('key')->returns(true);
         $failedStores = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->with(CacheFailedOver::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->andReturnUsing(
+        $events = Double::for(Dispatcher::class);
+        $events->allows('hasListeners')->with(CacheFailedOver::class)->returns(true);
+        $events->allows('dispatch')->resolves(
             function (CacheFailedOver $event) use (&$failedStores, $listenerFailure): void {
                 $failedStores[] = $event->storeName;
 
@@ -500,28 +505,28 @@ class CacheFailoverStoreTest extends TestCase
         $thirdFailure = new RuntimeException('third failure');
         $firstCall = 0;
         $secondCall = 0;
-        $first = m::mock(Store::class);
-        $first->shouldReceive('forget')->times(3)->with('key')->andReturnUsing(
+        $first = Double::for(Store::class);
+        $first->expects('forget')->times(3)->with('key')->resolves(
             function () use (&$firstCall, $firstFailure): bool {
                 ++$firstCall;
 
                 return $firstCall === 1 ? true : throw $firstFailure;
             }
         );
-        $second = m::mock(Store::class);
-        $second->shouldReceive('forget')->times(3)->with('key')->andReturnUsing(
+        $second = Double::for(Store::class);
+        $second->expects('forget')->times(3)->with('key')->resolves(
             function () use (&$secondCall, $secondFailure): bool {
                 ++$secondCall;
 
                 return $secondCall === 1 ? true : throw $secondFailure;
             }
         );
-        $third = m::mock(Store::class);
-        $third->shouldReceive('forget')->twice()->with('key')->andThrow($thirdFailure);
+        $third = Double::for(Store::class);
+        $third->expects('forget')->times(2)->with('key')->throws($thirdFailure);
         $failedStores = [];
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->with(CacheFailedOver::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->andReturnUsing(
+        $events = Double::for(Dispatcher::class);
+        $events->allows('hasListeners')->with(CacheFailedOver::class)->returns(true);
+        $events->allows('dispatch')->resolves(
             function (CacheFailedOver $event) use (&$failedStores, $listenerFailure): void {
                 $failedStores[] = $event->storeName;
 
@@ -557,16 +562,16 @@ class CacheFailoverStoreTest extends TestCase
 
     public function testReplacementStoreReportsItsOwnFirstFailure(): void
     {
-        $cache = m::mock(CacheManager::class);
-        $events = m::mock(Dispatcher::class);
-        $primary = m::mock(RepositoryContract::class);
-        $secondary = m::mock(RepositoryContract::class);
-        $primary->allows('get')->andThrow(new RuntimeException('Primary unavailable.'));
-        $secondary->allows('get')->andReturn('value');
-        $cache->allows('store')->with('primary')->andReturn($primary);
-        $cache->allows('store')->with('secondary')->andReturn($secondary);
-        $events->allows('hasListeners')->with(CacheFailedOver::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->twice()->with(m::type(CacheFailedOver::class));
+        $cache = Double::for(CacheManager::class);
+        $events = Double::for(Dispatcher::class);
+        $primary = Double::for(RepositoryContract::class);
+        $secondary = Double::for(RepositoryContract::class);
+        $primary->allows('get')->throws(new RuntimeException('Primary unavailable.'));
+        $secondary->allows('get')->returns('value');
+        $cache->allows('store')->with('primary')->returns($primary);
+        $cache->allows('store')->with('secondary')->returns($secondary);
+        $events->allows('hasListeners')->with(CacheFailedOver::class)->returns(true);
+        $events->expects('dispatch')->times(2)->with(Argument::type(CacheFailedOver::class));
 
         $store = new FailoverStore($cache, $events, ['primary', 'secondary']);
         $this->assertSame('value', $store->get('key'));
@@ -579,14 +584,14 @@ class CacheFailoverStoreTest extends TestCase
     public function testFailoverEventCarriesLogicalAndFailedBackingStoreNames(): void
     {
         $exception = new RuntimeException('primary unavailable');
-        $first = m::mock(Store::class);
-        $first->shouldReceive('get')->once()->with('key')->andThrow($exception);
-        $second = m::mock(Store::class);
-        $second->shouldReceive('get')->once()->with('key')->andReturn('value');
+        $first = Double::for(Store::class);
+        $first->expects('get')->with('key')->throws($exception);
+        $second = Double::for(Store::class);
+        $second->expects('get')->with('key')->returns('value');
         $captured = null;
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(CacheFailedOver::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->once()->andReturnUsing(function (CacheFailedOver $event) use (&$captured): void {
+        $events = Double::for(Dispatcher::class);
+        $events->expects('hasListeners')->with(CacheFailedOver::class)->returns(true);
+        $events->expects('dispatch')->resolves(function (CacheFailedOver $event) use (&$captured): void {
             $captured = $event;
         });
 
@@ -606,13 +611,13 @@ class CacheFailoverStoreTest extends TestCase
     public function testSeparateLockStoreReportingRequiresEveryLockProviderToBeSeparate(): void
     {
         $separate = $this->lockStore();
-        $separate->shouldReceive('hasSeparateLockStore')->once()->andReturnTrue();
+        $separate->expects('hasSeparateLockStore')->returns(true);
 
         $shared = $this->lockStore();
-        $shared->shouldReceive('hasSeparateLockStore')->once()->andReturnFalse();
+        $shared->expects('hasSeparateLockStore')->returns(false);
 
         $store = $this->makeFailoverStore([
-            'plain' => m::mock(Store::class),
+            'plain' => Double::for(Store::class),
             'separate' => $separate,
             'shared' => $shared,
         ]);
@@ -623,13 +628,13 @@ class CacheFailoverStoreTest extends TestCase
     public function testSeparateLockStoreReportingIsTrueWhenEveryLockProviderIsSeparate(): void
     {
         $first = $this->lockStore();
-        $first->shouldReceive('hasSeparateLockStore')->once()->andReturnTrue();
+        $first->expects('hasSeparateLockStore')->returns(true);
 
         $second = $this->lockStore();
-        $second->shouldReceive('hasSeparateLockStore')->once()->andReturnTrue();
+        $second->expects('hasSeparateLockStore')->returns(true);
 
         $store = $this->makeFailoverStore([
-            'plain' => m::mock(Store::class),
+            'plain' => Double::for(Store::class),
             'first' => $first,
             'second' => $second,
         ]);
@@ -649,12 +654,12 @@ class CacheFailoverStoreTest extends TestCase
         ?array $storeNames = null,
         ?string $failoverStoreName = null,
     ): FailoverStore {
-        $cache = m::mock(CacheManager::class);
+        $cache = Double::for(CacheManager::class);
 
         foreach ($stores as $name => $store) {
-            $cache->shouldReceive('store')
+            $cache->allows('store')
                 ->with($name)
-                ->andReturn($store instanceof RepositoryContract ? $store : new Repository($store));
+                ->returns($store instanceof RepositoryContract ? $store : new Repository($store));
         }
 
         return new FailoverStore(
@@ -670,6 +675,6 @@ class CacheFailoverStoreTest extends TestCase
      */
     protected function lockStore(): Store&LockProvider&CanFlushLocks
     {
-        return m::mock(implode(',', [Store::class, LockProvider::class, CanFlushLocks::class]));
+        return Double::for(Store::class, LockProvider::class, CanFlushLocks::class);
     }
 }

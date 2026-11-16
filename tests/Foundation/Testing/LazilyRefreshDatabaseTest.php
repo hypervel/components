@@ -14,7 +14,8 @@ use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Foundation\Testing\Fixtures\ConsoleKernelSpy;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
@@ -26,6 +27,7 @@ class LazilyRefreshDatabaseTest extends TestCase
     use LazilyRefreshDatabase {
         refreshTestDatabase as baseRefreshTestDatabase;
     }
+    use VerifiesDoubles;
 
     protected array $connectionsToTransact = ['testing', 'testing2'];
 
@@ -68,9 +70,9 @@ class LazilyRefreshDatabaseTest extends TestCase
 
     public function testDatabaseIsNotRefreshedWithoutInteraction(): void
     {
-        $kernel = m::mock(KernelContract::class);
+        $kernel = Double::for(KernelContract::class);
         $this->app->instance(KernelContract::class, $kernel);
-        $kernel->shouldNotReceive('call');
+        $kernel->expects('call')->never();
 
         $this->app->make('db')->getPdo();
 

@@ -5,22 +5,28 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use Hypervel\Bus\Queueable;
+use Hypervel\Config\Repository;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Translation\HasLocalePreference;
+use Hypervel\Foundation\Application;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\MailManager;
 use Hypervel\Support\Testing\Fakes\MailFake;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
-use Mockery\MockInterface;
 use PHPUnit\Framework\ExpectationFailedException;
 use UnitEnum;
 
 class SupportTestingMailFakeTest extends TestCase
 {
-    private MailManager&MockInterface $mailManager;
+    use VerifiesDoubles;
+
+    private MailManager $mailManager;
+
+    private Application $app;
 
     private MailFake $fake;
 
@@ -32,11 +38,10 @@ class SupportTestingMailFakeTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->mailManager = m::mock(MailManager::class, function (MailManager $mock): void {
-            $mock->shouldReceive('getDefaultDriver')
-                ->byDefault()
-                ->andReturn('smtp');
-        });
+        $this->app = new Application;
+        // No transport is configured, so forwarding a fake send or queue operation fails.
+        $this->app->instance('config', new Repository(['mail' => ['default' => 'smtp']]));
+        $this->mailManager = new MailManager($this->app);
         $this->fake = new MailFake($this->mailManager);
         $this->mailable = new MailableStub;
     }
@@ -388,10 +393,6 @@ class SupportTestingMailFakeTest extends TestCase
 
     public function testRawHtmlAndPlainMessagesAreNotSent(): void
     {
-        $this->mailManager->shouldNotReceive('raw');
-        $this->mailManager->shouldNotReceive('html');
-        $this->mailManager->shouldNotReceive('plain');
-
         $callback = fn ($message) => $message->to('taylor@hypervel.com');
 
         $this->fake->raw('Hello', $callback);
@@ -455,9 +456,7 @@ class SupportTestingMailFakeTest extends TestCase
 
     public function testMissingMethodsAreForwarded(): void
     {
-        $this->mailManager->expects('foo')->andReturn('bar');
-
-        $this->assertSame('bar', $this->fake->foo());
+        $this->assertSame($this->app, $this->fake->getApplication());
     }
 
     public function testAssertMailer(): void
@@ -513,9 +512,6 @@ class SupportTestingMailFakeTest extends TestCase
 
     public function testQueueSetsQueueOnMailable(): void
     {
-        $this->mailManager->shouldNotReceive('onQueue');
-        $this->mailManager->shouldNotReceive('queueOn');
-
         $mailable1 = new QueueableMailableStub;
         $this->fake->mailer('ses')->queue($mailable1, 'podcasts');
 
@@ -549,8 +545,6 @@ class SupportTestingMailFakeTest extends TestCase
 
     public function testLaterSetsQueueOnMailable(): void
     {
-        $this->mailManager->shouldNotReceive('laterOn');
-
         $mailable1 = new QueueableMailableStub;
         $this->fake->later(15, $mailable1, 'podcasts');
 
@@ -584,8 +578,8 @@ class SupportTestingMailFakeTest extends TestCase
 
     public function testDefaultMailerIsResolvedWhenEachOperationOccurs(): void
     {
-        $manager = m::mock(MailManager::class);
-        $manager->expects('getDefaultDriver')->twice()->andReturn('smtp', 'ses');
+        $manager = Double::for(MailManager::class);
+        $manager->expects('getDefaultDriver')->times(2)->returns('smtp', 'ses');
         $fake = new MailFake($manager);
 
         $first = new MailableStub;
@@ -670,10 +664,6 @@ class SupportTestingMailFakeTest extends TestCase
 
     public function testQueueHelpersAcceptEnumsWithoutCallingTheRealManager(): void
     {
-        $this->mailManager->shouldNotReceive('onQueue');
-        $this->mailManager->shouldNotReceive('queueOn');
-        $this->mailManager->shouldNotReceive('laterOn');
-
         $onQueueEnum = new QueueableMailableStub;
         $queueOnEnum = new QueueableMailableStub;
         $laterOnEnum = new QueueableMailableStub;
@@ -705,8 +695,8 @@ class SupportTestingMailFakeTest extends TestCase
 
     public function testShouldQueueSendResolvesTheDefaultMailerOnce(): void
     {
-        $manager = m::mock(MailManager::class);
-        $manager->expects('getDefaultDriver')->andReturn('smtp');
+        $manager = Double::for(MailManager::class);
+        $manager->expects('getDefaultDriver')->returns('smtp');
         $fake = new MailFake($manager);
         $mailable = new QueueableMailableStub;
 

@@ -7,19 +7,22 @@ namespace Hypervel\Tests\Support\SupportFacadesQueueTest;
 use Hypervel\Bus\Queueable;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Queue\Factory as QueueContract;
-use Hypervel\Queue\QueueManager;
+use Hypervel\Contracts\Queue\Queue as QueueInterface;
 use Hypervel\Queue\Worker;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ReflectionProperty;
 
 class SupportFacadesQueueTest extends TestCase
 {
-    private QueueManager&MockInterface $queueManager;
+    use VerifiesDoubles;
+
+    private QueueContract&QueueInterface&DoubleInterface $queueManager;
 
     /**
      * Set up the queue manager and facade.
@@ -28,7 +31,7 @@ class SupportFacadesQueueTest extends TestCase
     {
         parent::setUp();
 
-        $this->queueManager = m::mock(QueueManager::class);
+        $this->queueManager = Double::for(QueueContract::class, QueueInterface::class);
 
         $container = new Container;
         $container->instance('queue', $this->queueManager);
@@ -72,6 +75,15 @@ class SupportFacadesQueueTest extends TestCase
         Queue::fakeExceptFor(function (): void {
             $this->assertInstanceOf(QueueFake::class, Queue::getFacadeRoot());
         }, [QueueJobStub::class]);
+
+        $this->assertSame($this->queueManager, Queue::getFacadeRoot());
+    }
+
+    public function testFakeExceptForSwapsQueueManager(): void
+    {
+        Queue::fakeExceptFor(function (): void {
+            $this->assertInstanceOf(QueueFake::class, Queue::getFacadeRoot());
+        }, []);
 
         $this->assertSame($this->queueManager, Queue::getFacadeRoot());
     }

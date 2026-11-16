@@ -1080,13 +1080,17 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
 
     public function testTouchingParent(): void
     {
+        CarbonImmutable::setTestNow('2017-10-10 08:10:10');
+
         $post = Post::create(['title' => Str::random()]);
 
         $tag = TouchingTag::create(['name' => Str::random()]);
 
+        CarbonImmutable::setTestNow('2017-10-10 09:10:10');
+
         $post->touchingTags()->attach([$tag->id]);
 
-        $this->assertNotSame('2017-10-10 10:10:10', $post->fresh()->updated_at->toDateTimeString());
+        $this->assertSame('2017-10-10 09:10:10', $post->fresh()->updated_at->toDateTimeString());
 
         CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 

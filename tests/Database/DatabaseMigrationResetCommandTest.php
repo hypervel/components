@@ -5,31 +5,34 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Closure;
-use Hypervel\Console\CommandMutex;
 use Hypervel\Database\Console\Migrations\ResetCommand;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Foundation\Application;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 use UnitEnum;
 
 class DatabaseMigrationResetCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testResetCommandCallsMigratorWithProperArguments(): void
     {
-        $migrator = m::mock(Migrator::class);
+        $migrator = Double::for(Migrator::class);
         $command = new ResetCommand($migrator);
         $app = new ApplicationDatabaseResetStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
         $command->setHypervel($app);
-        $migrator->expects('paths')->andReturn([]);
-        $migrator->expects('usingConnection')->with(null, m::type(Closure::class))->andReturnUsing(function (?string $connection, callable $callback): mixed {
+        $migrator->expects('paths')->returns([]);
+        $migrator->expects('usingConnection')->with(null, Argument::type(Closure::class))->resolves(function (?string $connection, callable $callback): mixed {
             return $callback();
         });
-        $migrator->expects('repositoryExists')->andReturn(true);
-        $migrator->expects('setOutput')->andReturn($migrator);
+        $migrator->expects('repositoryExists')->returns(true);
+        $migrator->expects('setOutput')->returns($migrator);
         $migrator->expects('reset')->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], false);
 
         $this->runCommand($command);
@@ -37,17 +40,17 @@ class DatabaseMigrationResetCommandTest extends TestCase
 
     public function testResetCommandCanBePretended(): void
     {
-        $migrator = m::mock(Migrator::class);
+        $migrator = Double::for(Migrator::class);
         $command = new ResetCommand($migrator);
         $app = new ApplicationDatabaseResetStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
         $command->setHypervel($app);
-        $migrator->expects('paths')->andReturn([]);
-        $migrator->expects('usingConnection')->with('foo', m::type(Closure::class))->andReturnUsing(function (?string $connection, callable $callback): mixed {
+        $migrator->expects('paths')->returns([]);
+        $migrator->expects('usingConnection')->with('foo', Argument::type(Closure::class))->resolves(function (?string $connection, callable $callback): mixed {
             return $callback();
         });
-        $migrator->expects('repositoryExists')->andReturn(true);
-        $migrator->expects('setOutput')->andReturn($migrator);
+        $migrator->expects('repositoryExists')->returns(true);
+        $migrator->expects('setOutput')->returns($migrator);
         $migrator->expects('reset')->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], true);
 
         $this->runCommand($command, ['--pretend' => true, '--database' => 'foo']);
@@ -55,7 +58,7 @@ class DatabaseMigrationResetCommandTest extends TestCase
 
     public function testResetCommandExitsWhenProhibited(): void
     {
-        $migrator = m::mock(Migrator::class);
+        $migrator = Double::for(Migrator::class);
         $command = new ResetCommand($migrator);
 
         $app = new ApplicationDatabaseResetStub(['path.database' => __DIR__]);
@@ -68,7 +71,7 @@ class DatabaseMigrationResetCommandTest extends TestCase
 
         $this->assertSame(1, $code);
 
-        $migrator->shouldNotHaveReceived('paths');
+        $migrator->received('paths')->never();
     }
 
     /**
@@ -87,10 +90,6 @@ class ApplicationDatabaseResetStub extends Application
      */
     public function __construct(array $data = [])
     {
-        $mutex = m::mock(CommandMutex::class);
-        $mutex->shouldReceive('create')->andReturn(true);
-        $mutex->shouldReceive('release')->andReturn(true);
-        $this->instance(CommandMutex::class, $mutex);
         $this->instance('env', 'development');
 
         foreach ($data as $abstract => $instance) {

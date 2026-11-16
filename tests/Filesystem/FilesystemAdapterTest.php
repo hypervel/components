@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Filesystem;
 use DateTimeInterface;
 use GuzzleHttp\Handler\InflateBodyStream;
 use GuzzleHttp\Psr7\CachingStream;
+use GuzzleHttp\Psr7\FnStream;
 use GuzzleHttp\Psr7\PumpStream;
 use GuzzleHttp\Psr7\Stream;
 use Hypervel\Container\Container;
@@ -33,6 +34,9 @@ use Hypervel\Support\Testing\Fakes\ExceptionHandlerFake;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use JsonException;
 use League\Flysystem\Filesystem;
 use League\Flysystem\FilesystemAdapter as FlysystemAdapter;
@@ -50,12 +54,10 @@ use League\Flysystem\UnableToReadFile;
 use League\Flysystem\UnableToRetrieveMetadata;
 use League\Flysystem\UnableToSetVisibility;
 use League\Flysystem\UnableToWriteFile;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresFunction;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\ExpectationFailedException;
-use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
@@ -64,6 +66,8 @@ use Throwable;
 
 class FilesystemAdapterTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private $tempDir;
 
     private $filesystem;
@@ -118,8 +122,8 @@ class FilesystemAdapterTest extends TestCase
 
         $this->filesystem->write('file.txt', 'Hello World');
 
-        $files = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
-        $files->shouldReceive('mimeType')->never();
+        $files = Double::for(new FilesystemAdapter($this->filesystem, $this->adapter))->passthru();
+        $files->expects('mimeType')->never();
 
         $files->response('file.txt', null, [
             'Content-Type' => 'text/x-custom',
@@ -132,8 +136,8 @@ class FilesystemAdapterTest extends TestCase
 
         $this->filesystem->write('file.txt', 'Hello World');
 
-        $files = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
-        $files->shouldReceive('size')->never();
+        $files = Double::for(new FilesystemAdapter($this->filesystem, $this->adapter))->passthru();
+        $files->expects('size')->never();
 
         $files->response('file.txt', null, [
             'Content-Length' => 11,
@@ -481,10 +485,11 @@ class FilesystemAdapterTest extends TestCase
 
     public function testPrependDoesNotOverwriteAnUnreadableExistingFile(): void
     {
-        $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
-        $filesystemAdapter->shouldReceive('fileExists')->once()->with('file.txt')->andReturnTrue();
-        $filesystemAdapter->shouldReceive('get')->once()->with('file.txt')->andReturnNull();
-        $filesystemAdapter->shouldReceive('put')->never();
+        $driver = Double::for(FilesystemOperator::class);
+        $driver->expects('fileExists')->with('file.txt')->returns(true);
+        $driver->expects('read')->with('file.txt')->throws(UnableToReadFile::fromLocation('file.txt'));
+        $driver->expects('write')->never();
+        $filesystemAdapter = new FilesystemAdapter($driver, $this->adapter);
 
         $this->assertFalse($filesystemAdapter->prepend('file.txt', 'Hello '));
     }
@@ -499,10 +504,11 @@ class FilesystemAdapterTest extends TestCase
 
     public function testAppendDoesNotOverwriteAnUnreadableExistingFile(): void
     {
-        $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
-        $filesystemAdapter->shouldReceive('fileExists')->once()->with('file.txt')->andReturnTrue();
-        $filesystemAdapter->shouldReceive('get')->once()->with('file.txt')->andReturnNull();
-        $filesystemAdapter->shouldReceive('put')->never();
+        $driver = Double::for(FilesystemOperator::class);
+        $driver->expects('fileExists')->with('file.txt')->returns(true);
+        $driver->expects('read')->with('file.txt')->throws(UnableToReadFile::fromLocation('file.txt'));
+        $driver->expects('write')->never();
+        $filesystemAdapter = new FilesystemAdapter($driver, $this->adapter);
 
         $this->assertFalse($filesystemAdapter->append('file.txt', 'Moon'));
     }
@@ -558,9 +564,10 @@ class FilesystemAdapterTest extends TestCase
 
         $backupFilesystem = new Filesystem($backupAdapter = new LocalFilesystemAdapter($this->tempDir . '/backup'));
 
-        Container::getInstance()->instance(FilesystemFactory::class, m::mock(FilesystemFactory::class, [
-            'disk' => new FilesystemAdapter($backupFilesystem, $backupAdapter),
-        ]));
+        $filesystemFactory = Double::for(FilesystemFactory::class);
+        $filesystemFactory->expects('disk')->returns(new FilesystemAdapter($backupFilesystem, $backupAdapter));
+
+        Container::getInstance()->instance(FilesystemFactory::class, $filesystemFactory);
 
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
         $filesystemAdapter->copyToDisk('backup', 'file.txt');
@@ -575,9 +582,10 @@ class FilesystemAdapterTest extends TestCase
 
         $backupFilesystem = new Filesystem($backupAdapter = new LocalFilesystemAdapter($this->tempDir . '/backup'));
 
-        Container::getInstance()->instance(FilesystemFactory::class, m::mock(FilesystemFactory::class, [
-            'disk' => new FilesystemAdapter($backupFilesystem, $backupAdapter),
-        ]));
+        $filesystemFactory = Double::for(FilesystemFactory::class);
+        $filesystemFactory->expects('disk')->returns(new FilesystemAdapter($backupFilesystem, $backupAdapter));
+
+        Container::getInstance()->instance(FilesystemFactory::class, $filesystemFactory);
 
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
         $filesystemAdapter->moveToDisk('backup', 'file.txt', 'copy.txt');
@@ -592,9 +600,10 @@ class FilesystemAdapterTest extends TestCase
 
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
 
-        Container::getInstance()->instance(FilesystemFactory::class, m::mock(FilesystemFactory::class, [
-            'disk' => $filesystemAdapter,
-        ]));
+        $filesystemFactory = Double::for(FilesystemFactory::class);
+        $filesystemFactory->expects('disk')->returns($filesystemAdapter);
+
+        Container::getInstance()->instance(FilesystemFactory::class, $filesystemFactory);
 
         $this->expectException(InvalidArgumentException::class);
 
@@ -748,8 +757,8 @@ class FilesystemAdapterTest extends TestCase
     {
         $stream = tmpfile();
         $this->assertIsResource($stream);
-        $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
-        $filesystemAdapter->shouldReceive('readStream')->once()->with('file.txt')->andReturn($stream);
+        $filesystemAdapter = Double::for(new FilesystemAdapter($this->filesystem, $this->adapter))->passthru();
+        $filesystemAdapter->expects('readStream')->with('file.txt')->returns($stream);
 
         $this->assertSame($stream, $filesystemAdapter->readStreamRange('file.txt', null, null));
 
@@ -766,9 +775,9 @@ class FilesystemAdapterTest extends TestCase
         ];
 
         foreach ($invalidRanges as [$start, $end]) {
-            $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
-            $filesystemAdapter->shouldNotReceive('readStream');
-            $filesystemAdapter->shouldNotReceive('size');
+            $filesystemAdapter = Double::for(new FilesystemAdapter($this->filesystem, $this->adapter))->passthru();
+            $filesystemAdapter->expects('readStream')->never();
+            $filesystemAdapter->expects('size')->never();
 
             try {
                 $filesystemAdapter->readStreamRange('file.txt', $start, $end);
@@ -788,8 +797,8 @@ class FilesystemAdapterTest extends TestCase
         fclose($writer);
         $metadata = stream_get_meta_data($reader);
         $this->assertFalse($metadata['seekable']);
-        $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
-        $filesystemAdapter->shouldReceive('readStream')->once()->with('file.txt')->andReturn($reader);
+        $filesystemAdapter = Double::for(new FilesystemAdapter($this->filesystem, $this->adapter))->passthru();
+        $filesystemAdapter->expects('readStream')->with('file.txt')->returns($reader);
 
         $stream = $filesystemAdapter->readStreamRange('file.txt', 3, 5);
 
@@ -806,8 +815,8 @@ class FilesystemAdapterTest extends TestCase
         $this->assertIsResource($source);
         fwrite($source, '0123456789');
         rewind($source);
-        $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
-        $filesystemAdapter->shouldReceive('readStream')->once()->with('file.txt')->andReturn($source);
+        $filesystemAdapter = Double::for(new FilesystemAdapter($this->filesystem, $this->adapter))->passthru();
+        $filesystemAdapter->expects('readStream')->with('file.txt')->returns($source);
 
         $stream = $filesystemAdapter->readStreamRange('file.txt', 3, 5);
 
@@ -819,8 +828,8 @@ class FilesystemAdapterTest extends TestCase
     public function testReadStreamRangeReturnsNullAndClosesAStalledStreamByDefault(): void
     {
         [$reader, $writer] = $this->openStalledNonSeekableStream();
-        $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
-        $filesystemAdapter->shouldReceive('readStream')->once()->with('file.txt')->andReturn($reader);
+        $filesystemAdapter = Double::for(new FilesystemAdapter($this->filesystem, $this->adapter))->passthru();
+        $filesystemAdapter->expects('readStream')->with('file.txt')->returns($reader);
 
         $this->assertNull($filesystemAdapter->readStreamRange('file.txt', 3, 5));
 
@@ -831,11 +840,12 @@ class FilesystemAdapterTest extends TestCase
     public function testReadStreamRangeThrowsAndClosesAStalledStreamWhenConfigured(): void
     {
         [$reader, $writer] = $this->openStalledNonSeekableStream();
-        $filesystemAdapter = m::mock(
-            FilesystemAdapter::class,
-            [$this->filesystem, $this->adapter, ['throw' => true]],
-        )->makePartial();
-        $filesystemAdapter->shouldReceive('readStream')->once()->with('file.txt')->andReturn($reader);
+        $filesystemAdapter = Double::for(new FilesystemAdapter(
+            $this->filesystem,
+            $this->adapter,
+            ['throw' => true],
+        ))->passthru();
+        $filesystemAdapter->expects('readStream')->with('file.txt')->returns($reader);
         $failure = null;
 
         try {
@@ -858,20 +868,20 @@ class FilesystemAdapterTest extends TestCase
     public function testReadStreamRangeReportsAndClosesAStalledStreamWhenConfigured(): void
     {
         [$reader, $writer] = $this->openStalledNonSeekableStream();
-        $exceptionHandler = m::mock(ExceptionHandler::class);
-        $exceptionHandler->shouldReceive('report')
-            ->once()
-            ->withArgs(static function (UnableToReadFile $exception): bool {
+        $exceptionHandler = Double::for(ExceptionHandler::class);
+        $exceptionHandler->expects('report')
+            ->with(Argument::satisfies(static function (UnableToReadFile $exception): bool {
                 self::assertInstanceOf(RuntimeException::class, $exception->getPrevious());
 
                 return true;
-            });
+            }));
         Container::getInstance()->bind(ExceptionHandler::class, static fn () => $exceptionHandler);
-        $filesystemAdapter = m::mock(
-            FilesystemAdapter::class,
-            [$this->filesystem, $this->adapter, ['report' => true]],
-        )->makePartial();
-        $filesystemAdapter->shouldReceive('readStream')->once()->with('file.txt')->andReturn($reader);
+        $filesystemAdapter = Double::for(new FilesystemAdapter(
+            $this->filesystem,
+            $this->adapter,
+            ['report' => true],
+        ))->passthru();
+        $filesystemAdapter->expects('readStream')->with('file.txt')->returns($reader);
 
         $this->assertNull($filesystemAdapter->readStreamRange('file.txt', 3, 5));
 
@@ -881,8 +891,8 @@ class FilesystemAdapterTest extends TestCase
 
     public function testReadStreamRangePreservesCancellationAndClosesTheSourceWithoutReporting(): void
     {
-        $exceptionHandler = m::mock(ExceptionHandler::class);
-        $exceptionHandler->shouldNotReceive('report');
+        $exceptionHandler = Double::for(ExceptionHandler::class);
+        $exceptionHandler->expects('report')->never();
         Container::getInstance()->bind(ExceptionHandler::class, static fn () => $exceptionHandler);
         $originalHookFlags = Runtime::getHookFlags();
         Runtime::enableCoroutine(SWOOLE_HOOK_ALL);
@@ -890,11 +900,12 @@ class FilesystemAdapterTest extends TestCase
         $this->assertIsArray($sockets);
         [$reader, $writer] = $sockets;
         $this->assertFalse(stream_get_meta_data($reader)['seekable']);
-        $filesystemAdapter = m::mock(
-            FilesystemAdapter::class,
-            [$this->filesystem, $this->adapter, ['report' => true, 'throw' => false]],
-        )->makePartial();
-        $filesystemAdapter->shouldReceive('readStream')->once()->with('file.txt')->andReturn($reader);
+        $filesystemAdapter = Double::for(new FilesystemAdapter(
+            $this->filesystem,
+            $this->adapter,
+            ['report' => true, 'throw' => false],
+        ))->passthru();
+        $filesystemAdapter->expects('readStream')->with('file.txt')->returns($reader);
         $failure = null;
 
         try {
@@ -964,8 +975,8 @@ class FilesystemAdapterTest extends TestCase
     public function testPutWithStreamAllowsTheWriterToCloseItsInput(): void
     {
         $body = new CachingStream(new Stream(fopen('php://temp', 'w+b')));
-        $driver = m::mock(FilesystemOperator::class);
-        $driver->shouldReceive('writeStream')->once()->andReturnUsing(
+        $driver = Double::for(FilesystemOperator::class);
+        $driver->expects('writeStream')->resolves(
             static function (string $path, mixed $stream): void {
                 fclose($stream);
             },
@@ -1046,8 +1057,8 @@ class FilesystemAdapterTest extends TestCase
         file_put_contents($filePath = $this->tempDir . '/foo.txt', 'normal file content');
 
         $stream = null;
-        $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
-        $filesystemAdapter->shouldReceive('put')->once()->andReturnUsing(
+        $filesystemAdapter = Double::for(new FilesystemAdapter($this->filesystem, $this->adapter))->passthru();
+        $filesystemAdapter->expects('put')->resolves(
             function (string $path, mixed $contents, mixed $options) use (&$stream, $writerClosesStream): never {
                 $stream = $contents;
 
@@ -1070,8 +1081,8 @@ class FilesystemAdapterTest extends TestCase
     public function testPutFileAsAllowsTheDriverToCloseTheSource(): void
     {
         file_put_contents($filePath = $this->tempDir . '/foo.txt', 'normal file content');
-        $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
-        $filesystemAdapter->shouldReceive('put')->once()->andReturnUsing(
+        $filesystemAdapter = Double::for(new FilesystemAdapter($this->filesystem, $this->adapter))->passthru();
+        $filesystemAdapter->expects('put')->resolves(
             function (string $path, mixed $contents, mixed $options): bool {
                 $this->assertSame('new.txt', $path);
                 $this->assertSame('normal file content', stream_get_contents($contents));
@@ -1138,7 +1149,7 @@ class FilesystemAdapterTest extends TestCase
     #[RequiresFunction('ftp_connect')]
     public function testCreateFtpDriver(): void
     {
-        $filesystem = new FilesystemManager(m::mock(Container::class));
+        $filesystem = new FilesystemManager(new Application);
 
         $driver = $filesystem->createFtpDriver([
             'host' => 'ftp.example.com',
@@ -1313,11 +1324,11 @@ class FilesystemAdapterTest extends TestCase
     #[DataProvider('canceledFilesystemOperations')]
     public function testCancellationBypassesTheFilesystemFailurePolicy(string $method, array $arguments, string $driverMethod, Throwable $failure): void
     {
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldNotReceive('report');
+        $handler = Double::for(ExceptionHandler::class);
+        $handler->expects('report')->never();
         $this->app->instance(ExceptionHandler::class, $handler);
-        $driver = m::mock(FilesystemOperator::class);
-        $driver->shouldReceive($driverMethod)->once()->andThrow($failure);
+        $driver = Double::for(Filesystem::class);
+        $driver->expects($driverMethod)->throws($failure);
         $adapter = new FilesystemAdapter($driver, $this->adapter, ['throw' => false, 'report' => true]);
         $stream = $method === 'writeStream' ? fopen('php://memory', 'w+b') : null;
 
@@ -1369,13 +1380,19 @@ class FilesystemAdapterTest extends TestCase
     {
         $failure = new RuntimeException('Read cleanup failed.', previous: new CanceledException);
         $closeFailure = new RuntimeException('Stream close failed.');
-        $body = m::mock(StreamInterface::class, new CachingStream(new PumpStream(static fn () => throw $failure)));
+        $body = new CachingStream(new PumpStream(static fn () => throw $failure));
         if ($closeThrows) {
-            $body->shouldReceive('close')->once()->andThrow($closeFailure);
+            $body = FnStream::decorate($body, [
+                'close' => static function () use ($body, $closeFailure): never {
+                    $body->close();
+
+                    throw $closeFailure;
+                },
+            ]);
         }
         $stream = StreamWrapper::detach($body);
-        $driver = m::mock(FilesystemOperator::class);
-        $driver->shouldReceive('readStream')->once()->andReturn($stream);
+        $driver = Double::for(FilesystemOperator::class);
+        $driver->expects('readStream')->returns($stream);
         $adapter = new FilesystemAdapter($driver, $this->adapter);
         $caught = null;
 
@@ -1605,10 +1622,10 @@ class FilesystemAdapterTest extends TestCase
 
     public function testProvidesTemporaryUrlsForS3Adapter(): void
     {
-        $filesystem = new FilesystemManager(m::mock(Container::class));
+        $filesystem = new FilesystemManager(new Application);
         $filesystemAdapter = $filesystem->createS3Driver([
             'region' => 'us-west-1',
-            'bucket' => 'laravel',
+            'bucket' => 'hypervel',
         ]);
 
         $this->assertTrue($filesystemAdapter->providesTemporaryUrls());
@@ -1616,10 +1633,10 @@ class FilesystemAdapterTest extends TestCase
 
     public function testUsesRightSeperatorForS3Adapter(): void
     {
-        $filesystem = new FilesystemManager(m::mock(Container::class));
+        $filesystem = new FilesystemManager(new Application);
         $filesystemAdapter = $filesystem->createS3Driver([
             'region' => 'us-west-1',
-            'bucket' => 'laravel',
+            'bucket' => 'hypervel',
             'root' => 'something',
             'directory_separator' => '\\',
         ]);
@@ -1717,10 +1734,10 @@ class FilesystemAdapterTest extends TestCase
 
     public function testUsesRightSeperatorForS3AdapterWithoutDoublePrefixing(): void
     {
-        $filesystem = new FilesystemManager(m::mock(Container::class));
+        $filesystem = new FilesystemManager(new Application);
         $filesystemAdapter = $filesystem->createS3Driver([
             'region' => 'us-west-1',
-            'bucket' => 'laravel',
+            'bucket' => 'hypervel',
             'root' => 'my-root',
             'prefix' => 'someprefix',
             'directory_separator' => '\\',

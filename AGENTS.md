@@ -591,9 +591,17 @@ Do **not** create per-package abstract test case classes (e.g., `EngineTestCase`
 
 A per-package base class is only justified when there is shared setUp logic — e.g., shared container mock setup, shared helpers, or shared test fixtures that multiple test classes in the package need.
 
-### Mockery
+### Test doubles
 
-**Always import as `m`:** Use `use Mockery as m;` and call `m::mock()`, `m::spy()`, etc. Never use the full `Mockery::` prefix.
+Use Double for test doubles in new tests. When porting, convert direct Mockery mocks and spies to Double regardless of the upstream library; keep upstream PHPUnit doubles. Retain Mockery where required to use or test framework APIs backed by it, such as `$this->mock()`, facade expectations and `Sanctum::actingAs()`. Add `JMac\Testing\Integrations\PHPUnit\VerifiesDoubles` to each test class using Double; it owns verification and cleanup.
+
+Double is lenient by default. Use `expects('method')->never()` to forbid a call, or `unused()` after exercising the code to assert no calls occurred. `allows()->with(...)` neither requires a matching call nor rejects other arguments. `expects()->with(...)` requires the call and rejects unmatched arguments for that method. Use `strict()` when calls to unconfigured methods must fail.
+
+Do not overlap `allows()` stubs with `expects()` constraints when enforcing maximum call counts or `never()`; a matching stub can absorb those calls regardless of registration order.
+
+#### Mockery
+
+Where Mockery is required by a framework integration, import it as `m`.
 
 Framework base test cases own Mockery verification in `tearDown()` so unmet
 expectations are attributed to the test that created them. The global
@@ -620,44 +628,34 @@ public bool $timestamps = false;
 
 **Mock return types must match:**
 ```php
-// Laravel (loose - stdClass works)
-$connection = m::mock(stdClass::class);
-
-// Hypervel (strict - use correct type)
-$connection = m::mock(PDO::class);
-$query = m::mock(QueryBuilder::class);
+// Use the native type required by the consumer.
+$connection = Double::for(PDO::class);
+$query = Double::for(QueryBuilder::class);
 ```
 
-**Fluent methods need return values:**
-```php
-// Laravel (null return silently accepted)
-$builder->shouldReceive('where')->with(...);
+**Fluent return values:**
 
-// Hypervel (must return for chaining)
-$builder->shouldReceive('where')->with(...)->andReturnSelf();
-```
+Double's type-based defaults return the double itself for non-nullable `self`, `static`, or declaring-class return types, and `null` for nullable types. These defaults apply to configured calls without an explicit return and unconfigured calls in lenient mode; unconfigured passthru calls run the real method.
 
 **Mocking methods with `static` return type:**
 
-Methods like `newInstance()` have `static` return type, meaning they must return the same class (or subclass) as the object they're called on. Mockery creates proxy subclasses, so returning the parent class fails:
+Methods like `newInstance()` have `static` return type, meaning they must return the same class (or subclass) as the object they're called on. Doubles are generated subclasses, so returning the parent class fails:
 
 ```php
-// FAILS - mock is Mockery_1_MyModel, returning MyModel fails static type
-$this->related = m::mock(MyModel::class);
-$this->related->shouldReceive('newInstance')->andReturn(new MyModel);
+// Returning the parent class violates the generated subclass's static return type.
+$this->related = Double::for(MyModel::class);
+$this->related->expects('newInstance')->returns(new MyModel);
 
-// WORKS - use partial mock and andReturnSelf()
-$this->related = m::mock(MyModel::class)->makePartial();
-$this->related->shouldReceive('newInstance')->andReturnSelf();
+// Initialize real model behavior and intentionally return the double itself.
+$this->related = Double::for(new MyModel)->passthru();
+$this->related->expects('newInstance');
 
-// Test attributes on the mock itself (partial mock has real Model behavior)
+// Test attributes on the double itself (passthru keeps real Model behavior)
 $result = $relation->getResults();
 $this->assertSame('taylor', $result->username);
 ```
 
-This is a testing-only issue — the strict types are correct and an improvement. In production code, you never mock Models and call `newInstance()`.
-
-**When `andReturnSelf()` isn't enough:**
+**When distinct instances are required:**
 
 If a test needs to verify distinct instances (e.g., `makeMany()` returns different objects), use a concrete test stub instead of mocks:
 
@@ -684,8 +682,6 @@ class EloquentHasManyRelatedStub extends Model
 $this->assertNotSame($instances[0], $instances[1]);
 $this->assertFalse(EloquentHasManyRelatedStub::$saveCalled);
 ```
-
-Concrete stubs are the correct approach here — they test actual behavior rather than just verifying mocks were called correctly.
 
 ### When tests expose source code type errors
 
@@ -789,6 +785,7 @@ Run full PHPStan checks with `composer analyse`. During implementation, use targ
 When porting Laravel packages, whether first-party or third-party, keep them as close to 1:1 with upstream as possible so future changes are easy to merge. The exceptions are:
 - Modernizing PHP types, including native parameter, return, property, and class-constant types, plus other appropriate PHP 8.4+ features, strict types, and strict comparisons
 - Applying the class-import convention, including its exceptions
+- Converting direct Mockery test doubles to Double under [Test doubles](#test-doubles)
 - Converting mutable Laravel date construction to Hypervel's immutable date conventions, typing configurable factory output as `CarbonInterface`, and capturing date-modifier return values
 - Converting container array access (`$app['events']`) and dynamic service-property access (`$app->events`) in ported code to named container methods, and applying the Configuration rules to ported config and its consumers
 - Adding Laravel-style title docblocks to methods (not classes — see Development Conventions)
@@ -963,8 +960,8 @@ Tests for these features should be **removed** (not commented out) without askin
 4. Extend the appropriate test base listed under [Base classes](#base-classes)
 5. Ensure `parent::setUp()` is called
 6. Add type declarations to model properties
-7. Fix mock types (PDO, QueryBuilder, Grammar, etc.)
-8. Add `->andReturnSelf()` to chained method mocks
+7. Convert direct Mockery doubles to Double (see [Test doubles](#test-doubles)) and double the correct native types (PDO, QueryBuilder, Grammar, etc.)
+8. Ensure fluent doubles return the intended object, accounting for Double's automatic self-return
 9. Use a test-specific namespace only when helper classes have generic, collision-prone names — already-specific helper names do not need extra namespace ceremony.
 10. Remove tests only under the rules in Handling failing tests
 11. Run tests and fix any remaining type errors

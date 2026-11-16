@@ -10,18 +10,22 @@ use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class InteractsWithQueueTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCreatesAnExceptionFromString(): void
     {
-        $queueJob = m::mock(Job::class);
-        $queueJob->expects('fail')->withArgs(function (Exception $exception): bool {
+        $queueJob = Double::for(Job::class);
+        $queueJob->expects('fail')->with(Argument::satisfies(function (Exception $exception): bool {
             $this->assertSame('Whoops!', $exception->getMessage());
 
             return true;
-        });
+        }));
 
         $job = new class {
             use InteractsWithQueue;
@@ -37,7 +41,7 @@ class InteractsWithQueueTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::now());
 
-        $queueJob = m::mock(Job::class);
+        $queueJob = Double::for(Job::class);
         $queueJob->expects('release')->with(60);
 
         $job = new class {

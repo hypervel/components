@@ -19,13 +19,17 @@ use Hypervel\View\Component;
 use Hypervel\View\ComponentSlot;
 use Hypervel\View\Factory;
 use Hypervel\View\View;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class ComponentTest extends TestCase
 {
-    protected Factory $viewFactory;
+    use VerifiesDoubles;
 
-    protected Config $config;
+    protected Factory&DoubleInterface $viewFactory;
+
+    protected Config&DoubleInterface $config;
 
     protected Filesystem $filesystem;
 
@@ -35,8 +39,8 @@ class ComponentTest extends TestCase
     {
         parent::setUp();
 
-        $this->viewFactory = m::mock(Factory::class);
-        $this->config = m::mock(Config::class);
+        $this->viewFactory = Double::for(Factory::class);
+        $this->config = Double::for(Config::class);
         $this->filesystem = new Filesystem;
         $this->compiledPath = ParallelTesting::tempDir('ViewComponentTest');
         $this->filesystem->deleteDirectory($this->compiledPath);
@@ -60,9 +64,9 @@ class ComponentTest extends TestCase
 
     public function testInlineViewsGetCreated(): void
     {
-        $this->config->expects('string')->with('view.compiled')->andReturn($this->compiledPath);
-        $this->viewFactory->expects('exists')->andReturn(false);
-        $this->viewFactory->expects('replaceNamespace')->with('__components', $this->compiledPath)->andReturnSelf();
+        $this->config->expects('string')->with('view.compiled')->returns($this->compiledPath);
+        $this->viewFactory->expects('exists')->returns(false);
+        $this->viewFactory->expects('replaceNamespace')->with('__components', $this->compiledPath)->returns($this->viewFactory);
 
         $component = new TestInlineViewComponent;
         $this->assertSame('__components::57b7a54afa0eb51fd9b88eec031c9e9e', $component->resolveView());
@@ -72,17 +76,17 @@ class ComponentTest extends TestCase
     {
         $contents = 'Atomically published';
         $viewFile = $this->compiledPath . '/' . hash('xxh128', $contents) . '.blade.php';
-        $filesystem = m::mock(Filesystem::class);
+        $filesystem = Double::for(Filesystem::class);
 
-        $filesystem->expects('exists')->with($viewFile)->andReturn(false);
+        $filesystem->expects('exists')->with($viewFile)->returns(false);
         $filesystem->expects('ensureDirectoryExists')->with($this->compiledPath);
         $filesystem->expects('replace')->with($viewFile, $contents);
 
         Container::getInstance()->instance(Filesystem::class, $filesystem);
 
-        $this->config->expects('string')->with('view.compiled')->andReturn($this->compiledPath);
-        $this->viewFactory->expects('exists')->with($contents)->andReturn(false);
-        $this->viewFactory->expects('replaceNamespace')->with('__components', $this->compiledPath)->andReturnSelf();
+        $this->config->expects('string')->with('view.compiled')->returns($this->compiledPath);
+        $this->viewFactory->expects('exists')->with($contents)->returns(false);
+        $this->viewFactory->expects('replaceNamespace')->with('__components', $this->compiledPath)->returns($this->viewFactory);
 
         $component = new TestAtomicallyPublishedInlineViewComponent;
 
@@ -93,18 +97,18 @@ class ComponentTest extends TestCase
     {
         $contents = 'Already published';
         $viewFile = $this->compiledPath . '/' . hash('xxh128', $contents) . '.blade.php';
-        $filesystem = m::mock(Filesystem::class);
+        $filesystem = Double::for(Filesystem::class);
 
-        $filesystem->expects('exists')->with($viewFile)->andReturn(true);
-        $filesystem->expects('size')->with($viewFile)->andReturn(strlen($contents));
-        $filesystem->shouldReceive('ensureDirectoryExists')->never();
-        $filesystem->shouldReceive('replace')->never();
+        $filesystem->expects('exists')->with($viewFile)->returns(true);
+        $filesystem->expects('size')->with($viewFile)->returns(strlen($contents));
+        $filesystem->expects('ensureDirectoryExists')->never();
+        $filesystem->expects('replace')->never();
 
         Container::getInstance()->instance(Filesystem::class, $filesystem);
 
-        $this->config->expects('string')->with('view.compiled')->andReturn($this->compiledPath);
-        $this->viewFactory->expects('exists')->with($contents)->andReturn(false);
-        $this->viewFactory->expects('replaceNamespace')->with('__components', $this->compiledPath)->andReturnSelf();
+        $this->config->expects('string')->with('view.compiled')->returns($this->compiledPath);
+        $this->viewFactory->expects('exists')->with($contents)->returns(false);
+        $this->viewFactory->expects('replaceNamespace')->with('__components', $this->compiledPath)->returns($this->viewFactory);
 
         $component = new TestCompleteInlineViewComponent;
 
@@ -113,9 +117,9 @@ class ComponentTest extends TestCase
 
     public function testEmptyInlineViewsArePublished(): void
     {
-        $this->config->expects('string')->with('view.compiled')->andReturn($this->compiledPath);
-        $this->viewFactory->expects('exists')->with('')->andReturn(false);
-        $this->viewFactory->expects('replaceNamespace')->with('__components', $this->compiledPath)->andReturnSelf();
+        $this->config->expects('string')->with('view.compiled')->returns($this->compiledPath);
+        $this->viewFactory->expects('exists')->with('')->returns(false);
+        $this->viewFactory->expects('replaceNamespace')->with('__components', $this->compiledPath)->returns($this->viewFactory);
 
         $component = new TestEmptyInlineViewComponent;
         $viewName = $component->resolveView();
@@ -131,9 +135,9 @@ class ComponentTest extends TestCase
         $viewFile = $this->compiledPath . '/' . hash('xxh128', $contents) . '.blade.php';
         file_put_contents($viewFile, 'truncated');
 
-        $this->config->expects('string')->with('view.compiled')->andReturn($this->compiledPath);
-        $this->viewFactory->expects('exists')->with($contents)->andReturn(false);
-        $this->viewFactory->expects('replaceNamespace')->with('__components', $this->compiledPath)->andReturnSelf();
+        $this->config->expects('string')->with('view.compiled')->returns($this->compiledPath);
+        $this->viewFactory->expects('exists')->with($contents)->returns(false);
+        $this->viewFactory->expects('replaceNamespace')->with('__components', $this->compiledPath)->returns($this->viewFactory);
 
         $component = new TestInlineViewComponent;
 
@@ -143,8 +147,8 @@ class ComponentTest extends TestCase
 
     public function testRegularViewsGetReturnedUsingViewHelper(): void
     {
-        $view = m::mock(View::class);
-        $this->viewFactory->expects('make')->with('alert', [], [])->andReturn($view);
+        $view = Double::for(View::class);
+        $this->viewFactory->expects('make')->with('alert', [], [])->returns($view);
 
         $component = new TestRegularViewComponentUsingViewHelper;
 
@@ -153,9 +157,9 @@ class ComponentTest extends TestCase
 
     public function testRenderingStringClosureFromComponent(): void
     {
-        $this->config->expects('string')->with('view.compiled')->andReturn($this->compiledPath);
-        $this->viewFactory->expects('exists')->andReturn(false);
-        $this->viewFactory->expects('replaceNamespace')->with('__components', $this->compiledPath)->andReturnSelf();
+        $this->config->expects('string')->with('view.compiled')->returns($this->compiledPath);
+        $this->viewFactory->expects('exists')->returns(false);
+        $this->viewFactory->expects('replaceNamespace')->with('__components', $this->compiledPath)->returns($this->viewFactory);
 
         $component = new class extends Component {
             /**
@@ -189,8 +193,8 @@ class ComponentTest extends TestCase
 
     public function testRegularViewsGetReturnedUsingViewMethod(): void
     {
-        $view = m::mock(View::class);
-        $this->viewFactory->expects('make')->with('alert', [], [])->andReturn($view);
+        $view = Double::for(View::class);
+        $this->viewFactory->expects('make')->with('alert', [], [])->returns($view);
 
         $component = new TestRegularViewComponentUsingViewMethod;
 
@@ -199,8 +203,8 @@ class ComponentTest extends TestCase
 
     public function testRegularViewNamesGetReturned(): void
     {
-        $this->viewFactory->expects('exists')->andReturn(true);
-        $this->viewFactory->shouldReceive('replaceNamespace')->never();
+        $this->viewFactory->expects('exists')->returns(true);
+        $this->viewFactory->expects('replaceNamespace')->never();
 
         $component = new TestRegularViewNameViewComponent;
 
@@ -292,7 +296,7 @@ class ComponentTest extends TestCase
     {
         $component = new TestRegularViewNameViewComponent;
 
-        $this->viewFactory->expects('exists')->twice()->andReturn(true);
+        $this->viewFactory->expects('exists')->times(2)->returns(true);
 
         $this->assertSame('alert', $component->resolveView());
         $this->assertSame('alert', $component->resolveView());
@@ -318,14 +322,14 @@ class ComponentTest extends TestCase
     {
         $component = new TestInlineViewComponent;
 
-        $this->viewFactory->expects('exists')->twice()->andReturn(false);
+        $this->viewFactory->expects('exists')->times(2)->returns(false);
 
-        $this->config->expects('string')->twice()->with('view.compiled')->andReturn($this->compiledPath);
+        $this->config->expects('string')->times(2)->with('view.compiled')->returns($this->compiledPath);
 
         $this->viewFactory->expects('replaceNamespace')
             ->with('__components', $this->compiledPath)
-            ->twice()
-            ->andReturnSelf();
+            ->times(2)
+            ->returns($this->viewFactory);
 
         $compiledViewName = '__components::57b7a54afa0eb51fd9b88eec031c9e9e';
         $contents = 'Hello {{ $title }}';
@@ -357,14 +361,14 @@ class ComponentTest extends TestCase
         $componentA = new TestInlineViewComponentWhereRenderDependsOnProps('A');
         $componentB = new TestInlineViewComponentWhereRenderDependsOnProps('B');
 
-        $this->viewFactory->expects('exists')->twice()->andReturn(false);
+        $this->viewFactory->expects('exists')->times(2)->returns(false);
 
-        $this->config->expects('string')->twice()->with('view.compiled')->andReturn($this->compiledPath);
+        $this->config->expects('string')->times(2)->with('view.compiled')->returns($this->compiledPath);
 
         $this->viewFactory->expects('replaceNamespace')
             ->with('__components', $this->compiledPath)
-            ->twice()
-            ->andReturnSelf();
+            ->times(2)
+            ->returns($this->viewFactory);
 
         $compiledViewNameA = '__components::9b0498cbe3839becd0d496e05c553485';
         $compiledViewNameB = '__components::9d1b9bc4078a3e7274d3766ca02423f3';
@@ -397,12 +401,12 @@ class ComponentTest extends TestCase
         $componentA = new TestInlineViewComponentWhereRenderDependsOnProps('A');
         $componentB = new TestInlineViewComponentWhereRenderDependsOnProps('B');
 
-        $this->viewFactory->expects('exists')->times(3)->andReturn(false);
-        $this->config->expects('string')->times(3)->with('view.compiled')->andReturn($this->compiledPath);
+        $this->viewFactory->expects('exists')->times(3)->returns(false);
+        $this->config->expects('string')->times(3)->with('view.compiled')->returns($this->compiledPath);
         $this->viewFactory->expects('replaceNamespace')
             ->with('__components', $this->compiledPath)
             ->times(3)
-            ->andReturnSelf();
+            ->returns($this->viewFactory);
 
         $compiledViewNameA = '__components::9b0498cbe3839becd0d496e05c553485';
         $compiledViewNameB = '__components::9d1b9bc4078a3e7274d3766ca02423f3';
@@ -436,7 +440,7 @@ class ComponentTest extends TestCase
 
         $this->assertSame($this->viewFactory, $getFactory($regular));
 
-        $replacement = m::mock(Factory::class);
+        $replacement = Double::for(Factory::class);
         Container::getInstance()->instance(FactoryContract::class, $replacement);
 
         $this->assertSame($this->viewFactory, $getFactory($inline));

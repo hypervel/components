@@ -13,13 +13,16 @@ use Hypervel\Database\Schema\Grammars\PostgresGrammar;
 use Hypervel\Database\Schema\PostgresBuilder;
 use Hypervel\Tests\Database\Fixtures\Enums\Foo;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class DatabasePostgresSchemaGrammarTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBasicCreateTable(): void
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
@@ -48,7 +51,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
     {
         $blueprint = new Blueprint($this->getConnection(), 'embeddings');
         $blueprint->vector('embedding', 384);
-        $statements = $blueprint->toSql($this->getConnection(), $this->getGrammar());
+        $statements = $blueprint->toSql();
 
         $this->assertCount(1, $statements);
         $this->assertSame('alter table "embeddings" add column "embedding" vector(384) not null', $statements[0]);
@@ -183,8 +186,8 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
     public function testCreateRangePartition(): void
     {
         $connection = $this->getConnection(prefix: 'prefix_');
-        $connection->expects('escape')->with(1, false)->twice()->andReturn('1');
-        $connection->expects('escape')->with("0190'a", false)->andReturn("'0190''a'");
+        $connection->expects('escape')->with(1, false)->times(2)->returns('1');
+        $connection->expects('escape')->with("0190'a", false)->returns("'0190''a'");
 
         $this->assertSame(
             'create table "prefix_attempts_1" partition of "prefix_attempts" for values from (1, \'0190\'\'a\') to (1, maxvalue)',
@@ -251,7 +254,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
     public function testDropPrimary(): void
     {
         $connection = $this->getConnection();
-        $connection->getSchemaBuilder()->shouldReceive('parseSchemaAndTable')->andReturn([null, 'users']);
+        $connection->getSchemaBuilder()->expects('parseSchemaAndTable')->returns([null, 'users']);
 
         $blueprint = new Blueprint($connection, 'users');
         $blueprint->dropPrimary();
@@ -541,7 +544,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
     public function testCompileIndexesIncludesOnlyKeysAndPartialMetadata(string $version, string $keyCondition): void
     {
         $connection = $this->getConnection();
-        $connection->expects('getServerVersion')->andReturn($version);
+        $connection->expects('getServerVersion')->returns($version);
         $this->assertSame(
             'select ic.relname as name, a.attname as column_name, '
             . 'am.amname as "type", i.indisunique as "unique", i.indisprimary as "primary", '
@@ -801,7 +804,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $foreignId = $blueprint->foreignId('foo');
         $blueprint->foreignId('company_id')->constrained();
-        $blueprint->foreignId('laravel_idea_id')->constrained();
+        $blueprint->foreignId('hypervel_idea_id')->constrained();
         $blueprint->foreignId('team_id')->references('id')->on('teams');
         $blueprint->foreignId('team_column_id')->constrained('teams');
 
@@ -812,8 +815,8 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
             'alter table "users" add column "foo" bigint not null',
             'alter table "users" add column "company_id" bigint not null',
             'alter table "users" add constraint "users_company_id_foreign" foreign key ("company_id") references "companies" ("id")',
-            'alter table "users" add column "laravel_idea_id" bigint not null',
-            'alter table "users" add constraint "users_laravel_idea_id_foreign" foreign key ("laravel_idea_id") references "laravel_ideas" ("id")',
+            'alter table "users" add column "hypervel_idea_id" bigint not null',
+            'alter table "users" add constraint "users_hypervel_idea_id_foreign" foreign key ("hypervel_idea_id") references "hypervel_ideas" ("id")',
             'alter table "users" add column "team_id" bigint not null',
             'alter table "users" add constraint "users_team_id_foreign" foreign key ("team_id") references "teams" ("id")',
             'alter table "users" add column "team_column_id" bigint not null',
@@ -1221,7 +1224,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $foreignUuid = $blueprint->foreignUuid('foo');
         $blueprint->foreignUuid('company_id')->constrained();
-        $blueprint->foreignUuid('laravel_idea_id')->constrained();
+        $blueprint->foreignUuid('hypervel_idea_id')->constrained();
         $blueprint->foreignUuid('team_id')->references('id')->on('teams');
         $blueprint->foreignUuid('team_column_id')->constrained('teams');
 
@@ -1232,8 +1235,8 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
             'alter table "users" add column "foo" uuid not null',
             'alter table "users" add column "company_id" uuid not null',
             'alter table "users" add constraint "users_company_id_foreign" foreign key ("company_id") references "companies" ("id")',
-            'alter table "users" add column "laravel_idea_id" uuid not null',
-            'alter table "users" add constraint "users_laravel_idea_id_foreign" foreign key ("laravel_idea_id") references "laravel_ideas" ("id")',
+            'alter table "users" add column "hypervel_idea_id" uuid not null',
+            'alter table "users" add constraint "users_hypervel_idea_id_foreign" foreign key ("hypervel_idea_id") references "hypervel_ideas" ("id")',
             'alter table "users" add column "team_id" uuid not null',
             'alter table "users" add constraint "users_team_id_foreign" foreign key ("team_id") references "teams" ("id")',
             'alter table "users" add column "team_column_id" uuid not null',
@@ -1548,7 +1551,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
     public function testCreateDatabase(): void
     {
         $connection = $this->getConnection();
-        $connection->expects('getConfig')->with('charset')->andReturn('utf8_foo');
+        $connection->expects('getConfig')->with('charset')->returns('utf8_foo');
         $statement = $this->getGrammar($connection)->compileCreateDatabase('my_database_a');
 
         $this->assertSame(
@@ -1557,7 +1560,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         );
 
         $connection = $this->getConnection();
-        $connection->expects('getConfig')->with('charset')->andReturn('utf8_bar');
+        $connection->expects('getConfig')->with('charset')->returns('utf8_bar');
         $statement = $this->getGrammar($connection)->compileCreateDatabase('my_database_b');
 
         $this->assertSame(
@@ -1639,7 +1642,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
     public function testCompileColumns(): void
     {
         $connection = $this->getConnection();
-        $connection->expects('getServerVersion')->andReturn('12.0.0');
+        $connection->expects('getServerVersion')->returns('12.0.0');
 
         $statement = $connection->getSchemaGrammar()->compileColumns('public', 'table');
 
@@ -1649,10 +1652,11 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertStringContainsString('a.attidentity as identity', $statement);
     }
 
+    // REMOVED: Laravel's PostgreSQL 8 metadata case; Hypervel requires PostgreSQL 10+.
     public function testCompileColumnsOnPostgresTen(): void
     {
         $connection = $this->getConnection();
-        $connection->expects('getServerVersion')->andReturn('10.23');
+        $connection->expects('getServerVersion')->returns('10.23');
 
         $statement = $connection->getSchemaGrammar()->compileColumns('public', 'table');
 
@@ -1666,7 +1670,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
     public function testCompileMetadataQueriesForSchemaNamedZero(): void
     {
         $connection = $this->getConnection();
-        $connection->expects('getServerVersion')->twice()->andReturn('12.0.0');
+        $connection->expects('getServerVersion')->times(2)->returns('12.0.0');
         $grammar = $connection->getSchemaGrammar();
 
         $this->assertStringContainsString("n.nspname = '0' and", $grammar->compileTableExists('0', 'users'));
@@ -1709,16 +1713,16 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         ?PostgresGrammar $grammar = null,
         ?PostgresBuilder $builder = null,
         string $prefix = ''
-    ): Connection&MockInterface {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getTablePrefix')->andReturn($prefix);
-        $connection->shouldReceive('getConfig')->with('prefix_indexes')->andReturn(null);
+    ): Connection&DoubleInterface {
+        $connection = Double::for(Connection::class);
+        $connection->allows('getTablePrefix')->returns($prefix);
+        $connection->allows('getConfig')->with('prefix_indexes')->returns(null);
 
         $grammar ??= $this->getGrammar($connection);
         $builder ??= $this->getBuilder();
 
-        $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
-        $connection->shouldReceive('getSchemaBuilder')->andReturn($builder);
+        $connection->allows('getSchemaGrammar')->returns($grammar);
+        $connection->allows('getSchemaBuilder')->returns($builder);
 
         return $connection;
     }
@@ -1736,7 +1740,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
      */
     public function getBuilder(): PostgresBuilder
     {
-        return m::mock(PostgresBuilder::class)->makePartial();
+        return Double::for(PostgresBuilder::class)->passthru();
     }
 
     public function testGrammarsAreMacroable(): void

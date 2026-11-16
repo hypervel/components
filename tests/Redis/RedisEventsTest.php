@@ -20,12 +20,16 @@ use Hypervel\Redis\RedisProxy;
 use Hypervel\Redis\RedisSentinelFactory;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Redis as PhpRedis;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Throwable;
 
 class RedisEventsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCommandFailedEventIsDispatched(): void
     {
         $exception = new Exception('Test exception');
@@ -100,15 +104,15 @@ class RedisEventsTest extends TestCase
     {
         $exception = new Exception('Test exception');
 
-        $mockEventDispatcher = m::mock(Dispatcher::class);
-        $mockEventDispatcher->shouldReceive('hasListeners')
+        $mockEventDispatcher = Double::for(Dispatcher::class);
+        $mockEventDispatcher->allows('hasListeners')
             ->with(CommandFailed::class)
-            ->andReturn(true);
-        $mockEventDispatcher->shouldReceive('hasListeners')
+            ->returns(true);
+        $mockEventDispatcher->allows('hasListeners')
             ->with(CommandExecuted::class)
-            ->andReturn(false);
+            ->returns(false);
         $mockEventDispatcher->expects('dispatch')
-            ->with(m::on(function (mixed $event): bool {
+            ->with(Argument::satisfies(function (mixed $event): bool {
                 return $event instanceof CommandFailed
                     && is_float($event->time)
                     && $event->time >= 0;
@@ -128,9 +132,9 @@ class RedisEventsTest extends TestCase
 
     public function testListenRegistersCallback(): void
     {
-        $mockEventDispatcher = m::mock(Dispatcher::class);
+        $mockEventDispatcher = Double::for(Dispatcher::class);
         $mockEventDispatcher->expects('listen')
-            ->with(CommandExecuted::class, m::type(Closure::class));
+            ->with(CommandExecuted::class, Argument::type(Closure::class));
 
         $container = Container::getInstance();
         $container->instance('events', $mockEventDispatcher);
@@ -160,14 +164,14 @@ class RedisEventsTest extends TestCase
 
     public function testCommandExecutedNotDispatchedWhenNoListeners(): void
     {
-        $mockEventDispatcher = m::mock(Dispatcher::class);
-        $mockEventDispatcher->shouldReceive('hasListeners')
+        $mockEventDispatcher = Double::for(Dispatcher::class);
+        $mockEventDispatcher->allows('hasListeners')
             ->with(CommandFailed::class)
-            ->andReturn(false);
-        $mockEventDispatcher->shouldReceive('hasListeners')
+            ->returns(false);
+        $mockEventDispatcher->allows('hasListeners')
             ->with(CommandExecuted::class)
-            ->andReturn(false);
-        $mockEventDispatcher->shouldNotReceive('dispatch');
+            ->returns(false);
+        $mockEventDispatcher->expects('dispatch')->never();
 
         $connection = $this->createMockRedisConnection('get', 'value', null, $mockEventDispatcher);
         $connection->expects('release');
@@ -181,14 +185,14 @@ class RedisEventsTest extends TestCase
     {
         $exception = new Exception('Redis error');
 
-        $mockEventDispatcher = m::mock(Dispatcher::class);
-        $mockEventDispatcher->shouldReceive('hasListeners')
+        $mockEventDispatcher = Double::for(Dispatcher::class);
+        $mockEventDispatcher->allows('hasListeners')
             ->with(CommandFailed::class)
-            ->andReturn(false);
-        $mockEventDispatcher->shouldReceive('hasListeners')
+            ->returns(false);
+        $mockEventDispatcher->allows('hasListeners')
             ->with(CommandExecuted::class)
-            ->andReturn(false);
-        $mockEventDispatcher->shouldNotReceive('dispatch');
+            ->returns(false);
+        $mockEventDispatcher->expects('dispatch')->never();
 
         $connection = $this->createMockRedisConnection('get', null, $exception, $mockEventDispatcher);
         $connection->expects('release');
@@ -239,19 +243,19 @@ class RedisEventsTest extends TestCase
     /**
      * Create a Redis proxy using the given connection.
      */
-    private function createRedis(m\MockInterface|RedisConnection $connection): RedisProxy
+    private function createRedis(RedisConnection $connection): RedisProxy
     {
-        $pool = m::mock(RedisPool::class);
-        $pool->shouldReceive('borrow')->andReturn($connection);
-        $pool->shouldReceive('getOptions')->andReturn(PoolOptions::fromArray([]));
+        $pool = Double::for(RedisPool::class);
+        $pool->allows('borrow')->returns($connection);
+        $pool->allows('getOptions')->returns(PoolOptions::fromArray([]));
 
-        $poolManager = m::mock(PoolManager::class)->makePartial();
-        $poolManager->shouldReceive('pool')->with('default')->andReturn($pool);
+        $poolManager = Double::for(PoolManager::class);
+        $poolManager->allows('pool')->with('default')->returns($pool);
 
         return new RedisProxy(
             $poolManager,
             'default',
-            m::mock(RedisSentinelFactory::class),
+            Double::for(RedisSentinelFactory::class),
         );
     }
 
@@ -263,29 +267,28 @@ class RedisEventsTest extends TestCase
         mixed $returnValue = 'value',
         ?Throwable $exception = null,
         ?Dispatcher $eventDispatcher = null
-    ): RedisConnection&m\MockInterface {
-        $mockPhpRedis = m::mock(PhpRedis::class);
+    ): RedisConnection&DoubleInterface {
+        $mockRedisConnection = Double::for(RedisEventsConnection::class);
+        $mockRedisConnection->allows('shouldTransform')->returns($mockRedisConnection);
+        $mockRedisConnection->allows('getConnection')->returns($mockRedisConnection);
+        $mockRedisConnection->allows('getEventDispatcher')->returns($eventDispatcher);
+        $mockRedisConnection->allows('getName')->returns('default');
 
         if ($exception !== null) {
-            $mockPhpRedis->expects($command)
-                ->with('key')
-                ->andThrow($exception);
+            $mockRedisConnection->expects($command)->with('key')->throws($exception);
         } else {
-            $mockPhpRedis->shouldReceive($command)
-                ->andReturn($returnValue);
+            $mockRedisConnection->allows($command)->with('key')->returns($returnValue);
         }
-
-        $mockRedisConnection = m::mock(PhpRedisConnection::class);
-        $mockRedisConnection->shouldReceive('shouldTransform')->andReturnSelf();
-        $mockRedisConnection->shouldReceive('getConnection')->andReturn($mockRedisConnection);
-        $mockRedisConnection->shouldReceive('getEventDispatcher')->andReturn($eventDispatcher);
-        $mockRedisConnection->shouldReceive('getName')->andReturn('default');
-
-        $mockRedisConnection->shouldReceive($command)
-            ->andReturnUsing(function (mixed ...$arguments) use ($mockPhpRedis, $command): mixed {
-                return $mockPhpRedis->{$command}(...$arguments);
-            });
 
         return $mockRedisConnection;
     }
+}
+
+// Declare the dynamic command so Double can enforce its arguments and call count.
+abstract class RedisEventsConnection extends PhpRedisConnection
+{
+    /**
+     * Get the value stored at the key.
+     */
+    abstract public function get(string $key): mixed;
 }

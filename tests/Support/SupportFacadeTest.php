@@ -13,7 +13,6 @@ use Hypervel\Engine\Channel;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Testing\Fakes\Fake;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
@@ -111,8 +110,7 @@ class SupportFacadeTest extends TestCase
     public function testFacadeResolvesAgainAfterClearingSpecific(): void
     {
         $app = new ApplicationStub;
-        $app->setInstances(['foo' => $mock = m::mock(stdClass::class)]);
-        $mock->expects('bar')->times(3)->andReturn('baz');
+        $app->setInstances(['foo' => $service = new FacadeTestService]);
 
         // Resolve for the first time
         FacadeStub::setFacadeApplication($app);
@@ -125,13 +123,14 @@ class SupportFacadeTest extends TestCase
         // Clear resolved instance through parent and resolve the third time
         Facade::clearResolvedInstance('foo');
         $this->assertSame('baz', FacadeStub::bar());
+
+        $this->assertSame(3, $service->calls);
     }
 
     public function testFacadeResolvesAgainAfterClearingAll(): void
     {
         $app = new ApplicationStub;
-        $app->setInstances(['foo' => $mock = m::mock(stdClass::class)]);
-        $mock->expects('bar')->times(2)->andReturn('baz');
+        $app->setInstances(['foo' => $service = new FacadeTestService]);
 
         // Resolve for the first time
         FacadeStub::setFacadeApplication($app);
@@ -140,6 +139,8 @@ class SupportFacadeTest extends TestCase
         // Clear all resolved instances and resolve a second time
         Facade::clearResolvedInstances();
         $this->assertSame('baz', FacadeStub::bar());
+
+        $this->assertSame(2, $service->calls);
     }
 
     public function testGetFacadeApplicationReturnsSetApplication(): void
@@ -179,12 +180,12 @@ class SupportFacadeTest extends TestCase
     {
         // swap() should not throw when $app is null
         FacadeStub::setFacadeApplication(null);
-        $replacement = m::mock(stdClass::class);
-        $replacement->expects('bar')->andReturn('swapped');
+        $replacement = new FacadeTestService;
 
         FacadeStub::swap($replacement);
 
-        $this->assertSame('swapped', FacadeStub::bar());
+        $this->assertSame('baz', FacadeStub::bar());
+        $this->assertSame(1, $replacement->calls);
     }
 
     public function testFacadeReturnsNullWhenAppNotSet(): void
@@ -497,5 +498,20 @@ class CountingApplicationStub extends ApplicationStub
         ++$this->makeCount;
 
         return parent::make($abstract, $parameters);
+    }
+}
+
+class FacadeTestService
+{
+    public int $calls = 0;
+
+    /**
+     * Count the call and return the facade result.
+     */
+    public function bar(): string
+    {
+        ++$this->calls;
+
+        return 'baz';
     }
 }

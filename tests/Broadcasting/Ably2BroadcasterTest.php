@@ -11,15 +11,17 @@ use Ably\PubSub\Server;
 use Ably\PubSub\Utils\Crypto;
 use Hypervel\Broadcasting\Broadcasters\Ably2Broadcaster;
 use Hypervel\Broadcasting\BroadcastException;
-use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Routing\BindingRegistrar;
+use Hypervel\Container\Container;
 use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class Ably2BroadcasterTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public Ably2Broadcaster $broadcaster;
 
     public PubSubHttpClient $ably;
@@ -37,11 +39,10 @@ class Ably2BroadcasterTest extends TestCase
             $this->markTestSkipped(sprintf('%s class is not available.', PubSubHttpClient::class));
         }
 
-        $this->container = m::mock(Container::class);
-        $this->container->shouldReceive('bound')->with(BindingRegistrar::class)->andReturnFalse()->byDefault();
-        $this->ably = m::mock(PubSubHttpClient::class, ['abcd:efgh']);
+        $this->container = new Container;
+        $this->ably = new PubSubHttpClient('abcd:efgh');
 
-        $this->broadcaster = m::mock(Ably2Broadcaster::class, [$this->container, $this->ably])->makePartial();
+        $this->broadcaster = Double::for(Ably2Broadcaster::class)->passthru(new Ably2Broadcaster($this->container, $this->ably));
     }
 
     public function testAuthCallValidAuthenticationResponseWithPrivateChannelWhenCallbackReturnTrue(): void
@@ -52,7 +53,7 @@ class Ably2BroadcasterTest extends TestCase
 
         $this->broadcaster->expects('generateAblySignature')
             ->with('private-test', 'abcd.1234')
-            ->andReturn('signature');
+            ->returns('signature');
 
         $this->assertSame(
             ['auth' => 'abcd:signature'],
@@ -95,7 +96,7 @@ class Ably2BroadcasterTest extends TestCase
 
         $this->broadcaster->expects('generateAblySignature')
             ->with('presence-test', 'abcd.1234', ['user_id' => '42', 'user_info' => $returnData])
-            ->andReturn('signature');
+            ->returns('signature');
 
         $this->assertSame(
             [
