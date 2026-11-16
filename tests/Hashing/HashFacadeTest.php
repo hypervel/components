@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Hashing;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Hashing\Hasher;
 use Hypervel\Support\Facades\Hash;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class HashFacadeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -22,18 +26,17 @@ class HashFacadeTest extends TestCase
 
     public function testDynamicCallsForwardTheirMethodArgumentsAndReturnValue(): void
     {
-        $root = m::mock();
-        $root->shouldReceive('probe')
-            ->once()
-            ->with('value', 42)
-            ->andReturn('result');
+        $root = Double::for(Hasher::class)->strict();
+        $root->expects('make')
+            ->with('value', ['rounds' => 4])
+            ->returns('result');
 
         $app = new Container;
         $app->instance('hash', $root);
 
         Hash::setFacadeApplication($app);
 
-        $this->assertSame('result', Hash::probe('value', 42));
+        $this->assertSame('result', Hash::make('value', ['rounds' => 4]));
     }
 
     public function testDynamicCallsWithoutAFacadeRootThrowTheBaseException(): void
