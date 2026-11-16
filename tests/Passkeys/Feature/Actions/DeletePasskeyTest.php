@@ -12,10 +12,14 @@ use Hypervel\Passkeys\Passkey;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Passkeys\Fixtures\User;
 use Hypervel\Tests\Passkeys\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class DeletePasskeyTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testItDeletesThePasskey(): void
     {
         $user = User::create([
@@ -89,12 +93,8 @@ class DeletePasskeyTest extends TestCase
         ]);
         $passkey = $this->createPasskeyForUser($user, 'credential-quiet-delete');
 
-        $events = m::mock(Dispatcher::class)->shouldIgnoreMissing();
-        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnFalse()->byDefault();
-        $events->shouldReceive('hasListeners')->once()->with(PasskeyDeleted::class)->andReturnFalse();
-        $events->shouldReceive('dispatch')
-            ->withArgs(static fn (mixed $event): bool => $event instanceof PasskeyDeleted)
-            ->never();
+        $events = Double::for(Dispatcher::class);
+        $events->allows('hasListeners')->returns(false);
 
         $this->instance('events', $events);
 
@@ -103,6 +103,8 @@ class DeletePasskeyTest extends TestCase
         $this->assertDatabaseMissing('passkeys', [
             'id' => $passkey->getKey(),
         ]);
+        $events->received('hasListeners')->with(PasskeyDeleted::class)->times(1);
+        $events->received('dispatch')->with(Argument::type(PasskeyDeleted::class))->never();
     }
 
     /**
