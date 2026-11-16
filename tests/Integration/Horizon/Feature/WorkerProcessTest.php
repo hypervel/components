@@ -16,7 +16,9 @@ use Hypervel\Queue\Worker as QueueWorker;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use ReflectionClass;
 use ReflectionMethod;
 use RuntimeException;
@@ -24,29 +26,32 @@ use Symfony\Component\Process\Process;
 
 class WorkerProcessTest extends IntegrationTestCase
 {
+    use VerifiesDoubles;
+
     public function testWorkerProcessSkipsOptionalEventsWhenTheyHaveNoListeners(): void
     {
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(WorkerProcessRestarting::class)->andReturnFalse();
-        $events->shouldReceive('hasListeners')->once()->with(UnableToLaunchProcess::class)->andReturnFalse();
-        $events->shouldNotReceive('dispatch');
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(WorkerProcessRestarting::class)->returns(false);
+        $events->expects('hasListeners')->with(UnableToLaunchProcess::class)->returns(false);
+        $events->expects('dispatch')->never();
         $this->app->instance('events', $events);
 
-        $restartProcess = m::mock(Process::class);
-        $restartProcess->shouldReceive('isStarted')->once()->andReturnTrue();
-        $restartProcess->shouldReceive('start')->once();
+        $restartProcess = Double::for(Process::class)->strict();
+        // Symfony's destructor calls stop() even for these unstarted process doubles.
+        $restartProcess->allows('stop')->with(0.0);
+        $restartProcess->expects('isStarted')->returns(true);
+        $restartProcess->expects('start');
         $restartWorker = new WorkerProcess($restartProcess);
         $restartWorker->handleOutputUsing(static function (): void {
         });
         (new ReflectionMethod(WorkerProcess::class, 'restart'))->invoke($restartWorker);
 
-        $failedProcess = m::mock(Process::class);
-        $failedProcess->shouldReceive('isRunning')->twice()->andReturnFalse();
+        $failedProcess = Double::for(Process::class)->strict();
+        $failedProcess->allows('stop')->with(0.0);
+        $failedProcess->expects('isRunning')->times(2)->returns(false);
         $failedWorker = new WorkerProcess($failedProcess);
         $failedWorker->restartAgainAt = CarbonImmutable::now()->subSecond();
         (new ReflectionMethod(WorkerProcess::class, 'cooldown'))->invoke($failedWorker);
-
-        $this->addToAssertionCount(1);
     }
 
     public function testControlSignalSentDuringBootstrapIsDeliveredAfterHandlerInstallation(): void
@@ -87,8 +92,9 @@ class WorkerProcessTest extends IntegrationTestCase
     {
         $before = $this->signalMask();
         $during = [];
-        $process = m::mock(Process::class);
-        $process->shouldReceive('start')->once()->with(m::type(Closure::class))->andReturnUsing(
+        $process = Double::for(Process::class)->strict();
+        $process->allows('stop')->with(0.0);
+        $process->expects('start')->with(Argument::type(Closure::class))->resolves(
             static function () use (&$during): void {
                 $during = self::signalMaskStatically();
             },
@@ -111,8 +117,9 @@ class WorkerProcessTest extends IntegrationTestCase
     {
         $before = $this->signalMask();
         $failure = new RuntimeException('start failed');
-        $process = m::mock(Process::class);
-        $process->shouldReceive('start')->once()->andThrow($failure);
+        $process = Double::for(Process::class)->strict();
+        $process->allows('stop')->with(0.0);
+        $process->expects('start')->throws($failure);
 
         try {
             (new WorkerProcess($process))->start(static function (): void {
@@ -143,13 +150,19 @@ class WorkerProcessTest extends IntegrationTestCase
 
     public function testKillStopsARunningProcessImmediately(): void
     {
-        $process = m::mock(Process::class);
-        $process->shouldReceive('isRunning')->once()->andReturnTrue();
-        $process->shouldReceive('stop')->once()->with(0)->andReturn(0);
+        $timeouts = [];
+        $process = Double::for(Process::class)->strict();
+        $process->expects('isRunning')->returns(true);
+        $process->allows('stop')->resolves(static function (float $timeout) use (&$timeouts): int {
+            $timeouts[] = $timeout;
+
+            return 0;
+        });
 
         (new WorkerProcess($process))->kill();
 
-        $this->addToAssertionCount(1);
+        // Check kill() before Symfony's destructor makes its own stop() call.
+        $this->assertSame([0.0], $timeouts);
     }
 
     public function testWorkerProcessFiresEventIfStoppedProcessCantBeRestarted(): void

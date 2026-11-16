@@ -13,10 +13,13 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Jobs\BasicJob;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Jobs\ConditionallyFailingJob;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class MetricsTest extends IntegrationTestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Clear metrics before the test.
      */
@@ -75,10 +78,10 @@ class MetricsTest extends IntegrationTestCase
 
     public function testAverageRuntimeIsStoredPerJobClassInMilliseconds(): void
     {
-        $stopwatch = m::mock(Stopwatch::class);
-        $stopwatch->shouldReceive('start');
-        $stopwatch->shouldReceive('forget');
-        $stopwatch->shouldReceive('check')->andReturn(1, 2);
+        $stopwatch = Double::for(Stopwatch::class)->strict();
+        $stopwatch->allows('start');
+        $stopwatch->allows('forget');
+        $stopwatch->allows('check')->returns(1, 2);
         $this->app->instance(Stopwatch::class, $stopwatch);
 
         Queue::push(new BasicJob);
@@ -92,10 +95,10 @@ class MetricsTest extends IntegrationTestCase
 
     public function testAverageRuntimeIsStoredPerQueueInMilliseconds(): void
     {
-        $stopwatch = m::mock(Stopwatch::class);
-        $stopwatch->shouldReceive('start');
-        $stopwatch->shouldReceive('forget');
-        $stopwatch->shouldReceive('check')->andReturn(1, 2);
+        $stopwatch = Double::for(Stopwatch::class)->strict();
+        $stopwatch->allows('start');
+        $stopwatch->allows('forget');
+        $stopwatch->allows('check')->returns(1, 2);
         $this->app->instance(Stopwatch::class, $stopwatch);
 
         Queue::push(new BasicJob);
@@ -123,10 +126,10 @@ class MetricsTest extends IntegrationTestCase
 
     public function testSnapshotOfMetricsPerformanceCanBeStored(): void
     {
-        $stopwatch = m::mock(Stopwatch::class);
-        $stopwatch->shouldReceive('start');
-        $stopwatch->shouldReceive('forget');
-        $stopwatch->shouldReceive('check')->andReturn(1, 2, 3);
+        $stopwatch = Double::for(Stopwatch::class)->strict();
+        $stopwatch->allows('start');
+        $stopwatch->allows('forget');
+        $stopwatch->allows('check')->returns(1, 2, 3);
         $this->app->instance(Stopwatch::class, $stopwatch);
 
         Queue::push(new BasicJob);
@@ -225,14 +228,14 @@ class MetricsTest extends IntegrationTestCase
 
     public function testQueueSnapshotsRecordTheWaitOfThePoolsProcessingTheQueue(): void
     {
-        $stopwatch = m::mock(Stopwatch::class);
-        $stopwatch->shouldReceive('start');
-        $stopwatch->shouldReceive('forget');
-        $stopwatch->shouldReceive('check')->andReturn(1000);
+        $stopwatch = Double::for(Stopwatch::class)->strict();
+        $stopwatch->allows('start');
+        $stopwatch->allows('forget');
+        $stopwatch->allows('check')->returns(1000);
         $this->app->instance(Stopwatch::class, $stopwatch);
 
-        $supervisors = m::mock(SupervisorRepository::class);
-        $supervisors->shouldReceive('all')->andReturn([
+        $supervisors = Double::for(SupervisorRepository::class)->strict();
+        $supervisors->allows('all')->returns([
             (object) ['processes' => ['redis:high,default' => 1]],
         ]);
         $this->app->instance(SupervisorRepository::class, $supervisors);
@@ -263,10 +266,10 @@ class MetricsTest extends IntegrationTestCase
 
     public function testJobsProcessedPerMinuteSinceLastSnapshotIsCalculable(): void
     {
-        $stopwatch = m::mock(Stopwatch::class);
-        $stopwatch->shouldReceive('start');
-        $stopwatch->shouldReceive('forget');
-        $stopwatch->shouldReceive('check')->andReturn(1);
+        $stopwatch = Double::for(Stopwatch::class)->strict();
+        $stopwatch->allows('start');
+        $stopwatch->allows('forget');
+        $stopwatch->allows('check')->returns(1);
         $this->app->instance(Stopwatch::class, $stopwatch);
 
         Queue::push(new BasicJob);
@@ -331,10 +334,10 @@ class MetricsTest extends IntegrationTestCase
         config()->set('horizon.metrics.trim_snapshots', []);
         $retention = 24;
 
-        $stopwatch = m::mock(Stopwatch::class);
-        $stopwatch->shouldReceive('start');
-        $stopwatch->shouldReceive('forget');
-        $stopwatch->shouldReceive('check')->andReturn(1);
+        $stopwatch = Double::for(Stopwatch::class)->strict();
+        $stopwatch->allows('start');
+        $stopwatch->allows('forget');
+        $stopwatch->allows('check')->returns(1);
         $this->app->instance(Stopwatch::class, $stopwatch);
 
         CarbonImmutable::setTestNow(CarbonImmutable::now());
@@ -368,10 +371,10 @@ class MetricsTest extends IntegrationTestCase
 
     public function testClearRemovesAllMetricsData(): void
     {
-        $stopwatch = m::mock(Stopwatch::class);
-        $stopwatch->shouldReceive('start');
-        $stopwatch->shouldReceive('forget');
-        $stopwatch->shouldReceive('check')->andReturn(1);
+        $stopwatch = Double::for(Stopwatch::class)->strict();
+        $stopwatch->allows('start');
+        $stopwatch->allows('forget');
+        $stopwatch->allows('check')->returns(1);
         $this->app->instance(Stopwatch::class, $stopwatch);
 
         Queue::push(new BasicJob);

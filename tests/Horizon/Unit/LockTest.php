@@ -6,24 +6,22 @@ namespace Hypervel\Tests\Horizon\Unit;
 
 use Hypervel\Contracts\Redis\Factory;
 use Hypervel\Horizon\Lock;
-use Hypervel\Redis\RedisConnection;
-use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\Horizon\UnitTestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 
 class LockTest extends UnitTestCase
 {
     public function testGetAcquiresTheLockWithOneAtomicCommand(): void
     {
-        $connection = m::mock(RedisProxy::class);
-        $connection->shouldReceive('set')
-            ->once()
-            ->with('metrics', '1', 'EX', 60, 'NX')
-            ->andReturnTrue();
-        $connection->shouldNotReceive('setNx');
-        $connection->shouldNotReceive('expire');
+        [$connection, $client] = $this->redisConnection();
+        $client->expects('set')
+            ->with('metrics', '1', ['NX', 'EX' => 60])
+            ->returns(true);
+        $client->expects('setNx')->never();
+        $client->expects('expire')->never();
 
         $lock = new Lock($this->redisFactory($connection));
 
@@ -32,8 +30,8 @@ class LockTest extends UnitTestCase
 
     public function testGetRejectsNonPositiveLifetimesBeforeConnecting(): void
     {
-        $redis = m::mock(Factory::class);
-        $redis->shouldNotReceive('connection');
+        $redis = Double::for(Factory::class)->strict();
+        $redis->expects('connection')->never();
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs('Horizon lock [metrics] requires a positive lifetime; 0 given.');
@@ -43,8 +41,8 @@ class LockTest extends UnitTestCase
 
     public function testWithRejectsNonPositiveLifetimesBeforeConnecting(): void
     {
-        $redis = m::mock(Factory::class);
-        $redis->shouldNotReceive('connection');
+        $redis = Double::for(Factory::class)->strict();
+        $redis->expects('connection')->never();
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs('Horizon lock [metrics] requires a positive lifetime; -1 given.');
@@ -56,18 +54,12 @@ class LockTest extends UnitTestCase
     public function testCallbackFailureRemainsPrimaryWhenOwnedReleaseFails(): void
     {
         $callbackFailure = new RuntimeException('callback failed');
-        $rawConnection = m::mock(RedisConnection::class);
-        $rawConnection->shouldReceive('pack')->once()->andReturn(['packed-owner']);
-        $rawConnection->shouldReceive('eval')->once()->andThrow(new RuntimeException('release failed'));
-
-        $connection = m::mock(RedisProxy::class);
-        $connection->shouldReceive('set')
-            ->once()
-            ->with('metrics', m::type('string'), 'EX', 60, 'NX')
-            ->andReturnTrue();
-        $connection->shouldReceive('withConnection')
-            ->once()
-            ->andReturnUsing(static fn (callable $callback): mixed => $callback($rawConnection));
+        [$connection, $client, $rawConnection] = $this->redisConnection();
+        $rawConnection->expects('pack')->returns(['packed-owner']);
+        $client->expects('eval')->throws(new RuntimeException('release failed'));
+        $client->expects('set')
+            ->with('metrics', Argument::type('string'), ['NX', 'EX' => 60])
+            ->returns(true);
 
         try {
             (new Lock($this->redisFactory($connection)))->with(
@@ -78,5 +70,7 @@ class LockTest extends UnitTestCase
         } catch (RuntimeException $thrown) {
             $this->assertSame($callbackFailure, $thrown);
         }
+
+        $connection->received('withConnection')->times(1);
     }
 }
