@@ -8,28 +8,29 @@ use BadMethodCallException;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\TaggableStore;
+use Hypervel\Cache\TaggedCache;
 use Hypervel\Cache\TagMode;
-use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Jwt\Storage\CacheStorage;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class CacheStorageTest extends TestCase
 {
-    /**
-     * @var CacheRepository|MockInterface
-     */
-    protected CacheRepository $cache;
+    use VerifiesDoubles;
+
+    protected Repository&DoubleInterface $cache;
 
     protected CacheStorage $storage;
 
     public function testAddTheItemToAllModeTaggedStorage(): void
     {
         $this->useStoreMode(TagMode::All);
-        $this->cache->shouldReceive('tags')->with(['jwt_blacklist'])->once()->andReturnSelf();
-        $this->cache->shouldReceive('put')->with($this->storageKey('foo'), 'bar', 10 * 60)->once()->andReturnFalse();
+        $this->cache->expects('tags')->with(['jwt_blacklist'])->returns($this->cache);
+        $this->cache->expects('put')->with($this->storageKey('foo'), 'bar', 10 * 60)->returns(false);
 
         $this->assertFalse($this->storage->add('foo', 'bar', 10));
     }
@@ -37,8 +38,8 @@ class CacheStorageTest extends TestCase
     public function testAddTheItemToAnyModeTaggedStorage(): void
     {
         $this->useStoreMode(TagMode::Any);
-        $this->cache->shouldReceive('tags')->with(['jwt_blacklist'])->once()->andReturnSelf();
-        $this->cache->shouldReceive('put')->with($this->storageKey('foo'), 'bar', 10 * 60)->once()->andReturnTrue();
+        $this->cache->expects('tags')->with(['jwt_blacklist'])->returns($this->cache);
+        $this->cache->expects('put')->with($this->storageKey('foo'), 'bar', 10 * 60)->returns(true);
 
         $this->assertTrue($this->storage->add('foo', 'bar', 10));
     }
@@ -46,8 +47,8 @@ class CacheStorageTest extends TestCase
     public function testAddTheItemToUntaggedStorage(): void
     {
         $this->useUntaggedStore();
-        $this->cache->shouldReceive('tags')->never();
-        $this->cache->shouldReceive('put')->with($this->storageKey('foo'), 'bar', 10 * 60)->once()->andReturnTrue();
+        $this->cache->expects('tags')->never();
+        $this->cache->expects('put')->with($this->storageKey('foo'), 'bar', 10 * 60)->returns(true);
 
         $this->assertTrue($this->storage->add('foo', 'bar', 10));
     }
@@ -55,8 +56,8 @@ class CacheStorageTest extends TestCase
     public function testAddTheItemToAllModeTaggedStorageForever(): void
     {
         $this->useStoreMode(TagMode::All);
-        $this->cache->shouldReceive('tags')->with(['jwt_blacklist'])->once()->andReturnSelf();
-        $this->cache->shouldReceive('forever')->with($this->storageKey('foo'), 'bar')->once()->andReturnFalse();
+        $this->cache->expects('tags')->with(['jwt_blacklist'])->returns($this->cache);
+        $this->cache->expects('forever')->with($this->storageKey('foo'), 'bar')->returns(false);
 
         $this->assertFalse($this->storage->forever('foo', 'bar'));
     }
@@ -64,8 +65,8 @@ class CacheStorageTest extends TestCase
     public function testAddTheItemToAnyModeTaggedStorageForever(): void
     {
         $this->useStoreMode(TagMode::Any);
-        $this->cache->shouldReceive('tags')->with(['jwt_blacklist'])->once()->andReturnSelf();
-        $this->cache->shouldReceive('forever')->with($this->storageKey('foo'), 'bar')->once()->andReturnTrue();
+        $this->cache->expects('tags')->with(['jwt_blacklist'])->returns($this->cache);
+        $this->cache->expects('forever')->with($this->storageKey('foo'), 'bar')->returns(true);
 
         $this->assertTrue($this->storage->forever('foo', 'bar'));
     }
@@ -73,8 +74,8 @@ class CacheStorageTest extends TestCase
     public function testAddTheItemToUntaggedStorageForever(): void
     {
         $this->useUntaggedStore();
-        $this->cache->shouldReceive('tags')->never();
-        $this->cache->shouldReceive('forever')->with($this->storageKey('foo'), 'bar')->once()->andReturnTrue();
+        $this->cache->expects('tags')->never();
+        $this->cache->expects('forever')->with($this->storageKey('foo'), 'bar')->returns(true);
 
         $this->assertTrue($this->storage->forever('foo', 'bar'));
     }
@@ -82,8 +83,8 @@ class CacheStorageTest extends TestCase
     public function testGetAnItemFromAllModeTaggedStorage(): void
     {
         $this->useStoreMode(TagMode::All);
-        $this->cache->shouldReceive('tags')->with(['jwt_blacklist'])->once()->andReturnSelf();
-        $this->cache->shouldReceive('get')->with($this->storageKey('foo'))->once()->andReturn(['foo' => 'bar']);
+        $this->cache->expects('tags')->with(['jwt_blacklist'])->returns($this->cache);
+        $this->cache->expects('get')->with($this->storageKey('foo'))->returns(['foo' => 'bar']);
 
         $this->assertSame(['foo' => 'bar'], $this->storage->get('foo'));
     }
@@ -91,8 +92,8 @@ class CacheStorageTest extends TestCase
     public function testGetAnItemFromAnyModeStorageUsesPlainKey(): void
     {
         $this->useStoreMode(TagMode::Any);
-        $this->cache->shouldReceive('tags')->never();
-        $this->cache->shouldReceive('get')->with($this->storageKey('foo'))->once()->andReturn(['foo' => 'bar']);
+        $this->cache->expects('tags')->never();
+        $this->cache->expects('get')->with($this->storageKey('foo'))->returns(['foo' => 'bar']);
 
         $this->assertSame(['foo' => 'bar'], $this->storage->get('foo'));
     }
@@ -100,8 +101,8 @@ class CacheStorageTest extends TestCase
     public function testGetAnItemFromUntaggedStorage(): void
     {
         $this->useUntaggedStore();
-        $this->cache->shouldReceive('tags')->never();
-        $this->cache->shouldReceive('get')->with($this->storageKey('foo'))->once()->andReturn(['foo' => 'bar']);
+        $this->cache->expects('tags')->never();
+        $this->cache->expects('get')->with($this->storageKey('foo'))->returns(['foo' => 'bar']);
 
         $this->assertSame(['foo' => 'bar'], $this->storage->get('foo'));
     }
@@ -109,8 +110,8 @@ class CacheStorageTest extends TestCase
     public function testRemoveTheItemFromAllModeTaggedStorage(): void
     {
         $this->useStoreMode(TagMode::All);
-        $this->cache->shouldReceive('tags')->with(['jwt_blacklist'])->once()->andReturnSelf();
-        $this->cache->shouldReceive('forget')->with($this->storageKey('foo'))->once()->andReturn(true);
+        $this->cache->expects('tags')->with(['jwt_blacklist'])->returns($this->cache);
+        $this->cache->expects('forget')->with($this->storageKey('foo'))->returns(true);
 
         $this->assertTrue($this->storage->destroy('foo'));
     }
@@ -118,8 +119,8 @@ class CacheStorageTest extends TestCase
     public function testRemoveTheItemFromAnyModeStorageUsesPlainKey(): void
     {
         $this->useStoreMode(TagMode::Any);
-        $this->cache->shouldReceive('tags')->never();
-        $this->cache->shouldReceive('forget')->with($this->storageKey('foo'))->once()->andReturn(true);
+        $this->cache->expects('tags')->never();
+        $this->cache->expects('forget')->with($this->storageKey('foo'))->returns(true);
 
         $this->assertTrue($this->storage->destroy('foo'));
     }
@@ -127,8 +128,8 @@ class CacheStorageTest extends TestCase
     public function testRemoveTheItemFromUntaggedStorage(): void
     {
         $this->useUntaggedStore();
-        $this->cache->shouldReceive('tags')->never();
-        $this->cache->shouldReceive('forget')->with($this->storageKey('foo'))->once()->andReturnFalse();
+        $this->cache->expects('tags')->never();
+        $this->cache->expects('forget')->with($this->storageKey('foo'))->returns(false);
 
         $this->assertFalse($this->storage->destroy('foo'));
     }
@@ -136,8 +137,8 @@ class CacheStorageTest extends TestCase
     public function testRemoveAllAllModeTaggedItemsFromStorage(): void
     {
         $this->useStoreMode(TagMode::All);
-        $this->cache->shouldReceive('tags')->with(['jwt_blacklist'])->once()->andReturnSelf();
-        $this->cache->shouldReceive('flush')->withNoArgs()->once()->andReturnFalse();
+        $this->cache->expects('tags')->with(['jwt_blacklist'])->returns($this->cache);
+        $this->cache->expects('flush')->with()->returns(false);
 
         $this->assertFalse($this->storage->flush());
     }
@@ -145,8 +146,8 @@ class CacheStorageTest extends TestCase
     public function testRemoveAllAnyModeTaggedItemsFromStorage(): void
     {
         $this->useStoreMode(TagMode::Any);
-        $this->cache->shouldReceive('tags')->with(['jwt_blacklist'])->once()->andReturnSelf();
-        $this->cache->shouldReceive('flush')->withNoArgs()->once()->andReturnTrue();
+        $this->cache->expects('tags')->with(['jwt_blacklist'])->returns($this->cache);
+        $this->cache->expects('flush')->with()->returns(true);
 
         $this->assertTrue($this->storage->flush());
     }
@@ -166,9 +167,8 @@ class CacheStorageTest extends TestCase
 
     public function testRemoveAllItemsFromUntaggedStorageThrowsWithoutFlushingTheStore(): void
     {
-        /** @var MockInterface|Store */
-        $store = m::mock(Store::class);
-        $store->shouldReceive('flush')->never();
+        $store = Double::for(Store::class)->strict();
+        $store->expects('flush')->never();
         $storage = new CacheStorage(new Repository($store));
 
         $this->expectException(BadMethodCallException::class);
@@ -179,17 +179,15 @@ class CacheStorageTest extends TestCase
 
     public function testStoreWithTagsDisabledUsesPlainKeysWithoutReadingTagMode(): void
     {
-        /** @var CacheRepository|MockInterface */
-        $cache = m::mock(CacheRepository::class);
-        /** @var MockInterface|TaggableStore */
-        $store = m::mock(TaggableStore::class);
+        $cache = Double::for(Repository::class)->strict();
+        $store = Double::for(TaggableStore::class)->strict();
 
-        $store->shouldReceive('supportsTags')->once()->andReturnFalse();
-        $store->shouldReceive('getTagMode')->never();
-        $cache->shouldReceive('getStore')->once()->andReturn($store);
-        $cache->shouldReceive('tags')->never();
-        $cache->shouldReceive('put')->with($this->storageKey('foo'), 'bar', 10 * 60)->once()->andReturnTrue();
-        $cache->shouldReceive('get')->with($this->storageKey('foo'))->once()->andReturn('bar');
+        $store->expects('supportsTags')->returns(false);
+        $store->expects('getTagMode')->never();
+        $cache->expects('getStore')->returns($store);
+        $cache->expects('tags')->never();
+        $cache->expects('put')->with($this->storageKey('foo'), 'bar', 10 * 60)->returns(true);
+        $cache->expects('get')->with($this->storageKey('foo'))->returns('bar');
 
         $storage = new CacheStorage($cache);
 
@@ -200,7 +198,7 @@ class CacheStorageTest extends TestCase
     public function testLongIdentifiersFitLimitedKeyColumns(): void
     {
         $this->useUntaggedStore();
-        $this->cache->shouldReceive('forever')->with(m::capture($key), 'forever')->once()->andReturnTrue();
+        $this->cache->expects('forever')->with(Argument::capture($key), 'forever')->returns(true);
 
         $this->assertTrue($this->storage->forever(str_repeat('a', 1000), 'forever'));
         $this->assertLessThanOrEqual(255, strlen($key));
@@ -222,14 +220,12 @@ class CacheStorageTest extends TestCase
      */
     protected function useStoreMode(TagMode $mode): void
     {
-        /** @var CacheRepository|MockInterface */
-        $cache = m::mock(CacheRepository::class);
-        /** @var MockInterface|TaggableStore */
-        $store = m::mock(TaggableStore::class);
+        $cache = Double::for(TaggedCache::class)->strict();
+        $store = Double::for(TaggableStore::class)->strict();
 
-        $store->shouldReceive('supportsTags')->once()->andReturnTrue();
-        $store->shouldReceive('getTagMode')->once()->andReturn($mode);
-        $cache->shouldReceive('getStore')->once()->andReturn($store);
+        $store->expects('supportsTags')->returns(true);
+        $store->expects('getTagMode')->returns($mode);
+        $cache->expects('getStore')->returns($store);
 
         $this->cache = $cache;
         $this->storage = new CacheStorage($this->cache);
@@ -240,9 +236,8 @@ class CacheStorageTest extends TestCase
      */
     protected function useUntaggedStore(): void
     {
-        /** @var CacheRepository|MockInterface */
-        $cache = m::mock(CacheRepository::class);
-        $cache->shouldReceive('getStore')->once()->andReturn(m::mock(Store::class));
+        $cache = Double::for(Repository::class)->strict();
+        $cache->expects('getStore')->returns(Double::for(Store::class)->strict());
 
         $this->cache = $cache;
         $this->storage = new CacheStorage($this->cache);

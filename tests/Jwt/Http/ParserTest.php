@@ -11,11 +11,14 @@ use Hypervel\Jwt\Http\Parser\Cookie;
 use Hypervel\Jwt\Http\Parser\InputSource;
 use Hypervel\Jwt\Http\Parser\Parser;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class ParserTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testParsesBearerHeader(): void
     {
         $parser = new Parser([new AuthHeaders]);
@@ -214,17 +217,17 @@ class ParserTest extends TestCase
     {
         $request = Request::create('/');
 
-        $missing = m::mock(TokenExtractor::class);
-        $missing->shouldReceive('parseToken')->with($request)->once()->andReturnNull();
+        $missing = Double::for(TokenExtractor::class)->strict();
+        $missing->expects('parseToken')->with($request)->returns(null);
 
-        $empty = m::mock(TokenExtractor::class);
-        $empty->shouldReceive('parseToken')->with($request)->once()->andReturn('');
+        $empty = Double::for(TokenExtractor::class)->strict();
+        $empty->expects('parseToken')->with($request)->returns('');
 
-        $found = m::mock(TokenExtractor::class);
-        $found->shouldReceive('parseToken')->with($request)->once()->andReturn('custom-token');
+        $found = Double::for(TokenExtractor::class)->strict();
+        $found->expects('parseToken')->with($request)->returns('custom-token');
 
-        $unused = m::mock(TokenExtractor::class);
-        $unused->shouldNotReceive('parseToken');
+        $unused = Double::for(TokenExtractor::class)->strict();
+        $unused->expects('parseToken')->never();
 
         $parser = new Parser([$missing, $empty, $found, $unused]);
 
