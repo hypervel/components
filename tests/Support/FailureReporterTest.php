@@ -10,13 +10,16 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\FailureReporter;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
 class FailureReporterTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected bool $runTestsInCoroutine = false;
 
     protected string $tempDir;
@@ -27,6 +30,9 @@ class FailureReporterTest extends TestCase
 
     protected string|false|null $previousLogErrors = null;
 
+    /**
+     * Create the temporary error log directory.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -37,6 +43,9 @@ class FailureReporterTest extends TestCase
         $this->errorLog = $this->tempDir . '/php-error.log';
     }
 
+    /**
+     * Restore error logging and remove temporary files.
+     */
     protected function tearDown(): void
     {
         if ($this->previousErrorLog !== null && $this->previousErrorLog !== false) {
@@ -57,8 +66,8 @@ class FailureReporterTest extends TestCase
         $container = new Container;
         Container::setInstance($container);
         $exception = new RuntimeException('reported through handler');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($exception);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with($exception);
         $container->instance(ExceptionHandler::class, $handler);
 
         FailureReporter::report($exception);
@@ -81,8 +90,8 @@ class FailureReporterTest extends TestCase
         $container = new Container;
         Container::setInstance($container);
         $exception = new RuntimeException('original cleanup failure');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($exception)->andThrow(new RuntimeException('handler failed'));
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with($exception)->throws(new RuntimeException('handler failed'));
         $container->instance(ExceptionHandler::class, $handler);
         $this->routeErrorsToTempFile();
 
@@ -97,8 +106,8 @@ class FailureReporterTest extends TestCase
     {
         $container = new Container;
         Container::setInstance($container);
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldNotReceive('report');
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->never();
         $container->instance(ExceptionHandler::class, $handler);
         $this->routeErrorsToTempFile();
 
@@ -112,8 +121,8 @@ class FailureReporterTest extends TestCase
         $container = new Container;
         Container::setInstance($container);
         $exception = new RuntimeException('original cleanup failure');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($exception)->andThrow(
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with($exception)->throws(
             new CanceledException('reporting canceled')
         );
         $container->instance(ExceptionHandler::class, $handler);
@@ -128,7 +137,7 @@ class FailureReporterTest extends TestCase
     {
         $failure = new RuntimeException('displaced failure');
         $cancellation = new CanceledException('canceled');
-        $this->bindReportingHandler()->shouldReceive('report')->once()->with($failure);
+        $this->bindReportingHandler()->expects('report')->with($failure);
 
         $this->assertSame($cancellation, FailureReporter::preferCancellation($failure, $cancellation));
     }
@@ -137,7 +146,7 @@ class FailureReporterTest extends TestCase
     {
         $first = new RuntimeException('first failure');
         $later = new RuntimeException('later failure');
-        $this->bindReportingHandler()->shouldReceive('report')->once()->with($later);
+        $this->bindReportingHandler()->expects('report')->with($later);
 
         $this->assertSame($first, FailureReporter::preferCancellation($first, $later));
     }
@@ -145,22 +154,28 @@ class FailureReporterTest extends TestCase
     public function testPreferCancellationReportsNothingWithoutADistinctLoser(): void
     {
         $failure = new RuntimeException('failure');
-        $this->bindReportingHandler()->shouldNotReceive('report');
+        $this->bindReportingHandler()->expects('report')->never();
 
         $this->assertSame($failure, FailureReporter::preferCancellation(null, $failure));
         $this->assertSame($failure, FailureReporter::preferCancellation($failure, $failure));
     }
 
-    private function bindReportingHandler(): MockInterface
+    /**
+     * Bind an isolated exception handler.
+     */
+    private function bindReportingHandler(): ExceptionHandler&DoubleInterface
     {
         $container = new Container;
         Container::setInstance($container);
-        $handler = m::mock(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $container->instance(ExceptionHandler::class, $handler);
 
         return $handler;
     }
 
+    /**
+     * Read the temporary error log.
+     */
     private function errorLogContents(): string
     {
         $contents = file_get_contents($this->errorLog);
@@ -169,6 +184,9 @@ class FailureReporterTest extends TestCase
         return $contents;
     }
 
+    /**
+     * Route PHP errors to the temporary log.
+     */
     private function routeErrorsToTempFile(): void
     {
         $this->previousErrorLog = ini_set('error_log', $this->errorLog);

@@ -13,9 +13,10 @@ use Hypervel\Support\Stringable as HypervelStringable;
 use Hypervel\Support\Uri;
 use Hypervel\Tests\Support\Concerns\TestsInteractsWithDataContract;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use League\Uri\Contracts\UriInterface;
 use League\Uri\Uri as LeagueUri;
-use Mockery as m;
 use stdClass;
 use Stringable;
 use TypeError;
@@ -23,6 +24,7 @@ use TypeError;
 class SupportUriTest extends TestCase
 {
     use TestsInteractsWithDataContract;
+    use VerifiesDoubles;
 
     public function testCanBuildSpecialUrls(): void
     {
@@ -39,7 +41,7 @@ class SupportUriTest extends TestCase
     {
         Uri::setUrlGeneratorResolver(fn () => new CustomUrlGeneratorResolver);
 
-        $parameter = m::mock(UrlRoutable::class);
+        $parameter = Double::for(UrlRoutable::class)->strict();
 
         $this->assertSame('https://hypervel.org/route', Uri::route('', $parameter)->value());
         $this->assertSame('https://hypervel.org/signed-route', Uri::signedRoute('', $parameter)->value());
@@ -96,8 +98,8 @@ class SupportUriTest extends TestCase
         $this->assertNull(Uri::of('file:///etc/hosts')->origin());
         $this->assertNull(Uri::of('')->origin());
 
-        $customUri = m::mock(UriInterface::class);
-        $customUri->shouldReceive('toString')->once()->andReturn('https://example.com:8443/path');
+        $customUri = Double::for(UriInterface::class)->strict();
+        $customUri->expects('toString')->returns('https://example.com:8443/path');
 
         $this->assertSame('https://example.com:8443', Uri::of($customUri)->origin());
     }

@@ -8,18 +8,24 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\ExpectationFailedException;
 
 class SupportTestingEventFakeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected EventFake $fake;
 
+    /**
+     * Create an isolated event fake.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->fake = new EventFake(m::mock(Dispatcher::class));
+        $this->fake = new EventFake(Double::for(Dispatcher::class)->strict());
     }
 
     public function testAssertDispatched(): void
