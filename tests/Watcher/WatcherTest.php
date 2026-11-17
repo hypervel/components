@@ -12,7 +12,8 @@ use Hypervel\Tests\TestCase;
 use Hypervel\Watcher\Driver\DriverInterface;
 use Hypervel\Watcher\RestartStrategy;
 use Hypervel\Watcher\Watcher;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -20,6 +21,8 @@ use Throwable;
 
 class WatcherTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testSynchronousFinalBatchIsDrainedAndRestartedOnce(): void
     {
         $driver = new WatcherDriver(static function (Channel $channel): void {
@@ -131,8 +134,8 @@ class WatcherTest extends TestCase
                 $driverCompleted = true;
             }
         });
-        $output = m::mock(BufferedOutput::class);
-        $output->shouldReceive('writeln')->once()->andThrow($failure);
+        $output = Double::for(BufferedOutput::class)->strict();
+        $output->expects('writeln')->throws($failure);
 
         try {
             (new Watcher($driver, $output))->run();
@@ -170,8 +173,8 @@ class WatcherTest extends TestCase
             static fn (Channel $channel): bool => $channel->push('changed.php'),
             $cleanupCancellation,
         );
-        $output = m::mock(BufferedOutput::class);
-        $output->shouldReceive('writeln')->once()->andThrow($originalCancellation);
+        $output = Double::for(BufferedOutput::class)->strict();
+        $output->expects('writeln')->throws($originalCancellation);
 
         try {
             (new Watcher($driver, $output))->run();
@@ -189,8 +192,8 @@ class WatcherTest extends TestCase
         $result = new Channel(1);
         $driver = new TrailingCleanupWatcherDriver($trailingCleanupStarted, $releaseTrailingCleanup);
         $strategy = new WatcherRestartStrategy;
-        $output = m::mock(BufferedOutput::class);
-        $output->shouldReceive('writeln')->once()->andThrow($cancellation);
+        $output = Double::for(BufferedOutput::class)->strict();
+        $output->expects('writeln')->throws($cancellation);
         $watcher = Coroutine::create(static function () use ($driver, $output, $strategy, $result): void {
             try {
                 (new Watcher($driver, $output, $strategy))->run();

@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Watcher;
 
 use Closure;
 use Hypervel\Config\Repository;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Watcher\Console\WatchCommand;
@@ -16,7 +16,8 @@ use Hypervel\Watcher\Option;
 use Hypervel\Watcher\ServerRestartStrategy;
 use Hypervel\Watcher\Watcher;
 use Hypervel\Watcher\WatchPath;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use Symfony\Component\Console\Exception\RuntimeException as ConsoleRuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -25,6 +26,8 @@ use Symfony\Component\Console\Output\NullOutput;
 
 class WatchCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function tearDown(): void
     {
         putenv('APP_RUNNING_IN_CONSOLE');
@@ -34,10 +37,10 @@ class WatchCommandTest extends TestCase
 
     public function testWatchCommandFailsFastWhenRunningInConsoleIsTrue(): void
     {
-        $container = m::mock(Container::class);
-        $application = m::mock(ApplicationContract::class);
-        $container->shouldReceive('make')->with(ApplicationContract::class)->once()->andReturn($application);
-        $application->shouldReceive('runningInConsole')->once()->andReturnTrue();
+        $container = new Container;
+        $application = Double::for(ApplicationContract::class, override: true)->strict();
+        $container->instance(ApplicationContract::class, $application->instance());
+        $application->expects('runningInConsole')->returns(true);
 
         $command = new WatchCommand($container);
         $command->setHypervel($this->app);
@@ -58,16 +61,16 @@ class WatchCommandTest extends TestCase
             ],
         ]));
 
-        $watcher = m::mock(Watcher::class);
-        $watcher->shouldReceive('run')->once();
+        $watcher = Double::for(Watcher::class)->strict();
+        $watcher->expects('run');
 
         $this->app->bind(ScanFileDriver::class, function ($app, array $parameters) {
             $this->assertInstanceOf(Option::class, $parameters['option']);
 
-            return m::mock(DriverInterface::class);
+            return Double::for(DriverInterface::class)->strict();
         });
         $this->app->bind(ServerRestartStrategy::class, function () {
-            return m::mock(ServerRestartStrategy::class);
+            return Double::for(ServerRestartStrategy::class)->strict();
         });
         $this->app->bind(Watcher::class, function ($app, array $parameters) use ($watcher) {
             $this->assertInstanceOf(DriverInterface::class, $parameters['driver']);
@@ -97,11 +100,11 @@ class WatchCommandTest extends TestCase
             ],
         ]));
 
-        $watcher = m::mock(Watcher::class);
-        $watcher->shouldReceive('run')->once();
+        $watcher = Double::for(Watcher::class)->strict();
+        $watcher->expects('run');
 
         $this->app->bind(ScanFileDriver::class, function () {
-            return m::mock(DriverInterface::class);
+            return Double::for(DriverInterface::class)->strict();
         });
         $this->app->bind(Watcher::class, function ($app, array $parameters) use ($watcher) {
             $this->assertNull($parameters['strategy']);
@@ -121,25 +124,32 @@ class WatchCommandTest extends TestCase
 
     public function testTerminationSignalStopsDriverBeforeRestartStrategy(): void
     {
-        $driver = m::mock(DriverInterface::class);
-        $strategy = m::mock(ServerRestartStrategy::class);
-        $driver->shouldReceive('stop')->once()->ordered();
-        $strategy->shouldReceive('stop')->once()->ordered();
+        $driver = Double::for(DriverInterface::class)->strict();
+        $strategy = Double::for(ServerRestartStrategy::class)->strict();
+        $stops = [];
+        $driver->expects('stop')->resolves(function () use (&$stops): void {
+            $stops[] = 'driver';
+        });
+        $strategy->expects('stop')->resolves(function () use (&$stops): void {
+            $stops[] = 'strategy';
+        });
 
         $command = $this->runSignalCapturingCommand($driver, $strategy);
 
         $this->assertSame([SIGINT, SIGTERM, SIGQUIT], $command->signals);
 
         $command->invokeSignalHandler(SIGTERM);
+
+        $this->assertSame(['driver', 'strategy'], $stops);
     }
 
     public function testTerminationSignalStopsRestartStrategyWhenDriverCleanupFails(): void
     {
         $failure = new RuntimeException('driver cleanup failed');
-        $driver = m::mock(DriverInterface::class);
-        $strategy = m::mock(ServerRestartStrategy::class);
-        $driver->shouldReceive('stop')->once()->andThrow($failure);
-        $strategy->shouldReceive('stop')->once();
+        $driver = Double::for(DriverInterface::class)->strict();
+        $strategy = Double::for(ServerRestartStrategy::class)->strict();
+        $driver->expects('stop')->throws($failure);
+        $strategy->expects('stop');
 
         $command = $this->runSignalCapturingCommand($driver, $strategy);
 
@@ -161,17 +171,17 @@ class WatchCommandTest extends TestCase
             ],
         ]));
 
-        $watcher = m::mock(Watcher::class);
-        $watcher->shouldReceive('run')->once();
+        $watcher = Double::for(Watcher::class)->strict();
+        $watcher->expects('run');
 
         $capturedOption = null;
         $this->app->bind(ScanFileDriver::class, function ($app, array $parameters) use (&$capturedOption) {
             $capturedOption = $parameters['option'];
 
-            return m::mock(DriverInterface::class);
+            return Double::for(DriverInterface::class)->strict();
         });
         $this->app->bind(ServerRestartStrategy::class, function () {
-            return m::mock(ServerRestartStrategy::class);
+            return Double::for(ServerRestartStrategy::class)->strict();
         });
         $this->app->bind(Watcher::class, function () use ($watcher) {
             return $watcher;
@@ -204,7 +214,7 @@ class WatchCommandTest extends TestCase
 
     public function testPathOptionRequiresAValue(): void
     {
-        $command = new WatchCommand(m::mock(Container::class));
+        $command = new WatchCommand($this->app);
         $input = new StringInput('--path');
 
         $this->expectException(ConsoleRuntimeException::class);
@@ -228,8 +238,8 @@ class WatchCommandTest extends TestCase
             ],
         ]));
 
-        $watcher = m::mock(Watcher::class);
-        $watcher->shouldReceive('run')->once();
+        $watcher = Double::for(Watcher::class)->strict();
+        $watcher->expects('run');
 
         $this->app->bind(ScanFileDriver::class, fn () => $driver);
         $this->app->bind(ServerRestartStrategy::class, fn () => $strategy);

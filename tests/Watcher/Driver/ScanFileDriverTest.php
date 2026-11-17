@@ -16,10 +16,13 @@ use Hypervel\Watcher\Driver\ScanFileDriver;
 use Hypervel\Watcher\Option;
 use Hypervel\Watcher\WatchPath;
 use Hypervel\Watcher\WatchPathType;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class ScanFileDriverTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected string $fixturePath;
 
     protected string $fixtureRelativePath = 'watcher-scan-driver-test';
@@ -143,9 +146,8 @@ class ScanFileDriverTest extends TestCase
 
     public function testLogsOnlyWhenAProcessedSnapshotContainsChanges(): void
     {
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('debug')
-            ->once()
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('debug')
             ->with(ScanFileDriver::class . ' Watching: Total:2, Change:1, Add:1, Delete:1.');
         $driver = new ScanFileDriverTestProxy(new Option, $logger);
         $channel = new Channel(3);
@@ -365,8 +367,8 @@ class ScanFileDriverTest extends TestCase
     {
         $this->putFixture('unreadable.php', 'contents');
         $path = $this->fixturePath . '/unreadable.php';
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('hash')->once()->with($path)->andReturn(false);
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $filesystem->expects('hash')->with($path)->returns(false);
         $driver = new ScanFileDriverTestProxy(new Option(watchPaths: [
             new WatchPath($this->fixtureRelativePath . '/unreadable.php', WatchPathType::File),
         ]), ContainerStub::getLogger(), $filesystem);
