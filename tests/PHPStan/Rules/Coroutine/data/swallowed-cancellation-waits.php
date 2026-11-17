@@ -7,6 +7,7 @@ namespace Hypervel\Tests\PHPStan\Rules\Coroutine\SwallowedCancellationWaits;
 use Hypervel\Contracts\Engine\ChannelInterface;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Coroutine\Concurrent;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Database\Connection;
 use Hypervel\Support\Facades\DB;
@@ -16,7 +17,7 @@ class WaitingImportJob implements ShouldQueue
 {
     private ?Connection $connection = null;
 
-    public function handle(WaitConcurrent $imports, Concurrent $limiter, ChannelInterface $results, ?Connection $connection): void
+    public function handle(WaitConcurrent $imports, Concurrent $limiter, ChannelInterface $results, ?Connection $connection, int $childId): void
     {
         try {
             $imports->wait(1.0);
@@ -48,6 +49,12 @@ class WaitingImportJob implements ShouldQueue
         try {
             $this->connection = DB::connection();
             $this->connection->select('select 1');
+        } catch (Throwable) {
+            return;
+        }
+
+        try {
+            Coroutine::joinUninterruptibly([$childId]);
         } catch (Throwable) {
             return;
         }

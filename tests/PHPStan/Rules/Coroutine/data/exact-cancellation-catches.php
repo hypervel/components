@@ -185,6 +185,7 @@ class ExactCancellationCatches
         try {
             $waitGroup->wait(1.0);
             Coroutine::join($coroutineIds, 1.0);
+            Coroutine::joinUninterruptibly($coroutineIds);
             $results = new Channel(1);
             $later = $this->work(...);
 

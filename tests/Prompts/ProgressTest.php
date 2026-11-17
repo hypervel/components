@@ -12,8 +12,10 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use WeakReference;
 
 use function Hypervel\Prompts\progress;
@@ -158,7 +160,9 @@ class ProgressTest extends TestCase
     }
 
     #[RunInSeparateProcess]
-    public function testStartFailureRestoresExactSignalAndTerminalState(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testStartFailureRestoresExactSignalAndTerminalState(bool $canceled): void
     {
         Prompt::fake();
         $originalHandler = pcntl_signal_get_handler(SIGINT);
@@ -166,6 +170,11 @@ class ProgressTest extends TestCase
         $previousHandler = static function (): void {
         };
         $failure = new RuntimeException('unable to render progress');
+        $expected = $failure;
+        if ($canceled) {
+            $expected = new CanceledException;
+            Prompt::terminal()->shouldReceive('restoreTty')->once()->andThrow($expected);
+        }
         $output = new class($failure) extends BufferedConsoleOutput {
             /** @var list<string> */
             public array $directWrites = [];
@@ -197,8 +206,8 @@ class ProgressTest extends TestCase
                 $progress->start();
 
                 $this->fail('Expected the initial progress render to fail.');
-            } catch (RuntimeException $exception) {
-                $this->assertSame($failure, $exception);
+            } catch (CanceledException|RuntimeException $exception) {
+                $this->assertSame($expected, $exception);
             }
 
             $this->assertSame(["\e[?25l", "\e[?25h"], $output->directWrites);
@@ -260,12 +269,14 @@ class ProgressTest extends TestCase
         );
     }
 
-    public function testCallbackFailureRemainsPrimaryWhenRenderingAndTerminalCleanupFail(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCallbackFailureRemainsPrimaryUnlessCleanupIsCanceled(bool $canceled): void
     {
         Prompt::fake();
         $callbackFailure = new RuntimeException('progress callback failed');
         $renderFailure = new RuntimeException('unable to render progress error');
-        $cleanupFailure = new RuntimeException('unable to restore terminal');
+        $cleanupFailure = $canceled ? new CanceledException : new RuntimeException('unable to restore terminal');
         $output = new class($renderFailure) extends BufferedConsoleOutput {
             public bool $failFrames = false;
 
@@ -306,8 +317,8 @@ class ProgressTest extends TestCase
             });
 
             $this->fail('Expected the progress callback to fail.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($callbackFailure, $exception);
+        } catch (CanceledException|RuntimeException $exception) {
+            $this->assertSame($canceled ? $cleanupFailure : $callbackFailure, $exception);
         }
 
         $this->assertSame("\e[?25l", $output->directWrites[0]);

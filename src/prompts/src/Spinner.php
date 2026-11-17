@@ -77,24 +77,24 @@ class Spinner extends Prompt
 
             throw $exception;
         } finally {
+            $failure = $operationFailure;
             $animationFailure = null;
 
             try {
                 $animationFailure = $animation?->stop();
             } catch (Throwable $exception) {
-                $animationFailure = $exception;
+                $failure = Coroutine::preferCancellation($failure, $exception);
             }
 
             $cleanupFailure = $this->settleOperation();
 
-            if ($operationFailure === null) {
-                if ($animationFailure !== null) {
-                    throw $animationFailure;
-                }
+            if ($cleanupFailure !== null && Coroutine::causedByCancellation($cleanupFailure)) {
+                $failure = Coroutine::preferCancellation($failure, $cleanupFailure);
+            }
 
-                if ($cleanupFailure !== null) {
-                    throw $cleanupFailure;
-                }
+            $failure ??= $animationFailure ?? $cleanupFailure;
+            if ($failure !== null && $failure !== $operationFailure) {
+                throw $failure;
             }
         }
     }
@@ -124,8 +124,8 @@ class Spinner extends Prompt
         } finally {
             $cleanupFailure = $this->settleOperation();
 
-            if ($operationFailure === null && $cleanupFailure !== null) {
-                throw $cleanupFailure;
+            if ($cleanupFailure !== null) {
+                throw Coroutine::preferCancellation($operationFailure, $cleanupFailure);
             }
         }
     }

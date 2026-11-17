@@ -98,13 +98,11 @@ class Progress extends Prompt
 
             try {
                 $this->renderTerminalFrame();
-            } catch (Throwable) {
-                // The callback failure remains primary while settlement continues.
+            } catch (Throwable $renderFailure) {
+                $e = Coroutine::preferCancellation($e, $renderFailure);
             }
 
-            $this->settleOperation($e);
-
-            throw $e;
+            throw $this->settleOperation($e);
         }
 
         $this->finish();
@@ -159,9 +157,7 @@ class Progress extends Prompt
 
             $this->state = 'active';
         } catch (Throwable $exception) {
-            $this->settleOperation($exception);
-
-            throw $exception;
+            throw $this->settleOperation($exception);
         }
     }
 
@@ -204,6 +200,8 @@ class Progress extends Prompt
 
     /**
      * Restore signal and terminal state for one progress operation.
+     *
+     * @return ($failure is Throwable ? Throwable : null|Throwable)
      */
     private function settleOperation(?Throwable $failure = null): ?Throwable
     {

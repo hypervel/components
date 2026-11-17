@@ -352,7 +352,7 @@ class SwallowedCancellationCollector implements Collector
         WaitConcurrent::class => [self::WAIT, ['create' => true, 'fork' => true, 'wait' => true]],
         Concurrency::class => [self::WAIT, ['run' => true]],
         SwooleCoroutine::class => [self::WAIT, ['join' => true, 'sleep' => true]],
-        Coroutine::class => [self::WAIT, ['join' => true, 'sleep' => true]],
+        Coroutine::class => [self::WAIT, ['join' => true, 'joinuninterruptibly' => true, 'sleep' => true]],
         EngineCoroutine::class => [self::WAIT, ['join' => true]],
         Sleep::class => [self::WAIT, ['then' => true]],
     ];
