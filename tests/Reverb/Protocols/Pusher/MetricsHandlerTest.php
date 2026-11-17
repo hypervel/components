@@ -15,7 +15,8 @@ use Hypervel\Reverb\Servers\Hypervel\MetricsRequestPipeMessage;
 use Hypervel\Reverb\Servers\Hypervel\MetricsResponsePipeMessage;
 use Hypervel\Support\Facades\Log;
 use Hypervel\Tests\Reverb\ReverbTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use Swoole\Coroutine\Channel as CoroutineChannel;
 use Swoole\Server;
@@ -24,14 +25,16 @@ class MetricsHandlerTest extends ReverbTestCase
 {
     protected MetricsHandler $metrics;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
-        $serverManager = m::mock(ServerProviderManager::class);
-        $serverManager->shouldReceive('subscribesToEvents')->andReturn(false);
+        $serverManager = new ServerProviderManager($this->app);
 
-        $pubSub = m::mock(PubSubProvider::class);
+        $pubSub = Double::for(PubSubProvider::class)->strict();
 
         $this->metrics = new MetricsHandler(
             $serverManager,
@@ -80,12 +83,11 @@ class MetricsHandlerTest extends ReverbTestCase
     public function testSingleWorkerGatherRetainsNoPendingState(): void
     {
         $app = $this->app->make(ApplicationProvider::class)->all()->first();
-        $serverManager = m::mock(ServerProviderManager::class);
-        $serverManager->expects('subscribesToEvents')->andReturnFalse();
+        $serverManager = new ServerProviderManager($this->app);
         $handler = new MetricsHandlerProbe(
             $serverManager,
             $this->app->make(ChannelManager::class),
-            m::mock(PubSubProvider::class),
+            Double::for(PubSubProvider::class)->strict(),
             $this->app->make(Server::class),
         );
 
@@ -264,16 +266,16 @@ class MetricsHandlerTest extends ReverbTestCase
      */
     private function scalingMetricsHandler(array $subscriberResponses): MetricsHandler
     {
-        $serverManager = m::mock(ServerProviderManager::class);
-        $serverManager->shouldReceive('subscribesToEvents')->andReturn(true);
+        $serverManager = new ServerProviderManager($this->app);
+        $serverManager->withPublishing();
 
         $capturedCallback = null;
 
-        $pubSub = m::mock(PubSubProvider::class);
-        $pubSub->shouldReceive('on')->once()->andReturnUsing(function (string $event, callable $callback) use (&$capturedCallback) {
+        $pubSub = Double::for(PubSubProvider::class)->strict();
+        $pubSub->expects('on')->resolves(function (string $event, callable $callback) use (&$capturedCallback) {
             $capturedCallback = $callback;
         });
-        $pubSub->shouldReceive('publish')->once()->andReturnUsing(function () use (&$capturedCallback, $subscriberResponses) {
+        $pubSub->expects('publish')->resolves(function () use (&$capturedCallback, $subscriberResponses) {
             // Simulate each subscriber responding immediately
             foreach ($subscriberResponses as $response) {
                 $capturedCallback(['payload' => $response]);
@@ -281,7 +283,7 @@ class MetricsHandlerTest extends ReverbTestCase
 
             return count($subscriberResponses);
         });
-        $pubSub->shouldReceive('stopListening')->once();
+        $pubSub->expects('stopListening');
 
         return new MetricsHandler(
             $serverManager,
@@ -419,16 +421,15 @@ class MetricsHandlerTest extends ReverbTestCase
     public function testUnscaledMultiWorkerGatherIncludesLocalAndSiblingResponses(): void
     {
         $app = $this->app->make(ApplicationProvider::class)->all()->first();
-        $serverManager = m::mock(ServerProviderManager::class);
-        $serverManager->expects('subscribesToEvents')->andReturnFalse();
-        $server = m::mock(Server::class);
+        $serverManager = new ServerProviderManager($this->app);
+        $server = Double::for(Server::class)->strict();
         $server->setting = ['worker_num' => 3];
         $server->worker_id = 1;
         $handler = null;
         $server->expects('sendMessage')
-            ->twice()
-            ->with(m::type(MetricsRequestPipeMessage::class), m::type('int'))
-            ->andReturnUsing(function (MetricsRequestPipeMessage $message, int $workerId) use (&$handler): bool {
+            ->times(2)
+            ->with(Argument::type(MetricsRequestPipeMessage::class), Argument::type('int'))
+            ->resolves(function (MetricsRequestPipeMessage $message, int $workerId) use (&$handler): bool {
                 $handler->receive(new MetricsResponsePipeMessage(
                     $message->requestId,
                     ['count' => $workerId + 1],
@@ -439,7 +440,7 @@ class MetricsHandlerTest extends ReverbTestCase
         $handler = new MetricsHandlerProbe(
             $serverManager,
             $this->app->make(ChannelManager::class),
-            m::mock(PubSubProvider::class),
+            Double::for(PubSubProvider::class)->strict(),
             $server,
         );
 
@@ -453,9 +454,8 @@ class MetricsHandlerTest extends ReverbTestCase
     public function testUnscaledMultiWorkerTimeoutKeepsEveryReceivedSlice(): void
     {
         $app = $this->app->make(ApplicationProvider::class)->all()->first();
-        $serverManager = m::mock(ServerProviderManager::class);
-        $serverManager->expects('subscribesToEvents')->andReturnFalse();
-        $server = m::mock(Server::class);
+        $serverManager = new ServerProviderManager($this->app);
+        $server = Double::for(Server::class)->strict();
         $server->setting = ['worker_num' => 3];
         $server->worker_id = 0;
         $handler = null;
@@ -467,8 +467,8 @@ class MetricsHandlerTest extends ReverbTestCase
                 'expected' => 3,
             ]);
         $server->expects('sendMessage')
-            ->twice()
-            ->andReturnUsing(function (MetricsRequestPipeMessage $message, int $workerId) use (&$handler): bool {
+            ->times(2)
+            ->resolves(function (MetricsRequestPipeMessage $message, int $workerId) use (&$handler): bool {
                 if ($workerId === 1) {
                     $handler->receive(new MetricsResponsePipeMessage(
                         $message->requestId,
@@ -481,7 +481,7 @@ class MetricsHandlerTest extends ReverbTestCase
         $handler = new MetricsHandlerProbe(
             $serverManager,
             $this->app->make(ChannelManager::class),
-            m::mock(PubSubProvider::class),
+            Double::for(PubSubProvider::class)->strict(),
             $server,
         );
         $handler->timeoutImmediately = true;
@@ -497,15 +497,14 @@ class MetricsHandlerTest extends ReverbTestCase
     public function testUnscaledMultiWorkerSendFailureRemovesPendingState(): void
     {
         $app = $this->app->make(ApplicationProvider::class)->all()->first();
-        $serverManager = m::mock(ServerProviderManager::class);
-        $serverManager->expects('subscribesToEvents')->andReturnFalse();
-        $server = m::mock(Server::class);
+        $serverManager = new ServerProviderManager($this->app);
+        $server = Double::for(Server::class)->strict();
         $server->setting = ['worker_num' => 4];
         $server->worker_id = 1;
         $workerIds = [];
         $server->expects('sendMessage')
             ->times(3)
-            ->andReturnUsing(function (MetricsRequestPipeMessage $message, int $workerId) use (&$workerIds): bool {
+            ->resolves(function (MetricsRequestPipeMessage $message, int $workerId) use (&$workerIds): bool {
                 $workerIds[] = $workerId;
 
                 return match ($workerId) {
@@ -517,7 +516,7 @@ class MetricsHandlerTest extends ReverbTestCase
         $handler = new MetricsHandlerProbe(
             $serverManager,
             $this->app->make(ChannelManager::class),
-            m::mock(PubSubProvider::class),
+            Double::for(PubSubProvider::class)->strict(),
             $server,
         );
 
@@ -537,18 +536,17 @@ class MetricsHandlerTest extends ReverbTestCase
     {
         $app = $this->app->make(ApplicationProvider::class)->all()->first();
         $failure = new RuntimeException('Unable to read local channels.');
-        $serverManager = m::mock(ServerProviderManager::class);
-        $serverManager->expects('subscribesToEvents')->andReturnFalse();
-        $channels = m::mock(ChannelManager::class);
-        $channels->expects('for')->with($app)->andThrow($failure);
-        $server = m::mock(Server::class);
+        $serverManager = new ServerProviderManager($this->app);
+        $channels = Double::for(ChannelManager::class)->strict();
+        $channels->expects('for')->with($app)->throws($failure);
+        $server = Double::for(Server::class)->strict();
         $server->setting = ['worker_num' => 2];
         $server->worker_id = 0;
         $server->expects('sendMessage')->never();
         $handler = new MetricsHandlerProbe(
             $serverManager,
             $channels,
-            m::mock(PubSubProvider::class),
+            Double::for(PubSubProvider::class)->strict(),
             $server,
         );
 
@@ -588,17 +586,17 @@ class MetricsHandlerTest extends ReverbTestCase
     public function testRemovesTheListenerAfterMetricsAreGatheredSuccessfully(): void
     {
         $app = $this->app->make(ApplicationProvider::class)->all()->first();
-        $serverManager = m::mock(ServerProviderManager::class);
-        $serverManager->expects('subscribesToEvents')->andReturnTrue();
+        $serverManager = new ServerProviderManager($this->app);
+        $serverManager->withPublishing();
         $registeredEvent = null;
         $registeredListener = null;
-        $pubSub = m::mock(PubSubProvider::class);
-        $pubSub->expects('on')->andReturnUsing(function (string $event, callable $listener) use (&$registeredEvent, &$registeredListener): void {
+        $pubSub = Double::for(PubSubProvider::class)->strict();
+        $pubSub->expects('on')->resolves(function (string $event, callable $listener) use (&$registeredEvent, &$registeredListener): void {
             $registeredEvent = $event;
             $registeredListener = $listener;
         });
         $responderId = null;
-        $pubSub->expects('publish')->andReturnUsing(function () use (&$registeredListener, &$responderId): int {
+        $pubSub->expects('publish')->resolves(function () use (&$registeredListener, &$responderId): int {
             $responderId = Coroutine::create(function () use (&$registeredListener): void {
                 usleep(1000);
                 $registeredListener(['payload' => ['count' => 1]]);
@@ -606,7 +604,7 @@ class MetricsHandlerTest extends ReverbTestCase
 
             return 1;
         });
-        $pubSub->expects('stopListening')->with(m::on(function (string $key) use (&$registeredEvent): bool {
+        $pubSub->expects('stopListening')->with(Argument::satisfies(function (string $key) use (&$registeredEvent): bool {
             return $key === $registeredEvent;
         }));
         $handler = new MetricsHandlerProbe(
@@ -631,11 +629,11 @@ class MetricsHandlerTest extends ReverbTestCase
     {
         $app = $this->app->make(ApplicationProvider::class)->all()->first();
         $failure = new RuntimeException('Redis publish failed.');
-        $serverManager = m::mock(ServerProviderManager::class);
-        $serverManager->expects('subscribesToEvents')->andReturnTrue();
-        $pubSub = m::mock(PubSubProvider::class);
+        $serverManager = new ServerProviderManager($this->app);
+        $serverManager->withPublishing();
+        $pubSub = Double::for(PubSubProvider::class)->strict();
         $pubSub->expects('on');
-        $pubSub->expects('publish')->andThrow($failure);
+        $pubSub->expects('publish')->throws($failure);
         $pubSub->expects('stopListening');
         $handler = new MetricsHandlerProbe(
             $serverManager,
@@ -658,12 +656,12 @@ class MetricsHandlerTest extends ReverbTestCase
     {
         $app = $this->app->make(ApplicationProvider::class)->all()->first();
         $failure = new RuntimeException('Redis publish failed.');
-        $serverManager = m::mock(ServerProviderManager::class);
-        $serverManager->expects('subscribesToEvents')->andReturnTrue();
-        $pubSub = m::mock(PubSubProvider::class);
+        $serverManager = new ServerProviderManager($this->app);
+        $serverManager->withPublishing();
+        $pubSub = Double::for(PubSubProvider::class)->strict();
         $pubSub->expects('on');
-        $pubSub->expects('publish')->andThrow($failure);
-        $pubSub->expects('stopListening')->andThrow(new RuntimeException('Listener cleanup failed.'));
+        $pubSub->expects('publish')->throws($failure);
+        $pubSub->expects('stopListening')->throws(new RuntimeException('Listener cleanup failed.'));
         $handler = new MetricsHandlerProbe(
             $serverManager,
             $this->app->make(ChannelManager::class),
@@ -681,6 +679,9 @@ class MetricsHandlerTest extends ReverbTestCase
         $this->assertSame([], $handler->metricsForTest());
     }
 
+    /**
+     * Assert that a metric payload can cross worker and Redis transports.
+     */
     private function assertTransportSafe(mixed $value): void
     {
         if (is_array($value)) {
@@ -702,16 +703,25 @@ class MetricsHandlerProbe extends MetricsHandler
 {
     public bool $timeoutImmediately = false;
 
+    /**
+     * Return the pending metrics.
+     */
     public function metricsForTest(): array
     {
         return $this->metrics;
     }
 
+    /**
+     * Return the pending metric waiters.
+     */
     public function waitersForTest(): array
     {
         return $this->waiters;
     }
 
+    /**
+     * Allow tests to trigger the metric timeout immediately.
+     */
     protected function waitForMetric(PendingMetric $metric, CoroutineChannel $waiter): array
     {
         if ($this->timeoutImmediately) {

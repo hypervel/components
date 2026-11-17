@@ -9,7 +9,7 @@ use Hypervel\Reverb\ServerProviderManager;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Reverb\ReverbTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
 
 class EventsControllerTest extends ReverbTestCase
 {
@@ -120,7 +120,7 @@ class EventsControllerTest extends ReverbTestCase
     public function testPublishesTheOriginatingSocketIdOverRedisEvenWhenTheConnectionIsNotLocal(): void
     {
         app(ServerProviderManager::class)->withPublishing();
-        $pubSub = m::mock(PubSubProvider::class);
+        $pubSub = Double::for(PubSubProvider::class)->strict();
         $pubSub->expects('publish')->with([
             'type' => 'message',
             'app_id' => '123456',
@@ -130,7 +130,7 @@ class EventsControllerTest extends ReverbTestCase
                 'data' => '{"some":"data"}',
             ],
             'socket_id' => 'remote-socket',
-        ])->andReturn(1);
+        ])->returns(1);
         $this->app->instance(PubSubProvider::class, $pubSub);
 
         $response = $this->signedPostRequest('events', [

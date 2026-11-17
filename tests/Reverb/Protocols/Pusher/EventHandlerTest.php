@@ -20,8 +20,9 @@ use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 use JsonException;
-use Mockery as m;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Server;
@@ -32,6 +33,9 @@ class EventHandlerTest extends ReverbTestCase
 
     protected EventHandler $pusher;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -80,10 +84,10 @@ class EventHandlerTest extends ReverbTestCase
         config()->set('reverb.apps.apps.0.webhooks', $webhooks);
 
         $failure = new RuntimeException('The delivery queue is unavailable.');
-        $sender = m::mock(WebhookSender::class);
-        $sender->expects('send')->andThrow($failure);
+        $sender = Double::for(WebhookSender::class)->strict();
+        $sender->expects('send')->throws($failure);
         $this->app->instance(WebhookSender::class, $sender);
-        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
         $exceptionHandler->expects('report')->with($failure);
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
@@ -104,12 +108,12 @@ class EventHandlerTest extends ReverbTestCase
     {
         $failure = new RuntimeException('Unable to reach a sibling worker.');
         $metrics = null;
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->setting = ['worker_num' => 2];
         $server->worker_id = 0;
         $server->expects('sendMessage')
-            ->twice()
-            ->andReturnUsing(function (object $message, int $workerId) use ($failure, &$metrics): bool {
+            ->times(2)
+            ->resolves(function (object $message, int $workerId) use ($failure, &$metrics): bool {
                 $this->assertSame(1, $workerId);
 
                 if ($message instanceof ChannelBroadcastPipeMessage) {
@@ -127,7 +131,7 @@ class EventHandlerTest extends ReverbTestCase
         $this->app->instance(Server::class, $server);
         $metrics = $this->app->make(MetricsHandler::class);
 
-        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
         $exceptionHandler->expects('report')->with($failure);
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
@@ -163,16 +167,16 @@ class EventHandlerTest extends ReverbTestCase
         $failure = new RuntimeException('Redis publication failed.');
         $listener = null;
         $metricKey = null;
-        $pubSub = m::mock(PubSubProvider::class);
+        $pubSub = Double::for(PubSubProvider::class)->strict();
         $pubSub->expects('on')
-            ->with(m::type('string'), m::type('callable'))
-            ->andReturnUsing(function (string $key, callable $callback) use (&$listener, &$metricKey): void {
+            ->with(Argument::type('string'), Argument::type('callable'))
+            ->resolves(function (string $key, callable $callback) use (&$listener, &$metricKey): void {
                 $metricKey = $key;
                 $listener = $callback;
             });
         $pubSub->expects('publish')
-            ->twice()
-            ->andReturnUsing(function (array $payload) use ($failure, &$listener): int {
+            ->times(2)
+            ->resolves(function (array $payload) use ($failure, &$listener): int {
                 if ($payload['type'] === 'message') {
                     throw $failure;
                 }
@@ -191,13 +195,13 @@ class EventHandlerTest extends ReverbTestCase
                 return 1;
             });
         $pubSub->expects('stopListening')
-            ->with(m::on(function (string $key) use (&$metricKey): bool {
+            ->with(Argument::satisfies(function (string $key) use (&$metricKey): bool {
                 return $key === $metricKey;
             }));
         $this->app->instance(PubSubProvider::class, $pubSub);
         $this->app->make(ServerProviderManager::class)->withPublishing();
 
-        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
         $exceptionHandler->expects('report')->with($failure);
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
@@ -266,11 +270,11 @@ class EventHandlerTest extends ReverbTestCase
     public function testFallsBackToLocalMembersWhenTheGatherFails(): void
     {
         $failure = new RuntimeException('Unable to gather metrics.');
-        $metrics = m::mock(MetricsHandler::class);
-        $metrics->expects('gather')->andThrow($failure);
+        $metrics = Double::for(MetricsHandler::class)->strict();
+        $metrics->expects('gather')->throws($failure);
         $this->app->instance(MetricsHandler::class, $metrics);
 
-        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
         $exceptionHandler->expects('report')->with($failure);
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
@@ -296,12 +300,12 @@ class EventHandlerTest extends ReverbTestCase
     public function testGatherCancellationIsNotAnsweredWithLocalMembers(): void
     {
         $cancellation = new CanceledException;
-        $metrics = m::mock(MetricsHandler::class);
-        $metrics->expects('gather')->andThrow($cancellation);
+        $metrics = Double::for(MetricsHandler::class)->strict();
+        $metrics->expects('gather')->throws($cancellation);
         $this->app->instance(MetricsHandler::class, $metrics);
 
-        $exceptionHandler = m::mock(ExceptionHandler::class);
-        $exceptionHandler->shouldNotReceive('report');
+        $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
+        $exceptionHandler->expects('report')->never();
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
         $data = json_encode(['user_id' => 1, 'user_info' => ['name' => 'Joe']]);

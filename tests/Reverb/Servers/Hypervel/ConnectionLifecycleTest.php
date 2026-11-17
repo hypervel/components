@@ -7,18 +7,21 @@ namespace Hypervel\Tests\Reverb\Servers\Hypervel;
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\Servers\Hypervel\ConnectionLifecycle;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use Swoole\Coroutine\Channel;
 
 use function Hypervel\Coroutine\go;
 
 class ConnectionLifecycleTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testItAttachesOneConnection(): void
     {
         $lifecycle = new ConnectionLifecycle(123);
-        $connection = m::mock(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
 
         $lifecycle->attach($connection);
 
@@ -27,7 +30,7 @@ class ConnectionLifecycleTest extends TestCase
 
         $this->expectException(LogicException::class);
 
-        $lifecycle->attach(m::mock(Connection::class));
+        $lifecycle->attach(Double::for(Connection::class)->strict());
     }
 
     public function testTerminalCloseWaitsForCurrentWorkAndRejectsCapturedWaiters(): void

@@ -18,7 +18,8 @@ use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Support\Facades\Queue;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -31,8 +32,8 @@ class EventDispatcherTest extends ReverbTestCase
         $app = app(ApplicationProvider::class)->findByKey('reverb-key');
         app(ServerProviderManager::class)->withPublishing();
 
-        $pubSub = m::mock(PubSubProvider::class);
-        $pubSub->shouldReceive('publish')->once()
+        $pubSub = Double::for(PubSubProvider::class)->strict();
+        $pubSub->expects('publish')
             ->with(['type' => 'message', 'app_id' => $app->id(), 'payload' => ['channel' => 'test-channel']]);
 
         $this->app->instance(PubSubProvider::class, $pubSub);
@@ -44,7 +45,7 @@ class EventDispatcherTest extends ReverbTestCase
     {
         $app = app(ApplicationProvider::class)->findByKey('reverb-key');
         app(ServerProviderManager::class)->withPublishing();
-        $pubSub = m::mock(PubSubProvider::class);
+        $pubSub = Double::for(PubSubProvider::class)->strict();
         $pubSub->expects('publish')->with([
             'type' => 'message',
             'app_id' => $app->id(),
@@ -63,15 +64,15 @@ class EventDispatcherTest extends ReverbTestCase
     public function testPipeFanOutRetainsARemoteSocketId(): void
     {
         $app = app(ApplicationProvider::class)->findByKey('reverb-key');
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->setting = ['worker_num' => 2];
         $server->worker_id = 0;
         $server->expects('sendMessage')
             ->with(
-                m::on(fn (ChannelBroadcastPipeMessage $message): bool => $message->exceptSocketId === 'remote-socket'),
+                Argument::satisfies(fn (ChannelBroadcastPipeMessage $message): bool => $message->exceptSocketId === 'remote-socket'),
                 1,
             )
-            ->andReturnTrue();
+            ->returns(true);
         $this->app->instance(Server::class, $server);
 
         EventDispatcher::dispatch(
@@ -84,13 +85,13 @@ class EventDispatcherTest extends ReverbTestCase
     public function testPipeFanOutAttemptsEveryWorkerAndPreservesTheFirstFailure(): void
     {
         $app = app(ApplicationProvider::class)->findByKey('reverb-key');
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->setting = ['worker_num' => 4];
         $server->worker_id = 1;
         $workerIds = [];
         $server->expects('sendMessage')
             ->times(3)
-            ->andReturnUsing(function (ChannelBroadcastPipeMessage $message, int $workerId) use (&$workerIds): bool {
+            ->resolves(function (ChannelBroadcastPipeMessage $message, int $workerId) use (&$workerIds): bool {
                 $workerIds[] = $workerId;
 
                 return match ($workerId) {
@@ -113,11 +114,11 @@ class EventDispatcherTest extends ReverbTestCase
 
     public function testCanBroadcastAnEventDirectlyWhenPublishingDisabled(): void
     {
-        $channelConnectionManager = m::mock(ChannelConnectionManager::class);
-        $channelConnectionManager->shouldReceive('for')
-            ->andReturn($channelConnectionManager);
-        $channelConnectionManager->shouldReceive('all')->once()
-            ->andReturn([]);
+        $channelConnectionManager = Double::for(ChannelConnectionManager::class)->strict();
+        $channelConnectionManager->allows('for')
+            ->returns($channelConnectionManager);
+        $channelConnectionManager->expects('all')
+            ->returns([]);
 
         $this->app->bind(ChannelConnectionManager::class, fn () => $channelConnectionManager);
 
@@ -128,11 +129,11 @@ class EventDispatcherTest extends ReverbTestCase
 
     public function testCanBroadcastAnEventForMultipleChannels(): void
     {
-        $channelConnectionManager = m::mock(ChannelConnectionManager::class);
-        $channelConnectionManager->shouldReceive('for')
-            ->andReturn($channelConnectionManager);
-        $channelConnectionManager->shouldReceive('all')->twice()
-            ->andReturn([]);
+        $channelConnectionManager = Double::for(ChannelConnectionManager::class)->strict();
+        $channelConnectionManager->allows('for')
+            ->returns($channelConnectionManager);
+        $channelConnectionManager->expects('all')->times(2)
+            ->returns([]);
 
         $this->app->bind(ChannelConnectionManager::class, fn () => $channelConnectionManager);
 
@@ -147,19 +148,19 @@ class EventDispatcherTest extends ReverbTestCase
     {
         $app = app(ApplicationProvider::class)->findByKey('reverb-key');
         $cancellation = new CanceledException;
-        $channel = m::mock(Channel::class);
-        $channel->allows('name')->andReturn('first');
-        $channel->expects($broadcast)->andThrow($cancellation);
-        $channels = m::mock(ScopedChannelManager::class);
-        $channels->expects('find')->with('first')->andReturn($channel);
-        $channels->shouldNotReceive('find')->with('later');
-        $manager = m::mock(ChannelManager::class);
-        $manager->expects('for')->with($app)->andReturn($channels);
+        $channel = Double::for(Channel::class)->strict();
+        $channel->allows('name')->returns('first');
+        $channel->expects($broadcast)->throws($cancellation);
+        $channels = Double::for(ScopedChannelManager::class)->strict();
+        $channels->expects('find')->with('first')->returns($channel);
+        $channels->expects('find')->never()->with('later');
+        $manager = Double::for(ChannelManager::class)->strict();
+        $manager->expects('for')->with($app)->returns($channels);
         $this->app->instance(ChannelManager::class, $manager);
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->setting = ['worker_num' => 2];
         $server->worker_id = 0;
-        $server->shouldNotReceive('sendMessage');
+        $server->expects('sendMessage')->never();
         $this->app->instance(Server::class, $server);
         $caught = null;
 
@@ -188,24 +189,24 @@ class EventDispatcherTest extends ReverbTestCase
     {
         $app = app(ApplicationProvider::class)->findByKey('reverb-key');
         $cancellation = new CanceledException;
-        $channel = m::mock(Channel::class);
-        $channel->allows('name')->andReturn('presence-test');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldNotReceive('report');
+        $channel = Double::for(Channel::class)->strict();
+        $channel->allows('name')->returns('presence-test');
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->never();
         $this->app->instance(ExceptionHandler::class, $handler);
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->setting = ['worker_num' => 2];
         $server->worker_id = 0;
-        $server->shouldNotReceive('sendMessage');
+        $server->expects('sendMessage')->never();
         $this->app->instance(Server::class, $server);
 
         if ($publish) {
             app(ServerProviderManager::class)->withPublishing();
-            $provider = m::mock(PubSubProvider::class);
-            $provider->expects('publish')->andThrow($cancellation);
+            $provider = Double::for(PubSubProvider::class)->strict();
+            $provider->expects('publish')->throws($cancellation);
             $this->app->instance(PubSubProvider::class, $provider);
         } else {
-            $channel->expects('broadcastInternally')->andThrow($cancellation);
+            $channel->expects('broadcastInternally')->throws($cancellation);
         }
 
         $caught = null;
@@ -231,27 +232,27 @@ class EventDispatcherTest extends ReverbTestCase
     {
         $app = app(ApplicationProvider::class)->findByKey('reverb-key');
         $failure = new RuntimeException('cache lock failed');
-        $cacheChannel = m::mock(CacheChannel::class);
-        $cacheChannel->allows('name')->andReturn('cache-first');
-        $cacheChannel->expects('broadcast')->once();
-        $laterChannel = m::mock(Channel::class);
-        $laterChannel->allows('name')->andReturn('later');
-        $laterChannel->expects('broadcast')->once();
-        $channels = m::mock(ScopedChannelManager::class);
-        $channels->expects('find')->with('cache-first')->andReturn($cacheChannel);
-        $channels->expects('find')->with('later')->andReturn($laterChannel);
-        $manager = m::mock(ChannelManager::class);
-        $manager->expects('for')->twice()->with($app)->andReturn($channels);
+        $cacheChannel = Double::for(CacheChannel::class)->strict();
+        $cacheChannel->allows('name')->returns('cache-first');
+        $cacheChannel->expects('broadcast');
+        $laterChannel = Double::for(Channel::class)->strict();
+        $laterChannel->allows('name')->returns('later');
+        $laterChannel->expects('broadcast');
+        $channels = Double::for(ScopedChannelManager::class)->strict();
+        $channels->expects('find')->with('cache-first')->returns($cacheChannel);
+        $channels->expects('find')->with('later')->returns($laterChannel);
+        $manager = Double::for(ChannelManager::class)->strict();
+        $manager->expects('for')->times(2)->with($app)->returns($channels);
         $this->app->instance(ChannelManager::class, $manager);
-        $sharedState = m::mock(SharedState::class);
+        $sharedState = Double::for(SharedState::class)->strict();
         $sharedState->expects('clearCacheMissLock')
             ->with($app->id(), 'cache-first')
-            ->andThrow($failure);
+            ->throws($failure);
         $this->app->instance(SharedState::class, $sharedState);
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->setting = ['worker_num' => 2];
         $server->worker_id = 0;
-        $server->expects('sendMessage')->once()->andReturnTrue();
+        $server->expects('sendMessage')->returns(true);
         $this->app->instance(Server::class, $server);
 
         try {

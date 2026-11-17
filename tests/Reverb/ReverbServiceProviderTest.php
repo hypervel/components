@@ -15,7 +15,7 @@ use Hypervel\Reverb\ReverbServiceProvider;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubIncomingMessageHandler;
 use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
 use Hypervel\Support\Facades\Log;
-use Mockery as m;
+use JMac\Testing\Double;
 use ReflectionMethod;
 use ReflectionProperty;
 use Swoole\Table;
@@ -108,9 +108,9 @@ class ReverbServiceProviderTest extends ReverbTestCase
 
     public function testPreservesCustomPusherBindings(): void
     {
-        $channelManager = m::mock(ChannelManager::class);
-        $channelConnectionManager = m::mock(ChannelConnectionManager::class);
-        $messageHandler = m::mock(PubSubIncomingMessageHandler::class);
+        $channelManager = Double::for(ChannelManager::class)->strict();
+        $channelConnectionManager = Double::for(ChannelConnectionManager::class)->strict();
+        $messageHandler = Double::for(PubSubIncomingMessageHandler::class)->strict();
         $this->app->instance(ChannelManager::class, $channelManager);
         $this->app->instance(ChannelConnectionManager::class, $channelConnectionManager);
         $this->app->instance(PubSubIncomingMessageHandler::class, $messageHandler);
@@ -134,7 +134,7 @@ class ReverbServiceProviderTest extends ReverbTestCase
 
     public function testChannelManagerBindingAfterRegistrationReplacesTheDefaultAlias(): void
     {
-        $channelManager = m::mock(ChannelManager::class);
+        $channelManager = Double::for(ChannelManager::class)->strict();
 
         $this->app->instance(ChannelManager::class, $channelManager);
 
@@ -145,7 +145,7 @@ class ReverbServiceProviderTest extends ReverbTestCase
     {
         $this->assertInstanceOf(NullLogger::class, $this->app->make(Logger::class));
 
-        $logger = m::mock(Logger::class);
+        $logger = Double::for(Logger::class)->strict();
         $this->app->instance(Logger::class, $logger);
 
         (new ReverbServiceProvider($this->app))->register();
@@ -175,6 +175,9 @@ class ReverbServiceProviderTest extends ReverbTestCase
         $method->invoke(new ReverbServiceProvider($this->app), $table, 'Increase reverb.servers.reverb.swoole_shared_state.rows.');
     }
 
+    /**
+     * Return the batch buffer Redis connection.
+     */
     protected function bufferRedisConnection(WebhookBatchBuffer $buffer): RedisProxy
     {
         $property = new ReflectionProperty($buffer, 'redis');
@@ -182,6 +185,9 @@ class ReverbServiceProviderTest extends ReverbTestCase
         return $property->getValue($buffer);
     }
 
+    /**
+     * Register the WebSocket server with the given configuration.
+     */
     protected function registerReverbServer(array $serverConfig): array
     {
         $config = $this->app->make('config');
