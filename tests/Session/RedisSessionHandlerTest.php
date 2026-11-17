@@ -11,16 +11,22 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Http\Request;
-use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Session\RedisSessionHandler;
 use Hypervel\Session\UserSessionIdentity;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Tests\Redis\Fixtures\PhpRedisClusterConnectionStub;
+use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
+use Redis;
+use RedisCluster;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -30,22 +36,27 @@ use function Hypervel\Coroutine\parallel;
 
 class RedisSessionHandlerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private const string SESSION_ID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
     private const string OTHER_SESSION_ID = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 
     private RedisFactory $redis;
 
+    /**
+     * Set up the Redis factory.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->redis = m::mock(RedisFactory::class);
+        $this->redis = Double::for(RedisFactory::class)->strict();
     }
 
     public function testLifecycleAndCapabilityMethodsDoNotUseRedis(): void
     {
-        $this->redis->shouldReceive('connection')->never();
+        $this->redis->expects('connection')->never();
 
         $plain = $this->handler();
         $tracked = $this->handler(tracked: true);
@@ -69,7 +80,7 @@ class RedisSessionHandlerTest extends TestCase
     public function testValidateIdChecksRedis(int $exists, bool $expected): void
     {
         $connection = $this->expectConnection();
-        $connection->expects('exists')->with('sessions:' . self::SESSION_ID)->andReturn($exists);
+        $connection->expects('exists')->with('sessions:' . self::SESSION_ID)->returns($exists);
 
         $this->assertSame($expected, $this->handler()->validateId(self::SESSION_ID));
     }
@@ -86,14 +97,16 @@ class RedisSessionHandlerTest extends TestCase
     public function testReadUnderstandsRawAndVersionedPayloads(string $stored, string $expected): void
     {
         $connection = $this->expectConnection();
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->expects('get')
             ->with('sessions:' . self::SESSION_ID)
-            ->andReturn($stored);
+            ->returns($stored);
 
         $this->assertSame($expected, $this->handler()->read(self::SESSION_ID));
     }
 
+    /**
+     * Provide stored session payloads.
+     */
     public static function storedPayloadProvider(): array
     {
         return [
@@ -112,7 +125,7 @@ class RedisSessionHandlerTest extends TestCase
     public function testMissingReadReturnsAnEmptyString(): void
     {
         $connection = $this->expectConnection();
-        $connection->shouldReceive('get')->once()->andReturnFalse();
+        $connection->expects('get')->returns(false);
 
         $this->assertSame('', $this->handler()->read(self::SESSION_ID));
     }
@@ -120,7 +133,7 @@ class RedisSessionHandlerTest extends TestCase
     public function testInvalidReadResultFailsExplicitly(): void
     {
         $connection = $this->expectConnection();
-        $connection->shouldReceive('get')->once()->andReturn(123);
+        $connection->expects('get')->returns(123);
 
         $this->expectException(UnexpectedValueException::class);
         $this->expectExceptionMessageIs('Redis returned an invalid session payload.');
@@ -130,38 +143,36 @@ class RedisSessionHandlerTest extends TestCase
 
     public function testTrackingDisabledWriteUsesOneRawSetex(): void
     {
-        $container = m::mock(Container::class);
-        $container->shouldReceive('has')->never();
-        $container->shouldReceive('make')->never();
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('has')->never();
+        $container->expects('make')->never();
         $connection = $this->expectConnection();
-        $connection->shouldReceive('setex')
-            ->once()
+        $connection->expects('setex')
             ->with('sessions:' . self::SESSION_ID, 600, 'payload')
-            ->andReturnTrue();
+            ->returns(true);
 
-        $this->assertTrue($this->handler(container: $container)->write(self::SESSION_ID, 'payload'));
+        $this->assertTrue($this->handler(container: $container->instance())->write(self::SESSION_ID, 'payload'));
     }
 
     public function testTrackingDisabledWriteReturnsFalseWithoutPublishingSuccess(): void
     {
         $connection = $this->expectConnection();
-        $connection->shouldReceive('setex')->once()->andReturnFalse();
+        $connection->expects('setex')->returns(false);
 
         $this->assertFalse($this->handler()->write(self::SESSION_ID, 'payload'));
     }
 
     public function testTrackingDisabledDestroyUsesOneRawDelete(): void
     {
-        $container = m::mock(Container::class);
-        $container->shouldReceive('has')->never();
-        $container->shouldReceive('make')->never();
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('has')->never();
+        $container->expects('make')->never();
         $connection = $this->expectConnection();
-        $connection->shouldReceive('del')
-            ->once()
+        $connection->expects('del')
             ->with('sessions:' . self::SESSION_ID)
-            ->andReturn(1);
+            ->returns(1);
 
-        $this->assertTrue($this->handler(container: $container)->destroy(self::SESSION_ID));
+        $this->assertTrue($this->handler(container: $container->instance())->destroy(self::SESSION_ID));
     }
 
     public function testStandaloneTrackedWriteUsesOneScriptWithPhysicalPrefixAndFreshMetadata(): void
@@ -171,11 +182,13 @@ class RedisSessionHandlerTest extends TestCase
         $connection = $this->expectConnection();
         $captured = [];
 
-        $connection->shouldReceive('getOption')->once()->andReturn('redis:');
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturnUsing(static function (string $script, array $keys, array $arguments) use (&$captured): int {
-                $captured = compact('script', 'keys', 'arguments');
+        $connection->expects('getOption')->with(Redis::OPT_PREFIX)->returns('redis:');
+        $connection->expects('evalSha')
+            ->resolves(static function (string $sha, array $parameters, int $keyCount) use (&$captured): int {
+                $captured = [
+                    'keys' => array_slice($parameters, 0, $keyCount),
+                    'arguments' => array_slice($parameters, $keyCount),
+                ];
 
                 return 1;
             });
@@ -206,11 +219,13 @@ class RedisSessionHandlerTest extends TestCase
         $connection = $this->expectConnection();
         $captured = [];
 
-        $connection->shouldReceive('getOption')->once()->andReturn('');
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturnUsing(static function (string $script, array $keys, array $arguments) use (&$captured): int {
-                $captured = compact('script', 'keys', 'arguments');
+        $connection->expects('getOption')->with(Redis::OPT_PREFIX)->returns('');
+        $connection->expects('evalSha')
+            ->resolves(static function (string $sha, array $parameters, int $keyCount) use (&$captured): int {
+                $captured = [
+                    'keys' => array_slice($parameters, 0, $keyCount),
+                    'arguments' => array_slice($parameters, $keyCount),
+                ];
 
                 return 1;
             });
@@ -229,11 +244,13 @@ class RedisSessionHandlerTest extends TestCase
         $connection = $this->expectConnection();
         $captured = [];
 
-        $connection->shouldReceive('getOption')->once()->andReturn('');
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturnUsing(static function (string $script, array $keys, array $arguments) use (&$captured): false {
-                $captured = compact('script', 'keys', 'arguments');
+        $connection->expects('getOption')->with(Redis::OPT_PREFIX)->returns('');
+        $connection->expects('evalSha')
+            ->resolves(static function (string $sha, array $parameters, int $keyCount) use (&$captured): false {
+                $captured = [
+                    'keys' => array_slice($parameters, 0, $keyCount),
+                    'arguments' => array_slice($parameters, $keyCount),
+                ];
 
                 return false;
             });
@@ -248,11 +265,13 @@ class RedisSessionHandlerTest extends TestCase
         $connection = $this->expectConnection();
         $captured = [];
 
-        $connection->shouldReceive('getOption')->once()->andReturn('');
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturnUsing(static function (string $script, array $keys, array $arguments) use (&$captured): int {
-                $captured = compact('script', 'keys', 'arguments');
+        $connection->expects('getOption')->with(Redis::OPT_PREFIX)->returns('');
+        $connection->expects('evalSha')
+            ->resolves(static function (string $sha, array $parameters, int $keyCount) use (&$captured): int {
+                $captured = [
+                    'keys' => array_slice($parameters, 0, $keyCount),
+                    'arguments' => array_slice($parameters, $keyCount),
+                ];
 
                 return 1;
             });
@@ -270,15 +289,14 @@ class RedisSessionHandlerTest extends TestCase
             $container = $this->authenticatedContainer('1', withRequest: false, authProvider: $authProvider);
             $connection = $this->expectConnection();
 
-            $connection->shouldReceive('getOption')->once()->andReturn('');
-            $connection->shouldReceive('evalWithShaCache')
-                ->once()
-                ->andReturnUsing(static function (
-                    string $script,
-                    array $keys,
-                    array $arguments,
+            $connection->expects('getOption')->with(Redis::OPT_PREFIX)->returns('');
+            $connection->expects('evalSha')
+                ->resolves(static function (
+                    string $sha,
+                    array $parameters,
+                    int $keyCount,
                 ) use (&$owners, $authProvider): int {
-                    $owners[$authProvider] = $arguments[4];
+                    $owners[$authProvider] = $parameters[$keyCount + 4];
 
                     return 1;
                 });
@@ -300,29 +318,26 @@ class RedisSessionHandlerTest extends TestCase
         $container = $this->authenticatedContainer('new-user', withRequest: true);
         $connection = $this->expectConnection(cluster: true);
 
-        $connection->shouldReceive('hsetex')
-            ->once()
+        $connection->expects('hsetex')
             ->ordered()
             ->with(
                 'sessions:_users:' . $newOwner . ':sessions',
-                m::on(static fn (array $fields): bool => array_key_exists(self::SESSION_ID, $fields)),
+                Argument::satisfies(static fn (array $fields): bool => array_key_exists(self::SESSION_ID, $fields)),
                 ['EXAT' => $expiresAt],
             )
-            ->andReturn(1);
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
+            ->returns(1);
+        $connection->expects('evalSha')
             ->ordered()
             ->with(
-                m::type('string'),
-                ['sessions:' . self::SESSION_ID],
-                [(string) $expiresAt, 'resolved', $newOwner, $newOwner, 'payload'],
+                Argument::type('string'),
+                ['sessions:' . self::SESSION_ID, (string) $expiresAt, 'resolved', $newOwner, $newOwner, 'payload'],
+                1,
             )
-            ->andReturn([1, $oldOwner, $newOwner]);
-        $connection->shouldReceive('hdel')
-            ->once()
+            ->returns([1, $oldOwner, $newOwner]);
+        $connection->expects('hdel')
             ->ordered()
             ->with('sessions:_users:' . $oldOwner . ':sessions', self::SESSION_ID)
-            ->andReturn(1);
+            ->returns(1);
 
         $this->assertTrue($this->handler(tracked: true, container: $container)->write(self::SESSION_ID, 'payload'));
     }
@@ -334,34 +349,33 @@ class RedisSessionHandlerTest extends TestCase
         $expiresAt = CarbonImmutable::now()->getTimestamp() + 600;
         $handler = $this->handler(tracked: true);
         $readConnection = $this->expectConnection(cluster: true);
-        $readConnection->shouldReceive('get')->once()->andReturn("\0HVS1{$owner}old");
+        $readConnection->expects('get')->returns("\0HVS1{$owner}old");
 
         $this->assertSame('old', $handler->read(self::SESSION_ID));
 
         $connection = $this->expectConnection(cluster: true);
 
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
+        $connection->expects('evalSha')
             ->ordered()
             ->with(
-                m::type('string'),
-                ['sessions:_users:' . $owner . ':sessions'],
-                m::on(static fn (array $arguments): bool => $arguments[0] === self::SESSION_ID
-                    && $arguments[1] === (string) $expiresAt
-                    && count($arguments) === 4),
+                Argument::type('string'),
+                Argument::satisfies(static fn (array $parameters): bool => $parameters[0] === 'sessions:_users:' . $owner . ':sessions'
+                    && $parameters[1] === self::SESSION_ID
+                    && $parameters[2] === (string) $expiresAt
+                    && count($parameters) === 5),
+                1,
             )
-            ->andReturn(1);
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
+            ->returns(1);
+        $connection->expects('evalSha')
             ->ordered()
             ->with(
-                m::type('string'),
-                ['sessions:' . self::SESSION_ID],
-                [(string) $expiresAt, 'unresolved', '', $owner, 'payload'],
+                Argument::type('string'),
+                ['sessions:' . self::SESSION_ID, (string) $expiresAt, 'unresolved', '', $owner, 'payload'],
+                1,
             )
-            ->andReturn([1, $owner, $owner]);
-        $connection->shouldReceive('hdel')->never();
-        $connection->shouldReceive('get')->never();
+            ->returns([1, $owner, $owner]);
+        $connection->expects('hdel')->never();
+        $connection->expects('get')->never();
 
         $this->assertTrue($handler->write(self::SESSION_ID, 'payload'));
     }
@@ -374,16 +388,15 @@ class RedisSessionHandlerTest extends TestCase
         $container = $this->authenticatedContainer('user-1', withRequest: true);
         $connection = $this->expectConnection(cluster: true);
 
-        $connection->shouldReceive('hsetex')
-            ->once()
+        $connection->expects('hsetex')
             ->with(
                 'sessions:_users:' . $owner . ':sessions',
-                m::type('array'),
+                Argument::type('array'),
                 ['EXAT' => $expiresAt],
             )
-            ->andReturn(0);
-        $connection->shouldReceive('evalWithShaCache')->never();
-        $connection->shouldReceive('hdel')->never();
+            ->returns(0);
+        $connection->expects('evalSha')->never();
+        $connection->expects('hdel')->never();
 
         $this->assertFalse(
             $this->handler(tracked: true, container: $container)->write(self::SESSION_ID, 'payload')
@@ -395,17 +408,16 @@ class RedisSessionHandlerTest extends TestCase
         $owner = $this->ownerDigest('users', 'user-1');
         $handler = $this->handler(tracked: true);
         $readConnection = $this->expectConnection(cluster: true);
-        $readConnection->shouldReceive('get')->once()->andReturn("\0HVS1{$owner}old");
+        $readConnection->expects('get')->returns("\0HVS1{$owner}old");
 
         $this->assertSame('old', $handler->read(self::SESSION_ID));
 
         $connection = $this->expectConnection(cluster: true);
 
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->with(m::type('string'), ['sessions:_users:' . $owner . ':sessions'], m::type('array'))
-            ->andReturnFalse();
-        $connection->shouldReceive('hdel')->never();
+        $connection->expects('evalSha')
+            ->with(Argument::type('string'), Argument::satisfies(static fn (array $parameters): bool => $parameters[0] === 'sessions:_users:' . $owner . ':sessions'), 1)
+            ->returns(false);
+        $connection->expects('hdel')->never();
 
         $this->assertFalse($handler->write(self::SESSION_ID, 'payload'));
     }
@@ -425,9 +437,9 @@ class RedisSessionHandlerTest extends TestCase
         );
         $connection = $this->expectConnection(cluster: true);
 
-        $connection->shouldReceive('hsetex')->once()->ordered()->andReturn(1);
-        $connection->shouldReceive('evalWithShaCache')->once()->ordered()->andReturn([1, $oldOwner, $newOwner]);
-        $connection->shouldReceive('hdel')->once()->ordered()->andReturnFalse();
+        $connection->expects('hsetex')->ordered()->returns(1);
+        $connection->expects('evalSha')->ordered()->returns([1, $oldOwner, $newOwner]);
+        $connection->expects('hdel')->ordered()->returns(false);
 
         $this->assertFalse($handler->write(self::SESSION_ID, 'payload'));
         $this->assertSame($newOwner, $handler->observedOwnerForTesting(self::SESSION_ID));
@@ -440,26 +452,23 @@ class RedisSessionHandlerTest extends TestCase
         $expiresAt = CarbonImmutable::now()->getTimestamp() + 600;
         $connection = $this->expectConnection(cluster: true);
 
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->expects('get')
             ->ordered()
             ->with('sessions:' . self::SESSION_ID)
-            ->andReturn("\0HVS1{$owner}old");
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
+            ->returns("\0HVS1{$owner}old");
+        $connection->expects('evalSha')
             ->ordered()
-            ->with(m::type('string'), ['sessions:_users:' . $owner . ':sessions'], m::type('array'))
-            ->andReturn(1);
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
+            ->with(Argument::type('string'), Argument::satisfies(static fn (array $parameters): bool => $parameters[0] === 'sessions:_users:' . $owner . ':sessions'), 1)
+            ->returns(1);
+        $connection->expects('evalSha')
             ->ordered()
             ->with(
-                m::type('string'),
-                ['sessions:' . self::SESSION_ID],
-                [(string) $expiresAt, 'unresolved', '', $owner, 'payload'],
+                Argument::type('string'),
+                ['sessions:' . self::SESSION_ID, (string) $expiresAt, 'unresolved', '', $owner, 'payload'],
+                1,
             )
-            ->andReturn([1, $owner, $owner]);
-        $connection->shouldReceive('hdel')->never();
+            ->returns([1, $owner, $owner]);
+        $connection->expects('hdel')->never();
 
         $this->assertTrue($this->handler(tracked: true)->write(self::SESSION_ID, 'payload'));
     }
@@ -471,42 +480,39 @@ class RedisSessionHandlerTest extends TestCase
         $expiresAt = CarbonImmutable::now()->getTimestamp() + 600;
         $handler = $this->handler(tracked: true);
         $readConnection = $this->expectConnection(cluster: true);
-        $readConnection->shouldReceive('get')->once()->andReturnFalse();
+        $readConnection->expects('get')->returns(false);
 
         $this->assertSame('', $handler->read(self::SESSION_ID));
 
         $racedConnection = $this->expectConnection(cluster: true);
-        $racedConnection->shouldReceive('get')->never();
-        $racedConnection->shouldReceive('hsetex')->never();
-        $racedConnection->shouldReceive('evalWithShaCache')
-            ->once()
+        $racedConnection->expects('get')->never();
+        $racedConnection->expects('hsetex')->never();
+        $racedConnection->expects('evalSha')
             ->with(
-                m::type('string'),
-                ['sessions:' . self::SESSION_ID],
-                [(string) $expiresAt, 'unresolved', '', '', 'first'],
+                Argument::type('string'),
+                ['sessions:' . self::SESSION_ID, (string) $expiresAt, 'unresolved', '', '', 'first'],
+                1,
             )
-            ->andReturn([0, $owner, '']);
-        $racedConnection->shouldReceive('hdel')->never();
+            ->returns([0, $owner, '']);
+        $racedConnection->expects('hdel')->never();
 
         $this->assertFalse($handler->write(self::SESSION_ID, 'first'));
 
         $retryConnection = $this->expectConnection(cluster: true);
-        $retryConnection->shouldReceive('get')->never();
-        $retryConnection->shouldReceive('evalWithShaCache')
-            ->once()
+        $retryConnection->expects('get')->never();
+        $retryConnection->expects('evalSha')
             ->ordered()
-            ->with(m::type('string'), ['sessions:_users:' . $owner . ':sessions'], m::type('array'))
-            ->andReturn(1);
-        $retryConnection->shouldReceive('evalWithShaCache')
-            ->once()
+            ->with(Argument::type('string'), Argument::satisfies(static fn (array $parameters): bool => $parameters[0] === 'sessions:_users:' . $owner . ':sessions'), 1)
+            ->returns(1);
+        $retryConnection->expects('evalSha')
             ->ordered()
             ->with(
-                m::type('string'),
-                ['sessions:' . self::SESSION_ID],
-                [(string) $expiresAt, 'unresolved', '', $owner, 'second'],
+                Argument::type('string'),
+                ['sessions:' . self::SESSION_ID, (string) $expiresAt, 'unresolved', '', $owner, 'second'],
+                1,
             )
-            ->andReturn([1, $owner, $owner]);
-        $retryConnection->shouldReceive('hdel')->never();
+            ->returns([1, $owner, $owner]);
+        $retryConnection->expects('hdel')->never();
 
         $this->assertTrue($handler->write(self::SESSION_ID, 'second'));
     }
@@ -519,48 +525,44 @@ class RedisSessionHandlerTest extends TestCase
         $expiresAt = CarbonImmutable::now()->getTimestamp() + 600;
         $handler = new ObservableRedisSessionHandler($this->redis, 'session', 'sessions:', 10, true);
         $readConnection = $this->expectConnection(cluster: true);
-        $readConnection->shouldReceive('get')->once()->andReturn("\0HVS1{$observedOwner}old");
+        $readConnection->expects('get')->returns("\0HVS1{$observedOwner}old");
 
         $this->assertSame('old', $handler->read(self::SESSION_ID));
 
         $racedConnection = $this->expectConnection(cluster: true);
-        $racedConnection->shouldReceive('get')->never();
-        $racedConnection->shouldReceive('evalWithShaCache')
-            ->once()
+        $racedConnection->expects('get')->never();
+        $racedConnection->expects('evalSha')
             ->ordered()
-            ->with(m::type('string'), ['sessions:_users:' . $observedOwner . ':sessions'], m::type('array'))
-            ->andReturn(1);
-        $racedConnection->shouldReceive('evalWithShaCache')
-            ->once()
+            ->with(Argument::type('string'), Argument::satisfies(static fn (array $parameters): bool => $parameters[0] === 'sessions:_users:' . $observedOwner . ':sessions'), 1)
+            ->returns(1);
+        $racedConnection->expects('evalSha')
             ->ordered()
             ->with(
-                m::type('string'),
-                ['sessions:' . self::SESSION_ID],
-                [(string) $expiresAt, 'unresolved', '', $observedOwner, 'first'],
+                Argument::type('string'),
+                ['sessions:' . self::SESSION_ID, (string) $expiresAt, 'unresolved', '', $observedOwner, 'first'],
+                1,
             )
-            ->andReturn([0, $actualOwner, '']);
-        $racedConnection->shouldReceive('hdel')->never();
+            ->returns([0, $actualOwner, '']);
+        $racedConnection->expects('hdel')->never();
 
         $this->assertFalse($handler->write(self::SESSION_ID, 'first'));
         $this->assertSame($actualOwner, $handler->observedOwnerForTesting(self::SESSION_ID));
 
         $retryConnection = $this->expectConnection(cluster: true);
-        $retryConnection->shouldReceive('get')->never();
-        $retryConnection->shouldReceive('evalWithShaCache')
-            ->once()
+        $retryConnection->expects('get')->never();
+        $retryConnection->expects('evalSha')
             ->ordered()
-            ->with(m::type('string'), ['sessions:_users:' . $actualOwner . ':sessions'], m::type('array'))
-            ->andReturn(1);
-        $retryConnection->shouldReceive('evalWithShaCache')
-            ->once()
+            ->with(Argument::type('string'), Argument::satisfies(static fn (array $parameters): bool => $parameters[0] === 'sessions:_users:' . $actualOwner . ':sessions'), 1)
+            ->returns(1);
+        $retryConnection->expects('evalSha')
             ->ordered()
             ->with(
-                m::type('string'),
-                ['sessions:' . self::SESSION_ID],
-                [(string) $expiresAt, 'unresolved', '', $actualOwner, 'second'],
+                Argument::type('string'),
+                ['sessions:' . self::SESSION_ID, (string) $expiresAt, 'unresolved', '', $actualOwner, 'second'],
+                1,
             )
-            ->andReturn([1, $actualOwner, $actualOwner]);
-        $retryConnection->shouldReceive('hdel')->never();
+            ->returns([1, $actualOwner, $actualOwner]);
+        $retryConnection->expects('hdel')->never();
 
         $this->assertTrue($handler->write(self::SESSION_ID, 'second'));
         $this->assertSame($actualOwner, $handler->observedOwnerForTesting(self::SESSION_ID));
@@ -574,22 +576,20 @@ class RedisSessionHandlerTest extends TestCase
         UserSessionIdentity::suppress(self::SESSION_ID);
         $connection = $this->expectConnection(cluster: true);
 
-        $connection->shouldReceive('get')->never();
-        $connection->shouldReceive('hsetex')->never();
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
+        $connection->expects('get')->never();
+        $connection->expects('hsetex')->never();
+        $connection->expects('evalSha')
             ->ordered()
             ->with(
-                m::type('string'),
-                ['sessions:' . self::SESSION_ID],
-                [(string) $expiresAt, 'unowned', '', '', 'payload'],
+                Argument::type('string'),
+                ['sessions:' . self::SESSION_ID, (string) $expiresAt, 'unowned', '', '', 'payload'],
+                1,
             )
-            ->andReturn([1, $oldOwner, '']);
-        $connection->shouldReceive('hdel')
-            ->once()
+            ->returns([1, $oldOwner, '']);
+        $connection->expects('hdel')
             ->ordered()
             ->with('sessions:_users:' . $oldOwner . ':sessions', self::SESSION_ID)
-            ->andReturn(1);
+            ->returns(1);
 
         $this->assertTrue($this->handler(tracked: true)->write(self::SESSION_ID, 'payload'));
     }
@@ -598,8 +598,8 @@ class RedisSessionHandlerTest extends TestCase
     public function testClusterWriteRejectsMalformedOwnershipResults(mixed $result): void
     {
         $connection = $this->expectConnection(cluster: true);
-        $connection->shouldReceive('get')->once()->andReturnFalse();
-        $connection->shouldReceive('evalWithShaCache')->once()->andReturn($result);
+        $connection->expects('get')->returns(false);
+        $connection->expects('evalSha')->returns($result);
 
         $this->expectException(UnexpectedValueException::class);
         $this->expectExceptionMessageIs('Redis returned an invalid session ownership transition.');
@@ -607,6 +607,9 @@ class RedisSessionHandlerTest extends TestCase
         $this->handler(tracked: true)->write(self::SESSION_ID, 'payload');
     }
 
+    /**
+     * Provide malformed ownership transitions.
+     */
     public static function invalidOwnershipTransitionProvider(): array
     {
         return [
@@ -650,11 +653,13 @@ class RedisSessionHandlerTest extends TestCase
         $connection = $this->expectConnection();
         $captured = [];
 
-        $connection->shouldReceive('getOption')->once()->andReturn('redis:');
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturnUsing(static function (string $script, array $keys, array $arguments) use (&$captured): int {
-                $captured = compact('script', 'keys', 'arguments');
+        $connection->expects('getOption')->with(Redis::OPT_PREFIX)->returns('redis:');
+        $connection->expects('evalSha')
+            ->resolves(static function (string $sha, array $parameters, int $keyCount) use (&$captured): int {
+                $captured = [
+                    'keys' => array_slice($parameters, 0, $keyCount),
+                    'arguments' => array_slice($parameters, $keyCount),
+                ];
 
                 return 1;
             });
@@ -669,12 +674,11 @@ class RedisSessionHandlerTest extends TestCase
         $owner = $this->ownerDigest('users', 'user-1');
         $connection = $this->expectConnection(cluster: true);
 
-        $connection->shouldReceive('evalWithShaCache')->once()->ordered()->andReturn([1, $owner]);
-        $connection->shouldReceive('hdel')
-            ->once()
+        $connection->expects('evalSha')->ordered()->returns([1, $owner]);
+        $connection->expects('hdel')
             ->ordered()
             ->with('sessions:_users:' . $owner . ':sessions', self::SESSION_ID)
-            ->andReturn(1);
+            ->returns(1);
 
         $this->assertTrue($this->handler(tracked: true)->destroy(self::SESSION_ID));
     }
@@ -684,8 +688,8 @@ class RedisSessionHandlerTest extends TestCase
         $owner = $this->ownerDigest('users', 'user-1');
         $connection = $this->expectConnection(cluster: true);
 
-        $connection->shouldReceive('evalWithShaCache')->once()->ordered()->andReturn([1, $owner]);
-        $connection->shouldReceive('hdel')->once()->ordered()->andReturnFalse();
+        $connection->expects('evalSha')->ordered()->returns([1, $owner]);
+        $connection->expects('hdel')->ordered()->returns(false);
 
         $this->expectException(UnexpectedValueException::class);
         $this->expectExceptionMessageIs('Redis failed to clean the user session index.');
@@ -697,10 +701,9 @@ class RedisSessionHandlerTest extends TestCase
     {
         $owner = $this->ownerDigest('users', 'user-1');
         $connection = $this->expectConnection();
-        $connection->shouldReceive('hGetAll')
-            ->once()
+        $connection->expects('hGetAll')
             ->with('sessions:_users:' . $owner . ':sessions')
-            ->andReturn([
+            ->returns([
                 self::SESSION_ID => json_encode([
                     'ip_address' => '203.0.113.1',
                     'user_agent' => 'First',
@@ -712,8 +715,8 @@ class RedisSessionHandlerTest extends TestCase
                     'last_activity' => 200,
                 ]),
             ]);
-        $connection->shouldReceive('hdel')->never();
-        $connection->shouldReceive('getRange')->never();
+        $connection->expects('hdel')->never();
+        $connection->expects('getRange')->never();
 
         $sessions = $this->handler(tracked: true)->userSessions('users', 'user-1');
 
@@ -728,7 +731,7 @@ class RedisSessionHandlerTest extends TestCase
     public function testUserSessionsIgnoresMalformedMetadataAndInvalidIdentifiers(): void
     {
         $connection = $this->expectConnection();
-        $connection->shouldReceive('hGetAll')->once()->andReturn([
+        $connection->expects('hGetAll')->returns([
             self::SESSION_ID => '{',
             'invalid' => json_encode([
                 'ip_address' => null,
@@ -741,8 +744,8 @@ class RedisSessionHandlerTest extends TestCase
                 'last_activity' => 100,
             ]),
         ]);
-        $connection->shouldReceive('hdel')->never();
-        $connection->shouldReceive('getRange')->never();
+        $connection->expects('hdel')->never();
+        $connection->expects('getRange')->never();
 
         $sessions = $this->handler(tracked: true)->userSessions('users', 42);
 
@@ -765,7 +768,7 @@ class RedisSessionHandlerTest extends TestCase
             'last_activity' => 100,
         ]);
         $connection = $this->expectConnection(cluster: true);
-        $connection->shouldReceive('hGetAll')->once()->andReturn([
+        $connection->expects('hGetAll')->returns([
             self::SESSION_ID => $metadata,
             self::OTHER_SESSION_ID => $metadata,
             $missingSessionId => $metadata,
@@ -774,35 +777,28 @@ class RedisSessionHandlerTest extends TestCase
             $unknownVersionSessionId => $metadata,
             $unreadableSessionId => $metadata,
         ]);
-        $connection->shouldReceive('getRange')
-            ->once()
+        $connection->expects('getRange')
             ->with('sessions:' . self::SESSION_ID, 0, 36)
-            ->andReturn("\0HVS1" . $owner);
-        $connection->shouldReceive('getRange')
-            ->once()
+            ->returns("\0HVS1" . $owner);
+        $connection->expects('getRange')
             ->with('sessions:' . self::OTHER_SESSION_ID, 0, 36)
-            ->andReturn("\0HVS1" . $otherOwner);
-        $connection->shouldReceive('getRange')
-            ->once()
+            ->returns("\0HVS1" . $otherOwner);
+        $connection->expects('getRange')
             ->with('sessions:' . $missingSessionId, 0, 36)
-            ->andReturn('');
-        $connection->shouldReceive('getRange')
-            ->once()
+            ->returns('');
+        $connection->expects('getRange')
             ->with('sessions:' . $rawSessionId, 0, 36)
-            ->andReturn('raw payload');
-        $connection->shouldReceive('getRange')
-            ->once()
+            ->returns('raw payload');
+        $connection->expects('getRange')
             ->with('sessions:' . $corruptSessionId, 0, 36)
-            ->andReturn("\0HVS1" . str_repeat('A', 32));
-        $connection->shouldReceive('getRange')
-            ->once()
+            ->returns("\0HVS1" . str_repeat('A', 32));
+        $connection->expects('getRange')
             ->with('sessions:' . $unknownVersionSessionId, 0, 36)
-            ->andReturn("\0HVS2" . $owner);
-        $connection->shouldReceive('getRange')
-            ->once()
+            ->returns("\0HVS2" . $owner);
+        $connection->expects('getRange')
             ->with('sessions:' . $unreadableSessionId, 0, 36)
-            ->andReturnFalse();
-        $connection->shouldReceive('hdel')->never();
+            ->returns(false);
+        $connection->expects('hdel')->never();
 
         $sessions = $this->handler(tracked: true)->userSessions('users', 'user-1');
 
@@ -812,7 +808,7 @@ class RedisSessionHandlerTest extends TestCase
     public function testClusterUserSessionsDoesNotReadPayloadsWhenIndexHasNoValidCandidates(): void
     {
         $connection = $this->expectConnection(cluster: true);
-        $connection->shouldReceive('hGetAll')->once()->andReturn([
+        $connection->expects('hGetAll')->returns([
             self::SESSION_ID => '{',
             'invalid' => json_encode([
                 'ip_address' => null,
@@ -820,8 +816,8 @@ class RedisSessionHandlerTest extends TestCase
                 'last_activity' => 100,
             ]),
         ]);
-        $connection->shouldReceive('getRange')->never();
-        $connection->shouldReceive('hdel')->never();
+        $connection->expects('getRange')->never();
+        $connection->expects('hdel')->never();
 
         $this->assertEmpty($this->handler(tracked: true)->userSessions('users', 'user-1'));
     }
@@ -829,7 +825,7 @@ class RedisSessionHandlerTest extends TestCase
     public function testUserSessionsRejectsInvalidIndexResponses(): void
     {
         $connection = $this->expectConnection();
-        $connection->shouldReceive('hGetAll')->once()->andReturnFalse();
+        $connection->expects('hGetAll')->returns(false);
 
         $this->expectException(UnexpectedValueException::class);
         $this->expectExceptionMessageIs('Redis returned an invalid user session index.');
@@ -843,10 +839,12 @@ class RedisSessionHandlerTest extends TestCase
         $connection = $this->expectConnection();
         $captured = [];
 
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturnUsing(static function (string $script, array $keys, array $arguments) use (&$captured): int {
-                $captured = compact('script', 'keys', 'arguments');
+        $connection->expects('evalSha')
+            ->resolves(static function (string $sha, array $parameters, int $keyCount) use (&$captured): int {
+                $captured = [
+                    'keys' => array_slice($parameters, 0, $keyCount),
+                    'arguments' => array_slice($parameters, $keyCount),
+                ];
 
                 return 1;
             });
@@ -865,12 +863,11 @@ class RedisSessionHandlerTest extends TestCase
         $otherOwner = $this->ownerDigest('users', 'other-user');
         $connection = $this->expectConnection(cluster: true);
 
-        $connection->shouldReceive('evalWithShaCache')->once()->ordered()->andReturn([0, $otherOwner]);
-        $connection->shouldReceive('hdel')
-            ->once()
+        $connection->expects('evalSha')->ordered()->returns([0, $otherOwner]);
+        $connection->expects('hdel')
             ->ordered()
             ->with('sessions:_users:' . $owner . ':sessions', self::SESSION_ID)
-            ->andReturn(1);
+            ->returns(1);
 
         $this->assertFalse($this->handler(tracked: true)->destroyUserSession('users', 'user-1', self::SESSION_ID));
     }
@@ -880,8 +877,8 @@ class RedisSessionHandlerTest extends TestCase
         $owner = $this->ownerDigest('users', 'user-1');
         $connection = $this->expectConnection(cluster: true);
 
-        $connection->shouldReceive('evalWithShaCache')->once()->ordered()->andReturn([1, $owner]);
-        $connection->shouldReceive('hdel')->once()->ordered()->andReturnFalse();
+        $connection->expects('evalSha')->ordered()->returns([1, $owner]);
+        $connection->expects('hdel')->ordered()->returns(false);
 
         $this->expectException(UnexpectedValueException::class);
         $this->expectExceptionMessageIs('Redis failed to clean the user session index.');
@@ -895,11 +892,13 @@ class RedisSessionHandlerTest extends TestCase
         $connection = $this->expectConnection();
         $captured = [];
 
-        $connection->shouldReceive('getOption')->once()->andReturn('redis:');
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->andReturnUsing(static function (string $script, array $keys, array $arguments) use (&$captured): int {
-                $captured = compact('script', 'keys', 'arguments');
+        $connection->expects('getOption')->with(Redis::OPT_PREFIX)->returns('redis:');
+        $connection->expects('evalSha')
+            ->resolves(static function (string $sha, array $parameters, int $keyCount) use (&$captured): int {
+                $captured = [
+                    'keys' => array_slice($parameters, 0, $keyCount),
+                    'arguments' => array_slice($parameters, $keyCount),
+                ];
 
                 return 3;
             });
@@ -919,8 +918,8 @@ class RedisSessionHandlerTest extends TestCase
     public function testStandaloneBulkDestroyRejectsInvalidResults(mixed $result): void
     {
         $connection = $this->expectConnection();
-        $connection->shouldReceive('getOption')->once()->andReturn('redis:');
-        $connection->shouldReceive('evalWithShaCache')->once()->andReturn($result);
+        $connection->expects('getOption')->with(Redis::OPT_PREFIX)->returns('redis:');
+        $connection->expects('evalSha')->returns($result);
 
         $this->expectException(UnexpectedValueException::class);
         $this->expectExceptionMessageIs('Redis returned an invalid bulk session deletion result.');
@@ -928,6 +927,9 @@ class RedisSessionHandlerTest extends TestCase
         $this->handler(tracked: true)->destroyUserSessions('users', 'user-1');
     }
 
+    /**
+     * Provide invalid bulk deletion results.
+     */
     public static function invalidBulkDeletionResultProvider(): array
     {
         return [
@@ -940,20 +942,17 @@ class RedisSessionHandlerTest extends TestCase
     {
         $owner = $this->ownerDigest('users', 'user-1');
         $connection = $this->expectConnection(cluster: true);
-        $connection->shouldReceive('hKeys')
-            ->once()
+        $connection->expects('hKeys')
             ->ordered()
-            ->andReturn([self::SESSION_ID, self::OTHER_SESSION_ID, 'invalid']);
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
+            ->returns([self::SESSION_ID, self::OTHER_SESSION_ID, 'invalid']);
+        $connection->expects('evalSha')
             ->ordered()
-            ->with(m::type('string'), ['sessions:' . self::OTHER_SESSION_ID], [$owner])
-            ->andReturn([1, $owner]);
-        $connection->shouldReceive('hdel')
-            ->once()
+            ->with(Argument::type('string'), ['sessions:' . self::OTHER_SESSION_ID, $owner], 1)
+            ->returns([1, $owner]);
+        $connection->expects('hdel')
             ->ordered()
             ->with('sessions:_users:' . $owner . ':sessions', self::OTHER_SESSION_ID, 'invalid')
-            ->andReturn(2);
+            ->returns(2);
 
         $deleted = $this->handler(tracked: true)->destroyUserSessions('users', 'user-1', [self::SESSION_ID]);
 
@@ -966,7 +965,7 @@ class RedisSessionHandlerTest extends TestCase
         $handler = new ObservableRedisSessionHandler($this->redis, 'session', 'sessions:', 10, true);
         $handler->rememberOwnerForTesting(self::SESSION_ID, $owner);
         $connection = $this->expectConnection(cluster: true);
-        $connection->shouldReceive('hKeys')->once()->andReturn([]);
+        $connection->expects('hKeys')->returns([]);
 
         $this->assertSame(0, $handler->destroyUserSessions('users', 'user-1'));
         $this->assertNull($handler->observedOwnerForTesting(self::SESSION_ID));
@@ -977,12 +976,11 @@ class RedisSessionHandlerTest extends TestCase
         $owner = $this->ownerDigest('users', 'user-1');
         $failure = new RuntimeException('payload failed');
         $connection = $this->expectConnection(cluster: true);
-        $connection->shouldReceive('hKeys')->once()->andReturn(['invalid', self::SESSION_ID]);
-        $connection->shouldReceive('evalWithShaCache')->once()->andThrow($failure);
-        $connection->shouldReceive('hdel')
-            ->once()
+        $connection->expects('hKeys')->returns(['invalid', self::SESSION_ID]);
+        $connection->expects('evalSha')->throws($failure);
+        $connection->expects('hdel')
             ->with('sessions:_users:' . $owner . ':sessions', 'invalid')
-            ->andReturn(1);
+            ->returns(1);
 
         try {
             $this->handler(tracked: true)->destroyUserSessions('users', 'user-1');
@@ -1004,12 +1002,11 @@ class RedisSessionHandlerTest extends TestCase
             default => new UnexpectedValueException('payload failed'),
         };
         $connection = $this->expectConnection(cluster: true);
-        $connection->shouldReceive('hKeys')->once()->andReturn(['invalid', self::SESSION_ID]);
-        $connection->shouldReceive('evalWithShaCache')->once()->andThrow($payloadFailure);
-        $connection->shouldReceive('hdel')
-            ->once()
+        $connection->expects('hKeys')->returns(['invalid', self::SESSION_ID]);
+        $connection->expects('evalSha')->throws($payloadFailure);
+        $connection->expects('hdel')
             ->with('sessions:_users:' . $owner . ':sessions', 'invalid')
-            ->andReturnFalse();
+            ->returns(false);
 
         $caught = null;
         try {
@@ -1032,13 +1029,13 @@ class RedisSessionHandlerTest extends TestCase
     #[DataProvider('invalidSessionIdProvider')]
     public function testManagedDeletesRejectInvalidSessionIdentifiers(string $sessionId): void
     {
-        $this->redis->shouldReceive('connection')->never();
+        $this->redis->expects('connection')->never();
 
         try {
             $this->handler(tracked: true)->destroyUserSession('users', 'user-1', $sessionId);
             $this->fail('Expected the scoped delete to reject the identifier.');
-        } catch (InvalidArgumentException) {
-            $this->addToAssertionCount(1);
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame('The session identifier is invalid.', $exception->getMessage());
         }
 
         $this->expectException(InvalidArgumentException::class);
@@ -1046,6 +1043,9 @@ class RedisSessionHandlerTest extends TestCase
         $this->handler(tracked: true)->destroyUserSessions('users', 'user-1', [$sessionId]);
     }
 
+    /**
+     * Provide invalid session identifiers.
+     */
     public static function invalidSessionIdProvider(): array
     {
         return [
@@ -1058,7 +1058,7 @@ class RedisSessionHandlerTest extends TestCase
 
     public function testManagementRejectsAnEmptyAuthenticationProviderWithoutUsingRedis(): void
     {
-        $this->redis->shouldReceive('connection')->never();
+        $this->redis->expects('connection')->never();
 
         foreach ([
             fn () => $this->handler(tracked: true)->userSessions('', 'user-1'),
@@ -1082,7 +1082,7 @@ class RedisSessionHandlerTest extends TestCase
     {
         $connection = $this->expectConnection();
         $failure = new RuntimeException('connection failed');
-        $connection->shouldReceive('get')->once()->andThrow($failure);
+        $connection->expects('get')->throws($failure);
 
         try {
             $this->handler()->read(self::SESSION_ID);
@@ -1092,6 +1092,9 @@ class RedisSessionHandlerTest extends TestCase
         }
     }
 
+    /**
+     * Create the session handler.
+     */
     private function handler(bool $tracked = false, ?Container $container = null): RedisSessionHandler
     {
         return new RedisSessionHandler(
@@ -1104,32 +1107,40 @@ class RedisSessionHandlerTest extends TestCase
         );
     }
 
-    private function expectConnection(bool $cluster = false): RedisConnection
+    /**
+     * Expect a raw connection lease and return its native client double.
+     */
+    private function expectConnection(bool $cluster = false): (Redis&DoubleInterface)|(RedisCluster&DoubleInterface)
     {
-        $proxy = m::mock(RedisProxy::class);
-        $connection = m::mock(RedisConnection::class);
+        $client = Double::for($cluster ? RedisCluster::class : Redis::class)->strict();
+        $client->expects('getOption')->with(Redis::OPT_SERIALIZER)->returns(Redis::SERIALIZER_NONE);
+        $client->expects('getOption')->with(Redis::OPT_COMPRESSION)->returns(Redis::COMPRESSION_NONE);
+        $client->allows('clearLastError');
+        $client->allows('getLastError')->returns(null);
 
-        $this->redis->shouldReceive('connection')->once()->with('session')->andReturn($proxy);
-        $proxy->shouldReceive('isCluster')->once()->andReturn($cluster);
-        $proxy->shouldReceive('withConnection')
-            ->once()
-            ->with(m::type('callable'), false)
-            ->andReturnUsing(static fn (callable $callback): mixed => $callback($connection));
-        $connection->shouldReceive('withoutSerializationOrCompression')
-            ->once()
-            ->with(m::type('callable'))
-            ->andReturnUsing(static fn (callable $callback): mixed => $callback());
+        $connection = ($cluster ? new PhpRedisClusterConnectionStub : new PhpRedisConnectionStub)
+            ->setActiveConnection($client);
+        $proxy = Double::for(RedisProxy::class)->strict();
 
-        return $connection;
+        $this->redis->allows('connection')->with('session')->returns($proxy);
+        $proxy->expects('isCluster')->returns($cluster);
+        $proxy->expects('withConnection')
+            ->with(Argument::type('callable'), false)
+            ->resolves(static fn (callable $callback): mixed => $callback($connection));
+
+        return $client;
     }
 
+    /**
+     * Create a container with an authenticated guard.
+     */
     private function authenticatedContainer(
         string $userId,
         bool $withRequest,
         ?string $authProvider = 'users',
     ): Container {
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('id')->once()->andReturn($userId);
+        $guard = Double::for(Guard::class)->strict();
+        $guard->expects('id')->returns($userId);
 
         $guardConfig = ['driver' => 'custom'];
 
@@ -1160,6 +1171,9 @@ class RedisSessionHandlerTest extends TestCase
         return $container;
     }
 
+    /**
+     * Calculate the provider-qualified owner digest.
+     */
     private function ownerDigest(string $authProvider, string $userId): string
     {
         return substr(
@@ -1172,11 +1186,17 @@ class RedisSessionHandlerTest extends TestCase
 
 class ObservableRedisSessionHandler extends RedisSessionHandler
 {
+    /**
+     * Record an observed session owner.
+     */
     public function rememberOwnerForTesting(string $sessionId, string $owner): void
     {
         $this->rememberOwner($sessionId, $owner);
     }
 
+    /**
+     * Get the observed session owner.
+     */
     public function observedOwnerForTesting(string $sessionId): ?string
     {
         return $this->observedOwner($sessionId);
