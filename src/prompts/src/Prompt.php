@@ -226,9 +226,7 @@ abstract class Prompt
             try {
                 $this->restoreTerminalState();
             } catch (Throwable $exception) {
-                if ($operationFailure === null) {
-                    throw $exception;
-                }
+                throw Coroutine::preferCancellation($operationFailure, $exception);
             }
         }
     }
