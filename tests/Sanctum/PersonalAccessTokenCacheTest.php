@@ -20,7 +20,8 @@ use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Fixtures\TestUser;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -32,6 +33,7 @@ use function Hypervel\Coroutine\parallel;
 class PersonalAccessTokenCacheTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     protected bool $migrateRefresh = true;
 
@@ -494,8 +496,8 @@ class PersonalAccessTokenCacheTest extends TestCase
 
         $token = $this->createToken();
         $cacheManager = $this->app->make(CacheManager::class);
-        $cacheDouble = m::mock(CacheManager::class);
-        $cacheDouble->shouldNotReceive('store');
+        $cacheDouble = Double::for(CacheManager::class)->strict();
+        $cacheDouble->expects('store')->never();
         $this->app->instance('cache', $cacheDouble);
 
         try {

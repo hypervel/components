@@ -11,20 +11,23 @@ use Hypervel\Sanctum\Contracts\HasApiTokens;
 use Hypervel\Sanctum\Exceptions\MissingAbilityException;
 use Hypervel\Sanctum\Http\Middleware\CheckForAnyAbility;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\HttpFoundation\Response;
 
 class CheckForAnyAbilityTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRequestIsPassedAlongIfAbilitiesArePresentOnToken(): void
     {
         $middleware = new CheckForAnyAbility;
         $request = new Request;
-        $user = m::mock(HasApiTokens::class);
+        $user = Double::for(HasApiTokens::class)->strict();
         $request->setUserResolver(fn (): HasApiTokens => $user);
-        $user->expects('currentAccessToken')->andReturn(m::mock(HasAbilities::class));
-        $user->expects('tokenCan')->with('foo')->andReturn(true);
-        $user->allows('tokenCan')->with('bar')->andReturn(false);
+        $user->expects('currentAccessToken')->returns(Double::for(HasAbilities::class)->strict());
+        $user->expects('tokenCan')->with('foo')->returns(true);
+        $user->allows('tokenCan')->with('bar')->returns(false);
         $expected = new Response('response');
 
         $response = $middleware->handle($request, function () use ($expected): Response {
@@ -40,11 +43,11 @@ class CheckForAnyAbilityTest extends TestCase
 
         $middleware = new CheckForAnyAbility;
         $request = new Request;
-        $user = m::mock(HasApiTokens::class);
+        $user = Double::for(HasApiTokens::class)->strict();
         $request->setUserResolver(fn (): HasApiTokens => $user);
-        $user->expects('currentAccessToken')->andReturn(m::mock(HasAbilities::class));
-        $user->expects('tokenCan')->with('foo')->andReturn(false);
-        $user->expects('tokenCan')->with('bar')->andReturn(false);
+        $user->expects('currentAccessToken')->returns(Double::for(HasAbilities::class)->strict());
+        $user->expects('tokenCan')->with('foo')->returns(false);
+        $user->expects('tokenCan')->with('bar')->returns(false);
 
         $middleware->handle($request, function (): Response {
             return new Response('response');
@@ -70,9 +73,9 @@ class CheckForAnyAbilityTest extends TestCase
 
         $middleware = new CheckForAnyAbility;
         $request = new Request;
-        $user = m::mock(HasApiTokens::class);
+        $user = Double::for(HasApiTokens::class)->strict();
         $request->setUserResolver(fn (): HasApiTokens => $user);
-        $user->expects('currentAccessToken')->andReturn(null);
+        $user->expects('currentAccessToken')->returns(null);
 
         $middleware->handle($request, function (): Response {
             return new Response('response');
