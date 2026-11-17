@@ -209,6 +209,14 @@ class Coroutine
     {
         $joined = Co::join($coroutineIds, $timeout);
 
+        // Swoole rejects repeated live IDs before waiting. Retry only that case to avoid copying normal lists.
+        if (! $joined && swoole_last_error() === SWOOLE_ERROR_WRONG_OPERATION && count($coroutineIds) > 1) {
+            $distinctIds = array_keys(array_flip($coroutineIds));
+            if (count($distinctIds) < count($coroutineIds)) {
+                $joined = Co::join($distinctIds, $timeout);
+            }
+        }
+
         // A join with no live targets doesn't yield, so isCanceled() can still describe an earlier wait.
         if (! $joined && swoole_last_error() === SWOOLE_ERROR_CO_CANCELED) {
             throw new CanceledException('Waiting for child coroutines was canceled.');

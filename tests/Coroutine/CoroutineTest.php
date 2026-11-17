@@ -127,7 +127,7 @@ class CoroutineTest extends TestCase
             $completed = true;
         });
 
-        $this->assertTrue(Coroutine::join([$coroutineId], 1));
+        $this->assertTrue(Coroutine::join([$coroutineId, $coroutineId], 1));
         $this->assertTrue($completed);
         $this->assertFalse(Coroutine::exists($coroutineId));
     }
@@ -173,7 +173,7 @@ class CoroutineTest extends TestCase
         $failure = null;
         $waiter = Coroutine::create(static function () use ($child, &$failure): void {
             try {
-                Coroutine::joinUninterruptibly([$child], 0);
+                Coroutine::joinUninterruptibly([$child, $child], 0);
             } catch (CanceledException $exception) {
                 $failure = $exception;
             }
