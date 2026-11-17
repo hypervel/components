@@ -6,20 +6,23 @@ namespace Hypervel\Tests\Scout\Unit;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\ModelObserver;
+use Hypervel\Scout\Searchable;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ReflectionClass;
 
 class ModelObserverTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testForceDeletingSoftDeleteModelIsRemovedOnce(): void
     {
-        $model = m::mock(ModelObserverSoftDeleteModel::class . ', ' . SearchableInterface::class);
-        $model->shouldReceive('wasSearchableBeforeDelete')->once()->andReturnTrue();
-        $model->shouldReceive('isForceDeleting')->once()->andReturnTrue();
-        $model->shouldReceive('unsearchable')->once();
+        $model = Double::for(ModelObserverSoftDeleteModel::class)->strict();
+        $model->expects('wasSearchableBeforeDelete')->returns(true);
+        $model->expects('isForceDeleting')->returns(true);
+        $model->expects('unsearchable');
 
         $observer = (new ReflectionClass(ModelObserver::class))->newInstanceWithoutConstructor();
 
@@ -30,5 +33,6 @@ class ModelObserverTest extends TestCase
 
 class ModelObserverSoftDeleteModel extends Model
 {
+    use Searchable;
     use SoftDeletes;
 }

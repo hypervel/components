@@ -19,12 +19,15 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 #[RequiresDatabase('pgsql')]
 class DatabaseVectorImportTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Register the database search engine.
      */
@@ -66,8 +69,8 @@ class DatabaseVectorImportTest extends TestCase
 
         try {
             if ($wrapResolver) {
-                $decorator = m::mock(ConnectionResolverInterface::class);
-                $decorator->shouldReceive('connection')->andReturnUsing($resolver->connection(...));
+                $decorator = Double::for(ConnectionResolverInterface::class)->strict();
+                $decorator->allows('connection')->resolves($resolver->connection(...));
                 Model::setConnectionResolver($decorator);
             }
 

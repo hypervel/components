@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Scout\Unit;
 
 use Algolia\AlgoliaSearch\Api\SearchClient as AlgoliaSearchClient;
 use Hypervel\Config\Repository;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\EngineOperationObserver;
@@ -24,15 +24,19 @@ use Hypervel\Scout\Services\Turbopuffer\TurbopufferClient;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Meilisearch\Client as MeilisearchClient;
-use Mockery as m;
 use Typesense\Client as TypesenseClient;
 
 class EngineManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testResolveNullEngine(): void
     {
-        $container = $this->createMockContainer(['driver' => 'null']);
+        $container = $this->createContainer(['driver' => 'null']);
 
         $manager = $this->createManager($container);
         $engine = $manager->engine('null');
@@ -42,7 +46,7 @@ class EngineManagerTest extends TestCase
 
     public function testResolveCollectionEngine(): void
     {
-        $container = $this->createMockContainer(['driver' => 'collection']);
+        $container = $this->createContainer(['driver' => 'collection']);
 
         $manager = $this->createManager($container);
         $engine = $manager->engine('collection');
@@ -52,16 +56,14 @@ class EngineManagerTest extends TestCase
 
     public function testResolveAlgoliaEngine(): void
     {
-        $container = $this->createMockContainerWithAlgolia([
+        $container = $this->createContainer([
             'driver' => 'algolia',
             'soft_delete' => false,
             'identify' => false,
         ]);
 
-        $algoliaClient = m::mock(AlgoliaSearchClient::class);
-        $container->shouldReceive('make')
-            ->with(AlgoliaSearchClient::class)
-            ->andReturn($algoliaClient);
+        $algoliaClient = Double::for(AlgoliaSearchClient::class)->strict();
+        $container->instance(AlgoliaSearchClient::class, $algoliaClient);
 
         $manager = $this->createManager($container);
         $engine = $manager->engine('algolia');
@@ -71,16 +73,14 @@ class EngineManagerTest extends TestCase
 
     public function testResolveAlgoliaEngineWithSoftDelete(): void
     {
-        $container = $this->createMockContainerWithAlgolia([
+        $container = $this->createContainer([
             'driver' => 'algolia',
             'soft_delete' => true,
             'identify' => false,
         ]);
 
-        $algoliaClient = m::mock(AlgoliaSearchClient::class);
-        $container->shouldReceive('make')
-            ->with(AlgoliaSearchClient::class)
-            ->andReturn($algoliaClient);
+        $algoliaClient = Double::for(AlgoliaSearchClient::class)->strict();
+        $container->instance(AlgoliaSearchClient::class, $algoliaClient);
 
         $manager = $this->createManager($container);
         $engine = $manager->engine('algolia');
@@ -91,16 +91,14 @@ class EngineManagerTest extends TestCase
 
     public function testResolveAlgoliaEngineWithIdentify(): void
     {
-        $container = $this->createMockContainerWithAlgolia([
+        $container = $this->createContainer([
             'driver' => 'algolia',
             'soft_delete' => false,
             'identify' => true,
         ]);
 
-        $algoliaClient = m::mock(AlgoliaSearchClient::class);
-        $container->shouldReceive('make')
-            ->with(AlgoliaSearchClient::class)
-            ->andReturn($algoliaClient);
+        $algoliaClient = Double::for(AlgoliaSearchClient::class)->strict();
+        $container->instance(AlgoliaSearchClient::class, $algoliaClient);
 
         $manager = $this->createManager($container);
         $engine = $manager->engine('algolia');
@@ -117,16 +115,14 @@ class EngineManagerTest extends TestCase
             ],
         ];
 
-        $container = $this->createMockContainer([
+        $container = $this->createContainer([
             'driver' => 'meilisearch',
             'soft_delete' => false,
             'meilisearch' => $meilisearchConfig,
         ]);
 
-        $meilisearchClient = m::mock(MeilisearchClient::class);
-        $container->shouldReceive('make')
-            ->with(MeilisearchClient::class)
-            ->andReturn($meilisearchClient);
+        $meilisearchClient = Double::for(MeilisearchClient::class)->strict();
+        $container->instance(MeilisearchClient::class, $meilisearchClient);
 
         $manager = $this->createManager($container);
         $engine = $manager->engine('meilisearch');
@@ -137,15 +133,13 @@ class EngineManagerTest extends TestCase
 
     public function testResolveMeilisearchEngineWithSoftDelete(): void
     {
-        $container = $this->createMockContainer([
+        $container = $this->createContainer([
             'driver' => 'meilisearch',
             'soft_delete' => true,
         ]);
 
-        $meilisearchClient = m::mock(MeilisearchClient::class);
-        $container->shouldReceive('make')
-            ->with(MeilisearchClient::class)
-            ->andReturn($meilisearchClient);
+        $meilisearchClient = Double::for(MeilisearchClient::class)->strict();
+        $container->instance(MeilisearchClient::class, $meilisearchClient);
 
         $manager = $this->createManager($container);
         $engine = $manager->engine('meilisearch');
@@ -156,7 +150,7 @@ class EngineManagerTest extends TestCase
 
     public function testResolveDatabaseEngine(): void
     {
-        $container = $this->createMockContainer(['driver' => 'database']);
+        $container = $this->createContainer(['driver' => 'database']);
 
         $manager = $this->createManager($container);
         $engine = $manager->engine('database');
@@ -172,16 +166,14 @@ class EngineManagerTest extends TestCase
             ],
         ];
 
-        $container = $this->createMockContainerWithTypesense([
+        $container = $this->createContainer([
             'driver' => 'typesense',
             'soft_delete' => false,
             'typesense' => $typesenseConfig,
         ]);
 
-        $typesenseClient = m::mock(TypesenseClient::class);
-        $container->shouldReceive('make')
-            ->with(TypesenseClient::class)
-            ->andReturn($typesenseClient);
+        $typesenseClient = Double::for(TypesenseClient::class)->strict();
+        $container->instance(TypesenseClient::class, $typesenseClient);
 
         $manager = $this->createManager($container);
         $engine = $manager->engine('typesense');
@@ -198,16 +190,14 @@ class EngineManagerTest extends TestCase
             ],
         ];
 
-        $container = $this->createMockContainer([
+        $container = $this->createContainer([
             'driver' => 'turbopuffer',
             'soft_delete' => true,
             'turbopuffer' => $turbopufferConfig,
         ]);
 
-        $turbopufferClient = m::mock(TurbopufferClient::class);
-        $container->shouldReceive('make')
-            ->with(TurbopufferClient::class)
-            ->andReturn($turbopufferClient);
+        $turbopufferClient = Double::for(TurbopufferClient::class)->strict();
+        $container->instance(TurbopufferClient::class, $turbopufferClient);
 
         $manager = $this->createManager($container);
         $engine = $manager->engine('turbopuffer');
@@ -220,7 +210,7 @@ class EngineManagerTest extends TestCase
 
     public function testEngineUsesDefaultDriver(): void
     {
-        $container = $this->createMockContainer(['driver' => 'collection']);
+        $container = $this->createContainer(['driver' => 'collection']);
 
         $manager = $this->createManager($container);
         $engine = $manager->engine(); // No name specified
@@ -230,7 +220,7 @@ class EngineManagerTest extends TestCase
 
     public function testEngineDefaultsToNullWhenNoDriverConfigured(): void
     {
-        $container = $this->createMockContainer(['driver' => null]);
+        $container = $this->createContainer(['driver' => null]);
 
         $manager = $this->createManager($container);
         $engine = $manager->engine();
@@ -240,7 +230,7 @@ class EngineManagerTest extends TestCase
 
     public function testEngineCachesInstances(): void
     {
-        $container = $this->createMockContainer(['driver' => 'collection']);
+        $container = $this->createContainer(['driver' => 'collection']);
 
         $manager = $this->createManager($container);
 
@@ -252,7 +242,7 @@ class EngineManagerTest extends TestCase
 
     public function testForgetEnginesClearsCache(): void
     {
-        $container = $this->createMockContainer(['driver' => 'collection']);
+        $container = $this->createContainer(['driver' => 'collection']);
 
         $manager = $this->createManager($container);
 
@@ -265,7 +255,7 @@ class EngineManagerTest extends TestCase
 
     public function testForgetEngineClearsSpecificEngine(): void
     {
-        $container = $this->createMockContainer(['driver' => 'collection']);
+        $container = $this->createContainer(['driver' => 'collection']);
 
         $manager = $this->createManager($container);
 
@@ -283,13 +273,11 @@ class EngineManagerTest extends TestCase
 
     public function testExtendRegisterCustomDriver(): void
     {
-        $container = $this->createMockContainer(['driver' => 'custom']);
+        $container = $this->createContainer(['driver' => 'custom']);
 
-        $customEngine = m::mock(Engine::class);
-        $customEngine->shouldReceive('setOperationRunner')
-            ->once()
-            ->with(m::type(EngineOperationRunner::class), 'custom')
-            ->andReturnSelf();
+        $customEngine = Double::for(Engine::class)->strict();
+        $customEngine->expects('setOperationRunner')
+            ->with(Argument::type(EngineOperationRunner::class), 'custom');
 
         $manager = $this->createManager($container);
         $manager->extend('custom', function ($container) use ($customEngine) {
@@ -303,14 +291,12 @@ class EngineManagerTest extends TestCase
 
     public function testExtendCustomDriverReceivesContainer(): void
     {
-        $container = $this->createMockContainer(['driver' => 'custom']);
+        $container = $this->createContainer(['driver' => 'custom']);
 
         $receivedContainer = null;
-        $customEngine = m::mock(Engine::class);
-        $customEngine->shouldReceive('setOperationRunner')
-            ->once()
-            ->with(m::type(EngineOperationRunner::class), 'custom')
-            ->andReturnSelf();
+        $customEngine = Double::for(Engine::class)->strict();
+        $customEngine->expects('setOperationRunner')
+            ->with(Argument::type(EngineOperationRunner::class), 'custom');
 
         $manager = $this->createManager($container);
         $manager->extend('custom', function ($passedContainer) use (&$receivedContainer, $customEngine) {
@@ -325,13 +311,11 @@ class EngineManagerTest extends TestCase
 
     public function testCustomDriverOverridesBuiltIn(): void
     {
-        $container = $this->createMockContainer(['driver' => 'collection']);
+        $container = $this->createContainer(['driver' => 'collection']);
 
-        $customEngine = m::mock(Engine::class);
-        $customEngine->shouldReceive('setOperationRunner')
-            ->once()
-            ->with(m::type(EngineOperationRunner::class), 'collection')
-            ->andReturnSelf();
+        $customEngine = Double::for(Engine::class)->strict();
+        $customEngine->expects('setOperationRunner')
+            ->with(Argument::type(EngineOperationRunner::class), 'collection');
 
         $manager = $this->createManager($container);
         $manager->extend('collection', function () use ($customEngine) {
@@ -345,7 +329,7 @@ class EngineManagerTest extends TestCase
 
     public function testThrowsExceptionForUnsupportedDriver(): void
     {
-        $container = $this->createMockContainer(['driver' => 'unsupported']);
+        $container = $this->createContainer(['driver' => 'unsupported']);
 
         $manager = $this->createManager($container);
 
@@ -357,7 +341,7 @@ class EngineManagerTest extends TestCase
 
     public function testGetDefaultDriverReturnsConfiguredDriver(): void
     {
-        $container = $this->createMockContainer(['driver' => 'meilisearch']);
+        $container = $this->createContainer(['driver' => 'meilisearch']);
 
         $manager = $this->createManager($container);
 
@@ -366,7 +350,7 @@ class EngineManagerTest extends TestCase
 
     public function testGetDefaultDriverReturnsNullWhenNotConfigured(): void
     {
-        $container = $this->createMockContainer([]);
+        $container = $this->createContainer([]);
 
         $manager = $this->createManager($container);
 
@@ -375,7 +359,7 @@ class EngineManagerTest extends TestCase
 
     public function testGetDefaultDriverReturnsNullWhenConfiguredAsPhpNull(): void
     {
-        $container = $this->createMockContainer(['driver' => null]);
+        $container = $this->createContainer(['driver' => null]);
 
         $manager = $this->createManager($container);
 
@@ -384,7 +368,7 @@ class EngineManagerTest extends TestCase
 
     public function testSeparateManagerInstancesDoNotShareEngineCache(): void
     {
-        $container = $this->createMockContainer(['driver' => 'collection']);
+        $container = $this->createContainer(['driver' => 'collection']);
 
         $manager1 = $this->createManager($container);
         $engine1 = $manager1->engine('collection');
@@ -397,92 +381,36 @@ class EngineManagerTest extends TestCase
 
     public function testDefaultNullEngineDoesNotNotifyOperationObservers(): void
     {
-        $container = $this->createMockContainer([]);
+        $container = $this->createContainer([]);
         $runner = new EngineOperationRunner;
-        $observer = m::mock(EngineOperationObserver::class);
-        $observer->shouldNotReceive('starting');
-        $observer->shouldNotReceive('finished');
+        $observer = Double::for(EngineOperationObserver::class)->strict();
+        $observer->expects('starting')->never();
+        $observer->expects('finished')->never();
         $runner->observe($observer);
         $manager = new EngineManager($container, $runner);
 
-        $result = $manager->engine()->runSearch(new Builder(m::mock(Model::class), 'query'));
+        $result = $manager->engine()->runSearch(new Builder(Double::for(Model::class)->strict(), 'query'));
 
         $this->assertSame([], $result);
     }
 
+    /**
+     * Create a manager with an independent operation runner.
+     */
     protected function createManager(Container $container): EngineManager
     {
         return new EngineManager($container, new EngineOperationRunner);
     }
 
-    protected function createMockContainer(array $config): m\MockInterface&Container
+    /**
+     * Create a container with the given Scout configuration.
+     */
+    protected function createContainer(array $config): Container
     {
-        $container = m::mock(Container::class);
-
-        $configService = m::mock(Repository::class);
-        $configService->shouldReceive('get')
-            ->with('scout.driver', m::any())
-            ->andReturn($config['driver'] ?? null);
-        $configService->shouldReceive('boolean')
-            ->with('scout.soft_delete')
-            ->andReturn($config['soft_delete'] ?? false);
-        $configService->shouldReceive('array')
-            ->with('scout.meilisearch', [])
-            ->andReturn($config['meilisearch'] ?? []);
-        $configService->shouldReceive('array')
-            ->with('scout.turbopuffer', [])
-            ->andReturn($config['turbopuffer'] ?? []);
-
-        $container->shouldReceive('make')
-            ->with('config')
-            ->andReturn($configService);
-
-        return $container;
-    }
-
-    protected function createMockContainerWithTypesense(array $config): m\MockInterface&Container
-    {
-        $container = m::mock(Container::class);
-
-        $configService = m::mock(Repository::class);
-        $configService->shouldReceive('get')
-            ->with('scout.driver', m::any())
-            ->andReturn($config['driver'] ?? null);
-        $configService->shouldReceive('boolean')
-            ->with('scout.soft_delete')
-            ->andReturn($config['soft_delete'] ?? false);
-        $configService->shouldReceive('integer')
-            ->with('scout.typesense.max_total_results', m::any())
-            ->andReturn($config['max_total_results'] ?? 1000);
-        $configService->shouldReceive('array')
-            ->with('scout.typesense', [])
-            ->andReturn($config['typesense'] ?? []);
-
-        $container->shouldReceive('make')
-            ->with('config')
-            ->andReturn($configService);
-
-        return $container;
-    }
-
-    protected function createMockContainerWithAlgolia(array $config): m\MockInterface&Container
-    {
-        $container = m::mock(Container::class);
-
-        $configService = m::mock(Repository::class);
-        $configService->shouldReceive('get')
-            ->with('scout.driver', m::any())
-            ->andReturn($config['driver'] ?? null);
-        $configService->shouldReceive('boolean')
-            ->with('scout.soft_delete')
-            ->andReturn($config['soft_delete'] ?? false);
-        $configService->shouldReceive('boolean')
-            ->with('scout.identify')
-            ->andReturn($config['identify'] ?? false);
-
-        $container->shouldReceive('make')
-            ->with('config')
-            ->andReturn($configService);
+        $container = new Container;
+        $container->instance('config', new Repository([
+            'scout' => ['soft_delete' => false, 'identify' => false, ...$config],
+        ]));
 
         return $container;
     }
