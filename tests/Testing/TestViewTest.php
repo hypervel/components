@@ -12,12 +12,15 @@ use Hypervel\Testing\TestView;
 use Hypervel\Tests\TestCase;
 use Hypervel\View\Component;
 use Hypervel\View\View;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class TestViewTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testViewDataAssertionsSupportKeysValuesClosuresAndLists(): void
     {
         $view = $this->makeTestView([
@@ -192,11 +195,12 @@ class TestViewTest extends TestCase
 
     public function testRenderedComponentAssertionsSupportArraysHtmlAndNormalizedText(): void
     {
+        $view = Double::for(View::class)->strict();
+        $view->allows('render')->returns('<main><p>Hello&nbsp;<strong>World</strong></p><span>0</span></main>');
+
         $component = new TestComponent(
             new TestViewComponent,
-            m::mock(View::class, [
-                'render' => '<main><p>Hello&nbsp;<strong>World</strong></p><span>0</span></main>',
-            ]),
+            $view,
         );
 
         $component
@@ -224,10 +228,11 @@ class TestViewTest extends TestCase
      */
     private function makeTestView(array $data, string $rendered = 'hello world'): TestView
     {
-        return new TestView(m::mock(View::class, [
-            'render' => $rendered,
-            'gatherData' => $data,
-        ]));
+        $view = Double::for(View::class)->strict();
+        $view->allows('render')->returns($rendered);
+        $view->allows('gatherData')->returns($data);
+
+        return new TestView($view);
     }
 }
 
