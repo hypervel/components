@@ -635,9 +635,9 @@ class Gate implements GateContract
         if ($policyClass === null) {
             $policyClass = $this->resolvePolicyClass($class);
 
-            // Gate arguments may be user data. Cache only real classes, not an unbounded set of strings.
+            // Gate arguments may be user data. Cache only declared class names, not arbitrary spellings.
             // Discovery above may have autoloaded the class, so inspect it after resolving the policy.
-            if (class_exists($class, false)) {
+            if (class_exists($class, false) && (new ReflectionClass($class))->getName() === $class) {
                 $this->policyClassCache ??= new ArrayObject;
                 $this->policyClassCache[$class] = $policyClass;
             }
@@ -667,7 +667,9 @@ class Gate implements GateContract
 
         foreach ($this->guessPolicyName($class) as $guessedPolicy) {
             if (class_exists($guessedPolicy)) {
-                return $guessedPolicy;
+                // Loaded classes match case-insensitively; use the declared name so input spelling
+                // cannot bypass its container binding or create separate policy instances.
+                return (new ReflectionClass($guessedPolicy))->getName();
             }
         }
 

@@ -46,6 +46,40 @@ class GatePolicyResolutionTest extends TestCase
         );
     }
 
+    public function testGuessedPoliciesReuseTheDeclaredClassBinding(): void
+    {
+        $policy = new AuthTestUserPolicy;
+        $this->app->instance(AuthTestUserPolicy::class, $policy);
+
+        foreach ([
+            ModelAuthTestUser::class,
+            strtolower(ModelAuthTestUser::class),
+            '\\' . ModelAuthTestUser::class,
+            str_replace('Models\AuthTestUser', 'Unmapped\aUtHtEsTuSeR', ModelAuthTestUser::class),
+        ] as $class) {
+            $this->assertSame($policy, Gate::getPolicyFor($class));
+        }
+    }
+
+    public function testPolicyCacheDoesNotRetainAlternativeClassSpellings(): void
+    {
+        $received = [];
+        Gate::guessPolicyNamesUsing(function (string $class) use (&$received): string {
+            $received[] = $class;
+
+            return $class === ModelAuthTestUser::class ? PostPolicy::class : AudioPostPolicy::class;
+        });
+
+        $variant = strtolower(ModelAuthTestUser::class);
+
+        for ($attempt = 0; $attempt < 2; ++$attempt) {
+            $this->assertInstanceOf(PostPolicy::class, Gate::getPolicyFor(ModelAuthTestUser::class));
+            $this->assertInstanceOf(AudioPostPolicy::class, Gate::getPolicyFor($variant));
+        }
+
+        $this->assertSame([ModelAuthTestUser::class, $variant, $variant], $received);
+    }
+
     public function testPolicyCanBeGuessedForParallelClassHierarchies(): void
     {
         $this->assertInstanceOf(
