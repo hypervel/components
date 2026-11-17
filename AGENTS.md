@@ -598,6 +598,8 @@ Use Double for test doubles in new tests. When porting, convert direct Mockery m
 
 Double is lenient by default. Use `expects('method')->never()` to forbid a call, or `unused()` after exercising the code to assert no calls occurred. `allows()->with(...)` neither requires a matching call nor rejects other arguments. `expects()->with(...)` requires the call and rejects unmatched arguments for that method. Use `strict()` when calls to unconfigured methods must fail.
 
+`with()` compares objects, including doubles, using `==`. Use `Argument::same($object)` when the exact instance matters or to preserve Mockery’s default identity check.
+
 Do not overlap `allows()` stubs with `expects()` constraints when enforcing maximum call counts or `never()`; a matching stub can absorb those calls regardless of registration order.
 
 #### Mockery
