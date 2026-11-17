@@ -11,6 +11,7 @@ use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
@@ -26,7 +27,7 @@ use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\QueryWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -302,8 +303,10 @@ class TelescopeTest extends FeatureTestCase
         Telescope::stopRecording();
         $failure = new RuntimeException('Pause lookup cleanup failed.', previous: new CanceledException);
         $original = $this->app->make('cache');
-        $cache = m::mock(CacheManager::class);
-        $cache->shouldReceive('get')->once()->with('telescope:pause-recording', false)->andThrow($failure);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $repository->expects('get')->with('telescope:pause-recording', false)->throws($failure);
+        $cache = Double::for(new CacheManager($this->app))->passthru();
+        $cache->expects('store')->returns($repository);
         $this->app->instance('cache', $cache);
         $caught = null;
 
@@ -400,7 +403,7 @@ class TelescopeTest extends FeatureTestCase
         Telescope::stopRecording();
 
         $this->app->make(EventDispatcher::class)
-            ->dispatch(new ScheduledTaskStarting(m::mock(Event::class)));
+            ->dispatch(new ScheduledTaskStarting(Double::for(Event::class)->strict()));
 
         $this->assertTrue(Telescope::isRecording());
     }
@@ -411,7 +414,7 @@ class TelescopeTest extends FeatureTestCase
         Telescope::stopRecording();
 
         $this->app->make(EventDispatcher::class)
-            ->dispatch(new ScheduledTaskStarting(m::mock(Event::class)));
+            ->dispatch(new ScheduledTaskStarting(Double::for(Event::class)->strict()));
 
         $this->assertFalse(Telescope::isRecording());
     }

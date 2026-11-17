@@ -23,7 +23,7 @@ use Hypervel\Telescope\Watchers\ReverbWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
 use Swoole\Server;
 
 #[WithConfig('telescope.watchers', [
@@ -92,8 +92,8 @@ class ReverbWatcherTest extends FeatureTestCase
         $config->set('database.redis.queue', $redisConnection);
         $config->set('database.redis.reverb', $redisConnection);
 
-        $server = m::mock(Server::class);
-        $server->shouldReceive('sendMessage')->zeroOrMoreTimes();
+        $server = Double::for(Server::class)->strict();
+        $server->allows('sendMessage');
         $server->setting = ['worker_num' => 1];
         $server->worker_id = 0;
         $app->instance(Server::class, $server);

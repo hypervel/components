@@ -16,8 +16,8 @@ use Hypervel\Telescope\IncomingExceptionEntry;
 use Hypervel\Telescope\Storage\DatabaseEntriesRepository;
 use Hypervel\Telescope\Storage\EntryQueryOptions;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use JMac\Testing\Double;
 use JsonException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -136,8 +136,8 @@ class DatabaseEntriesRepositoryTest extends FeatureTestCase
     public function testMonitoredTagFallbackPreservesCancellation(bool $canceled): void
     {
         $failure = new RuntimeException('Monitoring failed.', previous: $canceled ? new CanceledException : null);
-        $repository = m::mock(DatabaseEntriesRepository::class, ['testing'])->makePartial();
-        $repository->shouldReceive('monitoring')->once()->andThrow($failure);
+        $repository = Double::for(new DatabaseEntriesRepository('testing'))->passthru();
+        $repository->expects('monitoring')->throws($failure);
         $repository->setMonitorTags(['existing']);
         $caught = null;
 
