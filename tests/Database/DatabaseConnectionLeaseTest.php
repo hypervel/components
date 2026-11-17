@@ -156,6 +156,27 @@ class DatabaseConnectionLeaseTest extends TestCase
         $this->assertCount($queries, $connection->getQueryLog());
     }
 
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testIdleReleaseContinuesAfterFailureAndGivesCancellationPriority(bool $cancel): void
+    {
+        $firstFailure = new RuntimeException('First release failed.');
+        $secondFailure = $cancel ? new CanceledException('Second release canceled.') : new RuntimeException('Second release failed.');
+
+        foreach (['first' => $firstFailure, 'second' => $secondFailure] as $name => $failure) {
+            $lease = Double::for(ConnectionLease::class);
+            $lease->expects('releaseIfIdle')->throws($failure);
+            CoroutineContext::set($name, $lease);
+        }
+
+        try {
+            DB::releaseIdleConnections();
+            $this->fail('Expected idle release to propagate a failure.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancel ? $secondFailure : $firstFailure, $exception);
+        }
+    }
+
     public function testConcurrentExternalWaitsDoNotRetainTheOnlyPoolSlot(): void
     {
         $ready = new Channel(2);
