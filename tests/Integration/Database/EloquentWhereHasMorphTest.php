@@ -14,11 +14,14 @@ use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class EloquentWhereHasMorphTest extends DatabaseTestCase
 {
+    use VerifiesDoubles;
+
     protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
@@ -113,9 +116,9 @@ class EloquentWhereHasMorphTest extends DatabaseTestCase
         $this->assertSame($zeroIds, Comment::whereHasMorph('commentable', '*', null, $operator, new Expression('0'))
             ->orderBy('id')->pluck('id')->all());
 
-        $count = m::mock(ExpressionContract::class);
+        $count = Double::for(ExpressionContract::class)->strict();
         // Decimal subtraction avoids unsigned integer underflow on MySQL and MariaDB.
-        $count->shouldReceive('getValue')->andReturn('comments.id - 7.0');
+        $count->allows('getValue')->returns('comments.id - 7.0');
 
         $query = Comment::whereHasMorph('commentable', '*', null, $operator, $count)->orderBy('id');
 
