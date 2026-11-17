@@ -6,11 +6,14 @@ namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\Spinner;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Swoole\Event;
 
 use function Hypervel\Prompts\spin;
 
@@ -144,6 +147,37 @@ class SpinnerTest extends TestCase
         $renderCalls = $spinner->renderCalls;
         usleep(150_000);
         $this->assertSame($renderCalls, $spinner->renderCalls);
+    }
+
+    public function testCancellationDuringStopWaitsForTheLastFrame(): void
+    {
+        Prompt::fake();
+        $spinner = new SpinnerAnimationFixture('Running');
+        $spinner->interval = 1;
+        $cancellation = null;
+        $callbackFinished = new Channel(1);
+        $owner = Coroutine::fork(static function () use ($spinner, $callbackFinished, &$cancellation): void {
+            try {
+                $spinner->spin(static function () use ($spinner, $callbackFinished): void {
+                    $spinner->renderStarted->pop(1);
+                    Event::defer(static fn () => $callbackFinished->push(true));
+                });
+            } catch (CanceledException $exception) {
+                $cancellation = $exception;
+            }
+        });
+
+        try {
+            $this->assertTrue($callbackFinished->pop(1));
+            EngineCoroutine::cancelById($owner);
+            $this->assertTrue(Coroutine::exists($owner));
+        } finally {
+            $spinner->renderRelease->push(true);
+            Coroutine::join([$owner]);
+        }
+
+        $this->assertInstanceOf(CanceledException::class, $cancellation);
+        $this->assertFalse($spinner->rendering);
     }
 
     public function testSurfacesAnimationRenderFailureAfterSuccessfulCallback(): void
