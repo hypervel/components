@@ -11,6 +11,7 @@ use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
+use Hypervel\Validation\Rule;
 use Hypervel\Validation\Rules\Can;
 use Hypervel\Validation\Validator;
 use JMac\Testing\Double;
@@ -81,6 +82,23 @@ class ValidationRuleCanTest extends TestCase
         );
 
         $this->assertTrue($v->passes());
+    }
+
+    public function testNamedFactoryArgumentsArePassedPositionally(): void
+    {
+        $this->gate()->define('check-value', function ($user, ...$arguments): bool {
+            $this->assertSame([stdClass::class, false, 0], $arguments);
+
+            return true;
+        });
+
+        $validator = new Validator(
+            $this->app->make('translator'),
+            ['value' => 0],
+            ['value' => Rule::can('check-value', model: stdClass::class, enabled: false)],
+        );
+
+        $this->assertTrue($validator->passes());
     }
 
     #[TestWith([0, []])]
