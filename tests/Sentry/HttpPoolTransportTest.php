@@ -14,7 +14,9 @@ use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use Hypervel\Sentry\Transport\HttpTransportPool;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use Sentry\ClientBuilder;
 use Sentry\Event;
@@ -26,13 +28,15 @@ use Swoole\Coroutine\Channel;
 
 class HttpPoolTransportTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testAcquisitionTimeoutReturnsSkippedWithoutReleasingTheBorrowedTransport(): void
     {
-        $pool = m::mock(HttpTransportPool::class, [
+        $pool = Double::for(new HttpTransportPool(
             new ClientBuilder,
             PoolOptions::fromArray(['max_objects' => 1, 'wait_timeout' => 0.001]),
-        ])->makePartial()->shouldAllowMockingProtectedMethods();
-        $pool->shouldReceive('createObject')->once()->andReturn(m::mock(HttpTransport::class));
+        ))->passthru();
+        $pool->expects('createObject')->returns(Double::for(HttpTransport::class)->strict());
         $borrowed = $pool->borrow();
         $transport = new HttpPoolTransport($pool, $this->optionsWithDsn());
 
@@ -49,17 +53,14 @@ class HttpPoolTransportTest extends TestCase
 
     public function testAcceptedSendReturnsItsEventAndReleasesTransportAfterCompletion(): void
     {
-        $httpTransport = m::mock(HttpTransport::class);
-        $httpTransport->shouldReceive('send')
-            ->once()
-            ->andReturn(new Result(ResultStatus::success()));
+        $httpTransport = Double::for(HttpTransport::class)->strict();
+        $httpTransport->expects('send')
+            ->returns(new Result(ResultStatus::success()));
 
-        $pool = m::mock(HttpTransportPool::class);
-        $pool->shouldReceive('borrow')
-            ->once()
-            ->andReturn($httpTransport);
-        $pool->shouldReceive('release')
-            ->once()
+        $pool = Double::for(HttpTransportPool::class)->strict();
+        $pool->expects('borrow')
+            ->returns($httpTransport);
+        $pool->expects('release')
             ->with($httpTransport);
 
         $transport = new HttpPoolTransport($pool, $this->optionsWithDsn());
@@ -88,8 +89,8 @@ class HttpPoolTransportTest extends TestCase
         Coroutine::afterCreated(static function () use (&$createdCoroutines): void {
             ++$createdCoroutines;
         });
-        $pool = m::mock(HttpTransportPool::class);
-        $pool->shouldNotReceive('borrow');
+        $pool = Double::for(HttpTransportPool::class)->strict();
+        $pool->expects('borrow')->never();
         $transport = new HttpPoolTransport($pool, new Options);
         $event = Event::createEvent();
 
@@ -105,8 +106,8 @@ class HttpPoolTransportTest extends TestCase
     {
         $started = new Channel(1);
         $finish = new Channel(1);
-        $httpTransport = m::mock(HttpTransport::class);
-        $httpTransport->shouldReceive('send')->once()->andReturnUsing(
+        $httpTransport = Double::for(HttpTransport::class)->strict();
+        $httpTransport->expects('send')->resolves(
             static function () use ($started, $finish): Result {
                 $started->push(true);
                 $finish->pop(1.0);
@@ -114,9 +115,9 @@ class HttpPoolTransportTest extends TestCase
                 return new Result(ResultStatus::success());
             }
         );
-        $pool = m::mock(HttpTransportPool::class);
-        $pool->shouldReceive('borrow')->once()->andReturn($httpTransport);
-        $pool->shouldReceive('release')->once()->with($httpTransport);
+        $pool = Double::for(HttpTransportPool::class)->strict();
+        $pool->expects('borrow')->returns($httpTransport);
+        $pool->expects('release')->with($httpTransport);
         $transport = new HttpPoolTransport($pool, new Options(['spotlight' => true]));
 
         $result = $transport->send(Event::createEvent());
@@ -136,10 +137,8 @@ class HttpPoolTransportTest extends TestCase
     public function testTransportCreationFailurePropagatesUnchanged(): void
     {
         $failure = new RuntimeException('Transport creation failed.');
-        $pool = m::mock(HttpTransportPool::class, [new ClientBuilder, PoolOptions::fromArray([])])
-            ->makePartial()
-            ->shouldAllowMockingProtectedMethods();
-        $pool->shouldReceive('createObject')->once()->andThrow($failure);
+        $pool = Double::for(new HttpTransportPool(new ClientBuilder, PoolOptions::fromArray([])))->passthru();
+        $pool->expects('createObject')->throws($failure);
         $transport = new HttpPoolTransport($pool, $this->optionsWithDsn());
         $caught = null;
 
@@ -161,13 +160,12 @@ class HttpPoolTransportTest extends TestCase
         Coroutine::afterCreated(static function () use ($marker): void {
             $marker->push(CoroutineContext::get(HttpPoolTransport::DELIVERY_CONTEXT_KEY));
         });
-        $httpTransport = m::mock(HttpTransport::class);
-        $httpTransport->shouldReceive('send')
-            ->once()
-            ->andReturn(new Result(ResultStatus::success()));
-        $pool = m::mock(HttpTransportPool::class);
-        $pool->shouldReceive('borrow')->once()->andReturn($httpTransport);
-        $pool->shouldReceive('release')->once()->with($httpTransport);
+        $httpTransport = Double::for(HttpTransport::class)->strict();
+        $httpTransport->expects('send')
+            ->returns(new Result(ResultStatus::success()));
+        $pool = Double::for(HttpTransportPool::class)->strict();
+        $pool->expects('borrow')->returns($httpTransport);
+        $pool->expects('release')->with($httpTransport);
         $transport = new HttpPoolTransport($pool, $this->optionsWithDsn());
 
         $transport->send(Event::createEvent());
@@ -178,17 +176,14 @@ class HttpPoolTransportTest extends TestCase
 
     public function testUnexpectedChildFailureDiscardsTransport(): void
     {
-        $httpTransport = m::mock(HttpTransport::class);
-        $httpTransport->shouldReceive('send')
-            ->once()
-            ->andThrow(new RuntimeException('Send failed'));
+        $httpTransport = Double::for(HttpTransport::class)->strict();
+        $httpTransport->expects('send')
+            ->throws(new RuntimeException('Send failed'));
 
-        $pool = m::mock(HttpTransportPool::class);
-        $pool->shouldReceive('borrow')
-            ->once()
-            ->andReturn($httpTransport);
-        $pool->shouldReceive('discard')
-            ->once()
+        $pool = Double::for(HttpTransportPool::class)->strict();
+        $pool->expects('borrow')
+            ->returns($httpTransport);
+        $pool->expects('discard')
             ->with($httpTransport);
 
         $transport = new HttpPoolTransport($pool, $this->optionsWithDsn());
@@ -204,35 +199,29 @@ class HttpPoolTransportTest extends TestCase
 
     public function testMixedSuccessAndFailureFinalizesCorrectly(): void
     {
-        $httpTransport1 = m::mock(HttpTransport::class);
-        $httpTransport1->shouldReceive('send')
-            ->once()
-            ->andReturn(new Result(ResultStatus::success()));
+        $httpTransport1 = Double::for(HttpTransport::class)->strict();
+        $httpTransport1->expects('send')
+            ->returns(new Result(ResultStatus::success()));
 
-        $httpTransport2 = m::mock(HttpTransport::class);
-        $httpTransport2->shouldReceive('send')
-            ->once()
-            ->andThrow(new RuntimeException('Send failed'));
+        $httpTransport2 = Double::for(HttpTransport::class)->strict();
+        $httpTransport2->expects('send')
+            ->throws(new RuntimeException('Send failed'));
 
-        $httpTransport3 = m::mock(HttpTransport::class);
-        $httpTransport3->shouldReceive('send')
-            ->once()
-            ->andReturn(new Result(ResultStatus::success()));
+        $httpTransport3 = Double::for(HttpTransport::class)->strict();
+        $httpTransport3->expects('send')
+            ->returns(new Result(ResultStatus::success()));
 
-        $pool = m::mock(HttpTransportPool::class);
-        $pool->shouldReceive('borrow')
+        $pool = Double::for(HttpTransportPool::class)->strict();
+        $pool->expects('borrow')
             ->times(3)
-            ->andReturn($httpTransport1, $httpTransport2, $httpTransport3);
+            ->returns($httpTransport1, $httpTransport2, $httpTransport3);
         // transport2 is discarded immediately on exception.
-        $pool->shouldReceive('discard')
-            ->once()
-            ->with($httpTransport2);
-        $pool->shouldReceive('release')
-            ->once()
-            ->with($httpTransport1);
-        $pool->shouldReceive('release')
-            ->once()
-            ->with($httpTransport3);
+        $pool->expects('discard')
+            ->with(Argument::same($httpTransport2));
+        $pool->expects('release')
+            ->with(Argument::same($httpTransport1));
+        $pool->expects('release')
+            ->with(Argument::same($httpTransport3));
 
         $transport = new HttpPoolTransport($pool, $this->optionsWithDsn());
 
@@ -250,8 +239,8 @@ class HttpPoolTransportTest extends TestCase
         $releaseSecond = new Channel(1);
         $drainResult = new Channel(1);
 
-        $first = m::mock(HttpTransport::class);
-        $first->shouldReceive('send')->once()->andReturnUsing(
+        $first = Double::for(HttpTransport::class)->strict();
+        $first->expects('send')->resolves(
             static function () use ($firstStarted, $releaseFirst): Result {
                 $firstStarted->push(true);
                 $releaseFirst->pop();
@@ -259,8 +248,8 @@ class HttpPoolTransportTest extends TestCase
                 return new Result(ResultStatus::success());
             }
         );
-        $second = m::mock(HttpTransport::class);
-        $second->shouldReceive('send')->once()->andReturnUsing(
+        $second = Double::for(HttpTransport::class)->strict();
+        $second->expects('send')->resolves(
             static function () use ($secondStarted, $releaseSecond): Result {
                 $secondStarted->push(true);
                 $releaseSecond->pop();
@@ -269,10 +258,10 @@ class HttpPoolTransportTest extends TestCase
             }
         );
 
-        $pool = m::mock(HttpTransportPool::class);
-        $pool->shouldReceive('borrow')->twice()->andReturn($first, $second);
-        $pool->shouldReceive('release')->once()->with($first);
-        $pool->shouldReceive('release')->once()->with($second);
+        $pool = Double::for(HttpTransportPool::class)->strict();
+        $pool->expects('borrow')->times(2)->returns($first, $second);
+        $pool->expects('release')->with(Argument::same($first));
+        $pool->expects('release')->with(Argument::same($second));
 
         $transport = new HttpPoolTransport($pool, $this->optionsWithDsn());
 
@@ -305,12 +294,12 @@ class HttpPoolTransportTest extends TestCase
 
     public function testCoroutineCreationFailureBalancesTheGenerationAndReleasesTheTransport(): void
     {
-        $httpTransport = m::mock(HttpTransport::class);
-        $httpTransport->shouldNotReceive('send');
+        $httpTransport = Double::for(HttpTransport::class)->strict();
+        $httpTransport->expects('send')->never();
 
-        $pool = m::mock(HttpTransportPool::class);
-        $pool->shouldReceive('borrow')->once()->andReturn($httpTransport);
-        $pool->shouldReceive('release')->once()->with($httpTransport);
+        $pool = Double::for(HttpTransportPool::class)->strict();
+        $pool->expects('borrow')->returns($httpTransport);
+        $pool->expects('release')->with($httpTransport);
 
         $transport = new FailingCoroutineHttpPoolTransport($pool, $this->optionsWithDsn());
         $result = $transport->send(Event::createEvent());
@@ -321,24 +310,23 @@ class HttpPoolTransportTest extends TestCase
 
     public function testStartupCancellationReleasesAnUntouchedTransport(): void
     {
-        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
         Container::getInstance()->instance(ExceptionHandlerContract::class, $handler);
-        $httpTransport = m::mock(HttpTransport::class);
-        $httpTransport->shouldNotReceive('send');
-        $pool = m::mock(HttpTransportPool::class);
-        $pool->shouldReceive('borrow')->once()->andReturn($httpTransport);
-        $pool->shouldReceive('release')->once()->with($httpTransport);
-        $pool->shouldNotReceive('discard');
+        $httpTransport = Double::for(HttpTransport::class)->strict();
+        $httpTransport->expects('send')->never();
+        $pool = Double::for(HttpTransportPool::class)->strict();
+        $pool->expects('borrow')->returns($httpTransport);
+        $pool->expects('release')->with($httpTransport);
+        $pool->expects('discard')->never();
         $transport = new HttpPoolTransport($pool, $this->optionsWithDsn());
         $hookFailure = new RuntimeException('The startup hook failed.');
         $reportStarted = new Channel(1);
         $releaseReport = new Channel(1);
         $childCoroutineId = null;
 
-        $handler->shouldReceive('report')
-            ->once()
+        $handler->expects('report')
             ->with($hookFailure)
-            ->andReturnUsing(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
+            ->resolves(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
                 $childCoroutineId = EngineCoroutine::id();
                 $reportStarted->push(true);
                 $releaseReport->pop();
@@ -370,8 +358,8 @@ class HttpPoolTransportTest extends TestCase
 
     public function testShutdownClosesThePool(): void
     {
-        $pool = m::mock(HttpTransportPool::class);
-        $pool->shouldReceive('close')->once();
+        $pool = Double::for(HttpTransportPool::class)->strict();
+        $pool->expects('close');
 
         (new HttpPoolTransport($pool, $this->optionsWithDsn()))->shutdown();
     }
