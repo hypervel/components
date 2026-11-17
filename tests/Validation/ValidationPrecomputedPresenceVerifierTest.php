@@ -12,13 +12,17 @@ use Hypervel\Validation\DatabaseConditions;
 use Hypervel\Validation\PrecomputedPresenceVerifier;
 use Hypervel\Validation\PresenceQuery;
 use Hypervel\Validation\PresenceVerifierInterface;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use stdClass;
 use Stringable;
 
 class ValidationPrecomputedPresenceVerifierTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testLookupKeyModelsTheCompleteEffectiveQueryShape(): void
     {
         $status = new DatabaseCondition('status', DatabaseConditionOperator::Equals, 'active');
@@ -122,13 +126,12 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
                 return '3';
             }
         };
-        $fallback = m::mock(PresenceVerifierInterface::class);
+        $fallback = Double::for(PresenceVerifierInterface::class)->strict();
         $presenceQuery = new PresenceQuery(null, 'users', 'id', new DatabaseConditions);
 
-        $fallback->shouldReceive('getCount')
-            ->once()
-            ->with($presenceQuery, m::on(static fn (mixed $value): bool => $value === $stringable))
-            ->andReturn(1);
+        $fallback->expects('getCount')
+            ->with($presenceQuery, Argument::same($stringable))
+            ->returns(1);
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(
             self::lookupKey($presenceQuery),
@@ -150,31 +153,27 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
 
     public function testUnknownScalarFallbackCountsAreMemoizedPerQueryShapeAndValue(): void
     {
-        $fallback = m::mock(PresenceVerifierInterface::class);
+        $fallback = Double::for(PresenceVerifierInterface::class)->strict();
         $activeQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions(new DatabaseCondition('status', DatabaseConditionOperator::Equals, 'active')));
 
-        $fallback->shouldReceive('getCount')
+        $fallback->expects('getCount')
             ->with($activeQuery, 'shared')
-            ->once()
-            ->andReturn(1);
+            ->returns(1);
         $inactiveQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions(new DatabaseCondition('status', DatabaseConditionOperator::Equals, 'inactive')));
 
-        $fallback->shouldReceive('getCount')
+        $fallback->expects('getCount')
             ->with($inactiveQuery, 'shared')
-            ->once()
-            ->andReturn(0);
+            ->returns(0);
         $adminQuery = new PresenceQuery(null, 'admins', 'email', new DatabaseConditions);
 
-        $fallback->shouldReceive('getCount')
+        $fallback->expects('getCount')
             ->with($adminQuery, 'shared')
-            ->once()
-            ->andReturn(2);
+            ->returns(2);
         $unfilteredQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions);
 
-        $fallback->shouldReceive('getCount')
-            ->with($unfilteredQuery, m::on(static fn (mixed $value): bool => $value === '1'))
-            ->once()
-            ->andReturn(1);
+        $fallback->expects('getCount')
+            ->with($unfilteredQuery, Argument::same('1'))
+            ->returns(1);
 
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(self::lookupKey($activeQuery), [], [], [], true);
@@ -194,19 +193,19 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
     public function testUnregisteredAndUnsupportedScalarShapesDelegateWithoutMemoization(): void
     {
         $unsupported = false;
-        $fallback = m::mock(PresenceVerifierInterface::class);
+        $fallback = Double::for(PresenceVerifierInterface::class)->strict();
         $unregisteredQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions(new DatabaseCondition('status', DatabaseConditionOperator::Equals, 'active')));
 
-        $fallback->shouldReceive('getCount')
+        $fallback->expects('getCount')
             ->with($unregisteredQuery, 'unregistered')
-            ->twice()
-            ->andReturn(1);
+            ->times(2)
+            ->returns(1);
         $registeredQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions);
 
-        $fallback->shouldReceive('getCount')
+        $fallback->expects('getCount')
             ->with($registeredQuery, $unsupported)
-            ->twice()
-            ->andReturn(0);
+            ->times(2)
+            ->returns(0);
 
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(self::lookupKey($registeredQuery), [], [], [], true);
@@ -219,10 +218,10 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
 
     public function testConnectionIsPartOfTheLookupAndForwardedToTheFallback(): void
     {
-        $fallback = m::mock(PresenceVerifierInterface::class);
+        $fallback = Double::for(PresenceVerifierInterface::class)->strict();
         $presenceQuery = new PresenceQuery('tenant', 'users', 'email', new DatabaseConditions);
 
-        $fallback->shouldReceive('getCount')->once()->with($presenceQuery, 'unknown')->andReturn(1);
+        $fallback->expects('getCount')->with($presenceQuery, 'unknown')->returns(1);
 
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(
@@ -255,10 +254,10 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
 
     public function testMultiCountUsesKnownPresentOnlyForASoleDistinctInput(): void
     {
-        $fallback = m::mock(PresenceVerifierInterface::class);
+        $fallback = Double::for(PresenceVerifierInterface::class)->strict();
         $presenceQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions);
 
-        $fallback->shouldReceive('getMultiCount')->once()->with($presenceQuery, ['case', 'exact'])->andReturn(1);
+        $fallback->expects('getMultiCount')->with($presenceQuery, ['case', 'exact'])->returns(1);
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(
             self::lookupKey($presenceQuery),
@@ -287,16 +286,15 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
                 return 'exact';
             }
         };
-        $fallback = m::mock(PresenceVerifierInterface::class);
+        $fallback = Double::for(PresenceVerifierInterface::class)->strict();
         $presenceQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions);
 
-        $fallback->shouldReceive('getMultiCount')->once()->with($presenceQuery, ['unknown'])->andReturn(1);
-        $fallback->shouldReceive('getMultiCount')->once()->with($presenceQuery, [false])->andReturn(0);
-        $fallback->shouldReceive('getMultiCount')
-            ->once()
-            ->with($presenceQuery, m::on(static fn (array $values): bool => $values === [$stringable]))
-            ->andReturn(1);
-        $fallback->shouldReceive('getMultiCount')->once()->with($presenceQuery, ['exact'])->andReturn(1);
+        $fallback->expects('getMultiCount')->with($presenceQuery, ['unknown'])->returns(1);
+        $fallback->expects('getMultiCount')->with($presenceQuery, [false])->returns(0);
+        $fallback->expects('getMultiCount')
+            ->with($presenceQuery, Argument::same([$stringable]))
+            ->returns(1);
+        $fallback->expects('getMultiCount')->with($presenceQuery, ['exact'])->returns(1);
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(
             self::lookupKey($presenceQuery),
@@ -321,13 +319,12 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
                 return $this->format(DATE_ATOM);
             }
         };
-        $fallback = m::mock(PresenceVerifierInterface::class);
+        $fallback = Double::for(PresenceVerifierInterface::class)->strict();
         $presenceQuery = new PresenceQuery(null, 'users', 'created_at', new DatabaseConditions);
 
-        $fallback->shouldReceive('getCount')
-            ->once()
+        $fallback->expects('getCount')
             ->with($presenceQuery, $value)
-            ->andReturn(1);
+            ->returns(1);
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(self::lookupKey($presenceQuery), [], [], [], true);
 
@@ -378,9 +375,9 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
      */
     private function makeVerifierWithUnusedFallback(): PrecomputedPresenceVerifier
     {
-        $fallback = m::mock(PresenceVerifierInterface::class);
-        $fallback->shouldNotReceive('getCount');
-        $fallback->shouldNotReceive('getMultiCount');
+        $fallback = Double::for(PresenceVerifierInterface::class)->strict();
+        $fallback->expects('getCount')->never();
+        $fallback->expects('getMultiCount')->never();
 
         return new PrecomputedPresenceVerifier($fallback);
     }

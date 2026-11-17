@@ -12,13 +12,17 @@ use Hypervel\Validation\DatabaseConditions;
 use Hypervel\Validation\DatabasePresenceVerifier;
 use Hypervel\Validation\PrecomputedPresenceVerifier;
 use Hypervel\Validation\PresenceQuery;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use stdClass;
 use Stringable;
 
 class ValidationBatchDatabaseCheckerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testUsesTheCompleteQueryShapeAndRetainsCandidateValues(): void
     {
         $query = new PresenceQuery(
@@ -29,12 +33,11 @@ class ValidationBatchDatabaseCheckerTest extends TestCase
             'ignored',
             'uuid',
         );
-        $presenceVerifier = m::mock(DatabasePresenceVerifier::class);
-        $presenceVerifier->shouldReceive('getExistingValues')
-            ->once()
+        $presenceVerifier = Double::for(DatabasePresenceVerifier::class)->strict();
+        $presenceVerifier->expects('getExistingValues')
             ->with($query, [1, 2.5])
-            ->andReturn(['1', '2.5']);
-        $presenceVerifier->shouldNotReceive('getCount');
+            ->returns(['1', '2.5']);
+        $presenceVerifier->expects('getCount')->never();
 
         $verifier = BatchDatabaseChecker::buildVerifier($this->batchGroups($query, [1, 2.5]), $presenceVerifier);
 
@@ -60,15 +63,13 @@ class ValidationBatchDatabaseCheckerTest extends TestCase
             }
         };
         $query = new PresenceQuery(null, 'users', 'id', new DatabaseConditions);
-        $presenceVerifier = m::mock(DatabasePresenceVerifier::class);
-        $presenceVerifier->shouldReceive('getExistingValues')
-            ->once()
+        $presenceVerifier = Double::for(DatabasePresenceVerifier::class)->strict();
+        $presenceVerifier->expects('getExistingValues')
             ->with($query, [1, 2])
-            ->andReturn(['1', '2']);
-        $presenceVerifier->shouldReceive('getCount')
-            ->once()
-            ->with($query, m::on(static fn (mixed $value): bool => $value === $stringable))
-            ->andReturn(1);
+            ->returns(['1', '2']);
+        $presenceVerifier->expects('getCount')
+            ->with($query, Argument::same($stringable))
+            ->returns(1);
 
         $verifier = BatchDatabaseChecker::buildVerifier($this->batchGroups($query, [[1, 2], 2, $stringable]), $presenceVerifier);
 
@@ -95,15 +96,13 @@ class ValidationBatchDatabaseCheckerTest extends TestCase
             }
         };
         $candidate = ['safe-in-array', $stringable];
-        $presenceVerifier = m::mock(DatabasePresenceVerifier::class);
-        $presenceVerifier->shouldReceive('getExistingValues')
-            ->once()
+        $presenceVerifier = Double::for(DatabasePresenceVerifier::class)->strict();
+        $presenceVerifier->expects('getExistingValues')
             ->with($query, ['safe-sibling'])
-            ->andReturn(['safe-sibling']);
-        $presenceVerifier->shouldReceive('getMultiCount')
-            ->once()
-            ->with($query, m::on(static fn (array $values): bool => $values === $candidate))
-            ->andReturn(1);
+            ->returns(['safe-sibling']);
+        $presenceVerifier->expects('getMultiCount')
+            ->with($query, Argument::same($candidate))
+            ->returns(1);
 
         $verifier = BatchDatabaseChecker::buildVerifier(
             $this->batchGroups($query, [$candidate, 'safe-sibling']),
@@ -119,11 +118,10 @@ class ValidationBatchDatabaseCheckerTest extends TestCase
     public function testEqualLookingIntegerAndStringCandidatesShareOneBinding(): void
     {
         $query = new PresenceQuery(null, 'users', 'id', new DatabaseConditions);
-        $presenceVerifier = m::mock(DatabasePresenceVerifier::class);
-        $presenceVerifier->shouldReceive('getExistingValues')
-            ->once()
+        $presenceVerifier = Double::for(DatabasePresenceVerifier::class)->strict();
+        $presenceVerifier->expects('getExistingValues')
             ->with($query, ['1'])
-            ->andReturn(['1']);
+            ->returns(['1']);
 
         $verifier = BatchDatabaseChecker::buildVerifier(
             $this->batchGroups($query, ['1', 1]),
@@ -141,15 +139,15 @@ class ValidationBatchDatabaseCheckerTest extends TestCase
         $query = new PresenceQuery(null, 'users', 'id', new DatabaseConditions);
         $chunkSizes = [];
         $values = range(1, 1001);
-        $presenceVerifier = m::mock(DatabasePresenceVerifier::class);
-        $presenceVerifier->shouldReceive('getExistingValues')
-            ->twice()
-            ->andReturnUsing(function (PresenceQuery $query, array $chunk) use (&$chunkSizes): array {
+        $presenceVerifier = Double::for(DatabasePresenceVerifier::class)->strict();
+        $presenceVerifier->expects('getExistingValues')
+            ->times(2)
+            ->resolves(function (PresenceQuery $query, array $chunk) use (&$chunkSizes): array {
                 $chunkSizes[] = count($chunk);
 
                 return array_map(strval(...), $chunk);
             });
-        $presenceVerifier->shouldReceive('getMultiCount')->once()->with($query, $values)->andReturn(1001);
+        $presenceVerifier->expects('getMultiCount')->with($query, $values)->returns(1001);
 
         $verifier = BatchDatabaseChecker::buildVerifier($this->batchGroups($query, $values), $presenceVerifier);
 
@@ -161,8 +159,8 @@ class ValidationBatchDatabaseCheckerTest extends TestCase
     public function testEmptyFirstStageProvesEverySubmittedValueAbsent(): void
     {
         $query = new PresenceQuery(null, 'users', 'id', new DatabaseConditions);
-        $presenceVerifier = m::mock(DatabasePresenceVerifier::class);
-        $presenceVerifier->shouldReceive('getExistingValues')->once()->andReturn([]);
+        $presenceVerifier = Double::for(DatabasePresenceVerifier::class)->strict();
+        $presenceVerifier->expects('getExistingValues')->returns([]);
 
         $verifier = BatchDatabaseChecker::buildVerifier(
             $this->batchGroups($query, ['first', 'second']),
@@ -177,8 +175,8 @@ class ValidationBatchDatabaseCheckerTest extends TestCase
     public function testSoleNonExactDatabaseMatchIsKnownPresentWithoutASecondQuery(): void
     {
         $query = new PresenceQuery(null, 'users', 'id', new DatabaseConditions);
-        $presenceVerifier = m::mock(DatabasePresenceVerifier::class);
-        $presenceVerifier->shouldReceive('getExistingValues')->once()->with($query, ['Case'])->andReturn(['case']);
+        $presenceVerifier = Double::for(DatabasePresenceVerifier::class)->strict();
+        $presenceVerifier->expects('getExistingValues')->with($query, ['Case'])->returns(['case']);
 
         $verifier = BatchDatabaseChecker::buildVerifier(
             $this->batchGroups($query, ['Case']),
@@ -193,13 +191,12 @@ class ValidationBatchDatabaseCheckerTest extends TestCase
     public function testMultipleNonExactMatchesDelegateWithoutRepeatingTheGroupedQuery(): void
     {
         $query = new PresenceQuery(null, 'users', 'id', new DatabaseConditions);
-        $presenceVerifier = m::mock(DatabasePresenceVerifier::class);
-        $presenceVerifier->shouldReceive('getExistingValues')
-            ->once()
+        $presenceVerifier = Double::for(DatabasePresenceVerifier::class)->strict();
+        $presenceVerifier->expects('getExistingValues')
             ->with($query, ['Case', 'Other'])
-            ->andReturn(['case', 'other']);
-        $presenceVerifier->shouldReceive('getCount')->once()->with($query, 'Case')->andReturn(1);
-        $presenceVerifier->shouldReceive('getCount')->once()->with($query, 'Other')->andReturn(1);
+            ->returns(['case', 'other']);
+        $presenceVerifier->expects('getCount')->with($query, 'Case')->returns(1);
+        $presenceVerifier->expects('getCount')->with($query, 'Other')->returns(1);
 
         $verifier = BatchDatabaseChecker::buildVerifier(
             $this->batchGroups($query, ['Case', 'Other']),
@@ -214,9 +211,9 @@ class ValidationBatchDatabaseCheckerTest extends TestCase
     public function testSecondStageProvesMissesAbsentAfterAnExactHit(): void
     {
         $query = new PresenceQuery(null, 'users', 'id', new DatabaseConditions);
-        $presenceVerifier = m::mock(DatabasePresenceVerifier::class);
-        $presenceVerifier->shouldReceive('getExistingValues')->once()->with($query, ['exact', 'missing'])->andReturn(['exact']);
-        $presenceVerifier->shouldReceive('getExistingValues')->once()->with($query, ['missing'])->andReturn([]);
+        $presenceVerifier = Double::for(DatabasePresenceVerifier::class)->strict();
+        $presenceVerifier->expects('getExistingValues')->with($query, ['exact', 'missing'])->returns(['exact']);
+        $presenceVerifier->expects('getExistingValues')->with($query, ['missing'])->returns([]);
 
         $verifier = BatchDatabaseChecker::buildVerifier(
             $this->batchGroups($query, ['exact', 'missing']),
@@ -231,10 +228,10 @@ class ValidationBatchDatabaseCheckerTest extends TestCase
     public function testSecondStageExactMatchesBecomeScalarKnownFacts(): void
     {
         $query = new PresenceQuery(null, 'users', 'id', new DatabaseConditions);
-        $presenceVerifier = m::mock(DatabasePresenceVerifier::class);
-        $presenceVerifier->shouldReceive('getExistingValues')->once()->with($query, ['exact', 'Case', 'unknown'])->andReturn(['exact', 'case']);
-        $presenceVerifier->shouldReceive('getExistingValues')->once()->with($query, ['Case', 'unknown'])->andReturn(['Case']);
-        $presenceVerifier->shouldReceive('getCount')->once()->with($query, 'unknown')->andReturn(0);
+        $presenceVerifier = Double::for(DatabasePresenceVerifier::class)->strict();
+        $presenceVerifier->expects('getExistingValues')->with($query, ['exact', 'Case', 'unknown'])->returns(['exact', 'case']);
+        $presenceVerifier->expects('getExistingValues')->with($query, ['Case', 'unknown'])->returns(['Case']);
+        $presenceVerifier->expects('getCount')->with($query, 'unknown')->returns(0);
 
         $verifier = BatchDatabaseChecker::buildVerifier(
             $this->batchGroups($query, ['exact', 'Case', 'unknown']),
@@ -249,8 +246,8 @@ class ValidationBatchDatabaseCheckerTest extends TestCase
     public function testUnsupportedCandidateDoesNotDisableSafeSiblings(): void
     {
         $query = new PresenceQuery(null, 'users', 'id', new DatabaseConditions);
-        $presenceVerifier = m::mock(DatabasePresenceVerifier::class);
-        $presenceVerifier->shouldReceive('getExistingValues')->once()->with($query, ['safe'])->andReturn(['safe']);
+        $presenceVerifier = Double::for(DatabasePresenceVerifier::class)->strict();
+        $presenceVerifier->expects('getExistingValues')->with($query, ['safe'])->returns(['safe']);
 
         $verifier = BatchDatabaseChecker::buildVerifier(
             $this->batchGroups($query, [[1, new stdClass], false, 'safe']),
@@ -264,8 +261,8 @@ class ValidationBatchDatabaseCheckerTest extends TestCase
     public function testAllUnsupportedOrEmptyCandidatesCreateNoLookup(): void
     {
         $query = new PresenceQuery(null, 'users', 'id', new DatabaseConditions);
-        $presenceVerifier = m::mock(DatabasePresenceVerifier::class);
-        $presenceVerifier->shouldNotReceive('getExistingValues');
+        $presenceVerifier = Double::for(DatabasePresenceVerifier::class)->strict();
+        $presenceVerifier->expects('getExistingValues')->never();
 
         $this->assertNull(BatchDatabaseChecker::buildVerifier(
             $this->batchGroups($query, [[1, new stdClass], false, true, []]),

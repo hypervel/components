@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Translation\Translator as TranslatorInterface;
 use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
@@ -13,7 +13,6 @@ use Hypervel\Validation\Factory;
 use Hypervel\Validation\PresenceQuery;
 use Hypervel\Validation\PresenceVerifierInterface;
 use Hypervel\Validation\Validator;
-use Mockery as m;
 use ReflectionProperty;
 
 class ValidationFactoryTest extends TestCase
@@ -135,7 +134,7 @@ class ValidationFactoryTest extends TestCase
     public function testSetContainer(): void
     {
         $translator = new Translator(new ArrayLoader, 'en');
-        $container = m::mock(Container::class);
+        $container = new Container;
         $factory = new Factory($translator);
 
         $this->assertNull($factory->getContainer());
@@ -145,7 +144,7 @@ class ValidationFactoryTest extends TestCase
 
     public function testPresenceVerifierIsNullableWhenFactoryIsConstructedDirectly(): void
     {
-        $factory = new Factory(m::mock(TranslatorInterface::class));
+        $factory = new Factory(new Translator(new ArrayLoader, 'en'));
 
         $this->assertNull($factory->getPresenceVerifier());
     }
