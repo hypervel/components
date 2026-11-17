@@ -14,22 +14,25 @@ use Hypervel\Signal\SignalManager;
 use Hypervel\Support\SafeCaller;
 use Hypervel\Tests\Signal\Fixtures\SignalHandlerStub;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class SignalManagerNonCoroutineTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected bool $runTestsInCoroutine = false;
 
     public function testListenDoesNotResolveHandlersOutsideACoroutine(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('make')->with(ConfigContract::class)->andReturn(new Repository([
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->allows('make')->with(ConfigContract::class)->returns(new Repository([
             'signal' => ['handlers' => [SignalHandlerStub::class]],
         ]));
-        $container->shouldReceive('make')->with(SafeCaller::class)->andReturn(new SafeCaller($container));
-        $container->shouldReceive('make')->with(SignalRegistry::class)->andReturn(new SignalRegistry);
-        $container->shouldNotReceive('make')->with(SignalHandlerStub::class);
-        $manager = new SignalManager($container);
+        $container->allows('make')->with(SafeCaller::class)->returns(new SafeCaller($container->instance()));
+        $container->allows('make')->with(SignalRegistry::class)->returns(new SignalRegistry);
+        $container->expects('make')->with(SignalHandlerStub::class)->never();
+        $manager = new SignalManager($container->instance());
 
         $this->assertFalse(Coroutine::inCoroutine());
 

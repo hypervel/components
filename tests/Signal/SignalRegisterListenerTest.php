@@ -11,45 +11,44 @@ use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\Signal\SignalManager;
 use Hypervel\Signal\SignalRegisterListener;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class SignalRegisterListenerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testHandleBeforeWorkerStartListensForWorker(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $manager = m::mock(SignalManager::class);
-        $event = m::mock(BeforeWorkerStart::class);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $manager = Double::for(SignalManager::class)->strict();
+        $event = Double::for(BeforeWorkerStart::class)->strict();
 
-        $container->shouldReceive('make')
+        $container->expects('make')
             ->with(SignalManager::class)
-            ->once()
-            ->andReturn($manager);
+            ->returns($manager);
 
-        $manager->shouldReceive('listen')
-            ->with(SignalHandler::WORKER)
-            ->once();
+        $manager->expects('listen')
+            ->with(SignalHandler::WORKER);
 
-        $listener = new SignalRegisterListener($container);
+        $listener = new SignalRegisterListener($container->instance());
         $listener->handle($event);
     }
 
     public function testHandleBeforeProcessHandleListensForServerProcess(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $manager = m::mock(SignalManager::class);
-        $event = m::mock(BeforeProcessHandle::class);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $manager = Double::for(SignalManager::class)->strict();
+        $event = Double::for(BeforeProcessHandle::class)->strict();
 
-        $container->shouldReceive('make')
+        $container->expects('make')
             ->with(SignalManager::class)
-            ->once()
-            ->andReturn($manager);
+            ->returns($manager);
 
-        $manager->shouldReceive('listen')
-            ->with(SignalHandler::SERVER_PROCESS)
-            ->once();
+        $manager->expects('listen')
+            ->with(SignalHandler::SERVER_PROCESS);
 
-        $listener = new SignalRegisterListener($container);
+        $listener = new SignalRegisterListener($container->instance());
         $listener->handle($event);
     }
 }

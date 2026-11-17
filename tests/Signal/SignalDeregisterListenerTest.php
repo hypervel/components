@@ -10,41 +10,42 @@ use Hypervel\ServerProcess\Events\AfterProcessHandle;
 use Hypervel\Signal\SignalDeregisterListener;
 use Hypervel\Signal\SignalManager;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class SignalDeregisterListenerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testHandleOnWorkerExitStopsSignalManager(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $manager = m::mock(SignalManager::class);
-        $event = m::mock(OnWorkerExit::class);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $manager = Double::for(SignalManager::class)->strict();
+        $event = Double::for(OnWorkerExit::class)->strict();
 
-        $container->shouldReceive('make')
+        $container->expects('make')
             ->with(SignalManager::class)
-            ->once()
-            ->andReturn($manager);
+            ->returns($manager);
 
-        $manager->shouldReceive('stop')->once();
+        $manager->expects('stop');
 
-        $listener = new SignalDeregisterListener($container);
+        $listener = new SignalDeregisterListener($container->instance());
         $listener->handle($event);
     }
 
     public function testHandleAfterProcessHandleStopsSignalManager(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $manager = m::mock(SignalManager::class);
-        $event = m::mock(AfterProcessHandle::class);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $manager = Double::for(SignalManager::class)->strict();
+        $event = Double::for(AfterProcessHandle::class)->strict();
 
-        $container->shouldReceive('make')
+        $container->expects('make')
             ->with(SignalManager::class)
-            ->once()
-            ->andReturn($manager);
+            ->returns($manager);
 
-        $manager->shouldReceive('stop')->once();
+        $manager->expects('stop');
 
-        $listener = new SignalDeregisterListener($container);
+        $listener = new SignalDeregisterListener($container->instance());
         $listener->handle($event);
     }
 }
