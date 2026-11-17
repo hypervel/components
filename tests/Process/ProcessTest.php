@@ -25,7 +25,9 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\GuardsProcessOutput;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use OutOfBoundsException;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
@@ -42,6 +44,8 @@ use Throwable;
 
 class ProcessTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testSuccessfulProcess(): void
     {
         $factory = new Factory;
@@ -665,12 +669,12 @@ class ProcessTest extends TestCase
                 $cleanupFailure = new RuntimeException('Stop cleanup failed.', previous: $cleanupFailure);
             }
         }
-        $lease = m::mock(ConnectionLease::class);
-        $lease->shouldReceive('releaseIfIdle')->once()->andThrow($failure);
+        $lease = Double::for(ConnectionLease::class)->strict();
+        $lease->expects('releaseIfIdle')->throws($failure);
         CoroutineContext::set('__process.test.lease', $lease);
-        $process = m::mock(SymfonyProcess::class);
-        $process->shouldReceive('isRunning')->once()->andReturnTrue();
-        $process->shouldReceive('stop')->once()->with(0, 15)->andThrow($cleanupFailure);
+        $process = Double::for(ProcessWithoutDestructor::class)->strict();
+        $process->expects('isRunning')->returns(true);
+        $process->expects('stop')->with(0.0, 15)->throws($cleanupFailure);
         $caught = null;
 
         try {
@@ -689,12 +693,17 @@ class ProcessTest extends TestCase
     public function testInterruptedStopFinishesEmergencyCleanup(float $timeout): void
     {
         $cancellation = new CanceledException('Stop canceled.');
-        $process = m::mock(SymfonyProcess::class);
+        $process = Double::for(ProcessWithoutDestructor::class)->strict();
         if ($timeout > 0) {
-            $process->shouldReceive('isRunning')->once()->andReturnTrue();
+            $process->expects('isRunning')->returns(true);
         }
-        $process->shouldReceive('stop')->once()->with($timeout, 15)->ordered()->andThrow($cancellation);
-        $process->shouldReceive('stop')->once()->with(0, 15)->ordered()->andReturn(0);
+        $timeouts = [];
+        $process->expects('stop')->with(Argument::type('float'), 15)->times(2)
+            ->resolves(static function (float $stopTimeout) use (&$timeouts, $cancellation): int {
+                $timeouts[] = $stopTimeout;
+
+                return count($timeouts) === 1 ? throw $cancellation : 0;
+            });
         $caught = null;
 
         try {
@@ -704,6 +713,7 @@ class ProcessTest extends TestCase
         }
 
         $this->assertSame($cancellation, $caught);
+        $this->assertSame([$timeout, 0.0], $timeouts);
     }
 
     #[TestWith(['run'])]
@@ -714,16 +724,16 @@ class ProcessTest extends TestCase
         $failure = $method === 'run'
             ? new CanceledException('Run canceled.')
             : new RuntimeException('Input iterator failed.');
-        $process = m::mock(SymfonyProcess::class);
-        $process->shouldReceive('getCommandline')->once()->andReturn('test-command');
-        $process->shouldReceive($method)->once()->with(null)->andThrow($failure);
+        $process = Double::for(ProcessWithoutDestructor::class)->strict();
+        $process->expects('getCommandline')->returns('test-command');
+        $process->expects($method)->with(null)->throws($failure);
         $cleanupFailure = $cleanupIsCanceled
             ? new RuntimeException('Stop cleanup failed.', previous: new CanceledException)
             : null;
         if ($cleanupFailure !== null) {
-            $process->shouldReceive('stop')->twice()->with(0, null)->andThrow($cleanupFailure);
+            $process->expects('stop')->times(2)->with(0.0, null)->throws($cleanupFailure);
         } else {
-            $process->shouldReceive('stop')->once()->with(0, null)->andReturn(0);
+            $process->expects('stop')->with(0.0, null)->returns(0);
         }
         $pending = new class(new Factory, $process) extends PendingProcess {
             /**
@@ -765,9 +775,12 @@ class ProcessTest extends TestCase
         $cancellation = $stopWrapped
             ? new RuntimeException('Emergency stop failed.', previous: new CanceledException('Emergency stop canceled.'))
             : new CanceledException('Emergency stop canceled.');
-        $process = m::mock(SymfonyProcess::class);
-        $process->shouldReceive('stop')->once()->with(0)->ordered()->andThrow($cancellation);
-        $process->shouldReceive('stop')->once()->with(0)->ordered()->andReturn(0);
+        $process = Double::for(ProcessWithoutDestructor::class)->strict();
+        $stops = 0;
+        $process->expects('stop')->with(0.0)->times(2)
+            ->resolves(static function () use (&$stops, $cancellation): int {
+                return ++$stops === 1 ? throw $cancellation : 0;
+            });
         $guard = new class {
             use GuardsProcessOutput {
                 guardProcessOutput as public;
@@ -2371,5 +2384,15 @@ class ProcessTest extends TestCase
     protected function ls(): string
     {
         return windows_os() ? 'dir' : 'ls';
+    }
+}
+
+class ProcessWithoutDestructor extends SymfonyProcess
+{
+    /**
+     * Leave cleanup to explicit stop calls; this fixture never starts a child.
+     */
+    public function __destruct()
+    {
     }
 }
