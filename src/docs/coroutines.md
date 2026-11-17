@@ -974,19 +974,9 @@ $coroutineIds = Coroutine::list();
 
 The `join` method waits for the supplied child coroutine IDs to finish. You may include IDs for coroutines that have already finished.
 
-A `false` result may mean that none of the supplied coroutines remained active or that the timeout elapsed. It does not always indicate a failure.
+A `false` result may mean that all supplied coroutines had already finished or that the timeout elapsed. If the caller is canceled during the wait, `join` throws a `CanceledException`.
 
-Low-level infrastructure that must distinguish a canceled native wait from its other `false` outcomes may inspect the engine cancellation state immediately:
-
-```php
-use Hypervel\Engine\Coroutine as EngineCoroutine;
-
-if (! Coroutine::join($coroutineIds) && EngineCoroutine::isCanceled()) {
-    // The join was canceled...
-}
-```
-
-This state is not durable. Read it only at the failed native operation boundary.
+Use `joinUninterruptibly` when cleanup must wait for children to exit even if the caller is canceled. It waits until the children exit or the original timeout expires, then throws the caller's first cancellation. Without cancellation, it returns `true` if none of the supplied coroutines are still running. As with `join`, a timeout of zero or less waits without a deadline.
 
 The `afterCreated` method registers a callback that runs during child startup for `Coroutine::create`, `fork`, `createOwned`, and `forkOwned`, as well as helpers such as `go` and `co`:
 
