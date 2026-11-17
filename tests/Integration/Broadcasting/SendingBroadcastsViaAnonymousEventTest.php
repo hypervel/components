@@ -12,7 +12,6 @@ use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
 use ReflectionClass;
 
 class SendingBroadcastsViaAnonymousEventTest extends TestCase
@@ -132,9 +131,8 @@ class SendingBroadcastsViaAnonymousEventTest extends TestCase
     {
         Event::fake();
 
-        $request = m::mock(Request::class);
-        $request->shouldReceive('header')->with('X-Socket-ID')->andReturn('12345');
-        $request->shouldReceive('setUserResolver')->andReturnSelf();
+        $request = Request::create('/');
+        $request->headers->set('X-Socket-ID', '12345');
         RequestContext::set($request);
 
         Broadcast::on('test-channel')->send();
