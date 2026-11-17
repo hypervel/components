@@ -48,6 +48,7 @@ Do not add production test seams to diagnostics. Test version decisions through 
 
 ## Tests to update
 
+- `tests/Composer/PackageManifestConsistencyTest.php`: remove the `ext-redis` subset exception and its unused imports and parser; exact equality applies again once the development and published requirements match.
 - `tests/Redis/RedisRequirementsTest.php`: move existing client cases to `clientError()`, use false for the missing extension, and retain older/prerelease/minimum/newer version cases and all server cases.
 - `tests/Redis/PackageMetadataTest.php`: preserve the optional-extension assertions; add the conflict assertion to that existing test.
 - `tests/Session/PackageMetadataTest.php`: update the exact extension-suggestion assertion. Horizon's metadata test already checks the dependency's presence.
