@@ -10,12 +10,15 @@ use Hypervel\Database\Events\TransactionBeginning;
 use Hypervel\Database\Events\TransactionCommitted;
 use Hypervel\Database\Events\TransactionRolledBack;
 use Hypervel\Tests\Sentry\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Sentry\Breadcrumb;
 
 class DatabaseEventsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testSqlQueriesAreRecordedWhenEnabled(): void
     {
         $this->resetApplicationWithConfig([
@@ -189,8 +192,8 @@ class DatabaseEventsTest extends TestCase
      */
     private function getMockedConnection(): Connection
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->andReturn('test');
+        $connection = Double::for(Connection::class)->strict();
+        $connection->allows('getName')->returns('test');
 
         return $connection;
     }

@@ -8,7 +8,8 @@ use Hypervel\Sentry\Hub;
 use Hypervel\Sentry\State\CoroutineRuntimeContextStorage;
 use Hypervel\Sentry\State\RuntimeContextBoundary;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Sentry\ClientInterface;
 use Sentry\Options;
 use Sentry\SentrySdk;
@@ -19,17 +20,18 @@ use function Hypervel\Coroutine\run;
 
 class RuntimeContextBoundaryTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected bool $runTestsInCoroutine = false;
 
     public function testStartsContextWithHypervelHubAndFlushesAtCoroutineExit(): void
     {
         $storage = new CoroutineRuntimeContextStorage;
-        $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('getOptions')->once()->andReturn(new Options);
-        $client->shouldReceive('flush')
-            ->once()
+        $client = Double::for(ClientInterface::class)->strict();
+        $client->expects('getOptions')->returns(new Options);
+        $client->expects('flush')
             ->with(null)
-            ->andReturn(new Result(ResultStatus::success()));
+            ->returns(new Result(ResultStatus::success()));
         $hub = new Hub($client);
         $boundary = new RuntimeContextBoundary($hub, $storage);
 
@@ -49,12 +51,11 @@ class RuntimeContextBoundaryTest extends TestCase
     public function testReusesActiveContextWithoutRegisteringAnotherEnd(): void
     {
         $storage = new CoroutineRuntimeContextStorage;
-        $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('getOptions')->once()->andReturn(new Options);
-        $client->shouldReceive('flush')
-            ->once()
+        $client = Double::for(ClientInterface::class)->strict();
+        $client->expects('getOptions')->returns(new Options);
+        $client->expects('flush')
             ->with(null)
-            ->andReturn(new Result(ResultStatus::success()));
+            ->returns(new Result(ResultStatus::success()));
         $boundary = new RuntimeContextBoundary(new Hub($client), $storage);
 
         SentrySdk::init();
@@ -73,8 +74,8 @@ class RuntimeContextBoundaryTest extends TestCase
     public function testDoesNothingOutsideACoroutine(): void
     {
         $storage = new CoroutineRuntimeContextStorage;
-        $client = m::mock(ClientInterface::class);
-        $client->shouldNotReceive('flush');
+        $client = Double::for(ClientInterface::class)->strict();
+        $client->expects('flush')->never();
         $boundary = new RuntimeContextBoundary(new Hub($client), $storage);
 
         SentrySdk::init();
