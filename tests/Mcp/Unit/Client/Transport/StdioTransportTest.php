@@ -236,6 +236,7 @@ class StdioTransportTest extends TestCase
             ? new RuntimeException('Stop cleanup failed.', previous: new CanceledException)
             : new CanceledException('Stop canceled.');
         $process = Double::for(Process::class)->strict();
+        // Symfony's destructor calls stop(0) when the double is released.
         $process->allows('stop')->with(0.0)->returns(0);
 
         if ($receive) {
