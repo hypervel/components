@@ -725,12 +725,12 @@ class Task extends Prompt
 
         $cleanupFailure = $this->settleOperation(success: $success);
 
-        if ($operationFailure !== null) {
-            throw $operationFailure;
+        if ($cleanupFailure !== null) {
+            throw Coroutine::preferCancellation($operationFailure, $cleanupFailure);
         }
 
-        if ($cleanupFailure !== null) {
-            throw $cleanupFailure;
+        if ($operationFailure !== null) {
+            throw $operationFailure;
         }
 
         return $result;
@@ -750,7 +750,7 @@ class Task extends Prompt
     {
         $animation = null;
         $result = null;
-        $operationFailure = null;
+        $failure = null;
         $success = false;
 
         try {
@@ -771,7 +771,7 @@ class Task extends Prompt
             $result = $callback($logger);
             $success = true;
         } catch (Throwable $exception) {
-            $operationFailure = $exception;
+            $failure = $exception;
         }
 
         $animationFailure = null;
@@ -779,21 +779,18 @@ class Task extends Prompt
         try {
             $animationFailure = $animation?->stop();
         } catch (Throwable $exception) {
-            $animationFailure = $exception;
+            $failure = Coroutine::preferCancellation($failure, $exception);
         }
 
         $cleanupFailure = $this->settleOperation(renderFinalFrame: true, success: $success);
 
-        if ($operationFailure !== null) {
-            throw $operationFailure;
+        if ($cleanupFailure !== null && Coroutine::causedByCancellation($cleanupFailure)) {
+            $failure = Coroutine::preferCancellation($failure, $cleanupFailure);
         }
 
-        if ($animationFailure !== null) {
-            throw $animationFailure;
-        }
-
-        if ($cleanupFailure !== null) {
-            throw $cleanupFailure;
+        $failure ??= $animationFailure ?? $cleanupFailure;
+        if ($failure !== null) {
+            throw $failure;
         }
 
         return $result;
