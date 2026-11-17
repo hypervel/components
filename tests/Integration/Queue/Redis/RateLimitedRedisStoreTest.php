@@ -17,13 +17,15 @@ use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\RateLimiter\Unlimited;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
 #[RequiresPhpExtension('redis')]
 // REMOVED: RateLimitedWithRedis is replaced by RateLimited::store('redis').
 class RateLimitedRedisStoreTest extends TestCase
 {
+    use VerifiesDoubles;
     use InteractsWithRedis;
 
     public function testUnlimitedJobsAreExecuted(): void
@@ -232,12 +234,12 @@ class RateLimitedRedisStoreTest extends TestCase
         $testJob::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $job = m::mock(Job::class);
+        $job = Double::for(Job::class)->strict();
 
-        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('hasFailed')->returns(false);
         $job->expects('release')->with($delay);
-        $job->expects('isReleased')->times(2)->andReturn(true);
-        $job->expects('isDeletedOrReleased')->andReturn(true);
+        $job->expects('isReleased')->times(2)->returns(true);
+        $job->expects('isDeletedOrReleased')->returns(true);
 
         $instance->call($job, [
             'command' => serialize($testJob),

@@ -35,7 +35,8 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\Factories\UserFactory;
 use Hypervel\Tests\Integration\Queue\QueueTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -46,6 +47,8 @@ use UnitEnum;
 #[WithMigration('queue')]
 class UniqueJobTest extends QueueTestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Define the test environment.
      */
@@ -407,7 +410,7 @@ class UniqueJobTest extends QueueTestCase
             UniqueTestJob::dispatch();
             Queue::assertPushed(UniqueTestJob::class);
 
-            Queue::swap(m::mock(QueueManager::class));
+            Queue::swap(Double::for(QueueManager::class)->strict());
         });
 
         $this->assertSame($manager, Queue::getFacadeRoot());

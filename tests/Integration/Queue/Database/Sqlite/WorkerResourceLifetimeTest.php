@@ -40,13 +40,16 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class WorkerResourceLifetimeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected string $databaseDirectory;
 
     /**
@@ -115,8 +118,8 @@ class WorkerResourceLifetimeTest extends TestCase
         $objectPools = new ObjectPoolManager;
         $started = new Channel(1);
         $finish = new Channel(1);
-        $transport = m::mock(SyncQueue::class . ', ' . PublishesOutboxMessages::class)->makePartial();
-        $transport->expects('publishOutboxMessages')->andReturnUsing(function (array $messages) use ($started, $finish, $databasePool): OutboxBatchResult {
+        $transport = Double::for(WorkerPublishingQueue::class)->passthru();
+        $transport->expects('publishOutboxMessages')->resolves(function (array $messages) use ($started, $finish, $databasePool): OutboxBatchResult {
             $this->assertSame(1, $databasePool->getIdleCount());
             $started->push(true);
             $this->assertTrue($finish->pop(5));
@@ -128,8 +131,8 @@ class WorkerResourceLifetimeTest extends TestCase
             static fn (): SyncQueue => $transport,
             $objectPools,
         );
-        $queues = m::mock(QueueManager::class);
-        $queues->expects('connection')->with('transport')->andReturn($proxy);
+        $queues = Double::for(QueueManager::class)->strict();
+        $queues->expects('connection')->with('transport')->returns($proxy);
         $events = $this->app->make(EventDispatcher::class);
         $settled = false;
         $observed = false;
@@ -144,7 +147,7 @@ class WorkerResourceLifetimeTest extends TestCase
             DB::selectOne('SELECT 1');
             $observed = true;
         });
-        $relay = new OutboxRelay($repository, $queues, $events, m::mock(ExceptionHandlerContract::class));
+        $relay = new OutboxRelay($repository, $queues, $events, Double::for(ExceptionHandlerContract::class)->strict());
         $messages = $relay->claim('worker_resource', 100);
         $failure = null;
         $result = null;
@@ -228,11 +231,11 @@ class WorkerResourceLifetimeTest extends TestCase
             $observed[] = 'stopping';
         });
 
-        $connection = m::mock(Queue::class);
-        $connection->expects('getConnectionName')->twice()->andReturn('default');
-        $connection->expects('pop')->once()->with('queue')->andReturnNull();
-        $manager = m::mock(QueueManager::class);
-        $manager->expects('connection')->once()->with('default')->andReturn($connection);
+        $connection = Double::for(Queue::class)->strict();
+        $connection->expects('getConnectionName')->times(2)->returns('default');
+        $connection->expects('pop')->with('queue')->returns(null);
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->expects('connection')->with('default')->returns($connection);
         $worker = new class($manager, $events, $this->app->make(ExceptionHandlerContract::class), static fn (): bool => false) extends Worker {
             protected function supportsAsyncSignals(): bool
             {
@@ -261,23 +264,23 @@ class WorkerResourceLifetimeTest extends TestCase
             $stopped = true;
         });
 
-        $job = m::mock(JobContract::class);
-        $job->expects('payload')->twice()->andReturn([]);
-        $job->expects('maxTries')->once()->andReturnNull();
-        $job->expects('retryUntil')->once()->andReturnNull();
-        $job->expects('attempts')->once()->andReturn(1);
-        $job->expects('isDeleted')->once()->andReturnFalse();
-        $job->expects('isReleased')->once()->andReturnFalse();
-        $job->expects('timeout')->once()->andReturnNull();
-        $job->expects('fire')->once()->andReturnUsing(static function (): void {
+        $job = Double::for(JobContract::class)->strict();
+        $job->expects('payload')->times(2)->returns([]);
+        $job->expects('maxTries')->returns(null);
+        $job->expects('retryUntil')->returns(null);
+        $job->expects('attempts')->returns(1);
+        $job->expects('isDeleted')->returns(false);
+        $job->expects('isReleased')->returns(false);
+        $job->expects('timeout')->returns(null);
+        $job->expects('fire')->resolves(static function (): void {
             DB::selectOne('SELECT 1');
         });
 
-        $connection = m::mock(Queue::class);
-        $connection->expects('getConnectionName')->times(3)->andReturn('default');
-        $connection->expects('pop')->once()->with('queue')->andReturn($job);
-        $manager = m::mock(QueueManager::class);
-        $manager->expects('connection')->once()->with('default')->andReturn($connection);
+        $connection = Double::for(Queue::class)->strict();
+        $connection->expects('getConnectionName')->times(3)->returns('default');
+        $connection->expects('pop')->with('queue')->returns($job);
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->expects('connection')->with('default')->returns($connection);
         $worker = new class($manager, $events, $this->app->make(ExceptionHandlerContract::class), static fn (): bool => false) extends Worker {
             protected function supportsAsyncSignals(): bool
             {
@@ -307,23 +310,23 @@ class WorkerResourceLifetimeTest extends TestCase
                 $modificationStates[] = DB::connection()->hasModifiedRecords();
             },
         ] as $handler) {
-            $job = m::mock(JobContract::class);
-            $job->expects('payload')->twice()->andReturn([]);
-            $job->expects('maxTries')->once()->andReturnNull();
-            $job->expects('retryUntil')->once()->andReturnNull();
-            $job->expects('attempts')->once()->andReturn(1);
-            $job->expects('isDeleted')->once()->andReturnFalse();
-            $job->expects('isReleased')->once()->andReturnFalse();
-            $job->expects('timeout')->once()->andReturnNull();
-            $job->expects('fire')->once()->andReturnUsing($handler);
+            $job = Double::for(JobContract::class)->strict();
+            $job->expects('payload')->times(2)->returns([]);
+            $job->expects('maxTries')->returns(null);
+            $job->expects('retryUntil')->returns(null);
+            $job->expects('attempts')->returns(1);
+            $job->expects('isDeleted')->returns(false);
+            $job->expects('isReleased')->returns(false);
+            $job->expects('timeout')->returns(null);
+            $job->expects('fire')->resolves($handler);
             $jobs[] = $job;
         }
 
-        $connection = m::mock(Queue::class);
-        $connection->expects('getConnectionName')->times(6)->andReturn('default');
-        $connection->expects('pop')->twice()->with('queue')->andReturn(...$jobs);
-        $manager = m::mock(QueueManager::class);
-        $manager->expects('connection')->twice()->with('default')->andReturn($connection);
+        $connection = Double::for(Queue::class)->strict();
+        $connection->expects('getConnectionName')->times(6)->returns('default');
+        $connection->expects('pop')->times(2)->with('queue')->returns(...$jobs);
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->expects('connection')->times(2)->with('default')->returns($connection);
         $worker = new class($manager, $this->app->make(EventDispatcher::class), $this->app->make(ExceptionHandlerContract::class), static fn (): bool => false) extends Worker {
             protected function supportsAsyncSignals(): bool
             {
@@ -347,7 +350,7 @@ class WorkerResourceLifetimeTest extends TestCase
         $events->listen(WorkerPausing::class, static function (): void {
             DB::selectOne('SELECT 1');
         });
-        $worker = new class(m::mock(QueueManager::class), $events, $this->app->make(ExceptionHandlerContract::class), static fn (): bool => false, $timer) extends Worker {
+        $worker = new class(Double::for(QueueManager::class)->strict(), $events, $this->app->make(ExceptionHandlerContract::class), static fn (): bool => false, $timer) extends Worker {
             public Channel $completed;
 
             /**
@@ -394,4 +397,8 @@ class WorkerResourceLifetimeTest extends TestCase
         $worker->pauseForTest($options);
         $this->assertSame(1, $pool->getIdleCount());
     }
+}
+
+abstract class WorkerPublishingQueue extends SyncQueue implements PublishesOutboxMessages
+{
 }
