@@ -8,7 +8,6 @@ use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\EngineOperationObserver;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\EngineOperation;
 use Hypervel\Scout\EngineOperationRunner;
 use Hypervel\Scout\Engines\CollectionEngine;
@@ -16,12 +15,16 @@ use Hypervel\Scout\Engines\DatabaseEngine;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Throwable;
 
 class EngineTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testOperationEntryPointsDescribeTheirExactTargets(): void
     {
         $model = $this->model();
@@ -181,14 +184,12 @@ class EngineTest extends TestCase
 
     /**
      * Create a searchable model test double with different read and write indices.
-     *
-     * @return Model&SearchableInterface
      */
-    protected function model(): Model
+    protected function model(): SearchableModel
     {
-        $model = m::mock(Model::class . ', ' . SearchableInterface::class);
-        $model->shouldReceive('searchableAs')->andReturn('read_index');
-        $model->shouldReceive('indexableAs')->andReturn('write_index');
+        $model = Double::for(SearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('read_index');
+        $model->allows('indexableAs')->returns('write_index');
 
         return $model;
     }
