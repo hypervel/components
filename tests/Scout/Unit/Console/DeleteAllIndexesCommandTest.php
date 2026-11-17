@@ -11,29 +11,30 @@ use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\Engines\CollectionEngine;
 use Hypervel\Scout\Engines\MeilisearchEngine;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class DeleteAllIndexesCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testDeletesAllIndexesSuccessfully(): void
     {
-        $engine = m::mock(MeilisearchEngine::class);
-        $engine->shouldReceive('deleteAllIndexes')
-            ->once()
+        $engine = Double::for(MeilisearchEngine::class)->strict();
+        $engine->expects('deleteAllIndexes')
             ->with('test_')
-            ->andReturn([]);
+            ->returns([]);
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('engine')
-            ->once()
-            ->andReturn($engine);
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('engine')
+            ->returns($engine);
 
         $config = $this->configWithPrefix('test_');
 
-        $command = m::mock(DeleteAllIndexesCommand::class)->makePartial();
-        $command->shouldReceive('option')->with('force')->andReturn(false);
-        $command->shouldReceive('info')
-            ->once()
+        $command = Double::for(new DeleteAllIndexesCommand)->passthru();
+        $command->allows('option')->with('force')->returns(false);
+        $command->expects('info')
             ->with('All indexes deleted successfully.');
 
         $result = $command->handle($manager, $config);
@@ -45,23 +46,20 @@ class DeleteAllIndexesCommandTest extends TestCase
     {
         $engine = new CollectionEngine;
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('engine')
-            ->once()
-            ->andReturn($engine);
-        $manager->shouldReceive('getDefaultDriver')
-            ->once()
-            ->andReturn('collection');
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('engine')
+            ->returns($engine);
+        $manager->expects('getDefaultDriver')
+            ->returns('collection');
 
         // Must set a non-empty prefix: the safety gate runs before engine
         // resolution, and with an empty prefix we'd hit the refusal message
         // rather than the "does not support" path.
         $config = $this->configWithPrefix('test_');
 
-        $command = m::mock(DeleteAllIndexesCommand::class)->makePartial();
-        $command->shouldReceive('option')->with('force')->andReturn(false);
-        $command->shouldReceive('error')
-            ->once()
+        $command = Double::for(new DeleteAllIndexesCommand)->passthru();
+        $command->allows('option')->with('force')->returns(false);
+        $command->expects('error')
             ->with('The [collection] engine does not support deleting all indexes.');
 
         $result = $command->handle($manager, $config);
@@ -71,23 +69,20 @@ class DeleteAllIndexesCommandTest extends TestCase
 
     public function testHandlesExceptionFromEngine(): void
     {
-        $engine = m::mock(MeilisearchEngine::class);
-        $engine->shouldReceive('deleteAllIndexes')
-            ->once()
+        $engine = Double::for(MeilisearchEngine::class)->strict();
+        $engine->expects('deleteAllIndexes')
             ->with('test_')
-            ->andThrow(new Exception('Connection failed'));
+            ->throws(new Exception('Connection failed'));
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('engine')
-            ->once()
-            ->andReturn($engine);
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('engine')
+            ->returns($engine);
 
         $config = $this->configWithPrefix('test_');
 
-        $command = m::mock(DeleteAllIndexesCommand::class)->makePartial();
-        $command->shouldReceive('option')->with('force')->andReturn(false);
-        $command->shouldReceive('error')
-            ->once()
+        $command = Double::for(new DeleteAllIndexesCommand)->passthru();
+        $command->allows('option')->with('force')->returns(false);
+        $command->expects('error')
             ->with('Connection failed');
 
         $result = $command->handle($manager, $config);
@@ -97,22 +92,17 @@ class DeleteAllIndexesCommandTest extends TestCase
 
     public function testRefusesWhenPrefixEmptyAndNotForced(): void
     {
-        $manager = m::mock(EngineManager::class);
+        $manager = Double::for(EngineManager::class)->strict();
         // Safety gate runs first; engine is never resolved.
-        $manager->shouldNotReceive('engine');
+        $manager->expects('engine')->never();
 
         $config = $this->configWithPrefix('');
 
         $capturedMessage = null;
-        $command = m::mock(DeleteAllIndexesCommand::class)->makePartial();
-        $command->shouldReceive('option')->with('force')->andReturn(false);
-        $command->shouldReceive('error')
-            ->once()
-            ->with(m::on(function (string $message) use (&$capturedMessage) {
-                $capturedMessage = $message;
-
-                return true;
-            }));
+        $command = Double::for(new DeleteAllIndexesCommand)->passthru();
+        $command->allows('option')->with('force')->returns(false);
+        $command->expects('error')
+            ->with(Argument::capture($capturedMessage));
 
         $result = $command->handle($manager, $config);
 
@@ -123,22 +113,20 @@ class DeleteAllIndexesCommandTest extends TestCase
 
     public function testRunsUnscopedWhenForcedWithEmptyPrefix(): void
     {
-        $engine = m::mock(MeilisearchEngine::class);
-        $engine->shouldReceive('deleteAllIndexes')
-            ->once()
+        $engine = Double::for(MeilisearchEngine::class)->strict();
+        $engine->expects('deleteAllIndexes')
             ->with(null)
-            ->andReturn([]);
+            ->returns([]);
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('engine')
-            ->once()
-            ->andReturn($engine);
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('engine')
+            ->returns($engine);
 
         $config = $this->configWithPrefix('');
 
-        $command = m::mock(DeleteAllIndexesCommand::class)->makePartial();
-        $command->shouldReceive('option')->with('force')->andReturn(true);
-        $command->shouldReceive('info')->once();
+        $command = Double::for(new DeleteAllIndexesCommand)->passthru();
+        $command->allows('option')->with('force')->returns(true);
+        $command->expects('info');
 
         $result = $command->handle($manager, $config);
 
@@ -147,22 +135,20 @@ class DeleteAllIndexesCommandTest extends TestCase
 
     public function testRunsScopedWhenPrefixSet(): void
     {
-        $engine = m::mock(MeilisearchEngine::class);
-        $engine->shouldReceive('deleteAllIndexes')
-            ->once()
+        $engine = Double::for(MeilisearchEngine::class)->strict();
+        $engine->expects('deleteAllIndexes')
             ->with('app_')
-            ->andReturn([]);
+            ->returns([]);
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('engine')
-            ->once()
-            ->andReturn($engine);
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('engine')
+            ->returns($engine);
 
         $config = $this->configWithPrefix('app_');
 
-        $command = m::mock(DeleteAllIndexesCommand::class)->makePartial();
-        $command->shouldReceive('option')->with('force')->andReturn(false);
-        $command->shouldReceive('info')->once();
+        $command = Double::for(new DeleteAllIndexesCommand)->passthru();
+        $command->allows('option')->with('force')->returns(false);
+        $command->expects('info');
 
         $result = $command->handle($manager, $config);
 
@@ -171,36 +157,32 @@ class DeleteAllIndexesCommandTest extends TestCase
 
     public function testForceDoesNotOverrideScopingWhenPrefixSet(): void
     {
-        $engine = m::mock(MeilisearchEngine::class);
+        $engine = Double::for(MeilisearchEngine::class)->strict();
         // Even with --force, the configured prefix still scopes the deletion.
-        $engine->shouldReceive('deleteAllIndexes')
-            ->once()
+        $engine->expects('deleteAllIndexes')
             ->with('app_')
-            ->andReturn([]);
+            ->returns([]);
 
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('engine')
-            ->once()
-            ->andReturn($engine);
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('engine')
+            ->returns($engine);
 
         $config = $this->configWithPrefix('app_');
 
-        $command = m::mock(DeleteAllIndexesCommand::class)->makePartial();
-        $command->shouldReceive('option')->with('force')->andReturn(true);
-        $command->shouldReceive('info')->once();
+        $command = Double::for(new DeleteAllIndexesCommand)->passthru();
+        $command->allows('option')->with('force')->returns(true);
+        $command->expects('info');
 
         $result = $command->handle($manager, $config);
 
         $this->assertSame(0, $result);
     }
 
+    /**
+     * Create configuration with the given search index prefix.
+     */
     protected function configWithPrefix(string $prefix): Repository
     {
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('string')
-            ->with('scout.prefix')
-            ->andReturn($prefix);
-
-        return $config;
+        return new Repository(['scout' => ['prefix' => $prefix]]);
     }
 }
