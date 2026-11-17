@@ -15,7 +15,9 @@ use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine;
@@ -26,6 +28,8 @@ use WeakReference;
 
 class PoolManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testPoolReturnsSameInstance(): void
     {
         $container = $this->mockContainerWithPools();
@@ -388,19 +392,19 @@ class PoolManagerTest extends TestCase
 
     public function testPurgeAllDetachesPoolsBeforeClosingThem(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $original = m::mock(RedisPool::class);
-        $replacement = m::mock(RedisPool::class);
-        $original->shouldReceive('start')->once();
-        $replacement->shouldReceive('start')->once();
-        $replacement->shouldReceive('isClosed')->andReturnFalse();
-        $container->shouldReceive('make')
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $original = Double::for(RedisPool::class)->strict();
+        $replacement = Double::for(RedisPool::class)->strict();
+        $original->expects('start');
+        $replacement->expects('start');
+        $replacement->allows('isClosed')->returns(false);
+        $container->expects('make')
             ->with(RedisPool::class, ['name' => 'default'])
-            ->twice()
-            ->andReturn($original, $replacement);
-        $poolManager = new PoolManager($container);
+            ->times(2)
+            ->returns($original, $replacement);
+        $poolManager = new PoolManager($container->instance());
         $resolvedDuringClose = null;
-        $original->shouldReceive('close')->once()->andReturnUsing(
+        $original->expects('close')->resolves(
             function () use ($poolManager, &$resolvedDuringClose): void {
                 $resolvedDuringClose = $poolManager->pool('default');
             }
@@ -419,21 +423,21 @@ class PoolManagerTest extends TestCase
         $ordinaryFailure = new RuntimeException('First close failed.');
         $cancellation = new CanceledException('Second close canceled.');
         $laterCancellation = new CanceledException('Third close canceled.');
-        $container = m::mock(ContainerContract::class);
-        $first = m::mock(RedisPool::class);
-        $first->shouldReceive('start')->once();
-        $first->expects('close')->andThrow($ordinaryFailure);
-        $second = m::mock(RedisPool::class);
-        $second->shouldReceive('start')->once();
-        $second->expects('close')->andThrow($cancellation);
-        $third = m::mock(RedisPool::class);
-        $third->shouldReceive('start')->once();
-        $third->expects('close')->andThrow($laterCancellation);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $first = Double::for(RedisPool::class)->strict();
+        $first->expects('start');
+        $first->expects('close')->throws($ordinaryFailure);
+        $second = Double::for(RedisPool::class)->strict();
+        $second->expects('start');
+        $second->expects('close')->throws($cancellation);
+        $third = Double::for(RedisPool::class)->strict();
+        $third->expects('start');
+        $third->expects('close')->throws($laterCancellation);
         $container->expects('make')
-            ->with(RedisPool::class, m::type('array'))
+            ->with(RedisPool::class, Argument::type('array'))
             ->times(3)
-            ->andReturn($first, $second, $third);
-        $poolManager = new PoolManager($container);
+            ->returns($first, $second, $third);
+        $poolManager = new PoolManager($container->instance());
         $poolManager->pool('first');
         $poolManager->pool('second');
         $poolManager->pool('third');
@@ -479,19 +483,19 @@ class PoolManagerTest extends TestCase
 
     public function testPurgeDetachesPoolBeforeClosingIt(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $original = m::mock(RedisPool::class);
-        $replacement = m::mock(RedisPool::class);
-        $original->shouldReceive('start')->once();
-        $replacement->shouldReceive('start')->once();
-        $replacement->shouldReceive('isClosed')->andReturnFalse();
-        $container->shouldReceive('make')
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $original = Double::for(RedisPool::class)->strict();
+        $replacement = Double::for(RedisPool::class)->strict();
+        $original->expects('start');
+        $replacement->expects('start');
+        $replacement->allows('isClosed')->returns(false);
+        $container->expects('make')
             ->with(RedisPool::class, ['name' => 'default'])
-            ->twice()
-            ->andReturn($original, $replacement);
-        $poolManager = new PoolManager($container);
+            ->times(2)
+            ->returns($original, $replacement);
+        $poolManager = new PoolManager($container->instance());
         $resolvedDuringClose = null;
-        $original->shouldReceive('close')->once()->andReturnUsing(
+        $original->expects('close')->resolves(
             function () use ($poolManager, &$resolvedDuringClose): void {
                 $resolvedDuringClose = $poolManager->pool('default');
             }
@@ -526,7 +530,7 @@ class PoolManagerTest extends TestCase
     /**
      * Mock a container with Redis pools.
      */
-    private function mockContainerWithPools(): m\MockInterface|ContainerContract
+    private function mockContainerWithPools(): ContainerContract
     {
         $connectionConfig = [
             'host' => 'localhost',
@@ -543,18 +547,18 @@ class PoolManagerTest extends TestCase
             ],
         ];
 
-        $redisConfig = m::mock(RedisConfig::class);
-        $redisConfig->shouldReceive('connectionConfig')->andReturn($connectionConfig);
+        $redisConfig = Double::for(RedisConfig::class)->strict();
+        $redisConfig->allows('connectionConfig')->returns($connectionConfig);
 
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('make')->with(RedisConfig::class)->andReturn($redisConfig);
-        $container->shouldReceive('has')->andReturn(false);
-        $container->shouldReceive('bound')->with('events')->andReturn(false);
-        $container->shouldReceive('make')->with(RedisPool::class, m::any())->andReturnUsing(
-            fn ($class, $arguments) => new PoolManagerTestPool($container, $arguments['name'])
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->allows('make')->with(RedisConfig::class)->returns($redisConfig);
+        $container->allows('has')->returns(false);
+        $container->allows('bound')->with('events')->returns(false);
+        $container->allows('make')->with(RedisPool::class, Argument::any())->resolves(
+            fn ($class, $arguments) => new PoolManagerTestPool($container->instance(), $arguments['name'])
         );
 
-        return $container;
+        return $container->instance();
     }
 }
 
