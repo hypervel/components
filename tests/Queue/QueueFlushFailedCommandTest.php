@@ -8,19 +8,22 @@ use Hypervel\Foundation\Application;
 use Hypervel\Queue\Console\FlushFailedCommand;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 
 class QueueFlushFailedCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testProhibitedCommandDoesNotFlushFailedJobs(): void
     {
         FlushFailedCommand::prohibit();
 
-        $provider = m::mock(FailedJobProviderInterface::class);
-        $provider->shouldNotReceive('flush');
+        $provider = Double::for(FailedJobProviderInterface::class)->strict();
+        $provider->expects('flush')->never();
         $app = new Application;
         $app->instance(FailedJobProviderInterface::class, $provider);
         $command = new FlushFailedCommand;
@@ -34,7 +37,7 @@ class QueueFlushFailedCommandTest extends TestCase
     #[DataProvider('retentionOptions')]
     public function testFlushesFailedJobs(array $options, ?int $hours, ?string $queue, string $message): void
     {
-        $provider = m::mock(FailedJobProviderInterface::class);
+        $provider = Double::for(FailedJobProviderInterface::class)->strict();
         $provider->expects('flush')->with($hours, $queue);
         $app = new Application;
         $app->instance(FailedJobProviderInterface::class, $provider);

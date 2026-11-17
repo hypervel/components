@@ -12,13 +12,16 @@ use Hypervel\Queue\Console\ListenCommand;
 use Hypervel\Queue\Listener;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 
 class QueueCommandIdentifierTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function defineEnvironment(ApplicationContract $app): void
     {
         $config = $app->make('config');
@@ -35,11 +38,11 @@ class QueueCommandIdentifierTest extends TestCase
         string $expectedConnection,
         string $expectedQueue,
     ): void {
-        $resolvedQueue = m::mock(Queue::class, ClearableQueue::class);
-        $resolvedQueue->shouldReceive('clear')->once()->with($expectedQueue)->andReturn(1);
+        $resolvedQueue = Double::for(Queue::class, ClearableQueue::class)->strict();
+        $resolvedQueue->expects('clear')->with($expectedQueue)->returns(1);
 
-        $manager = m::mock(QueueManager::class);
-        $manager->shouldReceive('connection')->once()->with($expectedConnection)->andReturn($resolvedQueue);
+        $manager = Double::for(QueueManager::class)->strict();
+        $manager->expects('connection')->with($expectedConnection)->returns($resolvedQueue);
         $this->app->instance('queue', $manager);
 
         $command = new ClearCommand;
@@ -64,8 +67,8 @@ class QueueCommandIdentifierTest extends TestCase
     ): void {
         $this->app->make('config')->set("queue.connections.{$expectedConnection}.queue", $expectedQueue);
 
-        $listener = m::mock(Listener::class);
-        $listener->shouldReceive('setOutputHandler')->once();
+        $listener = Double::for(Listener::class)->strict();
+        $listener->expects('setOutputHandler');
 
         $command = new QueueIdentifierListenCommand($this->app->make('config'), $listener);
 

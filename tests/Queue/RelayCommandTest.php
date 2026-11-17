@@ -9,15 +9,19 @@ use Hypervel\Queue\Outbox\OutboxWorkerOptions;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class RelayCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCommandPassesThePinnedSourceAndTypedOptionsToTheWorker(): void
     {
-        $worker = m::mock(OutboxWorker::class);
-        $worker->expects('run')->with('orders', m::on(function (OutboxWorkerOptions $options): bool {
+        $worker = Double::for(OutboxWorker::class)->strict();
+        $worker->expects('run')->with('orders', Argument::satisfies(function (OutboxWorkerOptions $options): bool {
             $this->assertEquals(new OutboxWorkerOptions(
                 batch: 50,
                 sleep: 0.25,
@@ -30,7 +34,7 @@ class RelayCommandTest extends TestCase
             ), $options);
 
             return true;
-        }))->andReturn(12);
+        }))->returns(12);
         $this->app->instance(OutboxWorker::class, $worker);
 
         $this->assertSame(12, Artisan::call('queue:relay', [
@@ -48,8 +52,8 @@ class RelayCommandTest extends TestCase
 
     public function testCommandDefaultsToAllConfiguredSources(): void
     {
-        $worker = m::mock(OutboxWorker::class);
-        $worker->expects('run')->with(null, m::on(fn (OutboxWorkerOptions $options): bool => $options == new OutboxWorkerOptions))->andReturn(0);
+        $worker = Double::for(OutboxWorker::class)->strict();
+        $worker->expects('run')->with(null, Argument::satisfies(fn (OutboxWorkerOptions $options): bool => $options == new OutboxWorkerOptions))->returns(0);
         $this->app->instance(OutboxWorker::class, $worker);
 
         $this->assertSame(0, Artisan::call('queue:relay'));
@@ -59,8 +63,8 @@ class RelayCommandTest extends TestCase
     {
         $originalLimit = ini_get('memory_limit');
         ini_set('memory_limit', (string) (memory_get_usage(true) * 4));
-        $worker = m::mock(OutboxWorker::class);
-        $worker->expects('run')->with(null, m::on(fn (OutboxWorkerOptions $options): bool => $options->memory === '60%'))->andReturn(0);
+        $worker = Double::for(OutboxWorker::class)->strict();
+        $worker->expects('run')->with(null, Argument::satisfies(fn (OutboxWorkerOptions $options): bool => $options->memory === '60%'))->returns(0);
         $this->app->instance(OutboxWorker::class, $worker);
 
         try {
@@ -73,7 +77,7 @@ class RelayCommandTest extends TestCase
     #[DataProvider('invalidOptions')]
     public function testInvalidOptionsFailBeforeTheWorkerStarts(array $options): void
     {
-        $this->app->instance(OutboxWorker::class, m::mock(OutboxWorker::class));
+        $this->app->instance(OutboxWorker::class, Double::for(OutboxWorker::class)->strict());
         $this->expectException(InvalidArgumentException::class);
 
         Artisan::call('queue:relay', $options);
