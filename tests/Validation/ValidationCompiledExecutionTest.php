@@ -24,7 +24,9 @@ use Hypervel\Validation\Rules\Concerns\FormatsParameters;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\In;
 use Hypervel\Validation\Validator;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
@@ -35,6 +37,8 @@ use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 
 class ValidationCompiledExecutionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBasicPassFail(): void
     {
         $v = $this->makeValidator(['name' => 'John'], ['name' => 'required|string|max:255']);
@@ -810,12 +814,12 @@ class ValidationCompiledExecutionTest extends TestCase
     public function testUniqueWhereValuesRemainLiteralWhileIgnoreFieldsResolve(): void
     {
         foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
-            $verifier = m::mock(PresenceVerifierInterface::class);
-            $verifier->shouldReceive('getCount')->once()->with(
-                m::on(static function (PresenceQuery $query): bool {
+            $verifier = Double::for(PresenceVerifierInterface::class)->strict();
+            $verifier->expects('getCount')->with(
+                Argument::satisfies(static function (PresenceQuery $query): bool {
                     $actual = get_object_vars($query);
                     $actual['conditions'] = $query->conditions->toArray();
-                    self::assertSame([
+                    return $actual === [
                         'connection' => null,
                         'collection' => 'users',
                         'column' => 'email',
@@ -826,12 +830,10 @@ class ValidationCompiledExecutionTest extends TestCase
                         ],
                         'excludeId' => '42',
                         'idColumn' => 'id',
-                    ], $actual);
-
-                    return true;
+                    ];
                 }),
                 'user@example.com',
-            )->andReturn(0);
+            )->returns(0);
             $validator = $this->makeValidator(
                 ['items' => [['id' => 42, 'email' => 'user@example.com']]],
                 ['items.*.email' => [Rule::unique('users', 'email')->ignore('[items.*.id]')
@@ -855,11 +857,11 @@ class ValidationCompiledExecutionTest extends TestCase
                 Rule::unique('users', 'email')->ignore('[identifier]'),
                 ['unique', 'users', 'email', '[identifier]'],
             ] as $rule) {
-                $verifier = m::mock(PresenceVerifierInterface::class);
-                $verifier->shouldReceive('getCount')->once()->with(
-                    m::on(static fn (PresenceQuery $query): bool => $query->excludeId === '123.00000000000001'),
+                $verifier = Double::for(PresenceVerifierInterface::class)->strict();
+                $verifier->expects('getCount')->with(
+                    Argument::satisfies(static fn (PresenceQuery $query): bool => $query->excludeId === '123.00000000000001'),
                     'user@example.com',
-                )->andReturn(0);
+                )->returns(0);
                 $validator = $this->makeValidator(
                     ['identifier' => $identifier, 'email' => 'user@example.com'],
                     ['email' => [$rule]],
@@ -1319,8 +1321,8 @@ class ValidationCompiledExecutionTest extends TestCase
             return true;
         });
         $conditions = [];
-        $verifier = m::mock(PresenceVerifierInterface::class);
-        $verifier->expects('getCount')->times(6)->andReturnUsing(function (PresenceQuery $query, mixed $value) use (&$conditions): int {
+        $verifier = Double::for(PresenceVerifierInterface::class)->strict();
+        $verifier->expects('getCount')->times(6)->resolves(function (PresenceQuery $query, mixed $value) use (&$conditions): int {
             $this->assertSame('users', $query->collection);
             $this->assertSame('custom_email', $query->column);
             $this->assertSame('user@example.com', $value);
@@ -1430,8 +1432,8 @@ class ValidationCompiledExecutionTest extends TestCase
                 return parent::validateExists($attribute, $value, $parameters);
             }
         };
-        $verifier = m::mock(PresenceVerifierInterface::class);
-        $verifier->expects('getCount')->times($wildcard ? 2 : 1)->andReturn(1);
+        $verifier = Double::for(PresenceVerifierInterface::class)->strict();
+        $verifier->expects('getCount')->times($wildcard ? 2 : 1)->returns(1);
         $validator->setPresenceVerifier($verifier);
 
         $this->assertTrue($validator->passes());

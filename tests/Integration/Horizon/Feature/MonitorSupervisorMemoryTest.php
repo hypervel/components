@@ -12,10 +12,13 @@ use Hypervel\Horizon\Supervisor;
 use Hypervel\Horizon\SupervisorOptions;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class MonitorSupervisorMemoryTest extends IntegrationTestCase
 {
+    use VerifiesDoubles;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -29,11 +32,11 @@ class MonitorSupervisorMemoryTest extends IntegrationTestCase
 
         $monitor = new MonitorSupervisorMemory;
 
-        $supervisor = m::mock(Supervisor::class);
+        $supervisor = Double::for(Supervisor::class)->strict();
         $supervisor->options = new SupervisorOptions('redis', 'default');
 
-        $supervisor->shouldReceive('memoryUsage')->andReturn(192);
-        $supervisor->shouldReceive('terminate')->once()->with(12);
+        $supervisor->allows('memoryUsage')->returns(192);
+        $supervisor->expects('terminate')->with(12);
 
         $monitor->handle(new SupervisorLooped($supervisor));
 
@@ -53,10 +56,10 @@ class MonitorSupervisorMemoryTest extends IntegrationTestCase
             }
         );
 
-        $supervisor = m::mock(Supervisor::class);
+        $supervisor = Double::for(Supervisor::class)->strict();
         $supervisor->options = new SupervisorOptions('redis', 'default');
-        $supervisor->shouldReceive('memoryUsage')->once()->andReturn(192);
-        $supervisor->shouldReceive('terminate')->once()->with(12);
+        $supervisor->expects('memoryUsage')->returns(192);
+        $supervisor->expects('terminate')->with(12);
 
         (new MonitorSupervisorMemory)->handle(new SupervisorLooped($supervisor));
 
@@ -67,11 +70,11 @@ class MonitorSupervisorMemoryTest extends IntegrationTestCase
     {
         $monitor = new MonitorSupervisorMemory;
 
-        $supervisor = m::mock(Supervisor::class);
+        $supervisor = Double::for(Supervisor::class)->strict();
         $supervisor->options = new SupervisorOptions('redis', 'default');
 
-        $supervisor->shouldReceive('memoryUsage')->andReturn(64);
-        $supervisor->shouldReceive('terminate')->never();
+        $supervisor->allows('memoryUsage')->returns(64);
+        $supervisor->expects('terminate')->never();
 
         $monitor->handle(new SupervisorLooped($supervisor));
     }

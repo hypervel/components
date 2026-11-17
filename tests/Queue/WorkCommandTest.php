@@ -17,7 +17,9 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -25,6 +27,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class WorkCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Configure the command's application environment.
      */
@@ -38,17 +42,17 @@ class WorkCommandTest extends TestCase
     #[DataProvider('jobOutputProvider')]
     public function testJobOutputIncludesVerboseDetailsOnlyWhenRequested(bool $verbose, int|string|null $jobId): void
     {
-        $job = m::mock(Job::class);
-        $job->shouldReceive('getJobId')->andReturn($jobId);
-        $job->shouldReceive('resolveName')->andReturn('App\Jobs\SendInvoice');
-        $job->shouldReceive('getConnectionName')->andReturn('redis');
-        $job->shouldReceive('getQueue')->andReturn('invoices');
-        $job->shouldReceive('isReleased')->andReturnFalse();
+        $job = Double::for(Job::class)->strict();
+        $job->allows('getJobId')->returns($jobId);
+        $job->allows('resolveName')->returns('App\Jobs\SendInvoice');
+        $job->allows('getConnectionName')->returns('redis');
+        $job->allows('getQueue')->returns('invoices');
+        $job->allows('isReleased')->returns(false);
 
         $command = new WorkCommandOutputStub(
             $this->app,
             $this->app->make('config'),
-            m::mock(Worker::class),
+            Double::for(Worker::class)->strict(),
             $this->app->make('cache'),
         );
         $output = new BufferedOutput($verbose ? OutputInterface::VERBOSITY_VERBOSE : OutputInterface::VERBOSITY_NORMAL);
@@ -91,7 +95,7 @@ class WorkCommandTest extends TestCase
         $command = new WorkCommandOutputStub(
             $this->app,
             $this->app->make('config'),
-            m::mock(Worker::class),
+            Double::for(Worker::class)->strict(),
             $this->app->make('cache'),
         );
         $command->setInput(new ArrayInput(['--sleep' => '0.5', '--rest' => '0.25'], $command->getDefinition()));
@@ -107,7 +111,7 @@ class WorkCommandTest extends TestCase
         $command = new WorkCommandOutputStub(
             $this->app,
             $this->app->make('config'),
-            m::mock(Worker::class),
+            Double::for(Worker::class)->strict(),
             $this->app->make('cache'),
         );
         $command->setInput(new ArrayInput(['--memory' => '50%'], $command->getDefinition()));
@@ -285,13 +289,12 @@ class WorkCommandTest extends TestCase
      */
     private function runWorkerCommand(WorkerStopping $event, BufferedOutput $output, array $arguments = []): void
     {
-        $worker = m::mock(Worker::class);
-        $worker->shouldReceive('setName')->once()->with('default')->andReturnSelf();
-        $worker->shouldReceive('setCache')->once()->with(m::type(Repository::class))->andReturnSelf();
-        $worker->shouldReceive('daemon')
-            ->once()
-            ->with('sync', 'default', m::type(WorkerOptions::class))
-            ->andReturnUsing(function (string $connection, string $queue, WorkerOptions $options) use ($event): int {
+        $worker = Double::for(Worker::class)->strict();
+        $worker->expects('setName')->with('default');
+        $worker->expects('setCache')->with(Argument::type(Repository::class));
+        $worker->expects('daemon')
+            ->with('sync', 'default', Argument::type(WorkerOptions::class))
+            ->resolves(function (string $connection, string $queue, WorkerOptions $options) use ($event): int {
                 $event->workerOptions = $options;
                 $this->app->make('events')->dispatch($event);
 

@@ -14,7 +14,7 @@ use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
 
 class PresenceChannelTest extends ReverbTestCase
 {
@@ -22,12 +22,15 @@ class PresenceChannelTest extends ReverbTestCase
 
     protected ChannelConnectionManager $channelConnectionManager;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->connection = new FakeConnection;
-        $this->channelConnectionManager = m::mock(ArrayChannelConnectionManager::class)->makePartial();
+        $this->channelConnectionManager = Double::for(new ArrayChannelConnectionManager)->passthru();
         $this->app->bind(ChannelConnectionManager::class, fn () => $this->channelConnectionManager);
     }
 
@@ -54,9 +57,8 @@ class PresenceChannelTest extends ReverbTestCase
     {
         $channel = new PresenceChannel('presence-test-channel');
 
-        $this->channelConnectionManager->shouldReceive('all')
-            ->once()
-            ->andReturn($connections = static::factory(3));
+        $this->channelConnectionManager->expects('all')
+            ->returns($connections = static::factory(3));
 
         $channel->broadcast(['foo' => 'bar']);
 
@@ -85,9 +87,9 @@ class PresenceChannelTest extends ReverbTestCase
             collect(static::factory(data: ['user_info' => ['name' => 'Joe'], 'user_id' => 2]))->first(),
         ];
 
-        $this->channelConnectionManager->shouldReceive('all')
-            ->twice()
-            ->andReturn($connections);
+        $this->channelConnectionManager->expects('all')
+            ->times(2)
+            ->returns($connections);
 
         $this->assertSame([
             'presence' => [
@@ -111,9 +113,9 @@ class PresenceChannelTest extends ReverbTestCase
             collect(static::factory(data: ['user_id' => 2, 'user_info' => []]))->first(),
         ];
 
-        $this->channelConnectionManager->shouldReceive('all')
-            ->twice()
-            ->andReturn($connections);
+        $this->channelConnectionManager->expects('all')
+            ->times(2)
+            ->returns($connections);
 
         $this->assertSame(
             '{"presence":{"count":2,"ids":[1,2],"hash":{"1":{},"2":{}}}}',
@@ -125,12 +127,11 @@ class PresenceChannelTest extends ReverbTestCase
     {
         $channel = $this->channels()->findOrCreate('presence-test-channel');
 
-        $this->channelConnectionManager->shouldReceive('add')
-            ->once()
+        $this->channelConnectionManager->expects('add')
             ->with($this->connection, []);
 
-        $this->channelConnectionManager->shouldReceive('all')
-            ->andReturn($connections = static::factory(3));
+        $this->channelConnectionManager->allows('all')
+            ->returns($connections = static::factory(3));
 
         $channel->subscribe($this->connection, static::validAuth($this->connection->id(), 'presence-test-channel'));
 
@@ -146,12 +147,11 @@ class PresenceChannelTest extends ReverbTestCase
         $channel = $this->channels()->findOrCreate('presence-test-channel');
         $data = json_encode(['name' => 'Joe']);
 
-        $this->channelConnectionManager->shouldReceive('add')
-            ->once()
+        $this->channelConnectionManager->expects('add')
             ->with($this->connection, ['name' => 'Joe']);
 
-        $this->channelConnectionManager->shouldReceive('all')
-            ->andReturn($connections = static::factory(3));
+        $this->channelConnectionManager->allows('all')
+            ->returns($connections = static::factory(3));
 
         $channel->subscribe(
             $this->connection,
@@ -177,14 +177,13 @@ class PresenceChannelTest extends ReverbTestCase
             $data
         );
 
-        $this->channelConnectionManager->shouldReceive('find')
-            ->andReturn(new ChannelConnection($this->connection, ['user_info' => ['name' => 'Joe'], 'user_id' => 1]));
+        $this->channelConnectionManager->allows('find')
+            ->returns(new ChannelConnection($this->connection, ['user_info' => ['name' => 'Joe'], 'user_id' => 1]));
 
-        $this->channelConnectionManager->shouldReceive('all')
-            ->andReturn($connections = static::factory(3));
+        $this->channelConnectionManager->allows('all')
+            ->returns($connections = static::factory(3));
 
-        $this->channelConnectionManager->shouldReceive('remove')
-            ->once()
+        $this->channelConnectionManager->expects('remove')
             ->with($this->connection);
 
         $channel->unsubscribe($this->connection);
@@ -222,10 +221,10 @@ class PresenceChannelTest extends ReverbTestCase
                 && $event['user_id'] === '0';
         });
 
-        $this->channelConnectionManager->shouldReceive('find')
-            ->andReturn(new ChannelConnection($this->connection, ['user_info' => ['name' => 'Zero'], 'user_id' => 0]));
-        $this->channelConnectionManager->shouldReceive('all')
-            ->andReturn([]);
+        $this->channelConnectionManager->allows('find')
+            ->returns(new ChannelConnection($this->connection, ['user_info' => ['name' => 'Zero'], 'user_id' => 0]));
+        $this->channelConnectionManager->allows('all')
+            ->returns([]);
 
         Queue::fake();
 
@@ -246,8 +245,8 @@ class PresenceChannelTest extends ReverbTestCase
         $connectionOne = collect(static::factory(data: ['user_info' => ['name' => 'Joe'], 'user_id' => 1]))->first();
         $connectionTwo = collect(static::factory(data: ['user_info' => ['name' => 'Joe'], 'user_id' => 1]))->first();
 
-        $this->channelConnectionManager->shouldReceive('all')
-            ->andReturn([$connectionOne, $connectionTwo]);
+        $this->channelConnectionManager->allows('all')
+            ->returns([$connectionOne, $connectionTwo]);
 
         $channel->subscribe($connectionOne->connection(), static::validAuth($connectionOne->id(), 'presence-test-channel', $data = json_encode($connectionOne->data())), $data);
         $channel->subscribe($connectionTwo->connection(), static::validAuth($connectionTwo->id(), 'presence-test-channel', $data = json_encode($connectionTwo->data())), $data);
@@ -267,11 +266,11 @@ class PresenceChannelTest extends ReverbTestCase
         $channel->subscribe($connectionOne->connection(), static::validAuth($connectionOne->id(), 'presence-test-channel', $data = json_encode($connectionOne->data())), $data);
         $channel->subscribe($connectionTwo->connection(), static::validAuth($connectionTwo->id(), 'presence-test-channel', $data = json_encode($connectionTwo->data())), $data);
 
-        $this->channelConnectionManager->shouldReceive('find')
-            ->andReturn($connectionTwo);
+        $this->channelConnectionManager->allows('find')
+            ->returns($connectionTwo);
 
-        $this->channelConnectionManager->shouldReceive('all')
-            ->andReturn([$connectionOne, $connectionTwo]);
+        $this->channelConnectionManager->allows('all')
+            ->returns([$connectionOne, $connectionTwo]);
 
         // First unsubscribe — user still has another connection, so no member_removed
         $channel->unsubscribe($connectionTwo->connection());
@@ -300,8 +299,8 @@ class PresenceChannelTest extends ReverbTestCase
             $data
         );
 
-        $this->channelConnectionManager->shouldReceive('find')
-            ->andReturn(new ChannelConnection($this->connection, ['user_info' => ['name' => 'Test'], 'user_id' => '1']));
+        $this->channelConnectionManager->allows('find')
+            ->returns(new ChannelConnection($this->connection, ['user_info' => ['name' => 'Test'], 'user_id' => '1']));
 
         Queue::fake();
 
@@ -334,8 +333,8 @@ class PresenceChannelTest extends ReverbTestCase
             $data
         );
 
-        $this->channelConnectionManager->shouldReceive('find')
-            ->andReturn(new ChannelConnection($this->connection, ['user_info' => ['name' => 'Test'], 'user_id' => '1']));
+        $this->channelConnectionManager->allows('find')
+            ->returns(new ChannelConnection($this->connection, ['user_info' => ['name' => 'Test'], 'user_id' => '1']));
 
         Queue::fake();
 
@@ -418,8 +417,8 @@ class PresenceChannelTest extends ReverbTestCase
         // Set up mock to return connections for the internal broadcast
         $listener = new FakeConnection;
         $listenerChannelConnection = new ChannelConnection($listener);
-        $this->channelConnectionManager->shouldReceive('all')
-            ->andReturn([$listenerChannelConnection]);
+        $this->channelConnectionManager->allows('all')
+            ->returns([$listenerChannelConnection]);
 
         // Reconnect
         $newConnection = new FakeConnection;

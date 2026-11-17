@@ -4,18 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Foundation\Console\Actions;
 
-use Hypervel\Console\View\Components\Factory as ComponentsFactory;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Foundation\Console\Actions\DeleteDirectories;
 use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Console\Fixtures\ComponentsFactory;
 use Hypervel\Tests\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 
 class DeleteDirectoriesTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected string $tempDir;
 
     protected function setUp(): void
@@ -38,19 +41,19 @@ class DeleteDirectoriesTest extends TestCase
     #[Test]
     public function itCanDeleteDirectories(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $components = m::mock(ComponentsFactory::class);
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $components = Double::for(ComponentsFactory::class)->strict();
 
-        $filesystem->shouldReceive('isDirectory')->once()->with('a')->andReturnTrue()
-            ->shouldReceive('deleteDirectory')->once()->with('a')->andReturnTrue()
-            ->shouldReceive('isDirectory')->once()->with('b')->andReturnFalse()
-            ->shouldReceive('deleteDirectory')->never()->with('b')
-            ->shouldReceive('isDirectory')->once()->with('c/d')->andReturnTrue()
-            ->shouldReceive('deleteDirectory')->once()->with('c/d')->andReturnTrue();
+        $filesystem->expects('isDirectory')->with('a')->returns(true);
+        $filesystem->expects('deleteDirectory')->with('a')->returns(true);
+        $filesystem->expects('isDirectory')->with('b')->returns(false);
+        $filesystem->expects('deleteDirectory')->never()->with('b');
+        $filesystem->expects('isDirectory')->with('c/d')->returns(true);
+        $filesystem->expects('deleteDirectory')->with('c/d')->returns(true);
 
-        $components->shouldReceive('task')->once()->with('Directory [a] has been deleted')->andReturnNull()
-            ->shouldReceive('twoColumnDetail')->once()->with('Directory [b] doesn\'t exist', '<fg=yellow;options=bold>SKIPPED</>')->andReturnNull()
-            ->shouldReceive('task')->once()->with('Directory [c/d] has been deleted')->andReturnNull();
+        $components->expects('task')->with('Directory [a] has been deleted');
+        $components->expects('twoColumnDetail')->with('Directory [b] doesn\'t exist', '<fg=yellow;options=bold>SKIPPED</>');
+        $components->expects('task')->with('Directory [c/d] has been deleted');
 
         (new DeleteDirectories(
             filesystem: $filesystem,
@@ -61,15 +64,15 @@ class DeleteDirectoriesTest extends TestCase
     #[Test]
     public function itCanPretendToDeleteDirectories(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $components = m::mock(ComponentsFactory::class);
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $components = Double::for(ComponentsFactory::class)->strict();
 
-        $filesystem->shouldReceive('isDirectory')->once()->with('a')->andReturnTrue()
-            ->shouldReceive('isDirectory')->once()->with('b')->andReturnFalse()
-            ->shouldReceive('deleteDirectory')->never();
+        $filesystem->expects('isDirectory')->with('a')->returns(true);
+        $filesystem->expects('isDirectory')->with('b')->returns(false);
+        $filesystem->expects('deleteDirectory')->never();
 
-        $components->shouldReceive('task')->once()->with('Directory [a] would be deleted')->andReturnNull()
-            ->shouldReceive('twoColumnDetail')->once()->with('Directory [b] doesn\'t exist', '<fg=yellow;options=bold>SKIPPED</>')->andReturnNull();
+        $components->expects('task')->with('Directory [a] would be deleted');
+        $components->expects('twoColumnDetail')->with('Directory [b] doesn\'t exist', '<fg=yellow;options=bold>SKIPPED</>');
 
         (new DeleteDirectories(
             filesystem: $filesystem,
@@ -81,13 +84,13 @@ class DeleteDirectoriesTest extends TestCase
     #[Test]
     public function itAttemptsEveryDirectoryBeforeReportingDeletionFailures(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $components = m::mock(ComponentsFactory::class);
-        $filesystem->expects('isDirectory')->with('a')->andReturnTrue();
-        $filesystem->expects('deleteDirectory')->with('a')->andReturnFalse();
-        $filesystem->expects('isDirectory')->with('b')->andReturnTrue();
-        $filesystem->expects('deleteDirectory')->with('b')->andReturnTrue();
-        $components->shouldNotReceive('task')->with('Directory [a] has been deleted');
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $components = Double::for(ComponentsFactory::class)->strict();
+        $filesystem->expects('isDirectory')->with('a')->returns(true);
+        $filesystem->expects('deleteDirectory')->with('a')->returns(false);
+        $filesystem->expects('isDirectory')->with('b')->returns(true);
+        $filesystem->expects('deleteDirectory')->with('b')->returns(true);
+        $components->expects('task')->never()->with('Directory [a] has been deleted');
         $components->expects('task')->with('Directory [b] has been deleted');
 
         $this->expectException(RuntimeException::class);

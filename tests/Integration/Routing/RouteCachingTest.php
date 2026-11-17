@@ -9,12 +9,15 @@ use Hypervel\Container\Container;
 use Hypervel\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
 use Hypervel\Routing\Contracts\ControllerDispatcher as ControllerDispatcherContract;
 use Hypervel\Routing\Route;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Laravel\SerializableClosure\SerializableClosure;
-use Mockery as m;
 use ReflectionProperty;
 
 class RouteCachingTest extends RoutingTestCase
 {
+    use VerifiesDoubles;
+
     public function testWildcardCatchAllRoutes(): void
     {
         $this->defineCacheRoutes(file_get_contents(dirname(__DIR__, 2) . '/Routing/Fixtures/wildcard_catch_all_routes.php'));
@@ -46,7 +49,7 @@ class RouteCachingTest extends RoutingTestCase
     public function testSetContainerInvalidatesControllerDispatcherCache(): void
     {
         $container1 = new Container;
-        $dispatcher1 = m::mock(ControllerDispatcherContract::class);
+        $dispatcher1 = Double::for(ControllerDispatcherContract::class)->strict();
         $container1->singleton(ControllerDispatcherContract::class, fn () => $dispatcher1);
 
         $route = new Route('GET', '/test', ['uses' => 'FooController@bar']);
@@ -57,7 +60,7 @@ class RouteCachingTest extends RoutingTestCase
 
         // Swap to a new container with a different dispatcher.
         $container2 = new Container;
-        $dispatcher2 = m::mock(ControllerDispatcherContract::class);
+        $dispatcher2 = Double::for(ControllerDispatcherContract::class)->strict();
         $container2->singleton(ControllerDispatcherContract::class, fn () => $dispatcher2);
 
         $route->setContainer($container2);
@@ -69,8 +72,8 @@ class RouteCachingTest extends RoutingTestCase
 
     public function testSetContainerInvalidatesCallableDispatcherCache(): void
     {
-        $dispatcher1 = m::mock(CallableDispatcherContract::class);
-        $dispatcher1->shouldReceive('dispatch')->once()->andReturn('result1');
+        $dispatcher1 = Double::for(CallableDispatcherContract::class)->strict();
+        $dispatcher1->expects('dispatch')->returns('result1');
 
         $container1 = new Container;
         $container1->singleton(CallableDispatcherContract::class, fn () => $dispatcher1);
@@ -84,8 +87,8 @@ class RouteCachingTest extends RoutingTestCase
         $this->assertSame($dispatcher1, $cached1);
 
         // Swap container — cache should be invalidated.
-        $dispatcher2 = m::mock(CallableDispatcherContract::class);
-        $dispatcher2->shouldReceive('dispatch')->once()->andReturn('result2');
+        $dispatcher2 = Double::for(CallableDispatcherContract::class)->strict();
+        $dispatcher2->expects('dispatch')->returns('result2');
 
         $container2 = new Container;
         $container2->singleton(CallableDispatcherContract::class, fn () => $dispatcher2);
@@ -104,8 +107,8 @@ class RouteCachingTest extends RoutingTestCase
         $closure = fn () => 'result';
         $serialized = serialize(SerializableClosure::unsigned($closure));
 
-        $dispatcher = m::mock(CallableDispatcherContract::class);
-        $dispatcher->shouldReceive('dispatch')->twice()->andReturn('result');
+        $dispatcher = Double::for(CallableDispatcherContract::class)->strict();
+        $dispatcher->expects('dispatch')->times(2)->returns('result');
 
         $container = new Container;
         $container->singleton(CallableDispatcherContract::class, fn () => $dispatcher);
@@ -130,8 +133,8 @@ class RouteCachingTest extends RoutingTestCase
 
     public function testSetActionInvalidatesCallableCache(): void
     {
-        $dispatcher = m::mock(CallableDispatcherContract::class);
-        $dispatcher->shouldReceive('dispatch')->once()->andReturn('result');
+        $dispatcher = Double::for(CallableDispatcherContract::class)->strict();
+        $dispatcher->expects('dispatch')->returns('result');
 
         $container = new Container;
         $container->singleton(CallableDispatcherContract::class, fn () => $dispatcher);
@@ -202,10 +205,10 @@ class RouteCachingTest extends RoutingTestCase
 
     public function testPrepareForSerializationClearsAllCaches(): void
     {
-        $dispatcher = m::mock(CallableDispatcherContract::class);
-        $dispatcher->shouldReceive('dispatch')->once()->andReturn('result');
+        $dispatcher = Double::for(CallableDispatcherContract::class)->strict();
+        $dispatcher->expects('dispatch')->returns('result');
 
-        $controllerDispatcher = m::mock(ControllerDispatcherContract::class);
+        $controllerDispatcher = Double::for(ControllerDispatcherContract::class)->strict();
 
         $container = new Container;
         $container->singleton(CallableDispatcherContract::class, fn () => $dispatcher);

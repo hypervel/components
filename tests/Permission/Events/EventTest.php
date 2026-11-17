@@ -14,10 +14,14 @@ use Hypervel\Permission\Events\RoleDetachedEvent;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 use Hypervel\Tests\Permission\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class EventTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRoleAttachedEventIsNotDispatchedWhenEventsAreDisabled(): void
     {
         Event::fake([RoleAttachedEvent::class]);
@@ -31,10 +35,10 @@ class EventTest extends TestCase
     {
         $this->app->make('config')->set('permission.events_enabled', true);
 
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->byDefault()->andReturnFalse();
-        $events->shouldReceive('hasListeners')->once()->with(RoleAttachedEvent::class)->andReturnFalse();
-        $events->shouldReceive('dispatch')->with(m::type(RoleAttachedEvent::class), m::any(), m::any())->never();
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->allows('hasListeners')->with(Argument::not(RoleAttachedEvent::class))->returns(false);
+        $events->expects('hasListeners')->with(RoleAttachedEvent::class)->returns(false);
+        $events->expects('dispatch')->with(Argument::type(RoleAttachedEvent::class), Argument::any(), Argument::any())->never();
 
         $this->app->instance('events', $events);
         $this->app->instance(Dispatcher::class, $events);

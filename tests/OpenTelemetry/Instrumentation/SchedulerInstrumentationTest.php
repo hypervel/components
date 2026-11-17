@@ -21,7 +21,8 @@ use Hypervel\OpenTelemetry\Support\OperationOrigin;
 use Hypervel\OpenTelemetry\Support\ProcessIdentity;
 use Hypervel\Tests\OpenTelemetry\Fixtures\CapturingAlwaysOffSampler;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\SpanContext;
@@ -53,6 +54,8 @@ use function Hypervel\Coroutine\parallel;
 
 class SchedulerInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private const string DURATION_METRIC = 'hypervel.scheduler.task.duration';
 
     private const string EXECUTIONS_METRIC = 'hypervel.scheduler.task.executions';
@@ -360,8 +363,8 @@ class SchedulerInstrumentationTest extends TestCase
      */
     private function instrumentation(): SchedulerInstrumentation
     {
-        $logContextScopes = m::mock(LogContextScopeFactory::class);
-        $logContextScopes->shouldReceive('activate')->zeroOrMoreTimes()->andReturnNull();
+        $logContextScopes = Double::for(LogContextScopeFactory::class)->strict();
+        $logContextScopes->allows('activate')->returns(null);
 
         return new SchedulerInstrumentation(
             $this->events,

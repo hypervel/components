@@ -7,7 +7,8 @@ namespace Hypervel\Tests\Sentry;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Sentry\Transport\HttpTransportPool;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Psr\Log\AbstractLogger;
 use ReflectionProperty;
 use Sentry\ClientBuilder;
@@ -20,6 +21,8 @@ use Stringable;
 
 class HttpTransportPoolTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testEachTransportGetsItsOwnDefaultClientIdentifiedByTheBuilder(): void
     {
         $builder = new ClientBuilder;
@@ -43,10 +46,10 @@ class HttpTransportPoolTest extends TestCase
 
     public function testTransportsShareTheBuilderClientAndLogThroughTheBuilderLogger(): void
     {
-        $httpClient = m::mock(HttpClientInterface::class);
-        $httpClient->shouldReceive('sendRequest')
-            ->twice()
-            ->andReturn(new Response(200, [], ''));
+        $httpClient = Double::for(HttpClientInterface::class)->strict();
+        $httpClient->expects('sendRequest')
+            ->times(2)
+            ->returns(new Response(200, [], ''));
         $logger = new class extends AbstractLogger {
             /** @var list<string> */
             public array $messages = [];
@@ -79,10 +82,9 @@ class HttpTransportPoolTest extends TestCase
 
     public function testPooledTransportRetainsRateLimitsFromRealResponses(): void
     {
-        $httpClient = m::mock(HttpClientInterface::class);
-        $httpClient->shouldReceive('sendRequest')
-            ->once()
-            ->andReturn(new Response(429, [
+        $httpClient = Double::for(HttpClientInterface::class)->strict();
+        $httpClient->expects('sendRequest')
+            ->returns(new Response(429, [
                 'X-Sentry-Rate-Limits' => ['60:error'],
             ], ''));
 

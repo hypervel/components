@@ -10,7 +10,9 @@ use Hypervel\Http\Request;
 use Hypervel\Socialite\Two\BitbucketProvider;
 use Hypervel\Socialite\Two\GithubProvider;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -18,6 +20,8 @@ use Throwable;
 
 class EmailLookupTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('emailFailures')]
     public function testOnlyOrdinaryEmailFailuresAllowAuthenticationToContinue(string $providerClass, string $kind): void
     {
@@ -27,13 +31,18 @@ class EmailLookupTest extends TestCase
             default => new RuntimeException('Email lookup failed.'),
         };
         $provider = new $providerClass(Request::create('/'), 'client', 'secret', 'redirect');
-        $http = m::mock(Client::class);
+        $http = Double::for(Client::class)->strict();
         $provider->setHttpClient($http);
         $userData = $providerClass === GithubProvider::class
             ? ['id' => 'user-id', 'node_id' => 'node-id', 'login' => 'taylor', 'avatar_url' => 'https://example.com/avatar']
             : ['uuid' => 'user-id', 'username' => 'taylor'];
-        $http->shouldReceive('get')->once()->ordered()->andReturn(new Response(body: json_encode($userData)));
-        $http->shouldReceive('get')->once()->ordered()->andThrow($failure);
+        $userUrl = $providerClass === GithubProvider::class
+            ? 'https://api.github.com/user'
+            : 'https://api.bitbucket.org/2.0/user';
+        $http->expects('get')->with($userUrl, Argument::type('array'))->ordered()
+            ->returns(new Response(body: json_encode($userData)));
+        $http->expects('get')->with($userUrl . '/emails', Argument::type('array'))->ordered()
+            ->throws($failure);
         $caught = null;
         $user = null;
 

@@ -11,7 +11,8 @@ use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Prompts\Support\PromptAnimation;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
 use Swoole\Coroutine as SwooleCoroutine;
@@ -19,6 +20,8 @@ use Swoole\Coroutine\CanceledException;
 
 class PromptAnimationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected bool $runTestsInCoroutine = false;
 
     #[RunInSeparateProcess]
@@ -30,11 +33,10 @@ class PromptAnimationTest extends TestCase
             $releaseReport = new Channel(1);
             $parentCoroutineId = EngineCoroutine::id();
             $childCoroutineId = null;
-            $exceptionHandler = m::mock(ExceptionHandlerContract::class);
-            $exceptionHandler->shouldReceive('report')
-                ->once()
+            $exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
+            $exceptionHandler->expects('report')
                 ->with($hookFailure)
-                ->andReturnUsing(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
+                ->resolves(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
                     $childCoroutineId = EngineCoroutine::id();
                     $reportStarted->push(true);
                     $releaseReport->pop();

@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
+use Aws\MockHandler;
 use Aws\Sqs\SqsClient;
 use Closure;
-use DateInterval;
-use DateTimeInterface;
 use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
@@ -15,7 +14,6 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Job as JobContract;
-use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
@@ -23,12 +21,14 @@ use Hypervel\Queue\ClearableQueuePoolProxy;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
 use Hypervel\Queue\Jobs\Job;
 use Hypervel\Queue\Jobs\SqsJob;
+use Hypervel\Queue\NullQueue;
 use Hypervel\Queue\Queue as BaseQueue;
 use Hypervel\Queue\QueuePoolProxy;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
 use Pheanstalk\Contract\PheanstalkPublisherInterface;
@@ -42,6 +42,8 @@ use UnitEnum;
 
 class QueuePoolProxyTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /** @var list<PoolManager> */
     private array $poolManagers = [];
 
@@ -54,31 +56,31 @@ class QueuePoolProxyTest extends TestCase
 
     public function testEnumeratedSynchronousSurfaceUsesBorrowScopedInvocation(): void
     {
-        $queue = m::mock(QueuePoolProxyTestQueue::class)->makePartial();
+        $queue = Double::for(new QueuePoolProxyTestQueue)->passthru();
         [$proxy] = $this->proxy(fn () => $queue);
         $proxy->setConnectionName('logical');
 
-        $queue->shouldReceive('size')->once()->with('queue')->andReturn(1);
-        $queue->shouldReceive('pendingSize')->once()->with('queue')->andReturn(2);
-        $queue->shouldReceive('delayedSize')->once()->with('queue')->andReturn(3);
-        $queue->shouldReceive('reservedSize')->once()->with('queue')->andReturn(4);
-        $queue->shouldReceive('totalSize')->once()->withNoArgs()->andReturn(18);
-        $queue->shouldReceive('totalPendingSize')->once()->withNoArgs()->andReturn(5);
-        $queue->shouldReceive('totalDelayedSize')->once()->withNoArgs()->andReturn(6);
-        $queue->shouldReceive('totalReservedSize')->once()->withNoArgs()->andReturn(7);
-        $queue->shouldReceive('pendingJobs')->once()->with('queue')->andReturn($pending = new Collection(['pending']));
-        $queue->shouldReceive('delayedJobs')->once()->with('queue')->andReturn($delayed = new Collection(['delayed']));
-        $queue->shouldReceive('reservedJobs')->once()->with('queue')->andReturn($reserved = new Collection(['reserved']));
-        $queue->shouldReceive('allPendingJobs')->once()->andReturn($allPending = new Collection(['all-pending']));
-        $queue->shouldReceive('allDelayedJobs')->once()->andReturn($allDelayed = new Collection(['all-delayed']));
-        $queue->shouldReceive('allReservedJobs')->once()->andReturn($allReserved = new Collection(['all-reserved']));
-        $queue->shouldReceive('creationTimeOfOldestPendingJob')->once()->with('queue')->andReturn(5);
-        $queue->shouldReceive('push')->once()->with('job', 'data', 'queue')->andReturn('pushed');
-        $queue->shouldReceive('pushOn')->once()->with('queue', 'job', 'data')->andReturn('pushed-on');
-        $queue->shouldReceive('pushRaw')->once()->with('payload', 'queue', ['option' => true])->andReturn('raw');
-        $queue->shouldReceive('later')->once()->with(10, 'job', 'data', 'queue')->andReturn('later');
-        $queue->shouldReceive('laterOn')->once()->with('queue', 10, 'job', 'data')->andReturn('later-on');
-        $queue->shouldReceive('bulk')->once()->with(['job'], 'data', 'queue')->andReturn('bulk');
+        $queue->expects('size')->with('queue')->returns(1);
+        $queue->expects('pendingSize')->with('queue')->returns(2);
+        $queue->expects('delayedSize')->with('queue')->returns(3);
+        $queue->expects('reservedSize')->with('queue')->returns(4);
+        $queue->expects('totalSize')->with()->returns(18);
+        $queue->expects('totalPendingSize')->with()->returns(5);
+        $queue->expects('totalDelayedSize')->with()->returns(6);
+        $queue->expects('totalReservedSize')->with()->returns(7);
+        $queue->expects('pendingJobs')->with('queue')->returns($pending = new Collection(['pending']));
+        $queue->expects('delayedJobs')->with('queue')->returns($delayed = new Collection(['delayed']));
+        $queue->expects('reservedJobs')->with('queue')->returns($reserved = new Collection(['reserved']));
+        $queue->expects('allPendingJobs')->returns($allPending = new Collection(['all-pending']));
+        $queue->expects('allDelayedJobs')->returns($allDelayed = new Collection(['all-delayed']));
+        $queue->expects('allReservedJobs')->returns($allReserved = new Collection(['all-reserved']));
+        $queue->expects('creationTimeOfOldestPendingJob')->with('queue')->returns(5);
+        $queue->expects('push')->with('job', 'data', 'queue')->returns('pushed');
+        $queue->expects('pushOn')->with('queue', 'job', 'data')->returns('pushed-on');
+        $queue->expects('pushRaw')->with('payload', 'queue', ['option' => true])->returns('raw');
+        $queue->expects('later')->with(10, 'job', 'data', 'queue')->returns('later');
+        $queue->expects('laterOn')->with('queue', 10, 'job', 'data')->returns('later-on');
+        $queue->expects('bulk')->with(['job'], 'data', 'queue')->returns('bulk');
 
         $this->assertSame('logical', $proxy->getConnectionName());
         $this->assertSame(1, $proxy->size('queue'));
@@ -146,7 +148,7 @@ class QueuePoolProxyTest extends TestCase
 
     public function testPopDoesNotForwardTheQueueIndexToAnOrdinaryConnectionAndPinsItUntilTheJobTerminates(): void
     {
-        $job = new QueuePoolProxyTestJob(m::mock(ContainerContract::class));
+        $job = new QueuePoolProxyTestJob(Double::for(ContainerContract::class, override: true)->strict()->instance());
         $queue = new QueuePoolProxyTestQueue($job);
         [$proxy, $pools] = $this->proxy(fn () => $queue);
         $proxy->setConnectionName('logical');
@@ -224,8 +226,8 @@ class QueuePoolProxyTest extends TestCase
     {
         $operationException = new Exception('pop failed');
         $finalizationException = new Exception('reset failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($finalizationException);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with($finalizationException);
         [$proxy, $pools] = $this->proxy(
             fn () => new QueuePoolProxyTestQueue(popException: $operationException),
             function () use ($finalizationException): never {
@@ -250,8 +252,8 @@ class QueuePoolProxyTest extends TestCase
     {
         $operationException = new Exception('pop failed');
         $releaseCancellation = new CanceledException('release canceled');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldNotReceive('report');
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->never();
         [$proxy, $pools] = $this->proxy(
             fn () => new QueuePoolProxyTestQueue(popException: $operationException),
             static function () use ($releaseCancellation): never {
@@ -274,8 +276,8 @@ class QueuePoolProxyTest extends TestCase
 
     public function testNonLeaseAwareJobIsRequeuedBeforeFailingClosed(): void
     {
-        $job = m::mock(JobContract::class);
-        $job->shouldReceive('release')->once()->with(0);
+        $job = Double::for(JobContract::class)->strict();
+        $job->expects('release')->with(0);
         [$proxy, $pools] = $this->proxy(fn () => new QueuePoolProxyTestQueue($job));
 
         try {
@@ -293,8 +295,8 @@ class QueuePoolProxyTest extends TestCase
     public function testFailedRequeueDiscardsTheBackendAndAReplacementIsCreated(): void
     {
         $requeueException = new Exception('requeue failed');
-        $job = m::mock(JobContract::class);
-        $job->shouldReceive('release')->once()->with(0)->andThrow($requeueException);
+        $job = Double::for(JobContract::class)->strict();
+        $job->expects('release')->with(0)->throws($requeueException);
         $created = 0;
         [$proxy, $pools] = $this->proxy(function () use (&$created, $job) {
             ++$created;
@@ -320,8 +322,8 @@ class QueuePoolProxyTest extends TestCase
     public function testNonLeaseAwareJobRequeueCancellationIsNotWrapped(): void
     {
         $cancellation = new CanceledException('requeue canceled');
-        $job = m::mock(JobContract::class);
-        $job->shouldReceive('release')->once()->with(0)->andThrow($cancellation);
+        $job = Double::for(JobContract::class)->strict();
+        $job->expects('release')->with(0)->throws($cancellation);
         [$proxy, $pools] = $this->proxy(fn () => new QueuePoolProxyTestQueue($job));
 
         try {
@@ -339,10 +341,16 @@ class QueuePoolProxyTest extends TestCase
     public function testTerminalBackendFailureDiscardsTheQueueAndCreatesAReplacement(): void
     {
         $backendException = new Exception('delete failed');
-        $client = m::mock(SqsClient::class);
-        $client->shouldReceive('deleteMessage')->once()->andThrow($backendException);
+        $handler = new MockHandler;
+        $handler->append($backendException);
+        $client = new SqsClient([
+            'region' => 'us-east-1',
+            'version' => 'latest',
+            'credentials' => false,
+            'handler' => $handler,
+        ]);
         $job = new SqsJob(
-            m::mock(ContainerContract::class),
+            Double::for(ContainerContract::class, override: true)->strict()->instance(),
             $client,
             [
                 'MessageId' => 'message',
@@ -380,7 +388,7 @@ class QueuePoolProxyTest extends TestCase
 
     public function testAbandonedJobReleasesThroughItsLeaseDestructor(): void
     {
-        $job = new QueuePoolProxyTestJob(m::mock(ContainerContract::class));
+        $job = new QueuePoolProxyTestJob(Double::for(ContainerContract::class, override: true)->strict()->instance());
         [$proxy, $pools] = $this->proxy(function () use (&$job) {
             $queue = new QueuePoolProxyTestQueue($job);
             $job = null;
@@ -405,30 +413,30 @@ class QueuePoolProxyTest extends TestCase
     ): void {
         $attachmentException = new Exception('stats failed');
         $recoveryException = new Exception('release failed');
-        $pheanstalk = m::mock(implode(',', [
+        $pheanstalk = Double::for(
             PheanstalkManagerInterface::class,
             PheanstalkPublisherInterface::class,
             PheanstalkSubscriberInterface::class,
-        ]));
-        $pheanstalk->shouldReceive('statsJob')->once()->andThrow($attachmentException);
+        )->strict();
+        $pheanstalk->expects('statsJob')->throws($attachmentException);
 
         if ($recoveryFails) {
-            $pheanstalk->shouldReceive('release')->once()->andThrow($recoveryException);
+            $pheanstalk->expects('release')->throws($recoveryException);
         } else {
-            $pheanstalk->shouldReceive('release')->once();
+            $pheanstalk->expects('release');
         }
 
         $job = new BeanstalkdJob(
-            m::mock(ContainerContract::class),
+            Double::for(ContainerContract::class, override: true)->strict()->instance(),
             $pheanstalk,
-            m::mock(JobIdInterface::class),
+            Double::for(JobIdInterface::class)->strict(),
             'connection',
             'jobs',
         );
-        $handler = m::mock(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
 
         if ($recoveryFails) {
-            $handler->shouldReceive('report')->once()->with($recoveryException);
+            $handler->expects('report')->with($recoveryException);
         }
 
         [$proxy, $pools] = $this->proxy(
@@ -466,22 +474,22 @@ class QueuePoolProxyTest extends TestCase
         if ($cleanupThrows) {
             $recoveryCancellation = new RuntimeException('Recovery cleanup failed.', previous: $recoveryCancellation);
         }
-        $pheanstalk = m::mock(implode(',', [
+        $pheanstalk = Double::for(
             PheanstalkManagerInterface::class,
             PheanstalkPublisherInterface::class,
             PheanstalkSubscriberInterface::class,
-        ]));
-        $pheanstalk->shouldReceive('statsJob')->once()->andThrow($attachmentException);
-        $pheanstalk->shouldReceive('release')->once()->andThrow($recoveryCancellation);
+        )->strict();
+        $pheanstalk->expects('statsJob')->throws($attachmentException);
+        $pheanstalk->expects('release')->throws($recoveryCancellation);
         $job = new BeanstalkdJob(
-            m::mock(ContainerContract::class),
+            Double::for(ContainerContract::class, override: true)->strict()->instance(),
             $pheanstalk,
-            m::mock(JobIdInterface::class),
+            Double::for(JobIdInterface::class)->strict(),
             'connection',
             'jobs',
         );
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldNotReceive('report');
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->never();
         [$proxy, $pools] = $this->proxy(
             fn () => new QueuePoolProxyTestQueue($job),
             handler: $handler,
@@ -507,17 +515,17 @@ class QueuePoolProxyTest extends TestCase
         if ($cleanupThrows) {
             $attachmentCancellation = new RuntimeException('Attachment cleanup failed.', previous: $attachmentCancellation);
         }
-        $pheanstalk = m::mock(implode(',', [
+        $pheanstalk = Double::for(
             PheanstalkManagerInterface::class,
             PheanstalkPublisherInterface::class,
             PheanstalkSubscriberInterface::class,
-        ]));
-        $pheanstalk->shouldReceive('statsJob')->once()->andThrow($attachmentCancellation);
-        $pheanstalk->shouldNotReceive('release');
+        )->strict();
+        $pheanstalk->expects('statsJob')->throws($attachmentCancellation);
+        $pheanstalk->expects('release')->never();
         $job = new BeanstalkdJob(
-            m::mock(ContainerContract::class),
+            Double::for(ContainerContract::class, override: true)->strict()->instance(),
             $pheanstalk,
-            m::mock(JobIdInterface::class),
+            Double::for(JobIdInterface::class)->strict(),
             'connection',
             'jobs',
         );
@@ -571,110 +579,23 @@ class QueuePoolProxyTest extends TestCase
     }
 }
 
-class QueuePoolProxyTestQueue extends BaseQueue implements QueueContract
+class QueuePoolProxyTestQueue extends NullQueue
 {
     /** @var list<null|int|string|UnitEnum> */
     public array $lastPopArguments = [];
 
+    /**
+     * Create a new test queue instance.
+     */
     public function __construct(
         public ?JobContract $job = null,
         public ?Throwable $popException = null,
     ) {
     }
 
-    public function size(UnitEnum|string|null $queue = null): int
-    {
-        return 0;
-    }
-
-    public function pendingSize(UnitEnum|string|null $queue = null): int
-    {
-        return 0;
-    }
-
-    public function delayedSize(UnitEnum|string|null $queue = null): int
-    {
-        return 0;
-    }
-
-    public function reservedSize(UnitEnum|string|null $queue = null): int
-    {
-        return 0;
-    }
-
-    public function pendingJobs(UnitEnum|string|null $queue = null): Collection
-    {
-        return new Collection;
-    }
-
-    public function delayedJobs(UnitEnum|string|null $queue = null): Collection
-    {
-        return new Collection;
-    }
-
-    public function reservedJobs(UnitEnum|string|null $queue = null): Collection
-    {
-        return new Collection;
-    }
-
-    public function allPendingJobs(): Collection
-    {
-        return new Collection;
-    }
-
-    public function allDelayedJobs(): Collection
-    {
-        return new Collection;
-    }
-
-    public function allReservedJobs(): Collection
-    {
-        return new Collection;
-    }
-
-    public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int
-    {
-        return null;
-    }
-
-    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
-    {
-        return null;
-    }
-
-    public function pushOn(UnitEnum|string|null $queue, object|string $job, mixed $data = ''): mixed
-    {
-        return null;
-    }
-
-    public function pushRaw(string $payload, UnitEnum|string|null $queue = null, array $options = []): mixed
-    {
-        return null;
-    }
-
-    public function later(
-        DateInterval|DateTimeInterface|int $delay,
-        object|string $job,
-        mixed $data = '',
-        UnitEnum|string|null $queue = null,
-    ): mixed {
-        return null;
-    }
-
-    public function laterOn(
-        UnitEnum|string|null $queue,
-        DateInterval|DateTimeInterface|int $delay,
-        object|string $job,
-        mixed $data = '',
-    ): mixed {
-        return null;
-    }
-
-    public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
-    {
-        return null;
-    }
-
+    /**
+     * Pop the configured job and record the arguments.
+     */
     public function pop(UnitEnum|string|null $queue = null): ?JobContract
     {
         $this->lastPopArguments = func_get_args();
@@ -689,18 +610,9 @@ class QueuePoolProxyTestQueue extends BaseQueue implements QueueContract
         return $job;
     }
 
-    public function getConnectionName(): string
-    {
-        return $this->connectionName;
-    }
-
-    public function setConnectionName(string $name): static
-    {
-        $this->connectionName = $name;
-
-        return $this;
-    }
-
+    /**
+     * Determine whether an after-commit dispatcher is assigned.
+     */
     public function hasAfterCommitDispatcher(): bool
     {
         return $this->afterCommitDispatcher !== null;
@@ -712,6 +624,9 @@ class QueuePoolProxyTestIndexAwareQueue extends QueuePoolProxyTestQueue implemen
     /** @var null|array{null|string|UnitEnum, int} */
     public ?array $lastIndexedPop = null;
 
+    /**
+     * Record the queue index and pop the configured job.
+     */
     public function pop(UnitEnum|string|null $queue = null, int $index = 0): ?JobContract
     {
         $this->lastIndexedPop = [$queue, $index];
@@ -737,6 +652,9 @@ class QueuePoolProxyTestClearableQueue extends QueuePoolProxyTestQueue implement
 
 class QueuePoolProxyTestJob extends Job
 {
+    /**
+     * Create a new test job instance.
+     */
     public function __construct(ContainerContract $container)
     {
         $this->container = $container;
@@ -744,27 +662,42 @@ class QueuePoolProxyTestJob extends Job
         $this->queue = 'queue';
     }
 
+    /**
+     * Get the job identifier.
+     */
     public function getJobId(): string
     {
         return 'job';
     }
 
+    /**
+     * Get the raw job payload.
+     */
     public function getRawBody(): string
     {
         return '{"job":"job","data":[]}';
     }
 
+    /**
+     * Get the number of job attempts.
+     */
     public function attempts(): int
     {
         return 1;
     }
 
+    /**
+     * Delete the job and release its pool lease.
+     */
     public function delete(): void
     {
         parent::delete();
         $this->releasePoolLease();
     }
 
+    /**
+     * Release the job and its pool lease.
+     */
     public function release(int $delay = 0): void
     {
         parent::release($delay);

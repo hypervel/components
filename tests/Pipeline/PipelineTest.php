@@ -13,12 +13,15 @@ use Hypervel\Pipeline\PipeDescriptor;
 use Hypervel\Pipeline\Pipeline;
 use Hypervel\Tests\Pipeline\Fixtures\FooPipeline;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use stdClass;
 
 class PipelineTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testPipelineBasicUsage(): void
     {
         $pipeTwo = function ($piped, $next) {
@@ -354,10 +357,10 @@ class PipelineTest extends TestCase
     public function testCompiledClosureAppliesTransactionToEveryInvocation(): void
     {
         $container = new Container;
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('transaction')->twice()->andReturnUsing(fn (callable $callback) => $callback());
-        $manager = m::mock(DatabaseManager::class);
-        $manager->shouldReceive('connection')->twice()->with(null)->andReturn($connection);
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('transaction')->times(2)->resolves(fn (callable $callback) => $callback());
+        $manager = Double::for(DatabaseManager::class)->strict();
+        $manager->expects('connection')->times(2)->with(null)->returns($connection);
         $container->instance('db', $manager);
 
         $pipeline = (new Pipeline($container))
@@ -436,10 +439,10 @@ class PipelineTest extends TestCase
     public function testPipelineDelegatesIntegerBackedEnumTransactionConnection(): void
     {
         $container = new Container;
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('transaction')->once()->andReturnUsing(fn (callable $callback) => $callback());
-        $manager = m::mock(DatabaseManager::class);
-        $manager->shouldReceive('connection')->once()->with(PipelineConnectionName::Zero)->andReturn($connection);
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('transaction')->resolves(fn (callable $callback) => $callback());
+        $manager = Double::for(DatabaseManager::class)->strict();
+        $manager->expects('connection')->with(PipelineConnectionName::Zero)->returns($connection);
         $container->instance('db', $manager);
 
         $result = (new Pipeline($container))

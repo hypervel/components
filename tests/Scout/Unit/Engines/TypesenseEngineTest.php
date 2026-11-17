@@ -13,7 +13,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\DeletesByFilter;
 use Hypervel\Scout\Contracts\EngineOperationObserver;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\EngineOperation;
 use Hypervel\Scout\EngineOperationRunner;
 use Hypervel\Scout\Engines\Engine;
@@ -24,11 +23,14 @@ use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Scout\Scout;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\Fixtures\Models\SearchableModelWithNativeEmbedding;
 use Hypervel\Tests\Scout\Fixtures\Models\SearchableModelWithPrecomputedEmbedding;
 use InvalidArgumentException;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use Throwable;
@@ -47,6 +49,8 @@ use Typesense\MultiSearch;
 #[WithConfig('ai.caching.embeddings.store', 'array')]
 class TypesenseEngineTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Register the embedding provider used by semantic searches.
      */
@@ -55,16 +59,22 @@ class TypesenseEngineTest extends TestCase
         return [AiServiceProvider::class];
     }
 
-    protected function createEngine(?MockInterface $client = null): TypesenseEngine
+    /**
+     * Create an engine with the given client.
+     */
+    protected function createEngine(?TypesenseClient $client = null): TypesenseEngine
     {
-        $client = $client ?? m::mock(TypesenseClient::class);
+        $client = $client ?? Double::for(TypesenseClient::class)->strict();
 
         return new TypesenseEngine($client, 1000);
     }
 
-    protected function createSearchableModelMock(): MockInterface
+    /**
+     * Create a double with the declared searchable model methods.
+     */
+    protected function createSearchableModelDouble(): SearchableModel&DoubleInterface
     {
-        return m::mock(Model::class . ', ' . SearchableInterface::class);
+        return Double::for(SearchableModel::class)->strict();
     }
 
     protected function invokeMethod(object $object, string $methodName, array $parameters = []): mixed
@@ -78,7 +88,7 @@ class TypesenseEngineTest extends TestCase
     {
         $engine = $this->createEngine();
 
-        $builder = m::mock(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->wheres = [
             ['field' => 'status', 'operator' => '=', 'value' => 'active'],
             ['field' => 'age', 'operator' => '>=', 'value' => 25],
@@ -222,20 +232,18 @@ class TypesenseEngineTest extends TestCase
 
     public function testUpdateWithEmptyCollectionDoesNothing(): void
     {
-        $client = m::mock(TypesenseClient::class);
-        $client->shouldNotReceive('getCollections');
+        $client = Double::for(TypesenseClient::class)->strict();
+        $client->expects('getCollections')->never();
 
         $engine = $this->createEngine($client);
 
         $engine->update(new EloquentCollection([]));
-
-        $this->assertTrue(true); // No exception means success
     }
 
     public function testUpdateTransformsBeforeTouchingTypesense(): void
     {
-        $client = m::mock(TypesenseClient::class);
-        $client->shouldNotReceive('getCollections');
+        $client = Double::for(TypesenseClient::class)->strict();
+        $client->expects('getCollections')->never();
 
         $model = new TypesenseLifecycleModel;
         $model->searchableData = [];
@@ -245,20 +253,19 @@ class TypesenseEngineTest extends TestCase
 
     public function testUpdateImportsIntoIndexableCollection(): void
     {
-        $client = m::mock(TypesenseClient::class);
-        $collections = m::mock(Collections::class);
-        $collection = m::mock(TypesenseCollection::class);
-        $documents = m::mock(Documents::class);
+        $client = Double::for(TypesenseClient::class)->strict();
+        $collections = Double::for(Collections::class)->strict();
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $documents = Double::for(Documents::class)->strict();
 
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
-        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
-        $collections->shouldNotReceive('create');
-        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
-        $documents->shouldReceive('import')
-            ->once()
+        $client->expects('getCollections')->returns($collections);
+        $collections->expects('offsetGet')->with('write_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('write_index');
+        $collections->expects('create')->never();
+        $collection->expects('getDocuments')->returns($documents);
+        $documents->expects('import')
             ->with([['id' => 1, 'title' => 'Scout']], ['action' => 'upsert'])
-            ->andReturn([['success' => true, 'document' => '{"id":1}']]);
+            ->returns([['success' => true, 'document' => '{"id":1}']]);
 
         $model = new TypesenseLifecycleModel;
 
@@ -267,19 +274,18 @@ class TypesenseEngineTest extends TestCase
 
     public function testUpdateMethodWithEmplaceAction(): void
     {
-        $client = m::mock(TypesenseClient::class);
-        $collections = m::mock(Collections::class);
-        $collection = m::mock(TypesenseCollection::class);
-        $documents = m::mock(Documents::class);
+        $client = Double::for(TypesenseClient::class)->strict();
+        $collections = Double::for(Collections::class)->strict();
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $documents = Double::for(Documents::class)->strict();
 
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
-        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
-        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
-        $documents->shouldReceive('import')
-            ->once()
+        $client->expects('getCollections')->returns($collections);
+        $collections->expects('offsetGet')->with('write_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('write_index');
+        $collection->expects('getDocuments')->returns($documents);
+        $documents->expects('import')
             ->with([['id' => 1, 'title' => 'Scout']], ['action' => 'emplace'])
-            ->andReturn([['success' => true, 'document' => '{"id":1}']]);
+            ->returns([['success' => true, 'document' => '{"id":1}']]);
 
         $engine = $this->createPartialEngineWithConfig($client, config: ['typesense.import_action' => 'emplace']);
 
@@ -288,18 +294,17 @@ class TypesenseEngineTest extends TestCase
 
     public function testUpdatePreparesTheFinalSearchableDocument(): void
     {
-        $client = m::mock(TypesenseClient::class);
-        $collections = m::mock(Collections::class);
-        $collection = m::mock(TypesenseCollection::class);
-        $documents = m::mock(Documents::class);
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
-        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
-        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
-        $documents->shouldReceive('import')
-            ->once()
+        $client = Double::for(TypesenseClient::class)->strict();
+        $collections = Double::for(Collections::class)->strict();
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $documents = Double::for(Documents::class)->strict();
+        $client->expects('getCollections')->returns($collections);
+        $collections->expects('offsetGet')->with('write_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('write_index');
+        $collection->expects('getDocuments')->returns($documents);
+        $documents->expects('import')
             ->with([['id' => 1, 'title' => 'Scout', 'tenant_id' => 42]], ['action' => 'upsert'])
-            ->andReturn([['success' => true, 'document' => '{"id":1}']]);
+            ->returns([['success' => true, 'document' => '{"id":1}']]);
 
         $model = new TypesenseLifecycleModel;
         $engine = $this->createPartialEngineWithConfig($client);
@@ -322,21 +327,20 @@ class TypesenseEngineTest extends TestCase
     {
         Embeddings::fake()->preventStrayEmbeddings();
 
-        $client = m::mock(TypesenseClient::class);
-        $collections = m::mock(Collections::class);
-        $collection = m::mock(TypesenseCollection::class);
-        $documents = m::mock(Documents::class);
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
-        $collections->shouldReceive('offsetGet')->with('table')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('table')->once();
-        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
-        $documents->shouldReceive('import')
-            ->once()
+        $client = Double::for(TypesenseClient::class)->strict();
+        $collections = Double::for(Collections::class)->strict();
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $documents = Double::for(Documents::class)->strict();
+        $client->expects('getCollections')->returns($collections);
+        $collections->expects('offsetGet')->with('table')->returns($collection);
+        $collections->expects('offsetUnset')->with('table');
+        $collection->expects('getDocuments')->returns($documents);
+        $documents->expects('import')
             ->with([
                 ['id' => 10, 'name' => 'First', 'embedding' => [0.1, 0.2], 'embedding_vector' => [0.1, 0.2]],
                 ['id' => 20, 'name' => 'Second', 'embedding' => [0.3, 0.4], 'embedding_vector' => [0.3, 0.4]],
             ], ['action' => 'upsert'])
-            ->andReturn([['success' => true], ['success' => true]]);
+            ->returns([['success' => true], ['success' => true]]);
 
         $engine = $this->createSemanticEngine(['attribute' => 'embedding_vector', 'dimensions' => 2], client: $client);
 
@@ -363,18 +367,18 @@ class TypesenseEngineTest extends TestCase
     {
         Embeddings::fake([[[0.3, 0.4]]])->preventStrayEmbeddings();
 
-        $client = m::mock(TypesenseClient::class);
-        $collections = m::mock(Collections::class);
-        $collection = m::mock(TypesenseCollection::class);
-        $documents = m::mock(Documents::class);
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
-        $collections->shouldReceive('offsetGet')->with('table')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('table')->once();
-        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
-        $documents->shouldReceive('import')->once()->with([
+        $client = Double::for(TypesenseClient::class)->strict();
+        $collections = Double::for(Collections::class)->strict();
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $documents = Double::for(Documents::class)->strict();
+        $client->expects('getCollections')->returns($collections);
+        $collections->expects('offsetGet')->with('table')->returns($collection);
+        $collections->expects('offsetUnset')->with('table');
+        $collection->expects('getDocuments')->returns($documents);
+        $documents->expects('import')->with([
             ['id' => 10, 'name' => 'Precomputed', 'embedding' => [0.1, 0.2]],
             ['id' => 20, 'name' => 'Generate this', 'embedding' => [0.3, 0.4]],
-        ], ['action' => 'upsert'])->andReturn([['success' => true], ['success' => true]]);
+        ], ['action' => 'upsert'])->returns([['success' => true], ['success' => true]]);
 
         $engine = $this->createSemanticEngine([
             'attribute' => 'embedding',
@@ -399,18 +403,17 @@ class TypesenseEngineTest extends TestCase
     {
         Embeddings::fake()->preventStrayEmbeddings();
 
-        $client = m::mock(TypesenseClient::class);
-        $collections = m::mock(Collections::class);
-        $collection = m::mock(TypesenseCollection::class);
-        $documents = m::mock(Documents::class);
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
-        $collections->shouldReceive('offsetGet')->with('table')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('table')->once();
-        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
-        $documents->shouldReceive('import')
-            ->once()
+        $client = Double::for(TypesenseClient::class)->strict();
+        $collections = Double::for(Collections::class)->strict();
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $documents = Double::for(Documents::class)->strict();
+        $client->expects('getCollections')->returns($collections);
+        $collections->expects('offsetGet')->with('table')->returns($collection);
+        $collections->expects('offsetUnset')->with('table');
+        $collection->expects('getDocuments')->returns($documents);
+        $documents->expects('import')
             ->with([['id' => 1, 'name' => 'Model 1']], ['action' => 'upsert'])
-            ->andReturn([['success' => true]]);
+            ->returns([['success' => true]]);
 
         $engine = $this->createSemanticEngine(
             ['attribute' => 'embedding', 'driver' => 'typesense'],
@@ -425,30 +428,29 @@ class TypesenseEngineTest extends TestCase
 
     public function testMissingCollectionIsCreatedUsingTheIndexableName(): void
     {
-        $client = m::mock(TypesenseClient::class);
-        $collections = m::mock(Collections::class);
-        $collection = m::mock(TypesenseCollection::class);
-        $documents = m::mock(Documents::class);
+        $client = Double::for(TypesenseClient::class)->strict();
+        $collections = Double::for(Collections::class)->strict();
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $documents = Double::for(Documents::class)->strict();
 
-        $client->shouldReceive('getCollections')->twice()->andReturn($collections);
-        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
-        $collections->shouldReceive('create')
-            ->once()
+        $client->expects('getCollections')->times(2)->returns($collections);
+        $collections->expects('offsetGet')->with('write_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('write_index');
+        $collections->expects('create')
             ->with([
                 'fields' => [['name' => 'title', 'type' => 'string']],
                 'name' => 'write_index',
             ])
-            ->andReturn(['name' => 'write_index']);
-        $collection->shouldReceive('getDocuments')->twice()->andReturn($documents);
-        $documents->shouldReceive('import')
-            ->once()
-            ->ordered()
-            ->andThrow(new ObjectNotFound('Collection not found'));
-        $documents->shouldReceive('import')
-            ->once()
-            ->ordered()
-            ->andReturn([['success' => true, 'document' => '{"id":1}']]);
+            ->returns(['name' => 'write_index']);
+        $collection->expects('getDocuments')->times(2)->returns($documents);
+        $attempts = 0;
+        $documents->expects('import')->times(2)->resolves(function () use (&$attempts): array {
+            if (++$attempts === 1) {
+                throw new ObjectNotFound('Collection not found');
+            }
+
+            return [['success' => true, 'document' => '{"id":1}']];
+        });
 
         $model = new TypesenseLifecycleModel;
 
@@ -457,15 +459,14 @@ class TypesenseEngineTest extends TestCase
 
     public function testMissingCollectionPreparesSettingsBeforeTheAuthoritativeName(): void
     {
-        $client = m::mock(TypesenseClient::class);
-        $collections = m::mock(Collections::class);
-        $collection = m::mock(TypesenseCollection::class);
-        $documents = m::mock(Documents::class);
-        $client->shouldReceive('getCollections')->twice()->andReturn($collections);
-        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
-        $collections->shouldReceive('create')
-            ->once()
+        $client = Double::for(TypesenseClient::class)->strict();
+        $collections = Double::for(Collections::class)->strict();
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $documents = Double::for(Documents::class)->strict();
+        $client->expects('getCollections')->times(2)->returns($collections);
+        $collections->expects('offsetGet')->with('write_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('write_index');
+        $collections->expects('create')
             ->with([
                 'fields' => [
                     ['name' => 'title', 'type' => 'string'],
@@ -473,12 +474,15 @@ class TypesenseEngineTest extends TestCase
                 ],
                 'name' => 'write_index',
             ]);
-        $collection->shouldReceive('getDocuments')->twice()->andReturn($documents);
-        $documents->shouldReceive('import')->once()->ordered()->andThrow(new ObjectNotFound('Collection not found'));
-        $documents->shouldReceive('import')
-            ->once()
-            ->ordered()
-            ->andReturn([['success' => true, 'document' => '{"id":1}']]);
+        $collection->expects('getDocuments')->times(2)->returns($documents);
+        $attempts = 0;
+        $documents->expects('import')->times(2)->resolves(function () use (&$attempts): array {
+            if (++$attempts === 1) {
+                throw new ObjectNotFound('Collection not found');
+            }
+
+            return [['success' => true, 'document' => '{"id":1}']];
+        });
 
         $model = new TypesenseLifecycleModel;
         $engine = $this->createPartialEngineWithConfig($client);
@@ -507,24 +511,24 @@ class TypesenseEngineTest extends TestCase
 
     public function testUpdateAcceptsOnlyCollectionAlreadyExistsCreateRace(): void
     {
-        $client = m::mock(TypesenseClient::class);
-        $collections = m::mock(Collections::class);
-        $collection = m::mock(TypesenseCollection::class);
-        $documents = m::mock(Documents::class);
+        $client = Double::for(TypesenseClient::class)->strict();
+        $collections = Double::for(Collections::class)->strict();
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $documents = Double::for(Documents::class)->strict();
 
-        $client->shouldReceive('getCollections')->twice()->andReturn($collections);
-        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
-        $collections->shouldReceive('create')->once()->andThrow(new ObjectAlreadyExists('Collection exists'));
-        $collection->shouldReceive('getDocuments')->twice()->andReturn($documents);
-        $documents->shouldReceive('import')
-            ->once()
-            ->ordered()
-            ->andThrow(new ObjectNotFound('Collection not found'));
-        $documents->shouldReceive('import')
-            ->once()
-            ->ordered()
-            ->andReturn([['success' => true, 'document' => '{"id":1}']]);
+        $client->expects('getCollections')->times(2)->returns($collections);
+        $collections->expects('offsetGet')->with('write_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('write_index');
+        $collections->expects('create')->throws(new ObjectAlreadyExists('Collection exists'));
+        $collection->expects('getDocuments')->times(2)->returns($documents);
+        $attempts = 0;
+        $documents->expects('import')->times(2)->resolves(function () use (&$attempts): array {
+            if (++$attempts === 1) {
+                throw new ObjectNotFound('Collection not found');
+            }
+
+            return [['success' => true, 'document' => '{"id":1}']];
+        });
 
         $model = new TypesenseLifecycleModel;
 
@@ -533,18 +537,18 @@ class TypesenseEngineTest extends TestCase
 
     public function testUpdatePropagatesOtherCollectionCreateFailures(): void
     {
-        $client = m::mock(TypesenseClient::class);
-        $collections = m::mock(Collections::class);
-        $collection = m::mock(TypesenseCollection::class);
-        $documents = m::mock(Documents::class);
+        $client = Double::for(TypesenseClient::class)->strict();
+        $collections = Double::for(Collections::class)->strict();
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $documents = Double::for(Documents::class)->strict();
         $exception = new TypesenseClientError('Invalid schema');
 
-        $client->shouldReceive('getCollections')->twice()->andReturn($collections);
-        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
-        $collections->shouldReceive('create')->once()->andThrow($exception);
-        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
-        $documents->shouldReceive('import')->once()->andThrow(new ObjectNotFound('Collection not found'));
+        $client->expects('getCollections')->times(2)->returns($collections);
+        $collections->expects('offsetGet')->with('write_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('write_index');
+        $collections->expects('create')->throws($exception);
+        $collection->expects('getDocuments')->returns($documents);
+        $documents->expects('import')->throws(new ObjectNotFound('Collection not found'));
 
         $model = new TypesenseLifecycleModel;
 
@@ -555,18 +559,18 @@ class TypesenseEngineTest extends TestCase
 
     public function testUpdatePropagatesNonMissingImportFailure(): void
     {
-        $client = m::mock(TypesenseClient::class);
-        $collections = m::mock(Collections::class);
-        $collection = m::mock(TypesenseCollection::class);
-        $documents = m::mock(Documents::class);
+        $client = Double::for(TypesenseClient::class)->strict();
+        $collections = Double::for(Collections::class)->strict();
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $documents = Double::for(Documents::class)->strict();
         $exception = new TypesenseClientError('Authentication failed');
 
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
-        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
-        $collections->shouldNotReceive('create');
-        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
-        $documents->shouldReceive('import')->once()->andThrow($exception);
+        $client->expects('getCollections')->returns($collections);
+        $collections->expects('offsetGet')->with('write_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('write_index');
+        $collections->expects('create')->never();
+        $collection->expects('getDocuments')->returns($documents);
+        $documents->expects('import')->throws($exception);
 
         $model = new TypesenseLifecycleModel;
 
@@ -577,123 +581,119 @@ class TypesenseEngineTest extends TestCase
 
     public function testDeleteRemovesDocumentsFromIndex(): void
     {
-        $model = $this->createSearchableModelMock();
-        $model->shouldReceive('indexableAs')->andReturn('write_index');
-        $model->shouldReceive('getScoutKey')->andReturn(123);
+        $model = $this->createSearchableModelDouble();
+        $model->allows('indexableAs')->returns('write_index');
+        $model->allows('getScoutKey')->returns(123);
 
-        $document = m::mock(Document::class);
-        $document->shouldReceive('delete')->once()->andReturn([]);
+        $document = Double::for(Document::class)->strict();
+        $document->expects('delete')->returns([]);
 
-        $documents = m::mock(Documents::class);
-        $documents->shouldReceive('offsetGet')
+        $documents = Double::for(Documents::class)->strict();
+        $documents->allows('offsetGet')
             ->with('123')
-            ->andReturn($document);
+            ->returns($document);
 
-        $collection = m::mock(TypesenseCollection::class);
-        $collection->shouldReceive('getDocuments')->andReturn($documents);
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $collection->allows('getDocuments')->returns($documents);
 
-        $collections = m::mock(Collections::class);
-        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
+        $collections = Double::for(Collections::class)->strict();
+        $collections->expects('offsetGet')->with('write_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('write_index');
 
-        $client = m::mock(TypesenseClient::class);
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
+        $client = Double::for(TypesenseClient::class)->strict();
+        $client->expects('getCollections')->returns($collections);
 
         $this->createEngine($client)->delete(new EloquentCollection([$model]));
     }
 
     public function testDeleteUsesStoredScoutKeyFromRemoveableCollection(): void
     {
-        $document = m::mock(Document::class);
-        $document->shouldReceive('delete')->once()->andReturn([]);
+        $document = Double::for(Document::class)->strict();
+        $document->expects('delete')->returns([]);
 
-        $documents = m::mock(Documents::class);
-        $documents->shouldReceive('offsetGet')->with('stored-scout-key')->once()->andReturn($document);
+        $documents = Double::for(Documents::class)->strict();
+        $documents->expects('offsetGet')->with('stored-scout-key')->returns($document);
 
-        $collection = m::mock(TypesenseCollection::class);
-        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $collection->expects('getDocuments')->returns($documents);
 
-        $collections = m::mock(Collections::class);
-        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
+        $collections = Double::for(Collections::class)->strict();
+        $collections->expects('offsetGet')->with('write_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('write_index');
 
-        $client = m::mock(TypesenseClient::class);
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
+        $client = Double::for(TypesenseClient::class)->strict();
+        $client->expects('getCollections')->returns($collections);
 
-        $model = $this->createSearchableModelMock();
-        $model->shouldReceive('getScoutKeyName')->andReturn('scout_id');
-        $model->shouldReceive('getAttribute')->with('scout_id')->andReturn('stored-scout-key');
-        $model->shouldReceive('indexableAs')->andReturn('write_index');
+        $model = $this->createSearchableModelDouble();
+        $model->allows('getScoutKeyName')->returns('scout_id');
+        $model->allows('getAttribute')->with('scout_id')->returns('stored-scout-key');
+        $model->allows('indexableAs')->returns('write_index');
 
         $this->createEngine($client)->delete(new RemoveableScoutCollection([$model]));
     }
 
     public function testDeleteWithEmptyCollectionDoesNothing(): void
     {
-        $client = m::mock(TypesenseClient::class);
-        $client->shouldNotReceive('getCollections');
+        $client = Double::for(TypesenseClient::class)->strict();
+        $client->expects('getCollections')->never();
 
         $engine = $this->createEngine($client);
 
         $engine->delete(new EloquentCollection([]));
-
-        $this->assertTrue(true);
     }
 
     public function testDeleteDocumentReturnsEmptyArrayWhenDocumentNotFound(): void
     {
-        $model = $this->createSearchableModelMock();
-        $model->shouldReceive('getScoutKey')->andReturn(123);
+        $model = $this->createSearchableModelDouble();
+        $model->allows('getScoutKey')->returns(123);
 
-        $document = m::mock(Document::class);
-        $document->shouldReceive('delete')->once()->andThrow(new ObjectNotFound('Document not found'));
+        $document = Double::for(Document::class)->strict();
+        $document->expects('delete')->throws(new ObjectNotFound('Document not found'));
 
-        $documents = m::mock(Documents::class);
-        $documents->shouldReceive('offsetGet')
+        $documents = Double::for(Documents::class)->strict();
+        $documents->allows('offsetGet')
             ->with('123')
-            ->andReturn($document);
+            ->returns($document);
 
-        $collection = m::mock(TypesenseCollection::class);
-        $collection->shouldReceive('getDocuments')->andReturn($documents);
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $collection->allows('getDocuments')->returns($documents);
 
-        $model->shouldReceive('indexableAs')->andReturn('write_index');
+        $model->allows('indexableAs')->returns('write_index');
 
-        $collections = m::mock(Collections::class);
-        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
+        $collections = Double::for(Collections::class)->strict();
+        $collections->expects('offsetGet')->with('write_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('write_index');
 
-        $client = m::mock(TypesenseClient::class);
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
+        $client = Double::for(TypesenseClient::class)->strict();
+        $client->expects('getCollections')->returns($collections);
 
         $this->createEngine($client)->delete(new EloquentCollection([$model]));
-
-        $this->assertTrue(true);
     }
 
     public function testDeleteDocumentThrowsOnNonNotFoundErrors(): void
     {
-        $model = $this->createSearchableModelMock();
-        $model->shouldReceive('getScoutKey')->andReturn(123);
+        $model = $this->createSearchableModelDouble();
+        $model->allows('getScoutKey')->returns(123);
 
-        $document = m::mock(Document::class);
-        $document->shouldReceive('delete')->once()->andThrow(new TypesenseClientError('Connection failed'));
+        $document = Double::for(Document::class)->strict();
+        $document->expects('delete')->throws(new TypesenseClientError('Connection failed'));
 
-        $documents = m::mock(Documents::class);
-        $documents->shouldReceive('offsetGet')
+        $documents = Double::for(Documents::class)->strict();
+        $documents->allows('offsetGet')
             ->with('123')
-            ->andReturn($document);
+            ->returns($document);
 
-        $collection = m::mock(TypesenseCollection::class);
-        $collection->shouldReceive('getDocuments')->andReturn($documents);
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $collection->allows('getDocuments')->returns($documents);
 
-        $model->shouldReceive('indexableAs')->andReturn('write_index');
+        $model->allows('indexableAs')->returns('write_index');
 
-        $collections = m::mock(Collections::class);
-        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
+        $collections = Double::for(Collections::class)->strict();
+        $collections->expects('offsetGet')->with('write_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('write_index');
 
-        $client = m::mock(TypesenseClient::class);
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
+        $client = Double::for(TypesenseClient::class)->strict();
+        $client->expects('getCollections')->returns($collections);
 
         $this->expectException(TypesenseClientError::class);
         $this->expectExceptionMessageIs('Connection failed');
@@ -703,55 +703,54 @@ class TypesenseEngineTest extends TestCase
 
     public function testFlushDeletesCollection(): void
     {
-        $model = $this->createSearchableModelMock();
-        $model->shouldReceive('indexableAs')->andReturn('write_index');
+        $model = $this->createSearchableModelDouble();
+        $model->allows('indexableAs')->returns('write_index');
 
-        $collection = m::mock(TypesenseCollection::class);
-        $collection->shouldReceive('delete')->once();
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $collection->expects('delete');
 
-        $collections = m::mock(Collections::class);
-        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
+        $collections = Double::for(Collections::class)->strict();
+        $collections->expects('offsetGet')->with('write_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('write_index');
 
-        $client = m::mock(TypesenseClient::class);
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
+        $client = Double::for(TypesenseClient::class)->strict();
+        $client->expects('getCollections')->returns($collections);
 
         $this->createEngine($client)->flush($model);
     }
 
     public function testFlushTreatsMissingCollectionAsAlreadyFlushed(): void
     {
-        $model = $this->createSearchableModelMock();
-        $model->shouldReceive('indexableAs')->andReturn('write_index');
+        $model = $this->createSearchableModelDouble();
+        $model->allows('indexableAs')->returns('write_index');
 
-        $collection = m::mock(TypesenseCollection::class);
-        $collection->shouldReceive('delete')->once()->andThrow(new ObjectNotFound('Collection not found'));
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $collection->expects('delete')->throws(new ObjectNotFound('Collection not found'));
 
-        $collections = m::mock(Collections::class);
-        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
-        $collections->shouldNotReceive('create');
+        $collections = Double::for(Collections::class)->strict();
+        $collections->expects('offsetGet')->with('write_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('write_index');
+        $collections->expects('create')->never();
 
-        $client = m::mock(TypesenseClient::class);
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
+        $client = Double::for(TypesenseClient::class)->strict();
+        $client->expects('getCollections')->returns($collections);
 
         $this->createEngine($client)->flush($model);
     }
 
     public function testDeleteByFilterPreparesTheBuilderAndUsesTheDefaultWriteCollection(): void
     {
-        $documents = m::mock(Documents::class);
-        $documents->shouldReceive('delete')
-            ->once()
+        $documents = Double::for(Documents::class)->strict();
+        $documents->expects('delete')
             ->with(['filter_by' => '(status:=active || status:=trial) && (tenant_id:=42)'])
-            ->andReturn(['num_deleted' => 2]);
-        $collection = m::mock(TypesenseCollection::class);
-        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
-        $collections = m::mock(Collections::class);
-        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
-        $client = m::mock(TypesenseClient::class);
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
+            ->returns(['num_deleted' => 2]);
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $collection->expects('getDocuments')->returns($documents);
+        $collections = Double::for(Collections::class)->strict();
+        $collections->expects('offsetGet')->with('write_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('write_index');
+        $client = Double::for(TypesenseClient::class)->strict();
+        $client->expects('getCollections')->returns($collections);
 
         $model = new TypesenseLifecycleModel;
         $model->searchParameters = ['filter_by' => 'from_model:=true'];
@@ -778,18 +777,17 @@ class TypesenseEngineTest extends TestCase
 
     public function testDeleteByFilterUsesAnExplicitCollection(): void
     {
-        $documents = m::mock(Documents::class);
-        $documents->shouldReceive('delete')
-            ->once()
+        $documents = Double::for(Documents::class)->strict();
+        $documents->expects('delete')
             ->with(['filter_by' => 'tenant_id:=42'])
-            ->andReturn(['num_deleted' => 1]);
-        $collection = m::mock(TypesenseCollection::class);
-        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
-        $collections = m::mock(Collections::class);
-        $collections->shouldReceive('offsetGet')->with('users_v2')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('users_v2')->once();
-        $client = m::mock(TypesenseClient::class);
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
+            ->returns(['num_deleted' => 1]);
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $collection->expects('getDocuments')->returns($documents);
+        $collections = Double::for(Collections::class)->strict();
+        $collections->expects('offsetGet')->with('users_v2')->returns($collection);
+        $collections->expects('offsetUnset')->with('users_v2');
+        $client = Double::for(TypesenseClient::class)->strict();
+        $client->expects('getCollections')->returns($collections);
 
         $model = new TypesenseLifecycleModel;
         $builder = (new Builder($model, ''))->within('users_v2')->where('tenant_id', 42);
@@ -799,31 +797,28 @@ class TypesenseEngineTest extends TestCase
 
     public function testDeleteByFilterTreatsAMissingCollectionAsAlreadyDeleted(): void
     {
-        $documents = m::mock(Documents::class);
-        $documents->shouldReceive('delete')
-            ->once()
+        $documents = Double::for(Documents::class)->strict();
+        $documents->expects('delete')
             ->with(['filter_by' => 'tenant_id:=42'])
-            ->andThrow(new ObjectNotFound('Collection not found'));
-        $collection = m::mock(TypesenseCollection::class);
-        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
-        $collections = m::mock(Collections::class);
-        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
-        $client = m::mock(TypesenseClient::class);
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
+            ->throws(new ObjectNotFound('Collection not found'));
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $collection->expects('getDocuments')->returns($documents);
+        $collections = Double::for(Collections::class)->strict();
+        $collections->expects('offsetGet')->with('write_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('write_index');
+        $client = Double::for(TypesenseClient::class)->strict();
+        $client->expects('getCollections')->returns($collections);
 
         $model = new TypesenseLifecycleModel;
         $builder = (new Builder($model, ''))->where('tenant_id', 42);
 
         $this->createPartialEngineWithConfig($client)->deleteByFilter($builder);
-
-        $this->assertTrue(true);
     }
 
     public function testDeleteByFilterRejectsAnEmptyFilterBeforeIo(): void
     {
-        $client = m::mock(TypesenseClient::class);
-        $client->shouldNotReceive('getCollections');
+        $client = Double::for(TypesenseClient::class)->strict();
+        $client->expects('getCollections')->never();
         $model = new TypesenseLifecycleModel;
         $builder = new Builder($model, '');
         $engine = $this->createPartialEngineWithConfig($client);
@@ -844,17 +839,17 @@ class TypesenseEngineTest extends TestCase
 
     public function testDeleteByFilterDoesNotNotifyObserversForAnEmptyFilter(): void
     {
-        $client = m::mock(TypesenseClient::class);
-        $client->shouldNotReceive('getCollections');
-        $observer = m::mock(EngineOperationObserver::class);
-        $observer->shouldNotReceive('starting');
-        $observer->shouldNotReceive('finished');
+        $client = Double::for(TypesenseClient::class)->strict();
+        $client->expects('getCollections')->never();
+        $observer = Double::for(EngineOperationObserver::class)->strict();
+        $observer->expects('starting')->never();
+        $observer->expects('finished')->never();
         $runner = new EngineOperationRunner;
         $runner->observe($observer);
         $engine = $this->createPartialEngineWithConfig($client)
             ->setOperationRunner($runner, 'typesense');
-        $model = m::mock(TypesenseLifecycleModel::class)->makePartial();
-        $model->shouldNotReceive('indexableAs');
+        $model = Double::for(new TypesenseLifecycleModel)->passthru();
+        $model->expects('indexableAs')->never();
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs('Typesense filter deletion requires a non-empty filter.');
@@ -864,17 +859,16 @@ class TypesenseEngineTest extends TestCase
 
     public function testDeleteIndexCallsTypesenseDelete(): void
     {
-        $collection = m::mock(TypesenseCollection::class);
-        $collection->shouldReceive('delete')
-            ->once()
-            ->andReturn(['name' => 'test_index']);
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $collection->expects('delete')
+            ->returns(['name' => 'test_index']);
 
-        $collections = m::mock(Collections::class);
-        $collections->shouldReceive('offsetGet')->with('test_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('test_index')->once();
+        $collections = Double::for(Collections::class)->strict();
+        $collections->expects('offsetGet')->with('test_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('test_index');
 
-        $client = m::mock(TypesenseClient::class);
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
+        $client = Double::for(TypesenseClient::class)->strict();
+        $client->expects('getCollections')->returns($collections);
 
         $engine = $this->createEngine($client);
 
@@ -885,10 +879,10 @@ class TypesenseEngineTest extends TestCase
 
     public function testCollectionHandlesAreDetachedAndMagicNamesRemainUsable(): void
     {
-        $collections = new Collections(m::mock(ApiCall::class));
+        $collections = new Collections(Double::for(ApiCall::class)->strict());
 
-        $client = m::mock(TypesenseClient::class);
-        $client->shouldReceive('getCollections')->twice()->andReturn($collections);
+        $client = Double::for(TypesenseClient::class)->strict();
+        $client->expects('getCollections')->times(2)->returns($collections);
 
         $engine = $this->createEngine($client);
 
@@ -904,7 +898,7 @@ class TypesenseEngineTest extends TestCase
 
     public function testGetTypesenseClientReturnsClient(): void
     {
-        $client = m::mock(TypesenseClient::class);
+        $client = Double::for(TypesenseClient::class)->strict();
         $engine = $this->createEngine($client);
 
         $this->assertSame($client, $engine->getTypesenseClient());
@@ -912,20 +906,19 @@ class TypesenseEngineTest extends TestCase
 
     public function testSearchUsesExplicitWithinCollection(): void
     {
-        $client = m::mock(TypesenseClient::class);
-        $collections = m::mock(Collections::class);
-        $collection = m::mock(TypesenseCollection::class);
-        $documents = m::mock(Documents::class);
+        $client = Double::for(TypesenseClient::class)->strict();
+        $collections = Double::for(Collections::class)->strict();
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $documents = Double::for(Documents::class)->strict();
 
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
-        $collections->shouldReceive('offsetGet')->with('custom_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('custom_index')->once();
-        $collections->shouldNotReceive('create');
-        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
-        $documents->shouldReceive('search')
-            ->once()
-            ->with(m::on(fn (array $parameters): bool => $parameters['q'] === 'scout'))
-            ->andReturn(['found' => 0, 'hits' => []]);
+        $client->expects('getCollections')->returns($collections);
+        $collections->expects('offsetGet')->with('custom_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('custom_index');
+        $collections->expects('create')->never();
+        $collection->expects('getDocuments')->returns($documents);
+        $documents->expects('search')
+            ->with(Argument::satisfies(fn (array $parameters): bool => $parameters['q'] === 'scout'))
+            ->returns(['found' => 0, 'hits' => []]);
 
         $model = new TypesenseLifecycleModel;
         $builder = (new Builder($model, 'scout'))->within('custom_index');
@@ -938,30 +931,29 @@ class TypesenseEngineTest extends TestCase
 
     public function testSearchCreatesMissingSearchableCollectionAndRetriesOnce(): void
     {
-        $client = m::mock(TypesenseClient::class);
-        $collections = m::mock(Collections::class);
-        $collection = m::mock(TypesenseCollection::class);
-        $documents = m::mock(Documents::class);
+        $client = Double::for(TypesenseClient::class)->strict();
+        $collections = Double::for(Collections::class)->strict();
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $documents = Double::for(Documents::class)->strict();
 
-        $client->shouldReceive('getCollections')->twice()->andReturn($collections);
-        $collections->shouldReceive('offsetGet')->with('read_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('read_index')->once();
-        $collections->shouldReceive('create')
-            ->once()
+        $client->expects('getCollections')->times(2)->returns($collections);
+        $collections->expects('offsetGet')->with('read_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('read_index');
+        $collections->expects('create')
             ->with([
                 'fields' => [['name' => 'title', 'type' => 'string']],
                 'name' => 'read_index',
             ])
-            ->andReturn(['name' => 'read_index']);
-        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
-        $documents->shouldReceive('search')
-            ->once()
-            ->ordered()
-            ->andThrow(new ObjectNotFound('Collection not found'));
-        $documents->shouldReceive('search')
-            ->once()
-            ->ordered()
-            ->andReturn(['found' => 0, 'hits' => []]);
+            ->returns(['name' => 'read_index']);
+        $collection->expects('getDocuments')->returns($documents);
+        $attempts = 0;
+        $documents->expects('search')->times(2)->resolves(function () use (&$attempts): array {
+            if (++$attempts === 1) {
+                throw new ObjectNotFound('Collection not found');
+            }
+
+            return ['found' => 0, 'hits' => []];
+        });
 
         $model = new TypesenseLifecycleModel;
         $builder = new Builder($model, 'scout');
@@ -971,18 +963,18 @@ class TypesenseEngineTest extends TestCase
 
     public function testSearchPropagatesNonMissingFailure(): void
     {
-        $client = m::mock(TypesenseClient::class);
-        $collections = m::mock(Collections::class);
-        $collection = m::mock(TypesenseCollection::class);
-        $documents = m::mock(Documents::class);
+        $client = Double::for(TypesenseClient::class)->strict();
+        $collections = Double::for(Collections::class)->strict();
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $documents = Double::for(Documents::class)->strict();
         $exception = new TypesenseClientError('Authentication failed');
 
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
-        $collections->shouldReceive('offsetGet')->with('read_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('read_index')->once();
-        $collections->shouldNotReceive('create');
-        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
-        $documents->shouldReceive('search')->once()->andThrow($exception);
+        $client->expects('getCollections')->returns($collections);
+        $collections->expects('offsetGet')->with('read_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('read_index');
+        $collections->expects('create')->never();
+        $collection->expects('getDocuments')->returns($documents);
+        $documents->expects('search')->throws($exception);
 
         $model = new TypesenseLifecycleModel;
         $builder = new Builder($model, 'scout');
@@ -994,17 +986,16 @@ class TypesenseEngineTest extends TestCase
 
     public function testSearchesWithVectorQueriesUseTheMultiSearchEndpoint(): void
     {
-        $multiSearch = m::mock(MultiSearch::class);
+        $multiSearch = Double::for(MultiSearch::class)->strict();
         $engine = $this->createMultiSearchEngine($multiSearch);
 
-        $engine->shouldReceive('buildSearchParameters')->once()->andReturn([
+        $engine->expects('buildSearchParameters')->returns([
             'q' => '*',
             'query_by' => 'name',
             'vector_query' => 'embedding:([0.1, 0.2])',
         ]);
 
-        $multiSearch->shouldReceive('perform')
-            ->once()
+        $multiSearch->expects('perform')
             ->with([
                 'searches' => [
                     [
@@ -1015,7 +1006,7 @@ class TypesenseEngineTest extends TestCase
                     ],
                 ],
             ])
-            ->andReturn(['results' => [['found' => 1, 'hits' => [['document' => ['id' => '1']]]]]]);
+            ->returns(['results' => [['found' => 1, 'hits' => [['document' => ['id' => '1']]]]]]);
 
         $results = $engine->search(new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'));
 
@@ -1025,16 +1016,16 @@ class TypesenseEngineTest extends TestCase
 
     public function testMultiSearchErrorsAreConvertedToTypesenseExceptions(): void
     {
-        $multiSearch = m::mock(MultiSearch::class);
+        $multiSearch = Double::for(MultiSearch::class)->strict();
         $engine = $this->createMultiSearchEngine($multiSearch);
 
-        $engine->shouldReceive('buildSearchParameters')->andReturn([
+        $engine->allows('buildSearchParameters')->returns([
             'q' => '*',
             'query_by' => 'name',
             'vector_query' => 'embedding:([0.1, 0.2])',
         ]);
 
-        $multiSearch->shouldReceive('perform')->andReturn([
+        $multiSearch->allows('perform')->returns([
             'results' => [['code' => 400, 'error' => 'Query string exceeds max allowed length.']],
         ]);
 
@@ -1046,23 +1037,22 @@ class TypesenseEngineTest extends TestCase
 
     public function testMultiSearchCreatesMissingCollectionsAndRetries(): void
     {
-        $multiSearch = m::mock(MultiSearch::class);
+        $multiSearch = Double::for(MultiSearch::class)->strict();
         $engine = $this->createMultiSearchEngine($multiSearch);
         $collections = $engine->getTypesenseClient()->getCollections();
-        $collections->shouldReceive('create')
-            ->once()
+        $collections->expects('create')
             ->with(['name' => 'table'])
-            ->andReturn(['name' => 'table']);
+            ->returns(['name' => 'table']);
 
-        $engine->shouldReceive('buildSearchParameters')->andReturn([
+        $engine->allows('buildSearchParameters')->returns([
             'q' => '*',
             'query_by' => 'name',
             'vector_query' => 'embedding:([0.1, 0.2])',
         ]);
 
-        $multiSearch->shouldReceive('perform')
-            ->twice()
-            ->andReturn(
+        $multiSearch->expects('perform')
+            ->times(2)
+            ->returns(
                 ['results' => [['code' => 404, 'error' => 'Not found.']]],
                 ['results' => [['found' => 0, 'hits' => []]]],
             );
@@ -1080,9 +1070,9 @@ class TypesenseEngineTest extends TestCase
             ['hits' => range(1, 250), 'found' => 600, 'out_of' => 900],
             ['hits' => range(251, 350), 'found' => 600, 'out_of' => 900],
         ];
-        $engine->shouldReceive('performSearch')
-            ->twice()
-            ->andReturnUsing(function (Builder $builder, array $options) use (&$parameters, &$responses): array {
+        $engine->expects('performSearch')
+            ->times(2)
+            ->resolves(function (Builder $builder, array $options) use (&$parameters, &$responses): array {
                 $parameters[] = $options;
 
                 return array_shift($responses);
@@ -1114,9 +1104,9 @@ class TypesenseEngineTest extends TestCase
             ['hits' => range(1, 250), 'found' => 500, 'out_of' => 800],
             ['hits' => range(251, 500), 'found' => 500, 'out_of' => 800],
         ];
-        $engine->shouldReceive('performSearch')
-            ->twice()
-            ->andReturnUsing(function () use (&$responses): array {
+        $engine->expects('performSearch')
+            ->times(2)
+            ->resolves(function () use (&$responses): array {
                 return array_shift($responses);
             });
 
@@ -1133,9 +1123,9 @@ class TypesenseEngineTest extends TestCase
             ['hits' => range(1, 250), 'found' => 600, 'out_of' => 800],
             ['hits' => range(251, 275), 'found' => 600, 'out_of' => 800],
         ];
-        $engine->shouldReceive('performSearch')
-            ->twice()
-            ->andReturnUsing(function () use (&$responses): array {
+        $engine->expects('performSearch')
+            ->times(2)
+            ->resolves(function () use (&$responses): array {
                 return array_shift($responses);
             });
 
@@ -1152,9 +1142,9 @@ class TypesenseEngineTest extends TestCase
             ['hits' => range(1, 250), 'found' => 600, 'out_of' => 800],
             ['hits' => range(251, 500), 'found' => 600, 'out_of' => 800],
         ];
-        $engine->shouldReceive('performSearch')
-            ->twice()
-            ->andReturnUsing(function () use (&$responses): array {
+        $engine->expects('performSearch')
+            ->times(2)
+            ->resolves(function () use (&$responses): array {
                 return array_shift($responses);
             });
 
@@ -1167,7 +1157,7 @@ class TypesenseEngineTest extends TestCase
     public function testPaginateRejectsInvalidPageSizesBeforeIo(): void
     {
         $engine = $this->createPartialEngineWithConfig();
-        $engine->shouldNotReceive('performSearch');
+        $engine->expects('performSearch')->never();
         $builder = new Builder(new TypesenseLifecycleModel, 'scout');
 
         foreach ([0, -1, 251] as $perPage) {
@@ -1186,15 +1176,14 @@ class TypesenseEngineTest extends TestCase
     public function testPaginatePreservesValidatedPageSizeAndLargePage(): void
     {
         $engine = $this->createPartialEngineWithConfig(maxTotalResults: 10);
-        $engine->shouldReceive('performSearch')
-            ->once()
-            ->withArgs(function (Builder $builder, array $options): bool {
+        $engine->expects('performSearch')
+            ->with(Argument::all(function (Builder $builder, array $options): bool {
                 $this->assertSame(500_000_000, $options['page']);
                 $this->assertSame(250, $options['per_page']);
 
                 return true;
-            })
-            ->andReturn(['hits' => [], 'found' => 0]);
+            }))
+            ->returns(['hits' => [], 'found' => 0]);
 
         $engine->paginate(new Builder(new TypesenseLifecycleModel, 'scout'), 250, 500_000_000);
     }
@@ -1203,10 +1192,10 @@ class TypesenseEngineTest extends TestCase
     {
         $engine = $this->createEngine();
 
-        $model = $this->createSearchableModelMock();
-        $model->shouldReceive('newCollection')->andReturn(new EloquentCollection);
+        $model = $this->createSearchableModelDouble();
+        $model->allows('newCollection')->returns(new EloquentCollection);
 
-        $builder = m::mock(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $results = ['found' => 0, 'hits' => []];
 
         $mapped = $engine->map($builder, $results, $model);
@@ -1218,10 +1207,10 @@ class TypesenseEngineTest extends TestCase
     {
         $engine = $this->createEngine();
 
-        $model = $this->createSearchableModelMock();
-        $model->shouldReceive('newCollection')->andReturn(new EloquentCollection);
+        $model = $this->createSearchableModelDouble();
+        $model->allows('newCollection')->returns(new EloquentCollection);
 
-        $builder = m::mock(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $results = ['found' => 0, 'hits' => []];
 
         $lazyMapped = $engine->lazyMap($builder, $results, $model);
@@ -1233,9 +1222,9 @@ class TypesenseEngineTest extends TestCase
     {
         $engine = $this->createPartialEngineWithConfig();
 
-        $model = $this->createSearchableModelMock();
+        $model = $this->createSearchableModelDouble();
 
-        $builder = m::mock(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->model = $model;
         $builder->query = 'search term';
         $builder->wheres = [];
@@ -1259,9 +1248,9 @@ class TypesenseEngineTest extends TestCase
     {
         $engine = $this->createPartialEngineWithConfig();
 
-        $model = $this->createSearchableModelMock();
+        $model = $this->createSearchableModelDouble();
 
-        $builder = m::mock(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->model = $model;
         $builder->query = 'test';
         $builder->wheres = [
@@ -1295,15 +1284,15 @@ class TypesenseEngineTest extends TestCase
 
     public function testSearchCallbackReceivesFinalComposedOptions(): void
     {
-        $client = m::mock(TypesenseClient::class);
-        $collections = m::mock(Collections::class);
-        $collection = m::mock(TypesenseCollection::class);
-        $documents = m::mock(Documents::class);
-        $client->shouldReceive('getCollections')->once()->andReturn($collections);
-        $collections->shouldReceive('offsetGet')->with('read_index')->once()->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('read_index')->once();
-        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
-        $documents->shouldNotReceive('search');
+        $client = Double::for(TypesenseClient::class)->strict();
+        $collections = Double::for(Collections::class)->strict();
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $documents = Double::for(Documents::class)->strict();
+        $client->expects('getCollections')->returns($collections);
+        $collections->expects('offsetGet')->with('read_index')->returns($collection);
+        $collections->expects('offsetUnset')->with('read_index');
+        $collection->expects('getDocuments')->returns($documents);
+        $documents->expects('search')->never();
 
         $model = new TypesenseLifecycleModel;
         $builder = new Builder($model, 'scout', function ($givenDocuments, $query, $options) use ($documents) {
@@ -1322,9 +1311,9 @@ class TypesenseEngineTest extends TestCase
     {
         $engine = $this->createPartialEngineWithConfig();
 
-        $model = $this->createSearchableModelMock();
+        $model = $this->createSearchableModelDouble();
 
-        $builder = m::mock(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->model = $model;
         $builder->query = 'test';
         $builder->wheres = [];
@@ -1364,9 +1353,9 @@ class TypesenseEngineTest extends TestCase
     {
         $engine = $this->createPartialEngineWithConfig();
 
-        $model = $this->createSearchableModelMock();
+        $model = $this->createSearchableModelDouble();
 
-        $builder = m::mock(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->model = $model;
         $builder->query = 'test';
         $builder->wheres = [];
@@ -1387,9 +1376,9 @@ class TypesenseEngineTest extends TestCase
     {
         $engine = $this->createPartialEngineWithConfig();
 
-        $model = $this->createSearchableModelMock();
+        $model = $this->createSearchableModelDouble();
 
-        $builder = m::mock(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->model = $model;
         $builder->query = 'test';
         $builder->wheres = [];
@@ -1411,9 +1400,9 @@ class TypesenseEngineTest extends TestCase
     {
         $engine = $this->createPartialEngineWithConfig();
 
-        $model = $this->createSearchableModelMock();
+        $model = $this->createSearchableModelDouble();
 
-        $builder = m::mock(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->model = $model;
         $builder->query = 'query';
         $builder->wheres = [];
@@ -1432,9 +1421,9 @@ class TypesenseEngineTest extends TestCase
     {
         $engine = $this->createPartialEngineWithConfig();
 
-        $model = $this->createSearchableModelMock();
+        $model = $this->createSearchableModelDouble();
 
-        $builder = m::mock(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->model = $model;
         $builder->query = '';
         $builder->wheres = [];
@@ -1685,26 +1674,23 @@ class TypesenseEngineTest extends TestCase
     }
 
     /**
-     * Create a partial engine mock that stubs getConfig to avoid container dependency.
+     * Create an initialized engine double with isolated configuration.
      *
      * @param array<string, mixed> $config
      * @param array<string, mixed> $engineConfig
      */
     protected function createPartialEngineWithConfig(
-        ?MockInterface $client = null,
+        ?TypesenseClient $client = null,
         int $maxTotalResults = 1000,
         array $config = [],
         array $engineConfig = [],
-    ): MockInterface&TypesenseEngine {
-        $client = $client ?? m::mock(TypesenseClient::class);
+    ): TypesenseEngine&DoubleInterface {
+        $client = $client ?? Double::for(TypesenseClient::class)->strict();
 
-        /** @var MockInterface&TypesenseEngine */
-        $engine = m::mock(TypesenseEngine::class, [$client, $maxTotalResults, $engineConfig])
-            ->shouldAllowMockingProtectedMethods()
-            ->makePartial();
+        $engine = Double::for(new TypesenseEngine($client, $maxTotalResults, $engineConfig))->passthru();
 
-        $engine->shouldReceive('getConfig')
-            ->andReturnUsing(fn (string $key, mixed $default = null): mixed => $config[$key] ?? $default);
+        $engine->allows('getConfig')
+            ->resolves(fn (string $key, mixed $default = null): mixed => $config[$key] ?? $default);
 
         return $engine;
     }
@@ -1718,9 +1704,9 @@ class TypesenseEngineTest extends TestCase
     protected function createSemanticEngine(
         array $embedding,
         string $queryBy = 'name',
-        ?MockInterface $client = null,
+        ?TypesenseClient $client = null,
         string $model = SearchableModelWithPrecomputedEmbedding::class,
-    ): MockInterface&TypesenseEngine {
+    ): TypesenseEngine&DoubleInterface {
         return $this->createPartialEngineWithConfig(
             $client,
             config: ["typesense.model-settings.{$model}.search-parameters" => ['query_by' => $queryBy]],
@@ -1731,19 +1717,19 @@ class TypesenseEngineTest extends TestCase
     /**
      * Create a partial engine whose client performs multi-searches against the "table" collection.
      */
-    protected function createMultiSearchEngine(MultiSearch $multiSearch): MockInterface&TypesenseEngine
+    protected function createMultiSearchEngine(MultiSearch $multiSearch): TypesenseEngine&DoubleInterface
     {
-        $client = m::mock(TypesenseClient::class);
-        $collections = m::mock(Collections::class);
-        $collection = m::mock(TypesenseCollection::class);
-        $documents = m::mock(Documents::class);
+        $client = Double::for(TypesenseClient::class)->strict();
+        $collections = Double::for(Collections::class)->strict();
+        $collection = Double::for(TypesenseCollection::class)->strict();
+        $documents = Double::for(Documents::class)->strict();
 
-        $client->shouldReceive('getMultiSearch')->andReturn($multiSearch);
-        $client->shouldReceive('getCollections')->andReturn($collections);
-        $collections->shouldReceive('offsetGet')->with('table')->andReturn($collection);
-        $collections->shouldReceive('offsetUnset')->with('table');
-        $collection->shouldReceive('getDocuments')->andReturn($documents);
-        $documents->shouldNotReceive('search');
+        $client->allows('getMultiSearch')->returns($multiSearch);
+        $client->allows('getCollections')->returns($collections);
+        $collections->allows('offsetGet')->with('table')->returns($collection);
+        $collections->allows('offsetUnset')->with('table');
+        $collection->allows('getDocuments')->returns($documents);
+        $documents->expects('search')->never();
 
         return $this->createPartialEngineWithConfig($client);
     }

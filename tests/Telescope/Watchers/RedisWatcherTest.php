@@ -13,8 +13,8 @@ use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\RedisWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use JMac\Testing\Double;
 use JsonSerializable;
-use Mockery as m;
 use ReflectionClass;
 use RuntimeException;
 
@@ -141,26 +141,24 @@ class RedisWatcherTest extends FeatureTestCase
 
     public function testDoesNotRegisterWhenRedisUnbound(): void
     {
-        $app = m::mock(Application::class);
-
-        $app->makePartial();
+        $app = Double::for(Application::class, override: true)->strict();
 
         $app->expects('bound')
             ->with('redis')
-            ->andReturn(false);
+            ->returns(false);
 
-        $app->shouldNotReceive('make')
+        $app->expects('make')->never()
             ->with('redis');
 
         $watcher = new RedisWatcher([]);
 
-        $watcher->register($app);
+        $watcher->register($app->instance());
     }
 
     private function dispatchRedisCommand(string $command, array $parameters = []): void
     {
-        $connection = m::mock(PhpRedisConnection::class);
-        $connection->shouldReceive('getName')->andReturn('connection');
+        $connection = Double::for(PhpRedisConnection::class)->strict();
+        $connection->allows('getName')->returns('connection');
 
         $this->app->make(Dispatcher::class)
             ->dispatch(new CommandExecuted(

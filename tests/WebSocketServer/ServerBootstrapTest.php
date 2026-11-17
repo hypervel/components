@@ -4,29 +4,31 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\WebSocketServer;
 
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Http\Kernel;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Routing\Router;
 use Hypervel\Tests\TestCase;
 use Hypervel\WebSocketServer\Server;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class ServerBootstrapTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBootstrapCompilesTheRouterFromTheExtensionHook(): void
     {
-        $kernel = m::mock(Kernel::class);
-        $kernel->shouldReceive('bootstrap')->once();
+        $kernel = Double::for(Kernel::class)->strict();
+        $kernel->expects('bootstrap');
 
-        $router = m::mock(Router::class);
-        $router->shouldReceive('compileAndWarm')->once();
+        $router = Double::for(Router::class)->strict();
+        $router->expects('compileAndWarm');
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')->once()->with(StdoutLoggerInterface::class)
-            ->andReturn(m::mock(StdoutLoggerInterface::class));
-        $container->shouldReceive('bound')->once()->with('events')->andReturnFalse();
-        $container->shouldReceive('make')->once()->with(Kernel::class)->andReturn($kernel);
+        $container = new Container;
+        $container->instance(StdoutLoggerInterface::class, Double::for(StdoutLoggerInterface::class)->strict());
+        $container->instance(Kernel::class, $kernel);
 
         $server = new BootstrapRouterServer($container, $router);
         $server->bootstrapForServer('reverb');
@@ -37,7 +39,7 @@ class ServerBootstrapTest extends TestCase
 
 class BootstrapRouterServer extends Server
 {
-    public function __construct(Container $container, protected Router $router)
+    public function __construct(ContainerContract $container, protected Router $router)
     {
         parent::__construct($container);
     }

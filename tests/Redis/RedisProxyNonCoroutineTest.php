@@ -4,28 +4,32 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
+use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
-use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Redis\RedisSentinelFactory;
+use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use stdClass;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use Redis;
 
 class RedisProxyNonCoroutineTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected bool $runTestsInCoroutine = false;
 
     public function testMultiPinsConnectionUntilTerminalCleanup(): void
     {
-        $this->assertCommandPinsConnection('multi', [], new stdClass);
+        $this->assertCommandPinsConnection('multi', [], Double::for(Redis::class)->strict());
     }
 
     public function testPipelinePinsConnectionUntilTerminalCleanup(): void
     {
-        $this->assertCommandPinsConnection('pipeline', [], new stdClass);
+        $this->assertCommandPinsConnection('pipeline', [], Double::for(Redis::class)->strict());
     }
 
     public function testSelectPinsConnectionUntilTerminalCleanup(): void
@@ -46,21 +50,20 @@ class RedisProxyNonCoroutineTest extends TestCase
         array $arguments,
         mixed $result,
     ): void {
-        $connection = m::mock(PhpRedisConnection::class);
-        $connection->shouldReceive('shouldTransform')->andReturnSelf();
-        $connection->shouldReceive('getConnection')->andReturnSelf();
-        $connection->shouldReceive('getEventDispatcher')->andReturnNull();
-        $connection->expects($command)->with(...$arguments)->andReturn($result);
+        $client = Double::for(Redis::class)->strict();
+        $client->allows('getMode')->returns(Redis::ATOMIC);
+        $client->expects($command)->with(...$arguments)->returns($result);
+        $connection = Double::for((new PhpRedisConnectionStub)->setActiveConnection($client))->passthru();
         $connection->expects('release');
 
-        $pool = m::mock(RedisPool::class);
-        $pool->expects('borrow')->andReturn($connection);
-        $poolManager = m::mock(PoolManager::class)->makePartial();
-        $poolManager->expects('pool')->with('default')->andReturn($pool);
+        $pool = Double::for(RedisPool::class)->strict();
+        $pool->expects('borrow')->returns($connection);
+        $poolManager = Double::for(new PoolManager(new Container))->passthru();
+        $poolManager->expects('pool')->with('default')->returns($pool);
         $redis = new RedisProxy(
             $poolManager,
             'default',
-            m::mock(RedisSentinelFactory::class),
+            Double::for(RedisSentinelFactory::class)->strict(),
         );
         $contextKey = (fn (): string => $this->getContextKey())->call($redis);
 

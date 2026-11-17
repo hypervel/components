@@ -33,9 +33,11 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Testbench\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -46,7 +48,9 @@ use function Hypervel\Coroutine\parallel;
 
 class TokenIssuanceTest extends TestCase
 {
-    protected ServerFactory $servers;
+    use VerifiesDoubles;
+
+    protected ServerFactory&DoubleInterface $servers;
 
     protected ServerEntry $entry;
 
@@ -85,8 +89,8 @@ class TokenIssuanceTest extends TestCase
             [$private->getKeyId() => $public],
             [$private->getKeyId() => new SigningCryptKey($private)],
         );
-        $this->servers = m::mock(ServerFactory::class);
-        $this->servers->shouldReceive('entry')->andReturn($this->entry);
+        $this->servers = Double::for(ServerFactory::class)->strict();
+        $this->servers->allows('entry')->returns($this->entry);
     }
 
     #[DataProvider('outcomes')]

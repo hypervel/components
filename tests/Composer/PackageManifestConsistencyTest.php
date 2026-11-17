@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Composer;
 
+use Composer\Semver\Intervals;
+use Composer\Semver\VersionParser;
 use Hypervel\Support\DefaultProviders;
 use Hypervel\Tests\TestCase;
 use JsonException;
@@ -22,6 +24,7 @@ class PackageManifestConsistencyTest extends TestCase
     {
         $rootComposer = $this->decodeManifest(__DIR__ . '/../../composer.json');
         $splitPackages = array_column(array_map($this->decodeManifest(...), $this->splitManifests()), null, 'name');
+        $versionParser = new VersionParser;
 
         foreach ($splitPackages as $package => $composer) {
             foreach (['require', 'require-dev'] as $section) {
@@ -44,6 +47,21 @@ class PackageManifestConsistencyTest extends TestCase
                         ?? null;
 
                     $this->assertNotNull($rootConstraint, "{$message}, but it is absent from the root manifest.");
+
+                    if ($dependency === 'ext-redis') {
+                        // Native test doubles require a newer development client than published packages.
+                        // Remove this exception with docs/plans/todo/phpredis-6.3-minimum.md.
+                        $this->assertTrue(
+                            Intervals::isSubsetOf(
+                                $versionParser->parseConstraints($rootConstraint),
+                                $versionParser->parseConstraints($constraint),
+                            ),
+                            "{$message} with a root constraint outside the package range.",
+                        );
+
+                        continue;
+                    }
+
                     $this->assertSame($constraint, $rootConstraint, "{$message} with a different root constraint.");
                 }
             }

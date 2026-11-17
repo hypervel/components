@@ -5,35 +5,43 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Mail;
 
 use Closure;
-use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\View\Factory as ViewFactoryContract;
 use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\Events\Dispatcher;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Mail\Markdown;
 use Hypervel\Tests\TestCase;
 use Hypervel\View\Compilers\BladeCompiler;
+use Hypervel\View\Engines\CompilerEngine;
 use Hypervel\View\Engines\EngineResolver;
-use Mockery as m;
+use Hypervel\View\Factory as ViewFactory;
+use Hypervel\View\FileViewFinder;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class MailMarkdownTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRenderFunctionReturnsHtml(): void
     {
-        $viewInterface = m::mock(ViewContract::class);
-        $viewInterface->shouldReceive('render')->twice()->andReturn('<html></html>', 'body {}');
+        $viewInterface = Double::for(ViewContract::class)->strict();
+        $viewInterface->expects('render')->times(2)->returns('<html></html>', 'body {}');
 
-        $viewFactory = m::mock(ViewFactory::class);
-        $engineResolver = m::mock(EngineResolver::class);
-        $bladeCompiler = m::mock(BladeCompiler::class);
-        $viewFactory->shouldReceive('getEngineResolver')->andReturn($engineResolver);
-        $engineResolver->shouldReceive('resolve->getCompiler')->andReturn($bladeCompiler);
-        $bladeCompiler->shouldReceive('usingEchoFormat')
-            ->with('new \Hypervel\Support\EncodedHtmlString(%s)', m::type('Closure'))
-            ->andReturnUsing(fn (string $echoFormat, Closure $callback): mixed => $callback());
+        $bladeCompiler = Double::for(BladeCompiler::class)->strict();
+        $viewFactory = $this->viewFactory($bladeCompiler);
+        $bladeCompiler->allows('usingEchoFormat')
+            ->with('new \Hypervel\Support\EncodedHtmlString(%s)', Argument::type('Closure'))
+            ->resolves(fn (string $echoFormat, Closure $callback): mixed => $callback());
 
         $markdown = new Markdown($viewFactory);
-        $viewFactory->shouldReceive('replaceNamespace')->once()->with('mail', $markdown->htmlComponentPaths())->andReturnSelf();
-        $viewFactory->shouldReceive('exists')->with('mail.default')->andReturn(false);
-        $viewFactory->shouldReceive('make')->with('view', [])->andReturn($viewInterface);
-        $viewFactory->shouldReceive('make')->with('mail::themes.default', [])->andReturn($viewInterface);
+        $viewFactory->expects('replaceNamespace')->with('mail', $markdown->htmlComponentPaths());
+        $viewFactory->allows('exists')->with('mail.default')->returns(false);
+        $viewFactory->allows('make')->with('view', [])->returns($viewInterface);
+        $viewFactory->allows('make')->with('mail::themes.default', [])->returns($viewInterface);
 
         $result = $markdown->render('view', [])->toHtml();
 
@@ -42,24 +50,21 @@ class MailMarkdownTest extends TestCase
 
     public function testRenderFunctionReturnsHtmlWithCustomTheme(): void
     {
-        $viewInterface = m::mock(ViewContract::class);
-        $viewInterface->shouldReceive('render')->twice()->andReturn('<html></html>', 'body {}');
+        $viewInterface = Double::for(ViewContract::class)->strict();
+        $viewInterface->expects('render')->times(2)->returns('<html></html>', 'body {}');
 
-        $viewFactory = m::mock(ViewFactory::class);
-        $engineResolver = m::mock(EngineResolver::class);
-        $bladeCompiler = m::mock(BladeCompiler::class);
-        $viewFactory->shouldReceive('getEngineResolver')->andReturn($engineResolver);
-        $engineResolver->shouldReceive('resolve->getCompiler')->andReturn($bladeCompiler);
-        $bladeCompiler->shouldReceive('usingEchoFormat')
-            ->with('new \Hypervel\Support\EncodedHtmlString(%s)', m::type('Closure'))
-            ->andReturnUsing(fn (string $echoFormat, Closure $callback): mixed => $callback());
+        $bladeCompiler = Double::for(BladeCompiler::class)->strict();
+        $viewFactory = $this->viewFactory($bladeCompiler);
+        $bladeCompiler->allows('usingEchoFormat')
+            ->with('new \Hypervel\Support\EncodedHtmlString(%s)', Argument::type('Closure'))
+            ->resolves(fn (string $echoFormat, Closure $callback): mixed => $callback());
 
         $markdown = new Markdown($viewFactory);
         $markdown->theme('yaz');
-        $viewFactory->shouldReceive('replaceNamespace')->once()->with('mail', $markdown->htmlComponentPaths())->andReturnSelf();
-        $viewFactory->shouldReceive('exists')->with('mail.yaz')->andReturn(true);
-        $viewFactory->shouldReceive('make')->with('view', [])->andReturn($viewInterface);
-        $viewFactory->shouldReceive('make')->with('mail.yaz', [])->andReturn($viewInterface);
+        $viewFactory->expects('replaceNamespace')->with('mail', $markdown->htmlComponentPaths());
+        $viewFactory->allows('exists')->with('mail.yaz')->returns(true);
+        $viewFactory->allows('make')->with('view', [])->returns($viewInterface);
+        $viewFactory->allows('make')->with('mail.yaz', [])->returns($viewInterface);
 
         $result = $markdown->render('view', [])->toHtml();
 
@@ -68,24 +73,21 @@ class MailMarkdownTest extends TestCase
 
     public function testRenderFunctionReturnsHtmlWithCustomThemeWithMailPrefix(): void
     {
-        $viewInterface = m::mock(ViewContract::class);
-        $viewInterface->shouldReceive('render')->twice()->andReturn('<html></html>', 'body {}');
+        $viewInterface = Double::for(ViewContract::class)->strict();
+        $viewInterface->expects('render')->times(2)->returns('<html></html>', 'body {}');
 
-        $viewFactory = m::mock(ViewFactory::class);
-        $engineResolver = m::mock(EngineResolver::class);
-        $bladeCompiler = m::mock(BladeCompiler::class);
-        $viewFactory->shouldReceive('getEngineResolver')->andReturn($engineResolver);
-        $engineResolver->shouldReceive('resolve->getCompiler')->andReturn($bladeCompiler);
-        $bladeCompiler->shouldReceive('usingEchoFormat')
-            ->with('new \Hypervel\Support\EncodedHtmlString(%s)', m::type('Closure'))
-            ->andReturnUsing(fn (string $echoFormat, Closure $callback): mixed => $callback());
+        $bladeCompiler = Double::for(BladeCompiler::class)->strict();
+        $viewFactory = $this->viewFactory($bladeCompiler);
+        $bladeCompiler->allows('usingEchoFormat')
+            ->with('new \Hypervel\Support\EncodedHtmlString(%s)', Argument::type('Closure'))
+            ->resolves(fn (string $echoFormat, Closure $callback): mixed => $callback());
 
         $markdown = new Markdown($viewFactory);
         $markdown->theme('mail.yaz');
-        $viewFactory->shouldReceive('replaceNamespace')->once()->with('mail', $markdown->htmlComponentPaths())->andReturnSelf();
-        $viewFactory->shouldReceive('exists')->with('mail.yaz')->andReturn(true);
-        $viewFactory->shouldReceive('make')->with('view', [])->andReturn($viewInterface);
-        $viewFactory->shouldReceive('make')->with('mail.yaz', [])->andReturn($viewInterface);
+        $viewFactory->expects('replaceNamespace')->with('mail', $markdown->htmlComponentPaths());
+        $viewFactory->allows('exists')->with('mail.yaz')->returns(true);
+        $viewFactory->allows('make')->with('view', [])->returns($viewInterface);
+        $viewFactory->allows('make')->with('mail.yaz', [])->returns($viewInterface);
 
         $result = $markdown->render('view', [])->toHtml();
 
@@ -94,13 +96,13 @@ class MailMarkdownTest extends TestCase
 
     public function testRenderTextReturnsText(): void
     {
-        $viewInterface = m::mock(ViewContract::class);
-        $viewInterface->shouldReceive('render')->andReturn('text');
+        $viewInterface = Double::for(ViewContract::class)->strict();
+        $viewInterface->allows('render')->returns('text');
 
-        $viewFactory = m::mock(ViewFactory::class);
+        $viewFactory = Double::for(ViewFactoryContract::class)->strict();
         $markdown = new Markdown($viewFactory);
-        $viewFactory->shouldReceive('replaceNamespace')->once()->with('mail', $markdown->textComponentPaths())->andReturnSelf();
-        $viewFactory->shouldReceive('make')->with('view', [])->andReturn($viewInterface);
+        $viewFactory->expects('replaceNamespace')->with('mail', $markdown->textComponentPaths());
+        $viewFactory->allows('make')->with('view', [])->returns($viewInterface);
 
         $result = $markdown->renderText('view', [])->toHtml();
 
@@ -112,5 +114,20 @@ class MailMarkdownTest extends TestCase
         $result = Markdown::parse('# Something')->toHtml();
 
         $this->assertSame("<h1>Something</h1>\n", $result);
+    }
+
+    /**
+     * Create a view factory whose render-local clones retain real finder and engine state.
+     */
+    private function viewFactory(BladeCompiler $bladeCompiler): ViewFactory&DoubleInterface
+    {
+        $engines = new EngineResolver;
+        $engines->register('blade', fn (): CompilerEngine => new CompilerEngine($bladeCompiler));
+
+        return Double::for(new ViewFactory(
+            $engines,
+            new FileViewFinder(new Filesystem, []),
+            new Dispatcher(new Container),
+        ))->passthru();
     }
 }

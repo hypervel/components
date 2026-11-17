@@ -19,12 +19,15 @@ use Hypervel\Queue\NullQueue;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use UnitEnum;
 
 class UniqueJobSchedulingTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testJobsPushedToQueue(): void
     {
         Queue::fake();
@@ -119,10 +122,10 @@ class UniqueJobSchedulingTest extends TestCase
         $exception = new RuntimeException('Dispatch failed before payload creation.');
         $calls = 0;
 
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('dispatch')
-            ->twice()
-            ->andReturnUsing(function (UniqueTestJob $job) use (&$calls, $exception): void {
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('dispatch')
+            ->times(2)
+            ->resolves(function (UniqueTestJob $job) use (&$calls, $exception): void {
                 $metadata = DispatchLockContext::peekPayloadMetadata($job);
                 $this->assertNotNull($metadata);
                 $this->assertSame(UniqueLock::getKey($job), $metadata['laravel_unique_job_key']);

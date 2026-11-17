@@ -7,7 +7,9 @@ namespace Hypervel\Tests\Integration\Generators;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\MailMakeCommand;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
@@ -15,6 +17,8 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 class MailMakeCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected array $files = [
         'app/Mail/*.php',
         'resources/views/foo-mail.blade.php',
@@ -192,13 +196,11 @@ class MailMakeCommandTest extends TestCase
     public function testViewPublicationFailureDoesNotReportViewSuccess(): void
     {
         $viewPath = resource_path('views/failed-mail.blade.php');
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $publicationException = new RuntimeException('Unable to publish mail view.');
-        $files->shouldReceive('replace')->byDefault()->passthru();
-        $files->shouldReceive('replace')
-            ->once()
-            ->with($viewPath, m::type('string'), null)
-            ->andThrow($publicationException);
+        $files->allows('replace')
+            ->with($viewPath, Argument::type('string'), null)
+            ->throws($publicationException);
 
         $tester = $this->commandTester(new MailMakeCommand($files));
 
@@ -217,10 +219,9 @@ class MailMakeCommandTest extends TestCase
     {
         $stubPath = dirname(__DIR__, 3) . '/src/foundation/src/Console/stubs/markdown.stub';
         $viewPath = resource_path('views/failed-markdown.blade.php');
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $readException = new FileNotFoundException("File does not exist at path [{$stubPath}].");
-        $files->shouldReceive('get')->byDefault()->passthru();
-        $files->shouldReceive('get')->once()->with($stubPath)->andThrow($readException);
+        $files->allows('get')->with($stubPath)->throws($readException);
 
         $tester = $this->commandTester(new MailMakeCommand($files));
 

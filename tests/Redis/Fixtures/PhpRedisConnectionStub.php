@@ -7,9 +7,7 @@ namespace Hypervel\Tests\Redis\Fixtures;
 use Hypervel\Contracts\ConnectionPool\ConnectionPool;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Redis\PhpRedisConnection;
-use Mockery as m;
 use Redis;
-use RedisCluster;
 
 class PhpRedisConnectionStub extends PhpRedisConnection
 {
@@ -30,33 +28,40 @@ class PhpRedisConnectionStub extends PhpRedisConnection
         // Skip reconnect() — tests inject connections via setActiveConnection()
     }
 
+    /**
+     * Keep reconnection under test control.
+     */
     public function reconnect(): bool
     {
         return true;
     }
 
+    /**
+     * Treat the injected client as healthy.
+     */
     public function check(): bool
     {
         return true;
     }
 
+    /**
+     * Restore the injected client without opening a socket.
+     */
     public function getActiveConnection(): static
     {
         if ($this->connection !== null) {
             return $this;
         }
 
-        // Use shouldIgnoreMissing() to prevent falling through to real Redis
-        // methods when expectations don't match (which causes "Redis server went away")
-        $connection = $this->redisConnection
-            ?? m::mock(Redis::class)->shouldIgnoreMissing();
-
-        $this->connection = $connection;
+        $this->connection = $this->redisConnection;
 
         return $this;
     }
 
-    public function setActiveConnection(Redis|RedisCluster $connection): static
+    /**
+     * Set the native client used by the test.
+     */
+    public function setActiveConnection(Redis $connection): static
     {
         $this->redisConnection = $connection;
         $this->connection = $connection;
@@ -67,7 +72,7 @@ class PhpRedisConnectionStub extends PhpRedisConnection
     /**
      * Get the underlying Redis connection for test mocking.
      */
-    public function getConnection(): Redis|RedisCluster
+    public function nativeClientForTest(): Redis
     {
         $this->getActiveConnection();
 
@@ -84,6 +89,9 @@ class PhpRedisConnectionStub extends PhpRedisConnection
         return $this->config;
     }
 
+    /**
+     * Determine whether the connection was invalidated.
+     */
     public function isInvalidForTest(): bool
     {
         return $this->invalid;

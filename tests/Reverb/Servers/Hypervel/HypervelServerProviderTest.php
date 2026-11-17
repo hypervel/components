@@ -16,7 +16,7 @@ use Hypervel\Reverb\Servers\Hypervel\Scaling\SwooleTableSharedState;
 use Hypervel\Testbench\Attributes\WithEnv;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
 use ReflectionProperty;
 
 class HypervelServerProviderTest extends ReverbTestCase
@@ -98,8 +98,8 @@ class HypervelServerProviderTest extends ReverbTestCase
             'enabled' => true,
             'seeds' => ['127.0.0.1:6379'],
         ]);
-        $this->app->instance(PoolManager::class, $poolManager = m::mock(PoolManager::class));
-        $poolManager->shouldNotReceive('pool');
+        $this->app->instance(PoolManager::class, $poolManager = Double::for(PoolManager::class)->strict());
+        $poolManager->expects('pool')->never();
         $provider = new HypervelServerProvider(
             $this->app,
             [
@@ -121,8 +121,8 @@ class HypervelServerProviderTest extends ReverbTestCase
 
     public function testRedisClusterIsNotValidatedWhenScalingIsDisabled(): void
     {
-        $redisConfig = m::mock(RedisConfig::class);
-        $redisConfig->shouldNotReceive('connectionConfig');
+        $redisConfig = Double::for(RedisConfig::class)->strict();
+        $redisConfig->expects('connectionConfig')->never();
         $this->app->instance(RedisConfig::class, $redisConfig);
         $provider = new HypervelServerProvider(
             $this->app,
@@ -163,6 +163,9 @@ class HypervelServerProviderTest extends ReverbTestCase
         return $events;
     }
 
+    /**
+     * Return the shared-state Redis connection.
+     */
     protected function sharedStateRedisConnection(RedisSharedState $sharedState): RedisProxy
     {
         $property = new ReflectionProperty($sharedState, 'redis');

@@ -11,10 +11,13 @@ use Hypervel\Horizon\Listeners\MonitorMasterSupervisorMemory;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class MonitorMasterSupervisorMemoryTest extends IntegrationTestCase
 {
+    use VerifiesDoubles;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -28,11 +31,11 @@ class MonitorMasterSupervisorMemoryTest extends IntegrationTestCase
 
         $monitor = new MonitorMasterSupervisorMemory;
 
-        $master = m::mock(MasterSupervisor::class);
+        $master = Double::for(MasterSupervisor::class)->strict();
 
-        $master->shouldReceive('memoryUsage')->andReturn(192);
-        $master->shouldReceive('output')->once()->with('error', 'Memory limit exceeded: Using 192/64MB. Consider increasing horizon.memory_limit.');
-        $master->shouldReceive('terminate')->once()->with(12);
+        $master->allows('memoryUsage')->returns(192);
+        $master->expects('output')->with('error', 'Memory limit exceeded: Using 192/64MB. Consider increasing horizon.memory_limit.');
+        $master->expects('terminate')->with(12);
 
         $monitor->handle(new MasterSupervisorLooped($master));
 
@@ -51,10 +54,10 @@ class MonitorMasterSupervisorMemoryTest extends IntegrationTestCase
             }
         );
 
-        $master = m::mock(MasterSupervisor::class);
-        $master->shouldReceive('memoryUsage')->twice()->andReturn(192);
-        $master->shouldReceive('output')->once()->with('error', 'Memory limit exceeded: Using 192/64MB. Consider increasing horizon.memory_limit.');
-        $master->shouldReceive('terminate')->once()->with(12);
+        $master = Double::for(MasterSupervisor::class)->strict();
+        $master->expects('memoryUsage')->times(2)->returns(192);
+        $master->expects('output')->with('error', 'Memory limit exceeded: Using 192/64MB. Consider increasing horizon.memory_limit.');
+        $master->expects('terminate')->with(12);
 
         (new MonitorMasterSupervisorMemory)->handle(new MasterSupervisorLooped($master));
 
@@ -65,10 +68,10 @@ class MonitorMasterSupervisorMemoryTest extends IntegrationTestCase
     {
         $monitor = new MonitorMasterSupervisorMemory;
 
-        $master = m::mock(MasterSupervisor::class);
+        $master = Double::for(MasterSupervisor::class)->strict();
 
-        $master->shouldReceive('memoryUsage')->andReturn(16);
-        $master->shouldReceive('terminate')->never();
+        $master->allows('memoryUsage')->returns(16);
+        $master->expects('terminate')->never();
 
         $monitor->handle(new MasterSupervisorLooped($master));
     }

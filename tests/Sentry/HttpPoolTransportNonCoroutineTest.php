@@ -7,7 +7,8 @@ namespace Hypervel\Tests\Sentry;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use Hypervel\Sentry\Transport\HttpTransportPool;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Sentry\Event;
 use Sentry\Options;
 use Sentry\Transport\HttpTransport;
@@ -16,17 +17,18 @@ use Sentry\Transport\ResultStatus;
 
 class HttpPoolTransportNonCoroutineTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected bool $runTestsInCoroutine = false;
 
     public function testRootCoroutineOwnsAndReleasesTheTransport(): void
     {
-        $httpTransport = m::mock(HttpTransport::class);
-        $httpTransport->shouldReceive('send')
-            ->once()
-            ->andReturn(new Result(ResultStatus::success()));
-        $pool = m::mock(HttpTransportPool::class);
-        $pool->shouldReceive('borrow')->once()->andReturn($httpTransport);
-        $pool->shouldReceive('release')->once()->with($httpTransport);
+        $httpTransport = Double::for(HttpTransport::class)->strict();
+        $httpTransport->expects('send')
+            ->returns(new Result(ResultStatus::success()));
+        $pool = Double::for(HttpTransportPool::class)->strict();
+        $pool->expects('borrow')->returns($httpTransport);
+        $pool->expects('release')->with($httpTransport);
         $transport = new HttpPoolTransport($pool, new Options(['dsn' => 'https://public@example.com/1']));
         $event = Event::createEvent();
 

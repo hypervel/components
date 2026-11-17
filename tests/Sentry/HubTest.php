@@ -10,7 +10,8 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Application;
 use Hypervel\Sentry\Hub;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -28,6 +29,8 @@ use Throwable;
 
 class HubTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Set up the test environment.
      */
@@ -55,7 +58,7 @@ class HubTest extends TestCase
 
         $this->assertSame($baseline, $root);
 
-        $client = m::mock(ClientInterface::class);
+        $client = Double::for(ClientInterface::class)->strict();
         $hub->bindClient($client);
         $application->boot();
 
@@ -125,12 +128,11 @@ class HubTest extends TestCase
 
     public function testFailingBeforeBreadcrumbCallbackDropsTheBreadcrumb(): void
     {
-        $logger = m::mock(LoggerInterface::class);
-        $logger->shouldReceive('error')
-            ->once()
+        $logger = Double::for(LoggerInterface::class)->strict();
+        $logger->expects('error')
             ->with('The "before_breadcrumb" callback failed with exception: "Callback failed.".');
-        $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('getOptions')->once()->andReturn(new Options([
+        $client = Double::for(ClientInterface::class)->strict();
+        $client->expects('getOptions')->returns(new Options([
             'logger' => $logger,
             'before_breadcrumb' => static fn (): ?Breadcrumb => throw new RuntimeException('Callback failed.'),
         ]));
@@ -146,7 +148,7 @@ class HubTest extends TestCase
 
         $this->assertFalse((new Hub)->addAttachment($attachment));
 
-        $hub = new Hub(m::mock(ClientInterface::class));
+        $hub = new Hub(Double::for(ClientInterface::class)->strict());
 
         $this->assertTrue($hub->addAttachment($attachment));
         $this->assertSame([$attachment], $this->scopedEvent($hub)->getAttachments());
@@ -163,8 +165,8 @@ class HubTest extends TestCase
                 return 0.0;
             },
         ]);
-        $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('getOptions')->once()->andReturn($options);
+        $client = Double::for(ClientInterface::class)->strict();
+        $client->expects('getOptions')->returns($options);
         $transaction = (new Hub($client))->startTransaction(new TransactionContext('test'));
 
         $this->assertTrue($called);
@@ -174,15 +176,15 @@ class HubTest extends TestCase
 
     public function testFailingSamplersFallBackToTheConfiguredRates(): void
     {
-        $logger = m::mock(LoggerInterface::class)->shouldIgnoreMissing();
-        $logger->shouldReceive('error')
-            ->once()
+        $logger = Double::for(LoggerInterface::class)->strict();
+        $logger->allows('info');
+        $logger->allows('warning')->with('The profiler was started but is not available because the "excimer" extension is not loaded.');
+        $logger->expects('error')
             ->with('The "traces_sampler" callback failed with exception: "Traces sampler failed.".');
-        $logger->shouldReceive('error')
-            ->once()
+        $logger->expects('error')
             ->with('The "profiles_sampler" callback failed with exception: "Profiles sampler failed.".');
-        $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('getOptions')->andReturn(new Options([
+        $client = Double::for(ClientInterface::class)->strict();
+        $client->allows('getOptions')->returns(new Options([
             'logger' => $logger,
             'traces_sample_rate' => 1.0,
             'traces_sampler' => static fn (): float => throw new RuntimeException('Traces sampler failed.'),
@@ -206,8 +208,8 @@ class HubTest extends TestCase
             $cancellation = new RuntimeException('Callback cleanup failed.', previous: $cancellation);
         }
 
-        $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('getOptions')->andReturn(new Options([
+        $client = Double::for(ClientInterface::class)->strict();
+        $client->allows('getOptions')->returns(new Options([
             'traces_sample_rate' => 1.0,
             $option => static fn (): never => throw $cancellation,
         ]));

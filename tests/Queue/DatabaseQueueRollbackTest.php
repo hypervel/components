@@ -18,7 +18,8 @@ use Hypervel\Database\SQLiteConnection;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Queue\DatabaseQueue;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -26,6 +27,8 @@ use stdClass;
 
 class DatabaseQueueRollbackTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('dispatchMethods')]
     public function testRollbackReleasesAcceptedLocksOnTheStorageOwner(string $method, string $kind): void
     {
@@ -154,8 +157,8 @@ class DatabaseQueueRollbackTest extends TestCase
             $table->unsignedBigInteger('available_at');
             $table->unsignedBigInteger('created_at');
         });
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->with('testing::write')->andReturn($database);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->allows('connection')->with('testing::write')->returns($database);
         $queue = new DatabaseQueue($resolver, 'testing::write', 'jobs');
         $queue->setContainer($container);
         $queue->setConnectionName('database');

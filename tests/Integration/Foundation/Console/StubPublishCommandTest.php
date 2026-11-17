@@ -10,7 +10,9 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\StubPublishCommand;
 use Hypervel\Foundation\Events\PublishingStubs;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use ReflectionClass;
 use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
@@ -18,6 +20,8 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 class StubPublishCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Filesystem $filesystem;
 
     protected string $stubsPath;
@@ -115,9 +119,9 @@ class StubPublishCommandTest extends TestCase
         $destination = $this->stubsPath . '/class.stub';
         $this->filesystem->put($destination, 'existing contents');
 
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $readException = new FileNotFoundException("File does not exist at path [{$this->source}].");
-        $files->shouldReceive('get')->once()->with($this->source)->andThrow($readException);
+        $files->expects('get')->with($this->source)->throws($readException);
         $this->app->instance('files', $files);
         $tester = $this->commandTester();
 
@@ -139,12 +143,11 @@ class StubPublishCommandTest extends TestCase
         $this->filesystem->put($destination, 'existing contents');
         chmod($destination, 0640);
 
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $publicationException = new RuntimeException('Unable to publish stub.');
-        $files->shouldReceive('replace')
-            ->once()
-            ->with($destination, m::type('string'), 0640)
-            ->andThrow($publicationException);
+        $files->expects('replace')
+            ->with($destination, Argument::type('string'), 0640)
+            ->throws($publicationException);
         $this->app->instance('files', $files);
         $tester = $this->commandTester();
 

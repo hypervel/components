@@ -24,8 +24,8 @@ use Hypervel\OpenTelemetry\Context\CoroutineContextStorage;
 use Hypervel\OpenTelemetry\Instrumentation\CacheInstrumentation;
 use Hypervel\OpenTelemetry\OpenTelemetryManager;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use OpenTelemetry\API\Trace\TracerProviderInterface;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use OpenTelemetry\Context\Context;
 use OpenTelemetry\Context\ContextStorageInterface;
 use OpenTelemetry\Context\ExecutionContextAwareInterface;
@@ -48,6 +48,8 @@ use Throwable;
 
 class CacheInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private ContextStorageInterface&ExecutionContextAwareInterface $previousStorage;
 
     private Dispatcher $events;
@@ -272,7 +274,7 @@ class CacheInstrumentationTest extends TestCase
             ->build();
 
         try {
-            $this->instrumentation(tracerProvider: $tracerProvider, resolverCalls: 0)
+            $this->instrumentation(resolverCalls: 0)
                 ->register($this->options(['key' => true]));
             $span = $tracerProvider->getTracer('test')->spanBuilder('request')->startSpan();
             $scope = $span->activate();
@@ -324,17 +326,10 @@ class CacheInstrumentationTest extends TestCase
      */
     private function instrumentation(
         ?Closure $resolver = null,
-        ?TracerProviderInterface $tracerProvider = null,
         int $resolverCalls = 1,
     ): CacheInstrumentation {
-        $openTelemetryManager = m::mock(OpenTelemetryManager::class);
-        $expectation = $openTelemetryManager->shouldReceive('cacheKeyResolver');
-
-        if ($resolverCalls === 0) {
-            $expectation->never();
-        } else {
-            $expectation->times($resolverCalls)->andReturn($resolver);
-        }
+        $openTelemetryManager = Double::for(OpenTelemetryManager::class)->strict();
+        $openTelemetryManager->expects('cacheKeyResolver')->times($resolverCalls)->returns($resolver);
 
         return new CacheInstrumentation(
             $this->events,

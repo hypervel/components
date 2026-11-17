@@ -9,41 +9,45 @@ use Hypervel\Contracts\Config\Repository;
 use Hypervel\Testbench\Foundation\Concerns\HandlesDatabaseConnections;
 use Hypervel\Testbench\PHPUnit\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 
 class HandlesDatabaseConnectionsTest extends TestCase
 {
     use HandlesDatabaseConnections;
+    use VerifiesDoubles;
 
     #[Test]
     public function itCanBuildMysqlConnection(): void
     {
-        $config = m::mock(Repository::class);
+        $config = Double::for(Repository::class)->strict();
 
         $_ENV['MYSQL_URL'] = 'mysql://127.0.0.1:3306';
 
-        $config->shouldNotReceive('get')->with('database.connections.mysql.url')
-            ->shouldReceive('get')->once()->with('database.connections.mysql.host')->andReturn('127.0.0.1')
-            ->shouldReceive('get')->once()->with('database.connections.mysql.port')->andReturn('3306')
-            ->shouldReceive('get')->once()->with('database.connections.mysql.database')->andReturn('hypervel')
-            ->shouldReceive('get')->once()->with('database.connections.mysql.username')->andReturn('root')
-            ->shouldReceive('get')->once()->with('database.connections.mysql.password')->andReturn('secret')
-            ->shouldReceive('get')->once()->with('database.connections.mysql.collation')->andReturn('utf8mb4_0900_ai_ci')
-            ->shouldReceive('set')->once()->with([
-                'database.connections.mysql.url' => 'mysql://127.0.0.1:3306',
-                'database.connections.mysql.host' => '127.0.0.1',
-                'database.connections.mysql.port' => '3306',
-                'database.connections.mysql.database' => 'hypervel',
-                'database.connections.mysql.username' => 'root',
-                'database.connections.mysql.password' => 'secret',
-                'database.connections.mysql.collation' => 'utf8mb4_0900_ai_ci',
-            ]);
+        $config->expects('get')->never()->with('database.connections.mysql.url');
+        $config->expects('get')->with('database.connections.mysql.host')->returns('127.0.0.1');
+        $config->expects('get')->with('database.connections.mysql.port')->returns('3306');
+        $config->expects('get')->with('database.connections.mysql.database')->returns('hypervel');
+        $config->expects('get')->with('database.connections.mysql.username')->returns('root');
+        $config->expects('get')->with('database.connections.mysql.password')->returns('secret');
+        $config->expects('get')->with('database.connections.mysql.collation')->returns('utf8mb4_0900_ai_ci');
+        $config->expects('set')->with([
+            'database.connections.mysql.url' => 'mysql://127.0.0.1:3306',
+            'database.connections.mysql.host' => '127.0.0.1',
+            'database.connections.mysql.port' => '3306',
+            'database.connections.mysql.database' => 'hypervel',
+            'database.connections.mysql.username' => 'root',
+            'database.connections.mysql.password' => 'secret',
+            'database.connections.mysql.collation' => 'utf8mb4_0900_ai_ci',
+        ]);
 
-        $this->usesDatabaseConnectionsEnvironmentVariables($config, 'mysql', 'MYSQL');
-
-        unset($_ENV['MYSQL_URL']);
+        try {
+            $this->usesDatabaseConnectionsEnvironmentVariables($config, 'mysql', 'MYSQL');
+        } finally {
+            unset($_ENV['MYSQL_URL']);
+        }
     }
 
     #[DataProvider('validPorts')]

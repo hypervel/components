@@ -11,17 +11,20 @@ use Hypervel\Horizon\Events\JobFailed;
 use Hypervel\Horizon\Repositories\RedisJobRepository;
 use Hypervel\Queue\Jobs\Job;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class StoreTagsForFailedTest extends IntegrationTestCase
 {
+    use VerifiesDoubles;
+
     public function testTemporaryFailedJobShouldBeDeletedWhenTheMainJobIsDeleted(): void
     {
         config()->set('horizon.trim.failed', 120);
 
-        $tagRepository = m::mock(TagRepository::class);
+        $tagRepository = Double::for(TagRepository::class)->strict();
 
-        $tagRepository->shouldReceive('addTemporary')->once()->with(120, '1', ['failed:foobar'])->andReturn([]);
+        $tagRepository->expects('addTemporary')->with(120, '1', ['failed:foobar']);
 
         $this->instance(TagRepository::class, $tagRepository);
 
@@ -45,12 +48,12 @@ class StoreTagsForFailedTest extends IntegrationTestCase
             'monitored' => 10080,
         ]);
 
-        $tagRepository = m::mock(TagRepository::class);
-        $tagRepository->shouldReceive('addTemporary')->once()->with(
+        $tagRepository = Double::for(TagRepository::class)->strict();
+        $tagRepository->expects('addTemporary')->with(
             RedisJobRepository::DEFAULT_FAILED_JOB_RETENTION,
             '1',
             ['failed:foobar'],
-        )->andReturn([]);
+        );
         $this->instance(TagRepository::class, $tagRepository);
 
         $event = new JobFailed(

@@ -6,13 +6,16 @@ namespace Hypervel\Tests\Mcp\Unit\Console\Commands;
 
 use Hypervel\Mcp\Server\Registrar;
 use Hypervel\Tests\Mcp\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class StartCommandTest extends TestCase
 {
-    private Registrar&MockInterface $registrar;
+    use VerifiesDoubles;
+
+    private Registrar&DoubleInterface $registrar;
 
     /**
      * Bind the local server registry double.
@@ -20,7 +23,7 @@ class StartCommandTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->registrar = m::mock(Registrar::class);
+        $this->registrar = Double::for(Registrar::class)->strict();
         $this->app->instance(Registrar::class, $this->registrar);
     }
 
@@ -31,7 +34,7 @@ class StartCommandTest extends TestCase
             $serverCalled = true;
         };
 
-        $this->registrar->shouldReceive('getLocalServer')->once()->with('demo')->andReturn($server);
+        $this->registrar->expects('getLocalServer')->with('demo')->returns($server);
 
         $this->artisan('mcp:start', ['handle' => 'demo'])
             ->assertExitCode(0);
@@ -41,7 +44,7 @@ class StartCommandTest extends TestCase
 
     public function testFailsWhenServerHandleIsNotFound(): void
     {
-        $this->registrar->shouldReceive('getLocalServer')->once()->with('invalid')->andReturn(null);
+        $this->registrar->expects('getLocalServer')->with('invalid')->returns(null);
 
         $this->artisan('mcp:start', ['handle' => 'invalid'])
             ->expectsOutputToContain('MCP Server with name [invalid] not found. Did you register it using [Mcp::local()]?')
@@ -59,7 +62,7 @@ class StartCommandTest extends TestCase
     {
         $server = function (): void {};
 
-        $this->registrar->shouldReceive('getLocalServer')->once()->with('test-handle')->andReturn($server);
+        $this->registrar->expects('getLocalServer')->with('test-handle')->returns($server);
 
         $this->artisan('mcp:start', ['handle' => 'test-handle'])
             ->assertExitCode(0);

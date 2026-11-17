@@ -20,12 +20,16 @@ use Hypervel\Scout\EngineOperationRunner;
 use Hypervel\Scout\Engines\DatabaseEngine;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PDO;
 
 #[WithConfig('ai.caching.embeddings.store', 'array')]
 class DatabaseEngineSemanticTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Register the embedding provider used by semantic searches.
      */
@@ -166,14 +170,14 @@ class DatabaseEngineSemanticTest extends TestCase
         $model->forceFill(['id' => 1, 'name' => 'Generate this']);
         $model->exists = true;
 
-        $observer = m::mock(EngineOperationObserver::class);
-        $observer->shouldReceive('starting')->once()->with(m::on(
+        $observer = Double::for(EngineOperationObserver::class)->strict();
+        $observer->expects('starting')->with(Argument::satisfies(
             fn (EngineOperation $operation): bool => $operation->operation === 'update'
                 && $operation->engineName === 'database'
                 && $operation->modelCount === 1
                 && $operation->index === 'documents'
-        ))->andReturn(null);
-        $observer->shouldReceive('finished')->once()->with(m::type(EngineOperation::class), null, null);
+        ))->returns(null);
+        $observer->expects('finished')->with(Argument::type(EngineOperation::class), null, null);
         $runner = new EngineOperationRunner;
         $runner->observe($observer);
 
@@ -192,7 +196,8 @@ class DatabaseEngineSemanticTest extends TestCase
     protected function model(): DatabaseSemanticModel
     {
         $connection = new PostgresConnection(new PDO('sqlite::memory:'), '', '', ['driver' => 'pgsql']);
-        $resolver = m::mock(ConnectionResolverInterface::class, ['connection' => $connection]);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->allows('connection')->returns($connection);
         Model::setConnectionResolver($resolver);
 
         return new DatabaseSemanticModel;

@@ -836,9 +836,7 @@ class SwallowedCancellationCollector implements Collector
             $declaringClass = $method->getDeclaringClass()->getName();
 
             // The class using a trait declares its methods, so an application model's SoftDeletes methods are matched by their trait.
-            // The Redis classes' own trait methods, such as RedisProxy's pipeline(), are matched by the class.
             if (! isset(self::OPERATIONS[$declaringClass])
-                && ! in_array($declaringClass, self::REDIS_CLASSES, true)
                 // @phpstan-ignore phpstanApi.instanceofAssumption (Only PhpMethodReflection exposes a native method's declaring trait. The SoftDeletes test fails if that changes.)
                 && $method instanceof PhpMethodReflection
                 && $method->getDeclaringTrait() !== null) {

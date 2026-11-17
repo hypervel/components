@@ -23,11 +23,13 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Mail;
 use Hypervel\Support\Facades\Notification as NotificationFacade;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class OutboxProducerTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     protected bool $migrateRefresh = true;
 
@@ -54,7 +56,7 @@ class OutboxProducerTest extends TestCase
 
     public function testPublicProducerApisStageTheirExistingWrapperJobs(): void
     {
-        $this->app->instance('redis', m::mock(Factory::class));
+        $this->app->instance('redis', Double::for(Factory::class)->strict());
         Event::listen('outbox.created', OutboxProducerListener::class);
 
         DB::transaction(static function (): void {

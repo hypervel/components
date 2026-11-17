@@ -13,12 +13,16 @@ use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\Fixtures\Models\SoftDeletableSearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
-use Mockery as m;
 use RuntimeException;
 
 class SearchableModelTest extends ScoutTestCase
 {
+    use VerifiesDoubles;
+
     public function testSearchableBootDefersModelInstanceWorkUntilAfterPublication(): void
     {
         $model = new SearchableModel;
@@ -225,12 +229,11 @@ class SearchableModelTest extends ScoutTestCase
 
     public function testRemoveAllFromSearchGuardsTheResolvedEngineBeforeFlushing(): void
     {
-        $engine = m::mock(Engine::class);
-        $engine->shouldReceive('runFlush')
-            ->once()
-            ->with(m::type(SearchableModel::class));
-        $manager = m::mock(EngineManager::class);
-        $manager->shouldReceive('engine')->once()->andReturn($engine);
+        $engine = Double::for(Engine::class)->strict();
+        $engine->expects('runFlush')
+            ->with(Argument::type(SearchableModel::class));
+        $manager = Double::for(EngineManager::class)->strict();
+        $manager->expects('engine')->returns($engine);
         $this->app->instance(EngineManager::class, $manager);
         $guarded = false;
         Scout::guardModelFlushUsing(function (Model $model, Engine $givenEngine, bool $force) use (

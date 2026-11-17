@@ -5,23 +5,26 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Testbench\Foundation\Console\Actions;
 
 use Hypervel\Console\Command;
-use Hypervel\Console\View\Components\Factory as ComponentsFactory;
 use Hypervel\Testbench\Foundation\Console\Actions\RunCommand;
+use Hypervel\Tests\Console\Fixtures\ComponentsFactory;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 
 class RunCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[Test]
     public function itCanRunCommand(): void
     {
-        $console = m::mock(Command::class);
-        $components = m::mock(ComponentsFactory::class);
+        $console = Double::for(Command::class)->strict();
+        $components = Double::for(ComponentsFactory::class)->strict();
 
-        $console->shouldReceive('call')->once()->with('config:clear', ['--force' => true])->andReturn(Command::SUCCESS);
-        $components->shouldReceive('task')->never();
+        $console->expects('call')->with('config:clear', ['--force' => true])->returns(Command::SUCCESS);
+        $components->expects('task')->never();
 
         (new RunCommand(
             console: $console,
@@ -32,11 +35,11 @@ class RunCommandTest extends TestCase
     #[Test]
     public function itCanPretendToRunCommand(): void
     {
-        $console = m::mock(Command::class);
-        $components = m::mock(ComponentsFactory::class);
+        $console = Double::for(Command::class)->strict();
+        $components = Double::for(ComponentsFactory::class)->strict();
 
-        $console->shouldReceive('call')->never();
-        $components->shouldReceive('task')->once()->with('Command [config:clear] would be executed')->andReturnNull();
+        $console->expects('call')->never();
+        $components->expects('task')->with('Command [config:clear] would be executed');
 
         (new RunCommand(
             console: $console,
@@ -48,9 +51,9 @@ class RunCommandTest extends TestCase
     #[Test]
     public function itFailsWhenTheCommandFails(): void
     {
-        $console = m::mock(Command::class);
+        $console = Double::for(Command::class)->strict();
 
-        $console->shouldReceive('call')->once()->with('config:clear', [])->andReturn(Command::FAILURE);
+        $console->expects('call')->with('config:clear', [])->returns(Command::FAILURE);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Unable to run command [config:clear].');

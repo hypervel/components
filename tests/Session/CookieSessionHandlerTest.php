@@ -8,27 +8,24 @@ use Hypervel\Contracts\Cookie\QueueingFactory;
 use Hypervel\Http\Request;
 use Hypervel\Session\CookieSessionHandler;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use stdClass;
 
 class CookieSessionHandlerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBinarySessionPayloadRoundTripsThroughCookieEnvelope(): void
     {
-        $cookie = m::mock(QueueingFactory::class);
+        $cookie = Double::for(QueueingFactory::class)->strict();
         $handler = new CookieSessionHandler($cookie, 120);
         $payload = serialize(['binary' => "\x00\xff\x10"]);
         $cookieValue = null;
 
-        $cookie->shouldReceive('queue')
-            ->once()
-            ->withArgs(function (string $name, string $value, int $minutes) use (&$cookieValue): bool {
-                $this->assertSame('session-id', $name);
-                $this->assertSame(120, $minutes);
-                $cookieValue = $value;
-
-                return true;
-            });
+        $cookie->expects('queue')
+            ->with('session-id', Argument::capture($cookieValue), 120);
 
         $this->assertTrue($handler->write('session-id', $payload));
         $this->assertIsString($cookieValue);
@@ -40,7 +37,7 @@ class CookieSessionHandlerTest extends TestCase
 
     public function testInvalidCookieEnvelopesReturnEmptyString(): void
     {
-        $handler = new CookieSessionHandler(m::mock(QueueingFactory::class), 120);
+        $handler = new CookieSessionHandler(Double::for(QueueingFactory::class)->strict(), 120);
 
         foreach ([
             'garbage' => 'not serialized data',

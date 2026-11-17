@@ -23,13 +23,17 @@ use Hypervel\Passport\ServerFactory;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Passport\Fixtures\User as TokenGuardTestUser;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
 class TokenGuardTest extends TestCase
 {
+    use VerifiesDoubles;
+
     // REMOVED: User/client integer-ID collisions require the pre-13 client schema.
 
     /**
@@ -44,8 +48,8 @@ class TokenGuardTest extends TestCase
     #[TestWith(['Basic dXNlcjpwYXNzd29yZA=='])]
     public function testUsersMayBeRetrievedFromCookiesWithCsrfTokenHeader(?string $authorization): void
     {
-        $userProvider = m::mock(PassportUserProvider::class);
-        $clients = m::mock(ClientRepository::class);
+        $userProvider = Double::for(PassportUserProvider::class)->strict();
+        $clients = Double::for(ClientRepository::class)->strict();
         $encrypter = new Encrypter(str_repeat('a', 32), 'aes-256-cbc');
         $key = hash_hkdf('sha256', $encrypter->getKey(), 32, 'hypervel-passport-cookie');
 
@@ -64,7 +68,7 @@ class TokenGuardTest extends TestCase
 
         $guard = $this->makeGuard($userProvider, $clients, $encrypter, $request);
 
-        $userProvider->expects('retrieveById')->twice()->with(1)->andReturn($expectedUser = new TokenGuardTestUser);
+        $userProvider->expects('retrieveById')->times(2)->with(1)->returns($expectedUser = new TokenGuardTestUser);
 
         $user = $guard->user();
 
@@ -78,8 +82,8 @@ class TokenGuardTest extends TestCase
 
     public function testUsersMayBeRetrievedFromCookiesWithXsrfTokenHeader(): void
     {
-        $userProvider = m::mock(PassportUserProvider::class);
-        $clients = m::mock(ClientRepository::class);
+        $userProvider = Double::for(PassportUserProvider::class)->strict();
+        $clients = Double::for(ClientRepository::class)->strict();
         $encrypter = new Encrypter(str_repeat('a', 32), 'aes-256-cbc');
         $key = hash_hkdf('sha256', $encrypter->getKey(), 32, 'hypervel-passport-cookie');
 
@@ -97,7 +101,7 @@ class TokenGuardTest extends TestCase
 
         $guard = $this->makeGuard($userProvider, $clients, $encrypter, $request);
 
-        $userProvider->expects('retrieveById')->with(1)->andReturn($expectedUser = new TokenGuardTestUser);
+        $userProvider->expects('retrieveById')->with(1)->returns($expectedUser = new TokenGuardTestUser);
 
         $user = $guard->user();
 
@@ -106,8 +110,8 @@ class TokenGuardTest extends TestCase
 
     public function testCookieXsrfIsVerifiedAgainstCsrfTokenHeader(): void
     {
-        $userProvider = m::mock(PassportUserProvider::class);
-        $clients = m::mock(ClientRepository::class);
+        $userProvider = Double::for(PassportUserProvider::class)->strict();
+        $clients = Double::for(ClientRepository::class)->strict();
         $encrypter = new Encrypter(str_repeat('a', 32), 'aes-256-cbc');
         $key = hash_hkdf('sha256', $encrypter->getKey(), 32, 'hypervel-passport-cookie');
 
@@ -132,8 +136,8 @@ class TokenGuardTest extends TestCase
 
     public function testCookieXsrfIsVerifiedAgainstXsrfTokenHeader(): void
     {
-        $userProvider = m::mock(PassportUserProvider::class);
-        $clients = m::mock(ClientRepository::class);
+        $userProvider = Double::for(PassportUserProvider::class)->strict();
+        $clients = Double::for(ClientRepository::class)->strict();
         $encrypter = new Encrypter(str_repeat('a', 32), 'aes-256-cbc');
         $key = hash_hkdf('sha256', $encrypter->getKey(), 32, 'hypervel-passport-cookie');
 
@@ -162,8 +166,8 @@ class TokenGuardTest extends TestCase
             return $encrypter->getKey() . '.mykey';
         });
 
-        $userProvider = m::mock(PassportUserProvider::class);
-        $clients = m::mock(ClientRepository::class);
+        $userProvider = Double::for(PassportUserProvider::class)->strict();
+        $clients = Double::for(ClientRepository::class)->strict();
         $encrypter = new Encrypter(str_repeat('a', 32), 'aes-256-cbc');
 
         $request = Request::create('/');
@@ -180,7 +184,7 @@ class TokenGuardTest extends TestCase
 
         $guard = $this->makeGuard($userProvider, $clients, $encrypter, $request);
 
-        $userProvider->expects('retrieveById')->with(1)->andReturn($expectedUser = new TokenGuardTestUser);
+        $userProvider->expects('retrieveById')->with(1)->returns($expectedUser = new TokenGuardTestUser);
 
         $user = $guard->user();
 
@@ -194,8 +198,8 @@ class TokenGuardTest extends TestCase
             return $encrypter->getKey() . '.mykey';
         });
 
-        $userProvider = m::mock(PassportUserProvider::class);
-        $clients = m::mock(ClientRepository::class);
+        $userProvider = Double::for(PassportUserProvider::class)->strict();
+        $clients = Double::for(ClientRepository::class)->strict();
         $encrypter = new Encrypter(str_repeat('a', 32), 'aes-256-cbc');
 
         $request = Request::create('/');
@@ -212,7 +216,7 @@ class TokenGuardTest extends TestCase
 
         $guard = $this->makeGuard($userProvider, $clients, $encrypter, $request);
 
-        $userProvider->expects('retrieveById')->with(1)->andReturn($expectedUser = new TokenGuardTestUser);
+        $userProvider->expects('retrieveById')->with(1)->returns($expectedUser = new TokenGuardTestUser);
 
         $user = $guard->user();
 
@@ -227,11 +231,11 @@ class TokenGuardTest extends TestCase
             Passport::withoutCookieEncryption();
         }
 
-        $userProvider = m::mock(PassportUserProvider::class);
-        $userProvider->shouldNotReceive('retrieveById');
+        $userProvider = Double::for(PassportUserProvider::class)->strict();
+        $userProvider->expects('retrieveById')->never();
         $encrypter = new Encrypter(str_repeat('a', 32), 'aes-256-cbc');
         $request = Request::create('/', cookies: [Passport::cookie() => ['x' => '1']]);
-        $guard = $this->makeGuard($userProvider, m::mock(ClientRepository::class), $encrypter, $request);
+        $guard = $this->makeGuard($userProvider, Double::for(ClientRepository::class)->strict(), $encrypter, $request);
 
         $this->assertNull($guard->user());
         $this->assertFalse($guard->validate(['request' => $request]));
@@ -239,8 +243,8 @@ class TokenGuardTest extends TestCase
 
     public function testXsrfTokenCookieWithoutATokenHeaderIsNotAccepted(): void
     {
-        $userProvider = m::mock(PassportUserProvider::class);
-        $clients = m::mock(ClientRepository::class);
+        $userProvider = Double::for(PassportUserProvider::class)->strict();
+        $clients = Double::for(ClientRepository::class)->strict();
         $encrypter = new Encrypter(str_repeat('a', 32), 'aes-256-cbc');
         $key = hash_hkdf('sha256', $encrypter->getKey(), 32, 'hypervel-passport-cookie');
 
@@ -265,8 +269,8 @@ class TokenGuardTest extends TestCase
 
     public function testExpiredCookiesMayNotBeUsed(): void
     {
-        $userProvider = m::mock(PassportUserProvider::class);
-        $clients = m::mock(ClientRepository::class);
+        $userProvider = Double::for(PassportUserProvider::class)->strict();
+        $clients = Double::for(ClientRepository::class)->strict();
         $encrypter = new Encrypter(str_repeat('a', 32), 'aes-256-cbc');
         $key = hash_hkdf('sha256', $encrypter->getKey(), 32, 'hypervel-passport-cookie');
 
@@ -291,8 +295,8 @@ class TokenGuardTest extends TestCase
 
     public function testCsrfCheckCanBeDisabled(): void
     {
-        $userProvider = m::mock(PassportUserProvider::class);
-        $clients = m::mock(ClientRepository::class);
+        $userProvider = Double::for(PassportUserProvider::class)->strict();
+        $clients = Double::for(ClientRepository::class)->strict();
         $encrypter = new Encrypter(str_repeat('a', 32), 'aes-256-cbc');
         $key = hash_hkdf('sha256', $encrypter->getKey(), 32, 'hypervel-passport-cookie');
 
@@ -310,7 +314,7 @@ class TokenGuardTest extends TestCase
 
         $guard = $this->makeGuard($userProvider, $clients, $encrypter, $request);
 
-        $userProvider->expects('retrieveById')->with(1)->andReturn($expectedUser = new TokenGuardTestUser);
+        $userProvider->expects('retrieveById')->with(1)->returns($expectedUser = new TokenGuardTestUser);
 
         $user = $guard->user();
 
@@ -320,8 +324,8 @@ class TokenGuardTest extends TestCase
     // REMOVED: Cookie client lookup; factory cookies carry no aud claim and have no OAuth client.
     public function testCookiesHaveNoOauthClient(): void
     {
-        $userProvider = m::mock(PassportUserProvider::class);
-        $clients = m::mock(ClientRepository::class);
+        $userProvider = Double::for(PassportUserProvider::class)->strict();
+        $clients = Double::for(ClientRepository::class)->strict();
         $encrypter = new Encrypter(str_repeat('a', 32), 'aes-256-cbc');
 
         $request = Request::create('/');
@@ -334,8 +338,8 @@ class TokenGuardTest extends TestCase
             CookieValuePrefix::create($cookie->getName(), $encrypter->getKey()) . $cookie->getValue(),
             false
         ));
-        $userProvider->expects('retrieveById')->with(1)->andReturn(new TokenGuardTestUser);
-        $clients->shouldNotReceive('findActive');
+        $userProvider->expects('retrieveById')->with(1)->returns(new TokenGuardTestUser);
+        $clients->expects('findActive')->never();
 
         $this->assertInstanceOf(TokenGuardTestUser::class, $guard->user());
         $this->assertNull($guard->client());
@@ -347,8 +351,8 @@ class TokenGuardTest extends TestCase
     #[TestWith([['provider' => 'admins']])]
     public function testCookiesRequireTheGuardsProvider(array $providerClaim): void
     {
-        $userProvider = m::mock(PassportUserProvider::class);
-        $userProvider->shouldNotReceive('retrieveById');
+        $userProvider = Double::for(PassportUserProvider::class)->strict();
+        $userProvider->expects('retrieveById')->never();
         $encrypter = new Encrypter(str_repeat('a', 32), 'aes-256-cbc');
         $request = Request::create('/');
         $request->headers->set('X-CSRF-TOKEN', 'token');
@@ -362,7 +366,7 @@ class TokenGuardTest extends TestCase
             false
         ));
 
-        $guard = $this->makeGuard($userProvider, m::mock(ClientRepository::class), $encrypter, $request);
+        $guard = $this->makeGuard($userProvider, Double::for(ClientRepository::class)->strict(), $encrypter, $request);
 
         $this->assertNull($guard->user());
     }
@@ -371,7 +375,7 @@ class TokenGuardTest extends TestCase
     public function testCookieBindingIsCheckedBeforeLoadingTheUser(array $bindingClaim, ?string $binding, bool $accepted): void
     {
         Passport::bindCookiesUsing(static fn (Request $request): ?string => $request->headers->get('X-Organization'));
-        $userProvider = m::mock(PassportUserProvider::class);
+        $userProvider = Double::for(PassportUserProvider::class)->strict();
         $encrypter = new Encrypter(str_repeat('a', 32), 'aes-256-cbc');
         $request = Request::create('/');
         $request->headers->set('X-Organization', $binding);
@@ -389,12 +393,12 @@ class TokenGuardTest extends TestCase
         $expected = $accepted ? new TokenGuardTestUser : null;
 
         if ($accepted) {
-            $userProvider->expects('retrieveById')->with(1)->andReturn($expected);
+            $userProvider->expects('retrieveById')->with(1)->returns($expected);
         } else {
-            $userProvider->shouldNotReceive('retrieveById');
+            $userProvider->expects('retrieveById')->never();
         }
 
-        $guard = $this->makeGuard($userProvider, m::mock(ClientRepository::class), $encrypter, $request);
+        $guard = $this->makeGuard($userProvider, Double::for(ClientRepository::class)->strict(), $encrypter, $request);
 
         $this->assertSame($expected, $guard->user());
 
@@ -423,7 +427,7 @@ class TokenGuardTest extends TestCase
 
     public function testUserProviderFailuresAreNotTreatedAsInvalidCookies(): void
     {
-        $userProvider = m::mock(PassportUserProvider::class);
+        $userProvider = Double::for(PassportUserProvider::class)->strict();
         $encrypter = new Encrypter(str_repeat('a', 32), 'aes-256-cbc');
         $request = Request::create('/');
         $request->headers->set('X-CSRF-TOKEN', 'token');
@@ -437,8 +441,8 @@ class TokenGuardTest extends TestCase
             false
         ));
         $failure = new RuntimeException('User provider unavailable.');
-        $userProvider->expects('retrieveById')->with(1)->andThrow($failure);
-        $guard = $this->makeGuard($userProvider, m::mock(ClientRepository::class), $encrypter, $request);
+        $userProvider->expects('retrieveById')->with(1)->throws($failure);
+        $guard = $this->makeGuard($userProvider, Double::for(ClientRepository::class)->strict(), $encrypter, $request);
 
         $this->expectExceptionObject($failure);
 
@@ -459,16 +463,16 @@ class TokenGuardTest extends TestCase
             ], hash_hkdf('sha256', $encrypter->getKey(), 32, 'hypervel-passport-cookie'), 'HS256'),
             false
         ));
-        $previousProvider = m::mock(PassportUserProvider::class);
-        $previousProvider->expects('retrieveById')->with(1)->andReturn(new TokenGuardTestUser);
-        $previousGuard = $this->makeGuard($previousProvider, m::mock(ClientRepository::class), $encrypter, $request);
+        $previousProvider = Double::for(PassportUserProvider::class)->strict();
+        $previousProvider->expects('retrieveById')->with(1)->returns(new TokenGuardTestUser);
+        $previousGuard = $this->makeGuard($previousProvider, Double::for(ClientRepository::class)->strict(), $encrypter, $request);
         $this->assertNotNull($previousGuard->user());
         $previousGuard->setUser(new TokenGuardTestUser);
         $previousGuard->setClient(new Client);
-        $provider = m::mock(PassportUserProvider::class);
-        $provider->expects('retrieveById')->with(1)->andReturnNull();
+        $provider = Double::for(PassportUserProvider::class)->strict();
+        $provider->expects('retrieveById')->with(1)->returns(null);
 
-        $guard = $this->makeGuard($provider, m::mock(ClientRepository::class), $encrypter, $request);
+        $guard = $this->makeGuard($provider, Double::for(ClientRepository::class)->strict(), $encrypter, $request);
 
         $this->assertFalse($guard->hasUser());
         $this->assertNull($guard->user());
@@ -478,10 +482,10 @@ class TokenGuardTest extends TestCase
     /**
      * Create the guard with real key derivation and the coroutine's request.
      */
-    protected function makeGuard(PassportUserProvider $provider, ClientRepository $clients, EncrypterContract $encrypter, Request $request): TokenGuard
+    protected function makeGuard(PassportUserProvider&DoubleInterface $provider, ClientRepository $clients, EncrypterContract $encrypter, Request $request): TokenGuard
     {
         RequestContext::set($request);
-        $provider->allows('getProviderName')->andReturn('users');
+        $provider->allows('getProviderName')->returns('users');
 
         return new TokenGuard(
             'passport',

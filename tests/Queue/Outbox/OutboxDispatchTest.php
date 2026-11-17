@@ -30,7 +30,8 @@ use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
 use Pheanstalk\Contract\PheanstalkPublisherInterface;
 use Pheanstalk\Contract\PheanstalkSubscriberInterface;
@@ -44,6 +45,7 @@ use UnitEnum;
 class OutboxDispatchTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     protected bool $migrateRefresh = true;
 
@@ -152,11 +154,15 @@ class OutboxDispatchTest extends TestCase
     public function testBaseBulkStagesOneInsertAndKeepsTheDirectPartition(bool $beanstalk): void
     {
         $queue = $beanstalk
-            ? m::mock(BeanstalkdQueue::class, [m::mock(PheanstalkManagerInterface::class . ', ' . PheanstalkPublisherInterface::class . ', ' . PheanstalkSubscriberInterface::class), 'orders', 60])->makePartial()
-            : m::mock(Queue::class . ', ' . QueueContract::class)->makePartial();
+            ? Double::for(new BeanstalkdQueue(
+                Double::for(PheanstalkManagerInterface::class, PheanstalkPublisherInterface::class, PheanstalkSubscriberInterface::class)->strict(),
+                'orders',
+                60,
+            ))->passthru()
+            : Double::for(OutboxDispatchBaseQueue::class)->passthru();
         $queue->setContainer($this->app)->setConnectionName($beanstalk ? 'beanstalkd' : 'custom');
         $direct = (new OutboxDispatchJob)->withoutOutbox();
-        $queue->expects('push')->with($direct, '', 'orders')->andReturn('direct');
+        $queue->expects('push')->with($direct, '', 'orders')->returns('direct');
         $jobs = array_map(static fn (): OutboxDispatchJob => (new OutboxDispatchJob)->viaOutbox(), range(1, 100));
         $connection = DB::connection();
         $connection->enableQueryLog();
@@ -216,12 +222,12 @@ class OutboxDispatchTest extends TestCase
     {
         $queue = $this->queue();
         $failure = new RuntimeException('Storage failed');
-        $dispatcher = m::mock(OutboxDispatcher::class, [
+        $dispatcher = Double::for(new OutboxDispatcher(
             $this->app->make(DatabaseOutboxRepository::class),
             $this->app->make(ConnectionResolverInterface::class),
             $this->app->make('db.transactions'),
-        ])->makePartial();
-        $dispatcher->expects('store')->andThrow($failure);
+        ))->passthru();
+        $dispatcher->expects('store')->throws($failure);
         $this->app->instance(OutboxDispatcher::class, $dispatcher);
         $failed = [];
         $this->app->make('events')->listen(JobQueueingFailed::class, function (JobQueueingFailed $event) use (&$failed): void {
@@ -255,7 +261,7 @@ class OutboxDispatchTest extends TestCase
             $failed[] = $event->job;
         });
         $this->app->make('events')->listen(JobQueueingFailed::class, static fn () => throw $listener);
-        $handler = m::mock(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $handler->expects('report')->with($listener);
         $this->app->instance(ExceptionHandler::class, $handler);
         $jobs = [(new OutboxDispatchJob)->viaOutbox(), (new OutboxDispatchJob)->viaOutbox()];
@@ -365,7 +371,7 @@ class OutboxDispatchTest extends TestCase
     public function testSqsStagingCapturesOptionsOnceAndWaitsForItsTransportWindow(string $method, bool $fifo, int $eligibleDelay): void
     {
         Date::setTestNow('2040-01-01 12:00:00');
-        $queue = new SqsQueue(m::mock(SqsClient::class), $fifo ? 'orders.fifo' : 'orders');
+        $queue = new SqsQueue(Double::for(SqsClient::class)->strict(), $fifo ? 'orders.fifo' : 'orders');
         $queue->setContainer($this->app)->setConnectionName('sqs');
         $job = (new OutboxFifoDispatchJob)->viaOutbox()->onGroup('tenant:17')->delay(1200);
 
@@ -441,11 +447,15 @@ class OutboxDispatchTest extends TestCase
      */
     protected function queue(): RecordingOutboxRedisQueue
     {
-        $queue = new RecordingOutboxRedisQueue(m::mock(Factory::class), 'orders');
+        $queue = new RecordingOutboxRedisQueue(Double::for(Factory::class)->strict(), 'orders');
         $queue->setContainer($this->app)->setConnectionName('redis');
 
         return $queue;
     }
+}
+
+abstract class OutboxDispatchBaseQueue extends Queue implements QueueContract
+{
 }
 
 class OutboxDispatchJob

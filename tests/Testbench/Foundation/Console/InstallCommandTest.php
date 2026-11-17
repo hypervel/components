@@ -13,8 +13,11 @@ use Hypervel\Support\Composer;
 use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Console\InstallCommand;
 use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Console\Fixtures\ComponentsFactory;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Override;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
@@ -30,6 +33,8 @@ use function Hypervel\Support\php_binary;
 #[RequiresOperatingSystem('Linux|Darwin')]
 class InstallCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private Filesystem $filesystem;
 
     private string $workingPath;
@@ -268,7 +273,7 @@ class InstallCommandTest extends TestCase
         $this->runInstallCommandStep(
             'copyWorkbenchDotEnvFile',
             [],
-            fn (Factory $components) => $components
+            fn (ComponentsFactory&DoubleInterface $components) => $components
                 ->expects('choice')
                 ->with("Export '.env' file as?", [
                     'skip' => 'Skip exporting .env',
@@ -276,7 +281,7 @@ class InstallCommandTest extends TestCase
                     '.env.example' => '.env.example',
                     '.env.dist' => '.env.dist',
                 ], null)
-                ->andReturn('skip')
+                ->returns('skip')
         );
 
         $this->assertFileDoesNotExist($this->path('workbench/.env'));
@@ -292,7 +297,7 @@ class InstallCommandTest extends TestCase
         $this->runInstallCommandStep(
             'copyWorkbenchDotEnvFile',
             [],
-            fn (Factory $components) => $components
+            fn (ComponentsFactory&DoubleInterface $components) => $components
                 ->expects('choice')
                 ->with("Export '.env' file as?", [
                     'skip' => 'Skip exporting .env',
@@ -300,7 +305,7 @@ class InstallCommandTest extends TestCase
                     '.env.example' => '.env.example',
                     '.env.dist' => '.env.dist',
                 ], null)
-                ->andReturn('.env')
+                ->returns('.env')
         );
 
         $this->assertSame('APP_NAME=Workbench', $this->filesystem->get($this->path('workbench/.env')));
@@ -314,7 +319,7 @@ class InstallCommandTest extends TestCase
         $this->runInstallCommandStep(
             'copyWorkbenchDotEnvFile',
             ['--pretend' => true],
-            fn (Factory $components) => $components
+            fn (ComponentsFactory&DoubleInterface $components) => $components
                 ->expects('choice')
                 ->with("Export '.env' file as?", [
                     'skip' => 'Skip exporting .env',
@@ -322,7 +327,7 @@ class InstallCommandTest extends TestCase
                     '.env.example' => '.env.example',
                     '.env.dist' => '.env.dist',
                 ], null)
-                ->andReturn('.env')
+                ->returns('.env')
         );
 
         $this->assertFileDoesNotExist($this->path('workbench/.env'));
@@ -340,7 +345,7 @@ class InstallCommandTest extends TestCase
         $this->runInstallCommandStep(
             'copyWorkbenchDotEnvFile',
             [],
-            fn (Factory $components) => $components
+            fn (ComponentsFactory&DoubleInterface $components) => $components
                 ->expects('twoColumnDetail')
                 ->with('File [.env] already exists', '<fg=yellow;options=bold>SKIPPED</>')
         );
@@ -360,7 +365,7 @@ class InstallCommandTest extends TestCase
         $this->runInstallCommandStep(
             'copyWorkbenchDotEnvFile',
             ['--force' => true],
-            fn (Factory $components) => $components
+            fn (ComponentsFactory&DoubleInterface $components) => $components
                 ->expects('choice')
                 ->with("Export '.env' file as?", [
                     'skip' => 'Skip exporting .env',
@@ -368,7 +373,7 @@ class InstallCommandTest extends TestCase
                     '.env.example' => '.env.example',
                     '.env.dist' => '.env.dist',
                 ], null)
-                ->andReturn('.env.dist')
+                ->returns('.env.dist')
         );
 
         $this->assertSame('APP_NAME=Workbench', $this->filesystem->get($this->path('workbench/.env.dist')));
@@ -382,9 +387,9 @@ class InstallCommandTest extends TestCase
         $this->runInstallCommandStep(
             'copyWorkbenchBootstrapFiles',
             [],
-            function (Factory $components): void {
-                $components->expects('confirm')->with('Generate `workbench/bootstrap/app.php` file?', true)->andReturn(true);
-                $components->expects('confirm')->with('Generate `workbench/bootstrap/providers.php` file?', false)->andReturn(true);
+            function (ComponentsFactory&DoubleInterface $components): void {
+                $components->expects('confirm')->with('Generate `workbench/bootstrap/app.php` file?', true)->returns(true);
+                $components->expects('confirm')->with('Generate `workbench/bootstrap/providers.php` file?', false)->returns(true);
             }
         );
 
@@ -406,9 +411,9 @@ class InstallCommandTest extends TestCase
         $this->runInstallCommandStep(
             'copyWorkbenchBootstrapFiles',
             ['--basic' => true],
-            function (Factory $components): void {
-                $components->expects('confirm')->with('Generate `workbench/bootstrap/app.php` file?', true)->andReturn(true);
-                $components->expects('confirm')->with('Generate `workbench/bootstrap/providers.php` file?', false)->andReturn(false);
+            function (ComponentsFactory&DoubleInterface $components): void {
+                $components->expects('confirm')->with('Generate `workbench/bootstrap/app.php` file?', true)->returns(true);
+                $components->expects('confirm')->with('Generate `workbench/bootstrap/providers.php` file?', false)->returns(false);
             }
         );
 
@@ -483,9 +488,9 @@ class InstallCommandTest extends TestCase
     {
         $command = new InstallCommandFailureHarness;
         $command->setInput(new ArrayInput([], $command->getDefinition()));
-        $composer = m::mock(Composer::class);
-        $composer->shouldNotReceive('setWorkingPath');
-        $composer->shouldNotReceive('dumpAutoloads');
+        $composer = Double::for(Composer::class)->strict();
+        $composer->expects('setWorkingPath')->never();
+        $composer->expects('dumpAutoloads')->never();
 
         $this->assertSame(InstallCommand::FAILURE, $command->handle($this->filesystem, $composer));
         $this->assertSame(['package:create-sqlite-db'], $command->calls);
@@ -563,7 +568,7 @@ class InstallCommandTest extends TestCase
      *
      * @param 'copyWorkbenchBootstrapFiles'|'copyWorkbenchDotEnvFile' $step
      * @param array<string, mixed> $input
-     * @param Closure(Factory): void $expectations
+     * @param Closure(ComponentsFactory&DoubleInterface): mixed $expectations
      */
     private function runInstallCommandStep(string $step, array $input, Closure $expectations): void
     {
@@ -587,23 +592,23 @@ class InstallCommandTest extends TestCase
             }
         };
 
-        $application = m::mock(Application::class);
+        $application = Double::for(Application::class, override: true)->strict();
         $consoleInput = new ArrayInput($input);
         $output = new NullOutput;
         $outputStyle = new OutputStyle($consoleInput, $output);
-        $components = m::mock(Factory::class);
+        $components = Double::for(ComponentsFactory::class)->strict();
 
         $this->filesystem->ensureDirectoryExists($this->path('workbench'));
 
-        $command->setHypervel($application);
+        $command->setHypervel($application->instance());
 
-        $application->shouldReceive('make')->withArgs(fn (string $abstract): bool => $abstract === OutputStyle::class)->andReturn($outputStyle);
-        $application->shouldReceive('make')->withArgs(fn (string $abstract): bool => $abstract === Factory::class)->andReturn($components);
-        $application->shouldReceive('bound')->andReturn(false);
-        $application->shouldReceive('basePath')->with('.env.example')->andReturn($this->path('.env.example'));
-        $application->shouldReceive('runningUnitTests')->andReturn(true);
-        $application->shouldReceive('call')->with([$command, 'handle'])->andReturnUsing(fn (array $callback): int => $callback[0]->handle($this->filesystem, m::mock(Composer::class)));
-        $components->shouldReceive('task')->zeroOrMoreTimes();
+        $application->allows('make')->with(OutputStyle::class, ['input' => $consoleInput, 'output' => $output])->returns($outputStyle);
+        $application->allows('make')->with(Factory::class, ['output' => $outputStyle])->returns($components);
+        $application->allows('bound')->returns(false);
+        $application->allows('basePath')->with('.env.example')->returns($this->path('.env.example'));
+        $application->allows('runningUnitTests')->returns(true);
+        $application->allows('call')->with([$command, 'handle'])->resolves(fn (array $callback): int => $callback[0]->handle($this->filesystem, Double::for(Composer::class)->strict()));
+        $components->allows('task');
 
         $expectations($components);
 

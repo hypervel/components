@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Console\Fixtures;
 
 use Hypervel\Console\View\Components\Factory;
+use Stringable;
 use Symfony\Component\Console\Output\OutputInterface;
 
 // Declare the dynamically dispatched component methods so Double can verify their arguments and calls.
@@ -39,4 +40,14 @@ abstract class ComponentsFactory extends Factory
      * Prompt for a hidden answer.
      */
     abstract public function secret(string $question, bool $fallback = true): mixed;
+
+    /**
+     * Render a task and its result.
+     */
+    abstract public function task(string $description, ?callable $task = null, int $verbosity = OutputInterface::VERBOSITY_NORMAL): void;
+
+    /**
+     * Render two columns of detail.
+     */
+    abstract public function twoColumnDetail(Stringable|string|int|float $first, Stringable|string|int|float|null $second = null, int $verbosity = OutputInterface::VERBOSITY_NORMAL): void;
 }

@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Reverb\Servers\Hypervel;
 use Hypervel\Context\RequestContext;
 use Hypervel\Http\Request as HttpRequest;
 use Hypervel\Reverb\Application;
+use Hypervel\Reverb\Connection as ReverbConnection;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\Exceptions\InvalidApplication;
 use Hypervel\Reverb\Protocols\Pusher\Server as PusherServer;
@@ -16,10 +17,12 @@ use Hypervel\Reverb\Servers\Hypervel\WebSocketHandler;
 use Hypervel\Routing\Route;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Hypervel\WebSocketServer\Sender;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 use ReflectionClass;
 use Swoole\Coroutine\Channel;
 use Swoole\Http\Request as SwooleRequest;
+use Swoole\Server;
 use Swoole\WebSocket\Frame;
 use Swoole\WebSocket\Server as WebSocketServer;
 
@@ -33,11 +36,14 @@ class WebSocketHandlerTest extends ReverbTestCase
 
     protected WebSocketHandler $handler;
 
+    /**
+     * Set up the protocol server and connection handler.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->pusherServer = m::mock(PusherServer::class);
+        $this->pusherServer = Double::for(PusherServer::class)->strict();
         $this->applicationProvider = $this->app->make(ApplicationProvider::class);
 
         $this->handler = new WebSocketHandler(
@@ -49,7 +55,7 @@ class WebSocketHandlerTest extends ReverbTestCase
 
     public function testInvokeReturns426ForNonWebsocketRequest(): void
     {
-        $request = m::mock(HttpRequest::class);
+        $request = new HttpRequest;
 
         $response = ($this->handler)($request, 'reverb-key');
 
@@ -62,16 +68,16 @@ class WebSocketHandlerTest extends ReverbTestCase
     {
         $this->setupRequestContext('reverb-key');
 
-        $sender = m::mock(Sender::class);
+        $sender = Double::for(Sender::class)->strict();
         $this->app->instance(Sender::class, $sender);
 
-        $this->pusherServer->shouldReceive('open')->once()
-            ->with(m::type(\Hypervel\Reverb\Connection::class))
-            ->andReturnUsing(static function (\Hypervel\Reverb\Connection $connection): void {
+        $this->pusherServer->expects('open')
+            ->with(Argument::type(ReverbConnection::class))
+            ->resolves(static function (ReverbConnection $connection): void {
                 $connection->markEstablished();
             });
 
-        $swooleServer = m::mock(WebSocketServer::class);
+        $swooleServer = Double::for(WebSocketServer::class)->strict();
         $swooleRequest = new SwooleRequest;
         $swooleRequest->fd = 1;
 
@@ -81,7 +87,7 @@ class WebSocketHandlerTest extends ReverbTestCase
         $this->assertCount(1, $connections);
         $this->assertArrayHasKey(1, $connections);
         $this->assertInstanceOf(ConnectionLifecycle::class, $connections[1]);
-        $this->assertInstanceOf(\Hypervel\Reverb\Connection::class, $connections[1]->connection());
+        $this->assertInstanceOf(ReverbConnection::class, $connections[1]->connection());
     }
 
     public function testOnOpenRejectsInvalidAppKey(): void
@@ -89,18 +95,18 @@ class WebSocketHandlerTest extends ReverbTestCase
         $this->setupRequestContext('invalid-key');
 
         // Replace application provider with one that throws
-        $appProvider = m::mock(ApplicationProvider::class);
-        $appProvider->shouldReceive('findByKey')->with('invalid-key')
-            ->andThrow(new InvalidApplication('invalid-key'));
+        $appProvider = Double::for(ApplicationProvider::class)->strict();
+        $appProvider->allows('findByKey')->with('invalid-key')
+            ->throws(new InvalidApplication('invalid-key'));
 
         $handler = new WebSocketHandler($this->app, $this->pusherServer, $appProvider);
 
-        $swooleServer = m::mock(WebSocketServer::class);
-        $swooleServer->shouldReceive('push')->once()->with(
+        $swooleServer = Double::for(WebSocketServer::class)->strict();
+        $swooleServer->expects('push')->with(
             1,
             '{"event":"pusher:error","data":"{\"code\":4001,\"message\":\"Application does not exist\"}"}'
         );
-        $swooleServer->shouldReceive('disconnect')->once()->with(1);
+        $swooleServer->expects('disconnect')->with(1);
 
         $swooleRequest = new SwooleRequest;
         $swooleRequest->fd = 1;
@@ -115,13 +121,13 @@ class WebSocketHandlerTest extends ReverbTestCase
     {
         $this->setupRequestContext('reverb-key');
 
-        $this->app->instance(Sender::class, m::mock(Sender::class));
+        $this->app->instance(Sender::class, Double::for(Sender::class)->strict());
 
-        $this->pusherServer->shouldReceive('open')->once();
-        $this->pusherServer->shouldReceive('close')->once();
+        $this->pusherServer->expects('open');
+        $this->pusherServer->expects('close');
 
-        $swooleServer = m::mock(WebSocketServer::class);
-        $swooleServer->shouldReceive('disconnect')->once()->with(1)->andReturnTrue();
+        $swooleServer = Double::for(WebSocketServer::class)->strict();
+        $swooleServer->expects('disconnect')->with(1)->returns(true);
         $swooleRequest = new SwooleRequest;
         $swooleRequest->fd = 1;
 
@@ -137,12 +143,12 @@ class WebSocketHandlerTest extends ReverbTestCase
         $application = $this->applicationProvider->findByKey('reverb-key');
         $closeStarted = new Channel(1);
         $closeFinished = new Channel(1);
-        $swooleServer = m::mock(WebSocketServer::class);
-        $server = m::mock(\Swoole\Server::class);
+        $swooleServer = Double::for(WebSocketServer::class)->strict();
+        $server = Double::for(Server::class)->strict();
 
-        $provider = m::mock(ApplicationProvider::class);
-        $provider->shouldReceive('findByKey')->once()->with('reverb-key')
-            ->andReturnUsing(function () use ($application, $closeStarted, $closeFinished, $server): Application {
+        $provider = Double::for(ApplicationProvider::class)->strict();
+        $provider->expects('findByKey')->with('reverb-key')
+            ->resolves(function () use ($application, $closeStarted, $closeFinished, $server): Application {
                 go(function () use ($closeStarted, $closeFinished, $server): void {
                     $closeStarted->push(true);
                     $this->handler->onClose($server, 1, 0);
@@ -159,13 +165,13 @@ class WebSocketHandlerTest extends ReverbTestCase
             });
 
         $handler = new WebSocketHandler($this->app, $this->pusherServer, $provider);
-        $this->app->instance(Sender::class, m::mock(Sender::class));
-        $this->pusherServer->shouldReceive('open')->once()
-            ->andReturnUsing(static function (\Hypervel\Reverb\Connection $connection): void {
+        $this->app->instance(Sender::class, Double::for(Sender::class)->strict());
+        $this->pusherServer->expects('open')
+            ->resolves(static function (ReverbConnection $connection): void {
                 $connection->markEstablished();
             });
-        $this->pusherServer->shouldReceive('close')->once()
-            ->with(m::type(\Hypervel\Reverb\Connection::class));
+        $this->pusherServer->expects('close')
+            ->with(Argument::type(ReverbConnection::class));
 
         $swooleRequest = new SwooleRequest;
         $swooleRequest->fd = 1;
@@ -180,10 +186,10 @@ class WebSocketHandlerTest extends ReverbTestCase
     {
         $connection = $this->createStoredConnection(1);
 
-        $this->pusherServer->shouldReceive('message')->once()
+        $this->pusherServer->expects('message')
             ->with($connection, '{"event":"pusher:ping"}');
 
-        $swooleServer = m::mock(WebSocketServer::class);
+        $swooleServer = Double::for(WebSocketServer::class)->strict();
 
         $frame = new Frame;
         $frame->fd = 1;
@@ -198,10 +204,10 @@ class WebSocketHandlerTest extends ReverbTestCase
         $connection = $this->createStoredConnection(1);
 
         // The message should NOT reach PusherServer
-        $this->pusherServer->shouldNotReceive('message');
+        $this->pusherServer->expects('message')->never();
 
-        $swooleServer = m::mock(WebSocketServer::class);
-        $swooleServer->shouldReceive('push')->once()
+        $swooleServer = Double::for(WebSocketServer::class)->strict();
+        $swooleServer->expects('push')
             ->with(1, 'Maximum message size exceeded');
 
         $frame = new Frame;
@@ -217,11 +223,11 @@ class WebSocketHandlerTest extends ReverbTestCase
     {
         $connection = $this->createStoredConnection(1);
 
-        $this->pusherServer->shouldReceive('control')->once()
+        $this->pusherServer->expects('control')
             ->with($connection, WEBSOCKET_OPCODE_PING);
 
-        $swooleServer = m::mock(WebSocketServer::class);
-        $swooleServer->shouldReceive('push')->once()
+        $swooleServer = Double::for(WebSocketServer::class)->strict();
+        $swooleServer->expects('push')
             ->with(1, '', WEBSOCKET_OPCODE_PONG);
 
         $frame = new Frame;
@@ -235,12 +241,12 @@ class WebSocketHandlerTest extends ReverbTestCase
     {
         $connection = $this->createStoredConnection(1);
 
-        $this->pusherServer->shouldReceive('control')->once()
+        $this->pusherServer->expects('control')
             ->with($connection, WEBSOCKET_OPCODE_PONG);
 
-        $swooleServer = m::mock(WebSocketServer::class);
+        $swooleServer = Double::for(WebSocketServer::class)->strict();
         // No pong response should be sent for pong frames
-        $swooleServer->shouldNotReceive('push');
+        $swooleServer->expects('push')->never();
 
         $frame = new Frame;
         $frame->fd = 1;
@@ -251,10 +257,10 @@ class WebSocketHandlerTest extends ReverbTestCase
 
     public function testOnMessageIgnoresUnknownFd(): void
     {
-        $this->pusherServer->shouldNotReceive('message');
-        $this->pusherServer->shouldNotReceive('control');
+        $this->pusherServer->expects('message')->never();
+        $this->pusherServer->expects('control')->never();
 
-        $swooleServer = m::mock(WebSocketServer::class);
+        $swooleServer = Double::for(WebSocketServer::class)->strict();
 
         $frame = new Frame;
         $frame->fd = 999;
@@ -268,9 +274,9 @@ class WebSocketHandlerTest extends ReverbTestCase
     {
         $connection = $this->createStoredConnection(1);
 
-        $this->pusherServer->shouldReceive('close')->once()->with($connection);
+        $this->pusherServer->expects('close')->with($connection);
 
-        $swooleServer = m::mock(\Swoole\Server::class);
+        $swooleServer = Double::for(Server::class)->strict();
 
         $this->handler->onClose($swooleServer, 1, 0);
 
@@ -279,9 +285,9 @@ class WebSocketHandlerTest extends ReverbTestCase
 
     public function testOnCloseIgnoresUnknownFd(): void
     {
-        $this->pusherServer->shouldNotReceive('close');
+        $this->pusherServer->expects('close')->never();
 
-        $swooleServer = m::mock(\Swoole\Server::class);
+        $swooleServer = Double::for(Server::class)->strict();
 
         // Should not throw — just a no-op
         $this->handler->onClose($swooleServer, 999, 0);
@@ -300,16 +306,16 @@ class WebSocketHandlerTest extends ReverbTestCase
     }
 
     /**
-     * Set up RequestContext with a mocked HttpRequest that has route parameters.
+     * Set up RequestContext with the application route parameter.
      */
     private function setupRequestContext(string $appKey): void
     {
-        $route = m::mock(Route::class);
-        $route->shouldReceive('parameter')->with('appKey')->andReturn($appKey);
+        $route = Double::for(Route::class)->strict();
+        $route->allows('parameter')->with('appKey')->returns($appKey);
 
-        $request = m::mock(HttpRequest::class);
-        $request->shouldReceive('route')->andReturn($route);
-        $request->headers = new \Symfony\Component\HttpFoundation\HeaderBag(['Origin' => 'http://localhost']);
+        $request = new HttpRequest;
+        $request->setRouteResolver(fn (): Route => $route);
+        $request->headers->set('Origin', 'http://localhost');
 
         RequestContext::set($request);
     }
@@ -317,16 +323,16 @@ class WebSocketHandlerTest extends ReverbTestCase
     /**
      * Create a Reverb Connection and store it in the handler's static map.
      */
-    private function createStoredConnection(int $fd): \Hypervel\Reverb\Connection
+    private function createStoredConnection(int $fd): ReverbConnection
     {
         $app = $this->app->make(ApplicationProvider::class)->all()->first();
 
         $wsConnection = new Connection(
-            m::mock(Sender::class)->shouldIgnoreMissing(),
+            Double::for(Sender::class)->strict(),
             $fd,
         );
 
-        $connection = new \Hypervel\Reverb\Connection($wsConnection, $app, 'http://localhost');
+        $connection = new ReverbConnection($wsConnection, $app, 'http://localhost');
 
         $connection->markEstablished();
         $lifecycle = new ConnectionLifecycle($fd);

@@ -16,12 +16,15 @@ use Hypervel\Scout\Console\ConcurrentImportRunner;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
 class ConcurrentImportConnectionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Share one physical slot between the chunk reader and import operations.
      */
@@ -192,8 +195,8 @@ class ConcurrentImportConnectionTest extends TestCase
         $failure = new RuntimeException('Session cleanup failed.');
         $childCompleted = false;
         $observed = null;
-        $lease = m::mock(ConnectionLease::class);
-        $lease->expects('releaseIfIdle')->andReturnUsing(static function () use ($releaseAttempted, $failure): void {
+        $lease = Double::for(ConnectionLease::class)->strict();
+        $lease->expects('releaseIfIdle')->resolves(static function () use ($releaseAttempted, $failure): void {
             $releaseAttempted->push(true);
             throw $failure;
         });

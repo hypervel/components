@@ -26,7 +26,8 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Passport\Fixtures\User;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -38,6 +39,8 @@ use function Hypervel\Coroutine\parallel;
 
 class PassportCacheTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Configure the cache independently of the OAuth server.
      */
@@ -391,11 +394,12 @@ class PassportCacheTest extends TestCase
     {
         $failure = new LockTimeoutException;
         $cache = $this->app->make('cache')->store('passport-file');
-        $coordinator = m::mock(ModelCacheCoordinator::class, [$this->app])->makePartial();
-        $coordinator->shouldReceive('invalidate')->once()
-            ->with($cache, 'passport:tokens:token')->andThrow($failure);
-        $coordinator->shouldReceive('invalidate')->once()
-            ->with($cache, 'passport:tokens:token-second')->passthru();
+        $realCoordinator = new ModelCacheCoordinator($this->app);
+        $coordinator = Double::for($realCoordinator)->passthru();
+        $coordinator->expects('invalidate')
+            ->with($cache, 'passport:tokens:token')->throws($failure);
+        $coordinator->expects('invalidate')
+            ->with($cache, 'passport:tokens:token-second')->resolves($realCoordinator->invalidate(...));
         $this->app->instance(ModelCacheCoordinator::class, $coordinator);
 
         $first = $this->createToken();
@@ -432,12 +436,12 @@ class PassportCacheTest extends TestCase
         }
 
         $cache = $this->app->make('cache')->store('passport-file');
-        $coordinator = m::mock(ModelCacheCoordinator::class, [$this->app])->makePartial();
-        $coordinator->shouldReceive('invalidate')->once()
-            ->with($cache, 'passport:tokens:token')->andThrow(new LockTimeoutException);
-        $coordinator->shouldReceive('invalidate')->once()
-            ->with($cache, 'passport:tokens:token-second')->andThrow($failure);
-        $coordinator->shouldReceive('invalidate')->never()
+        $coordinator = Double::for(new ModelCacheCoordinator($this->app))->passthru();
+        $coordinator->expects('invalidate')
+            ->with($cache, 'passport:tokens:token')->throws(new LockTimeoutException);
+        $coordinator->expects('invalidate')
+            ->with($cache, 'passport:tokens:token-second')->throws($failure);
+        $coordinator->expects('invalidate')->never()
             ->with($cache, 'passport:tokens:token-third');
         $this->app->instance(ModelCacheCoordinator::class, $coordinator);
 

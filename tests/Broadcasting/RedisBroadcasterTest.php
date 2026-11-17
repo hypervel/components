@@ -11,7 +11,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Http\Request;
-use Hypervel\Redis\RedisProxy;
+use Hypervel\Tests\Broadcasting\Fixtures\RedisBroadcasterConnection;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\DoubleInterface;
@@ -255,7 +255,7 @@ class RedisBroadcasterTest extends TestCase
 
     public function testBroadcastUsesPublishPerChannelOnCluster(): void
     {
-        $connection = Double::for(RedisBroadcasterTestConnection::class);
+        $connection = Double::for(RedisBroadcasterConnection::class);
         $connection->expects('isCluster')->returns(true);
         $connection->expects('publish')->with('test-channel-1', Argument::type('string'));
         $connection->expects('publish')->with('test-channel-2', Argument::type('string'));
@@ -269,7 +269,7 @@ class RedisBroadcasterTest extends TestCase
 
     public function testClusterBroadcastWrapsRedisClusterException(): void
     {
-        $connection = Double::for(RedisBroadcasterTestConnection::class);
+        $connection = Double::for(RedisBroadcasterConnection::class);
         $connection->expects('isCluster')->returns(true);
         $connection->expects('publish')
             ->with('test-channel', Argument::type('string'))
@@ -286,7 +286,7 @@ class RedisBroadcasterTest extends TestCase
 
     public function testBroadcastUsesEvalOnNonCluster(): void
     {
-        $connection = Double::for(RedisBroadcasterTestConnection::class);
+        $connection = Double::for(RedisBroadcasterConnection::class);
         $connection->expects('isCluster')->returns(false);
         $connection->expects('eval');
         $connection->expects('publish')->never();
@@ -306,7 +306,7 @@ class RedisBroadcasterTest extends TestCase
             ),
         );
 
-        $connection = Double::for(RedisBroadcasterTestConnection::class);
+        $connection = Double::for(RedisBroadcasterConnection::class);
         $connection->expects('isCluster')->returns(true);
         $connection->expects('publish')
             ->with('application.orders', Argument::type('string'));
@@ -329,7 +329,7 @@ class RedisBroadcasterTest extends TestCase
             ),
         );
 
-        $connection = Double::for(RedisBroadcasterTestConnection::class);
+        $connection = Double::for(RedisBroadcasterConnection::class);
         $connection->expects('isCluster')->returns(false);
         $connection->expects('eval')
             ->with(
@@ -353,7 +353,7 @@ class RedisBroadcasterTest extends TestCase
         $this->expectException(JsonException::class);
 
         $this->redis->expects('connection')->returns(
-            Double::for(RedisBroadcasterTestConnection::class)
+            Double::for(RedisBroadcasterConnection::class)
         );
 
         $this->broadcaster->broadcast(
@@ -365,7 +365,7 @@ class RedisBroadcasterTest extends TestCase
 
     public function testBroadcastPayloadDoesNotDuplicateSocketInData(): void
     {
-        $connection = Double::for(RedisBroadcasterTestConnection::class);
+        $connection = Double::for(RedisBroadcasterConnection::class);
         $connection->allows('isCluster')->returns(false);
         $connection->expects('eval')->with(Argument::all(function (string $script, int $numberOfKeys, string $payload): bool {
             $decoded = json_decode($payload, true);
@@ -418,18 +418,4 @@ class RedisBroadcasterTest extends TestCase
     {
         return Request::create('/', 'POST', ['channel_name' => $channel]);
     }
-}
-
-// Declare the proxy's dynamic commands so Double can reflect their signatures.
-abstract class RedisBroadcasterTestConnection extends RedisProxy
-{
-    /**
-     * Publish a message to a channel.
-     */
-    abstract public function publish(string $channel, string $message): int|false;
-
-    /**
-     * Evaluate a Lua script.
-     */
-    abstract public function eval(string $script, int $numberOfKeys, mixed ...$arguments): mixed;
 }

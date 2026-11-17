@@ -12,10 +12,13 @@ use Hypervel\Tests\Database\Fixtures\Models\LoadAggregate\BaseModel;
 use Hypervel\Tests\Database\Fixtures\Models\LoadAggregate\Related1;
 use Hypervel\Tests\Database\Fixtures\Models\LoadAggregate\Related2;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class EloquentModelLoadSumTest extends DatabaseTestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Set up the database after refreshing it.
      */
@@ -59,8 +62,8 @@ class EloquentModelLoadSumTest extends DatabaseTestCase
     public function testLoadSumWithContractExpression(): void
     {
         $model = BaseModel::first();
-        $expression = m::mock(Expression::class);
-        $expression->shouldReceive('getValue')->andReturn('number * 2');
+        $expression = Double::for(Expression::class)->strict();
+        $expression->allows('getValue')->returns('number * 2');
 
         DB::enableQueryLog();
 

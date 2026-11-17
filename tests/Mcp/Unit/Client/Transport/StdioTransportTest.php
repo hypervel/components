@@ -15,7 +15,8 @@ use Hypervel\Mcp\Exceptions\ClientException;
 use Hypervel\Mcp\Schema\Implementation;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -26,6 +27,8 @@ use function Hypervel\Coroutine\parallel;
 
 class StdioTransportTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected string $directory;
 
     /**
@@ -232,19 +235,21 @@ class StdioTransportTest extends TestCase
         $cancellation = $wrapped
             ? new RuntimeException('Stop cleanup failed.', previous: new CanceledException)
             : new CanceledException('Stop canceled.');
-        $process = m::mock(Process::class);
+        $process = Double::for(Process::class)->strict();
+        // Symfony's destructor calls stop(0) when the double is released.
+        $process->allows('stop')->with(0.0)->returns(0);
 
         if ($receive) {
-            $process->shouldReceive('getLastOutputTime')->once()->andReturn(microtime(true));
-            $process->shouldReceive('setIdleTimeout')->once()->andReturnSelf();
-            $process->shouldReceive('getIterator')->once()->andReturnUsing(static function (): Generator {
+            $process->expects('getLastOutputTime')->returns(microtime(true));
+            $process->expects('setIdleTimeout');
+            $process->expects('getIterator')->resolves(static function (): Generator {
                 yield from [];
             });
         }
 
-        $process->shouldReceive('isRunning')->once()->andReturnTrue();
-        $process->shouldReceive('stop')->once()->with(0.1, null)->ordered()->andThrow($cancellation);
-        $process->shouldReceive('stop')->once()->with(0, null)->ordered()->andReturn(0);
+        $process->expects('isRunning')->returns(true);
+        $process->expects('stop')->with(0.1, null)->ordered()->throws($cancellation);
+        $process->expects('stop')->with(0.0, null)->ordered()->returns(0);
         $input = new StdioInput;
         $transport = new InspectableStdioTransport('silent');
         $transport->installProcess($process, $input);

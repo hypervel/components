@@ -12,8 +12,9 @@ use Hypervel\Scout\Contracts\EngineOperationObserver;
 use Hypervel\Scout\EngineOperation;
 use Hypervel\Scout\EngineOperationRunner;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -21,6 +22,8 @@ use Throwable;
 
 class EngineOperationRunnerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRunsCallbackDirectlyWithoutObservers(): void
     {
         $runner = new EngineOperationRunner;
@@ -107,7 +110,7 @@ class EngineOperationRunnerTest extends TestCase
             fn (): null => null,
         ));
 
-        $this->bindReportingHandler()->shouldReceive('report')->once()->with($completionFailure);
+        $this->bindReportingHandler()->expects('report')->with($completionFailure);
         $caught = null;
 
         try {
@@ -155,7 +158,7 @@ class EngineOperationRunnerTest extends TestCase
         ));
 
         $reported = [];
-        $this->bindReportingHandler()->shouldReceive('report')->andReturnUsing(function (Throwable $throwable) use (&$reported): void {
+        $this->bindReportingHandler()->allows('report')->resolves(function (Throwable $throwable) use (&$reported): void {
             $reported[] = $throwable;
         });
         $caught = null;
@@ -200,7 +203,7 @@ class EngineOperationRunnerTest extends TestCase
             },
         ));
 
-        $this->bindReportingHandler()->shouldReceive('report')->once()->with($secondFailure);
+        $this->bindReportingHandler()->expects('report')->with($secondFailure);
         $caught = null;
 
         try {
@@ -302,7 +305,7 @@ class EngineOperationRunnerTest extends TestCase
                 $secondFinished = true;
             },
         ));
-        $this->bindReportingHandler()->shouldReceive('report')->once()->with($operationFailure);
+        $this->bindReportingHandler()->expects('report')->with($operationFailure);
 
         $caught = null;
 
@@ -334,13 +337,13 @@ class EngineOperationRunnerTest extends TestCase
     }
 
     /**
-     * Bind a mocked exception handler for displaced failure reports.
+     * Bind an exception handler double for displaced failure reports.
      */
-    private function bindReportingHandler(): MockInterface
+    private function bindReportingHandler(): ExceptionHandler&DoubleInterface
     {
         $container = new Container;
         Container::setInstance($container);
-        $handler = m::mock(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $container->instance(ExceptionHandler::class, $handler);
 
         return $handler;

@@ -9,20 +9,20 @@ use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Horizon\Http\Controllers\FailedJobsController;
 use Hypervel\Http\Request;
 use Hypervel\Tests\Horizon\UnitTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class FailedJobsControllerTest extends UnitTestCase
 {
     public function testLiteralZeroTagFiltersFailedJobs(): void
     {
-        $jobs = m::mock(JobRepository::class);
-        $jobs->shouldReceive('getJobs')->once()->with(['job-id'], 0)->andReturn(collect());
-        $jobs->shouldReceive('countFailed')->never();
+        $jobs = Double::for(JobRepository::class)->strict();
+        $jobs->expects('getJobs')->with(['job-id'], 0)->returns(collect());
+        $jobs->expects('countFailed')->never();
 
-        $tags = m::mock(TagRepository::class);
-        $tags->shouldReceive('paginate')->once()->with('failed:0', 0, 50)->andReturn(['job-id']);
-        $tags->shouldReceive('count')->once()->with('failed:0')->andReturn(1);
+        $tags = Double::for(TagRepository::class)->strict();
+        $tags->expects('paginate')->with('failed:0', 0, 50)->returns(['job-id']);
+        $tags->expects('count')->with('failed:0')->returns(1);
 
         $result = (new FailedJobsController($jobs, $tags))->index(
             Request::create('/?tag=0'),
@@ -33,13 +33,13 @@ class FailedJobsControllerTest extends UnitTestCase
 
     public function testEmptyTagUsesTheUnfilteredFailedJobList(): void
     {
-        $jobs = m::mock(JobRepository::class);
-        $jobs->shouldReceive('getFailed')->once()->with(-1)->andReturn(collect());
-        $jobs->shouldReceive('countFailed')->once()->andReturn(2);
+        $jobs = Double::for(JobRepository::class)->strict();
+        $jobs->expects('getFailed')->with(-1)->returns(collect());
+        $jobs->expects('countFailed')->returns(2);
 
-        $tags = m::mock(TagRepository::class);
-        $tags->shouldReceive('paginate')->never();
-        $tags->shouldReceive('count')->never();
+        $tags = Double::for(TagRepository::class)->strict();
+        $tags->expects('paginate')->never();
+        $tags->expects('count')->never();
 
         $result = (new FailedJobsController($jobs, $tags))->index(
             Request::create('/?tag='),
@@ -54,12 +54,12 @@ class FailedJobsControllerTest extends UnitTestCase
     #[TestWith(['49', 50])]
     public function testTaggedPaginationUsesTheSameStartForSelectionAndRowIndices(?string $cursor, int $startingAt): void
     {
-        $jobs = m::mock(JobRepository::class);
-        $jobs->shouldReceive('getJobs')->once()->with(['job-id'], $startingAt)->andReturn(collect());
+        $jobs = Double::for(JobRepository::class)->strict();
+        $jobs->expects('getJobs')->with(['job-id'], $startingAt)->returns(collect());
 
-        $tags = m::mock(TagRepository::class);
-        $tags->shouldReceive('paginate')->once()->with('failed:example', $startingAt, 50)->andReturn(['job-id']);
-        $tags->shouldReceive('count')->once()->with('failed:example')->andReturn(1);
+        $tags = Double::for(TagRepository::class)->strict();
+        $tags->expects('paginate')->with('failed:example', $startingAt, 50)->returns(['job-id']);
+        $tags->expects('count')->with('failed:example')->returns(1);
 
         (new FailedJobsController($jobs, $tags))->index(Request::create('/', 'GET', array_filter([
             'tag' => 'example',

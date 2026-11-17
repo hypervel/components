@@ -10,23 +10,25 @@ use Hypervel\Core\Events\BeforeMainServerStart;
 use Hypervel\ServerProcess\Listeners\BootProcessListener;
 use Hypervel\ServerProcess\ProcessManager;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Swoole\Server;
 
 class BootProcessListenerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testBootsProcessesFromServerConfig(): void
     {
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
         $process = new BootProcessListenerFakeProcess;
 
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('make')
-            ->once()
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->expects('make')
             ->with(BootProcessListenerFakeProcess::class)
-            ->andReturn($process);
+            ->returns($process);
 
-        $listener = new BootProcessListener($container);
+        $listener = new BootProcessListener($container->instance());
         $event = new BeforeMainServerStart($server, ['processes' => [BootProcessListenerFakeProcess::class]]);
 
         $listener->handle($event);
@@ -38,15 +40,15 @@ class BootProcessListenerTest extends TestCase
 
     public function testBootsProcessesFromProcessManager(): void
     {
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
 
         $process = new BootProcessListenerFakeProcess;
         ProcessManager::register($process);
 
-        $container = m::mock(ContainerContract::class);
-        $container->shouldNotReceive('make');
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->expects('make')->never();
 
-        $listener = new BootProcessListener($container);
+        $listener = new BootProcessListener($container->instance());
         $event = new BeforeMainServerStart($server, []);
 
         $listener->handle($event);
@@ -58,16 +60,15 @@ class BootProcessListenerTest extends TestCase
 
     public function testSkipsProcessWhereIsEnabledReturnsFalse(): void
     {
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
         $process = new BootProcessListenerFakeProcess(enabled: false);
 
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('make')
-            ->once()
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->expects('make')
             ->with(BootProcessListenerFakeProcess::class)
-            ->andReturn($process);
+            ->returns($process);
 
-        $listener = new BootProcessListener($container);
+        $listener = new BootProcessListener($container->instance());
         $event = new BeforeMainServerStart($server, ['processes' => [BootProcessListenerFakeProcess::class]]);
 
         $listener->handle($event);
@@ -78,12 +79,12 @@ class BootProcessListenerTest extends TestCase
 
     public function testHandlesMissingProcessesKeyInServerConfig(): void
     {
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
 
-        $container = m::mock(ContainerContract::class);
-        $container->shouldNotReceive('make');
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->expects('make')->never();
 
-        $listener = new BootProcessListener($container);
+        $listener = new BootProcessListener($container->instance());
         $event = new BeforeMainServerStart($server, []);
 
         $listener->handle($event);
@@ -93,16 +94,15 @@ class BootProcessListenerTest extends TestCase
 
     public function testDedupesDuplicateClassStringRegistration(): void
     {
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
         $process = new BootProcessListenerFakeProcess;
 
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('make')
-            ->once()
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->expects('make')
             ->with(BootProcessListenerFakeProcess::class)
-            ->andReturn($process);
+            ->returns($process);
 
-        $listener = new BootProcessListener($container);
+        $listener = new BootProcessListener($container->instance());
         $event = new BeforeMainServerStart($server, [
             'processes' => [BootProcessListenerFakeProcess::class, BootProcessListenerFakeProcess::class],
         ]);
@@ -115,17 +115,17 @@ class BootProcessListenerTest extends TestCase
 
     public function testDoesNotDedupDistinctInstancesOfSameClass(): void
     {
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
 
         $process1 = new BootProcessListenerFakeProcess;
         $process2 = new BootProcessListenerFakeProcess;
         ProcessManager::register($process1);
         ProcessManager::register($process2);
 
-        $container = m::mock(ContainerContract::class);
-        $container->shouldNotReceive('make');
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->expects('make')->never();
 
-        $listener = new BootProcessListener($container);
+        $listener = new BootProcessListener($container->instance());
         $event = new BeforeMainServerStart($server, []);
 
         $listener->handle($event);
@@ -143,6 +143,9 @@ class BootProcessListenerFakeProcess implements ProcessInterface
 
     public int $enableChecks = 0;
 
+    /**
+     * Create a process with the selected enabled state.
+     */
     public function __construct(private bool $enabled = true)
     {
     }

@@ -25,6 +25,7 @@ use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use stdClass;
 
 class AuthAccessGateTest extends TestCase
@@ -494,6 +495,21 @@ class AuthAccessGateTest extends TestCase
         $this->assertTrue($gate->check('foo', $dummy));
     }
 
+    #[TestWith([0])]
+    #[TestWith([false])]
+    #[TestWith([['tenant' => 7]])]
+    public function testGateCallbacksAcceptNonModelArguments(mixed $value): void
+    {
+        $gate = $this->getBasicGate();
+        $gate->define('check-data', function ($user, mixed $argument) use ($value): bool {
+            $this->assertSame($value, $argument);
+
+            return true;
+        });
+
+        $this->assertTrue($gate->allows('check-data', [$value]));
+    }
+
     public function testMultipleArgumentsCanBePassedWhenCheckingAbilities(): void
     {
         $gate = $this->getBasicGate();
@@ -673,17 +689,16 @@ class AuthAccessGateTest extends TestCase
             ++$counter;
         };
         $gate->guessPolicyNamesUsing($guesserCallback);
-        $gate->getPolicyFor('fooClassA');
+        $gate->getPolicyFor('fooClass');
         $this->assertSame(1, $counter);
 
-        // The guesser callback should be present on the new gate as well.
-        // Each call uses a unique class name to avoid the static policy cache.
+        // now the guesser callback should be present on the new gate as well
         $newGate = $gate->forUser((object) ['id' => 1]);
 
-        $newGate->getPolicyFor('fooClassB');
+        $newGate->getPolicyFor('fooClass');
         $this->assertSame(2, $counter);
 
-        $newGate->getPolicyFor('fooClassC');
+        $newGate->getPolicyFor('fooClass');
         $this->assertSame(3, $counter);
     }
 
@@ -1651,14 +1666,14 @@ class AuthAccessGateTest extends TestCase
         };
         $gate->guessPolicyNamesUsing($guesser);
 
-        $gate->getPolicyFor('SomeClassA');
-        $gate->getPolicyFor('SomeClassA');
+        $gate->getPolicyFor(AccessGateTestDummy::class);
+        $gate->getPolicyFor(AccessGateTestDummy::class);
         $this->assertSame(1, $counter);
 
         // After the guesser changes, the same class should be guessed again
         $gate->guessPolicyNamesUsing($guesser);
 
-        $gate->getPolicyFor('SomeClassA');
+        $gate->getPolicyFor(AccessGateTestDummy::class);
         $this->assertSame(2, $counter);
     }
 
@@ -1687,7 +1702,9 @@ class AuthAccessGateTest extends TestCase
         $this->assertInstanceOf(DummyWithUsePolicyPolicy::class, $unregistered->getPolicyFor(ChildOfDummyWithUsePolicy::class));
     }
 
-    public function testPolicyCacheStoresNullForClassWithNoPolicy(): void
+    #[TestWith([AccessGateTestDummy::class])]
+    #[TestWith([GateTestUnitEnum::class])]
+    public function testPolicyCacheStoresNullForClassWithNoPolicy(string $class): void
     {
         $gate = $this->getBasicGate();
 
@@ -1698,11 +1715,11 @@ class AuthAccessGateTest extends TestCase
         });
 
         // First call — resolves and caches "no policy"
-        $this->assertNull($gate->getPolicyFor('NonExistentModel'));
+        $this->assertNull($gate->getPolicyFor($class));
         $this->assertSame(1, $counter);
 
         // Second call — returns cached "no policy" without calling guesser
-        $this->assertNull($gate->getPolicyFor('NonExistentModel'));
+        $this->assertNull($gate->getPolicyFor($class));
         $this->assertSame(1, $counter);
     }
 

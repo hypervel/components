@@ -10,11 +10,14 @@ use Hypervel\Foundation\Application;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Hypervel\Tinker\TinkerCaster;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\VarDumper\Caster\Caster;
 
 class TinkerCasterTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCanCastCollection(): void
     {
         $result = TinkerCaster::castCollection(new Collection(['foo', 'bar']));
@@ -24,11 +27,11 @@ class TinkerCasterTest extends TestCase
 
     public function testApplicationPropertyErrorsDoNotSuppressLaterValues(): void
     {
-        $application = m::mock(Application::class);
-        $application->shouldReceive('configurationIsCached')->once()->andThrow(new Error('Unavailable'));
-        $application->shouldReceive('version')->once()->andReturn('1.0.0');
+        $application = Double::for(Application::class, override: true)->strict();
+        $application->expects('configurationIsCached')->throws(new Error('Unavailable'));
+        $application->expects('version')->returns('1.0.0');
 
-        $result = TinkerCaster::castApplication($application);
+        $result = TinkerCaster::castApplication($application->instance());
 
         $this->assertSame('1.0.0', $result[Caster::PREFIX_VIRTUAL . 'version']);
     }

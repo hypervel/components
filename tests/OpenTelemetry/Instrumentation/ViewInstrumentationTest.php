@@ -13,7 +13,10 @@ use Hypervel\OpenTelemetry\Support\LogContextScopeFactory;
 use Hypervel\Tests\OpenTelemetry\Fixtures\CapturingAlwaysOffSampler;
 use Hypervel\Tests\TestCase;
 use Hypervel\View\Factory;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\SpanKind;
@@ -41,11 +44,13 @@ use function Hypervel\Coroutine\parallel;
 
 class ViewInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private const string DURATION_METRIC = 'hypervel.view.render.duration';
 
     private ContextStorageInterface&ExecutionContextAwareInterface $previousStorage;
 
-    private Factory $views;
+    private Factory&DoubleInterface $views;
 
     private Closure $renderingObserver;
 
@@ -73,7 +78,7 @@ class ViewInstrumentationTest extends TestCase
     protected function setUpInCoroutine(): void
     {
         Context::setStorage(new CoroutineContextStorage(Context::getRoot()));
-        $this->views = m::mock(Factory::class);
+        $this->views = Double::for(Factory::class)->strict();
         $this->clock = new ViewInstrumentationTestClock;
         $this->spanExporter = new InMemorySpanExporter(new ArrayObject);
         $this->tracerProvider = TracerProvider::builder()
@@ -101,8 +106,8 @@ class ViewInstrumentationTest extends TestCase
 
     public function testRegistersNoObserversWhenEveryOutputIsDisabled(): void
     {
-        $this->views->shouldNotReceive('observeRendering');
-        $this->views->shouldNotReceive('observeRendered');
+        $this->views->expects('observeRendering')->never();
+        $this->views->expects('observeRendered')->never();
 
         $this->instrumentation()->register($this->options(traces: false, duration: false));
 
@@ -291,19 +296,15 @@ class ViewInstrumentationTest extends TestCase
      */
     private function registerInstrumentation(bool $traces = true, bool $duration = true): void
     {
-        $this->views->shouldReceive('observeRendering')
-            ->once()
-            ->withArgs(function (Closure $observer): bool {
+        $this->views->expects('observeRendering')
+            ->with(Argument::type(Closure::class))
+            ->resolves(function (Closure $observer): void {
                 $this->renderingObserver = $observer;
-
-                return true;
             });
-        $this->views->shouldReceive('observeRendered')
-            ->once()
-            ->withArgs(function (Closure $observer): bool {
+        $this->views->expects('observeRendered')
+            ->with(Argument::type(Closure::class))
+            ->resolves(function (Closure $observer): void {
                 $this->renderedObserver = $observer;
-
-                return true;
             });
 
         $this->instrumentation()->register($this->options($traces, $duration));
@@ -314,8 +315,8 @@ class ViewInstrumentationTest extends TestCase
      */
     private function instrumentation(): ViewInstrumentation
     {
-        $logContextScopes = m::mock(LogContextScopeFactory::class);
-        $logContextScopes->shouldReceive('activate')->zeroOrMoreTimes()->andReturnNull();
+        $logContextScopes = Double::for(LogContextScopeFactory::class)->strict();
+        $logContextScopes->allows('activate')->returns(null);
 
         return new ViewInstrumentation(
             $this->views,
@@ -344,8 +345,8 @@ class ViewInstrumentationTest extends TestCase
      */
     private function view(string $name, int $calls = 1): ViewContract
     {
-        $view = m::mock(ViewContract::class);
-        $view->shouldReceive('name')->times($calls)->andReturn($name);
+        $view = Double::for(ViewContract::class)->strict();
+        $view->expects('name')->times($calls)->returns($name);
 
         return $view;
     }

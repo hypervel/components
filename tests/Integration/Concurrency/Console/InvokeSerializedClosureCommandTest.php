@@ -12,14 +12,17 @@ use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Concurrency\Fixtures\ConcurrentProcessExceptionFixtures;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Laravel\SerializableClosure\SerializableClosure;
-use Mockery as m;
 use ReflectionMethod;
 use RuntimeException;
 use Symfony\Component\Console\Output\BufferedOutput;
 
 class InvokeSerializedClosureCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private const string KEY = 'test-envelope-key';
 
     public function testItCanInvokeSerializedClosureFromArgument(): void
@@ -153,10 +156,9 @@ class InvokeSerializedClosureCommandTest extends TestCase
 
     public function testItContainsFailuresFromTheExceptionReporter(): void
     {
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')
-            ->once()
-            ->andThrow(new RuntimeException('reporting failed'));
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')
+            ->throws(new RuntimeException('reporting failed'));
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
         $result = $this->invokeSerializedClosure(

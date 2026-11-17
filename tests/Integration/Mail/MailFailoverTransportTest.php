@@ -6,20 +6,23 @@ namespace Hypervel\Tests\Integration\Mail;
 
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ReflectionProperty;
 use Symfony\Component\Mailer\Transport\FailoverTransport;
 use Symfony\Component\Mailer\Transport\RoundRobinTransport;
 
 class MailFailoverTransportTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Set up the test environment.
      */
     protected function setUp(): void
     {
         parent::setUp();
-        $this->app->instance('view', m::mock(ViewFactory::class));
+        $this->app->instance('view', Double::for(ViewFactory::class)->strict());
     }
 
     public function testGetFailoverTransportWithConfiguredTransports(): void

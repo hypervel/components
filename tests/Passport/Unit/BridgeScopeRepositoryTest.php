@@ -11,10 +11,13 @@ use Hypervel\Passport\Client as ClientModel;
 use Hypervel\Passport\ClientRepository;
 use Hypervel\Passport\Passport;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class BridgeScopeRepositoryTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testInvalidScopesAreRemoved(): void
     {
         Passport::tokensCan([
@@ -23,8 +26,8 @@ class BridgeScopeRepositoryTest extends TestCase
 
         $client = new ClientModel;
 
-        $clients = m::mock(ClientRepository::class);
-        $clients->expects('findActive')->with('id')->andReturn($client);
+        $clients = Double::for(ClientRepository::class)->strict();
+        $clients->expects('findActive')->with('id')->returns($client);
 
         $repository = new ScopeRepository($clients);
 
@@ -44,8 +47,8 @@ class BridgeScopeRepositoryTest extends TestCase
             'scope-1' => 'description',
         ]);
 
-        $clients = m::mock(ClientRepository::class);
-        $clients->expects('findActive')->with('id')->andReturn(new ClientModel);
+        $clients = Double::for(ClientRepository::class)->strict();
+        $clients->expects('findActive')->with('id')->returns(new ClientModel);
 
         $repository = new ScopeRepository($clients);
 
@@ -69,8 +72,8 @@ class BridgeScopeRepositoryTest extends TestCase
         $client = new ClientModel;
         $client->scopes = null;
 
-        $clients = m::mock(ClientRepository::class);
-        $clients->expects('findActive')->with('id')->andReturn($client);
+        $clients = Double::for(ClientRepository::class)->strict();
+        $clients->expects('findActive')->with('id')->returns($client);
 
         $repository = new ScopeRepository($clients);
 
@@ -94,8 +97,8 @@ class BridgeScopeRepositoryTest extends TestCase
         $client = new ClientModel;
         $client->scopes = ['scope-1'];
 
-        $clients = m::mock(ClientRepository::class);
-        $clients->expects('findActive')->with('id')->andReturn($client);
+        $clients = Double::for(ClientRepository::class)->strict();
+        $clients->expects('findActive')->with('id')->returns($client);
 
         $repository = new ScopeRepository($clients);
 
@@ -122,8 +125,8 @@ class BridgeScopeRepositoryTest extends TestCase
         $client = new ClientModel;
         $client->scopes = ['scope-1'];
 
-        $clients = m::mock(ClientRepository::class);
-        $clients->expects('findActive')->with('id')->andReturn($client);
+        $clients = Double::for(ClientRepository::class)->strict();
+        $clients->expects('findActive')->with('id')->returns($client);
 
         $repository = new ScopeRepository($clients);
 
@@ -145,8 +148,8 @@ class BridgeScopeRepositoryTest extends TestCase
 
         $client = new ClientModel;
 
-        $clients = m::mock(ClientRepository::class);
-        $clients->expects('findActive')->with('id')->andReturn($client);
+        $clients = Double::for(ClientRepository::class)->strict();
+        $clients->expects('findActive')->with('id')->returns($client);
 
         $repository = new ScopeRepository($clients);
 
@@ -166,8 +169,8 @@ class BridgeScopeRepositoryTest extends TestCase
             'scope-1' => 'description',
         ]);
 
-        $clients = m::mock(ClientRepository::class);
-        $clients->expects('findActive')->with('id')->andReturn(new ClientModel);
+        $clients = Double::for(ClientRepository::class)->strict();
+        $clients->expects('findActive')->with('id')->returns(new ClientModel);
 
         $repository = new ScopeRepository($clients);
 

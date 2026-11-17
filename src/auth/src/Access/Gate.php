@@ -592,7 +592,9 @@ class Gate implements GateContract
      */
     protected function resolveAuthCallback(mixed $user, string $ability, array $arguments): callable
     {
+        // Gates also accept plain data; only classes and objects can identify a policy.
         if (isset($arguments[0])
+            && (is_object($arguments[0]) || is_string($arguments[0]))
             && ! is_null($policy = $this->getPolicyFor($arguments[0]))
             && $callback = $this->resolvePolicyCallback($user, $ability, $arguments, $policy)) {
             return $callback;
@@ -628,8 +630,20 @@ class Gate implements GateContract
             return $this->resolvePolicy($this->policies[$class]);
         }
 
-        $this->policyClassCache ??= new ArrayObject;
-        $policyClass = $this->policyClassCache[$class] ??= $this->resolvePolicyClass($class);
+        $policyClass = $this->policyClassCache[$class] ?? null;
+
+        if ($policyClass === null) {
+            // Only declared model names are cached. Other inputs may be user data, so their
+            // policy guesses are normalized to avoid unbounded worker state. For those inputs,
+            // register policies explicitly when relying on container configuration for PHP class aliases.
+            $isDeclaredClass = class_exists($class) && (new ReflectionClass($class))->getName() === $class;
+            $policyClass = $this->resolvePolicyClass($class, $isDeclaredClass);
+
+            if ($isDeclaredClass) {
+                $this->policyClassCache ??= new ArrayObject;
+                $this->policyClassCache[$class] = $policyClass;
+            }
+        }
 
         return $policyClass !== false
             ? $this->resolvePolicy($policyClass)
@@ -645,7 +659,7 @@ class Gate implements GateContract
      *
      * @return class-string|false
      */
-    private function resolvePolicyClass(string $class): string|false
+    private function resolvePolicyClass(string $class, bool $isDeclaredClass): string|false
     {
         $policy = $this->getPolicyFromAttribute($class);
 
@@ -655,7 +669,7 @@ class Gate implements GateContract
 
         foreach ($this->guessPolicyName($class) as $guessedPolicy) {
             if (class_exists($guessedPolicy)) {
-                return $guessedPolicy;
+                return $isDeclaredClass ? $guessedPolicy : (new ReflectionClass($guessedPolicy))->getName();
             }
         }
 

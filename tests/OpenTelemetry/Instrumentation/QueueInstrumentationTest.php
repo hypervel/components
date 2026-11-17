@@ -35,8 +35,9 @@ use Hypervel\Queue\SyncQueue;
 use Hypervel\Queue\TimeoutExceededException;
 use Hypervel\Tests\OpenTelemetry\Fixtures\CapturingAlwaysOffSampler;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Trace\Propagation\TraceContextPropagator;
 use OpenTelemetry\API\Trace\Span;
@@ -77,6 +78,8 @@ use UnitEnum;
 
 class QueueInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private const string SENT_MESSAGES_METRIC = 'messaging.client.sent.messages';
 
     private const string SEND_DURATION_METRIC = 'messaging.client.operation.duration';
@@ -874,8 +877,8 @@ class QueueInstrumentationTest extends TestCase
             'propagation' => true,
             'metrics' => false,
         ]));
-        $job = m::mock(Job::class);
-        $job->shouldNotReceive('payload');
+        $job = Double::for(Job::class)->strict();
+        $job->expects('payload')->never();
         $ambient = Context::getCurrent();
 
         $this->events->dispatch(new JobProcessing('sync', $job));
@@ -1131,13 +1134,13 @@ class QueueInstrumentationTest extends TestCase
 
     public function testDepthCollectionRunsOnlyInEventWorkerZeroAndIsolatesBackendFailures(): void
     {
-        $queues = m::mock(QueueManager::class);
-        $failedQueue = m::mock(QueueContract::class);
-        $healthyQueue = m::mock(QueueContract::class);
-        $queues->shouldReceive('connection')->twice()->with('failed')->andReturn($failedQueue);
-        $queues->shouldReceive('connection')->twice()->with('redis')->andReturn($healthyQueue);
-        $failedQueue->shouldReceive('size')->twice()->with('bad')->andThrow(new RuntimeException('Unavailable.'));
-        $healthyQueue->shouldReceive('size')->twice()->with('emails')->andReturn(7);
+        $queues = Double::for(QueueManager::class)->strict();
+        $failedQueue = Double::for(QueueContract::class)->strict();
+        $healthyQueue = Double::for(QueueContract::class)->strict();
+        $queues->expects('connection')->times(2)->with('failed')->returns($failedQueue);
+        $queues->expects('connection')->times(2)->with('redis')->returns($healthyQueue);
+        $failedQueue->expects('size')->times(2)->with('bad')->throws(new RuntimeException('Unavailable.'));
+        $healthyQueue->expects('size')->times(2)->with('emails')->returns(7);
         $this->instrumentation(queues: $queues)->register($this->options([
             'traces' => false,
             'propagation' => false,
@@ -1166,8 +1169,8 @@ class QueueInstrumentationTest extends TestCase
 
     public function testDepthCollectionRegistersNothingOutsideEventWorkerZero(): void
     {
-        $queues = m::mock(QueueManager::class);
-        $queues->shouldNotReceive('connection');
+        $queues = Double::for(QueueManager::class)->strict();
+        $queues->expects('connection')->never();
         $this->instrumentation(
             queues: $queues,
             identity: ProcessIdentity::eventWorker(1),
@@ -1192,13 +1195,13 @@ class QueueInstrumentationTest extends TestCase
         ?QueueManager $queues = null,
         ?ProcessIdentity $identity = null,
     ): QueueInstrumentationTestInstrumentation {
-        $logContextScopes = m::mock(LogContextScopeFactory::class);
-        $logContextScopes->shouldReceive('activate')->zeroOrMoreTimes()->andReturnNull();
+        $logContextScopes = Double::for(LogContextScopeFactory::class)->strict();
+        $logContextScopes->allows('activate')->returns(null);
 
         return new QueueInstrumentationTestInstrumentation(
             $this->events,
             $configuration ?? $this->configuration(),
-            $queues ?? m::mock(QueueManager::class),
+            $queues ?? Double::for(QueueManager::class)->strict(),
             $this->tracerProvider,
             $this->meterProvider,
             $this->clock,
@@ -1254,11 +1257,11 @@ class QueueInstrumentationTest extends TestCase
     private function job(string $payload, string $queue = 'emails'): Job
     {
         $decoded = json_decode($payload, true, flags: JSON_THROW_ON_ERROR);
-        $job = m::mock(Job::class);
-        $job->shouldReceive('payload')->zeroOrMoreTimes()->andReturn($decoded);
-        $job->shouldReceive('getQueue')->zeroOrMoreTimes()->andReturn($queue);
-        $job->shouldReceive('uuid')->zeroOrMoreTimes()->andReturn($decoded['uuid'] ?? null);
-        $job->shouldReceive('getRawBody')->zeroOrMoreTimes()->andReturn($payload);
+        $job = Double::for(Job::class)->strict();
+        $job->allows('payload')->returns($decoded);
+        $job->allows('getQueue')->returns($queue);
+        $job->allows('uuid')->returns($decoded['uuid'] ?? null);
+        $job->allows('getRawBody')->returns($payload);
 
         return $job;
     }

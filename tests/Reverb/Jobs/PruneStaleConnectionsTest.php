@@ -10,7 +10,7 @@ use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Servers\Hypervel\ConnectionLifecycle;
 use Hypervel\Reverb\Servers\Hypervel\WebSocketHandler;
 use Hypervel\Tests\Reverb\ReverbTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
 use ReflectionProperty;
 
 class PruneStaleConnectionsTest extends ReverbTestCase
@@ -38,7 +38,7 @@ class PruneStaleConnectionsTest extends ReverbTestCase
     {
         $connections = static::factory(1);
 
-        $channelManager = m::spy(ChannelManager::class);
+        $channelManager = Double::for(ChannelManager::class)->strict();
         $this->app->singleton(ChannelManager::class, fn () => $channelManager);
 
         collect($connections)->each(function ($connection): void {
@@ -54,7 +54,7 @@ class PruneStaleConnectionsTest extends ReverbTestCase
         // It should only disconnect the connection, and the onClose → Server::close()
         // path handles the unsubscribe. Calling it directly causes double-unsubscribe
         // which decrements SharedState counters twice.
-        $channelManager->shouldNotHaveReceived('for');
+        $channelManager->received('for')->never();
     }
 
     public function testDispatchesConnectionPrunedWithTheStaleConnection(): void

@@ -14,10 +14,13 @@ use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 use Hypervel\Tests\Permission\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class CacheTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected PermissionRegistrar $registrar;
 
     protected int $cacheInitCount = 0;
@@ -340,13 +343,12 @@ class CacheTest extends TestCase
 
     public function testItShowsAnErrorWhenTheCacheExistsButCannotBeFlushed(): void
     {
-        $registrar = m::mock(PermissionRegistrar::class)->makePartial();
-        $registrar->cacheKey = $this->registrar->cacheKey;
-        $registrar->shouldReceive('forgetCachedPermissions')->once()->andReturn(false);
+        $registrar = Double::for($this->registrar)->passthru();
+        $registrar->expects('forgetCachedPermissions')->returns(false);
 
-        $cacheRepository = m::mock(Repository::class);
-        $cacheRepository->shouldReceive('has')->with($registrar->cacheKey)->andReturn(true);
-        $registrar->shouldReceive('getCacheRepository')->once()->andReturn($cacheRepository);
+        $cacheRepository = Double::for(Repository::class)->strict();
+        $cacheRepository->allows('has')->with($registrar->cacheKey)->returns(true);
+        $registrar->expects('getCacheRepository')->returns($cacheRepository);
 
         $this->app->instance(PermissionRegistrar::class, $registrar);
 

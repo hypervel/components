@@ -7,15 +7,12 @@ namespace Hypervel\Tests\Socialite\Fixtures;
 use GuzzleHttp\Client;
 use Hypervel\Socialite\Two\GoogleProvider;
 use Hypervel\Socialite\Two\User;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
 
 class GoogleTestProviderStub extends GoogleProvider
 {
-    /**
-     * @var Client|MockInterface
-     */
-    public $http;
+    public (Client&DoubleInterface)|null $http = null;
 
     protected function getAuthUrl(?string $state): string
     {
@@ -38,7 +35,7 @@ class GoogleTestProviderStub extends GoogleProvider
     }
 
     /**
-     * Get a fresh instance of the Guzzle HTTP client.
+     * Return the test HTTP client.
      */
     protected function getHttpClient(): Client
     {
@@ -46,6 +43,6 @@ class GoogleTestProviderStub extends GoogleProvider
             return $this->http;
         }
 
-        return $this->http = m::mock(Client::class);
+        return $this->http = Double::for(Client::class)->strict();
     }
 }

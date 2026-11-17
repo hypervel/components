@@ -18,7 +18,8 @@ use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\TelescopeServiceProvider;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ReflectionProperty;
 
 use function Hypervel\Testbench\load_migration_paths;
@@ -27,6 +28,7 @@ use function Hypervel\Testbench\load_migration_paths;
 class FeatureTestCase extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     protected ?ApplicationContract $app = null;
 
@@ -105,20 +107,18 @@ class FeatureTestCase extends TestCase
      */
     protected function fakeRecordingStore(array &$storedBatches): EntriesRepository
     {
-        $store = m::mock(EntriesRepository::class);
-        $store->shouldReceive('store')
-            ->twice()
-            ->withArgs(function (Collection $entries) use (&$storedBatches): bool {
+        $store = Double::for(EntriesRepository::class)->strict();
+        $store->expects('store')
+            ->times(2)
+            ->resolves(function (Collection $entries) use (&$storedBatches): void {
                 $storedBatches[] = $entries->map(fn (IncomingEntry $entry): array => [
                     'message' => $entry->content['message'],
                     'batch_id' => $entry->batchId,
                 ])->all();
-
-                return true;
             });
-        $store->shouldReceive('update')
-            ->twice()
-            ->andReturn(Collection::make());
+        $store->expects('update')
+            ->times(2)
+            ->returns(Collection::make());
 
         (new ReflectionProperty(Telescope::class, 'store'))->setValue($store);
 

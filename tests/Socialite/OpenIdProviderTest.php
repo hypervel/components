@@ -19,10 +19,11 @@ use Hypervel\Tests\Socialite\Fixtures\CreatesJwksFixtures;
 use Hypervel\Tests\Socialite\Fixtures\OpenIdTestProviderStub;
 use Hypervel\Tests\Socialite\Fixtures\VerifyingOpenIdTestProviderStub;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\StreamInterface;
 use ReflectionMethod;
 use RuntimeException;
 use TypeError;
@@ -31,12 +32,13 @@ use UnexpectedValueException;
 class OpenIdProviderTest extends TestCase
 {
     use CreatesJwksFixtures;
+    use VerifiesDoubles;
 
     public function testRedirectGeneratesTheProperRedirectResponseWithoutPKCE(): void
     {
-        $request = m::mock(Request::class);
-        $request->shouldReceive('session')
-            ->andReturn($session = m::mock(SessionContract::class));
+        $request = Double::for(Request::class, override: true)->strict();
+        $request->allows('session')
+            ->returns($session = Double::for(SessionContract::class)->strict());
 
         $state = null;
         $nonce = null;
@@ -55,9 +57,9 @@ class OpenIdProviderTest extends TestCase
             return false;
         };
 
-        $session->expects('put')->twice()->withArgs($closure);
+        $session->expects('put')->times(2)->with(Argument::all($closure));
         $provider = new OpenIdTestProviderStub(
-            $request,
+            $request->instance(),
             'client_id',
             'client_secret',
             'redirect'
@@ -74,31 +76,29 @@ class OpenIdProviderTest extends TestCase
 
     public function testUserReturnsAUserInstanceForTheAuthenticatedRequest(): void
     {
-        $request = m::mock(Request::class);
-        $request->shouldReceive('session')
-            ->andReturn($session = m::mock(SessionContract::class));
-        $request->shouldReceive('has')
-            ->andReturn(true);
-        $request->shouldReceive('input')
+        $request = Double::for(Request::class, override: true)->strict();
+        $request->allows('session')
+            ->returns($session = Double::for(SessionContract::class)->strict());
+        $request->allows('has')
+            ->returns(true);
+        $request->expects('input')
             ->with('state')
-            ->once()
-            ->andReturn(str_repeat('A', 40));
-        $request->shouldReceive('input')
+            ->returns(str_repeat('A', 40));
+        $request->expects('input')
             ->with('code')
-            ->once()
-            ->andReturn('code');
+            ->returns('code');
 
-        $session->expects('pull')->with('state')->andReturns(str_repeat('A', 40));
-        $session->expects('pull')->with('nonce')->andReturns('nonce');
+        $session->expects('pull')->with('state')->returns(str_repeat('A', 40));
+        $session->expects('pull')->with('nonce')->returns('nonce');
         $provider = new OpenIdTestProviderStub(
-            $request,
+            $request->instance(),
             'client_id',
             'client_secret',
             'redirect_uri'
         );
-        $provider->http = m::mock(Client::class);
+        $provider->http = Double::for(Client::class)->strict();
         $provider->http->expects('get')->with('http://base.url/.well-known/openid-configuration')
-            ->andReturns(new Response(
+            ->returns(new Response(
                 body: json_encode([
                     'issuer' => 'http://base.url',
                     'token_endpoint' => 'http://token.url',
@@ -108,10 +108,7 @@ class OpenIdProviderTest extends TestCase
         $provider->http->expects('post')->with('http://token.url', [
             'headers' => ['Accept' => 'application/json'],
             'form_params' => ['grant_type' => 'authorization_code', 'client_id' => 'client_id', 'client_secret' => 'client_secret', 'code' => 'code', 'redirect_uri' => 'redirect_uri'],
-        ])->andReturns($response = m::mock(ResponseInterface::class));
-        $stream = m::mock(StreamInterface::class);
-        $stream->allows('__toString')->andReturns('{ "access_token" : "access_token", "id_token" : "id_token", "refresh_token" : "refresh_token", "expires_in" : 3600 }');
-        $response->expects('getBody')->andReturns($stream);
+        ])->returns(new Response(body: '{ "access_token" : "access_token", "id_token" : "id_token", "refresh_token" : "refresh_token", "expires_in" : 3600 }'));
         $user = $provider->user();
 
         $this->assertInstanceOf(User::class, $user);
@@ -130,20 +127,20 @@ class OpenIdProviderTest extends TestCase
 
     public function testSetConfigOverridesAudienceValidationPass(): void
     {
-        $request = m::mock(Request::class);
-        $request->shouldReceive('session')
-            ->andReturn($session = m::mock(SessionContract::class));
-        $session->expects('pull')->with('nonce')->andReturns('test-nonce');
+        $request = Double::for(Request::class, override: true)->strict();
+        $request->allows('session')
+            ->returns($session = Double::for(SessionContract::class)->strict());
+        $session->expects('pull')->with('nonce')->returns('test-nonce');
 
         $provider = new OpenIdTestProviderStub(
-            $request,
+            $request->instance(),
             'original_id',
             'client_secret',
             'redirect'
         );
-        $provider->http = m::mock(Client::class);
+        $provider->http = Double::for(Client::class)->strict();
         $provider->http->allows('get')->with('http://base.url/.well-known/openid-configuration')
-            ->andReturns(new Response(
+            ->returns(new Response(
                 body: json_encode(['issuer' => 'http://base.url'])
             ));
 
@@ -157,19 +154,17 @@ class OpenIdProviderTest extends TestCase
             'aud' => 'tenant_id',
             'iss' => 'http://base.url',
         ]);
-
-        $this->assertTrue(true);
     }
 
     public function testSetConfigOverridesAudienceValidationFail(): void
     {
-        $request = m::mock(Request::class);
-        $request->shouldReceive('session')
-            ->andReturn($session = m::mock(SessionContract::class));
-        $session->expects('pull')->with('nonce')->andReturns('test-nonce');
+        $request = Double::for(Request::class, override: true)->strict();
+        $request->allows('session')
+            ->returns($session = Double::for(SessionContract::class)->strict());
+        $session->expects('pull')->with('nonce')->returns('test-nonce');
 
         $provider = new OpenIdTestProviderStub(
-            $request,
+            $request->instance(),
             'original_id',
             'client_secret',
             'redirect'
@@ -191,16 +186,16 @@ class OpenIdProviderTest extends TestCase
 
     public function testTrustedAudiencesAcceptScalarConfigurationAndIgnoreAzp(): void
     {
-        $request = m::mock(Request::class);
-        $request->expects('session')->andReturn($session = m::mock(SessionContract::class));
-        $session->expects('pull')->with('nonce')->andReturn('nonce');
+        $request = Double::for(Request::class, override: true)->strict();
+        $request->expects('session')->returns($session = Double::for(SessionContract::class)->strict());
+        $session->expects('pull')->with('nonce')->returns('nonce');
 
-        $provider = new OpenIdTestProviderStub($request, 'client_id', 'client_secret', 'redirect');
+        $provider = new OpenIdTestProviderStub($request->instance(), 'client_id', 'client_secret', 'redirect');
         $provider->withConfig(['trusted_audiences' => 'trusted-api']);
-        $provider->http = m::mock(Client::class);
+        $provider->http = Double::for(Client::class)->strict();
         $provider->http->expects('get')
             ->with('http://base.url/.well-known/openid-configuration')
-            ->andReturn(new Response(body: json_encode(['issuer' => 'http://base.url'])));
+            ->returns(new Response(body: json_encode(['issuer' => 'http://base.url'])));
 
         $provider->validateProviderPayload([
             'nonce' => 'nonce',
@@ -208,17 +203,15 @@ class OpenIdProviderTest extends TestCase
             'azp' => 'another-party',
             'iss' => 'http://base.url',
         ]);
-
-        $this->addToAssertionCount(1);
     }
 
     public function testAudienceRejectsUntrustedAndNonStringEntries(): void
     {
-        $request = m::mock(Request::class);
-        $request->expects('session')->andReturn($session = m::mock(SessionContract::class));
-        $session->expects('pull')->with('nonce')->andReturn('nonce');
+        $request = Double::for(Request::class, override: true)->strict();
+        $request->expects('session')->returns($session = Double::for(SessionContract::class)->strict());
+        $session->expects('pull')->with('nonce')->returns('nonce');
 
-        $provider = new OpenIdTestProviderStub($request, 'client_id', 'client_secret', 'redirect');
+        $provider = new OpenIdTestProviderStub($request->instance(), 'client_id', 'client_secret', 'redirect');
 
         $this->expectException(InvalidAudienceException::class);
 
@@ -231,15 +224,15 @@ class OpenIdProviderTest extends TestCase
 
     public function testNonceIsConsumedAfterOneValidation(): void
     {
-        $request = m::mock(Request::class);
-        $request->expects('session')->twice()->andReturn($session = m::mock(SessionContract::class));
-        $session->expects('pull')->with('nonce')->twice()->andReturn('nonce', null);
+        $request = Double::for(Request::class, override: true)->strict();
+        $request->expects('session')->times(2)->returns($session = Double::for(SessionContract::class)->strict());
+        $session->expects('pull')->with('nonce')->times(2)->returns('nonce', null);
 
-        $provider = new OpenIdTestProviderStub($request, 'client_id', 'client_secret', 'redirect');
-        $provider->http = m::mock(Client::class);
+        $provider = new OpenIdTestProviderStub($request->instance(), 'client_id', 'client_secret', 'redirect');
+        $provider->http = Double::for(Client::class)->strict();
         $provider->http->expects('get')
             ->with('http://base.url/.well-known/openid-configuration')
-            ->andReturn(new Response(body: json_encode(['issuer' => 'http://base.url'])));
+            ->returns(new Response(body: json_encode(['issuer' => 'http://base.url'])));
 
         $payload = [
             'nonce' => 'nonce',
@@ -257,15 +250,15 @@ class OpenIdProviderTest extends TestCase
     public function testUserInfoUsesBearerAuthorizationWithoutTokenQuery(): void
     {
         $provider = new OpenIdTestProviderStub(
-            m::mock(Request::class),
+            new Request,
             'client_id',
             'client_secret',
             'redirect'
         );
-        $provider->http = m::mock(Client::class);
+        $provider->http = Double::for(Client::class)->strict();
         $provider->http->expects('get')
             ->with('http://base.url/.well-known/openid-configuration')
-            ->andReturn(new Response(body: json_encode([
+            ->returns(new Response(body: json_encode([
                 'userinfo_endpoint' => 'http://userinfo.url',
             ])));
         $provider->http->expects('get')->with('http://userinfo.url', [
@@ -273,7 +266,7 @@ class OpenIdProviderTest extends TestCase
                 'Accept' => 'application/json',
                 'Authorization' => 'Bearer access-token',
             ],
-        ])->andReturn(new Response(body: '{"sub":"foo"}'));
+        ])->returns(new Response(body: '{"sub":"foo"}'));
 
         $this->assertSame(['sub' => 'foo'], $provider->getProviderUserByToken('access-token'));
     }
@@ -281,7 +274,7 @@ class OpenIdProviderTest extends TestCase
     public function testMissingIdTokenFailsAtTheRequiredResponseBoundary(): void
     {
         $provider = new OpenIdTestProviderStub(
-            m::mock(Request::class),
+            new Request,
             'client_id',
             'client_secret',
             'redirect'
@@ -311,20 +304,18 @@ class OpenIdProviderTest extends TestCase
     public function testDiscoveryCacheIsKeyedByTheExactConfigurationUrl(): void
     {
         $provider = new OpenIdTestProviderStub(
-            m::mock(Request::class),
+            new Request,
             'client_id',
             'client_secret',
             'redirect'
         );
-        $provider->http = m::mock(Client::class);
+        $provider->http = Double::for(Client::class)->strict();
         $provider->http->expects('get')
             ->with('https://tenant-a.example/.well-known/openid-configuration')
-            ->once()
-            ->andReturn(new Response(body: '{"issuer":"tenant-a"}'));
+            ->returns(new Response(body: '{"issuer":"tenant-a"}'));
         $provider->http->expects('get')
             ->with('https://tenant-b.example/.well-known/openid-configuration')
-            ->once()
-            ->andReturn(new Response(body: '{"issuer":"tenant-b"}'));
+            ->returns(new Response(body: '{"issuer":"tenant-b"}'));
 
         $provider->setConfig(['base_url' => 'https://tenant-a.example']);
         $this->assertSame('tenant-a', $provider->getProviderOpenIdConfig()['issuer']);
@@ -337,16 +328,16 @@ class OpenIdProviderTest extends TestCase
     public function testDiscoveryRefreshReachesTheNetwork(): void
     {
         $provider = new OpenIdTestProviderStub(
-            m::mock(Request::class),
+            new Request,
             'client_id',
             'client_secret',
             'redirect'
         );
-        $provider->http = m::mock(Client::class);
+        $provider->http = Double::for(Client::class)->strict();
         $provider->http->expects('get')
             ->with('http://base.url/.well-known/openid-configuration')
-            ->twice()
-            ->andReturn(
+            ->times(2)
+            ->returns(
                 new Response(body: '{"issuer":"first"}'),
                 new Response(body: '{"issuer":"refreshed"}'),
             );
@@ -359,20 +350,18 @@ class OpenIdProviderTest extends TestCase
     public function testFailedDiscoveryDoesNotReplaceThePreviousExactUrlEntry(): void
     {
         $provider = new OpenIdTestProviderStub(
-            m::mock(Request::class),
+            new Request,
             'client_id',
             'client_secret',
             'redirect'
         );
-        $provider->http = m::mock(Client::class);
+        $provider->http = Double::for(Client::class)->strict();
         $provider->http->expects('get')
             ->with('https://tenant-a.example/.well-known/openid-configuration')
-            ->once()
-            ->andReturn(new Response(body: '{"issuer":"tenant-a"}'));
+            ->returns(new Response(body: '{"issuer":"tenant-a"}'));
         $provider->http->expects('get')
             ->with('https://tenant-b.example/.well-known/openid-configuration')
-            ->once()
-            ->andThrow($failure = new RuntimeException('Discovery unavailable.'));
+            ->throws($failure = new RuntimeException('Discovery unavailable.'));
 
         $provider->setConfig(['base_url' => 'https://tenant-a.example']);
         $this->assertSame('tenant-a', $provider->getProviderOpenIdConfig()['issuer']);
@@ -393,13 +382,13 @@ class OpenIdProviderTest extends TestCase
     public function testDiscoveryRejectsJsonWithoutNamedFields(): void
     {
         $provider = new OpenIdTestProviderStub(
-            m::mock(Request::class),
+            new Request,
             'client_id',
             'client_secret',
             'redirect'
         );
-        $provider->http = m::mock(Client::class);
-        $provider->http->expects('get')->andReturn(new Response(body: '{}'));
+        $provider->http = Double::for(Client::class)->strict();
+        $provider->http->expects('get')->returns(new Response(body: '{}'));
 
         try {
             $provider->getProviderOpenIdConfig();
@@ -504,6 +493,9 @@ class OpenIdProviderTest extends TestCase
         $provider->verifyToken($this->createSignedToken($key));
     }
 
+    /**
+     * Provide invalid ID token algorithms.
+     */
     public static function invalidIdTokenAlgorithmProvider(): array
     {
         return [
@@ -640,10 +632,11 @@ class OpenIdProviderTest extends TestCase
 
         $provider->verifyToken($token);
         $provider->verifyToken($token);
-
-        $this->addToAssertionCount(1);
     }
 
+    /**
+     * Provide directives that prevent key caching.
+     */
     public static function immediateStalenessDirectiveProvider(): array
     {
         return [
@@ -669,8 +662,6 @@ class OpenIdProviderTest extends TestCase
 
         $provider->verifyToken($token);
         $provider->verifyToken($token);
-
-        $this->addToAssertionCount(1);
     }
 
     public function testOidcJwksFallsBackToDefaultTtlForMalformedAndOverflowingMaxAgeValues(): void
@@ -689,8 +680,6 @@ class OpenIdProviderTest extends TestCase
 
         $provider->verifyToken($token);
         $provider->verifyToken($token);
-
-        $this->addToAssertionCount(1);
     }
 
     public function testOidcJwksUsesDefaultTtlWhenCacheDirectivesAreMissing(): void
@@ -719,26 +708,22 @@ class OpenIdProviderTest extends TestCase
 
         $provider->http->expects('get')
             ->with('https://tenant-a.example/.well-known/openid-configuration')
-            ->once()
-            ->andReturn(new Response(body: json_encode([
+            ->returns(new Response(body: json_encode([
                 'issuer' => 'tenant-a',
                 'jwks_uri' => 'https://tenant-a.example/jwks',
             ])));
         $provider->http->expects('get')
             ->with('https://tenant-b.example/.well-known/openid-configuration')
-            ->once()
-            ->andReturn(new Response(body: json_encode([
+            ->returns(new Response(body: json_encode([
                 'issuer' => 'tenant-b',
                 'jwks_uri' => 'https://tenant-b.example/jwks',
             ])));
         $provider->http->expects('get')
             ->with('https://tenant-a.example/jwks')
-            ->once()
-            ->andReturn(new Response(body: json_encode($this->jwks($tenantAKey))));
+            ->returns(new Response(body: json_encode($this->jwks($tenantAKey))));
         $provider->http->expects('get')
             ->with('https://tenant-b.example/jwks')
-            ->once()
-            ->andReturn(new Response(body: json_encode($this->jwks($tenantBKey))));
+            ->returns(new Response(body: json_encode($this->jwks($tenantBKey))));
 
         $provider->setConfig(['base_url' => 'https://tenant-a.example']);
         $this->assertSame('foo', $provider->verifyToken($this->createSignedToken($tenantAKey, issuer: 'tenant-a'))['sub']);
@@ -756,8 +741,8 @@ class OpenIdProviderTest extends TestCase
         $attempt = 0;
         $provider->http->expects('get')
             ->with('http://jwks.url')
-            ->twice()
-            ->andReturnUsing(function () use (&$attempt, $key): Response {
+            ->times(2)
+            ->resolves(function () use (&$attempt, $key): Response {
                 if ($attempt++ === 0) {
                     throw new RuntimeException('JWKS unavailable.');
                 }
@@ -786,8 +771,8 @@ class OpenIdProviderTest extends TestCase
         $attempt = 0;
         $provider->http->expects('get')
             ->with('http://jwks.url')
-            ->twice()
-            ->andReturnUsing(function () use (&$attempt, $oldKey): Response {
+            ->times(2)
+            ->resolves(function () use (&$attempt, $oldKey): Response {
                 if ($attempt++ === 0) {
                     return new Response(body: json_encode($this->jwks($oldKey)));
                 }
@@ -818,8 +803,8 @@ class OpenIdProviderTest extends TestCase
 
         $provider->http->expects('get')
             ->with('http://base.url/.well-known/openid-configuration')
-            ->twice()
-            ->andReturn(
+            ->times(2)
+            ->returns(
                 new Response(body: json_encode([
                     'issuer' => 'http://base.url',
                     'jwks_uri' => 'http://old-jwks.url',
@@ -831,13 +816,12 @@ class OpenIdProviderTest extends TestCase
             );
         $provider->http->expects('get')
             ->with('http://old-jwks.url')
-            ->once()
-            ->andReturn(new Response(body: json_encode($this->jwks($oldKey))));
+            ->returns(new Response(body: json_encode($this->jwks($oldKey))));
         $newJwksAttempt = 0;
         $provider->http->expects('get')
             ->with('http://new-jwks.url')
-            ->twice()
-            ->andReturnUsing(function () use (&$newJwksAttempt, $newKey): Response {
+            ->times(2)
+            ->resolves(function () use (&$newJwksAttempt, $newKey): Response {
                 if ($newJwksAttempt++ === 0) {
                     throw new RuntimeException('New JWKS unavailable.');
                 }
@@ -857,9 +841,12 @@ class OpenIdProviderTest extends TestCase
         $this->assertSame('foo', $provider->verifyToken($token)['sub']);
     }
 
+    /**
+     * Create a provider with real token verification.
+     */
     private function createVerifyingProvider(): VerifyingOpenIdTestProviderStub
     {
-        $request = m::mock(Request::class);
+        $request = new Request;
 
         $provider = new VerifyingOpenIdTestProviderStub(
             $request,
@@ -867,17 +854,20 @@ class OpenIdProviderTest extends TestCase
             'client_secret',
             'redirect'
         );
-        $provider->http = m::mock(Client::class);
+        $provider->http = Double::for(Client::class)->strict();
 
         return $provider;
     }
 
-    private function expectOpenIdConfigRequests(Client $http, int $times): void
+    /**
+     * Expect the requested number of discovery fetches.
+     */
+    private function expectOpenIdConfigRequests(Client&DoubleInterface $http, int $times): void
     {
-        $http->shouldReceive('get')
+        $http->expects('get')
             ->with('http://base.url/.well-known/openid-configuration')
             ->times($times)
-            ->andReturn(new Response(
+            ->returns(new Response(
                 body: json_encode([
                     'issuer' => 'http://base.url',
                     'token_endpoint' => 'http://token.url',
@@ -886,12 +876,15 @@ class OpenIdProviderTest extends TestCase
             ));
     }
 
-    private function expectJwksRequests(Client $http, array $jwksResponses): void
+    /**
+     * Expect key-set responses in order.
+     */
+    private function expectJwksRequests(Client&DoubleInterface $http, array $jwksResponses): void
     {
-        $http->shouldReceive('get')
+        $http->expects('get')
             ->with('http://jwks.url')
             ->times(count($jwksResponses))
-            ->andReturn(...array_map(
+            ->returns(...array_map(
                 fn (array|Response $response): Response => $response instanceof Response
                     ? $response
                     : new Response(body: json_encode($response)),
@@ -899,6 +892,9 @@ class OpenIdProviderTest extends TestCase
             ));
     }
 
+    /**
+     * Create a signed ID token.
+     */
     private function createSignedToken(
         array $key,
         bool $includeKid = true,
@@ -914,6 +910,9 @@ class OpenIdProviderTest extends TestCase
         ], $key['private'], $algorithm, $includeKid ? $key['kid'] : null);
     }
 
+    /**
+     * Create a key set without an explicit algorithm.
+     */
     private function jwksWithoutAlgorithm(array $key): array
     {
         $jwks = $this->jwks($key);

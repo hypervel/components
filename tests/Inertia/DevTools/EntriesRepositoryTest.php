@@ -11,12 +11,15 @@ use Hypervel\Support\Str;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Inertia\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
 class EntriesRepositoryTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected string $storagePath;
 
     /**
@@ -109,8 +112,8 @@ class EntriesRepositoryTest extends TestCase
         $this->makeRepository()->save($id, $payload);
 
         $cancellation = new CanceledException('canceled');
-        $files = m::mock(Filesystem::class)->makePartial();
-        $files->shouldReceive('get')->andThrow($cancellation);
+        $files = Double::for(Filesystem::class)->passthru();
+        $files->allows('get')->throws($cancellation);
 
         $repo = new EntriesRepository(path: $this->storagePath, files: $files);
 

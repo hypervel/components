@@ -28,8 +28,8 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\Factories\UserFactory;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use JMac\Testing\Double;
 use JsonSerializable;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Throwable;
@@ -125,8 +125,8 @@ class JobWatcherTest extends FeatureTestCase
             'data' => ['payload' => 'long-running'],
         ]);
 
-        $job = m::mock(Job::class);
-        $job->shouldReceive('payload')->andReturn(['telescope_uuid' => $entry->uuid]);
+        $job = Double::for(Job::class)->strict();
+        $job->allows('payload')->returns(['telescope_uuid' => $entry->uuid]);
 
         $watcher->recordFailedJob(new QueueJobFailed(
             'redis',
@@ -229,15 +229,12 @@ class JobWatcherTest extends FeatureTestCase
 
     public function testJobRegistersProcessingEntryWithBatchFamilyHash(): void
     {
-        $batch = m::mock(Batch::class);
-        $batch->shouldReceive('toArray')
-            ->once()
-            ->andReturn(['foo' => 'bar']);
-        $batchRepository = m::mock(BatchRepository::class);
-        $batchRepository->shouldReceive('find')
+        $batch = Double::for(Batch::class)->strict();
+        $batch->expects('toArray')->returns(['foo' => 'bar']);
+        $batchRepository = Double::for(BatchRepository::class)->strict();
+        $batchRepository->expects('find')
             ->with('batch-id')
-            ->once()
-            ->andReturn($batch);
+            ->returns($batch);
 
         $this->app->instance(BatchRepository::class, $batchRepository);
 

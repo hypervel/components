@@ -11,16 +11,19 @@ use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Session\UserSessionIdentity;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 use function Hypervel\Coroutine\parallel;
 
 class UserSessionIdentityTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testItResolvesTheSelectedGuardIdentity(): void
     {
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('id')->once()->andReturn(42);
+        $guard = Double::for(Guard::class)->strict();
+        $guard->expects('id')->returns(42);
 
         $container = $this->containerWithGuard($guard, 'users');
 
@@ -34,8 +37,8 @@ class UserSessionIdentityTest extends TestCase
 
     public function testItReturnsAnUnresolvedIdentityWithoutASelectedUser(): void
     {
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('id')->once()->andReturnNull();
+        $guard = Double::for(Guard::class)->strict();
+        $guard->expects('id')->returns(null);
 
         $container = $this->containerWithGuard($guard, 'users');
 
@@ -54,8 +57,8 @@ class UserSessionIdentityTest extends TestCase
 
     public function testAuthenticatedProviderlessGuardIsExplicitlyUnowned(): void
     {
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('id')->once()->andReturn('custom-user');
+        $guard = Double::for(Guard::class)->strict();
+        $guard->expects('id')->returns('custom-user');
 
         $identity = UserSessionIdentity::resolve(
             $this->containerWithGuard($guard),
@@ -98,13 +101,13 @@ class UserSessionIdentityTest extends TestCase
     public function testSuppressionShortCircuitsGuardResolution(): void
     {
         $sessionId = str_repeat('a', 40);
-        $container = m::mock(Container::class);
-        $container->shouldReceive('has')->never();
-        $container->shouldReceive('make')->never();
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('has')->never();
+        $container->expects('make')->never();
 
         UserSessionIdentity::suppress($sessionId);
 
-        $identity = UserSessionIdentity::resolve($container, $sessionId);
+        $identity = UserSessionIdentity::resolve($container->instance(), $sessionId);
 
         $this->assertFalse($identity->isResolved());
         $this->assertTrue($identity->isUnowned());
@@ -117,8 +120,8 @@ class UserSessionIdentityTest extends TestCase
         $markedSessionId = str_repeat('a', 40);
         $otherSessionId = str_repeat('b', 40);
 
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('id')->once()->andReturn('user-1');
+        $guard = Double::for(Guard::class)->strict();
+        $guard->expects('id')->returns('user-1');
 
         $container = $this->containerWithGuard($guard, 'users');
 
@@ -154,6 +157,9 @@ class UserSessionIdentityTest extends TestCase
         $this->assertFalse($unresolved);
     }
 
+    /**
+     * Create a container with the selected authentication guard.
+     */
     private function containerWithGuard(Guard $guard, ?string $provider = null): Container
     {
         $guardConfig = ['driver' => 'custom'];

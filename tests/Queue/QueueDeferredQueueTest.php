@@ -30,7 +30,9 @@ use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use Throwable;
 
@@ -38,6 +40,8 @@ use function Hypervel\Coroutine\run;
 
 class QueueDeferredQueueTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected bool $runTestsInCoroutine = false;
 
     public function testPushShouldDefer(): void
@@ -131,12 +135,12 @@ class QueueDeferredQueueTest extends TestCase
         });
         $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobExceptionOccurred::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobAttempted::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->times(4);
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(JobProcessing::class)->returns(true);
+        $events->expects('hasListeners')->with(JobExceptionOccurred::class)->returns(true);
+        $events->expects('hasListeners')->with(JobFailed::class)->returns(true);
+        $events->expects('hasListeners')->with(JobAttempted::class)->returns(true);
+        $events->expects('dispatch')->times(4);
         $container->instance('events', $events);
         $container->instance(Dispatcher::class, $events);
         $deferred->setContainer($container);
@@ -159,11 +163,11 @@ class QueueDeferredQueueTest extends TestCase
         });
         $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobAttempted::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->once()->with(m::type(JobProcessing::class));
-        $events->shouldReceive('dispatch')->once()->with(m::on(
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(JobProcessing::class)->returns(true);
+        $events->expects('hasListeners')->with(JobAttempted::class)->returns(true);
+        $events->expects('dispatch')->with(Argument::type(JobProcessing::class));
+        $events->expects('dispatch')->with(Argument::satisfies(
             static fn (object $event): bool => $event instanceof JobAttempted && $event->canceled,
         ));
         $container->instance('events', $events);
@@ -188,9 +192,9 @@ class QueueDeferredQueueTest extends TestCase
         $deferred = new DeferredQueue;
         $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
 
         $deferred->setContainer($container);
@@ -202,9 +206,9 @@ class QueueDeferredQueueTest extends TestCase
         $deferred = new DeferredQueue;
         $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
 
         $deferred->setContainer($container);
@@ -216,10 +220,10 @@ class QueueDeferredQueueTest extends TestCase
         $deferred = new DeferredQueue;
         $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')->returns(null);
+        $transactionManager->expects('addCallbackForRollback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
 
         $job = new DeferredQueueAfterCommitUniqueJob;
@@ -234,10 +238,10 @@ class QueueDeferredQueueTest extends TestCase
         $deferred = new DeferredQueue;
         $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')->returns(null);
+        $transactionManager->expects('addCallbackForRollback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
 
         $job = new DeferredQueueAfterCommitDebouncedJob;
@@ -252,10 +256,10 @@ class QueueDeferredQueueTest extends TestCase
         $deferred = new DeferredQueue;
         $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')->returns(null);
+        $transactionManager->expects('addCallbackForRollback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
 
         $job = new DeferredQueueAfterCommitInterfaceUniqueJob;
@@ -267,11 +271,10 @@ class QueueDeferredQueueTest extends TestCase
 
     public function testLaterSchedulesJobWithDelay(): void
     {
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')
-            ->once()
-            ->with(5.0, m::type('Closure'))
-            ->andReturnUsing(function ($delay, $callback) {
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')
+            ->with(5.0, Argument::type('Closure'))
+            ->resolves(function ($delay, $callback) {
                 $callback();
                 return 1;
             });
@@ -292,11 +295,10 @@ class QueueDeferredQueueTest extends TestCase
     {
         CarbonImmutable::setTestNow('2024-01-01 12:00:00');
 
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')
-            ->once()
-            ->with(10.0, m::type('Closure'))
-            ->andReturnUsing(function ($delay, $callback) {
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')
+            ->with(10.0, Argument::type('Closure'))
+            ->resolves(function ($delay, $callback) {
                 $callback();
                 return 1;
             });
@@ -319,11 +321,10 @@ class QueueDeferredQueueTest extends TestCase
     {
         CarbonImmutable::setTestNow('2024-01-01 12:00:00');
 
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')
-            ->once()
-            ->with(15.0, m::type('Closure'))
-            ->andReturnUsing(function ($delay, $callback) {
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')
+            ->with(15.0, Argument::type('Closure'))
+            ->resolves(function ($delay, $callback) {
                 $callback();
                 return 1;
             });
@@ -344,18 +345,17 @@ class QueueDeferredQueueTest extends TestCase
 
     public function testLaterAddsTransactionCallbackForAfterCommitJobs(): void
     {
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')->with(5.0, Argument::type('Closure'))->returns(1);
 
         $deferred = new DeferredQueue(timer: $timer);
         $deferred->setConnectionName('deferred');
 
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')
-            ->once()
-            ->andReturnUsing(function ($callback) {
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')
+            ->resolves(function ($callback) {
                 $callback();
                 return null;
             });
@@ -367,18 +367,17 @@ class QueueDeferredQueueTest extends TestCase
 
     public function testLaterAddsTransactionCallbackForInterfaceBasedAfterCommitJobs(): void
     {
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')->with(5.0, Argument::type('Closure'))->returns(1);
 
         $deferred = new DeferredQueue(timer: $timer);
         $deferred->setConnectionName('deferred');
 
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')
-            ->once()
-            ->andReturnUsing(function ($callback) {
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')
+            ->resolves(function ($callback) {
                 $callback();
                 return null;
             });
@@ -390,22 +389,21 @@ class QueueDeferredQueueTest extends TestCase
 
     public function testLaterAddsTransactionCallbackForAfterCommitUniqueJobs(): void
     {
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')->with(5.0, Argument::type('Closure'))->returns(1);
 
         $deferred = new DeferredQueue(timer: $timer);
         $deferred->setConnectionName('deferred');
 
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')
-            ->once()
-            ->andReturnUsing(function ($callback) {
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')
+            ->resolves(function ($callback) {
                 $callback();
                 return null;
             });
-        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $transactionManager->expects('addCallbackForRollback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
         $job = new DeferredQueueAfterCommitUniqueJob;
         DispatchLockContext::registerUnique($job, $container->make(Cache::class), null, 'unique-key', 'owner');
@@ -416,22 +414,21 @@ class QueueDeferredQueueTest extends TestCase
 
     public function testLaterAddsTransactionRollbackCallbackForAfterCommitDebouncedJobs(): void
     {
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')->with(5.0, Argument::type('Closure'))->returns(1);
 
         $deferred = new DeferredQueue(timer: $timer);
         $deferred->setConnectionName('deferred');
 
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')
-            ->once()
-            ->andReturnUsing(function ($callback) {
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')
+            ->resolves(function ($callback) {
                 $callback();
                 return null;
             });
-        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $transactionManager->expects('addCallbackForRollback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
         $job = new DeferredQueueAfterCommitDebouncedJob;
         DispatchLockContext::registerDebounce($job, $container->make(Cache::class), 'debounce-key', 'owner');
@@ -442,22 +439,21 @@ class QueueDeferredQueueTest extends TestCase
 
     public function testLaterAddsTransactionCallbackForInterfaceBasedAfterCommitUniqueJobs(): void
     {
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')->with(5.0, Argument::type('Closure'))->returns(1);
 
         $deferred = new DeferredQueue(timer: $timer);
         $deferred->setConnectionName('deferred');
 
         $container = $this->getContainer();
-        $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->expects('hasApplicableTransaction')->with(null)->andReturnTrue();
-        $transactionManager->shouldReceive('addCallback')
-            ->once()
-            ->andReturnUsing(function ($callback) {
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
+        $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
+        $transactionManager->expects('addCallback')
+            ->resolves(function ($callback) {
                 $callback();
                 return null;
             });
-        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $transactionManager->expects('addCallbackForRollback')->returns(null);
         $container->instance('db.transactions', $transactionManager);
         $job = new DeferredQueueAfterCommitInterfaceUniqueJob;
         DispatchLockContext::registerUnique($job, $container->make(Cache::class), null, 'unique-key', 'owner');
@@ -468,8 +464,8 @@ class QueueDeferredQueueTest extends TestCase
 
     public function testLaterClampsNegativeIntegerDelay(): void
     {
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')->once()->with(0.0, m::type('Closure'))->andReturn(1);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')->with(0.0, Argument::type('Closure'))->returns(1);
 
         $deferred = new DeferredQueue(timer: $timer);
         $deferred->setConnectionName('deferred');
@@ -482,8 +478,8 @@ class QueueDeferredQueueTest extends TestCase
     {
         CarbonImmutable::setTestNow('2024-01-01 12:00:00');
 
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')->once()->with(0.0, m::type('Closure'))->andReturn(1);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')->with(0.0, Argument::type('Closure'))->returns(1);
 
         $deferred = new DeferredQueue(timer: $timer);
         $deferred->setConnectionName('deferred');
@@ -500,11 +496,10 @@ class QueueDeferredQueueTest extends TestCase
 
         $result = null;
 
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')
-            ->once()
-            ->with(5.0, m::type('Closure'))
-            ->andReturnUsing(function ($delay, $callback) {
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')
+            ->with(5.0, Argument::type('Closure'))
+            ->resolves(function ($delay, $callback) {
                 $callback();
                 return 1;
             });
@@ -515,12 +510,12 @@ class QueueDeferredQueueTest extends TestCase
         });
         $deferred->setConnectionName('deferred');
         $container = $this->getContainer();
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobExceptionOccurred::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobAttempted::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->times(4);
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(JobProcessing::class)->returns(true);
+        $events->expects('hasListeners')->with(JobExceptionOccurred::class)->returns(true);
+        $events->expects('hasListeners')->with(JobFailed::class)->returns(true);
+        $events->expects('hasListeners')->with(JobAttempted::class)->returns(true);
+        $events->expects('dispatch')->times(4);
         $container->instance('events', $events);
         $container->instance(Dispatcher::class, $events);
         $deferred->setContainer($container);
@@ -543,11 +538,10 @@ class QueueDeferredQueueTest extends TestCase
         $this->assertNotNull($metadata);
 
         $callback = null;
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')
-            ->once()
-            ->with(5.0, m::type('Closure'))
-            ->andReturnUsing(function ($delay, $scheduledCallback) use (&$callback) {
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')
+            ->with(5.0, Argument::type('Closure'))
+            ->resolves(function ($delay, $scheduledCallback) use (&$callback) {
                 $callback = $scheduledCallback;
 
                 return 1;
@@ -575,7 +569,7 @@ class QueueDeferredQueueTest extends TestCase
     protected function getContainer(): Container
     {
         $container = new Container;
-        $container->instance(Cache::class, m::mock(Cache::class));
+        $container->instance(Cache::class, Double::for(Cache::class)->strict());
         $container->instance(Dispatcher::class, new EventsDispatcher($container));
         Container::setInstance($container);
 

@@ -10,13 +10,17 @@ use Hypervel\Inertia\Commands\StartSsr;
 use Hypervel\Inertia\Ssr\HttpGateway;
 use Hypervel\Inertia\Ssr\SsrException;
 use Hypervel\Tests\Inertia\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use ReflectionProperty;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 
 class StartSsrTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /** @var null|list<string> */
     protected ?array $processCommand = null;
 
@@ -162,9 +166,9 @@ class StartSsrTest extends TestCase
     {
         $this->fakeProcess();
 
-        $mock = m::mock(HttpGateway::class);
-        $mock->shouldReceive('checkHealth')->once()->andReturnTrue();
-        $mock->shouldReceive('shutdown')->once()->andReturnTrue();
+        $mock = Double::for(HttpGateway::class)->strict();
+        $mock->expects('checkHealth')->returns(true);
+        $mock->expects('shutdown')->returns(true);
         $this->app->instance(HttpGateway::class, $mock);
 
         $this->artisan('inertia:start-ssr')->assertExitCode(0);
@@ -174,9 +178,9 @@ class StartSsrTest extends TestCase
     {
         $this->fakeProcess();
 
-        $mock = m::mock(HttpGateway::class);
-        $mock->shouldNotReceive('checkHealth');
-        $mock->shouldNotReceive('shutdown');
+        $mock = Double::for(HttpGateway::class)->strict();
+        $mock->expects('checkHealth')->never();
+        $mock->expects('shutdown')->never();
         $this->app->instance(HttpGateway::class, $mock);
 
         $this->artisan('inertia:start-ssr', ['--no-stop-before-start' => true])->assertExitCode(0);
@@ -216,11 +220,10 @@ class StartSsrTest extends TestCase
     {
         $this->fakeProcess();
 
-        $registry = m::mock(SignalRegistry::class);
-        $registry->shouldReceive('register')
-            ->once()
-            ->with(m::type(StartSsr::class), [SIGINT, SIGQUIT, SIGTERM], m::type('callable'));
-        $registry->shouldReceive('unregister')->once()->with(m::type(StartSsr::class), null);
+        $registry = Double::for(SignalRegistry::class)->strict();
+        $registry->expects('register')
+            ->with(Argument::type(StartSsr::class), [SIGINT, SIGQUIT, SIGTERM], Argument::type('callable'));
+        $registry->expects('unregister')->with(Argument::type(StartSsr::class), null);
 
         $command = $this->app->make(StartSsr::class);
         (new ReflectionProperty($command, 'signalRegistry'))->setValue($command, $registry);

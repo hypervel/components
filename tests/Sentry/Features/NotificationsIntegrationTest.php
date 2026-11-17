@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Notifications\Events\NotificationFailed;
 use Hypervel\Notifications\Events\NotificationSending;
 use Hypervel\Notifications\Events\NotificationSent;
@@ -17,7 +16,6 @@ use Hypervel\Sentry\Features\NotificationsIntegration;
 use Hypervel\Support\Facades\Mail;
 use Hypervel\Support\Facades\Notification;
 use Hypervel\Tests\Sentry\TestCase;
-use Mockery as m;
 use RuntimeException;
 use Sentry\SentrySdk;
 use Sentry\Tracing\Span;
@@ -41,7 +39,6 @@ class NotificationsIntegrationTest extends TestCase
     {
         parent::defineEnvironment($app);
         $app->make('config')->set('sentry.tracing.views', false);
-        $app->instance(ViewFactory::class, m::mock(ViewFactory::class)->shouldIgnoreMissing());
     }
 
     public function testSpanIsRecorded(): void

@@ -14,8 +14,10 @@ use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
 use Hypervel\Reverb\Webhooks\WebhookPayload;
 use Hypervel\Support\Facades\Queue;
+use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -116,7 +118,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
             'url' => 'https://example.com/webhook',
             'events' => ['client_event'],
         ]));
-        $connection = new \Hypervel\Tests\Reverb\Fixtures\FakeConnection;
+        $connection = new FakeConnection;
 
         $dispatcher = new HttpWebhookDispatcher;
         $dispatcher->dispatch($app, 'client_event', [
@@ -324,11 +326,10 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
     {
         Queue::fake([FlushWebhookBatchJob::class]);
 
-        $buffer = m::mock(WebhookBatchBuffer::class);
-        $buffer->shouldReceive('appendAndCheckSchedule')
-            ->once()
-            ->with('app-1', m::type('array'))
-            ->andReturn(true);
+        $buffer = Double::for(WebhookBatchBuffer::class)->strict();
+        $buffer->expects('appendAndCheckSchedule')
+            ->with('app-1', Argument::type('array'))
+            ->returns(true);
         $this->app->instance(WebhookBatchBuffer::class, $buffer);
 
         $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
@@ -357,10 +358,9 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
     {
         Queue::fake([FlushWebhookBatchJob::class]);
 
-        $buffer = m::mock(WebhookBatchBuffer::class);
-        $buffer->shouldReceive('appendAndCheckSchedule')
-            ->once()
-            ->andReturn(false);
+        $buffer = Double::for(WebhookBatchBuffer::class)->strict();
+        $buffer->expects('appendAndCheckSchedule')
+            ->returns(false);
         $this->app->instance(WebhookBatchBuffer::class, $buffer);
 
         $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
@@ -380,17 +380,17 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
 
     public function testBatchingClearsANewlyOwnedLockWhenQueueDispatchFails(): void
     {
-        $buffer = m::mock(WebhookBatchBuffer::class);
+        $buffer = Double::for(WebhookBatchBuffer::class)->strict();
         $buffer->expects('appendAndCheckSchedule')
-            ->with('app-1', m::type('array'))
-            ->andReturnTrue();
+            ->with('app-1', Argument::type('array'))
+            ->returns(true);
         $buffer->expects('clearFlushLock')->with('app-1');
         $this->app->instance(WebhookBatchBuffer::class, $buffer);
         $failure = new RuntimeException('Queue dispatch failed.');
-        $bus = m::mock(BusDispatcher::class);
+        $bus = Double::for(BusDispatcher::class)->strict();
         $bus->expects('dispatch')
-            ->with(m::type(FlushWebhookBatchJob::class))
-            ->andThrow($failure);
+            ->with(Argument::type(FlushWebhookBatchJob::class))
+            ->throws($failure);
         $this->app->instance(BusDispatcher::class, $bus);
         $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
@@ -401,7 +401,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         ]));
         $dispatcher = new HttpWebhookDispatcher;
 
-        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
         $exceptionHandler->expects('report')->with($failure);
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
@@ -413,14 +413,14 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
     public function testBufferFailuresAreReportedAndCancellationPropagates(bool $cancel): void
     {
         $failure = $cancel ? new CanceledException : new RuntimeException('Buffer unavailable.');
-        $buffer = m::mock(WebhookBatchBuffer::class);
-        $buffer->expects('appendAndCheckSchedule')->andThrow($failure);
-        $buffer->shouldNotReceive('clearFlushLock');
+        $buffer = Double::for(WebhookBatchBuffer::class)->strict();
+        $buffer->expects('appendAndCheckSchedule')->throws($failure);
+        $buffer->expects('clearFlushLock')->never();
         $this->app->instance(WebhookBatchBuffer::class, $buffer);
 
-        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
         if ($cancel) {
-            $exceptionHandler->shouldNotReceive('report');
+            $exceptionHandler->expects('report')->never();
             $this->expectExceptionObject($failure);
         } else {
             $exceptionHandler->expects('report')->with($failure);
@@ -437,12 +437,12 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
 
     public function testBatchingDoesNotClearALockOwnedByAnotherDispatch(): void
     {
-        $buffer = m::mock(WebhookBatchBuffer::class);
-        $buffer->expects('appendAndCheckSchedule')->andReturnFalse();
-        $buffer->shouldNotReceive('clearFlushLock');
+        $buffer = Double::for(WebhookBatchBuffer::class)->strict();
+        $buffer->expects('appendAndCheckSchedule')->returns(false);
+        $buffer->expects('clearFlushLock')->never();
         $this->app->instance(WebhookBatchBuffer::class, $buffer);
-        $bus = m::mock(BusDispatcher::class);
-        $bus->shouldNotReceive('dispatch');
+        $bus = Double::for(BusDispatcher::class)->strict();
+        $bus->expects('dispatch')->never();
         $this->app->instance(BusDispatcher::class, $bus);
         $app = $this->makeApp(webhooks: array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
@@ -457,8 +457,6 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
             'channel_occupied',
             ['channel' => 'test-channel'],
         );
-
-        $this->addToAssertionCount(1);
     }
 
     public function testImmediateDispatchWhenBatchingDisabled(): void
@@ -487,11 +485,11 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
             'url' => 'https://example.com/webhook',
             'events' => ['channel_occupied'],
         ]));
-        $sender = m::mock(WebhookSender::class);
+        $sender = Double::for(WebhookSender::class)->strict();
         $sender->expects('send')->with(
             $app,
             $app->webhooks(),
-            m::on(static fn (WebhookPayload $payload): bool => $payload->events === [
+            Argument::satisfies(static fn (WebhookPayload $payload): bool => $payload->events === [
                 ['name' => 'channel_occupied', 'channel' => 'test-channel'],
             ]),
         );

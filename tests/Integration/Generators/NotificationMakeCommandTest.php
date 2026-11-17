@@ -7,13 +7,17 @@ namespace Hypervel\Tests\Integration\Generators;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\NotificationMakeCommand;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Tester\CommandTester;
 
 class NotificationMakeCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected $files = [
         'app/Notifications/FooNotification.php',
         'resources/views/foo-notification.blade.php',
@@ -128,13 +132,11 @@ class NotificationMakeCommandTest extends TestCase
     public function testMarkdownPublicationFailureDoesNotReportMarkdownSuccess(): void
     {
         $viewPath = resource_path('views/failed-notification.blade.php');
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $publicationException = new RuntimeException('Unable to publish notification Markdown view.');
-        $files->shouldReceive('replace')->byDefault()->passthru();
-        $files->shouldReceive('replace')
-            ->once()
-            ->with($viewPath, m::type('string'), null)
-            ->andThrow($publicationException);
+        $files->allows('replace')
+            ->with($viewPath, Argument::type('string'), null)
+            ->throws($publicationException);
 
         $tester = $this->commandTester(new NotificationMakeCommand($files));
 
@@ -153,10 +155,9 @@ class NotificationMakeCommandTest extends TestCase
     {
         $stubPath = dirname(__DIR__, 3) . '/src/foundation/src/Console/stubs/markdown.stub';
         $viewPath = resource_path('views/unreadable-notification.blade.php');
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $readException = new FileNotFoundException("File does not exist at path [{$stubPath}].");
-        $files->shouldReceive('get')->byDefault()->passthru();
-        $files->shouldReceive('get')->once()->with($stubPath)->andThrow($readException);
+        $files->allows('get')->with($stubPath)->throws($readException);
 
         $tester = $this->commandTester(new NotificationMakeCommand($files));
 

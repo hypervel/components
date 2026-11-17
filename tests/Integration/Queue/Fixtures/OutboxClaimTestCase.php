@@ -19,7 +19,8 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
@@ -28,6 +29,7 @@ use function Hypervel\Coroutine\parallel;
 #[ResetRefreshDatabaseState]
 abstract class OutboxClaimTestCase extends TestCase
 {
+    use VerifiesDoubles;
     use DatabaseTruncation;
 
     /**
@@ -96,7 +98,7 @@ abstract class OutboxClaimTestCase extends TestCase
         $base = DB::connection();
         $database = $base->getName();
         $writer = DB::connection($database . '::write');
-        $queue = new RedisQueue(m::mock(Factory::class), 'orders');
+        $queue = new RedisQueue(Double::for(Factory::class)->strict(), 'orders');
         $queue->setContainer($this->app)->setConnectionName('redis');
         $base->beginTransaction();
         $writer->beginTransaction();

@@ -30,7 +30,8 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -48,6 +49,8 @@ use WeakReference;
  */
 class PooledConnectionTest extends DatabaseTestCase
 {
+    use VerifiesDoubles;
+
     protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
@@ -1009,8 +1012,8 @@ class PooledConnectionTest extends DatabaseTestCase
         $listenerFailure = new RuntimeException('Release listener failed.');
         $loggingFailure = new RuntimeException('Release failure logging failed.');
         $poolReleaseFailure = new RuntimeException('Pool release failed.', previous: $releaseCanceled ? new CanceledException : null);
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('error')->once()->andThrow($loggingFailure);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('error')->throws($loggingFailure);
         $this->app->instance(StdoutLoggerInterface::class, $logger);
         $this->app->make(Dispatcher::class)->listen(
             ConnectionReleasing::class,
@@ -1043,8 +1046,8 @@ class PooledConnectionTest extends DatabaseTestCase
             : new RuntimeException('Transaction logging failed.');
 
         if (! $cancel) {
-            $logger = m::mock(StdoutLoggerInterface::class);
-            $logger->shouldReceive('error')->once()->andThrow($failure);
+            $logger = Double::for(StdoutLoggerInterface::class)->strict();
+            $logger->expects('error')->throws($failure);
             $this->app->instance(StdoutLoggerInterface::class, $logger);
         }
 
@@ -1428,7 +1431,7 @@ class PooledConnectionTest extends DatabaseTestCase
 
     public function testPingCancellationDuringStartupReportingStopsThePublishedHeartbeatChild(): void
     {
-        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
         $this->app->instance(ExceptionHandlerContract::class, $handler);
         $pool = new DatabasePool($this->app, 'pool_test');
         $pooledConnection = $this->createPooledConnection($pool);
@@ -1443,10 +1446,9 @@ class PooledConnectionTest extends DatabaseTestCase
         $parentCancellation = null;
         $childCoroutineId = null;
 
-        $handler->shouldReceive('report')
-            ->once()
+        $handler->expects('report')
             ->with($hookFailure)
-            ->andReturnUsing(static function () use ($reportStarted, $releaseReport, $cleanupStarted, $releaseCleanup, &$childCoroutineId): void {
+            ->resolves(static function () use ($reportStarted, $releaseReport, $cleanupStarted, $releaseCleanup, &$childCoroutineId): void {
                 $childCoroutineId = EngineCoroutine::id();
                 $reportStarted->push(true);
 
@@ -1512,8 +1514,8 @@ class PooledConnectionTest extends DatabaseTestCase
         $releaseCleanup = new Channel(1);
         $childCoroutineId = null;
         $result = null;
-        $connection = m::mock(NeutralPoolConnection::class);
-        $connection->shouldReceive('ping')->once()->andReturnUsing(static function () use ($blocker, $cleanupStarted, $releaseCleanup, &$childCoroutineId): bool {
+        $connection = Double::for(NeutralPoolConnection::class)->strict();
+        $connection->expects('ping')->resolves(static function () use ($blocker, $cleanupStarted, $releaseCleanup, &$childCoroutineId): bool {
             $childCoroutineId = EngineCoroutine::id();
 
             try {

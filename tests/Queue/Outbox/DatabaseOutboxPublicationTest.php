@@ -15,7 +15,8 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -24,6 +25,8 @@ use Throwable;
 
 class DatabaseOutboxPublicationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRawPublicationUsesOneInsertAcrossQueuesWithAbsoluteAvailability(): void
     {
         CarbonImmutable::setTestNow('2030-01-01 12:00:00');
@@ -98,8 +101,8 @@ class DatabaseOutboxPublicationTest extends TestCase
         $container->instance('queue.routes', $routes = new QueueRoutes);
         Facade::setFacadeApplication($container);
         (require dirname(__DIR__, 3) . '/src/testbench/hypervel/migrations/0001_01_01_000006_testbench_create_jobs_table.php')->up();
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->with('target')->andReturn($database);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->allows('connection')->with('target')->returns($database);
         $queue = new DatabaseQueue($resolver, 'target', 'jobs');
         $queue->setContainer($container)->setConnectionName('database');
 

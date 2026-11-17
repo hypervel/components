@@ -9,14 +9,17 @@ use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class CommandExecutedTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCommandExecutedConstructor(): void
     {
-        $connection = m::mock(PhpRedisConnection::class);
-        $connection->shouldReceive('getName')->andReturn('default');
+        $connection = Double::for(PhpRedisConnection::class)->strict();
+        $connection->allows('getName')->returns('default');
 
         $event = new CommandExecuted('GET', ['key1'], 0.1, $connection);
 
@@ -29,8 +32,8 @@ class CommandExecutedTest extends TestCase
 
     public function testCommandExecutedConnectionNameIsDerivedFromConnection(): void
     {
-        $connection = m::mock(PhpRedisConnection::class);
-        $connection->shouldReceive('getName')->once()->andReturn('cache');
+        $connection = Double::for(PhpRedisConnection::class)->strict();
+        $connection->expects('getName')->returns('cache');
 
         $event = new CommandExecuted('SET', ['key', 'value'], 0.5, $connection);
 
@@ -39,8 +42,8 @@ class CommandExecutedTest extends TestCase
 
     public function testCommandFailedConstructor(): void
     {
-        $connection = m::mock(PhpRedisConnection::class);
-        $connection->shouldReceive('getName')->andReturn('default');
+        $connection = Double::for(PhpRedisConnection::class)->strict();
+        $connection->allows('getName')->returns('default');
         $exception = new Exception('Redis error');
 
         $event = new CommandFailed('GET', ['key1'], $exception, $connection);
@@ -55,8 +58,8 @@ class CommandExecutedTest extends TestCase
 
     public function testCommandFailedWithTime(): void
     {
-        $connection = m::mock(PhpRedisConnection::class);
-        $connection->shouldReceive('getName')->andReturn('default');
+        $connection = Double::for(PhpRedisConnection::class)->strict();
+        $connection->allows('getName')->returns('default');
         $exception = new Exception('Redis error');
 
         $event = new CommandFailed('GET', ['key1'], $exception, $connection, 1.5);

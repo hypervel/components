@@ -15,8 +15,10 @@ use Hypervel\Support\Facades\Process;
 use Hypervel\Support\Facades\URL;
 use Hypervel\Tests\Mcp\Fixtures\ExampleServer;
 use Hypervel\Tests\Mcp\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionProperty;
@@ -29,7 +31,9 @@ use Symfony\Component\Console\Question\Question;
 
 class McpInspectorCommandTest extends TestCase
 {
-    private Registrar&MockInterface $registrar;
+    use VerifiesDoubles;
+
+    private Registrar&DoubleInterface $registrar;
 
     /**
      * Start with an empty MCP registry.
@@ -39,7 +43,7 @@ class McpInspectorCommandTest extends TestCase
         parent::setUp();
         Mcp::swap(new Registrar);
 
-        $this->registrar = m::mock(Registrar::class);
+        $this->registrar = Double::for(Registrar::class)->strict();
     }
 
     public function testNormalizesMixedPathsCorrectly(): void
@@ -96,11 +100,11 @@ class McpInspectorCommandTest extends TestCase
 
         $this->app->instance(Registrar::class, $this->registrar);
 
-        $this->registrar->shouldReceive('getLocalServer')->once()->with('demo')->andReturn(null);
+        $this->registrar->expects('getLocalServer')->with('demo')->returns(null);
 
-        $this->registrar->shouldReceive('getWebServer')->once()->with('demo')->andReturn(null);
+        $this->registrar->expects('getWebServer')->with('demo')->returns(null);
 
-        $this->registrar->shouldReceive('servers')->once()->andReturn(['single' => $unknownServer]);
+        $this->registrar->expects('servers')->returns(['single' => $unknownServer]);
 
         $this->artisan('mcp:inspector', ['handle' => 'demo'])
             ->expectsOutputToContain('MCP Server with name [demo] not found')
@@ -124,10 +128,10 @@ class McpInspectorCommandTest extends TestCase
     {
         $route = (new Registrar)->web('mcp/{organisation:uuid}', ExampleServer::class);
 
-        $output = m::mock(OutputStyle::class, [new ArrayInput([]), new BufferedOutput])->makePartial();
-        $output->shouldReceive('askQuestion')->once()
-            ->with(m::on(fn (Question $question): bool => $question->getQuestion() === 'What is the value for the [organisation] route parameter?'))
-            ->andReturn('4f8a1c2e');
+        $output = Double::for(new OutputStyle(new ArrayInput([]), new BufferedOutput))->passthru();
+        $output->expects('askQuestion')
+            ->with(Argument::satisfies(fn (Question $question): bool => $question->getQuestion() === 'What is the value for the [organisation] route parameter?'))
+            ->returns('4f8a1c2e');
 
         $components = new Factory($output);
 

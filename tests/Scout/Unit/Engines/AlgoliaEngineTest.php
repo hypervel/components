@@ -8,6 +8,7 @@ use Algolia\AlgoliaSearch\Api\SearchClient as AlgoliaSearchClient;
 use Algolia\AlgoliaSearch\Exceptions\NotFoundException;
 use Hypervel\Context\RequestContext;
 use Hypervel\Coroutine\WaitGroup;
+use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
@@ -15,7 +16,6 @@ use Hypervel\Http\Request;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\DeletesByFilter;
 use Hypervel\Scout\Contracts\EngineOperationObserver;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\EngineOperation;
 use Hypervel\Scout\EngineOperationRunner;
 use Hypervel\Scout\Engines\AlgoliaEngine;
@@ -28,7 +28,9 @@ use Hypervel\Scout\Searchable;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Throwable;
 
@@ -36,78 +38,75 @@ use function Hypervel\Coroutine\go;
 
 class AlgoliaEngineTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testUpdateSavesObjects(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('saveObjects')
-            ->once()
+        $client->expects('saveObjects')
             ->with('users', [
                 ['id' => 1, 'name' => 'Taylor', 'objectID' => 1],
             ]);
 
         $engine = new AlgoliaEngine($client);
 
-        $model = $this->createSearchableModelMock();
-        $model->shouldReceive('indexableAs')->andReturn('users');
-        $model->shouldReceive('toSearchableArray')->andReturn(['id' => 1, 'name' => 'Taylor']);
-        $model->shouldReceive('scoutMetadata')->andReturn([]);
-        $model->shouldReceive('getScoutKey')->andReturn(1);
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('indexableAs')->returns('users');
+        $model->allows('toSearchableArray')->returns(['id' => 1, 'name' => 'Taylor']);
+        $model->allows('scoutMetadata')->returns([]);
+        $model->allows('getScoutKey')->returns(1);
 
         $engine->update(new EloquentCollection([$model]));
     }
 
     public function testUpdateEmptyCollectionDoesNothing(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
-        $client->shouldNotReceive('saveObjects');
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
+        $client->expects('saveObjects')->never();
 
         $engine = new AlgoliaEngine($client);
         $engine->update(new EloquentCollection);
-
-        $this->assertTrue(true);
     }
 
     public function testUpdateFiltersOutEmptySearchableArrays(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
-        $client->shouldNotReceive('saveObjects');
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
+        $client->expects('saveObjects')->never();
 
         $engine = new AlgoliaEngine($client);
 
-        $model = $this->createSearchableModelMock();
-        $model->shouldReceive('indexableAs')->andReturn('users');
-        $model->shouldReceive('toSearchableArray')->andReturn([]);
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('indexableAs')->returns('users');
+        $model->allows('toSearchableArray')->returns([]);
 
         $engine->update(new EloquentCollection([$model]));
     }
 
     public function testUpdateIncludesScoutMetadata(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('saveObjects')
-            ->once()
+        $client->expects('saveObjects')
             ->with('users', [
                 ['id' => 1, 'name' => 'Taylor', 'foo' => 'bar', 'objectID' => 1],
             ]);
 
         $engine = new AlgoliaEngine($client);
 
-        $model = $this->createSearchableModelMock();
-        $model->shouldReceive('indexableAs')->andReturn('users');
-        $model->shouldReceive('toSearchableArray')->andReturn(['id' => 1, 'name' => 'Taylor']);
-        $model->shouldReceive('scoutMetadata')->andReturn(['foo' => 'bar']);
-        $model->shouldReceive('getScoutKey')->andReturn(1);
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('indexableAs')->returns('users');
+        $model->allows('toSearchableArray')->returns(['id' => 1, 'name' => 'Taylor']);
+        $model->allows('scoutMetadata')->returns(['foo' => 'bar']);
+        $model->allows('getScoutKey')->returns(1);
 
         $engine->update(new EloquentCollection([$model]));
     }
 
     public function testUpdatePreparesTheFinalSearchableDocument(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
-        $client->shouldReceive('saveObjects')
-            ->once()
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
+        $client->expects('saveObjects')
             ->with('users', [[
                 'name' => 'Taylor',
                 '__soft_deleted' => 0,
@@ -116,11 +115,11 @@ class AlgoliaEngineTest extends TestCase
             ]]);
 
         $engine = new AlgoliaEngine($client);
-        $model = $this->createSearchableModelMock();
-        $model->shouldReceive('indexableAs')->andReturn('users');
-        $model->shouldReceive('toSearchableArray')->andReturn(['name' => 'Taylor']);
-        $model->shouldReceive('scoutMetadata')->andReturn(['__soft_deleted' => 0]);
-        $model->shouldReceive('getScoutKey')->andReturn(1);
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('indexableAs')->returns('users');
+        $model->allows('toSearchableArray')->returns(['name' => 'Taylor']);
+        $model->allows('scoutMetadata')->returns(['__soft_deleted' => 0]);
+        $model->allows('getScoutKey')->returns(1);
 
         Scout::prepareSearchableDocumentUsing(function (
             array $document,
@@ -143,77 +142,69 @@ class AlgoliaEngineTest extends TestCase
 
     public function testUpdateWithSoftDeletesAddsSoftDeleteMetadata(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('saveObjects')
-            ->once()
-            ->with('users', m::on(function ($objects) {
+        $client->expects('saveObjects')
+            ->with('users', Argument::satisfies(function ($objects) {
                 return isset($objects[0]['__soft_deleted']);
             }));
 
         $engine = new AlgoliaEngine($client, softDelete: true);
 
-        $model = $this->createSoftDeleteSearchableModelMock();
-        $model->shouldReceive('indexableAs')->andReturn('users');
-        $model->shouldReceive('toSearchableArray')->andReturn(['id' => 1, 'name' => 'Taylor']);
-        $model->shouldReceive('scoutMetadata')->andReturn(['__soft_deleted' => 0]);
-        $model->shouldReceive('getScoutKey')->andReturn(1);
-        $model->shouldReceive('pushSoftDeleteMetadata')->once()->andReturnSelf();
+        $model = Double::for(AlgoliaTestSoftDeleteModel::class)->strict();
+        $model->allows('indexableAs')->returns('users');
+        $model->allows('toSearchableArray')->returns(['id' => 1, 'name' => 'Taylor']);
+        $model->allows('scoutMetadata')->returns(['__soft_deleted' => 0]);
+        $model->allows('getScoutKey')->returns(1);
+        $model->expects('pushSoftDeleteMetadata');
 
         $engine->update(new EloquentCollection([$model]));
     }
 
     public function testDeleteRemovesObjects(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('deleteObjects')
-            ->once()
+        $client->expects('deleteObjects')
             ->with('users', [1]);
 
         $engine = new AlgoliaEngine($client);
 
-        $model = $this->createSearchableModelMock();
-        $model->shouldReceive('indexableAs')->andReturn('users');
-        $model->shouldReceive('getScoutKey')->andReturn(1);
-        $model->shouldReceive('getScoutKeyName')->andReturn('id');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('indexableAs')->returns('users');
+        $model->allows('getScoutKey')->returns(1);
+        $model->allows('getScoutKeyName')->returns('id');
 
         $engine->delete(new EloquentCollection([$model]));
     }
 
     public function testDeleteWithCustomScoutKey(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('deleteObjects')
-            ->once()
+        $client->expects('deleteObjects')
             ->with('chirps', ['my-key']);
 
         $engine = new AlgoliaEngine($client);
 
-        $model = $this->createSearchableModelMock();
-        $model->shouldReceive('indexableAs')->andReturn('chirps');
-        $model->shouldReceive('getScoutKey')->andReturn('my-key');
-        $model->shouldReceive('getScoutKeyName')->andReturn('scout_id');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('indexableAs')->returns('chirps');
+        $model->allows('getScoutKey')->returns('my-key');
+        $model->allows('getScoutKeyName')->returns('scout_id');
 
         $engine->delete(new EloquentCollection([$model]));
     }
 
     public function testDeleteWithRemoveableScoutCollection(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('deleteObjects')
-            ->once()
+        $client->expects('deleteObjects')
             ->with('chirps', ['my-key']);
 
         $engine = new AlgoliaEngine($client);
 
-        // RemoveableScoutCollection's delete path uses pluck($keyName) which
-        // reads attributes directly via data_get. A Mockery mock can't satisfy
-        // that because Model::__set routes through setAttribute (intercepted).
-        // A real fixture model with setRawAttributes works cleanly — no DB
-        // needed because delete() never hits the database.
+        // RemoveableScoutCollection reads attributes through pluck(), so use a real model.
         $model = new AlgoliaTestChirpModel;
         $model->setRawAttributes(['scout_id' => 'my-key']);
 
@@ -224,23 +215,20 @@ class AlgoliaEngineTest extends TestCase
 
     public function testDeleteEmptyCollection(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
-        $client->shouldNotReceive('deleteObjects');
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
+        $client->expects('deleteObjects')->never();
 
         $engine = new AlgoliaEngine($client);
         $engine->delete(new EloquentCollection);
-
-        $this->assertTrue(true);
     }
 
     public function testDeleteIndex(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('deleteIndex')
-            ->once()
+        $client->expects('deleteIndex')
             ->with('users')
-            ->andReturn(['taskID' => 123]);
+            ->returns(['taskID' => 123]);
 
         $engine = new AlgoliaEngine($client);
 
@@ -251,33 +239,30 @@ class AlgoliaEngineTest extends TestCase
 
     public function testFlush(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('clearObjects')
-            ->once()
+        $client->expects('clearObjects')
             ->with('users');
 
         $engine = new AlgoliaEngine($client);
 
-        $model = $this->createSearchableModelMock();
-        $model->shouldReceive('indexableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('indexableAs')->returns('users');
 
         $engine->flush($model);
     }
 
     public function testDeleteByFilterPreparesTheBuilderAndUsesTheDefaultWriteIndex(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
-        $client->shouldReceive('deleteBy')
-            ->once()
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
+        $client->expects('deleteBy')
             ->with('users_write', [
                 'filters' => "(visibility:public) AND (status:'active' AND tenant_id = 42)",
             ])
-            ->andReturn(['taskID' => 123]);
-        $client->shouldReceive('waitForTask')
-            ->once()
+            ->returns(['taskID' => 123]);
+        $client->expects('waitForTask')
             ->with('users_write', 123)
-            ->andReturn(['status' => 'published']);
+            ->returns(['status' => 'published']);
 
         $runner = new EngineOperationRunner;
         $observer = new AlgoliaEngineOperationObserver;
@@ -285,9 +270,9 @@ class AlgoliaEngineTest extends TestCase
         $engine = (new AlgoliaEngine($client))->setOperationRunner($runner, 'algolia');
         $this->assertInstanceOf(DeletesByFilter::class, $engine);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('indexableAs')->once()->andReturn('users_write');
-        $model->shouldNotReceive('searchableAs');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->expects('indexableAs')->returns('users_write');
+        $model->expects('searchableAs')->never();
         $builder = (new Builder($model, ''))
             ->options(['filters' => 'visibility:public'])
             ->where('status', 'active');
@@ -307,19 +292,17 @@ class AlgoliaEngineTest extends TestCase
 
     public function testDeleteByFilterUsesAnExplicitIndex(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
-        $client->shouldReceive('deleteBy')
-            ->once()
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
+        $client->expects('deleteBy')
             ->with('users_v2', ['filters' => 'tenant_id = 42'])
-            ->andReturn(['taskID' => 123]);
-        $client->shouldReceive('waitForTask')
-            ->once()
+            ->returns(['taskID' => 123]);
+        $client->expects('waitForTask')
             ->with('users_v2', 123)
-            ->andReturn(['status' => 'published']);
+            ->returns(['status' => 'published']);
 
         $engine = new AlgoliaEngine($client);
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldNotReceive('indexableAs');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->expects('indexableAs')->never();
         $builder = (new Builder($model, ''))->within('users_v2')->where('tenant_id', 42);
 
         $engine->deleteByFilter($builder);
@@ -327,30 +310,27 @@ class AlgoliaEngineTest extends TestCase
 
     public function testDeleteByFilterTreatsAMissingIndexAsAlreadyDeleted(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
-        $client->shouldReceive('deleteBy')
-            ->once()
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
+        $client->expects('deleteBy')
             ->with('users', ['filters' => 'tenant_id = 42'])
-            ->andThrow(new NotFoundException('Index not found', 404));
-        $client->shouldNotReceive('waitForTask');
+            ->throws(new NotFoundException('Index not found', 404));
+        $client->expects('waitForTask')->never();
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('indexableAs')->once()->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->expects('indexableAs')->returns('users');
         $builder = (new Builder($model, ''))->where('tenant_id', 42);
 
         (new AlgoliaEngine($client))->deleteByFilter($builder);
-
-        $this->assertTrue(true);
     }
 
     public function testDeleteByFilterRejectsAnEmptyFilterBeforeIo(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
-        $client->shouldNotReceive('deleteBy');
-        $client->shouldNotReceive('waitForTask');
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
+        $client->expects('deleteBy')->never();
+        $client->expects('waitForTask')->never();
         $engine = new AlgoliaEngine($client);
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldNotReceive('indexableAs');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->expects('indexableAs')->never();
         $builder = new Builder($model, '');
         $prepared = false;
 
@@ -370,17 +350,17 @@ class AlgoliaEngineTest extends TestCase
 
     public function testDeleteByFilterDoesNotNotifyObserversForAnEmptyFilter(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
-        $client->shouldNotReceive('deleteBy');
-        $client->shouldNotReceive('waitForTask');
-        $observer = m::mock(EngineOperationObserver::class);
-        $observer->shouldNotReceive('starting');
-        $observer->shouldNotReceive('finished');
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
+        $client->expects('deleteBy')->never();
+        $client->expects('waitForTask')->never();
+        $observer = Double::for(EngineOperationObserver::class)->strict();
+        $observer->expects('starting')->never();
+        $observer->expects('finished')->never();
         $runner = new EngineOperationRunner;
         $runner->observe($observer);
         $engine = (new AlgoliaEngine($client))->setOperationRunner($runner, 'algolia');
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldNotReceive('indexableAs');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->expects('indexableAs')->never();
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs('Algolia filter deletion requires a non-empty filter.');
@@ -391,19 +371,17 @@ class AlgoliaEngineTest extends TestCase
     #[DataProvider('incompleteFilterDeletionTasks')]
     public function testDeleteByFilterRejectsAnIncompleteTask(?array $task): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
-        $client->shouldReceive('deleteBy')
-            ->once()
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
+        $client->expects('deleteBy')
             ->with('users', ['filters' => 'tenant_id = 42'])
-            ->andReturn(['taskID' => 123]);
-        $client->shouldReceive('waitForTask')
-            ->once()
+            ->returns(['taskID' => 123]);
+        $client->expects('waitForTask')
             ->with('users', 123)
-            ->andReturn($task);
+            ->returns($task);
 
         $engine = new AlgoliaEngine($client);
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('indexableAs')->once()->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->expects('indexableAs')->returns('users');
         $builder = (new Builder($model, ''))->where('tenant_id', 42);
 
         $this->expectException(ScoutException::class);
@@ -427,10 +405,9 @@ class AlgoliaEngineTest extends TestCase
 
     public function testUpdateIndexSettings(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('setSettings')
-            ->once()
+        $client->expects('setSettings')
             ->with('users', ['searchableAttributes' => ['name', 'email']]);
 
         $engine = new AlgoliaEngine($client);
@@ -439,7 +416,7 @@ class AlgoliaEngineTest extends TestCase
 
     public function testCreateIndexThrows(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
         $engine = new AlgoliaEngine($client);
 
         $this->expectException(NotSupportedException::class);
@@ -449,16 +426,15 @@ class AlgoliaEngineTest extends TestCase
 
     public function testSearchSendsCorrectParameters(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('searchSingleIndex')
-            ->once()
+        $client->expects('searchSingleIndex')
             ->with('users', ['query' => 'zonda', 'filters' => 'foo = 1'], []);
 
         $engine = new AlgoliaEngine($client);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
 
         $builder = new Builder($model, 'zonda');
         $builder->where('foo', 1);
@@ -472,20 +448,19 @@ class AlgoliaEngineTest extends TestCase
         bool $hasBuilderFilter,
         ?string $expectedFilters
     ): void {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
         $expected = ['query' => 'zonda'];
 
         if ($expectedFilters !== null) {
             $expected['filters'] = $expectedFilters;
         }
 
-        $client->shouldReceive('searchSingleIndex')
-            ->once()
+        $client->expects('searchSingleIndex')
             ->with('users', $expected, []);
 
         $engine = new AlgoliaEngine($client);
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
         $builder = new Builder($model, 'zonda');
 
         if ($applicationFilters !== null) {
@@ -520,9 +495,8 @@ class AlgoliaEngineTest extends TestCase
 
     public function testPaginateComposesApplicationAndBuilderFilters(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
-        $client->shouldReceive('searchSingleIndex')
-            ->once()
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
+        $client->expects('searchSingleIndex')
             ->with('users', [
                 'query' => 'zonda',
                 'filters' => '(status:active OR status:trial) AND (tenant_id = 42)',
@@ -531,8 +505,8 @@ class AlgoliaEngineTest extends TestCase
             ], []);
 
         $engine = new AlgoliaEngine($client);
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
         $builder = (new Builder($model, 'zonda'))
             ->options(['filters' => 'status:active OR status:trial'])
             ->where('tenant_id', 42);
@@ -542,11 +516,11 @@ class AlgoliaEngineTest extends TestCase
 
     public function testSearchCallbackReceivesFinalComposedOptions(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
-        $client->shouldNotReceive('searchSingleIndex');
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
+        $client->expects('searchSingleIndex')->never();
         $engine = new AlgoliaEngine($client);
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
         $builder = new Builder($model, 'zonda', function ($givenClient, $query, $options) use ($client) {
             $this->assertSame($client, $givenClient);
             $this->assertSame('zonda', $query);
@@ -563,10 +537,9 @@ class AlgoliaEngineTest extends TestCase
 
     public function testSearchSendsBooleanInequalityAndEscapedFilters(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('searchSingleIndex')
-            ->once()
+        $client->expects('searchSingleIndex')
             ->with('users', [
                 'query' => 'zonda',
                 'filters' => "is_live:true AND is_archived:false AND NOT status:'draft' AND NOT label:'manager\\'s draft\\\\review' AND NOT is_deleted:true AND is_featured>1 AND is_disabled<=0 AND rank>=10 AND score>=9223372036854775808 AND ratio<1.25 AND precise_ratio<1.2345678901234567 AND (is_featured:true OR is_featured:false) AND NOT is_hidden:true AND NOT is_hidden:false",
@@ -574,8 +547,8 @@ class AlgoliaEngineTest extends TestCase
 
         $engine = new AlgoliaEngine($client);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
 
         $builder = new Builder($model, 'zonda');
         $builder->where('is_live', true)
@@ -597,18 +570,17 @@ class AlgoliaEngineTest extends TestCase
 
     public function testSearchPreservesNumericAndStringValueCategories(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('searchSingleIndex')
-            ->once()
+        $client->expects('searchSingleIndex')
             ->with('users', [
                 'query' => 'zonda',
                 'filters' => "integer = -10 AND decimal = 1.25 AND precise = 1.2345678901234567 AND large = 1234567890123456 AND small = 1.0e-5 AND NOT excluded = 42 AND numeric_string:'42' AND (numbers = 1 OR numbers = 2.5) AND NOT blocked = 3 AND NOT blocked = 4",
             ], []);
 
         $engine = new AlgoliaEngine($client);
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
 
         $builder = new Builder($model, 'zonda');
         $builder->where('integer', -10)
@@ -626,17 +598,16 @@ class AlgoliaEngineTest extends TestCase
 
     public function testCustomFilterFormattingAppliesToNumericFilters(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('searchSingleIndex')
-            ->once()
+        $client->expects('searchSingleIndex')
             ->with('users', [
                 'query' => 'zonda',
                 'filters' => 'number = custom AND ordered>custom AND (numbers = custom OR numbers = custom)',
             ], []);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
 
         $builder = new Builder($model, 'zonda');
         $builder->where('number', 1)
@@ -649,11 +620,11 @@ class AlgoliaEngineTest extends TestCase
     #[DataProvider('invalidFilterValues')]
     public function testSearchRejectsInvalidFilters(string $operator, mixed $value, string $message): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
-        $client->shouldNotReceive('searchSingleIndex');
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
+        $client->expects('searchSingleIndex')->never();
 
         $engine = new AlgoliaEngine($client);
-        $builder = new Builder(m::mock(AlgoliaTestSearchableModel::class), 'zonda');
+        $builder = new Builder(Double::for(AlgoliaTestSearchableModel::class)->strict(), 'zonda');
         $builder->where('value', $operator, $value);
 
         $this->expectException(InvalidArgumentException::class);
@@ -686,10 +657,9 @@ class AlgoliaEngineTest extends TestCase
 
     public function testSearchSendsBackedEnumFilters(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('searchSingleIndex')
-            ->once()
+        $client->expects('searchSingleIndex')
             ->with('users', [
                 'query' => 'zonda',
                 'filters' => "status:'published' AND priority = 1 AND (statuses:'draft' OR statuses:'published') AND NOT priorities = 1 AND NOT priorities = 2",
@@ -697,8 +667,8 @@ class AlgoliaEngineTest extends TestCase
 
         $engine = new AlgoliaEngine($client);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
 
         $builder = new Builder($model, 'zonda');
         $builder->where('status', AlgoliaStringStatus::Published)
@@ -711,16 +681,15 @@ class AlgoliaEngineTest extends TestCase
 
     public function testSearchPreservesStringZeroIndex(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('searchSingleIndex')
-            ->once()
+        $client->expects('searchSingleIndex')
             ->with('0', ['query' => 'zonda'], []);
 
         $engine = new AlgoliaEngine($client);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldNotReceive('searchableAs');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->expects('searchableAs')->never();
 
         $builder = new Builder($model, 'zonda');
         $builder->within('0');
@@ -730,16 +699,15 @@ class AlgoliaEngineTest extends TestCase
 
     public function testSearchSendsCorrectParametersForWhereInSearch(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('searchSingleIndex')
-            ->once()
+        $client->expects('searchSingleIndex')
             ->with('users', ['query' => 'zonda', 'filters' => 'foo = 1 AND (bar = 1 OR bar = 2)'], []);
 
         $engine = new AlgoliaEngine($client);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
 
         $builder = new Builder($model, 'zonda');
         $builder->where('foo', 1)->whereIn('bar', [1, 2]);
@@ -749,16 +717,15 @@ class AlgoliaEngineTest extends TestCase
 
     public function testSearchSendsCorrectParametersForEmptyWhereInSearch(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('searchSingleIndex')
-            ->once()
+        $client->expects('searchSingleIndex')
             ->with('users', ['query' => 'zonda', 'filters' => 'foo = 1 AND 0:1'], []);
 
         $engine = new AlgoliaEngine($client);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
 
         $builder = new Builder($model, 'zonda');
         $builder->where('foo', 1)->whereIn('bar', []);
@@ -768,16 +735,15 @@ class AlgoliaEngineTest extends TestCase
 
     public function testSearchSendsCorrectParametersForWhereNotInSearch(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('searchSingleIndex')
-            ->once()
+        $client->expects('searchSingleIndex')
             ->with('users', ['query' => 'zonda', 'filters' => 'NOT foo = 1 AND NOT foo = 2'], []);
 
         $engine = new AlgoliaEngine($client);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
 
         $builder = new Builder($model, 'zonda');
         $builder->whereNotIn('foo', [1, 2]);
@@ -787,16 +753,15 @@ class AlgoliaEngineTest extends TestCase
 
     public function testSearchIgnoresEmptyWhereNotIn(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('searchSingleIndex')
-            ->once()
+        $client->expects('searchSingleIndex')
             ->with('users', ['query' => 'zonda'], []);
 
         $engine = new AlgoliaEngine($client);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
 
         $builder = new Builder($model, 'zonda');
         $builder->whereNotIn('foo', []);
@@ -806,10 +771,9 @@ class AlgoliaEngineTest extends TestCase
 
     public function testSearchSendsCorrectParametersForMixedSearch(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('searchSingleIndex')
-            ->once()
+        $client->expects('searchSingleIndex')
             ->with(
                 'users',
                 ['query' => 'zonda', 'filters' => 'foo = 1 AND (bar = 1 OR bar = 2) AND NOT baz = 1 AND NOT baz = 2'],
@@ -818,8 +782,8 @@ class AlgoliaEngineTest extends TestCase
 
         $engine = new AlgoliaEngine($client);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
 
         $builder = new Builder($model, 'zonda');
         $builder->where('foo', 1)
@@ -831,13 +795,13 @@ class AlgoliaEngineTest extends TestCase
 
     public function testSearchWithCallbackUsesCallback(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
-        $client->shouldNotReceive('searchSingleIndex');
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
+        $client->expects('searchSingleIndex')->never();
 
         $engine = new AlgoliaEngine($client);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
 
         $called = false;
         $builder = new Builder($model, 'zonda', function ($c, $query, $options) use ($client, &$called) {
@@ -856,18 +820,17 @@ class AlgoliaEngineTest extends TestCase
 
     public function testPaginateComputesCorrectPage(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('searchSingleIndex')
-            ->once()
-            ->with('users', m::on(function ($params) {
+        $client->expects('searchSingleIndex')
+            ->with('users', Argument::satisfies(function ($params) {
                 return $params['hitsPerPage'] === 15 && $params['page'] === 1;
             }), []);
 
         $engine = new AlgoliaEngine($client);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
 
         $builder = new Builder($model, 'query');
 
@@ -876,13 +839,13 @@ class AlgoliaEngineTest extends TestCase
 
     public function testMapReturnsEmptyWhenNoHits(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
         $engine = new AlgoliaEngine($client);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('newCollection')->andReturn(new EloquentCollection);
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('newCollection')->returns(new EloquentCollection);
 
-        $builder = m::mock(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
 
         $results = $engine->map($builder, ['hits' => []], $model);
 
@@ -891,22 +854,20 @@ class AlgoliaEngineTest extends TestCase
 
     public function testMapPopulatesScoutMetadataFromUnderscoreKeys(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
         $engine = new AlgoliaEngine($client);
 
-        $searchableModel = m::mock(Model::class . ', ' . SearchableInterface::class);
-        $searchableModel->shouldReceive('getScoutKey')->andReturn(1);
-        $searchableModel->shouldReceive('withScoutMetadata')
-            ->with('_rankingInfo', ['nbTypos' => 0])
-            ->once()
-            ->andReturnSelf();
+        $searchableModel = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $searchableModel->allows('getScoutKey')->returns(1);
+        $searchableModel->expects('withScoutMetadata')
+            ->with('_rankingInfo', ['nbTypos' => 0]);
 
-        $model = m::mock(Model::class . ', ' . SearchableInterface::class);
-        $model->shouldReceive('getScoutModelsByIds')->andReturn(new EloquentCollection([$searchableModel]));
-        $model->shouldReceive('newCollection')
-            ->andReturnUsing(fn ($models) => new EloquentCollection($models));
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('getScoutModelsByIds')->returns(new EloquentCollection([$searchableModel]));
+        $model->allows('newCollection')
+            ->resolves(fn ($models) => new EloquentCollection($models));
 
-        $builder = m::mock(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
 
         $results = $engine->map($builder, [
             'nbHits' => 1,
@@ -920,24 +881,24 @@ class AlgoliaEngineTest extends TestCase
 
     public function testMapRespectsOrder(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
         $engine = new AlgoliaEngine($client);
 
         $mockModels = [];
         foreach ([1, 2, 3, 4] as $id) {
-            $mock = m::mock(Model::class . ', ' . SearchableInterface::class);
-            $mock->shouldReceive('getScoutKey')->andReturn($id);
+            $mock = Double::for(AlgoliaTestSearchableModel::class)->strict();
+            $mock->allows('getScoutKey')->returns($id);
             $mockModels[] = $mock;
         }
 
         $models = new EloquentCollection($mockModels);
 
-        $model = m::mock(Model::class . ', ' . SearchableInterface::class);
-        $model->shouldReceive('getScoutModelsByIds')->andReturn($models);
-        $model->shouldReceive('newCollection')
-            ->andReturnUsing(fn ($models) => new EloquentCollection($models));
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('getScoutModelsByIds')->returns($models);
+        $model->allows('newCollection')
+            ->resolves(fn ($models) => new EloquentCollection($models));
 
-        $builder = m::mock(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
 
         $results = $engine->map($builder, [
             'nbHits' => 4,
@@ -956,25 +917,25 @@ class AlgoliaEngineTest extends TestCase
 
     public function testLazyMapRespectsOrder(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
         $engine = new AlgoliaEngine($client);
 
         $mockModels = [];
         foreach ([1, 2, 3, 4] as $id) {
-            $mock = m::mock(Model::class . ', ' . SearchableInterface::class);
-            $mock->shouldReceive('getScoutKey')->andReturn($id);
+            $mock = Double::for(AlgoliaTestSearchableModel::class)->strict();
+            $mock->allows('getScoutKey')->returns($id);
             $mockModels[] = $mock;
         }
 
         $lazy = LazyCollection::make($mockModels);
 
-        $queryBuilder = m::mock(\Hypervel\Database\Eloquent\Builder::class);
-        $queryBuilder->shouldReceive('cursor')->andReturn($lazy);
+        $queryBuilder = Double::for(EloquentBuilder::class)->strict();
+        $queryBuilder->allows('cursor')->returns($lazy);
 
-        $model = m::mock(Model::class . ', ' . SearchableInterface::class);
-        $model->shouldReceive('queryScoutModelsByIds')->andReturn($queryBuilder);
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('queryScoutModelsByIds')->returns($queryBuilder);
 
-        $builder = m::mock(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
 
         $results = $engine->lazyMap($builder, [
             'nbHits' => 4,
@@ -993,7 +954,7 @@ class AlgoliaEngineTest extends TestCase
 
     public function testGetTotalCount(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
         $engine = new AlgoliaEngine($client);
 
         $this->assertEquals(42, $engine->getTotalCount(['nbHits' => 42]));
@@ -1001,7 +962,7 @@ class AlgoliaEngineTest extends TestCase
 
     public function testMapIdsReturnsObjectIDs(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
         $engine = new AlgoliaEngine($client);
 
         $results = $engine->mapIds([
@@ -1018,7 +979,7 @@ class AlgoliaEngineTest extends TestCase
 
     public function testConfigureSoftDeleteFilter(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
         $engine = new AlgoliaEngine($client);
 
         $result = $engine->configureSoftDeleteFilter([
@@ -1033,16 +994,15 @@ class AlgoliaEngineTest extends TestCase
 
     public function testIdentifyDisabledSendsEmptyRequestOptions(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('searchSingleIndex')
-            ->once()
-            ->with('users', m::any(), []);
+        $client->expects('searchSingleIndex')
+            ->with('users', Argument::any(), []);
 
         $engine = new AlgoliaEngine($client, identify: false);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
 
         $builder = new Builder($model, 'query');
 
@@ -1051,19 +1011,18 @@ class AlgoliaEngineTest extends TestCase
 
     public function testIdentifyEnabledSendsHeadersFromRequest(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('searchSingleIndex')
-            ->once()
-            ->with('users', m::any(), ['headers' => ['X-Forwarded-For' => '203.0.113.10']]);
+        $client->expects('searchSingleIndex')
+            ->with('users', Argument::any(), ['headers' => ['X-Forwarded-For' => '203.0.113.10']]);
 
         $engine = new AlgoliaEngine($client, identify: true);
 
         $request = Request::create('/', 'GET', [], [], [], ['REMOTE_ADDR' => '203.0.113.10']);
         RequestContext::set($request);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
 
         $builder = new Builder($model, 'query');
 
@@ -1072,28 +1031,24 @@ class AlgoliaEngineTest extends TestCase
 
     public function testIdentifyEnabledWithAuthenticatedUserAddsUserToken(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('searchSingleIndex')
-            ->once()
-            ->with('users', m::any(), m::on(function ($requestOptions) {
+        $client->expects('searchSingleIndex')
+            ->with('users', Argument::any(), Argument::satisfies(function ($requestOptions) {
                 return isset($requestOptions['headers']['X-Algolia-UserToken'])
                     && $requestOptions['headers']['X-Algolia-UserToken'] === '42';
             }));
 
         $engine = new AlgoliaEngine($client, identify: true);
 
-        // Using a real fixture class (not a Mockery mock) because the engine
-        // calls method_exists($user, 'getKey') — Mockery's __call-based method
-        // stubs are not detected by method_exists, so a mock would be rejected.
         $user = new AlgoliaTestUser(42);
 
         $request = Request::create('/', 'GET', [], [], [], ['REMOTE_ADDR' => '203.0.113.10']);
         $request->setUserResolver(fn () => $user);
         RequestContext::set($request);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
 
         $builder = new Builder($model, 'query');
 
@@ -1102,19 +1057,18 @@ class AlgoliaEngineTest extends TestCase
 
     public function testIdentifyIgnoresPrivateIPs(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('searchSingleIndex')
-            ->once()
-            ->with('users', m::any(), []);
+        $client->expects('searchSingleIndex')
+            ->with('users', Argument::any(), []);
 
         $engine = new AlgoliaEngine($client, identify: true);
 
         $request = Request::create('/', 'GET', [], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
         RequestContext::set($request);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
 
         $builder = new Builder($model, 'query');
 
@@ -1128,12 +1082,12 @@ class AlgoliaEngineTest extends TestCase
         // ONCE (as it would be in a Swoole worker) and must pick up the
         // current request's IP on every search — not the IP of whichever
         // request happened to trigger engine construction.
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
         $capturedHeaders = [];
-        $client->shouldReceive('searchSingleIndex')
-            ->twice()
-            ->with('users', m::any(), m::on(function ($opts) use (&$capturedHeaders) {
+        $client->expects('searchSingleIndex')
+            ->times(2)
+            ->with('users', Argument::any(), Argument::satisfies(function ($opts) use (&$capturedHeaders) {
                 $capturedHeaders[] = $opts['headers']['X-Forwarded-For'] ?? null;
 
                 return true;
@@ -1141,8 +1095,8 @@ class AlgoliaEngineTest extends TestCase
 
         $engine = new AlgoliaEngine($client, identify: true);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
 
         $builder = new Builder($model, 'query');
 
@@ -1169,12 +1123,12 @@ class AlgoliaEngineTest extends TestCase
         // two concurrent coroutines each seeding their own request must each
         // see their own headers in the resulting search call — never the
         // other coroutine's.
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
         $capturedHeaders = [];
-        $client->shouldReceive('searchSingleIndex')
-            ->twice()
-            ->with('users', m::any(), m::on(function ($opts) use (&$capturedHeaders) {
+        $client->expects('searchSingleIndex')
+            ->times(2)
+            ->with('users', Argument::any(), Argument::satisfies(function ($opts) use (&$capturedHeaders) {
                 $capturedHeaders[] = $opts['headers']['X-Forwarded-For'] ?? null;
 
                 return true;
@@ -1182,8 +1136,8 @@ class AlgoliaEngineTest extends TestCase
 
         $engine = new AlgoliaEngine($client, identify: true);
 
-        $model = m::mock(AlgoliaTestSearchableModel::class);
-        $model->shouldReceive('searchableAs')->andReturn('users');
+        $model = Double::for(AlgoliaTestSearchableModel::class)->strict();
+        $model->allows('searchableAs')->returns('users');
 
         $builder = new Builder($model, 'query');
 
@@ -1191,15 +1145,23 @@ class AlgoliaEngineTest extends TestCase
         $waiter->add(2);
 
         go(function () use ($engine, $builder, $waiter) {
-            RequestContext::set(Request::create('/', 'GET', [], [], [], ['REMOTE_ADDR' => '203.0.113.10']));
-            $engine->search($builder);
-            $waiter->done();
+            try {
+                RequestContext::set(Request::create('/', 'GET', [], [], [], ['REMOTE_ADDR' => '203.0.113.10']));
+                usleep(5000);
+                $engine->search($builder);
+            } finally {
+                $waiter->done();
+            }
         });
 
         go(function () use ($engine, $builder, $waiter) {
-            RequestContext::set(Request::create('/', 'GET', [], [], [], ['REMOTE_ADDR' => '198.51.100.20']));
-            $engine->search($builder);
-            $waiter->done();
+            try {
+                RequestContext::set(Request::create('/', 'GET', [], [], [], ['REMOTE_ADDR' => '198.51.100.20']));
+                usleep(5000);
+                $engine->search($builder);
+            } finally {
+                $waiter->done();
+            }
         });
 
         $waiter->wait();
@@ -1215,40 +1177,38 @@ class AlgoliaEngineTest extends TestCase
         // softDelete enabled and an empty toSearchableArray(), the engine
         // still calls pushSoftDeleteMetadata (runs before the empty check)
         // but does not call saveObjects.
-        $client = m::mock(AlgoliaSearchClient::class);
-        $client->shouldNotReceive('saveObjects');
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
+        $client->expects('saveObjects')->never();
 
         $engine = new AlgoliaEngine($client, softDelete: true);
 
-        $model = $this->createSoftDeleteSearchableModelMock();
-        $model->shouldReceive('indexableAs')->andReturn('chirps');
-        $model->shouldReceive('toSearchableArray')->andReturn([]);
-        $model->shouldReceive('pushSoftDeleteMetadata')->once()->andReturnSelf();
+        $model = Double::for(AlgoliaTestSoftDeleteModel::class)->strict();
+        $model->allows('indexableAs')->returns('chirps');
+        $model->allows('toSearchableArray')->returns([]);
+        $model->expects('pushSoftDeleteMetadata');
 
         $engine->update(new EloquentCollection([$model]));
     }
 
     public function testCallForwardsUnknownMethodsToClient(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('customMethod')
-            ->once()
-            ->with('arg')
-            ->andReturn('result');
+        $client->expects('getSettings')
+            ->with('users')
+            ->returns(['searchableAttributes' => ['name']]);
 
         $engine = new AlgoliaEngine($client);
 
-        $this->assertEquals('result', $engine->customMethod('arg'));
+        $this->assertSame(['searchableAttributes' => ['name']], $engine->getSettings('users'));
     }
 
     public function testDeleteAllIndexesWithPrefixScopesToPrefixedIndexes(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('listIndices')
-            ->once()
-            ->andReturn([
+        $client->expects('listIndices')
+            ->returns([
                 'items' => [
                     ['name' => 'test_users'],
                     ['name' => 'test_posts'],
@@ -1256,9 +1216,9 @@ class AlgoliaEngineTest extends TestCase
                 ],
             ]);
 
-        $client->shouldReceive('deleteIndex')->once()->with('test_users');
-        $client->shouldReceive('deleteIndex')->once()->with('test_posts');
-        $client->shouldNotReceive('deleteIndex')->with('other_data');
+        $client->expects('deleteIndex')->with('test_users');
+        $client->expects('deleteIndex')->with('test_posts');
+        $client->expects('deleteIndex')->never()->with('other_data');
 
         $engine = new AlgoliaEngine($client);
         $engine->deleteAllIndexes('test_');
@@ -1266,11 +1226,10 @@ class AlgoliaEngineTest extends TestCase
 
     public function testDeleteAllIndexesWithNullPrefixDeletesEverything(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('listIndices')
-            ->once()
-            ->andReturn([
+        $client->expects('listIndices')
+            ->returns([
                 'items' => [
                     ['name' => 'test_users'],
                     ['name' => 'test_posts'],
@@ -1278,9 +1237,9 @@ class AlgoliaEngineTest extends TestCase
                 ],
             ]);
 
-        $client->shouldReceive('deleteIndex')->once()->with('test_users');
-        $client->shouldReceive('deleteIndex')->once()->with('test_posts');
-        $client->shouldReceive('deleteIndex')->once()->with('other_data');
+        $client->expects('deleteIndex')->with('test_users');
+        $client->expects('deleteIndex')->with('test_posts');
+        $client->expects('deleteIndex')->with('other_data');
 
         $engine = new AlgoliaEngine($client);
         $engine->deleteAllIndexes(null);
@@ -1288,11 +1247,10 @@ class AlgoliaEngineTest extends TestCase
 
     public function testDeleteAllIndexesWithEmptyStringPrefixDeletesEverything(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('listIndices')
-            ->once()
-            ->andReturn([
+        $client->expects('listIndices')
+            ->returns([
                 'items' => [
                     ['name' => 'test_users'],
                     ['name' => 'test_posts'],
@@ -1300,9 +1258,9 @@ class AlgoliaEngineTest extends TestCase
                 ],
             ]);
 
-        $client->shouldReceive('deleteIndex')->once()->with('test_users');
-        $client->shouldReceive('deleteIndex')->once()->with('test_posts');
-        $client->shouldReceive('deleteIndex')->once()->with('other_data');
+        $client->expects('deleteIndex')->with('test_users');
+        $client->expects('deleteIndex')->with('test_posts');
+        $client->expects('deleteIndex')->with('other_data');
 
         $engine = new AlgoliaEngine($client);
         $engine->deleteAllIndexes('');
@@ -1310,19 +1268,18 @@ class AlgoliaEngineTest extends TestCase
 
     public function testDeleteAllIndexesReturnsResponses(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('listIndices')
-            ->once()
-            ->andReturn([
+        $client->expects('listIndices')
+            ->returns([
                 'items' => [
                     ['name' => 'test_users'],
                     ['name' => 'test_posts'],
                 ],
             ]);
 
-        $client->shouldReceive('deleteIndex')->with('test_users')->andReturn(['taskID' => 1]);
-        $client->shouldReceive('deleteIndex')->with('test_posts')->andReturn(['taskID' => 2]);
+        $client->allows('deleteIndex')->with('test_users')->returns(['taskID' => 1]);
+        $client->allows('deleteIndex')->with('test_posts')->returns(['taskID' => 2]);
 
         $engine = new AlgoliaEngine($client);
         $responses = $engine->deleteAllIndexes('test_');
@@ -1332,13 +1289,12 @@ class AlgoliaEngineTest extends TestCase
 
     public function testDeleteAllIndexesWithNoIndexesReturnsEmptyArray(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('listIndices')
-            ->once()
-            ->andReturn(['items' => []]);
+        $client->expects('listIndices')
+            ->returns(['items' => []]);
 
-        $client->shouldNotReceive('deleteIndex');
+        $client->expects('deleteIndex')->never();
 
         $engine = new AlgoliaEngine($client);
         $result = $engine->deleteAllIndexes('test_');
@@ -1348,11 +1304,10 @@ class AlgoliaEngineTest extends TestCase
 
     public function testDeleteAllIndexesSkipsEntriesWithoutStringNames(): void
     {
-        $client = m::mock(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
 
-        $client->shouldReceive('listIndices')
-            ->once()
-            ->andReturn([
+        $client->expects('listIndices')
+            ->returns([
                 'items' => [
                     ['name' => 'test_users'],
                     ['name' => 42],          // non-string, should skip
@@ -1361,25 +1316,14 @@ class AlgoliaEngineTest extends TestCase
                 ],
             ]);
 
-        $client->shouldReceive('deleteIndex')->once()->with('test_users');
-        $client->shouldReceive('deleteIndex')->once()->with('test_posts');
-        $client->shouldNotReceive('deleteIndex')->with(42);
+        $client->expects('deleteIndex')->with('test_users');
+        $client->expects('deleteIndex')->with('test_posts');
+        $client->expects('deleteIndex')->never()->with(42);
 
         $engine = new AlgoliaEngine($client);
         $responses = $engine->deleteAllIndexes('test_');
 
         $this->assertCount(2, $responses);
-    }
-
-    protected function createSearchableModelMock(): m\MockInterface
-    {
-        return m::mock(Model::class . ', ' . SearchableInterface::class);
-    }
-
-    protected function createSoftDeleteSearchableModelMock(): m\MockInterface
-    {
-        // Must mock a class that uses SoftDeletes for usesSoftDelete() to return true
-        return m::mock(AlgoliaTestSoftDeleteModel::class . ', ' . SearchableInterface::class);
     }
 }
 
@@ -1470,13 +1414,6 @@ class AlgoliaTestChirpModel extends Model
     }
 }
 
-/**
- * Minimal user stub for identifyHeaders() tests.
- *
- * Needs a real class (not a Mockery mock) because the engine uses
- * method_exists($user, 'getKey') to detect the presence of the method.
- * Mockery stubs methods via __call which are invisible to method_exists.
- */
 class AlgoliaTestUser
 {
     public function __construct(private mixed $key)

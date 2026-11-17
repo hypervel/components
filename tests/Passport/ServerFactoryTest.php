@@ -23,6 +23,8 @@ use Hypervel\Passport\Token;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Lcobucci\JWT\Encoding\ChainedFormatter;
 use Lcobucci\JWT\Encoding\JoseEncoder;
 use Lcobucci\JWT\Signer\Key\InMemory;
@@ -30,7 +32,6 @@ use Lcobucci\JWT\Signer\Rsa\Sha256;
 use Lcobucci\JWT\Token\Builder;
 use Lcobucci\JWT\Token\Parser;
 use LogicException;
-use Mockery as m;
 use Nyholm\Psr7\Response;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -41,6 +42,8 @@ use function Hypervel\Coroutine\parallel;
 
 class ServerFactoryTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Configure the files store with reusable PEM material.
      */
@@ -162,14 +165,14 @@ class ServerFactoryTest extends TestCase
     public function testSettingsCacheEvictsTheLeastRecentlyUsedEntryAndKeepsScopesSeparate(): void
     {
         $identifier = 'first';
-        $resolver = m::mock(ServerSettingsResolver::class);
-        $resolver->shouldReceive('current')->andReturnUsing(static function () use (&$identifier): string {
+        $resolver = Double::for(ServerSettingsResolver::class)->strict();
+        $resolver->allows('current')->resolves(static function () use (&$identifier): string {
             return $identifier;
         });
         $key = new ServerKey(config('passport.public_key'), config('passport.private_key'));
-        $resolver->shouldReceive('resolve')->with('first')->once()->andReturn(new ServerSettings([$key], scopes: ['first' => 'First']));
-        $resolver->shouldReceive('resolve')->with('second')->twice()->andReturn(new ServerSettings([$key], scopes: ['second' => 'Second']));
-        $resolver->shouldReceive('resolve')->with('third')->once()->andReturn(new ServerSettings([$key], scopes: ['third' => 'Third']));
+        $resolver->expects('resolve')->with('first')->returns(new ServerSettings([$key], scopes: ['first' => 'First']));
+        $resolver->expects('resolve')->with('second')->times(2)->returns(new ServerSettings([$key], scopes: ['second' => 'Second']));
+        $resolver->expects('resolve')->with('third')->returns(new ServerSettings([$key], scopes: ['third' => 'Third']));
         $this->app->instance(ServerSettingsResolver::class, $resolver);
         $servers = $this->app->make(ServerFactory::class);
         Passport::tokensCan(['global' => 'Global']);
@@ -191,9 +194,9 @@ class ServerFactoryTest extends TestCase
 
     public function testPublicOnlySettingsExposeVerificationWithoutARequiredPrivateKey(): void
     {
-        $resolver = m::mock(ServerSettingsResolver::class);
-        $resolver->shouldReceive('current')->andReturn('verification');
-        $resolver->shouldReceive('resolve')->once()->with('verification')->andReturn(new ServerSettings([
+        $resolver = Double::for(ServerSettingsResolver::class)->strict();
+        $resolver->allows('current')->returns('verification');
+        $resolver->expects('resolve')->with('verification')->returns(new ServerSettings([
             new ServerKey(config('passport.public_key')),
         ]));
         $this->app->instance(ServerSettingsResolver::class, $resolver);
@@ -211,9 +214,9 @@ class ServerFactoryTest extends TestCase
 
     public function testSettingsWithoutKeysCannotVerifyTokens(): void
     {
-        $resolver = m::mock(ServerSettingsResolver::class);
-        $resolver->shouldReceive('current')->andReturn('empty');
-        $resolver->shouldReceive('resolve')->once()->with('empty')->andReturn(new ServerSettings([]));
+        $resolver = Double::for(ServerSettingsResolver::class)->strict();
+        $resolver->allows('current')->returns('empty');
+        $resolver->expects('resolve')->with('empty')->returns(new ServerSettings([]));
         $this->app->instance(ServerSettingsResolver::class, $resolver);
 
         $this->expectException(LogicException::class);
@@ -275,8 +278,8 @@ class ServerFactoryTest extends TestCase
         $ready = new Channel(1);
         $release = new Channel(1);
         $failure = new RuntimeException('Key storage unavailable.');
-        $repository = m::mock(SigningKeyRepository::class);
-        $repository->shouldReceive('serverKeys')->andReturnUsing(function () use (&$keys, &$pause, &$calls, $ready, $release, $scenario, $failure): array {
+        $repository = Double::for(SigningKeyRepository::class)->strict();
+        $repository->allows('serverKeys')->resolves(function () use (&$keys, &$pause, &$calls, $ready, $release, $scenario, $failure): array {
             ++$calls;
             $snapshot = $keys;
 
@@ -356,9 +359,9 @@ class ServerFactoryTest extends TestCase
         CarbonImmutable::setTestNow($now);
         $key = SigningKey::factory()->create();
         $repository = $this->app->make(SigningKeyRepository::class);
-        $resolver = m::mock(ServerSettingsResolver::class);
-        $resolver->shouldReceive('current')->andReturn('custom');
-        $resolver->shouldReceive('resolve')->with('custom')->once()->andReturnUsing(
+        $resolver = Double::for(ServerSettingsResolver::class)->strict();
+        $resolver->allows('current')->returns('custom');
+        $resolver->expects('resolve')->with('custom')->resolves(
             static fn (): ServerSettings => new ServerSettings($repository->serverKeys()),
         );
         $this->app->instance(ServerSettingsResolver::class, $resolver);

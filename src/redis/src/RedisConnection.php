@@ -1943,10 +1943,8 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
 
     /**
      * Get the underlying Redis client instance.
-     *
-     * @return Redis|RedisCluster
      */
-    public function client(): mixed
+    public function client(): Redis|RedisCluster|null
     {
         return $this->connection;
     }

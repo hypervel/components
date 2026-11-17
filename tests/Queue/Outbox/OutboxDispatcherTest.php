@@ -11,13 +11,16 @@ use Hypervel\Database\SQLiteConnection;
 use Hypervel\Queue\Outbox\DatabaseOutboxRepository;
 use Hypervel\Queue\Outbox\OutboxDispatcher;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class OutboxDispatcherTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('ownershipCases')]
     public function testStorageResolvesTheExactTransactionOwner(array $active, ?string $explicit, array $configured, ?string $expected, ?string $error): void
     {
@@ -36,8 +39,8 @@ class OutboxDispatcherTest extends TestCase
             $connections[$name] = $connection;
         }
 
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->andReturnUsing(fn (string $name): SQLiteConnection => $connections[$name]);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->allows('connection')->resolves(fn (string $name): SQLiteConnection => $connections[$name]);
         $repository = new DatabaseOutboxRepository($resolver, $configured, 'job_outbox', 300);
         $dispatcher = new OutboxDispatcher($repository, $resolver, $transactions);
         $job = new OutboxOwnershipJob;

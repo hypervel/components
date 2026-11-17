@@ -16,10 +16,13 @@ use Hypervel\Tests\Permission\Fixtures\Models\GlobalPartitionUser;
 use Hypervel\Tests\Permission\Fixtures\Models\PartitionedPermission;
 use Hypervel\Tests\Permission\Fixtures\Models\PartitionedRole;
 use Hypervel\Tests\Permission\Fixtures\PartitionContext;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class PartitionQueueContextTest extends PartitionTestCase
 {
+    use VerifiesDoubles;
+
     public function testQueuePayloadHydratesPartitionBeforeRestoringModelsAndCheckingPermission(): void
     {
         $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
@@ -38,8 +41,8 @@ class PartitionQueueContextTest extends PartitionTestCase
 
         CoroutineContext::flush();
 
-        $job = m::mock(JobContract::class);
-        $job->shouldReceive('payload')->andReturn($payload);
+        $job = Double::for(JobContract::class)->strict();
+        $job->allows('payload')->returns($payload);
         $this->app->make('events')->dispatch(new JobProcessing('sync', $job));
 
         $this->assertSame(self::PARTITION_A, PartitionContext::get());

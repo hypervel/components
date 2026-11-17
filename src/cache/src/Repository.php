@@ -148,7 +148,9 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
 
     /**
      * Retrieve multiple items from the cache by key.
-     * Items not found in the cache will have a null value.
+     *
+     * Numeric entries are requested keys, while string-keyed entries use their
+     * values as defaults. Missing keys without a default resolve to null.
      */
     public function many(array $keys): array
     {
@@ -878,6 +880,15 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
         }
 
         return $result;
+    }
+
+    /**
+     * Remove all items from the cache.
+     */
+    public function flush(): bool
+    {
+        // Forward through clear() so flush() emits the same events instead of bypassing them via __call().
+        return $this->clear();
     }
 
     /**

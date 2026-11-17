@@ -19,7 +19,8 @@ use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisManager;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\SpanKind;
@@ -49,6 +50,8 @@ use Throwable;
 
 class RedisInstrumentationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private ContextStorageInterface&ExecutionContextAwareInterface $previousStorage;
 
     private Dispatcher $events;
@@ -372,17 +375,11 @@ class RedisInstrumentationTest extends TestCase
         int $resolverCalls = 1,
         int $enableEventCalls = 1,
     ): RedisInstrumentation {
-        $openTelemetryManager = m::mock(OpenTelemetryManager::class);
-        $expectation = $openTelemetryManager->shouldReceive('redisQueryTextResolver');
+        $openTelemetryManager = Double::for(OpenTelemetryManager::class)->strict();
+        $openTelemetryManager->expects('redisQueryTextResolver')->times($resolverCalls)->returns($resolver);
 
-        if ($resolverCalls === 0) {
-            $expectation->never();
-        } else {
-            $expectation->times($resolverCalls)->andReturn($resolver);
-        }
-
-        $redisManager = m::mock(RedisManager::class);
-        $redisManager->shouldReceive('enableEvents')->times($enableEventCalls);
+        $redisManager = Double::for(RedisManager::class)->strict();
+        $redisManager->expects('enableEvents')->times($enableEventCalls);
 
         return new RedisInstrumentation(
             $this->events,
@@ -403,8 +400,8 @@ class RedisInstrumentationTest extends TestCase
      */
     private function connection(string $name = 'primary'): RedisConnection
     {
-        $connection = m::mock(RedisConnection::class);
-        $connection->shouldReceive('getName')->once()->andReturn($name);
+        $connection = Double::for(RedisConnection::class)->strict();
+        $connection->expects('getName')->returns($name);
 
         return $connection;
     }

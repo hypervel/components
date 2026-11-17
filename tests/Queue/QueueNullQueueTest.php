@@ -18,10 +18,13 @@ use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Queue\NullQueue;
 use Hypervel\Queue\QueueRoutes;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class QueueNullQueueTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCreationTimeOfOldestPendingJobReturnsNull(): void
     {
         $queue = new NullQueue;
@@ -49,9 +52,9 @@ class QueueNullQueueTest extends TestCase
         $queue = new NullQueue;
         $queue->setContainer($container);
 
-        $routes = m::mock(QueueRoutes::class);
-        $routes->shouldReceive('getConnection')->once()->andReturnNull();
-        $routes->shouldReceive('getQueue')->once()->andReturnNull();
+        $routes = Double::for(QueueRoutes::class)->strict();
+        $routes->expects('getConnection')->returns(null);
+        $routes->expects('getQueue')->returns(null);
 
         $container->instance(CacheContract::class, $cache);
         $container->instance('queue.routes', $routes);

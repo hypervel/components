@@ -11,8 +11,8 @@ use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Utils;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository;
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Client\Factory;
@@ -49,7 +49,8 @@ use Hypervel\Tests\Saloon\Cache\Fixtures\Requests\CachedUserRequestWithoutCachea
 use Hypervel\Tests\Saloon\Cache\Fixtures\Requests\CustomKeyCachedUserRequest;
 use Hypervel\Tests\Saloon\Cache\Fixtures\Requests\ShortLivedCachedUserRequest;
 use Hypervel\Tests\Saloon\Fixtures\Connectors\TestConnector;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Psr\Http\Message\StreamInterface;
 use stdClass;
 
@@ -59,6 +60,8 @@ use stdClass;
 // testARequestWithTheHasCachingTraitWillCacheTheResponse.
 class CacheTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Get the package providers.
      */
@@ -594,8 +597,7 @@ class CacheTest extends TestCase
         $http = new Factory;
         $http->registerConnection('saloon');
         $http->fake(['*' => Factory::response(['ok' => true])]);
-        $senderConfig = m::mock(ConfigRepository::class);
-        $senderConfig->shouldReceive('string')->with('saloon.connection.name')->andReturn('saloon');
+        $senderConfig = new ConfigRepository(['saloon' => ['connection' => ['name' => 'saloon']]]);
         $sender = new CountingCacheSender($http, $senderConfig);
 
         $this->manager($http, sender: $sender)->send(new CacheConnectorStub, new CacheRequestStub);
@@ -756,8 +758,8 @@ class CacheTest extends TestCase
 
         $this->assertSame(2, $pendingRequest->preparedBody()?->tell());
 
-        $nonSeekable = m::mock(StreamInterface::class);
-        $nonSeekable->shouldReceive('isSeekable')->andReturn(false);
+        $nonSeekable = Double::for(StreamInterface::class)->strict();
+        $nonSeekable->allows('isSeekable')->returns(false);
         $unsafe = $this->pending(new CacheConnectorStub, new CacheStreamRequestStub($nonSeekable));
 
         try {
@@ -810,16 +812,17 @@ class CacheTest extends TestCase
      */
     protected function manager(Factory $http, ?Dispatcher $events = null, ?Sender $sender = null): SaloonManager
     {
-        $cache = m::mock(CacheFactory::class);
-        $cache->shouldReceive('store')->with(null)->andReturn(new Repository(new ArrayStore));
-        $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('string')->with('saloon.connection.name')->andReturn('saloon');
-        $config->shouldReceive('get')->with('saloon.cache.store')->andReturn(null);
+        $cache = Double::for(CacheFactory::class)->strict();
+        $cache->allows('store')->with(null)->returns(new Repository(new ArrayStore));
+        $config = new ConfigRepository(['saloon' => [
+            'connection' => ['name' => 'saloon'],
+            'cache' => ['store' => null],
+        ]]);
 
         return new SaloonManager(
             $sender ?? new Sender($http, $config),
             $cache,
-            m::mock(RateLimiter::class),
+            Double::for(RateLimiter::class, override: true)->strict()->instance(),
             $config,
             $events ?? new Dispatcher,
         );

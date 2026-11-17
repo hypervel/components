@@ -22,11 +22,13 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Ai\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 abstract class ConversationStorageTestCase extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     /**
      * Use the configured integration database.
@@ -61,7 +63,7 @@ abstract class ConversationStorageTestCase extends TestCase
         $conversationId = $store->storeConversation(null, null, 'Read a file');
         $arguments = ['encoding' => 'UTF-8', 'path' => 'example.txt'];
         $contents = "Hello\0world";
-        $prompt = new AgentPrompt(new AnonymousAgent('', [], []), 'Read the file', [], m::mock(TextProvider::class), 'model');
+        $prompt = new AgentPrompt(new AnonymousAgent('', [], []), 'Read the file', [], Double::for(TextProvider::class)->strict(), 'model');
         $response = (new AgentResponse('invocation', 'File read', new TextUsage, new Meta('test', 'model')))
             ->withSteps(collect([
                 new Step('', [new ToolCall('call-1', 'read_file', $arguments)], [new ToolResult('call-1', 'read_file', $arguments, $contents)], FinishReason::ToolCalls, new TextUsage, new Meta, '', []),

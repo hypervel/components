@@ -7,7 +7,8 @@ namespace Hypervel\Tests\OpenTelemetry\Exporters;
 use Hypervel\OpenTelemetry\Exporters\OtlpExporterFactory;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use OpenTelemetry\API\Signals;
 use OpenTelemetry\Contrib\Otlp\ContentTypes;
 use OpenTelemetry\Contrib\Otlp\LogsExporter;
@@ -21,6 +22,8 @@ use Symfony\Component\Process\Process;
 
 class OtlpExporterFactoryTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testSignalOverridesTakePrecedenceAndSharedEndpointsReceiveTheStandardPath(): void
     {
         $factory = new TestOtlpExporterFactory;
@@ -458,6 +461,6 @@ class TestOtlpExporterFactory extends OtlpExporterFactory
     {
         $this->createdOptions[] = $options;
 
-        return m::mock(ClientInterface::class);
+        return Double::for(ClientInterface::class)->strict();
     }
 }

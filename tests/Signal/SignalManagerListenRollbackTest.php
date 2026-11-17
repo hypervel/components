@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Signal;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Config\Repository as ConfigContract;
-use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Signal\SignalHandler;
 use Hypervel\Coroutine\Coroutine;
@@ -18,7 +17,8 @@ use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use Hypervel\Signal\SignalManager;
 use Hypervel\Support\SafeCaller;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
 use Swoole\Coroutine as SwooleCoroutine;
@@ -26,6 +26,8 @@ use Swoole\Coroutine\CanceledException;
 
 class SignalManagerListenRollbackTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected bool $runTestsInCoroutine = false;
 
     #[RunInSeparateProcess]
@@ -34,8 +36,8 @@ class SignalManagerListenRollbackTest extends TestCase
         SwooleCoroutine::set(['max_coroutine' => 2]);
 
         SwooleCoroutine\run(function (): void {
-            $exceptionHandler = m::mock(ExceptionHandlerContract::class);
-            $exceptionHandler->shouldNotReceive('report');
+            $exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
+            $exceptionHandler->expects('report')->never();
             Container::getInstance()->instance(
                 ExceptionHandlerContract::class,
                 $exceptionHandler,
@@ -51,13 +53,13 @@ class SignalManagerListenRollbackTest extends TestCase
                 {
                 }
             };
-            $container = m::mock(ContainerContract::class);
-            $container->shouldReceive('make')->with(ConfigContract::class)->andReturn(new Repository([
+            $container = new Container;
+            $container->instance(ConfigContract::class, new Repository([
                 'signal' => ['handlers' => [$handler::class]],
             ]));
-            $container->shouldReceive('make')->with(SafeCaller::class)->andReturn(new SafeCaller($container));
-            $container->shouldReceive('make')->with(SignalRegistry::class)->andReturn(new SignalRegistry);
-            $container->shouldReceive('make')->with($handler::class)->andReturn($handler);
+            $container->instance(SafeCaller::class, new SafeCaller($container));
+            $container->instance(SignalRegistry::class, new SignalRegistry);
+            $container->instance($handler::class, $handler);
             $manager = new SignalManager($container);
 
             try {
@@ -75,7 +77,7 @@ class SignalManagerListenRollbackTest extends TestCase
     public function testOwnerCancellationAfterWatcherStartRollsBackTheWatcher(): void
     {
         SwooleCoroutine\run(function (): void {
-            $exceptionHandler = m::mock(ExceptionHandlerContract::class);
+            $exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
             Container::getInstance()->instance(
                 ExceptionHandlerContract::class,
                 $exceptionHandler,
@@ -88,10 +90,9 @@ class SignalManagerListenRollbackTest extends TestCase
             $parentCancellation = null;
             $childCoroutineId = null;
 
-            $exceptionHandler->shouldReceive('report')
-                ->once()
+            $exceptionHandler->expects('report')
                 ->with($hookFailure)
-                ->andReturnUsing(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
+                ->resolves(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
                     $childCoroutineId = EngineCoroutine::id();
                     $reportStarted->push(true);
                     $releaseReport->pop();
@@ -116,13 +117,13 @@ class SignalManagerListenRollbackTest extends TestCase
                 {
                 }
             };
-            $container = m::mock(ContainerContract::class);
-            $container->shouldReceive('make')->with(ConfigContract::class)->andReturn(new Repository([
+            $container = new Container;
+            $container->instance(ConfigContract::class, new Repository([
                 'signal' => ['handlers' => [$handler::class]],
             ]));
-            $container->shouldReceive('make')->with(SafeCaller::class)->andReturn(new SafeCaller($container));
-            $container->shouldReceive('make')->with(SignalRegistry::class)->andReturn(new SignalRegistry);
-            $container->shouldReceive('make')->with($handler::class)->andReturn($handler);
+            $container->instance(SafeCaller::class, new SafeCaller($container));
+            $container->instance(SignalRegistry::class, new SignalRegistry);
+            $container->instance($handler::class, $handler);
             $manager = new SignalManager($container);
 
             try {

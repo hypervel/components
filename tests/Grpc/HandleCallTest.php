@@ -23,8 +23,11 @@ use Hypervel\Grpc\StatusCode;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Route;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -32,7 +35,9 @@ use Throwable;
 
 class HandleCallTest extends TestCase
 {
-    private ExceptionMapper $exceptions;
+    use VerifiesDoubles;
+
+    private ExceptionMapper&DoubleInterface $exceptions;
 
     /**
      * Set up the exception mapper.
@@ -41,7 +46,7 @@ class HandleCallTest extends TestCase
     {
         parent::setUp();
 
-        $this->exceptions = m::mock(ExceptionMapper::class);
+        $this->exceptions = Double::for(ExceptionMapper::class)->strict();
     }
 
     public function testDecodesTheRequestAndScopesItsCallContext(): void
@@ -169,12 +174,11 @@ class HandleCallTest extends TestCase
 
     public function testRegistersAndClearsOneDeadlineTimer(): void
     {
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')
-            ->once()
-            ->with(m::type('float'), m::type(Closure::class))
-            ->andReturn(41);
-        $timer->shouldReceive('clear')->once()->with(41);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')
+            ->with(Argument::type('float'), Argument::type(Closure::class))
+            ->returns(41);
+        $timer->expects('clear')->with(41);
         $contexts = new CallContextStore;
         $handler = new HandleCall($contexts, $timer, $this->exceptions, 1024, Compression::Identity);
         $request = $this->request(new GPBEmpty, server: ['HTTP_GRPC_TIMEOUT' => '1S']);
@@ -192,9 +196,9 @@ class HandleCallTest extends TestCase
     public function testForgetsTheCallContextWhenDeadlineTimerRegistrationFails(): void
     {
         $failure = new LogicException('Unable to register the deadline timer.');
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')->once()->andThrow($failure);
-        $timer->shouldNotReceive('clear');
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')->throws($failure);
+        $timer->expects('clear')->never();
         $contexts = new CallContextStore;
         $handler = new HandleCall($contexts, $timer, $this->exceptions, 1024, Compression::Identity);
         $request = $this->request(new GPBEmpty, server: ['HTTP_GRPC_TIMEOUT' => '1S']);
@@ -212,9 +216,9 @@ class HandleCallTest extends TestCase
 
     public function testRechecksTheDeadlineAfterNonYieldingServiceWork(): void
     {
-        $timer = m::mock(Timer::class);
-        $timer->shouldReceive('after')->once()->andReturn(42);
-        $timer->shouldReceive('clear')->once()->with(42);
+        $timer = Double::for(Timer::class)->strict();
+        $timer->expects('after')->returns(42);
+        $timer->expects('clear')->with(42);
         $handler = new HandleCall(new CallContextStore, $timer, $this->exceptions, 1024, Compression::Identity);
         // Setup counts against the deadline, so leave headroom under suite load while the service work still outlasts it.
         $request = $this->request(new GPBEmpty, server: ['HTTP_GRPC_TIMEOUT' => '100m']);
@@ -235,9 +239,9 @@ class HandleCallTest extends TestCase
     {
         $cleanupException = new RuntimeException('Service cleanup failed.');
         if ($cleanupThrows) {
-            $this->exceptions->shouldReceive('report')->once()->with($cleanupException);
+            $this->exceptions->expects('report')->with($cleanupException);
         } else {
-            $this->exceptions->shouldNotReceive('report');
+            $this->exceptions->expects('report')->never();
         }
         $handler = new HandleCall(new CallContextStore, new Timer, $this->exceptions, 1024, Compression::Identity);
         $request = $this->request(new GPBEmpty, server: ['HTTP_GRPC_TIMEOUT' => '100m']);

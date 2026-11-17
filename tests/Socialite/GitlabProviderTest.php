@@ -10,24 +10,27 @@ use GuzzleHttp\RequestOptions;
 use Hypervel\Http\Request;
 use Hypervel\Socialite\Two\GitlabProvider;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class GitlabProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testUserRequestUsesTheVersionedApiAndBearerAuthorization(): void
     {
         $provider = new GitlabProvider(
-            m::mock(Request::class),
+            new Request,
             'client_id',
             'client_secret',
             'redirect',
         );
-        $httpClient = m::mock(Client::class);
+        $httpClient = Double::for(Client::class)->strict();
         $provider->setHttpClient($httpClient);
 
         $httpClient->expects('get')->with('https://gitlab.com/api/v4/user', [
             RequestOptions::HEADERS => ['Authorization' => 'Bearer access-token'],
-        ])->andReturn(new Response(body: json_encode([
+        ])->returns(new Response(body: json_encode([
             'id' => 1,
             'username' => 'taylor',
             'name' => 'Taylor Otwell',

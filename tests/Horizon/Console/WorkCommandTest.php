@@ -10,10 +10,14 @@ use Hypervel\Horizon\HorizonServiceProvider;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class WorkCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected function getPackageProviders(ApplicationContract $app): array
     {
         return [
@@ -23,24 +27,19 @@ class WorkCommandTest extends TestCase
 
     public function testOncePassesEveryWorkerOptionAndAcceptsTheWorkersNullResult(): void
     {
-        $worker = m::mock(Worker::class);
-        $worker->shouldReceive('setName')
-            ->once()
-            ->with('default')
-            ->andReturnSelf();
-        $worker->shouldReceive('setCache')
-            ->once()
-            ->andReturnSelf();
-        $worker->shouldReceive('runNextJob')
-            ->once()
-            ->withArgs(function (string $connection, string $queue, WorkerOptions $options): bool {
+        $worker = Double::for(Worker::class)->strict();
+        $worker->expects('setName')
+            ->with('default');
+        $worker->expects('setCache');
+        $worker->expects('runNextJob')
+            ->with(Argument::all(function (string $connection, string $queue, WorkerOptions $options): bool {
                 $this->assertSame('sync', $connection);
                 $this->assertSame('default', $queue);
                 $this->assertSame(7, $options->stopWhenEmptyFor);
 
                 return true;
-            })
-            ->andReturnNull();
+            }))
+            ->returns(null);
 
         $this->app->instance(Worker::class, $worker);
 

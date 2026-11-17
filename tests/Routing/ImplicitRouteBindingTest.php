@@ -21,14 +21,18 @@ use Hypervel\Routing\Route;
 use Hypervel\Tests\Routing\Fixtures\CategoryBackedEnum;
 use Hypervel\Tests\Routing\Fixtures\CategoryEnum;
 use Hypervel\Tests\Routing\RoutingTestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use WeakMap;
 
 class ImplicitRouteBindingTest extends RoutingTestCase
 {
+    use VerifiesDoubles;
+
     public function testItDoesNotInspectTheActionWhenTheRouteHasNoParameters(): void
     {
         $route = new EmptyParameterRoute('GET', '/test', fn () => 'ok');
@@ -154,12 +158,12 @@ class ImplicitRouteBindingTest extends RoutingTestCase
     {
         Model::reportRouteModelBindingExceptions($shouldReport);
 
-        $mock = m::mock(ExceptionHandler::class);
+        $mock = Double::for(ExceptionHandler::class)->strict();
 
         if ($shouldReport) {
-            $mock->shouldReceive('report')->once()->with(m::type(InvalidValueException::class), []);
+            $mock->expects('report')->with(Argument::type(InvalidValueException::class), []);
         } else {
-            $mock->shouldReceive('report')->never();
+            $mock->expects('report')->never();
         }
 
         $container = Container::getInstance();
@@ -187,8 +191,8 @@ class ImplicitRouteBindingTest extends RoutingTestCase
 
     public function testItDoesNotConvertUnrelatedQueryExceptions(): void
     {
-        $mock = m::mock(ExceptionHandler::class);
-        $mock->shouldReceive('report')->never();
+        $mock = Double::for(ExceptionHandler::class)->strict();
+        $mock->expects('report')->never();
 
         $container = Container::getInstance();
         $container->instance(ExceptionHandler::class, $mock);
@@ -206,8 +210,8 @@ class ImplicitRouteBindingTest extends RoutingTestCase
 
     public function testItConvertsInvalidValueExceptionsFromNonModelBindings(): void
     {
-        $mock = m::mock(ExceptionHandler::class);
-        $mock->shouldReceive('report')->once()->with(m::type(InvalidValueException::class), []);
+        $mock = Double::for(ExceptionHandler::class)->strict();
+        $mock->expects('report')->with(Argument::type(InvalidValueException::class), []);
 
         $container = Container::getInstance();
         $container->instance(ExceptionHandler::class, $mock);

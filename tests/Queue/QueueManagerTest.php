@@ -29,7 +29,8 @@ use Hypervel\Queue\QueuePoolProxy;
 use Hypervel\Queue\SyncQueue;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use RuntimeException;
@@ -37,6 +38,8 @@ use Swoole\Coroutine\CanceledException;
 
 class QueueManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testIntegerEnumConnectionNamesAreNormalizedWithoutTreatingZeroAsAbsent(): void
     {
         $container = $this->getContainer();
@@ -45,12 +48,12 @@ class QueueManagerTest extends TestCase
         $config->set('queue.connections.0', ['driver' => 'sync']);
 
         $manager = new QueueManager($container);
-        $connector = m::mock(ConnectorInterface::class);
-        $queue = m::mock(Queue::class);
-        $queue->shouldReceive('setConnectionName')->once()->with('0')->andReturnSelf();
-        $queue->shouldReceive('setConfig')->once()->andReturnSelf();
-        $queue->shouldReceive('setContainer')->once()->with($container)->andReturnSelf();
-        $connector->shouldReceive('connect')->once()->with(['driver' => 'sync'])->andReturn($queue);
+        $connector = Double::for(ConnectorInterface::class)->strict();
+        $queue = Double::for(NullQueue::class)->strict();
+        $queue->expects('setConnectionName')->with('0');
+        $queue->expects('setConfig');
+        $queue->expects('setContainer')->with($container);
+        $connector->expects('connect')->with(['driver' => 'sync'])->returns($queue);
         $manager->addConnector('sync', fn () => $connector);
 
         $this->assertSame('sync', $manager->getName());
@@ -293,7 +296,7 @@ class QueueManagerTest extends TestCase
         $config->set('queue.connections.foo', ['driver' => 'bar']);
 
         $manager = new QueueManager($container);
-        $connector = m::mock(ConnectorInterface::class);
+        $connector = Double::for(ConnectorInterface::class)->strict();
         $manager->addConnector('bar', function () use ($connector) {
             return $connector;
         });
@@ -356,22 +359,22 @@ class QueueManagerTest extends TestCase
 
         $manager = new QueueManager($container);
         $manager->addPoolableDriver('custom');
-        $connector = m::mock(ConnectorInterface::class);
-        $queue = m::mock(NullQueue::class)->makePartial();
+        $connector = Double::for(ConnectorInterface::class)->strict();
+        $queue = Double::for(new NullQueue)->passthru();
         $manager->addConnector('custom', fn () => $connector);
 
-        $connector->shouldReceive('connect')->once()->with([
+        $connector->expects('connect')->with([
             'driver' => 'custom',
             'queue' => 'shared',
-        ])->andReturn($queue);
-        $queue->shouldReceive('setContainer')->once()->with($container)->andReturnSelf();
-        $queue->shouldReceive('setConfig')->once()->with([
+        ])->returns($queue);
+        $queue->expects('setContainer')->with($container);
+        $queue->expects('setConfig')->with([
             'driver' => 'custom',
             'queue' => 'shared',
-        ])->andReturnSelf();
-        $queue->shouldReceive('setConnectionName')->once()->with('foo')->andReturnSelf();
-        $queue->shouldReceive('setConnectionName')->once()->with('bar')->andReturnSelf();
-        $queue->shouldReceive('size')->twice()->withNoArgs()->andReturn(1);
+        ]);
+        $queue->expects('setConnectionName')->with('foo');
+        $queue->expects('setConnectionName')->with('bar');
+        $queue->expects('size')->times(2)->with()->returns(1);
 
         $foo = $manager->connection('foo');
         $bar = $manager->connection('bar');
@@ -395,21 +398,21 @@ class QueueManagerTest extends TestCase
 
         $manager = new QueueManager($container);
         $manager->addPoolableDriver('custom');
-        $connector = m::mock(ConnectorInterface::class);
-        $queue = m::mock(NullQueue::class)->makePartial();
+        $connector = Double::for(ConnectorInterface::class)->strict();
+        $queue = Double::for(new NullQueue)->passthru();
         $manager->addConnector('custom', fn () => $connector);
 
-        $connector->shouldReceive('connect')->twice()->with([
+        $connector->expects('connect')->times(2)->with([
             'driver' => 'custom',
             'queue' => 'shared',
-        ])->andReturn($queue);
-        $queue->shouldReceive('setContainer')->twice()->with($container)->andReturnSelf();
-        $queue->shouldReceive('setConfig')->twice()->with([
+        ])->returns($queue);
+        $queue->expects('setContainer')->times(2)->with($container);
+        $queue->expects('setConfig')->times(2)->with([
             'driver' => 'custom',
             'queue' => 'shared',
-        ])->andReturnSelf();
-        $queue->shouldReceive('setConnectionName')->twice()->with('foo')->andReturnSelf();
-        $queue->shouldReceive('size')->twice()->withNoArgs()->andReturn(1);
+        ]);
+        $queue->expects('setConnectionName')->times(2)->with('foo');
+        $queue->expects('size')->times(2)->with()->returns(1);
 
         $connection = $manager->connection('foo');
         $this->assertInstanceOf(QueuePoolProxy::class, $connection);
@@ -439,22 +442,22 @@ class QueueManagerTest extends TestCase
 
         $manager = new QueueManager($container);
         $manager->addPoolableDriver('custom');
-        $connector = m::mock(ConnectorInterface::class);
-        $queue = m::mock(NullQueue::class)->makePartial();
+        $connector = Double::for(ConnectorInterface::class)->strict();
+        $queue = Double::for(new NullQueue)->passthru();
         $manager->addConnector('custom', fn () => $connector);
         $currentName = '';
 
-        $connector->shouldReceive('connect')->once()->with($connectionConfig)->andReturn($queue);
-        $queue->shouldReceive('setContainer')->once()->with($container)->andReturnSelf();
-        $queue->shouldReceive('setConfig')->once()->with($connectionConfig)->andReturnSelf();
-        $queue->shouldReceive('setConnectionName')->twice()
-            ->andReturnUsing(function (string $name) use (&$currentName, $queue): Queue {
+        $connector->expects('connect')->with($connectionConfig)->returns($queue);
+        $queue->expects('setContainer')->with($container);
+        $queue->expects('setConfig')->with($connectionConfig);
+        $queue->expects('setConnectionName')->times(2)
+            ->resolves(function (string $name) use (&$currentName, $queue): Queue {
                 $currentName = $name;
 
                 return $queue;
             });
-        $queue->shouldReceive('pop')->twice()->with(null)
-            ->andReturnUsing(function () use ($container, &$currentName): QueueManagerTestJob {
+        $queue->expects('pop')->times(2)->with(null)
+            ->resolves(function () use ($container, &$currentName): QueueManagerTestJob {
                 return new QueueManagerTestJob($container, $currentName);
             });
 
@@ -484,16 +487,16 @@ class QueueManagerTest extends TestCase
 
         $manager = new QueueManager($oldContainer);
         $manager->addPoolableDriver('custom');
-        $connector = m::mock(ConnectorInterface::class);
-        $queue = m::mock(NullQueue::class)->makePartial();
+        $connector = Double::for(ConnectorInterface::class)->strict();
+        $queue = Double::for(new NullQueue)->passthru();
         $manager->addConnector('custom', fn () => $connector);
 
-        $connector->shouldReceive('connect')->twice()->andReturn($queue);
-        $queue->shouldReceive('setContainer')->once()->with($oldContainer)->andReturnSelf();
-        $queue->shouldReceive('setContainer')->once()->with($newContainer)->andReturnSelf();
-        $queue->shouldReceive('setConfig')->twice()->andReturnSelf();
-        $queue->shouldReceive('setConnectionName')->twice()->with('foo')->andReturnSelf();
-        $queue->shouldReceive('size')->twice()->withNoArgs()->andReturn(1);
+        $connector->expects('connect')->times(2)->returns($queue);
+        $queue->expects('setContainer')->with($oldContainer);
+        $queue->expects('setContainer')->with($newContainer);
+        $queue->expects('setConfig')->times(2);
+        $queue->expects('setConnectionName')->times(2)->with('foo');
+        $queue->expects('size')->times(2)->with()->returns(1);
 
         $oldConnection = $manager->connection('foo');
         $this->assertInstanceOf(QueuePoolProxy::class, $oldConnection);
@@ -524,15 +527,15 @@ class QueueManagerTest extends TestCase
         $newContainer = $this->getContainer();
 
         $manager = new QueueManager($oldContainer);
-        $connector = m::mock(ConnectorInterface::class);
-        $queue = m::mock(Queue::class);
+        $connector = Double::for(ConnectorInterface::class)->strict();
+        $queue = Double::for(NullQueue::class)->strict();
         $manager->addConnector('sync', fn () => $connector);
 
-        $connector->shouldReceive('connect')->once()->with(['driver' => 'sync'])->andReturn($queue);
-        $queue->shouldReceive('setContainer')->once()->with($oldContainer)->andReturnSelf();
-        $queue->shouldReceive('setConfig')->once()->with(['driver' => 'sync'])->andReturnSelf();
-        $queue->shouldReceive('setConnectionName')->once()->with('sync')->andReturnSelf();
-        $queue->shouldReceive('setContainer')->once()->with($newContainer)->andReturnSelf();
+        $connector->expects('connect')->with(['driver' => 'sync'])->returns($queue);
+        $queue->expects('setContainer')->with($oldContainer);
+        $queue->expects('setConfig')->with(['driver' => 'sync']);
+        $queue->expects('setConnectionName')->with('sync');
+        $queue->expects('setContainer')->with($newContainer);
 
         $this->assertSame($queue, $manager->connection('sync'));
         $this->assertSame($manager, $manager->setApplication($newContainer));

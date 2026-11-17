@@ -18,11 +18,11 @@ use Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder;
 use Hypervel\Redis\Limiters\DurationLimiterBuilder;
 use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\Subscriber\Subscriber;
-use Hypervel\Redis\Traits\MultiExec;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Attributes\BootOrTestsOnly;
 use Redis;
+use RedisCluster;
 use RedisException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -40,8 +40,6 @@ use Throwable;
  */
 class RedisProxy implements ConnectionContract
 {
-    use MultiExec;
-
     /**
      * Methods that must be called while explicitly holding a pool connection.
      *
@@ -184,6 +182,80 @@ class RedisProxy implements ConnectionContract
     public function sScan(mixed $key, mixed $cursor, mixed ...$arguments): mixed
     {
         return $this->__call('sScan', [$key, $cursor, ...$arguments]);
+    }
+
+    /**
+     * Execute commands in a pipeline.
+     *
+     * @return ($callback is null ? Redis : array<int, mixed>|false)
+     */
+    public function pipeline(?callable $callback = null): Redis|array|bool
+    {
+        return $this->executeMultiExec('pipeline', $callback);
+    }
+
+    /**
+     * Execute commands in a transaction.
+     *
+     * @return ($callback is null ? Redis|RedisCluster : array<int, mixed>|false)
+     */
+    public function transaction(?callable $callback = null): Redis|RedisCluster|array|bool
+    {
+        return $this->executeMultiExec('multi', $callback);
+    }
+
+    /**
+     * Execute multi-exec commands with optional callback.
+     *
+     * @return ($callback is null
+     *     ? ($command is 'pipeline' ? Redis : Redis|RedisCluster)
+     *     : array<int, mixed>|false)
+     */
+    private function executeMultiExec(string $command, ?callable $callback = null): Redis|RedisCluster|array|bool
+    {
+        if (is_null($callback)) {
+            return $this->__call($command, []);
+        }
+
+        $hasExistingConnection = CoroutineContext::has($this->getContextKey());
+        $instance = $this->__call($command, []);
+        $result = null;
+        $operationFailure = null;
+        $cleanupFailure = null;
+
+        try {
+            $result = tap($instance, $callback)->exec();
+
+            if ($command === 'multi' && $hasExistingConnection) {
+                $connection = CoroutineContext::get($this->getContextKey());
+
+                if ($connection instanceof RedisConnection) {
+                    $connection->clearWatchState();
+                }
+            }
+        } catch (Throwable $exception) {
+            $operationFailure = RedisCancellation::cancellationFrom(
+                $exception,
+                'Executing the Redis transaction was canceled.',
+            ) ?? $exception;
+            $connection = CoroutineContext::get($this->getContextKey());
+
+            if ($connection instanceof RedisConnection) {
+                $connection->invalidate();
+            }
+        }
+
+        if (! $hasExistingConnection) {
+            try {
+                $this->releaseContextConnection();
+            } catch (Throwable $exception) {
+                $cleanupFailure = $exception;
+            }
+        }
+
+        RedisCancellation::throwOperationOrCleanupFailure($operationFailure, $cleanupFailure);
+
+        return $result;
     }
 
     /**

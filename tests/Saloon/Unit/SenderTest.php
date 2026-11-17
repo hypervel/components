@@ -8,7 +8,7 @@ use GuzzleHttp\Cookie\CookieJarInterface;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as PsrResponse;
-use Hypervel\Contracts\Config\Repository as ConfigRepository;
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Http\Client\Factory;
@@ -29,7 +29,6 @@ use Hypervel\Support\Facades\Http;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Saloon\Fixtures\Connectors\TestConnector;
 use Hypervel\Tests\Saloon\Fixtures\Requests\UserRequest;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\RequestInterface;
 
@@ -350,12 +349,7 @@ class SenderTest extends TestCase
      */
     protected function config(): ConfigRepository
     {
-        $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('string')
-            ->with('saloon.connection.name')
-            ->andReturn('saloon');
-
-        return $config;
+        return new ConfigRepository(['saloon' => ['connection' => ['name' => 'saloon']]]);
     }
 }
 

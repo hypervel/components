@@ -11,15 +11,18 @@ use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Tests\TestCase;
 use Hypervel\View\ViewException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class ViewExceptionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testRenderForwardsThePreviousExceptionResult(): void
     {
         $request = Request::create('/');
-        $view = m::mock(ViewContract::class);
+        $view = Double::for(ViewContract::class)->strict();
         $responsable = new ViewExceptionResponsable;
         $response = new Response('hypervel');
         $symfonyResponse = new SymfonyResponse('symfony');

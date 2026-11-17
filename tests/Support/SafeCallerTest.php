@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\SafeCaller;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -18,10 +20,12 @@ use Throwable;
 
 class SafeCallerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCallReturnsClosureResult(): void
     {
-        $container = m::mock(Container::class);
-        $caller = new SafeCaller($container);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $caller = new SafeCaller($container->instance());
 
         $result = $caller->call(fn () => 'hello');
 
@@ -32,12 +36,11 @@ class SafeCallerTest extends TestCase
     {
         $exception = new RuntimeException('test error');
 
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->once()->with($exception);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->with($exception);
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnTrue();
-        $container->shouldReceive('make')->with(ExceptionHandlerContract::class)->andReturn($handler);
+        $container = new Container;
+        $container->instance(ExceptionHandlerContract::class, $handler);
 
         $caller = new SafeCaller($container);
         $result = $caller->call(fn () => throw $exception);
@@ -47,12 +50,11 @@ class SafeCallerTest extends TestCase
 
     public function testCallReturnsDefaultClosureOnException(): void
     {
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->once();
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report');
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnTrue();
-        $container->shouldReceive('make')->with(ExceptionHandlerContract::class)->andReturn($handler);
+        $container = new Container;
+        $container->instance(ExceptionHandlerContract::class, $handler);
 
         $caller = new SafeCaller($container);
         $result = $caller->call(
@@ -72,14 +74,14 @@ class SafeCallerTest extends TestCase
         $previousErrorLog = ini_set('error_log', $errorLog);
         $exception = new RuntimeException('protected operation failed');
         $reportingFailure = new RuntimeException('exception reporting failed');
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->once()->with($exception)->andThrow($reportingFailure);
-        $container = m::mock(Container::class);
-        $container->shouldReceive('has')->once()->with(ExceptionHandlerContract::class)->andReturnTrue();
-        $container->shouldReceive('make')->once()->with(ExceptionHandlerContract::class)->andReturn($handler);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->with($exception)->throws($reportingFailure);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->expects('has')->with(ExceptionHandlerContract::class)->returns(true);
+        $container->expects('make')->with(ExceptionHandlerContract::class)->returns($handler);
 
         try {
-            $result = (new SafeCaller($container))->call(
+            $result = (new SafeCaller($container->instance()))->call(
                 static fn () => throw $exception,
                 static fn () => 'fallback',
             );
@@ -107,9 +109,9 @@ class SafeCallerTest extends TestCase
         if ($wrapped) {
             $cancellation = new RuntimeException('Callback cleanup failed.', previous: $cancellation);
         }
-        $container = m::mock(Container::class);
-        $container->shouldNotReceive('has');
-        $caller = new SafeCaller($container);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->expects('has')->never();
+        $caller = new SafeCaller($container->instance());
 
         try {
             $caller->call(fn () => throw $cancellation);
@@ -132,12 +134,12 @@ class SafeCallerTest extends TestCase
         }
 
         $defaultCalled = false;
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->once()->with($failure)->andThrow($cancellation);
-        $container = m::mock(Container::class);
-        $container->shouldReceive('has')->once()->with(ExceptionHandlerContract::class)->andReturnTrue();
-        $container->shouldReceive('make')->once()->with(ExceptionHandlerContract::class)->andReturn($handler);
-        $caller = new SafeCaller($container);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->with($failure)->throws($cancellation);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->expects('has')->with(ExceptionHandlerContract::class)->returns(true);
+        $container->expects('make')->with(ExceptionHandlerContract::class)->returns($handler);
+        $caller = new SafeCaller($container->instance());
 
         try {
             $caller->call(
@@ -157,8 +159,7 @@ class SafeCallerTest extends TestCase
 
     public function testCallWithoutExceptionHandlerInContainer(): void
     {
-        $container = m::mock(Container::class);
-        $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnFalse();
+        $container = new Container;
 
         $caller = new SafeCaller($container);
         $result = $caller->call(fn () => throw new RuntimeException('fail'));
@@ -168,12 +169,11 @@ class SafeCallerTest extends TestCase
 
     public function testCallWithNullDefaultReturnsNull(): void
     {
-        $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->once();
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report');
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnTrue();
-        $container->shouldReceive('make')->with(ExceptionHandlerContract::class)->andReturn($handler);
+        $container = new Container;
+        $container->instance(ExceptionHandlerContract::class, $handler);
 
         $caller = new SafeCaller($container);
         $result = $caller->call(

@@ -13,6 +13,7 @@
     - [Caching Events](#caching-events)
     - [Caching Routes](#optimizing-route-loading)
     - [Caching Views](#optimizing-view-loading)
+    - [Autoloader Optimization](#autoloader-optimization)
 - [Reloading Services](#reloading-services)
 - [Debug Mode](#debug-mode)
 - [The Health Route](#the-health-route)
@@ -217,6 +218,25 @@ php artisan view:cache
 ```
 
 This command precompiles all your Blade views so they are not compiled on demand, improving the performance of each request that returns a view.
+
+<a name="autoloader-optimization"></a>
+### Autoloader Optimization
+
+When deploying to production, install your dependencies with an authoritative Composer class map:
+
+```shell
+composer install --no-dev --classmap-authoritative
+```
+
+Composer will then load classes only from its generated class map. This avoids filesystem searches for missing classes and stops long-running workers from keeping a record of every missing class name they look up, including names taken from request data. Classes added after the map is built can't be loaded until it is rebuilt. Hypervel's generated AOP proxies and class map overrides use their own loaders and are not affected. Leave this option off during local development so new classes load without rebuilding the map.
+
+To check this during deployment, install [Doctor](/docs/{{version}}/doctor#installation) without `--dev`, run the following command against the built release in its production environment, and stop the deployment if it fails:
+
+```shell
+php artisan doctor --only=ComposerAutoloadIsAuthoritative --no-interaction
+```
+
+The check is skipped when Doctor runs in a [local environment](/docs/{{version}}/doctor#environment-modes).
 
 <a name="reloading-services"></a>
 ## Reloading Services

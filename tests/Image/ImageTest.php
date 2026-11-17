@@ -36,7 +36,9 @@ use Hypervel\Tests\TestCase;
 use Imagick;
 use ImagickException;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use ReflectionProperty;
@@ -47,6 +49,8 @@ use TypeError;
 
 class ImageTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testCoverReturnsNewInstance(): void
     {
         $image = $this->makeImage();
@@ -452,8 +456,8 @@ class ImageTest extends TestCase
     {
         // A JXL signature is recognized by fileinfo but cannot be read by getimagesizefromstring().
         $contents = "\xff\x0a\x00\x00";
-        $driver = m::mock(Driver::class);
-        $driver->expects('dimensions')->once()->with($contents)->andReturn([123, 45]);
+        $driver = Double::for(Driver::class)->strict();
+        $driver->expects('dimensions')->with($contents)->returns([123, 45]);
         $this->registerDrivers(['fake' => $driver]);
 
         $image = (new Image($contents))->using('fake');
@@ -466,11 +470,10 @@ class ImageTest extends TestCase
     public function testDimensionsPreservesDriverFailureForHeic(): void
     {
         $driverException = new ImageException('The driver cannot decode this image.');
-        $driver = m::mock(Driver::class);
+        $driver = Double::for(Driver::class)->strict();
         $driver->expects('process')
-            ->once()
-            ->andReturn("\x00\x00\x00\x18ftypheic\x00\x00\x00\x00mif1heic");
-        $driver->expects('dimensions')->once()->andThrow($driverException);
+            ->returns("\x00\x00\x00\x18ftypheic\x00\x00\x00\x00mif1heic");
+        $driver->expects('dimensions')->throws($driverException);
         $this->registerDrivers(['fake' => $driver]);
 
         try {
@@ -502,9 +505,9 @@ class ImageTest extends TestCase
     public function testDimensionsDoesNotMaskDriverTypeErrorsForHeic(): void
     {
         $contents = "\x00\x00\x00\x18ftypheic\x00\x00\x00\x00mif1heic";
-        $driver = m::mock(Driver::class);
-        $driver->expects('process')->once()->andReturn($contents);
-        $driver->expects('dimensions')->once()->andThrow(new TypeError('broken dimensions'));
+        $driver = Double::for(Driver::class)->strict();
+        $driver->expects('process')->returns($contents);
+        $driver->expects('dimensions')->throws(new TypeError('broken dimensions'));
         $this->registerDrivers(['fake' => $driver]);
 
         $this->expectExceptionObject(new TypeError('broken dimensions'));
@@ -516,8 +519,8 @@ class ImageTest extends TestCase
     {
         $contents = "\x00\x00\x00\x18ftypheic\x00\x00\x00\x00mif1heic";
         $cancellation = new CanceledException('Inspecting the image was canceled.');
-        $driver = m::mock(Driver::class);
-        $driver->expects('dimensions')->once()->with($contents)->andThrow($cancellation);
+        $driver = Double::for(Driver::class)->strict();
+        $driver->expects('dimensions')->with($contents)->throws($cancellation);
         $this->registerDrivers(['fake' => $driver]);
 
         try {
@@ -530,15 +533,13 @@ class ImageTest extends TestCase
 
     public function testDominantColorReusesProcessedBytes(): void
     {
-        $driver = m::mock(Driver::class);
+        $driver = Double::for(Driver::class)->strict();
         $driver->expects('process')
-            ->once()
-            ->with('source image', m::type(ImagePipeline::class))
-            ->andReturn('processed image');
+            ->with('source image', Argument::type(ImagePipeline::class))
+            ->returns('processed image');
         $driver->expects('dominantColor')
-            ->once()
             ->with('processed image')
-            ->andReturn('#123456');
+            ->returns('#123456');
         $this->registerDrivers(['fake' => $driver]);
 
         $image = (new Image('source image'))->using('fake')->blur();
@@ -948,8 +949,8 @@ class ImageTest extends TestCase
 
     public function testProcessingDoesNotMaskDriverTypeErrors(): void
     {
-        $driver = m::mock(Driver::class);
-        $driver->expects('process')->once()->andThrow(new TypeError('broken process'));
+        $driver = Double::for(Driver::class)->strict();
+        $driver->expects('process')->throws(new TypeError('broken process'));
         $this->registerDrivers(['fake' => $driver]);
 
         $this->expectExceptionObject(new TypeError('broken process'));
@@ -969,11 +970,10 @@ class ImageTest extends TestCase
 
     public function testToBytesProcessesARecipeOnlyOnce(): void
     {
-        $driver = m::mock(Driver::class);
+        $driver = Double::for(Driver::class)->strict();
         $driver->expects('process')
-            ->once()
-            ->with('source image', m::type(ImagePipeline::class))
-            ->andReturn('processed image');
+            ->with('source image', Argument::type(ImagePipeline::class))
+            ->returns('processed image');
         $this->registerDrivers(['fake' => $driver]);
 
         $image = (new Image('source image'))->using('fake')->blur();
@@ -1021,9 +1021,9 @@ class ImageTest extends TestCase
     public function testInstanceMetadataIsCachedAndInvalidatedOnClones(): void
     {
         $contents = $this->fakeImageContents(300, 200);
-        $driver = m::mock(Driver::class);
-        $driver->expects('process')->once()->andReturn($contents);
-        $driver->expects('dominantColor')->once()->with($contents)->andReturn('#123456');
+        $driver = Double::for(Driver::class)->strict();
+        $driver->expects('process')->returns($contents);
+        $driver->expects('dominantColor')->with($contents)->returns('#123456');
         $this->registerDrivers(['fake' => $driver]);
 
         $image = (new Image('source image'))->using('fake')->blur();
@@ -1511,10 +1511,10 @@ class ImageTest extends TestCase
     public function testMaterializedCloneReprocessesTheOriginalSourceWithTheFullRecipe(): void
     {
         $recipes = [];
-        $driver = m::mock(Driver::class);
+        $driver = Double::for(Driver::class)->strict();
         $driver->expects('process')
-            ->twice()
-            ->andReturnUsing(static function (string $contents, ImagePipeline $pipeline) use (&$recipes): string {
+            ->times(2)
+            ->resolves(static function (string $contents, ImagePipeline $pipeline) use (&$recipes): string {
                 $recipes[] = [
                     $contents,
                     array_map(
@@ -1552,21 +1552,17 @@ class ImageTest extends TestCase
 
     public function testSwitchingDriversReprocessesTheRetainedRecipe(): void
     {
-        $firstDriver = m::mock(Driver::class);
+        $firstDriver = Double::for(Driver::class)->strict();
         $firstDriver->expects('process')
-            ->once()
-            ->withArgs(static fn (string $contents, ImagePipeline $pipeline): bool => $contents === 'source image'
-                && count($pipeline->transformations) === 1
-                && $pipeline->transformations[0] instanceof Blur)
-            ->andReturn('first output');
+            ->with('source image', Argument::satisfies(static fn (ImagePipeline $pipeline): bool => count($pipeline->transformations) === 1
+                && $pipeline->transformations[0] instanceof Blur))
+            ->returns('first output');
 
-        $secondDriver = m::mock(Driver::class);
+        $secondDriver = Double::for(Driver::class)->strict();
         $secondDriver->expects('process')
-            ->once()
-            ->withArgs(static fn (string $contents, ImagePipeline $pipeline): bool => $contents === 'source image'
-                && count($pipeline->transformations) === 1
-                && $pipeline->transformations[0] instanceof Blur)
-            ->andReturn('second output');
+            ->with('source image', Argument::satisfies(static fn (ImagePipeline $pipeline): bool => count($pipeline->transformations) === 1
+                && $pipeline->transformations[0] instanceof Blur))
+            ->returns('second output');
 
         $this->registerDrivers(['first' => $firstDriver, 'second' => $secondDriver], 'first');
 
@@ -1680,15 +1676,15 @@ class ImageTest extends TestCase
         array $options,
         bool|string $result = true,
     ): void {
-        $filesystem = m::mock(FilesystemContract::class);
+        $filesystem = Double::for(FilesystemContract::class)->strict();
         $filesystem->expects('put')
             ->with($path, $contents, $options)
-            ->andReturn($result);
+            ->returns($result);
 
-        $factory = m::mock(FilesystemFactory::class);
+        $factory = Double::for(FilesystemFactory::class)->strict();
         $factory->expects('disk')
             ->with($diskName)
-            ->andReturn($filesystem);
+            ->returns($filesystem);
 
         $container = new Container;
         $container->instance(FilesystemFactory::class, $factory);

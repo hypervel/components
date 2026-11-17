@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis\Operations;
 
+use Closure;
 use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
 use Hypervel\Redis\Operations\FlushByPattern;
-use Hypervel\Redis\RedisConnection;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
 use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Mockery\MockInterface;
+use Redis;
 use RedisException;
 
 /**
@@ -20,85 +19,70 @@ use RedisException;
 class FlushByPatternTest extends TestCase
 {
     /**
-     * Create a RedisConnection wrapping a FakeRedisClient for testing.
-     *
-     * Returns both the connection (as a partial mock) and the client so tests
-     * can set up unlink expectations while using FakeRedisClient for scan behavior.
-     *
-     * @return array{MockInterface&PhpRedisConnectionStub, FakeRedisClient}
+     * Create a raw connection around the fake client.
      */
-    private function createConnectionWithClient(FakeRedisClient $client): array
+    private function createConnection(FlushingRedisClient $client): PhpRedisConnectionStub
     {
-        // Create a real stub, then wrap it in a partial mock to allow shouldReceive
-        $stub = new PhpRedisConnectionStub;
-        $stub->setActiveConnection($client);
-
-        // Create a mock that delegates unknown methods to the stub
-        $connection = m::mock($stub)->makePartial();
-
-        return [$connection, $client];
+        return (new PhpRedisConnectionStub)->setActiveConnection($client);
     }
 
     public function testFlushRejectsTransformedConnectionsBeforeDeleting(): void
     {
-        [$connection] = $this->createConnectionWithClient(new FakeRedisClient);
-        $connection->shouldReceive('getShouldTransform')->once()->andReturnTrue();
-        $connection->shouldNotReceive('unlink');
+        $client = new FlushingRedisClient;
+        $connection = $this->createConnection($client)->shouldTransform();
 
         $this->expectException(InvalidRedisConnectionException::class);
         $this->expectExceptionMessageIsOrContains('SafeScan requires a raw Redis connection.');
 
-        (new FlushByPattern($connection))->execute('cache:test:*');
+        try {
+            (new FlushByPattern($connection))->execute('cache:test:*');
+        } finally {
+            $this->assertSame([], $client->unlinked);
+        }
     }
 
     public function testFlushDeletesMatchingKeys(): void
     {
-        $client = new FakeRedisClient(
+        $client = new FlushingRedisClient(
             scanResults: [
                 ['keys' => ['cache:test:key1', 'cache:test:key2', 'cache:test:key3'], 'iterator' => 0],
             ],
         );
 
-        [$connection] = $this->createConnectionWithClient($client);
-        $connection->shouldReceive('clearLastError')
-            ->once()
-            ->andReturnUsing(fn (): bool => $client->clearLastError());
-        $connection->shouldNotReceive('getLastError');
-        $connection->shouldReceive('unlink')
-            ->once()
-            ->with('cache:test:key1', 'cache:test:key2', 'cache:test:key3')
-            ->andReturn(3);
+        $connection = $this->createConnection($client);
 
         $flushByPattern = new FlushByPattern($connection);
 
         $deletedCount = $flushByPattern->execute('cache:test:*');
 
         $this->assertSame(3, $deletedCount);
+        $this->assertSame([['cache:test:key1', 'cache:test:key2', 'cache:test:key3']], $client->unlinked);
+        $this->assertSame(1, $client->errorClears);
+        $this->assertSame(0, $client->errorReads);
     }
 
     public function testFlushReturnsZeroWhenNoKeysMatch(): void
     {
-        $client = new FakeRedisClient(
+        $client = new FlushingRedisClient(
             scanResults: [
                 ['keys' => [], 'iterator' => 0],
             ],
         );
 
-        [$connection] = $this->createConnectionWithClient($client);
-        // unlink should NOT be called when no keys found
-        $connection->shouldNotReceive('unlink');
+        $connection = $this->createConnection($client);
 
         $flushByPattern = new FlushByPattern($connection);
 
         $deletedCount = $flushByPattern->execute('cache:nonexistent:*');
 
         $this->assertSame(0, $deletedCount);
+        $this->assertSame([], $client->unlinked);
     }
 
     public function testFlushHandlesOptPrefixCorrectly(): void
     {
         // Client has OPT_PREFIX set - SafeScan should handle this
-        $client = new FakeRedisClient(
+        $client = new FlushingRedisClient(
             scanResults: [
                 // Redis returns keys WITH the OPT_PREFIX
                 ['keys' => ['myapp:cache:test:key1', 'myapp:cache:test:key2'], 'iterator' => 0],
@@ -106,19 +90,16 @@ class FlushByPatternTest extends TestCase
             optPrefix: 'myapp:',
         );
 
-        [$connection] = $this->createConnectionWithClient($client);
+        $connection = $this->createConnection($client);
         // Keys passed to unlink should have OPT_PREFIX stripped
         // (phpredis will auto-add it back)
-        $connection->shouldReceive('unlink')
-            ->once()
-            ->with('cache:test:key1', 'cache:test:key2')
-            ->andReturn(2);
 
         $flushByPattern = new FlushByPattern($connection);
 
         $deletedCount = $flushByPattern->execute('cache:test:*');
 
         $this->assertSame(2, $deletedCount);
+        $this->assertSame([['cache:test:key1', 'cache:test:key2']], $client->unlinked);
     }
 
     public function testFlushDeletesInBatches(): void
@@ -138,121 +119,110 @@ class FlushByPatternTest extends TestCase
             $batch3Keys[] = "cache:test:key{$i}";
         }
 
-        $client = new FakeRedisClient(
+        $client = new FlushingRedisClient(
             scanResults: [
                 // Return all keys in one scan result to simplify test
                 ['keys' => array_merge($batch1Keys, $batch2Keys, $batch3Keys), 'iterator' => 0],
             ],
         );
 
-        [$connection] = $this->createConnectionWithClient($client);
-
-        // Should be called 3 times (1000 + 1000 + 500)
-        $connection->shouldReceive('unlink')
-            ->times(3)
-            ->andReturn(1000, 1000, 500);
+        $connection = $this->createConnection($client);
 
         $flushByPattern = new FlushByPattern($connection);
 
         $deletedCount = $flushByPattern->execute('cache:test:*');
 
         $this->assertSame(2500, $deletedCount);
+        $this->assertSame([$batch1Keys, $batch2Keys, $batch3Keys], $client->unlinked);
     }
 
     public function testFlushHandlesMultipleScanIterations(): void
     {
-        $client = new FakeRedisClient(
+        $client = new FlushingRedisClient(
             scanResults: [
                 ['keys' => ['cache:test:key1', 'cache:test:key2'], 'iterator' => 42],  // More to scan
                 ['keys' => ['cache:test:key3'], 'iterator' => 0],  // Done
             ],
         );
 
-        [$connection] = $this->createConnectionWithClient($client);
+        $connection = $this->createConnection($client);
         // All keys should be collected and deleted together (under buffer size)
-        $connection->shouldReceive('unlink')
-            ->once()
-            ->with('cache:test:key1', 'cache:test:key2', 'cache:test:key3')
-            ->andReturn(3);
 
         $flushByPattern = new FlushByPattern($connection);
 
         $deletedCount = $flushByPattern->execute('cache:test:*');
 
         $this->assertSame(3, $deletedCount);
+        $this->assertSame([['cache:test:key1', 'cache:test:key2', 'cache:test:key3']], $client->unlinked);
     }
 
     public function testFlushThrowsTheNativeErrorWhenUnlinkFails(): void
     {
-        $client = new FakeRedisClient(
+        $client = new FlushingRedisClient(
             scanResults: [
                 ['keys' => ['cache:test:key1'], 'iterator' => 0],
             ],
         );
         $client->setFakeLastError('stale error');
 
-        [$connection] = $this->createConnectionWithClient($client);
-        $connection->shouldReceive('clearLastError')
-            ->once()
-            ->andReturnUsing(fn (): bool => $client->clearLastError());
-        $connection->shouldReceive('getLastError')
-            ->once()
-            ->andReturnUsing(fn (): ?string => $client->getLastError());
-        $connection->shouldReceive('unlink')
-            ->once()
-            ->andReturnUsing(function () use ($client): false {
-                $this->assertNull($client->getLastError());
+        $connection = $this->createConnection($client);
+        $client->unlinkCallback = function () use ($client): false {
+            $this->assertSame(1, $client->errorClears);
 
-                $client->setFakeLastError('UNLINK is not permitted');
+            $client->setFakeLastError('UNLINK is not permitted');
 
-                return false;
-            });
+            return false;
+        };
 
         $this->expectException(RedisException::class);
         $this->expectExceptionMessageIs('UNLINK is not permitted');
 
-        (new FlushByPattern($connection))->execute('cache:test:*');
+        try {
+            (new FlushByPattern($connection))->execute('cache:test:*');
+        } finally {
+            $this->assertSame([['cache:test:key1']], $client->unlinked);
+            $this->assertSame(1, $client->errorClears);
+            $this->assertSame(1, $client->errorReads);
+        }
     }
 
     public function testFlushThrowsAStableErrorWhenUnlinkFailsWithoutANativeError(): void
     {
-        $client = new FakeRedisClient(
+        $client = new FlushingRedisClient(
             scanResults: [
                 ['keys' => ['cache:test:key1'], 'iterator' => 0],
             ],
         );
         $client->setFakeLastError('stale error');
 
-        [$connection] = $this->createConnectionWithClient($client);
-        $connection->shouldReceive('clearLastError')
-            ->once()
-            ->andReturnUsing(fn (): bool => $client->clearLastError());
-        $connection->shouldReceive('getLastError')
-            ->once()
-            ->andReturnUsing(fn (): ?string => $client->getLastError());
-        $connection->shouldReceive('unlink')
-            ->once()
-            ->andReturnUsing(function () use ($client): false {
-                $this->assertNull($client->getLastError());
+        $connection = $this->createConnection($client);
+        $client->unlinkCallback = function () use ($client): false {
+            $this->assertSame(1, $client->errorClears);
 
-                return false;
-            });
+            return false;
+        };
 
         $this->expectException(RedisException::class);
         $this->expectExceptionMessageIs('Redis UNLINK failed while deleting keys by pattern.');
 
-        (new FlushByPattern($connection))->execute('cache:test:*');
+        try {
+            (new FlushByPattern($connection))->execute('cache:test:*');
+        } finally {
+            $this->assertSame([['cache:test:key1']], $client->unlinked);
+            $this->assertSame(1, $client->errorClears);
+            $this->assertSame(1, $client->errorReads);
+        }
     }
 
     public function testFlushPassesPatternToSafeScan(): void
     {
-        $client = new FakeRedisClient(
+        $client = new FlushingRedisClient(
             scanResults: [
                 ['keys' => [], 'iterator' => 0],
             ],
         );
 
-        [$connection] = $this->createConnectionWithClient($client);
+        $connection = $this->createConnection($client);
 
         $flushByPattern = new FlushByPattern($connection);
 
@@ -261,5 +231,48 @@ class FlushByPatternTest extends TestCase
         // Verify the pattern was passed to scan
         $this->assertSame(1, $client->getScanCallCount());
         $this->assertSame('cache:users:*', $client->getScanCalls()[0]['pattern']);
+    }
+}
+
+class FlushingRedisClient extends FakeRedisClient
+{
+    /** @var list<list<string>> */
+    public array $unlinked = [];
+
+    public int $errorClears = 0;
+
+    public int $errorReads = 0;
+
+    public ?Closure $unlinkCallback = null;
+
+    /**
+     * Record deletion batches while retaining the real scan cursor updates.
+     */
+    public function unlink(array|string $key, string ...$other_keys): Redis|int|false
+    {
+        $keys = is_array($key) ? $key : [$key, ...$other_keys];
+        $this->unlinked[] = $keys;
+
+        return $this->unlinkCallback !== null ? ($this->unlinkCallback)() : count($keys);
+    }
+
+    /**
+     * Count diagnostic resets before deletion.
+     */
+    public function clearLastError(): bool
+    {
+        ++$this->errorClears;
+
+        return parent::clearLastError();
+    }
+
+    /**
+     * Count diagnostic reads after deletion failures.
+     */
+    public function getLastError(): ?string
+    {
+        ++$this->errorReads;
+
+        return parent::getLastError();
     }
 }

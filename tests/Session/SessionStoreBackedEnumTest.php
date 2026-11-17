@@ -6,7 +6,8 @@ namespace Hypervel\Tests\Session;
 
 use Hypervel\Session\Store;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use SessionHandlerInterface;
 
 enum SessionKey: string
@@ -33,6 +34,8 @@ enum SessionUnitKey
 
 class SessionStoreBackedEnumTest extends TestCase
 {
+    use VerifiesDoubles;
+
     // =========================================================================
     // get() tests
     // =========================================================================
@@ -466,7 +469,7 @@ class SessionStoreBackedEnumTest extends TestCase
     public function testFlashWithEnum(): void
     {
         $session = $this->getSession();
-        $session->getHandler()->shouldReceive('read')->once()->andReturn(serialize([]));
+        $session->getHandler()->expects('read')->returns(serialize([]));
         $session->start();
 
         $session->flash(SessionKey::User, 'flash-value');
@@ -482,7 +485,7 @@ class SessionStoreBackedEnumTest extends TestCase
     public function testFlashWithEnumIsProperlyAged(): void
     {
         $session = $this->getSession();
-        $session->getHandler()->shouldReceive('read')->once()->andReturn(serialize([]));
+        $session->getHandler()->expects('read')->returns(serialize([]));
         $session->start();
 
         $session->flash(SessionKey::User, 'flash-value');
@@ -507,7 +510,7 @@ class SessionStoreBackedEnumTest extends TestCase
     public function testNowWithEnum(): void
     {
         $session = $this->getSession();
-        $session->getHandler()->shouldReceive('read')->once()->andReturn(serialize([]));
+        $session->getHandler()->expects('read')->returns(serialize([]));
         $session->start();
 
         $session->now(SessionKey::User, 'now-value');
@@ -740,7 +743,7 @@ class SessionStoreBackedEnumTest extends TestCase
     public function testFlashWithUnitEnum(): void
     {
         $session = $this->getSession();
-        $session->getHandler()->shouldReceive('read')->once()->andReturn(serialize([]));
+        $session->getHandler()->expects('read')->returns(serialize([]));
         $session->start();
 
         $session->flash(SessionUnitKey::User, 'flash-value');
@@ -756,7 +759,7 @@ class SessionStoreBackedEnumTest extends TestCase
     public function testNowWithUnitEnum(): void
     {
         $session = $this->getSession();
-        $session->getHandler()->shouldReceive('read')->once()->andReturn(serialize([]));
+        $session->getHandler()->expects('read')->returns(serialize([]));
         $session->start();
 
         $session->now(SessionUnitKey::User, 'now-value');
@@ -820,11 +823,14 @@ class SessionStoreBackedEnumTest extends TestCase
     // Helper methods
     // =========================================================================
 
+    /**
+     * Create a session store with an isolated handler.
+     */
     protected function getSession(string $serialization = 'php'): Store
     {
         return new Store(
             'test-session',
-            m::mock(SessionHandlerInterface::class),
+            Double::for(SessionHandlerInterface::class)->strict(),
             'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
             $serialization
         );

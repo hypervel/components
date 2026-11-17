@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Horizon\Feature;
 
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
-use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
+use Hypervel\Horizon\RedisQueue;
 use Hypervel\Horizon\WaitTimeCalculator;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class WaitTimeCalculatorTest extends IntegrationTestCase
 {
+    use VerifiesDoubles;
+
     public function testTimeToClearIsCalculatedPerQueue(): void
     {
         $calculator = $this->with_scenario([
@@ -207,19 +210,22 @@ class WaitTimeCalculatorTest extends IntegrationTestCase
         );
     }
 
-    protected function with_scenario(array $supervisorSettings, array $queues)
+    /**
+     * Create a calculator for the given supervisors and queues.
+     */
+    protected function with_scenario(array $supervisorSettings, array $queues): WaitTimeCalculator
     {
-        $queue = m::mock(Queue::class);
-        $queueFactory = m::mock(QueueFactory::class);
-        $supervisors = m::mock(SupervisorRepository::class);
-        $metrics = m::mock(MetricsRepository::class);
+        $queue = Double::for(RedisQueue::class)->strict();
+        $queueFactory = Double::for(QueueFactory::class)->strict();
+        $supervisors = Double::for(SupervisorRepository::class)->strict();
+        $metrics = Double::for(MetricsRepository::class)->strict();
 
-        $supervisors->shouldReceive('all')->andReturn($supervisorSettings);
-        $queueFactory->shouldReceive('connection')->andReturn($queue);
+        $supervisors->allows('all')->returns($supervisorSettings);
+        $queueFactory->allows('connection')->returns($queue);
 
         foreach ($queues as $name => $queueSettings) {
-            $queue->shouldReceive('readyNow')->with($name)->andReturn($queueSettings['size']);
-            $metrics->shouldReceive('runtimeForQueue')->with($name)->andReturn($queueSettings['runtime']);
+            $queue->allows('readyNow')->with($name)->returns($queueSettings['size']);
+            $metrics->allows('runtimeForQueue')->with($name)->returns($queueSettings['runtime']);
         }
 
         return new WaitTimeCalculator($queueFactory, $supervisors, $metrics);

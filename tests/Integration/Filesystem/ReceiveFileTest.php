@@ -9,13 +9,16 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 
 #[RequiresOperatingSystem('Linux|Darwin')]
 #[WithConfig('filesystems.disks.local.serve', true)]
 class ReceiveFileTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Set up the test environment.
      */
@@ -97,8 +100,8 @@ class ReceiveFileTest extends TestCase
     public function testStorageFailureReturnsServerError(): void
     {
         $result = Storage::temporaryUploadUrl('receive-file-test.txt', now()->addMinute());
-        $disk = m::mock(Filesystem::class);
-        $disk->shouldReceive('put')->once()->with('receive-file-test.txt', 'Hello World')->andReturnFalse();
+        $disk = Double::for(Filesystem::class)->strict();
+        $disk->expects('put')->with('receive-file-test.txt', 'Hello World')->returns(false);
         $manager = Storage::getFacadeRoot();
 
         try {

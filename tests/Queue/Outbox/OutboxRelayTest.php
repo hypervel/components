@@ -20,8 +20,10 @@ use Hypervel\Queue\Outbox\OutboxMessage;
 use Hypervel\Queue\Outbox\OutboxRelay;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -29,26 +31,28 @@ use Swoole\Coroutine\CanceledException;
 
 class OutboxRelayTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testClaimPublishSettleAndObserversReleaseTheirResourcesInOrder(): void
     {
         CarbonImmutable::setTestNow('2040-01-01 12:00:00');
         CoroutineContext::set('request-only', true);
-        $repository = m::mock(DatabaseOutboxRepository::class);
-        $queues = m::mock(Factory::class);
-        $queue = m::mock(Queue::class . ', ' . PublishesOutboxMessages::class);
+        $repository = Double::for(DatabaseOutboxRepository::class)->strict();
+        $queues = Double::for(Factory::class)->strict();
+        $queue = Double::for(Queue::class, PublishesOutboxMessages::class)->strict();
         $events = new Dispatcher;
-        $exceptions = m::mock(ExceptionHandler::class);
+        $exceptions = Double::for(ExceptionHandler::class)->strict();
         $messages = [$this->message(1)];
         $phases = [];
-        $repository->expects('claim')->with('primary', 100)->andReturnUsing(function () use (&$phases, $messages): array {
+        $repository->expects('claim')->with('primary', 100)->resolves(function () use (&$phases, $messages): array {
             $this->assertFalse(CoroutineContext::has('request-only'));
             $phases[] = 'claim';
             Coroutine::defer(static function () use (&$phases): void { $phases[] = 'claim released'; });
 
             return $messages;
         });
-        $queues->expects('connection')->with('redis')->andReturn($queue);
-        $queue->expects('publishOutboxMessages')->with($messages)->andReturnUsing(function () use (&$phases): OutboxBatchResult {
+        $queues->expects('connection')->with('redis')->returns($queue);
+        $queue->expects('publishOutboxMessages')->with($messages)->resolves(function () use (&$phases): OutboxBatchResult {
             $this->assertSame(['claim', 'claim released'], $phases);
             $this->assertFalse(CoroutineContext::has('request-only'));
             $phases[] = 'publish';
@@ -57,7 +61,7 @@ class OutboxRelayTest extends TestCase
             // Drivers may preserve keys when filtering a batch's row IDs.
             return new OutboxBatchResult([7 => 1]);
         });
-        $repository->expects('settle')->andReturnUsing(function () use (&$phases): int {
+        $repository->expects('settle')->resolves(function () use (&$phases): int {
             $this->assertSame('publish released', end($phases));
             $phases[] = 'settle';
             Coroutine::defer(static function () use (&$phases): void { $phases[] = 'settle released'; });
@@ -80,24 +84,24 @@ class OutboxRelayTest extends TestCase
 
     public function testPartialResultsSettleBeforeAnotherConnectionAndReportingCannotBlockItsPublication(): void
     {
-        $repository = m::mock(DatabaseOutboxRepository::class);
-        $queues = m::mock(Factory::class);
-        $first = m::mock(Queue::class . ', ' . PublishesOutboxMessages::class);
-        $second = m::mock(Queue::class . ', ' . PublishesOutboxMessages::class);
+        $repository = Double::for(DatabaseOutboxRepository::class)->strict();
+        $queues = Double::for(Factory::class)->strict();
+        $first = Double::for(Queue::class, PublishesOutboxMessages::class)->strict();
+        $second = Double::for(Queue::class, PublishesOutboxMessages::class)->strict();
         $events = new Dispatcher;
-        $exceptions = m::mock(ExceptionHandler::class);
+        $exceptions = Double::for(ExceptionHandler::class)->strict();
         $messages = [$this->message(1), $this->message(2), $this->message(3, 'other')];
         $failure = new RuntimeException('Second publication rejected.');
         $settled = [];
-        $queues->expects('connection')->with('redis')->andReturn($first);
-        $queues->expects('connection')->with('other')->andReturn($second);
-        $first->expects('publishOutboxMessages')->andReturn(new OutboxBatchResult([1], failure: $failure));
-        $second->expects('publishOutboxMessages')->andReturnUsing(function () use (&$settled): OutboxBatchResult {
+        $queues->expects('connection')->with('redis')->returns($first);
+        $queues->expects('connection')->with('other')->returns($second);
+        $first->expects('publishOutboxMessages')->returns(new OutboxBatchResult([1], failure: $failure));
+        $second->expects('publishOutboxMessages')->resolves(function () use (&$settled): OutboxBatchResult {
             $this->assertSame([[1]], $settled);
 
             return new OutboxBatchResult([3]);
         });
-        $repository->shouldReceive('settle')->twice()->andReturnUsing(function (string $database, array $group, OutboxBatchResult $result) use (&$settled): int {
+        $repository->expects('settle')->times(2)->resolves(function (string $database, array $group, OutboxBatchResult $result) use (&$settled): int {
             $settled[] = $result->accepted;
 
             return count($group);
@@ -107,7 +111,7 @@ class OutboxRelayTest extends TestCase
             $this->assertSame(1, $event->failed);
             $this->assertSame($failure, $event->exception);
         });
-        $exceptions->expects('report')->with($failure, m::on(function (array $context) use (&$settled): bool {
+        $exceptions->expects('report')->with($failure, Argument::satisfies(function (array $context) use (&$settled): bool {
             $this->assertSame([[1], [3]], $settled);
             $this->assertSame([1, 2], $context['outbox_ids']);
             $this->assertSame(['SendInvoice', 'SendInvoice'], $context['jobs']);
@@ -121,20 +125,20 @@ class OutboxRelayTest extends TestCase
     #[DataProvider('invalidResults')]
     public function testInvalidResultsReleaseEveryInputAsFailure(OutboxBatchResult $invalid): void
     {
-        $repository = m::mock(DatabaseOutboxRepository::class);
-        $queues = m::mock(Factory::class);
-        $queue = m::mock(Queue::class . ', ' . PublishesOutboxMessages::class);
-        $exceptions = m::mock(ExceptionHandler::class);
-        $queues->expects('connection')->andReturn($queue);
-        $queue->expects('publishOutboxMessages')->andReturn($invalid);
-        $repository->expects('settle')->with('primary', m::type('array'), m::on(function (OutboxBatchResult $result): bool {
+        $repository = Double::for(DatabaseOutboxRepository::class)->strict();
+        $queues = Double::for(Factory::class)->strict();
+        $queue = Double::for(Queue::class, PublishesOutboxMessages::class)->strict();
+        $exceptions = Double::for(ExceptionHandler::class)->strict();
+        $queues->expects('connection')->returns($queue);
+        $queue->expects('publishOutboxMessages')->returns($invalid);
+        $repository->expects('settle')->with('primary', Argument::type('array'), Argument::satisfies(function (OutboxBatchResult $result): bool {
             $this->assertSame([], $result->accepted);
             $this->assertSame([], $result->deferred);
             $this->assertInstanceOf(LogicException::class, $result->failure);
 
             return true;
-        }))->andReturn(2);
-        $exceptions->expects('report')->with(m::type(LogicException::class), m::type('array'));
+        }))->returns(2);
+        $exceptions->expects('report')->with(Argument::type(LogicException::class), Argument::type('array'));
 
         $this->assertFalse((new OutboxRelay($repository, $queues, new Dispatcher, $exceptions))->deliver('primary', [$this->message(1), $this->message(2)]));
     }
@@ -156,33 +160,33 @@ class OutboxRelayTest extends TestCase
 
     public function testGenericFallbackDefersFutureRowsWithoutEventsAndSettlesThemNormally(): void
     {
-        $repository = m::mock(DatabaseOutboxRepository::class);
-        $queues = m::mock(Factory::class);
-        $queue = m::mock(Queue::class);
-        $exceptions = m::mock(ExceptionHandler::class);
+        $repository = Double::for(DatabaseOutboxRepository::class)->strict();
+        $queues = Double::for(Factory::class)->strict();
+        $queue = Double::for(Queue::class)->strict();
+        $exceptions = Double::for(ExceptionHandler::class)->strict();
         $events = new Dispatcher;
         $events->listen(OutboxBatchDelivered::class, fn () => $this->fail('Deferred rows were not delivered.'));
         $events->listen(OutboxBatchDeliveryFailed::class, fn () => $this->fail('Deferral is not failure.'));
-        $queues->expects('connection')->andReturn($queue);
-        $repository->expects('settle')->with('primary', m::type('array'), m::on(fn (OutboxBatchResult $result): bool => $result->accepted === [] && $result->deferred === [1] && $result->failure === null))->andReturn(1);
+        $queues->expects('connection')->returns($queue);
+        $repository->expects('settle')->with('primary', Argument::type('array'), Argument::satisfies(fn (OutboxBatchResult $result): bool => $result->accepted === [] && $result->deferred === [1] && $result->failure === null))->returns(1);
 
         $this->assertTrue((new OutboxRelay($repository, $queues, $events, $exceptions))->deliver('primary', [$this->message(1, deliverAt: CarbonImmutable::now()->getTimestamp() + 60)]));
     }
 
     public function testPublicationAndSettlementErrorsAreBothReportedWithPublicationOnTheEvent(): void
     {
-        $repository = m::mock(DatabaseOutboxRepository::class);
-        $queues = m::mock(Factory::class);
-        $queue = m::mock(Queue::class);
-        $exceptions = m::mock(ExceptionHandler::class);
+        $repository = Double::for(DatabaseOutboxRepository::class)->strict();
+        $queues = Double::for(Factory::class)->strict();
+        $queue = Double::for(Queue::class)->strict();
+        $exceptions = Double::for(ExceptionHandler::class)->strict();
         $events = new Dispatcher;
         $publication = new RuntimeException('Broker unavailable.');
         $settlement = new RuntimeException('Database unavailable.');
-        $queues->expects('connection')->andReturn($queue);
-        $queue->expects('pushRaw')->andThrow($publication);
-        $repository->expects('settle')->andThrow($settlement);
-        $exceptions->expects('report')->with($publication, m::type('array'));
-        $exceptions->expects('report')->with($settlement, m::type('array'));
+        $queues->expects('connection')->returns($queue);
+        $queue->expects('pushRaw')->throws($publication);
+        $repository->expects('settle')->throws($settlement);
+        $exceptions->expects('report')->with($publication, Argument::type('array'));
+        $exceptions->expects('report')->with($settlement, Argument::type('array'));
         $events->listen(OutboxBatchDeliveryFailed::class, function (OutboxBatchDeliveryFailed $event) use ($publication): void {
             $this->assertSame($publication, $event->exception);
         });
@@ -192,21 +196,21 @@ class OutboxRelayTest extends TestCase
 
     public function testLostSettlementOwnershipReportsConfirmedDeliveryWithoutRepublishing(): void
     {
-        $repository = m::mock(DatabaseOutboxRepository::class);
-        $queues = m::mock(Factory::class);
-        $queue = m::mock(Queue::class);
-        $exceptions = m::mock(ExceptionHandler::class);
+        $repository = Double::for(DatabaseOutboxRepository::class)->strict();
+        $queues = Double::for(Factory::class)->strict();
+        $queue = Double::for(Queue::class)->strict();
+        $exceptions = Double::for(ExceptionHandler::class)->strict();
         $events = new Dispatcher;
-        $queues->expects('connection')->andReturn($queue);
-        $queue->expects('pushRaw')->andReturn('accepted');
-        $repository->expects('settle')->andReturn(0);
+        $queues->expects('connection')->returns($queue);
+        $queue->expects('pushRaw')->returns('accepted');
+        $repository->expects('settle')->returns(0);
         $events->listen(OutboxBatchDelivered::class, fn () => $this->fail('Lost ownership is a settlement failure.'));
         $events->listen(OutboxBatchDeliveryFailed::class, function (OutboxBatchDeliveryFailed $event): void {
             $this->assertSame(1, $event->accepted);
             $this->assertSame(0, $event->failed);
             $this->assertStringContainsString('lease ownership changed', $event->exception->getMessage());
         });
-        $exceptions->expects('report')->with(m::type(RuntimeException::class), m::type('array'));
+        $exceptions->expects('report')->with(Argument::type(RuntimeException::class), Argument::type('array'));
 
         $this->assertFalse((new OutboxRelay($repository, $queues, $events, $exceptions))->deliver('primary', [$this->message(1)]));
     }
@@ -214,26 +218,26 @@ class OutboxRelayTest extends TestCase
     #[DataProvider('reportingOutcomes')]
     public function testListenerFailureDoesNotThrottleDeliveryAndReporterFailureEscapes(bool $reporterFails): void
     {
-        $repository = m::mock(DatabaseOutboxRepository::class);
-        $queues = m::mock(Factory::class);
-        $queue = m::mock(Queue::class);
-        $exceptions = m::mock(ExceptionHandler::class);
+        $repository = Double::for(DatabaseOutboxRepository::class)->strict();
+        $queues = Double::for(Factory::class)->strict();
+        $queue = Double::for(Queue::class)->strict();
+        $exceptions = Double::for(ExceptionHandler::class)->strict();
         $events = new Dispatcher;
         $listenerFailure = new RuntimeException('Listener failed.');
         $reporterFailure = new RuntimeException('Reporter failed.');
         $released = false;
-        $queues->expects('connection')->andReturn($queue);
-        $queue->expects('pushRaw')->andReturn('accepted');
-        $repository->expects('settle')->andReturn(1);
+        $queues->expects('connection')->returns($queue);
+        $queue->expects('pushRaw')->returns('accepted');
+        $repository->expects('settle')->returns(1);
         $events->listen(OutboxBatchDelivered::class, static function () use ($listenerFailure, &$released): void {
             Coroutine::defer(static function () use (&$released): void { $released = true; });
             throw $listenerFailure;
         });
         $events->listen(OutboxBatchDeliveryFailed::class, fn () => $this->fail('Listener failure must not change the delivery event.'));
-        $report = $exceptions->expects('report')->with($listenerFailure, m::type('array'));
+        $report = $exceptions->expects('report')->with($listenerFailure, Argument::type('array'));
 
         if ($reporterFails) {
-            $report->andThrow($reporterFailure);
+            $report->throws($reporterFailure);
         }
 
         try {
@@ -262,16 +266,18 @@ class OutboxRelayTest extends TestCase
     #[TestWith(['notification', true])]
     public function testIndependentPhaseCancellationReleasesResourcesAndStopsDelivery(string $phase, bool $cleanupThrows): void
     {
-        $repository = m::mock(DatabaseOutboxRepository::class);
-        $queues = m::mock(Factory::class);
-        $queue = m::mock($phase === 'sequential' ? Queue::class : Queue::class . ', ' . PublishesOutboxMessages::class);
-        $exceptions = m::mock(ExceptionHandler::class);
+        $repository = Double::for(DatabaseOutboxRepository::class)->strict();
+        $queues = Double::for(Factory::class)->strict();
+        $queue = ($phase === 'sequential'
+            ? Double::for(Queue::class)
+            : Double::for(Queue::class, PublishesOutboxMessages::class))->strict();
+        $exceptions = Double::for(ExceptionHandler::class)->strict();
         $cancellation = new CanceledException;
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Phase cleanup failed.', previous: $cancellation);
         }
         $released = false;
-        $queues->expects('connection')->andReturn($queue);
+        $queues->expects('connection')->returns($queue);
         $cancel = static function () use ($cancellation, &$released): never {
             Coroutine::defer(static function () use (&$released): void { $released = true; });
             throw $cancellation;
@@ -279,15 +285,15 @@ class OutboxRelayTest extends TestCase
         $events = new Dispatcher;
 
         if ($phase === 'sequential') {
-            $queue->expects('pushRaw')->andReturnUsing($cancel);
+            $queue->expects('pushRaw')->resolves($cancel);
         } elseif ($phase === 'publication') {
-            $queue->expects('publishOutboxMessages')->andReturnUsing($cancel);
+            $queue->expects('publishOutboxMessages')->resolves($cancel);
         } else {
-            $queue->expects('publishOutboxMessages')->andReturn(new OutboxBatchResult([1]));
+            $queue->expects('publishOutboxMessages')->returns(new OutboxBatchResult([1]));
             if ($phase === 'settlement') {
-                $repository->expects('settle')->andReturnUsing($cancel);
+                $repository->expects('settle')->resolves($cancel);
             } else {
-                $repository->expects('settle')->andReturn(1);
+                $repository->expects('settle')->returns(1);
                 $events->listen(OutboxBatchDelivered::class, $cancel);
             }
         }
@@ -309,21 +315,23 @@ class OutboxRelayTest extends TestCase
     #[DataProvider('driverCancellationOutcomes')]
     public function testDriverCancellationStopsDeliveryWithoutSettlement(string $outcome, bool $child): void
     {
-        $repository = m::mock(DatabaseOutboxRepository::class);
-        $repository->shouldNotReceive('settle');
-        $queues = m::mock(Factory::class);
-        $queue = m::mock($outcome === 'sequential' ? Queue::class : Queue::class . ', ' . PublishesOutboxMessages::class);
-        $exceptions = m::mock(ExceptionHandler::class);
-        $exceptions->shouldNotReceive('report');
+        $repository = Double::for(DatabaseOutboxRepository::class)->strict();
+        $repository->expects('settle')->never();
+        $queues = Double::for(Factory::class)->strict();
+        $queue = ($outcome === 'sequential'
+            ? Double::for(Queue::class)
+            : Double::for(Queue::class, PublishesOutboxMessages::class))->strict();
+        $exceptions = Double::for(ExceptionHandler::class)->strict();
+        $exceptions->expects('report')->never();
         $cancellation = new RuntimeException('Observer cleanup failed.', previous: new CanceledException);
         if ($child) {
             $cancellation = new ChildCancellationException('Publication child canceled.', previous: $cancellation);
         }
-        $queues->expects('connection')->with('redis')->andReturn($queue);
+        $queues->expects('connection')->with('redis')->returns($queue);
         $publication = $queue->expects($outcome === 'sequential' ? 'pushRaw' : 'publishOutboxMessages');
         $outcome === 'returned'
-            ? $publication->andReturn(new OutboxBatchResult([1], failure: $cancellation))
-            : $publication->andThrow($cancellation);
+            ? $publication->returns(new OutboxBatchResult([1], failure: $cancellation))
+            : $publication->throws($cancellation);
 
         try {
             (new OutboxRelay($repository, $queues, new Dispatcher, $exceptions))->deliver('primary', [$this->message(1), $this->message(2, 'other')]);

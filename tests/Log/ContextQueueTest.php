@@ -25,13 +25,16 @@ use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Queue;
 use Hypervel\Queue\SyncQueue;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Throwable;
 
 class ContextQueueTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testContextIsIncludedInJobPayload(): void
     {
         Repository::getInstance()->add('trace_id', 'abc-123');
@@ -203,8 +206,8 @@ class ContextQueueTest extends TestCase
         $this->assertFalse(Repository::hasInstance());
 
         // Simulate JobProcessing event with the payload
-        $job = m::mock(\Hypervel\Contracts\Queue\Job::class);
-        $job->shouldReceive('payload')->andReturn($payload);
+        $job = Double::for(JobContract::class)->strict();
+        $job->allows('payload')->returns($payload);
 
         $event = new JobProcessing('sync', $job);
         $this->app->make('events')->dispatch($event);
@@ -216,8 +219,8 @@ class ContextQueueTest extends TestCase
 
     public function testHydrateSkipsWhenPayloadHasNoContext(): void
     {
-        $job = m::mock(\Hypervel\Contracts\Queue\Job::class);
-        $job->shouldReceive('payload')->andReturn(['job' => 'SomeJob']);
+        $job = Double::for(JobContract::class)->strict();
+        $job->allows('payload')->returns(['job' => 'SomeJob']);
 
         $event = new JobProcessing('sync', $job);
         $this->app->make('events')->dispatch($event);
@@ -232,8 +235,8 @@ class ContextQueueTest extends TestCase
         $repository->add('stale', 'value');
         $repository->addHidden('secret', 'value');
 
-        $job = m::mock(\Hypervel\Contracts\Queue\Job::class);
-        $job->shouldReceive('payload')->andReturn(['job' => 'SomeJob']);
+        $job = Double::for(JobContract::class)->strict();
+        $job->allows('payload')->returns(['job' => 'SomeJob']);
 
         $this->app->make('events')->dispatch(new JobProcessing('sync', $job));
 
@@ -295,8 +298,8 @@ class ContextQueueTest extends TestCase
         });
 
         // Simulate JobProcessing
-        $job = m::mock(\Hypervel\Contracts\Queue\Job::class);
-        $job->shouldReceive('payload')->andReturn($payload);
+        $job = Double::for(JobContract::class)->strict();
+        $job->allows('payload')->returns($payload);
 
         $this->app->make('events')->dispatch(new JobProcessing('sync', $job));
 
@@ -310,8 +313,8 @@ class ContextQueueTest extends TestCase
         });
 
         $events = $this->app->make('events');
-        $job = m::mock(JobContract::class);
-        $job->shouldReceive('payload')->once()->andReturn(['job' => 'SomeJob']);
+        $job = Double::for(JobContract::class)->strict();
+        $job->expects('payload')->returns(['job' => 'SomeJob']);
         $channel = new Channel(1);
 
         Coroutine::create(static function () use ($events, $job, $channel): void {
@@ -360,8 +363,8 @@ class ContextQueueTest extends TestCase
         CoroutineContext::flush();
 
         // Hydrate from the payload
-        $job = m::mock(\Hypervel\Contracts\Queue\Job::class);
-        $job->shouldReceive('payload')->andReturn($payload);
+        $job = Double::for(JobContract::class)->strict();
+        $job->allows('payload')->returns($payload);
         $this->app->make('events')->dispatch(new JobProcessing('sync', $job));
 
         // Verify all types survived the round trip

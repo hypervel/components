@@ -23,7 +23,8 @@ use Hypervel\Sentry\Integration;
 use Hypervel\Sentry\Tracing\EventHandler as TracingEventHandler;
 use Hypervel\Tests\Ai\Fixtures\Agents\RememberingAssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\FakeConversationStore;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Sentry\SentrySdk;
 use Sentry\Tracing\SpanStatus;
 use Sentry\Tracing\TransactionContext;
@@ -33,6 +34,8 @@ use function Hypervel\Coroutine\parallel;
 
 class CoroutineSafetyTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected array $defaultSetupConfig = ['sentry.traces_sample_rate' => 1.0];
 
     /**
@@ -80,8 +83,8 @@ class CoroutineSafetyTest extends TestCase
         $transaction->setSampled(true);
         $hub->setSpan($transaction);
 
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->once()->andReturn('parent');
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getName')->returns('parent');
         $handler->transactionBeginning(new TransactionBeginning($connection));
 
         // Verify parent has a span on its stack

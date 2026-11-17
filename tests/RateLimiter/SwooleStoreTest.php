@@ -20,7 +20,9 @@ use Hypervel\RateLimiter\SwooleStore;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\RateLimiter\Fixtures\RateLimiterStoreContract;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use UnexpectedValueException;
@@ -29,6 +31,7 @@ use function Hypervel\Coroutine\parallel;
 
 class SwooleStoreTest extends TestCase
 {
+    use VerifiesDoubles;
     use InteractsWithSwooleTables;
     use RateLimiterStoreContract;
 
@@ -173,12 +176,11 @@ class SwooleStoreTest extends TestCase
 
     public function testPeriodicMaintenanceReportsPostPrunePressure(): void
     {
-        $logger = m::mock(LoggerInterface::class);
-        $logger->shouldReceive('warning')
-            ->once()
+        $logger = Double::for(LoggerInterface::class)->strict();
+        $logger->expects('warning')
             ->with(
                 'Swoole rate limiter table [swoole] is nearing capacity.',
-                m::on(fn (array $context): bool => $context['threshold'] === 0.0010000000000000009),
+                Argument::satisfies(fn (array $context): bool => $context['threshold'] === 0.0010000000000000009),
             );
         [$store] = $this->store(memoryLimitBuffer: 0.999, logger: $logger);
 

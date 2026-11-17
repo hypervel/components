@@ -17,12 +17,15 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use SessionHandlerInterface;
 
 class UserSessionsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private const string AUTH_PROVIDER = 'users';
 
     private const string CURRENT_SESSION_ID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -261,12 +264,12 @@ class UserSessionsTest extends TestCase
         $store->save();
         $store->save();
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('has')->never();
-        $container->shouldReceive('make')->never();
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('has')->never();
+        $container->expects('make')->never();
 
-        $this->assertTrue(UserSessionIdentity::resolve($container, $replacementSessionId)->isUnowned());
-        $this->assertTrue(UserSessionIdentity::resolve($container, $replacementSessionId)->isUnowned());
+        $this->assertTrue(UserSessionIdentity::resolve($container->instance(), $replacementSessionId)->isUnowned());
+        $this->assertTrue(UserSessionIdentity::resolve($container->instance(), $replacementSessionId)->isUnowned());
         $this->assertSame([$replacementSessionId, $replacementSessionId], $handler->writtenSessionIds);
     }
 
@@ -283,8 +286,8 @@ class UserSessionsTest extends TestCase
 
             $store->regenerate(true);
 
-            $guard = m::mock(Guard::class);
-            $guard->shouldReceive('id')->once()->andReturn($userId);
+            $guard = Double::for(Guard::class)->strict();
+            $guard->expects('id')->returns($userId);
 
             $container = $this->identityContainer($guard);
 

@@ -12,16 +12,19 @@ use Hypervel\Grpc\Server\ExceptionMapper;
 use Hypervel\Grpc\StatusCode;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
 class ExceptionMapperTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testPreservesExpectedRpcFailuresWithoutReportingThem(): void
     {
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldNotReceive('report');
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->never();
         $mapper = new ExceptionMapper($handler);
         $failure = (new RpcException(StatusCode::NotFound, 'missing'))
             ->withTrailingMetadata(['x-reason' => 'absent']);
@@ -31,8 +34,8 @@ class ExceptionMapperTest extends TestCase
 
     public function testMapsProtocolFailuresToInternalWithoutReportingThem(): void
     {
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldNotReceive('report');
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->never();
         $failure = new ProtocolException('The request contains a malformed gRPC frame.');
 
         $mapped = (new ExceptionMapper($handler))->map($failure);
@@ -43,9 +46,9 @@ class ExceptionMapperTest extends TestCase
 
     public function testReportsUnexpectedFailuresAndDoesNotExposeTheirMessage(): void
     {
-        $handler = m::mock(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $failure = new RuntimeException('database credentials leaked');
-        $handler->shouldReceive('report')->once()->with($failure);
+        $handler->expects('report')->with($failure);
 
         $mapped = (new ExceptionMapper($handler))->map($failure);
 
@@ -56,9 +59,9 @@ class ExceptionMapperTest extends TestCase
 
     public function testReportsInvalidServiceResponsesAsInternal(): void
     {
-        $handler = m::mock(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $failure = new RuntimeException('The stream yielded a string.');
-        $handler->shouldReceive('report')->once()->with($failure);
+        $handler->expects('report')->with($failure);
 
         $mapped = (new ExceptionMapper($handler))->invalidResponse($failure);
 
@@ -68,8 +71,8 @@ class ExceptionMapperTest extends TestCase
 
     public function testPreservesCancellationPassedAsAnInvalidResponse(): void
     {
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldNotReceive('report');
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->never();
         $cancellation = new CanceledException;
 
         $this->expectExceptionObject($cancellation);
@@ -81,8 +84,8 @@ class ExceptionMapperTest extends TestCase
     {
         $failure = new RuntimeException('service failed');
         $cancellation = new CanceledException;
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($failure)->andThrow($cancellation);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with($failure)->throws($cancellation);
 
         $this->expectExceptionObject($cancellation);
 
@@ -98,12 +101,11 @@ class ExceptionMapperTest extends TestCase
         $previousErrorLog = ini_set('error_log', $errorLog);
 
         try {
-            $handler = m::mock(ExceptionHandler::class);
+            $handler = Double::for(ExceptionHandler::class)->strict();
             $failure = new RuntimeException('The original service failure.');
-            $handler->shouldReceive('report')
-                ->once()
+            $handler->expects('report')
                 ->with($failure)
-                ->andThrow(new RuntimeException('The exception reporter failed.'));
+                ->throws(new RuntimeException('The exception reporter failed.'));
 
             $mapped = (new ExceptionMapper($handler))->map($failure);
             $contents = file_get_contents($errorLog);
@@ -123,8 +125,8 @@ class ExceptionMapperTest extends TestCase
 
     public function testPreservesCoroutineCancellationForTheOwningCallLifecycle(): void
     {
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldNotReceive('report');
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->never();
         $failure = new CanceledException;
 
         $this->expectExceptionObject($failure);

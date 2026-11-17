@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Hashing;
 
 use Hypervel\Config\Repository as ConfigRepository;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Hashing\Hasher as HasherContract;
 use Hypervel\Hashing\Argon2IdHasher;
 use Hypervel\Hashing\ArgonHasher;
@@ -13,12 +13,15 @@ use Hypervel\Hashing\BcryptHasher;
 use Hypervel\Hashing\HashManager;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\Depends;
 use RuntimeException;
 
 class HasherTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public HashManager $hashManager;
 
     protected function setUp(): void
@@ -211,11 +214,10 @@ class HasherTest extends TestCase
 
     public function testIsHashedUsesTheConfiguredDriversInfoMethod(): void
     {
-        $driver = m::mock(HasherContract::class);
-        $driver->shouldReceive('info')
-            ->once()
+        $driver = Double::for(HasherContract::class)->strict();
+        $driver->expects('info')
             ->with('custom-hash')
-            ->andReturn(['algo' => 'custom']);
+            ->returns(['algo' => 'custom']);
 
         $manager = new HashManager($this->getContainer(['driver' => 'custom']));
         $manager->extend('custom', fn () => $driver);
@@ -249,12 +251,10 @@ class HasherTest extends TestCase
             ],
         ];
 
-        $container = m::mock(Container::class);
-        $container->shouldReceive('make')
-            ->with('config')
-            ->andReturn(new ConfigRepository([
-                'hashing' => $hashing,
-            ]));
+        $container = new Container;
+        $container->instance('config', new ConfigRepository([
+            'hashing' => $hashing,
+        ]));
 
         return $container;
     }

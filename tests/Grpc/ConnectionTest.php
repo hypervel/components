@@ -29,8 +29,9 @@ use Hypervel\Grpc\Protocol\FrameEncoder;
 use Hypervel\Grpc\Protocol\Timeout;
 use Hypervel\Grpc\StatusCode;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
 use RuntimeException;
@@ -41,6 +42,8 @@ use function Hypervel\Coroutine\parallel;
 
 class ConnectionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /** @var list<Connection> */
     private array $connections = [];
 
@@ -1173,12 +1176,12 @@ class ConnectionTest extends TestCase
      */
     private function expectReported(?Throwable $failure): void
     {
-        $handler = m::mock(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
 
         if ($failure === null) {
-            $handler->shouldNotReceive('report');
+            $handler->expects('report')->never();
         } else {
-            $handler->shouldReceive('report')->once()->with($failure);
+            $handler->expects('report')->with($failure);
         }
 
         $container = new Container;

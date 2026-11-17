@@ -18,7 +18,6 @@ use Hypervel\Tests\Saloon\Fixtures\Requests\UserRequest;
 use Hypervel\Tests\Saloon\Fixtures\Requests\UserRequestWithCustomResponse;
 use Hypervel\Tests\Saloon\Fixtures\Responses\UserData;
 use Hypervel\Tests\Saloon\Fixtures\Responses\UserResponse;
-use Mockery as m;
 use RuntimeException;
 
 class MockResponseTest extends TestCase
@@ -83,7 +82,7 @@ class MockResponseTest extends TestCase
 
     public function testItResolvesConfiguredExceptionsAgainstThePendingRequest(): void
     {
-        $pendingRequest = m::mock(PendingRequest::class);
+        $pendingRequest = new PendingRequest(new TestConnector, new UserRequest);
         $exception = new RuntimeException('Failed.');
         $response = (new FakeResponse)->throw(
             fn (PendingRequest $request): RuntimeException => $request === $pendingRequest

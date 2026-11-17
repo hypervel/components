@@ -11,7 +11,7 @@ use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\DumpWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
 use RuntimeException;
@@ -64,8 +64,8 @@ class DumpWatcherTest extends FeatureTestCase
     public function testDumpDelegatesWithoutResolvingCacheWhenTelescopeIsNotRecording(): void
     {
         Telescope::stopRecording();
-        $cache = m::mock(CacheFactory::class);
-        $cache->shouldNotReceive('store');
+        $cache = Double::for(CacheFactory::class)->strict();
+        $cache->expects('store')->never();
         $delegated = [];
         $this->installWatcher(
             $cache,
@@ -85,15 +85,13 @@ class DumpWatcherTest extends FeatureTestCase
     public function testCacheFailureDelegatesTheDumpUnlessCanceled(bool $canceled): void
     {
         $failure = new RuntimeException('Cache unavailable.', previous: $canceled ? new CanceledException : null);
-        $cache = m::mock(CacheFactory::class);
-        $repository = m::mock(CacheRepository::class);
-        $cache->shouldReceive('store')
-            ->once()
-            ->andReturn($repository);
-        $repository->shouldReceive('get')
-            ->once()
+        $cache = Double::for(CacheFactory::class)->strict();
+        $repository = Double::for(CacheRepository::class)->strict();
+        $cache->expects('store')
+            ->returns($repository);
+        $repository->expects('get')
             ->with('telescope:dump-watcher')
-            ->andThrow($failure);
+            ->throws($failure);
         $delegated = [];
         $this->installWatcher(
             $cache,
@@ -117,8 +115,8 @@ class DumpWatcherTest extends FeatureTestCase
 
     public function testAlwaysOptionRecordsWithoutResolvingCache(): void
     {
-        $cache = m::mock(CacheFactory::class);
-        $cache->shouldNotReceive('store');
+        $cache = Double::for(CacheFactory::class)->strict();
+        $cache->expects('store')->never();
         $delegated = [];
         $this->installWatcher(
             $cache,

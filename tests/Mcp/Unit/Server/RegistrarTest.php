@@ -31,7 +31,8 @@ use Hypervel\Tests\Mcp\Fixtures\ExampleServer;
 use Hypervel\Tests\Mcp\Fixtures\PassportClient;
 use Hypervel\Tests\Mcp\Fixtures\PassportClientRepository;
 use Hypervel\Tests\Mcp\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use Swoole\Coroutine\CanceledException;
@@ -39,6 +40,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 class RegistrarTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Load Passport's registration limiter and client services.
      */
@@ -314,8 +317,8 @@ class RegistrarTest extends TestCase
     {
         Route::setRoutes(new RouteCollection);
         config(['mcp.authorization_server' => 'https://auth.example.com']);
-        $servers = m::mock(ServerFactory::class);
-        $servers->shouldNotReceive('settings');
+        $servers = Double::for(ServerFactory::class)->strict();
+        $servers->expects('settings')->never();
         $this->app->instance(ServerFactory::class, $servers);
         (new Registrar)->oauthRoutes(registration: false);
 
@@ -423,8 +426,8 @@ class RegistrarTest extends TestCase
     public function testRegistrationCancellationIsNotConvertedToAServerError(): void
     {
         $exception = new CanceledException('Registration canceled.');
-        $repository = m::mock(ClientRepository::class);
-        $repository->shouldReceive('createAuthorizationCodeGrantClient')->once()->andThrow($exception);
+        $repository = Double::for(ClientRepository::class)->strict();
+        $repository->expects('createAuthorizationCodeGrantClient')->throws($exception);
         $this->app->instance(ClientRepository::class, $repository);
 
         try {

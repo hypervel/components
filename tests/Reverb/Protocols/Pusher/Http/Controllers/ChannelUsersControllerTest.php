@@ -8,7 +8,8 @@ use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Protocols\Pusher\MetricsHandler;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 
 class ChannelUsersControllerTest extends ReverbTestCase
 {
@@ -79,14 +80,14 @@ class ChannelUsersControllerTest extends ReverbTestCase
 
     public function testReturnsUsersWhenThePresenceChannelExistsOnlyOnAnotherWorker(): void
     {
-        $metrics = m::mock(MetricsHandler::class);
+        $metrics = Double::for(MetricsHandler::class)->strict();
         $metrics->expects('gather')
             ->with(
-                m::type(Application::class),
+                Argument::type(Application::class),
                 'presence',
                 ['channel' => 'presence-remote-channel'],
             )
-            ->andReturn([
+            ->returns([
                 'exists' => true,
                 'presence' => true,
                 'users' => [

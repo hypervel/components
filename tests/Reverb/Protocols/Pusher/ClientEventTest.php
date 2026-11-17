@@ -11,19 +11,22 @@ use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
 
 class ClientEventTest extends ReverbTestCase
 {
     protected ChannelConnectionManager $channelConnectionManager;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->channelConnectionManager = m::spy(ChannelConnectionManager::class);
-        $this->channelConnectionManager->shouldReceive('for')
-            ->andReturn($this->channelConnectionManager);
+        $this->channelConnectionManager = Double::for(ChannelConnectionManager::class)->strict();
+        $this->channelConnectionManager->allows('for')
+            ->returns($this->channelConnectionManager);
         $this->app->bind(ChannelConnectionManager::class, fn () => $this->channelConnectionManager);
     }
 
@@ -34,10 +37,10 @@ class ClientEventTest extends ReverbTestCase
         $connectionOne = collect(static::factory(data: ['user_info' => ['name' => 'Joe'], 'user_id' => '1']))->first();
         $connectionTwo = collect(static::factory(data: ['user_info' => ['name' => 'Joe'], 'user_id' => '2']))->first();
 
-        $this->channelConnectionManager->shouldReceive('find')
-            ->andReturn($connectionOne);
-        $this->channelConnectionManager->shouldReceive('all')
-            ->andReturn([$connectionOne, $connectionTwo]);
+        $this->channelConnectionManager->allows('find')
+            ->returns($connectionOne);
+        $this->channelConnectionManager->allows('all')
+            ->returns([$connectionOne, $connectionTwo]);
 
         ClientEvent::handle(
             $connectionOne->connection(),
@@ -71,10 +74,10 @@ class ClientEventTest extends ReverbTestCase
         $connectionOne = collect(static::factory(data: ['user_info' => ['name' => 'Zero'], 'user_id' => 0]))->first();
         $connectionTwo = collect(static::factory(data: ['user_info' => ['name' => 'Two'], 'user_id' => '2']))->first();
 
-        $this->channelConnectionManager->shouldReceive('find')
-            ->andReturn($connectionOne);
-        $this->channelConnectionManager->shouldReceive('all')
-            ->andReturn([$connectionOne, $connectionTwo]);
+        $this->channelConnectionManager->allows('find')
+            ->returns($connectionOne);
+        $this->channelConnectionManager->allows('all')
+            ->returns([$connectionOne, $connectionTwo]);
 
         ClientEvent::handle(
             $connectionOne->connection(),
@@ -138,9 +141,8 @@ class ClientEventTest extends ReverbTestCase
         config()->set('reverb.apps.apps.0.accept_client_events_from', 'all');
         $this->channels()->findOrCreate('test-channel');
 
-        $this->channelConnectionManager->shouldReceive('all')
-            ->once()
-            ->andReturn($connections = static::factory(3));
+        $this->channelConnectionManager->expects('all')
+            ->returns($connections = static::factory(3));
 
         ClientEvent::handle(
             $connections[0]->connection(),
@@ -191,10 +193,10 @@ class ClientEventTest extends ReverbTestCase
         $connectionOne = collect(static::factory(data: ['user_info' => ['name' => 'Joe'], 'user_id' => '1']))->first();
         $connectionTwo = collect(static::factory(data: ['user_info' => ['name' => 'Joe'], 'user_id' => '2']))->first();
 
-        $this->channelConnectionManager->shouldReceive('find')
-            ->andReturn(null);
-        $this->channelConnectionManager->shouldReceive('all')
-            ->andReturn([$connectionTwo]);
+        $this->channelConnectionManager->allows('find')
+            ->returns(null);
+        $this->channelConnectionManager->allows('all')
+            ->returns([$connectionTwo]);
 
         ClientEvent::handle(
             $connectionOne->connection(),
@@ -223,10 +225,10 @@ class ClientEventTest extends ReverbTestCase
         $connectionOne = collect(static::factory(data: ['user_info' => ['name' => 'Joe'], 'user_id' => '1']))->first();
         $connectionTwo = collect(static::factory(data: ['user_info' => ['name' => 'Joe'], 'user_id' => '2']))->first();
 
-        $this->channelConnectionManager->shouldReceive('find')
-            ->andReturn($connectionOne);
-        $this->channelConnectionManager->shouldReceive('all')
-            ->andReturn([$connectionOne, $connectionTwo]);
+        $this->channelConnectionManager->allows('find')
+            ->returns($connectionOne);
+        $this->channelConnectionManager->allows('all')
+            ->returns([$connectionOne, $connectionTwo]);
 
         ClientEvent::handle(
             $connectionOne->connection(),
@@ -253,9 +255,8 @@ class ClientEventTest extends ReverbTestCase
         $connection = new FakeConnection;
         $this->channels()->findOrCreate('test-channel');
 
-        $this->channelConnectionManager->shouldReceive('all')
-            ->once()
-            ->andReturn($connections = static::factory());
+        $this->channelConnectionManager->expects('all')
+            ->returns($connections = static::factory());
 
         ClientEvent::handle(
             $connection,
@@ -278,11 +279,10 @@ class ClientEventTest extends ReverbTestCase
         $connection = new ChannelConnection(new FakeConnection);
         $this->channels()->findOrCreate('private-test-channel');
 
-        $this->channelConnectionManager->shouldReceive('all')
-            ->once()
-            ->andReturn([$connection]);
-        $this->channelConnectionManager->shouldReceive('find')
-            ->andReturn($connection);
+        $this->channelConnectionManager->expects('all')
+            ->returns([$connection]);
+        $this->channelConnectionManager->allows('find')
+            ->returns($connection);
 
         ClientEvent::handle(
             $connection->connection(),
@@ -311,10 +311,10 @@ class ClientEventTest extends ReverbTestCase
 
         $this->channels()->findOrCreate('presence-test-channel');
 
-        $this->channelConnectionManager->shouldReceive('find')
-            ->andReturn($channelConnection);
-        $this->channelConnectionManager->shouldReceive('all')
-            ->andReturn([$channelConnection]);
+        $this->channelConnectionManager->allows('find')
+            ->returns($channelConnection);
+        $this->channelConnectionManager->allows('all')
+            ->returns([$channelConnection]);
 
         ClientEvent::handle(
             $channelConnection->connection(),
@@ -340,7 +340,7 @@ class ClientEventTest extends ReverbTestCase
 
         $connection = new FakeConnection;
 
-        $this->channelConnectionManager->shouldNotReceive('all');
+        $this->channelConnectionManager->expects('all')->never();
 
         ClientEvent::handle(
             $connection,

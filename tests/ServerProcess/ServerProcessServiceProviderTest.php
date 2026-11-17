@@ -16,32 +16,33 @@ use Hypervel\ServerProcess\Events\AfterProcessHandle;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\ServerProcess\ServerProcessServiceProvider;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class ServerProcessServiceProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testLifecycleLoggingIsRegisteredAsPassiveObservation(): void
     {
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('listen')
-            ->with(BeforeMainServerStart::class, m::type(Closure::class))
-            ->once();
-        $events->shouldReceive('observe')
-            ->with(AfterProcessHandle::class, m::type(Closure::class))
-            ->once();
-        $events->shouldReceive('observe')
-            ->with(BeforeProcessHandle::class, m::type(Closure::class))
-            ->once();
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('listen')
+            ->with(BeforeMainServerStart::class, Argument::type(Closure::class));
+        $events->expects('observe')
+            ->with(AfterProcessHandle::class, Argument::type(Closure::class));
+        $events->expects('observe')
+            ->with(BeforeProcessHandle::class, Argument::type(Closure::class));
 
-        $application = m::mock(Application::class);
-        $application->shouldReceive('make')->with('events')->once()->andReturn($events);
+        $application = Double::for(Application::class, override: true)->strict();
+        $application->expects('make')->with('events')->returns($events);
 
-        (new ServerProcessServiceProvider($application))->boot();
+        (new ServerProcessServiceProvider($application->instance()))->boot();
     }
 
     public function testLifecycleObserversLogDispatchedProcessEvents(): void
     {
-        $logger = m::mock(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
         $logger->expects('info')->with('Process[observed.0] start.');
         $logger->expects('info')->with('Process[observed.0] stopped.');
 

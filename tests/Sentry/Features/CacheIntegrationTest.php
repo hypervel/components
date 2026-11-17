@@ -30,7 +30,8 @@ use Hypervel\Session\NullSessionHandler;
 use Hypervel\Session\Store as SessionStore;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Tests\Sentry\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Override;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -44,6 +45,8 @@ use Throwable;
 
 class CacheIntegrationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected array $defaultSetupConfig = [
         'sentry.traces_sample_rate' => 1.0,
         'sentry.features' => [
@@ -286,8 +289,8 @@ class CacheIntegrationTest extends TestCase
     public function testCacheGetFailureFinishesItsSpanAndRethrows(): void
     {
         $exception = new RuntimeException('The cache read failed.');
-        $store = m::mock(Store::class);
-        $store->shouldReceive('get')->once()->with('foo')->andThrow($exception);
+        $store = Double::for(Store::class)->strict();
+        $store->expects('get')->with('foo')->throws($exception);
 
         $span = $this->executeFailureAndReturnMostRecentSpan(
             fn (): mixed => $this->repository($store)->get('foo'),
@@ -300,8 +303,8 @@ class CacheIntegrationTest extends TestCase
     public function testCacheManyFailureFinishesItsSpanAndRethrows(): void
     {
         $exception = new RuntimeException('The cache batch read failed.');
-        $store = m::mock(Store::class);
-        $store->shouldReceive('many')->once()->with(['foo', 'bar'])->andThrow($exception);
+        $store = Double::for(Store::class)->strict();
+        $store->expects('many')->with(['foo', 'bar'])->throws($exception);
 
         $span = $this->executeFailureAndReturnMostRecentSpan(
             fn (): array => $this->repository($store)->many(['foo', 'bar']),
@@ -314,8 +317,8 @@ class CacheIntegrationTest extends TestCase
     public function testCachePutFailureFinishesItsSpanAndRethrows(): void
     {
         $exception = new RuntimeException('The cache write failed.');
-        $store = m::mock(Store::class);
-        $store->shouldReceive('put')->once()->with('foo', 'bar', 60)->andThrow($exception);
+        $store = Double::for(Store::class)->strict();
+        $store->expects('put')->with('foo', 'bar', 60)->throws($exception);
 
         $span = $this->executeFailureAndReturnMostRecentSpan(
             fn (): bool => $this->repository($store)->put('foo', 'bar', 60),
@@ -329,8 +332,8 @@ class CacheIntegrationTest extends TestCase
     public function testCachePutManyFailureFinishesItsSpanAndRethrows(): void
     {
         $exception = new RuntimeException('The cache batch write failed.');
-        $store = m::mock(Store::class);
-        $store->shouldReceive('putMany')->once()->with(['foo' => 'bar', 'baz' => 'qux'], 60)->andThrow($exception);
+        $store = Double::for(Store::class)->strict();
+        $store->expects('putMany')->with(['foo' => 'bar', 'baz' => 'qux'], 60)->throws($exception);
 
         $span = $this->executeFailureAndReturnMostRecentSpan(
             fn (): bool => $this->repository($store)->putMany(['foo' => 'bar', 'baz' => 'qux'], 60),
@@ -344,8 +347,8 @@ class CacheIntegrationTest extends TestCase
     public function testCacheForgetFailureFinishesItsSpanAndRethrows(): void
     {
         $exception = new RuntimeException('The cache forget failed.');
-        $store = m::mock(Store::class);
-        $store->shouldReceive('forget')->once()->with('foo')->andThrow($exception);
+        $store = Double::for(Store::class)->strict();
+        $store->expects('forget')->with('foo')->throws($exception);
 
         $span = $this->executeFailureAndReturnMostRecentSpan(
             fn (): bool => $this->repository($store)->forget('foo'),
@@ -357,8 +360,8 @@ class CacheIntegrationTest extends TestCase
 
     public function testCacheForgetFalseResultFinishesItsSpanWithoutErrorStatus(): void
     {
-        $store = m::mock(Store::class);
-        $store->shouldReceive('forget')->once()->with('foo')->andReturnFalse();
+        $store = Double::for(Store::class)->strict();
+        $store->expects('forget')->with('foo')->returns(false);
 
         $span = $this->executeAndReturnMostRecentSpan(
             fn (): bool => $this->repository($store)->forget('foo'),
@@ -655,8 +658,8 @@ class CacheIntegrationTest extends TestCase
     {
         $this->registerObservedRedisPool();
         $connection = $this->createRedisConnection('default');
-        $session = m::mock(Session::class);
-        $session->shouldReceive('getId')->once()->andReturn('outer-key');
+        $session = Double::for(Session::class)->strict();
+        $session->expects('getId')->returns('outer-key');
         $this->app->bind('session.store', function () use ($connection, $session): Session {
             $this->dispatchHypervelEvent(new CommandExecuted('GET', ['inner-key'], 0.005, $connection));
 
@@ -939,16 +942,16 @@ class CacheIntegrationTest extends TestCase
      */
     private function registerObservedRedisPool(string $connectionName = 'default', int $database = 0, ?float $maxIdleTime = 60.0): void
     {
-        $pool = m::mock(RedisPool::class);
-        $pool->shouldReceive('getOptions')->andReturn(PoolOptions::fromArray(['max_idle_time' => $maxIdleTime]));
-        $pool->shouldReceive('getManagedCount')->andReturn(7);
-        $pool->shouldReceive('getBorrowedCount')->andReturn(2);
-        $pool->shouldReceive('getIdleCount')->andReturn(5);
-        $pool->shouldReceive('getWaitingCount')->andReturn(1);
+        $pool = Double::for(RedisPool::class)->strict();
+        $pool->allows('getOptions')->returns(PoolOptions::fromArray(['max_idle_time' => $maxIdleTime]));
+        $pool->allows('getManagedCount')->returns(7);
+        $pool->allows('getBorrowedCount')->returns(2);
+        $pool->allows('getIdleCount')->returns(5);
+        $pool->allows('getWaitingCount')->returns(1);
 
-        $poolManager = m::mock(PoolManager::class);
-        $poolManager->shouldReceive('getPools')->andReturn([$connectionName => $pool]);
-        $poolManager->shouldNotReceive('pool');
+        $poolManager = Double::for(new PoolManager($this->app))->passthru();
+        $poolManager->allows('getPools')->returns([$connectionName => $pool]);
+        $poolManager->expects('pool')->never();
 
         $this->app->instance(PoolManager::class, $poolManager);
 
@@ -960,8 +963,8 @@ class CacheIntegrationTest extends TestCase
      */
     private function createRedisConnection(string $name): RedisConnection
     {
-        $connection = m::mock(PhpRedisConnection::class);
-        $connection->shouldReceive('getName')->andReturn($name);
+        $connection = Double::for(PhpRedisConnection::class)->strict();
+        $connection->allows('getName')->returns($name);
 
         return $connection;
     }

@@ -11,28 +11,30 @@ use Hypervel\Horizon\JobPayload;
 use Hypervel\Horizon\Listeners\MarkJobAsComplete;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class MarkJobAsCompleteTest extends IntegrationTestCase
 {
+    use VerifiesDoubles;
+
     public function testHandle(): void
     {
-        $payload = m::mock(JobPayload::class);
-        $payload->shouldReceive('tags')->once()->andReturn([]);
-        $payload->shouldReceive('isSilenced')->once()->andReturn(false);
+        $payload = Double::for(JobPayload::class)->strict();
+        $payload->expects('tags')->returns([]);
+        $payload->expects('isSilenced')->returns(false);
 
-        $job = m::mock(RedisJob::class);
-        $job->shouldReceive('hasFailed')->twice()->andReturn(false);
+        $job = Double::for(RedisJob::class)->strict();
+        $job->expects('hasFailed')->times(2)->returns(false);
 
-        $event = m::mock(JobDeleted::class);
+        $event = new JobDeleted($job, '{"id":"1"}');
         $event->payload = $payload;
-        $event->job = $job;
 
-        $jobs = m::mock(JobRepository::class);
-        $jobs->shouldReceive('completed')->once()->with($payload, false, false);
+        $jobs = Double::for(JobRepository::class)->strict();
+        $jobs->expects('completed')->with($payload, false, false);
 
-        $tags = m::mock(TagRepository::class);
-        $tags->shouldReceive('monitored')->once()->with([])->andReturn([]);
+        $tags = Double::for(TagRepository::class)->strict();
+        $tags->expects('monitored')->with([])->returns([]);
 
         $listener = new MarkJobAsComplete($jobs, $tags);
 
@@ -41,25 +43,24 @@ class MarkJobAsCompleteTest extends IntegrationTestCase
 
     public function testHandleWithTag(): void
     {
-        $payload = m::mock(JobPayload::class);
-        $payload->shouldReceive('tags')->once()->andReturn(['tag']);
-        $payload->shouldReceive('isSilenced')->once()->andReturn(false);
+        $payload = Double::for(JobPayload::class)->strict();
+        $payload->expects('tags')->returns(['tag']);
+        $payload->expects('isSilenced')->returns(false);
 
-        $job = m::mock(RedisJob::class);
-        $job->shouldReceive('hasFailed')->twice()->andReturn(false);
+        $job = Double::for(RedisJob::class)->strict();
+        $job->expects('hasFailed')->times(2)->returns(false);
 
-        $event = m::mock(JobDeleted::class);
+        $event = new JobDeleted($job, '{"id":"1"}');
         $event->payload = $payload;
-        $event->job = $job;
         $event->connectionName = 'redis';
         $event->queue = 'default';
 
-        $jobs = m::mock(JobRepository::class);
-        $jobs->shouldReceive('completed')->once()->with($payload, false, false);
-        $jobs->shouldReceive('remember')->once()->with('redis', 'default', $payload);
+        $jobs = Double::for(JobRepository::class)->strict();
+        $jobs->expects('completed')->with($payload, false, false);
+        $jobs->expects('remember')->with('redis', 'default', $payload);
 
-        $tags = m::mock(TagRepository::class);
-        $tags->shouldReceive('monitored')->once()->with(['tag'])->andReturn(['tag']);
+        $tags = Double::for(TagRepository::class)->strict();
+        $tags->expects('monitored')->with(['tag'])->returns(['tag']);
 
         $listener = new MarkJobAsComplete($jobs, $tags);
 

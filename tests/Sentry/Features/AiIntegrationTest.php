@@ -152,8 +152,9 @@ use Hypervel\Tests\Sentry\Features\AiStubs\TestAgent;
 use Hypervel\Tests\Sentry\Features\AiStubs\TestAgentWithConfig;
 use Hypervel\Tests\Sentry\Features\AiStubs\WeatherLookup;
 use Hypervel\Tests\Sentry\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JsonSerializable;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -167,6 +168,8 @@ use Throwable;
 
 class AiIntegrationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     private const string PROVIDER_URL = 'https://api.openai.com/v1';
 
     protected array $defaultSetupConfig = [
@@ -677,8 +680,8 @@ class AiIntegrationTest extends TestCase
         $this->startTransaction();
         [$prompt] = $this->makePromptAndResponse();
         $failure = new RuntimeException('Schema failed.', previous: $canceled ? new CanceledException : null);
-        $tool = m::mock(WeatherLookup::class)->makePartial();
-        $tool->shouldReceive('schema')->once()->andThrow($failure);
+        $tool = Double::for(new WeatherLookup)->passthru();
+        $tool->expects('schema')->throws($failure);
         $this->dispatchHypervelEvent(new PromptingAgent('schema', $prompt));
         $caught = null;
 
@@ -864,7 +867,7 @@ class AiIntegrationTest extends TestCase
     private function makeProvider(): OpenAiProvider
     {
         return new OpenAiProvider(
-            m::mock(Gateway::class),
+            Double::for(Gateway::class)->strict(),
             ['name' => 'openai', 'driver' => 'openai', 'key' => 'test-key'],
             $this->app->make('events')
         );

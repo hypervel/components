@@ -9,7 +9,8 @@ use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Hypervel\Reverb\Servers\Hypervel\TerminateUserPipeMessage;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 use Swoole\Server;
 
 class UsersTerminateControllerTest extends ReverbTestCase
@@ -63,16 +64,16 @@ class UsersTerminateControllerTest extends ReverbTestCase
 
     public function testTerminatesMatchingUserConnectionsOnEverySiblingWorker(): void
     {
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->setting = ['worker_num' => 3];
         $server->worker_id = 1;
         $server->expects('sendMessage')
-            ->with(m::on(fn (TerminateUserPipeMessage $message): bool => $message->appId === '123456'
+            ->with(Argument::satisfies(fn (TerminateUserPipeMessage $message): bool => $message->appId === '123456'
                 && $message->userId === '456'), 0)
-            ->andReturnTrue();
+            ->returns(true);
         $server->expects('sendMessage')
-            ->with(m::type(TerminateUserPipeMessage::class), 2)
-            ->andReturnTrue();
+            ->with(Argument::type(TerminateUserPipeMessage::class), 2)
+            ->returns(true);
         $this->app->instance(Server::class, $server);
 
         $response = $this->signedPostRequest('users/456/terminate_connections');
@@ -83,15 +84,15 @@ class UsersTerminateControllerTest extends ReverbTestCase
 
     public function testRejectedSiblingTerminationAttemptsEveryWorkerAndReturnsAnError(): void
     {
-        $server = m::mock(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->setting = ['worker_num' => 3];
         $server->worker_id = 0;
         $server->expects('sendMessage')
-            ->with(m::type(TerminateUserPipeMessage::class), 1)
-            ->andReturnFalse();
+            ->with(Argument::type(TerminateUserPipeMessage::class), 1)
+            ->returns(false);
         $server->expects('sendMessage')
-            ->with(m::type(TerminateUserPipeMessage::class), 2)
-            ->andReturnTrue();
+            ->with(Argument::type(TerminateUserPipeMessage::class), 2)
+            ->returns(true);
         $this->app->instance(Server::class, $server);
 
         $response = $this->signedPostRequest('users/456/terminate_connections');
@@ -101,19 +102,17 @@ class UsersTerminateControllerTest extends ReverbTestCase
 
     public function testPublishesTerminateViaPubsubWhenScalingEnabled(): void
     {
-        $serverManager = m::mock(ServerProviderManager::class);
-        $serverManager->shouldReceive('subscribesToEvents')->andReturn(true);
-        $this->app->instance(ServerProviderManager::class, $serverManager);
+        $this->app->make(ServerProviderManager::class)->withPublishing();
 
-        $pubSub = m::mock(PubSubProvider::class);
-        $pubSub->shouldReceive('publish')->once()->with(m::on(function (array $payload) {
+        $pubSub = Double::for(PubSubProvider::class)->strict();
+        $pubSub->expects('publish')->with(Argument::satisfies(function (array $payload) {
             return $payload['type'] === 'terminate'
                 && $payload['app_id'] === '123456'
                 && $payload['user_id'] === '456';
         }));
         $this->app->instance(PubSubProvider::class, $pubSub);
-        $server = m::mock(Server::class);
-        $server->shouldNotReceive('sendMessage');
+        $server = Double::for(Server::class)->strict();
+        $server->expects('sendMessage')->never();
         $this->app->instance(Server::class, $server);
 
         $response = $this->signedPostRequest('users/456/terminate_connections');

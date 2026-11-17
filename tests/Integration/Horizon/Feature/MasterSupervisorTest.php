@@ -20,12 +20,15 @@ use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Commands\FakeMasterComma
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\EternalSupervisor;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\SupervisorProcessWithFakeRestart;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Process\Process;
 
 class MasterSupervisorTest extends IntegrationTestCase
 {
+    use VerifiesDoubles;
+
     public function testNamesCanBeCustomized(): void
     {
         MasterSupervisor::determineNameUsing(function () {
@@ -42,7 +45,9 @@ class MasterSupervisorTest extends IntegrationTestCase
     #[DataProvider('terminalExitCodes')]
     public function testMasterProcessMarksTerminalExitsAsDeadAndRemovesThem(int $exitCode): void
     {
-        $process = m::mock(Process::class);
+        $process = Double::for(Process::class)->strict();
+        // Symfony's destructor stops the process even when no real process was started.
+        $process->allows('stop')->with(0.0);
         $master = new MasterSupervisor;
         $master->working = true;
         $master->supervisors[] = $supervisorProcess = new SupervisorProcess(
@@ -50,9 +55,9 @@ class MasterSupervisorTest extends IntegrationTestCase
             $process
         );
 
-        $process->shouldReceive('isStarted')->andReturn(true);
-        $process->shouldReceive('isRunning')->andReturn(false);
-        $process->shouldReceive('getExitCode')->andReturn($exitCode);
+        $process->allows('isStarted')->returns(true);
+        $process->allows('isRunning')->returns(false);
+        $process->allows('getExitCode')->returns($exitCode);
 
         $master->loop();
 
@@ -72,7 +77,8 @@ class MasterSupervisorTest extends IntegrationTestCase
     #[DataProvider('restartableExitCodes')]
     public function testMasterProcessRestartsUnexpectedExits(?int $exitCode): void
     {
-        $process = m::mock(Process::class);
+        $process = Double::for(Process::class)->strict();
+        $process->allows('stop')->with(0.0);
         $master = new MasterSupervisor;
         $master->working = true;
         $master->supervisors[] = $supervisorProcess = new SupervisorProcessWithFakeRestart(
@@ -80,9 +86,9 @@ class MasterSupervisorTest extends IntegrationTestCase
             $process
         );
 
-        $process->shouldReceive('isStarted')->andReturn(true);
-        $process->shouldReceive('isRunning')->andReturn(false);
-        $process->shouldReceive('getExitCode')->andReturn($exitCode);
+        $process->allows('isStarted')->returns(true);
+        $process->allows('isRunning')->returns(false);
+        $process->allows('getExitCode')->returns($exitCode);
 
         $master->loop();
 
@@ -111,7 +117,8 @@ class MasterSupervisorTest extends IntegrationTestCase
 
     public function testMasterProcessRestartsProcessesThatNeverStarted(): void
     {
-        $process = m::mock(Process::class);
+        $process = Double::for(Process::class)->strict();
+        $process->allows('stop')->with(0.0);
         $master = new MasterSupervisor;
         $master->working = true;
         $master->supervisors[] = $supervisorProcess = new SupervisorProcessWithFakeRestart(
@@ -119,7 +126,7 @@ class MasterSupervisorTest extends IntegrationTestCase
             $process
         );
 
-        $process->shouldReceive('isStarted')->andReturn(false);
+        $process->allows('isStarted')->returns(false);
 
         $master->loop();
 
@@ -130,15 +137,16 @@ class MasterSupervisorTest extends IntegrationTestCase
 
     public function testMasterProcessStartsUnstartedProcessesWhenUnpaused(): void
     {
-        $process = m::mock(Process::class);
+        $process = Double::for(Process::class)->strict();
+        $process->allows('stop')->with(0.0);
         $master = new MasterSupervisor;
         $master->supervisors[] = $supervisorProcess = new SupervisorProcessWithFakeRestart(
             $this->supervisorOptions(),
             $process
         );
 
-        $process->shouldReceive('isStarted')->andReturn(false);
-        $process->shouldReceive('isRunning')->andReturn(false);
+        $process->allows('isStarted')->returns(false);
+        $process->allows('isRunning')->returns(false);
 
         $master->loop();
 
@@ -172,13 +180,14 @@ class MasterSupervisorTest extends IntegrationTestCase
 
     public function testMasterProcessInformationIsPersisted(): void
     {
-        $process = m::mock(Process::class);
+        $process = Double::for(Process::class)->strict();
+        $process->allows('stop')->with(0.0);
         $master = new MasterSupervisor;
         $master->working = true;
         $master->supervisors[] = new SupervisorProcess($this->supervisorOptions(), $process);
-        $process->shouldReceive('isStarted')->andReturn(true);
-        $process->shouldReceive('isRunning')->andReturn(true);
-        $process->shouldReceive('signal');
+        $process->allows('isStarted')->returns(true);
+        $process->allows('isRunning')->returns(true);
+        $process->allows('signal');
 
         $master->loop();
 
