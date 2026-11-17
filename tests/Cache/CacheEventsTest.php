@@ -36,6 +36,7 @@ use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -419,6 +420,7 @@ class CacheEventsTest extends TestCase
             'forever' => ['forever', ['foo', 'bar'], 'forever', ['foo', 'bar'], WritingKey::class],
             'forget' => ['forget', ['foo'], 'forget', ['foo'], ForgettingKey::class],
             'clear' => ['flush', [], 'clear', [], CacheFlushing::class],
+            'flush' => ['flush', [], 'flush', [], CacheFlushing::class],
             'flush locks' => ['flushLocks', [], 'flushLocks', [], CacheLocksFlushing::class],
         ];
 
@@ -592,12 +594,14 @@ class CacheEventsTest extends TestCase
         $this->assertSame([], $this->dispatchedEvents);
     }
 
-    public function testFlushTriggersEvents(): void
+    #[TestWith(['clear'])]
+    #[TestWith(['flush'])]
+    public function testFlushTriggersEvents(string $method): void
     {
         $dispatcher = $this->getDispatcher();
         $repository = $this->getRepository($dispatcher);
 
-        $this->assertTrue($repository->clear());
+        $this->assertTrue($repository->{$method}());
         $this->assertEventDispatched(CacheFlushing::class, ['storeName' => 'array']);
         $this->assertEventDispatched(CacheFlushed::class, ['storeName' => 'array']);
 
@@ -620,7 +624,9 @@ class CacheEventsTest extends TestCase
         ], array_map(get_class(...), $events));
     }
 
-    public function testFlushDispatchesFailureEventWithExactException(): void
+    #[TestWith(['clear'])]
+    #[TestWith(['flush'])]
+    public function testFlushDispatchesFailureEventWithExactException(string $method): void
     {
         $exception = new RuntimeException('The cache flush failed.');
         $store = Double::for(Store::class);
@@ -630,7 +636,7 @@ class CacheEventsTest extends TestCase
         $repository->setEventDispatcher($this->getCapturingDispatcher($events));
 
         try {
-            $repository->clear();
+            $repository->{$method}();
             $this->fail('Expected the cache flush exception to be rethrown.');
         } catch (RuntimeException $caught) {
             $this->assertSame($exception, $caught);
@@ -676,7 +682,9 @@ class CacheEventsTest extends TestCase
         $this->assertSame($exception, $events[1]->exception);
     }
 
-    public function testFlushFailureDoesDispatchEvent(): void
+    #[TestWith(['clear'])]
+    #[TestWith(['flush'])]
+    public function testFlushFailureDoesDispatchEvent(string $method): void
     {
         $dispatcher = $this->getDispatcher();
 
@@ -687,7 +695,7 @@ class CacheEventsTest extends TestCase
         $repository = new Repository($failingStore, ['store' => 'array']);
         $repository->setEventDispatcher($dispatcher);
 
-        $this->assertFalse($repository->clear());
+        $this->assertFalse($repository->{$method}());
         $this->assertEventDispatched(CacheFlushing::class, ['storeName' => 'array']);
         $this->assertEventDispatched(CacheFlushFailed::class, ['storeName' => 'array', 'exception' => null]);
 
