@@ -7,8 +7,8 @@ namespace Hypervel\Tests\Saloon\Pagination;
 use Closure;
 use GuzzleHttp\Psr7\Query;
 use GuzzleHttp\Psr7\Response as PsrResponse;
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Client\Factory;
@@ -34,8 +34,9 @@ use Hypervel\Saloon\Pagination\OffsetPaginator;
 use Hypervel\Saloon\Pagination\PagedPaginator;
 use Hypervel\Saloon\SaloonManager;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Http\Message\UriInterface;
@@ -47,6 +48,8 @@ use WeakReference;
 
 class PaginatorTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('currentPageLoads')]
     public function testCurrentLoadsEachPageOnceAndRetriesFailedMapping(string $class, array $queries, int $mappingFailures): void
     {
@@ -1210,13 +1213,12 @@ class PaginatorTest extends TestCase
     {
         $http = new Factory;
         $http->registerConnection('saloon');
-        $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('string')->with('saloon.connection.name')->andReturn('saloon');
+        $config = new ConfigRepository(['saloon' => ['connection' => ['name' => 'saloon']]]);
 
         return new SaloonManager(
             new Sender($http, $config),
-            m::mock(CacheFactory::class),
-            m::mock(RateLimiter::class),
+            Double::for(CacheFactory::class)->strict(),
+            Double::for(RateLimiter::class, override: true)->strict()->instance(),
             $config,
             new Dispatcher,
         );
