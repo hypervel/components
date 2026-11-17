@@ -11,20 +11,24 @@ use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Routing\Pipeline;
 use Hypervel\Tests\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
-use Mockery as m;
 use RuntimeException;
 use Throwable;
 
 class RoutingPipelineTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testReportingFailureRetainsTheOriginalException(): void
     {
         $original = new RuntimeException('original');
         $failure = new LogicException('reporting failed');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->expects('report')->with($original)->andThrow($failure);
-        $handler->shouldNotReceive('render');
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with($original)->throws($failure);
+        $handler->expects('render')->never();
 
         $caught = $this->handleAndCatch($handler, $original);
 
@@ -36,9 +40,9 @@ class RoutingPipelineTest extends TestCase
     {
         $original = new RuntimeException('original');
         $failure = new LogicException('rendering failed');
-        $handler = m::mock(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $handler->expects('report')->with($original);
-        $handler->expects('render')->with(m::type(Request::class), $original)->andThrow($failure);
+        $handler->expects('render')->with(Argument::type(Request::class), $original)->throws($failure);
 
         $caught = $this->handleAndCatch($handler, $original);
 
@@ -51,8 +55,8 @@ class RoutingPipelineTest extends TestCase
         $original = new RuntimeException('original');
         $existing = new DomainException('existing');
         $failure = new LogicException('reporting failed', previous: $existing);
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->expects('report')->with($original)->andThrow($failure);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with($original)->throws($failure);
 
         $caught = $this->handleAndCatch($handler, $original);
 
@@ -64,8 +68,8 @@ class RoutingPipelineTest extends TestCase
     public function testRethrowingTheOriginalExceptionDoesNotCreateASelfReferentialChain(): void
     {
         $original = new RuntimeException('original');
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->expects('report')->with($original)->andThrow($original);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with($original)->throws($original);
 
         $caught = $this->handleAndCatch($handler, $original);
 
@@ -77,9 +81,9 @@ class RoutingPipelineTest extends TestCase
     {
         $original = new RuntimeException('original');
         $response = new Response('handled', 500);
-        $handler = m::mock(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $handler->expects('report')->with($original);
-        $handler->expects('render')->with(m::type(Request::class), $original)->andReturn($response);
+        $handler->expects('render')->with(Argument::type(Request::class), $original)->returns($response);
 
         $this->assertSame($response, $this->pipeline($handler)->handleThrowable(new Request, $original));
     }
