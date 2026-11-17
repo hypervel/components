@@ -10,7 +10,8 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Server\Commands\ServerReloadCommand;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Swoole\Constant;
 use Symfony\Component\Console\Command\Command;
@@ -18,10 +19,12 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 class ServerReloadCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testReloadCommandThrowsCommandExceptionWhenPidFileConfigIsMissing(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldNotReceive('get');
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $filesystem->expects('get')->never();
         $command = $this->reloadCommand([], $filesystem);
 
         $this->expectException(InvalidArgumentException::class);
@@ -32,8 +35,8 @@ class ServerReloadCommandTest extends TestCase
 
     public function testReloadCommandFailsWhenPidFileCannotBeRead(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->expects('get')->with('/tmp/hypervel.pid')->andThrow(
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $filesystem->expects('get')->with('/tmp/hypervel.pid')->throws(
             new FileNotFoundException('File does not exist.')
         );
         $command = $this->reloadCommand($this->settings(), $filesystem);
@@ -50,8 +53,8 @@ class ServerReloadCommandTest extends TestCase
     #[DataProvider('invalidProcessIds')]
     public function testReloadCommandRejectsInvalidProcessIds(string $contents): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->expects('get')->with('/tmp/hypervel.pid')->andReturn($contents);
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $filesystem->expects('get')->with('/tmp/hypervel.pid')->returns($contents);
         $command = $this->reloadCommand($this->settings(), $filesystem);
         $tester = new CommandTester($command);
 
@@ -63,6 +66,9 @@ class ServerReloadCommandTest extends TestCase
         $this->assertSame([], $command->signals);
     }
 
+    /**
+     * Provide invalid PID-file contents.
+     */
     public static function invalidProcessIds(): array
     {
         return [
@@ -77,8 +83,8 @@ class ServerReloadCommandTest extends TestCase
 
     public function testReloadCommandSignalsEventWorkers(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->expects('get')->with('/tmp/hypervel.pid')->andReturn("123\n");
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $filesystem->expects('get')->with('/tmp/hypervel.pid')->returns("123\n");
         $command = $this->reloadCommand($this->settings(), $filesystem);
         $command->returnSignalResults(true);
         $tester = new CommandTester($command);
@@ -92,8 +98,8 @@ class ServerReloadCommandTest extends TestCase
 
     public function testReloadCommandSignalsEventAndTaskWorkers(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->expects('get')->with('/tmp/hypervel.pid')->andReturn('123');
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $filesystem->expects('get')->with('/tmp/hypervel.pid')->returns('123');
         $command = $this->reloadCommand($this->settings(taskWorkers: 2), $filesystem);
         $command->returnSignalResults(true, true);
         $tester = new CommandTester($command);
@@ -106,8 +112,8 @@ class ServerReloadCommandTest extends TestCase
 
     public function testReloadCommandFailsWhenEventWorkersCannotBeSignaled(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->expects('get')->with('/tmp/hypervel.pid')->andReturn('123');
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $filesystem->expects('get')->with('/tmp/hypervel.pid')->returns('123');
         $command = $this->reloadCommand($this->settings(taskWorkers: 2), $filesystem);
         $command->returnSignalResults(false);
         $tester = new CommandTester($command);
@@ -121,8 +127,8 @@ class ServerReloadCommandTest extends TestCase
 
     public function testReloadCommandFailsWhenTaskWorkersCannotBeSignaled(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->expects('get')->with('/tmp/hypervel.pid')->andReturn('123');
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $filesystem->expects('get')->with('/tmp/hypervel.pid')->returns('123');
         $command = $this->reloadCommand($this->settings(taskWorkers: 2), $filesystem);
         $command->returnSignalResults(true, false);
         $tester = new CommandTester($command);
@@ -133,6 +139,9 @@ class ServerReloadCommandTest extends TestCase
         $this->assertStringNotContainsString('Done.', $tester->getDisplay());
     }
 
+    /**
+     * Create a reload command with the supplied configuration and filesystem.
+     */
     private function reloadCommand(array $config, Filesystem $filesystem): ServerReloadCommandTestCommand
     {
         $command = new ServerReloadCommandTestCommand(new Repository($config), $filesystem);
@@ -141,6 +150,9 @@ class ServerReloadCommandTest extends TestCase
         return $command;
     }
 
+    /**
+     * Provide server PID and worker settings.
+     */
     private function settings(int $taskWorkers = 0): array
     {
         return [
@@ -162,11 +174,17 @@ class ServerReloadCommandTestCommand extends ServerReloadCommand
     /** @var list<bool> */
     private array $signalResults = [];
 
+    /**
+     * Set the results returned by successive signal attempts.
+     */
     public function returnSignalResults(bool ...$results): void
     {
         $this->signalResults = $results;
     }
 
+    /**
+     * Record the signal and return its configured result.
+     */
     protected function signalProcess(int $pid, int $signal): bool
     {
         $this->signals[] = [$pid, $signal];

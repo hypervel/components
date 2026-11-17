@@ -5,14 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Server\Listeners;
 
 use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
-use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\Tests\Server\Fixtures\DemoProcess;
 use Hypervel\Tests\Server\Fixtures\InitProcessTitleListenerStub;
 use Hypervel\Tests\Server\Fixtures\InitProcessTitleListenerStub2;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 
 class InitProcessTitleListenerTest extends TestCase
 {
@@ -85,11 +84,11 @@ class InitProcessTitleListenerTest extends TestCase
         }
     }
 
+    /**
+     * Create the process without an event dispatcher.
+     */
     private function process(): DemoProcess
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('bound')->with('events')->andReturnFalse();
-
-        return new DemoProcess($container);
+        return new DemoProcess(new Container);
     }
 }

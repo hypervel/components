@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Server;
 
+use Hypervel\Config\Repository;
 use Hypervel\Console\Command as ConsoleCommand;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Foundation\Application;
@@ -14,7 +14,8 @@ use Hypervel\Server\ServerFactory;
 use Hypervel\Server\ServerInterface;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
@@ -23,6 +24,8 @@ use Symfony\Component\Console\Output\NullOutput;
 
 class ServerStartCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     // REMOVED: ServeCommandLogParserTest; Swoole does not emit PHP's built-in-server request logs.
 
     public function testServeCommandFailsFastWhenRunningInConsoleIsTrue(): void
@@ -58,17 +61,16 @@ class ServerStartCommandTest extends TestCase
             ],
         ];
 
-        $serverFactory = m::mock(ServerFactory::class);
-        $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('configure')->once()->with($serverConfig);
-        $serverFactory->shouldReceive('start')->once();
+        $serverFactory = Double::for(ServerFactory::class)->strict();
+        $serverFactory->expects('setEventDispatcher');
+        $serverFactory->expects('setLogger');
+        $serverFactory->expects('configure')->with($serverConfig);
+        $serverFactory->expects('start');
 
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('array')->once()->with('server')->andReturn($serverConfig);
+        $config = new Repository(['server' => $serverConfig]);
 
-        $dispatcher = m::mock(DispatcherContract::class);
-        $logger = m::mock(StdoutLoggerInterface::class);
+        $dispatcher = Double::for(DispatcherContract::class)->strict();
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
 
         $this->app->instance(ServerFactory::class, $serverFactory);
         $this->app->instance('events', $dispatcher);
@@ -118,18 +120,16 @@ class ServerStartCommandTest extends TestCase
             ],
         ];
 
-        $serverFactory = m::mock(ServerFactory::class);
-        $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('configure')->once()->with(['servers' => $expectedServers]);
-        $serverFactory->shouldReceive('start')->once();
+        $serverFactory = Double::for(ServerFactory::class)->strict();
+        $serverFactory->expects('setEventDispatcher');
+        $serverFactory->expects('setLogger');
+        $serverFactory->expects('configure')->with(['servers' => $expectedServers]);
+        $serverFactory->expects('start');
 
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('array')->once()->with('server')->andReturn($serverConfig);
-        $config->shouldReceive('set')->once()->with('server.servers', $expectedServers);
+        $config = new Repository(['server' => $serverConfig]);
 
-        $dispatcher = m::mock(DispatcherContract::class);
-        $logger = m::mock(StdoutLoggerInterface::class);
+        $dispatcher = Double::for(DispatcherContract::class)->strict();
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
 
         $this->app->instance(ServerFactory::class, $serverFactory);
         $this->app->instance('events', $dispatcher);
@@ -146,6 +146,7 @@ class ServerStartCommandTest extends TestCase
         ]), new NullOutput);
 
         $this->assertSame(0, $result);
+        $this->assertSame($expectedServers, $config->array('server.servers'));
     }
 
     public function testServeCommandOverridesHostAndPortForTheDefaultHttpServerType(): void
@@ -168,18 +169,16 @@ class ServerStartCommandTest extends TestCase
             ],
         ];
 
-        $serverFactory = m::mock(ServerFactory::class);
-        $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('configure')->once()->with(['servers' => $expectedServers]);
-        $serverFactory->shouldReceive('start')->once();
+        $serverFactory = Double::for(ServerFactory::class)->strict();
+        $serverFactory->expects('setEventDispatcher');
+        $serverFactory->expects('setLogger');
+        $serverFactory->expects('configure')->with(['servers' => $expectedServers]);
+        $serverFactory->expects('start');
 
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('array')->once()->with('server')->andReturn($serverConfig);
-        $config->shouldReceive('set')->once()->with('server.servers', $expectedServers);
+        $config = new Repository(['server' => $serverConfig]);
 
-        $dispatcher = m::mock(DispatcherContract::class);
-        $logger = m::mock(StdoutLoggerInterface::class);
+        $dispatcher = Double::for(DispatcherContract::class)->strict();
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
 
         $this->app->instance(ServerFactory::class, $serverFactory);
         $this->app->instance('events', $dispatcher);
@@ -196,6 +195,7 @@ class ServerStartCommandTest extends TestCase
         ]), new NullOutput);
 
         $this->assertSame(0, $result);
+        $this->assertSame($expectedServers, $config->array('server.servers'));
     }
 
     #[DataProvider('hostAndPortProvider')]
@@ -221,9 +221,9 @@ class ServerStartCommandTest extends TestCase
             'sock_type' => $expectedSocketType,
         ]);
 
-        $serverFactory = m::mock(ServerFactory::class);
-        $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
+        $serverFactory = Double::for(ServerFactory::class)->strict();
+        $serverFactory->expects('setEventDispatcher');
+        $serverFactory->expects('setLogger');
         $serverFactory->expects('configure')->with(['servers' => [$expectedServer]]);
         $serverFactory->expects('start');
         $this->app->instance(ServerFactory::class, $serverFactory);
@@ -265,12 +265,11 @@ class ServerStartCommandTest extends TestCase
     #[DataProvider('invalidServePorts')]
     public function testServeCommandRejectsInvalidPortOption(array $options): void
     {
-        $serverFactory = m::mock(ServerFactory::class);
-        $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
+        $serverFactory = Double::for(ServerFactory::class)->strict();
+        $serverFactory->expects('setEventDispatcher');
+        $serverFactory->expects('setLogger');
 
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('array')->once()->with('server')->andReturn([
+        $config = new Repository(['server' => [
             'servers' => [
                 [
                     'name' => 'http',
@@ -279,10 +278,10 @@ class ServerStartCommandTest extends TestCase
                     'port' => 8000,
                 ],
             ],
-        ]);
+        ]]);
 
-        $dispatcher = m::mock(DispatcherContract::class);
-        $logger = m::mock(StdoutLoggerInterface::class);
+        $dispatcher = Double::for(DispatcherContract::class)->strict();
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
 
         $this->app->instance(ServerFactory::class, $serverFactory);
         $this->app->instance('events', $dispatcher);
@@ -318,12 +317,11 @@ class ServerStartCommandTest extends TestCase
 
     public function testServeCommandRejectsAddressOptionsWithoutHttpServer(): void
     {
-        $serverFactory = m::mock(ServerFactory::class);
-        $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
+        $serverFactory = Double::for(ServerFactory::class)->strict();
+        $serverFactory->expects('setEventDispatcher');
+        $serverFactory->expects('setLogger');
 
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('array')->once()->with('server')->andReturn([
+        $config = new Repository(['server' => [
             'servers' => [
                 [
                     'name' => 'reverb',
@@ -332,10 +330,10 @@ class ServerStartCommandTest extends TestCase
                     'port' => 8080,
                 ],
             ],
-        ]);
+        ]]);
 
-        $dispatcher = m::mock(DispatcherContract::class);
-        $logger = m::mock(StdoutLoggerInterface::class);
+        $dispatcher = Double::for(DispatcherContract::class)->strict();
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
 
         $this->app->instance(ServerFactory::class, $serverFactory);
         $this->app->instance('events', $dispatcher);
