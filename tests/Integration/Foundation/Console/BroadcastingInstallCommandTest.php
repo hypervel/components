@@ -14,8 +14,10 @@ use Hypervel\Process\PendingProcess;
 use Hypervel\Support\Facades\ParallelTesting;
 use Hypervel\Support\Facades\Process;
 use Hypervel\Tests\Testing\Fixtures\CleanupActions;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use JsonException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
@@ -27,6 +29,8 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Original bootstrap/app.php content to restore after each test.
      */
@@ -527,9 +531,9 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         file_put_contents($channelsPath, 'existing route');
         $source = dirname((new ReflectionClass(BroadcastingInstallCommand::class))->getFileName())
             . '/stubs/broadcasting-routes.stub';
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $readException = new FileNotFoundException("File does not exist at path [{$source}].");
-        $files->shouldReceive('get')->once()->with($source)->andThrow($readException);
+        $files->expects('get')->with($source)->throws($readException);
         $this->app->instance('files', $files);
         $tester = $this->commandTester(new TestableBroadcastingInstallCommand);
 
@@ -557,13 +561,11 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->createdFiles[] = $channelsPath;
         file_put_contents($channelsPath, 'existing route');
         chmod($channelsPath, 0640);
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $publicationException = new RuntimeException('Unable to publish broadcasting route file.');
-        $files->shouldReceive('replace')->byDefault()->passthru();
-        $files->shouldReceive('replace')
-            ->once()
-            ->with($channelsPath, m::type('string'), 0640)
-            ->andThrow($publicationException);
+        $files->allows('replace')
+            ->with($channelsPath, Argument::type('string'), 0640)
+            ->throws($publicationException);
         $this->app->instance('files', $files);
         $tester = $this->commandTester(new TestableBroadcastingInstallCommand);
 
@@ -595,9 +597,9 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $originalAppJs = file_get_contents($appJsPath);
         $originalEnv = file_get_contents($envPath);
         $this->createdFiles[] = $channelsPath;
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $readException = new FileNotFoundException("File does not exist at path [{$bootstrapPath}].");
-        $files->shouldReceive('get')->once()->with($bootstrapPath)->andThrow($readException);
+        $files->allows('get')->with($bootstrapPath)->throws($readException);
         $this->app->instance('files', $files);
         $tester = $this->commandTester(new TestableBroadcastingInstallCommand);
 
@@ -626,13 +628,11 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $appJsContent = file_get_contents($appJsPath);
         $envContent = file_get_contents($envPath);
         $this->createdFiles[] = $channelsPath;
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $publicationException = new RuntimeException('Unable to update the application bootstrap file.');
-        $files->shouldReceive('replace')->byDefault()->passthru();
-        $files->shouldReceive('replace')
-            ->once()
-            ->with($bootstrapPath, m::type('string'), $bootstrapPermissions)
-            ->andThrow($publicationException);
+        $files->allows('replace')
+            ->with($bootstrapPath, Argument::type('string'), $bootstrapPermissions)
+            ->throws($publicationException);
         $this->app->instance('files', $files);
         $tester = $this->commandTester(new TestableBroadcastingInstallCommand);
 
@@ -663,9 +663,9 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
             . '/stubs/echo-js-reverb.stub';
         $this->createdFiles[] = $channelsPath;
         $this->createdFiles[] = $echoPath;
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $readException = new FileNotFoundException("File does not exist at path [{$source}].");
-        $files->shouldReceive('get')->once()->with($source)->andThrow($readException);
+        $files->allows('get')->with($source)->throws($readException);
         $this->app->instance('files', $files);
         $tester = $this->commandTester(new TestableBroadcastingInstallCommand);
 
@@ -690,13 +690,11 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->createdFiles[] = $echoPath;
         file_put_contents($appJsPath, '// existing app script' . PHP_EOL);
         chmod($appJsPath, 0640);
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $publicationException = new RuntimeException('Unable to update application script.');
-        $files->shouldReceive('replace')->byDefault()->passthru();
-        $files->shouldReceive('replace')
-            ->once()
-            ->with($appJsPath, m::type('string'), 0640)
-            ->andThrow($publicationException);
+        $files->allows('replace')
+            ->with($appJsPath, Argument::type('string'), 0640)
+            ->throws($publicationException);
         $this->app->instance('files', $files);
         $tester = $this->commandTester(new TestableBroadcastingInstallCommand);
 

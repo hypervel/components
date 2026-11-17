@@ -12,7 +12,9 @@ use Hypervel\Process\PendingProcess;
 use Hypervel\Support\Facades\Process;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Testing\Fixtures\CleanupActions;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use RuntimeException;
@@ -22,6 +24,8 @@ use Symfony\Component\Process\Exception\ProcessFailedException as SymfonyProcess
 
 class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Original bootstrap/app.php content to restore after each test.
      */
@@ -397,9 +401,9 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->createdFiles[] = $apiRoutesPath;
         file_put_contents($apiRoutesPath, 'existing route');
         $source = dirname((new ReflectionClass(ApiInstallCommand::class))->getFileName()) . '/stubs/api-routes.stub';
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $readException = new FileNotFoundException("File does not exist at path [{$source}].");
-        $files->shouldReceive('get')->once()->with($source)->andThrow($readException);
+        $files->expects('get')->with($source)->throws($readException);
         $this->app->instance('files', $files);
         $tester = $this->commandTester(new TestableApiInstallCommand);
 
@@ -423,12 +427,11 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->createdFiles[] = $apiRoutesPath;
         file_put_contents($apiRoutesPath, 'existing route');
         chmod($apiRoutesPath, 0640);
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $publicationException = new RuntimeException('Unable to publish API route file.');
-        $files->shouldReceive('replace')
-            ->once()
-            ->with($apiRoutesPath, m::type('string'), 0640)
-            ->andThrow($publicationException);
+        $files->expects('replace')
+            ->with($apiRoutesPath, Argument::type('string'), 0640)
+            ->throws($publicationException);
         $this->app->instance('files', $files);
         $tester = $this->commandTester(new TestableApiInstallCommand);
 
@@ -452,9 +455,9 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
         $apiRoutesPath = $this->app->basePath('routes/api.php');
         $bootstrapPath = $this->app->bootstrapPath('app.php');
         $this->createdFiles[] = $apiRoutesPath;
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $readException = new FileNotFoundException("File does not exist at path [{$bootstrapPath}].");
-        $files->shouldReceive('get')->with($bootstrapPath)->once()->andThrow($readException);
+        $files->allows('get')->with($bootstrapPath)->throws($readException);
         $this->app->instance('files', $files);
         $tester = $this->commandTester(new TestableApiInstallCommand);
 
@@ -479,13 +482,11 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
         $bootstrapContent = file_get_contents($bootstrapPath);
         $bootstrapPermissions = fileperms($bootstrapPath) & 0777;
         $this->createdFiles[] = $apiRoutesPath;
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $publicationException = new RuntimeException('Unable to update the application bootstrap file.');
-        $files->shouldReceive('replace')->byDefault()->passthru();
-        $files->shouldReceive('replace')
-            ->once()
-            ->with($bootstrapPath, m::type('string'), $bootstrapPermissions)
-            ->andThrow($publicationException);
+        $files->allows('replace')
+            ->with($bootstrapPath, Argument::type('string'), $bootstrapPermissions)
+            ->throws($publicationException);
         $this->app->instance('files', $files);
         $tester = $this->commandTester(new TestableApiInstallCommand);
 

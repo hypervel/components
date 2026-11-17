@@ -6,11 +6,14 @@ namespace Hypervel\Tests\Integration\Foundation\Console;
 
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class StorageCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected Filesystem $files;
 
     protected function setUp(): void
@@ -111,8 +114,8 @@ class StorageCommandTest extends TestCase
 
         symlink($target, $link);
 
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('delete')->once()->with($link)->andReturnFalse();
+        $files = Double::for(Filesystem::class)->strict();
+        $files->expects('delete')->with($link)->returns(false);
         $this->app->instance('files', $files);
 
         $this->expectException(RuntimeException::class);
@@ -128,8 +131,8 @@ class StorageCommandTest extends TestCase
 
         symlink($target, $link);
 
-        $files = m::mock(Filesystem::class)->makePartial();
-        $files->shouldReceive('delete')->once()->with($link)->andReturnUsing(function () use ($link): bool {
+        $files = Double::for(new Filesystem)->passthru();
+        $files->expects('delete')->with($link)->resolves(function () use ($link): bool {
             unlink($link);
 
             return false;
@@ -147,8 +150,8 @@ class StorageCommandTest extends TestCase
     {
         $link = $this->app->publicPath('storage');
         $target = $this->app->storagePath('app/public');
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('link')->once()->with($target, $link)->andReturnFalse();
+        $files = Double::for(Filesystem::class)->strict();
+        $files->expects('link')->with($target, $link)->returns(false);
         $this->app->instance('files', $files);
 
         $this->expectException(RuntimeException::class);
@@ -161,11 +164,10 @@ class StorageCommandTest extends TestCase
     {
         $link = $this->app->publicPath('storage');
         $target = $this->app->storagePath('app/public');
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('link')
-            ->once()
+        $files = Double::for(Filesystem::class)->strict();
+        $files->expects('link')
             ->with($target, $link)
-            ->andReturnUsing(function () use ($target, $link): ?bool {
+            ->resolves(function () use ($target, $link): ?bool {
                 symlink($target, $link);
 
                 return null;
@@ -183,8 +185,8 @@ class StorageCommandTest extends TestCase
     {
         $link = $this->app->publicPath('storage');
         $target = $this->app->storagePath('app/public');
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('link')->once()->with($target, $link)->andReturnTrue();
+        $files = Double::for(Filesystem::class)->strict();
+        $files->expects('link')->with($target, $link)->returns(true);
         $this->app->instance('files', $files);
 
         $this->expectException(RuntimeException::class);
@@ -224,8 +226,8 @@ class StorageCommandTest extends TestCase
 
         symlink($this->app->storagePath('missing'), $link);
 
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('delete')->once()->with($link)->andReturnFalse();
+        $files = Double::for(Filesystem::class)->strict();
+        $files->expects('delete')->with($link)->returns(false);
         $this->app->instance('files', $files);
 
         $this->expectException(RuntimeException::class);
@@ -240,8 +242,8 @@ class StorageCommandTest extends TestCase
 
         symlink($this->app->storagePath('missing'), $link);
 
-        $files = m::mock(Filesystem::class);
-        $files->shouldReceive('delete')->once()->with($link)->andReturnUsing(function () use ($link): bool {
+        $files = Double::for(Filesystem::class)->strict();
+        $files->expects('delete')->with($link)->resolves(function () use ($link): bool {
             unlink($link);
 
             return false;

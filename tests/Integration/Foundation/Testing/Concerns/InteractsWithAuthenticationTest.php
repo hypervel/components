@@ -18,12 +18,14 @@ use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 #[WithMigration]
 class InteractsWithAuthenticationTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
@@ -57,10 +59,10 @@ class InteractsWithAuthenticationTest extends TestCase
 
     public function testAssertAsGuest(): void
     {
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('check')
-            ->twice()
-            ->andReturn(false);
+        $guard = Double::for(Guard::class)->strict();
+        $guard->expects('check')
+            ->times(2)
+            ->returns(false);
 
         $this->app->make('auth')
             ->extend('foo', fn () => $guard);
@@ -78,20 +80,14 @@ class InteractsWithAuthenticationTest extends TestCase
 
     public function testAssertActingAs(): void
     {
-        $user = m::mock(UserContract::class);
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('check')
-            ->once()
-            ->andReturn(true);
-        $guard->shouldReceive('setUser')
-            ->once()
-            ->andReturnSelf();
-        $guard->shouldReceive('user')
-            ->once()
-            ->andReturn($user);
-        $user->shouldReceive('getAuthIdentifier')
-            ->twice()
-            ->andReturn('id');
+        $user = Double::for(UserContract::class)->strict();
+        $guard = Double::for(Guard::class)->strict();
+        $guard->expects('check')->returns(true);
+        $guard->expects('setUser')->returns($guard);
+        $guard->expects('user')->returns($user);
+        $user->expects('getAuthIdentifier')
+            ->times(2)
+            ->returns('id');
 
         $this->app->make('auth')
             ->extend('foo', fn () => $guard);

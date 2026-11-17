@@ -15,7 +15,8 @@ use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Engines\CompilerEngine;
 use Hypervel\View\Engines\EngineResolver;
 use Hypervel\View\ViewException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionMethod;
 use RuntimeException;
@@ -29,6 +30,8 @@ use function Hypervel\Testbench\package_path;
 #[WithConfig('app.debug', true)]
 class RenderBladeFilesTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Define the test environment.
      */
@@ -202,8 +205,8 @@ class RenderBladeFilesTest extends TestCase
     {
         $cancellation = new CanceledException('canceled');
         $cancellation = $throwingCleanup ? new RuntimeException('cleanup failed', 0, $cancellation) : $cancellation;
-        $compiler = m::mock(BladeCompiler::class);
-        $compiler->shouldReceive('compileString')->once()->andThrow($cancellation);
+        $compiler = Double::for(BladeCompiler::class)->strict();
+        $compiler->expects('compileString')->throws($cancellation);
         $method = new ReflectionMethod(BladeMapper::class, 'compileSourcemap');
 
         try {
