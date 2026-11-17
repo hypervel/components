@@ -27,9 +27,12 @@ use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Swoole\Event;
 use Throwable;
 
 use function Hypervel\Coroutine\go;
+use function Hypervel\Coroutine\parallel;
+use function Hypervel\Coroutine\wait;
 
 class CoroutineTest extends TestCase
 {
@@ -127,6 +130,106 @@ class CoroutineTest extends TestCase
         $this->assertTrue(Coroutine::join([$coroutineId], 1));
         $this->assertTrue($completed);
         $this->assertFalse(Coroutine::exists($coroutineId));
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testJoinThrowsWhenTheWaitIsCanceled(bool $throw): void
+    {
+        $release = new Channel(1);
+        $child = Coroutine::create(static fn () => $release->pop());
+        $parent = Coroutine::id();
+        Event::defer(static fn () => EngineCoroutine::cancelById($parent, $throw));
+
+        $this->expectException(CanceledException::class);
+        try {
+            Coroutine::join([$child], 1);
+        } finally {
+            $release->close();
+        }
+    }
+
+    public function testUninterruptibleJoinReportsWhetherAnyChildRemainsActive(): void
+    {
+        $finished = Coroutine::create(static fn () => null);
+        $release = new Channel(1);
+        $child = Coroutine::create(static fn () => $release->pop());
+
+        try {
+            $this->assertFalse(Coroutine::joinUninterruptibly([$finished, $child], 0.001));
+        } finally {
+            $release->close();
+        }
+
+        $this->assertTrue(Coroutine::joinUninterruptibly([$finished, $child]));
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testUninterruptibleJoinPropagatesCancellationAfterChildExit(bool $throw): void
+    {
+        $release = new Channel(1);
+        $child = Coroutine::create(static fn () => $release->pop());
+        $failure = null;
+        $waiter = Coroutine::create(static function () use ($child, &$failure): void {
+            try {
+                Coroutine::joinUninterruptibly([$child], 0);
+            } catch (CanceledException $exception) {
+                $failure = $exception;
+            }
+        });
+
+        try {
+            EngineCoroutine::cancelById($waiter, $throw);
+            $this->assertTrue(Coroutine::exists($waiter));
+        } finally {
+            $release->close();
+            Coroutine::join([$waiter]);
+        }
+
+        $this->assertInstanceOf(CanceledException::class, $failure);
+    }
+
+    public function testRepeatedInterruptionsDoNotRestartTheJoinTimeout(): void
+    {
+        $release = new Channel(1);
+        $child = Coroutine::create(static fn () => $release->pop());
+        $failure = null;
+        $waiter = Coroutine::create(static function () use ($child, &$failure): void {
+            try {
+                Coroutine::joinUninterruptibly([$child], 0.03);
+            } catch (CanceledException $exception) {
+                $failure = $exception;
+            }
+        });
+
+        try {
+            $limit = hrtime(true) + 500_000_000;
+            while (Coroutine::exists($waiter) && hrtime(true) < $limit) {
+                EngineCoroutine::cancelById($waiter);
+                Coroutine::sleep(0.002);
+            }
+
+            $this->assertInstanceOf(CanceledException::class, $failure);
+            $this->assertTrue(Coroutine::exists($child));
+        } finally {
+            $release->close();
+            Coroutine::join([$waiter]);
+        }
+    }
+
+    public function testJoiningFinishedChildrenAfterAnEarlierWaitWasCanceled(): void
+    {
+        $parent = Coroutine::id();
+        Event::defer(static fn () => EngineCoroutine::cancelById($parent));
+        $channel = new Channel(1);
+        $channel->pop(1);
+        $this->assertTrue($channel->isCanceled());
+
+        $finished = Coroutine::create(static fn () => null);
+        $this->assertTrue(Coroutine::joinUninterruptibly([$finished]));
+        $this->assertSame('done', wait(static fn () => 'done'));
+        $this->assertSame(['done'], parallel([static fn () => 'done']));
     }
 
     public function testCoroutineParentId(): void

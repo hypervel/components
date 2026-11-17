@@ -169,11 +169,7 @@ class Parallel
 
             // WaitGroup completion precedes the last child's physical teardown.
             if ($coroutineIds !== []) {
-                $joined = Coroutine::join($coroutineIds);
-
-                if (! $joined && EngineCoroutine::isCanceled()) {
-                    throw new CanceledException('Waiting for parallel child coroutines was canceled.');
-                }
+                Coroutine::join($coroutineIds);
             }
         } catch (Throwable $throwable) {
             // Context copying can wrap the cancellation after earlier children started.

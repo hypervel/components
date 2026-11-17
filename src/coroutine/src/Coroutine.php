@@ -203,10 +203,49 @@ class Coroutine
      * that the timeout elapsed. It is not a general failure signal.
      *
      * @param list<int> $coroutineIds
+     * @throws CanceledException if the caller is canceled during the wait
      */
     public static function join(array $coroutineIds, float $timeout = -1): bool
     {
-        return Co::join($coroutineIds, $timeout);
+        $joined = Co::join($coroutineIds, $timeout);
+
+        // A join with no live targets doesn't yield, so isCanceled() can still describe an earlier wait.
+        if (! $joined && swoole_last_error() === SWOOLE_ERROR_CO_CANCELED) {
+            throw new CanceledException('Waiting for child coroutines was canceled.');
+        }
+
+        return $joined;
+    }
+
+    /**
+     * Wait for the given coroutines to finish before propagating caller cancellation.
+     *
+     * A timeout of zero or less waits without limit, like join().
+     *
+     * @param list<int> $coroutineIds
+     * @return bool whether none of the supplied coroutines remain active
+     * @throws CanceledException if the caller was canceled during the wait
+     */
+    public static function joinUninterruptibly(array $coroutineIds, float $timeout = -1): bool
+    {
+        $deadline = $timeout > 0 ? hrtime(true) / 1e9 + $timeout : null;
+        $cancellation = null;
+        $joined = false;
+
+        do {
+            try {
+                $joined = static::join($coroutineIds, $timeout);
+                break;
+            } catch (CanceledException $exception) {
+                $cancellation ??= $exception;
+            }
+        } while ($deadline === null || ($timeout = $deadline - hrtime(true) / 1e9) > 0);
+
+        if ($cancellation !== null) {
+            throw $cancellation;
+        }
+
+        return $joined || ! array_any($coroutineIds, Co::exists(...));
     }
 
     /**
