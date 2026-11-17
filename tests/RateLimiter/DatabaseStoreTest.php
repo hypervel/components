@@ -13,32 +13,35 @@ use Hypervel\RateLimiter\DatabaseStore;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseStoreTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testInspectionUsesTheConfiguredConnectionTableAndWritePdo(): void
     {
-        $connections = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(Connection::class);
-        $query = m::mock(Builder::class);
+        $connections = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
+        $query = Double::for(Builder::class)->strict();
 
-        $connections->shouldReceive('connection')->once()->with('limiter')->andReturn($connection);
-        $connection->shouldReceive('table')->once()->with('custom_rate_limits')->andReturn($query);
-        $query->shouldReceive('useWritePdo')->once()->andReturnSelf();
-        $query->shouldReceive('where')->once()->with('key', 'physical-key')->andReturnSelf();
-        $query->shouldReceive('first')->once()->andReturnNull();
-        $connection->shouldReceive('getDriverName')->once()->andReturn('pgsql');
-        $connection->shouldReceive('scalar')
-            ->once()
+        $connections->expects('connection')->with('limiter')->returns($connection);
+        $connection->expects('table')->with('custom_rate_limits')->returns($query);
+        $query->expects('useWritePdo');
+        $query->expects('where')->with('key', 'physical-key');
+        $query->expects('first')->returns(null);
+        $connection->expects('getDriverName')->returns('pgsql');
+        $connection->expects('scalar')
             ->with(
                 'SELECT FLOOR(EXTRACT(EPOCH FROM clock_timestamp()) * 1000000)::bigint',
                 [],
                 false,
             )
-            ->andReturn('1000000');
+            ->returns('1000000');
 
         $result = (new DatabaseStore($connections, 'limiter', 'custom_rate_limits'))
             ->inspect('physical-key', Limit::perMinute(10));
@@ -49,32 +52,31 @@ class DatabaseStoreTest extends TestCase
 
     public function testEstablishedNonSqlMutationLocksBeforeReadingServerTimeWithoutInserting(): void
     {
-        $connections = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(Connection::class);
-        $locked = m::mock(Builder::class);
-        $update = m::mock(Builder::class);
+        $connections = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
+        $locked = Double::for(Builder::class)->strict();
+        $update = Double::for(Builder::class)->strict();
         $operations = [];
 
-        $connections->shouldReceive('connection')->once()->with('limiter')->andReturn($connection);
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('transaction')
-            ->once()
-            ->with(m::type(Closure::class), 3)
-            ->andReturnUsing(static fn (Closure $callback): mixed => $callback($connection));
-        $connection->shouldReceive('getDriverName')
+        $connections->expects('connection')->with('limiter')->returns($connection);
+        $connection->expects('transactionLevel')->returns(0);
+        $connection->expects('transaction')
+            ->with(Argument::type(Closure::class), 3)
+            ->resolves(static fn (Closure $callback): mixed => $callback($connection));
+        $connection->expects('getDriverName')
             ->times(3)
-            ->andReturnUsing(static function () use (&$operations): string {
+            ->resolves(static function () use (&$operations): string {
                 $operations[] = 'driver';
 
                 return 'mysql';
             });
-        $connection->shouldReceive('table')
-            ->twice()
+        $connection->expects('table')
+            ->times(2)
             ->with('custom_rate_limits')
-            ->andReturn($locked, $update);
-        $locked->shouldReceive('where')->once()->with('key', 'physical-key')->andReturnSelf();
-        $locked->shouldReceive('lockForUpdate')->once()->andReturnSelf();
-        $locked->shouldReceive('first')->once()->andReturnUsing(static function () use (&$operations): object {
+            ->returns($locked, $update);
+        $locked->expects('where')->with('key', 'physical-key');
+        $locked->expects('lockForUpdate');
+        $locked->expects('first')->resolves(static function () use (&$operations): object {
             $operations[] = 'lock';
 
             return (object) [
@@ -83,27 +85,25 @@ class DatabaseStoreTest extends TestCase
                 'expires_at' => 0,
             ];
         });
-        $connection->shouldReceive('scalar')
-            ->once()
+        $connection->expects('scalar')
             ->with(
                 'SELECT FLOOR(UNIX_TIMESTAMP(CURRENT_TIMESTAMP(6)) * 1000000)',
                 [],
                 false,
             )
-            ->andReturnUsing(static function () use (&$operations): string {
+            ->resolves(static function () use (&$operations): string {
                 $operations[] = 'clock';
 
                 return '1000000';
             });
-        $update->shouldReceive('where')->once()->with('key', 'physical-key')->andReturnSelf();
-        $update->shouldReceive('update')
-            ->once()
+        $update->expects('where')->with('key', 'physical-key');
+        $update->expects('update')
             ->with([
                 'value' => 1,
                 'secondary_value' => 0,
                 'expires_at' => 61_000_000,
             ])
-            ->andReturnUsing(static function () use (&$operations): int {
+            ->resolves(static function () use (&$operations): int {
                 $operations[] = 'update';
 
                 return 1;
@@ -122,21 +122,21 @@ class DatabaseStoreTest extends TestCase
         string $driver,
         string $clockQuery,
     ): void {
-        $connections = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(Connection::class);
-        $missing = m::mock(Builder::class);
-        $initialize = m::mock(Builder::class);
-        $locked = m::mock(Builder::class);
-        $update = m::mock(Builder::class);
+        $connections = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
+        $missing = Double::for(Builder::class)->strict();
+        $initialize = Double::for(Builder::class)->strict();
+        $locked = Double::for(Builder::class)->strict();
+        $update = Double::for(Builder::class)->strict();
         $operations = [];
         $transaction = 0;
 
-        $connections->shouldReceive('connection')->once()->with('limiter')->andReturn($connection);
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('transaction')
-            ->twice()
-            ->with(m::type(Closure::class), 3)
-            ->andReturnUsing(static function (Closure $callback) use ($connection, &$operations, &$transaction): mixed {
+        $connections->expects('connection')->with('limiter')->returns($connection);
+        $connection->expects('transactionLevel')->returns(0);
+        $connection->expects('transaction')
+            ->times(2)
+            ->with(Argument::type(Closure::class), 3)
+            ->resolves(static function (Closure $callback) use ($connection, &$operations, &$transaction): mixed {
                 ++$transaction;
                 $operations[] = "transaction-{$transaction}-begin";
                 $result = $callback($connection);
@@ -144,36 +144,34 @@ class DatabaseStoreTest extends TestCase
 
                 return $result;
             });
-        $connection->shouldReceive('getDriverName')
+        $connection->expects('getDriverName')
             ->times(3)
-            ->andReturnUsing(static function () use ($driver, &$operations): string {
+            ->resolves(static function () use ($driver, &$operations): string {
                 $operations[] = 'driver';
 
                 return $driver;
             });
 
         if ($driver === 'pgsql') {
-            $connection->shouldReceive('getConfig')
-                ->once()
+            $connection->expects('getConfig')
                 ->with('isolation_level')
-                ->andReturn('READ COMMITTED');
+                ->returns('READ COMMITTED');
         } else {
-            $connection->shouldNotReceive('getConfig');
+            $connection->expects('getConfig')->never();
         }
 
-        $connection->shouldReceive('table')
+        $connection->expects('table')
             ->times(4)
             ->with('custom_rate_limits')
-            ->andReturn($missing, $initialize, $locked, $update);
-        $missing->shouldReceive('where')->once()->with('key', 'physical-key')->andReturnSelf();
-        $missing->shouldReceive('lockForUpdate')->once()->andReturnSelf();
-        $missing->shouldReceive('first')->once()->andReturnUsing(static function () use (&$operations): null {
+            ->returns($missing, $initialize, $locked, $update);
+        $missing->expects('where')->with('key', 'physical-key');
+        $missing->expects('lockForUpdate');
+        $missing->expects('first')->resolves(static function () use (&$operations): null {
             $operations[] = 'missing-lock';
 
             return null;
         });
-        $initialize->shouldReceive('upsert')
-            ->once()
+        $initialize->expects('upsert')
             ->with(
                 [
                     'key' => 'physical-key',
@@ -184,14 +182,14 @@ class DatabaseStoreTest extends TestCase
                 'key',
                 ['key' => 'physical-key'],
             )
-            ->andReturnUsing(static function () use (&$operations): int {
+            ->resolves(static function () use (&$operations): int {
                 $operations[] = 'upsert';
 
                 return 0;
             });
-        $locked->shouldReceive('where')->once()->with('key', 'physical-key')->andReturnSelf();
-        $locked->shouldReceive('lockForUpdate')->once()->andReturnSelf();
-        $locked->shouldReceive('first')->once()->andReturnUsing(static function () use (&$operations): object {
+        $locked->expects('where')->with('key', 'physical-key');
+        $locked->expects('lockForUpdate');
+        $locked->expects('first')->resolves(static function () use (&$operations): object {
             $operations[] = 'final-lock';
 
             return (object) [
@@ -200,27 +198,25 @@ class DatabaseStoreTest extends TestCase
                 'expires_at' => 0,
             ];
         });
-        $connection->shouldReceive('scalar')
-            ->once()
+        $connection->expects('scalar')
             ->with(
                 $clockQuery,
                 [],
                 false,
             )
-            ->andReturnUsing(static function () use (&$operations): string {
+            ->resolves(static function () use (&$operations): string {
                 $operations[] = 'clock';
 
                 return '1000000';
             });
-        $update->shouldReceive('where')->once()->with('key', 'physical-key')->andReturnSelf();
-        $update->shouldReceive('update')
-            ->once()
+        $update->expects('where')->with('key', 'physical-key');
+        $update->expects('update')
             ->with([
                 'value' => 1,
                 'secondary_value' => 0,
                 'expires_at' => 61_000_000,
             ])
-            ->andReturnUsing(static function () use (&$operations): int {
+            ->resolves(static function () use (&$operations): int {
                 $operations[] = 'update';
 
                 return 1;
@@ -273,46 +269,44 @@ class DatabaseStoreTest extends TestCase
 
     public function testSqliteMutationInsertsBeforeReadingTheLockedState(): void
     {
-        $connections = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(Connection::class);
-        $insert = m::mock(Builder::class);
-        $locked = m::mock(Builder::class);
-        $update = m::mock(Builder::class);
+        $connections = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
+        $insert = Double::for(Builder::class)->strict();
+        $locked = Double::for(Builder::class)->strict();
+        $update = Double::for(Builder::class)->strict();
         $operations = [];
 
-        $connections->shouldReceive('connection')->once()->with('limiter')->andReturn($connection);
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('transaction')
-            ->once()
-            ->with(m::type(Closure::class), 3)
-            ->andReturnUsing(static fn (Closure $callback): mixed => $callback($connection));
-        $connection->shouldReceive('getDriverName')
+        $connections->expects('connection')->with('limiter')->returns($connection);
+        $connection->expects('transactionLevel')->returns(0);
+        $connection->expects('transaction')
+            ->with(Argument::type(Closure::class), 3)
+            ->resolves(static fn (Closure $callback): mixed => $callback($connection));
+        $connection->expects('getDriverName')
             ->times(3)
-            ->andReturnUsing(static function () use (&$operations): string {
+            ->resolves(static function () use (&$operations): string {
                 $operations[] = 'driver';
 
                 return 'sqlite';
             });
-        $connection->shouldReceive('table')
+        $connection->expects('table')
             ->times(3)
             ->with('custom_rate_limits')
-            ->andReturn($insert, $locked, $update);
-        $insert->shouldReceive('insertOrIgnore')
-            ->once()
+            ->returns($insert, $locked, $update);
+        $insert->expects('insertOrIgnore')
             ->with([
                 'key' => 'physical-key',
                 'value' => 0,
                 'secondary_value' => 0,
                 'expires_at' => 0,
             ])
-            ->andReturnUsing(static function () use (&$operations): int {
+            ->resolves(static function () use (&$operations): int {
                 $operations[] = 'insert';
 
                 return 1;
             });
-        $locked->shouldReceive('where')->once()->with('key', 'physical-key')->andReturnSelf();
-        $locked->shouldReceive('lockForUpdate')->once()->andReturnSelf();
-        $locked->shouldReceive('first')->once()->andReturnUsing(static function () use (&$operations): object {
+        $locked->expects('where')->with('key', 'physical-key');
+        $locked->expects('lockForUpdate');
+        $locked->expects('first')->resolves(static function () use (&$operations): object {
             $operations[] = 'lock';
 
             return (object) [
@@ -321,17 +315,16 @@ class DatabaseStoreTest extends TestCase
                 'expires_at' => 0,
             ];
         });
-        $update->shouldReceive('where')->once()->with('key', 'physical-key')->andReturnSelf();
-        $update->shouldReceive('update')
-            ->once()
-            ->with(m::on(static function (array $state) use (&$operations): bool {
+        $update->expects('where')->with('key', 'physical-key');
+        $update->expects('update')
+            ->with(Argument::satisfies(static function (array $state) use (&$operations): bool {
                 $operations[] = 'update';
 
                 return $state['value'] === 1
                     && $state['secondary_value'] === 0
                     && $state['expires_at'] > 60_000_000;
             }))
-            ->andReturn(1);
+            ->returns(1);
 
         $result = (new DatabaseStore($connections, 'limiter', 'custom_rate_limits'))
             ->consume('physical-key', Limit::perMinute(10));
@@ -344,20 +337,19 @@ class DatabaseStoreTest extends TestCase
     #[DataProvider('mutatingOperations')]
     public function testMutatingOperationsRejectUnsupportedPostgresIsolation(string $operation): void
     {
-        $connections = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(Connection::class);
+        $connections = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
 
-        $connections->shouldReceive('connection')->once()->with('limiter')->andReturn($connection);
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('getDriverName')->once()->andReturn('pgsql');
-        $connection->shouldReceive('getConfig')
-            ->once()
+        $connections->expects('connection')->with('limiter')->returns($connection);
+        $connection->expects('transactionLevel')->returns(0);
+        $connection->expects('getDriverName')->returns('pgsql');
+        $connection->expects('getConfig')
             ->with('isolation_level')
-            ->andReturn('repeatable read');
-        $connection->shouldReceive('getName')->once()->andReturn('limiter');
-        $connection->shouldNotReceive('transaction');
-        $connection->shouldNotReceive('table');
-        $connection->shouldNotReceive('scalar');
+            ->returns('repeatable read');
+        $connection->expects('getName')->returns('limiter');
+        $connection->expects('transaction')->never();
+        $connection->expects('table')->never();
+        $connection->expects('scalar')->never();
 
         $store = new DatabaseStore($connections, 'limiter', 'custom_rate_limits');
 
@@ -378,15 +370,15 @@ class DatabaseStoreTest extends TestCase
 
     public function testMutationRejectsNonStringPostgresIsolation(): void
     {
-        $connections = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(Connection::class);
+        $connections = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
 
-        $connections->shouldReceive('connection')->once()->with('limiter')->andReturn($connection);
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('getDriverName')->once()->andReturn('pgsql');
-        $connection->shouldReceive('getConfig')->once()->with('isolation_level')->andReturn(1);
-        $connection->shouldReceive('getName')->once()->andReturn('limiter');
-        $connection->shouldNotReceive('table');
+        $connections->expects('connection')->with('limiter')->returns($connection);
+        $connection->expects('transactionLevel')->returns(0);
+        $connection->expects('getDriverName')->returns('pgsql');
+        $connection->expects('getConfig')->with('isolation_level')->returns(1);
+        $connection->expects('getName')->returns('limiter');
+        $connection->expects('table')->never();
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs(
@@ -398,18 +390,18 @@ class DatabaseStoreTest extends TestCase
 
     public function testPostgresMutationAllowsDefaultIsolation(): void
     {
-        $connections = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(Connection::class);
-        $query = m::mock(Builder::class);
+        $connections = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
+        $query = Double::for(Builder::class)->strict();
 
-        $connections->shouldReceive('connection')->once()->with('limiter')->andReturn($connection);
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('getDriverName')->once()->andReturn('pgsql');
-        $connection->shouldReceive('getConfig')->once()->with('isolation_level')->andReturnNull();
-        $connection->shouldNotReceive('getName');
-        $connection->shouldReceive('table')->once()->with('custom_rate_limits')->andReturn($query);
-        $query->shouldReceive('where')->once()->with('key', 'physical-key')->andReturnSelf();
-        $query->shouldReceive('delete')->once()->andReturn(1);
+        $connections->expects('connection')->with('limiter')->returns($connection);
+        $connection->expects('transactionLevel')->returns(0);
+        $connection->expects('getDriverName')->returns('pgsql');
+        $connection->expects('getConfig')->with('isolation_level')->returns(null);
+        $connection->expects('getName')->never();
+        $connection->expects('table')->with('custom_rate_limits')->returns($query);
+        $query->expects('where')->with('key', 'physical-key');
+        $query->expects('delete')->returns(1);
 
         $this->assertTrue(
             (new DatabaseStore($connections, 'limiter', 'custom_rate_limits'))->clear('physical-key')
@@ -418,17 +410,17 @@ class DatabaseStoreTest extends TestCase
 
     public function testMysqlMutationDoesNotInspectPostgresIsolationConfiguration(): void
     {
-        $connections = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(Connection::class);
-        $query = m::mock(Builder::class);
+        $connections = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
+        $query = Double::for(Builder::class)->strict();
 
-        $connections->shouldReceive('connection')->once()->with('limiter')->andReturn($connection);
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('getDriverName')->once()->andReturn('mysql');
-        $connection->shouldNotReceive('getConfig');
-        $connection->shouldReceive('table')->once()->with('custom_rate_limits')->andReturn($query);
-        $query->shouldReceive('where')->once()->with('key', 'physical-key')->andReturnSelf();
-        $query->shouldReceive('delete')->once()->andReturn(1);
+        $connections->expects('connection')->with('limiter')->returns($connection);
+        $connection->expects('transactionLevel')->returns(0);
+        $connection->expects('getDriverName')->returns('mysql');
+        $connection->expects('getConfig')->never();
+        $connection->expects('table')->with('custom_rate_limits')->returns($query);
+        $query->expects('where')->with('key', 'physical-key');
+        $query->expects('delete')->returns(1);
 
         $this->assertTrue(
             (new DatabaseStore($connections, 'limiter', 'custom_rate_limits'))->clear('physical-key')
@@ -438,15 +430,15 @@ class DatabaseStoreTest extends TestCase
     #[DataProvider('mutatingOperations')]
     public function testMutatingOperationsRejectAnActiveTransactionBeforeLimiterSql(string $operation): void
     {
-        $connections = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(Connection::class);
+        $connections = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
 
-        $connections->shouldReceive('connection')->once()->with('limiter')->andReturn($connection);
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(1);
-        $connection->shouldNotReceive('transaction');
-        $connection->shouldNotReceive('table');
-        $connection->shouldNotReceive('getDriverName');
-        $connection->shouldNotReceive('scalar');
+        $connections->expects('connection')->with('limiter')->returns($connection);
+        $connection->expects('transactionLevel')->returns(1);
+        $connection->expects('transaction')->never();
+        $connection->expects('table')->never();
+        $connection->expects('getDriverName')->never();
+        $connection->expects('scalar')->never();
 
         $store = new DatabaseStore($connections, 'limiter', 'custom_rate_limits');
 
