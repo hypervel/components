@@ -6,45 +6,33 @@ namespace Hypervel\Tests\Socialite;
 
 use ErrorException;
 use GuzzleHttp\Client;
+use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\RequestOptions;
 use Hypervel\Http\Request;
 use Hypervel\Socialite\Two\LinkedInProvider;
 use Hypervel\Socialite\Two\User;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\StreamInterface;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use ReflectionMethod;
 
 class LinkedInProviderTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testItCanMapAUserWithoutAnEmailAddress(): void
     {
-        $request = m::mock(Request::class);
-        $request->allows('input')->with('code')->andReturns('fake-code');
+        $request = Request::create('/callback', parameters: ['code' => 'fake-code']);
 
-        $stream = m::mock(StreamInterface::class);
-        $stream->allows('__toString')->andReturns(json_encode(['access_token' => 'fake-token']));
+        $accessTokenResponse = new Response(body: json_encode(['access_token' => 'fake-token']));
 
-        $accessTokenResponse = m::mock(ResponseInterface::class);
-        $accessTokenResponse->allows('getBody')->andReturns($stream);
+        $basicProfileResponse = new Response(body: json_encode(['id' => $userId = 1]));
 
-        $basicProfileStream = m::mock(StreamInterface::class);
-        $basicProfileStream->allows('__toString')->andReturns(json_encode(['id' => $userId = 1]));
+        $emailAddressResponse = new Response(body: json_encode(['elements' => []]));
 
-        $basicProfileResponse = m::mock(ResponseInterface::class);
-        $basicProfileResponse->allows('getBody')->andReturns($basicProfileStream);
-
-        $emailAddressStream = m::mock(StreamInterface::class);
-        $emailAddressStream->allows('__toString')->andReturns(json_encode(['elements' => []]));
-
-        // Make sure email address response contains no values.
-        $emailAddressResponse = m::mock(ResponseInterface::class);
-        $emailAddressResponse->allows('getBody')->andReturns($emailAddressStream);
-
-        $guzzle = m::mock(Client::class);
-        $guzzle->expects('post')->andReturns($accessTokenResponse);
-        $guzzle->allows('get')->with('https://api.linkedin.com/v2/me', [
+        $guzzle = Double::for(Client::class)->strict();
+        $guzzle->expects('post')->returns($accessTokenResponse);
+        $guzzle->expects('get')->with('https://api.linkedin.com/v2/me', [
             RequestOptions::HEADERS => [
                 'Authorization' => 'Bearer fake-token',
                 'X-RestLi-Protocol-Version' => '2.0.0',
@@ -52,8 +40,8 @@ class LinkedInProviderTest extends TestCase
             RequestOptions::QUERY => [
                 'projection' => '(id,firstName,lastName,profilePicture(displayImage~:playableStreams),vanityName)',
             ],
-        ])->andReturns($basicProfileResponse);
-        $guzzle->allows('get')->with('https://api.linkedin.com/v2/emailAddress', [
+        ])->returns($basicProfileResponse);
+        $guzzle->expects('get')->with('https://api.linkedin.com/v2/emailAddress', [
             RequestOptions::HEADERS => [
                 'Authorization' => 'Bearer fake-token',
                 'X-RestLi-Protocol-Version' => '2.0.0',
@@ -62,7 +50,7 @@ class LinkedInProviderTest extends TestCase
                 'q' => 'members',
                 'projection' => '(elements*(handle~))',
             ],
-        ])->andReturns($emailAddressResponse);
+        ])->returns($emailAddressResponse);
 
         $provider = new LinkedInProvider(
             $request,
@@ -82,17 +70,11 @@ class LinkedInProviderTest extends TestCase
 
     public function testItCanMapAUserWhenTheStillImageKeyIsMissing(): void
     {
-        $request = m::mock(Request::class);
-        $request->allows('input')->with('code')->andReturns('fake-code');
+        $request = Request::create('/callback', parameters: ['code' => 'fake-code']);
 
-        $stream = m::mock(StreamInterface::class);
-        $stream->allows('__toString')->andReturns(json_encode(['access_token' => 'fake-token']));
+        $accessTokenResponse = new Response(body: json_encode(['access_token' => 'fake-token']));
 
-        $accessTokenResponse = m::mock(ResponseInterface::class);
-        $accessTokenResponse->allows('getBody')->andReturns($stream);
-
-        $basicProfileStream = m::mock(StreamInterface::class);
-        $basicProfileStream->allows('__toString')->andReturns(json_encode([
+        $basicProfileResponse = new Response(body: json_encode([
             'id' => $userId = 1,
             'profilePicture' => [
                 'displayImage~' => [
@@ -108,18 +90,11 @@ class LinkedInProviderTest extends TestCase
             ],
         ]));
 
-        $basicProfileResponse = m::mock(ResponseInterface::class);
-        $basicProfileResponse->allows('getBody')->andReturns($basicProfileStream);
+        $emailAddressResponse = new Response(body: json_encode(['elements' => []]));
 
-        $emailAddressStream = m::mock(StreamInterface::class);
-        $emailAddressStream->allows('__toString')->andReturns(json_encode(['elements' => []]));
-
-        $emailAddressResponse = m::mock(ResponseInterface::class);
-        $emailAddressResponse->allows('getBody')->andReturns($emailAddressStream);
-
-        $guzzle = m::mock(Client::class);
-        $guzzle->expects('post')->andReturns($accessTokenResponse);
-        $guzzle->allows('get')->with('https://api.linkedin.com/v2/me', [
+        $guzzle = Double::for(Client::class)->strict();
+        $guzzle->expects('post')->returns($accessTokenResponse);
+        $guzzle->expects('get')->with('https://api.linkedin.com/v2/me', [
             RequestOptions::HEADERS => [
                 'Authorization' => 'Bearer fake-token',
                 'X-RestLi-Protocol-Version' => '2.0.0',
@@ -127,8 +102,8 @@ class LinkedInProviderTest extends TestCase
             RequestOptions::QUERY => [
                 'projection' => '(id,firstName,lastName,profilePicture(displayImage~:playableStreams),vanityName)',
             ],
-        ])->andReturns($basicProfileResponse);
-        $guzzle->allows('get')->with('https://api.linkedin.com/v2/emailAddress', [
+        ])->returns($basicProfileResponse);
+        $guzzle->expects('get')->with('https://api.linkedin.com/v2/emailAddress', [
             RequestOptions::HEADERS => [
                 'Authorization' => 'Bearer fake-token',
                 'X-RestLi-Protocol-Version' => '2.0.0',
@@ -137,7 +112,7 @@ class LinkedInProviderTest extends TestCase
                 'q' => 'members',
                 'projection' => '(elements*(handle~))',
             ],
-        ])->andReturns($emailAddressResponse);
+        ])->returns($emailAddressResponse);
 
         $provider = new LinkedInProvider($request, 'client_id', 'client_secret', 'redirect');
         $provider->stateless();
@@ -163,7 +138,7 @@ class LinkedInProviderTest extends TestCase
     public function testMapUserSkipsImagesWithoutStillImageMetadata(): void
     {
         $provider = new LinkedInProvider(
-            m::mock(Request::class),
+            new Request,
             'client_id',
             'client_secret',
             'redirect',

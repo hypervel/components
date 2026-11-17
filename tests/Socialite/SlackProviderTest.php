@@ -7,13 +7,12 @@ namespace Hypervel\Tests\Socialite;
 use Hypervel\Http\Request;
 use Hypervel\Socialite\Two\SlackProvider;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 
 class SlackProviderTest extends TestCase
 {
     public function testDefaultScopeKeyIsUserScope(): void
     {
-        $request = m::mock(Request::class);
+        $request = new Request;
 
         $provider = new SlackProvider(
             $request,
@@ -34,7 +33,7 @@ class SlackProviderTest extends TestCase
 
     public function testAsBotUserChangesScopeKey(): void
     {
-        $request = m::mock(Request::class);
+        $request = new Request;
 
         $provider = new SlackProvider(
             $request,

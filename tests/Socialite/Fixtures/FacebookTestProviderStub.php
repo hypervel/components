@@ -6,15 +6,12 @@ namespace Hypervel\Tests\Socialite\Fixtures;
 
 use GuzzleHttp\Client;
 use Hypervel\Socialite\Two\FacebookProvider;
-use Mockery as m;
-use Mockery\MockInterface;
+use JMac\Testing\Double;
+use JMac\Testing\DoubleInterface;
 
 class FacebookTestProviderStub extends FacebookProvider
 {
-    /**
-     * @var Client|MockInterface
-     */
-    public $http;
+    public (Client&DoubleInterface)|null $http = null;
 
     protected function getUserByToken(string $token): array
     {
@@ -22,7 +19,7 @@ class FacebookTestProviderStub extends FacebookProvider
     }
 
     /**
-     * Get a fresh instance of the Guzzle HTTP client.
+     * Return the test HTTP client.
      */
     protected function getHttpClient(): Client
     {
@@ -30,6 +27,6 @@ class FacebookTestProviderStub extends FacebookProvider
             return $this->http;
         }
 
-        return $this->http = m::mock(Client::class);
+        return $this->http = Double::for(Client::class)->strict();
     }
 }
