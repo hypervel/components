@@ -11,19 +11,21 @@ use Hypervel\Redis\Subscriber\Exceptions\SubscribeException;
 use Hypervel\Redis\Subscriber\Subscriber;
 use Hypervel\Tests\Redis\Fixtures\RespServer;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 
 class SubscriberTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testSubscribeDelegatesToCommandInvoker(): void
     {
-        $invoker = m::mock(CommandInvoker::class);
-        $invoker->shouldReceive('invoke')
-            ->once()
+        $invoker = Double::for(CommandInvoker::class)->strict();
+        $invoker->expects('invoke')
             ->with(['subscribe', 'foo', 'bar'], 2)
-            ->andReturn([
+            ->returns([
                 ['subscribe', 'foo', 1],
                 ['subscribe', 'bar', 2],
             ]);
@@ -34,11 +36,10 @@ class SubscriberTest extends TestCase
 
     public function testSubscribePrependsPrefix(): void
     {
-        $invoker = m::mock(CommandInvoker::class);
-        $invoker->shouldReceive('invoke')
-            ->once()
+        $invoker = Double::for(CommandInvoker::class)->strict();
+        $invoker->expects('invoke')
             ->with(['subscribe', 'app:foo', 'app:bar'], 2)
-            ->andReturn([
+            ->returns([
                 ['subscribe', 'app:foo', 1],
                 ['subscribe', 'app:bar', 2],
             ]);
@@ -49,8 +50,8 @@ class SubscriberTest extends TestCase
 
     public function testSubscribeRejectsAnEmptyChannelListBeforeSending(): void
     {
-        $invoker = m::mock(CommandInvoker::class);
-        $invoker->shouldNotReceive('invoke');
+        $invoker = Double::for(CommandInvoker::class)->strict();
+        $invoker->expects('invoke')->never();
 
         $subscriber = $this->createSubscriber($invoker);
 
@@ -62,11 +63,10 @@ class SubscriberTest extends TestCase
 
     public function testUnsubscribeDelegatesToCommandInvoker(): void
     {
-        $invoker = m::mock(CommandInvoker::class);
-        $invoker->shouldReceive('invoke')
-            ->once()
+        $invoker = Double::for(CommandInvoker::class)->strict();
+        $invoker->expects('invoke')
             ->with(['unsubscribe', 'foo'], 1)
-            ->andReturn([['unsubscribe', 'foo', 0]]);
+            ->returns([['unsubscribe', 'foo', 0]]);
 
         $subscriber = $this->createSubscriber($invoker);
         $subscriber->unsubscribe('foo');
@@ -74,11 +74,10 @@ class SubscriberTest extends TestCase
 
     public function testUnsubscribePrependsPrefix(): void
     {
-        $invoker = m::mock(CommandInvoker::class);
-        $invoker->shouldReceive('invoke')
-            ->once()
+        $invoker = Double::for(CommandInvoker::class)->strict();
+        $invoker->expects('invoke')
             ->with(['unsubscribe', 'app:foo'], 1)
-            ->andReturn([['unsubscribe', 'app:foo', 0]]);
+            ->returns([['unsubscribe', 'app:foo', 0]]);
 
         $subscriber = $this->createSubscriber($invoker, prefix: 'app:');
         $subscriber->unsubscribe('foo');
@@ -86,33 +85,28 @@ class SubscriberTest extends TestCase
 
     public function testUnsubscribeAllWaitsForEveryTrackedChannelAndKeepsPatternsSeparate(): void
     {
-        $invoker = m::mock(CommandInvoker::class);
-        $invoker->shouldReceive('invoke')
-            ->once()
+        $invoker = Double::for(CommandInvoker::class)->strict();
+        $invoker->expects('invoke')
             ->with(['subscribe', 'app:one', 'app:two'], 2)
-            ->andReturn([
+            ->returns([
                 ['subscribe', 'app:one', 1],
                 ['subscribe', 'app:two', 2],
             ]);
-        $invoker->shouldReceive('invoke')
-            ->once()
+        $invoker->expects('invoke')
             ->with(['psubscribe', 'app:events.*'], 1)
-            ->andReturn([['psubscribe', 'app:events.*', 3]]);
-        $invoker->shouldReceive('invoke')
-            ->once()
+            ->returns([['psubscribe', 'app:events.*', 3]]);
+        $invoker->expects('invoke')
             ->with(['unsubscribe'], 2)
-            ->andReturn([
+            ->returns([
                 ['unsubscribe', 'app:one', 2],
                 ['unsubscribe', 'app:two', 1],
             ]);
-        $invoker->shouldReceive('invoke')
-            ->once()
+        $invoker->expects('invoke')
             ->with(['unsubscribe'], 1)
-            ->andReturn([['unsubscribe', null, 1]]);
-        $invoker->shouldReceive('invoke')
-            ->once()
+            ->returns([['unsubscribe', null, 1]]);
+        $invoker->expects('invoke')
             ->with(['punsubscribe'], 1)
-            ->andReturn([['punsubscribe', 'app:events.*', 0]]);
+            ->returns([['punsubscribe', 'app:events.*', 0]]);
 
         $subscriber = $this->createSubscriber($invoker, prefix: 'app:');
         $subscriber->subscribe('one', 'two');
@@ -124,22 +118,20 @@ class SubscriberTest extends TestCase
 
     public function testAllUnsubscribeWithNoTrackedChannelsWaitsForOneAcknowledgement(): void
     {
-        $invoker = m::mock(CommandInvoker::class);
-        $invoker->shouldReceive('invoke')
-            ->once()
+        $invoker = Double::for(CommandInvoker::class)->strict();
+        $invoker->expects('invoke')
             ->with(['unsubscribe'], 1)
-            ->andReturn([['unsubscribe', null, 0]]);
+            ->returns([['unsubscribe', null, 0]]);
 
         $this->createSubscriber($invoker)->unsubscribe();
     }
 
     public function testPsubscribeDelegatesToCommandInvoker(): void
     {
-        $invoker = m::mock(CommandInvoker::class);
-        $invoker->shouldReceive('invoke')
-            ->once()
+        $invoker = Double::for(CommandInvoker::class)->strict();
+        $invoker->expects('invoke')
             ->with(['psubscribe', 'foo.*', 'bar.*'], 2)
-            ->andReturn([
+            ->returns([
                 ['psubscribe', 'foo.*', 1],
                 ['psubscribe', 'bar.*', 2],
             ]);
@@ -150,11 +142,10 @@ class SubscriberTest extends TestCase
 
     public function testPsubscribePrependsPrefix(): void
     {
-        $invoker = m::mock(CommandInvoker::class);
-        $invoker->shouldReceive('invoke')
-            ->once()
+        $invoker = Double::for(CommandInvoker::class)->strict();
+        $invoker->expects('invoke')
             ->with(['psubscribe', 'app:events.*'], 1)
-            ->andReturn([['psubscribe', 'app:events.*', 1]]);
+            ->returns([['psubscribe', 'app:events.*', 1]]);
 
         $subscriber = $this->createSubscriber($invoker, prefix: 'app:');
         $subscriber->psubscribe('events.*');
@@ -162,8 +153,8 @@ class SubscriberTest extends TestCase
 
     public function testPsubscribeRejectsAnEmptyPatternListBeforeSending(): void
     {
-        $invoker = m::mock(CommandInvoker::class);
-        $invoker->shouldNotReceive('invoke');
+        $invoker = Double::for(CommandInvoker::class)->strict();
+        $invoker->expects('invoke')->never();
 
         $subscriber = $this->createSubscriber($invoker);
 
@@ -175,11 +166,10 @@ class SubscriberTest extends TestCase
 
     public function testPunsubscribeDelegatesToCommandInvoker(): void
     {
-        $invoker = m::mock(CommandInvoker::class);
-        $invoker->shouldReceive('invoke')
-            ->once()
+        $invoker = Double::for(CommandInvoker::class)->strict();
+        $invoker->expects('invoke')
             ->with(['punsubscribe', 'foo.*'], 1)
-            ->andReturn([['punsubscribe', 'foo.*', 0]]);
+            ->returns([['punsubscribe', 'foo.*', 0]]);
 
         $subscriber = $this->createSubscriber($invoker);
         $subscriber->punsubscribe('foo.*');
@@ -187,11 +177,10 @@ class SubscriberTest extends TestCase
 
     public function testPunsubscribePrependsPrefix(): void
     {
-        $invoker = m::mock(CommandInvoker::class);
-        $invoker->shouldReceive('invoke')
-            ->once()
+        $invoker = Double::for(CommandInvoker::class)->strict();
+        $invoker->expects('invoke')
             ->with(['punsubscribe', 'app:foo.*'], 1)
-            ->andReturn([['punsubscribe', 'app:foo.*', 0]]);
+            ->returns([['punsubscribe', 'app:foo.*', 0]]);
 
         $subscriber = $this->createSubscriber($invoker, prefix: 'app:');
         $subscriber->punsubscribe('foo.*');
@@ -199,11 +188,10 @@ class SubscriberTest extends TestCase
 
     public function testAllPunsubscribeWithNoTrackedPatternsWaitsForOneAcknowledgement(): void
     {
-        $invoker = m::mock(CommandInvoker::class);
-        $invoker->shouldReceive('invoke')
-            ->once()
+        $invoker = Double::for(CommandInvoker::class)->strict();
+        $invoker->expects('invoke')
             ->with(['punsubscribe'], 1)
-            ->andReturn([['punsubscribe', null, 0]]);
+            ->returns([['punsubscribe', null, 0]]);
 
         $this->createSubscriber($invoker)->punsubscribe();
     }
@@ -211,8 +199,8 @@ class SubscriberTest extends TestCase
     public function testChannelDelegatesToCommandInvoker(): void
     {
         $channel = new Channel(1);
-        $invoker = m::mock(CommandInvoker::class);
-        $invoker->shouldReceive('channel')->once()->andReturn($channel);
+        $invoker = Double::for(CommandInvoker::class)->strict();
+        $invoker->expects('channel')->returns($channel);
 
         $subscriber = $this->createSubscriber($invoker);
 
@@ -221,8 +209,8 @@ class SubscriberTest extends TestCase
 
     public function testCloseSetsClosedAndInterrupts(): void
     {
-        $invoker = m::mock(CommandInvoker::class);
-        $invoker->shouldReceive('interrupt')->once()->andReturn(true);
+        $invoker = Double::for(CommandInvoker::class)->strict();
+        $invoker->expects('interrupt')->returns(true);
 
         $subscriber = $this->createSubscriber($invoker);
 
@@ -235,8 +223,8 @@ class SubscriberTest extends TestCase
 
     public function testPingDelegatesToCommandInvoker(): void
     {
-        $invoker = m::mock(CommandInvoker::class);
-        $invoker->shouldReceive('ping')->once()->with(2.5)->andReturn('pong');
+        $invoker = Double::for(CommandInvoker::class)->strict();
+        $invoker->expects('ping')->with(2.5)->returns('pong');
 
         $subscriber = $this->createSubscriber($invoker);
 

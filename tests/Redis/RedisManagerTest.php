@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Redis;
 
 use Hypervel\Config\Repository;
+use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -19,7 +20,9 @@ use Hypervel\Redis\RedisProxy;
 use Hypervel\Redis\RedisSentinelFactory;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -29,6 +32,8 @@ use Throwable;
  */
 class RedisManagerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testConnectionReturnsRedisProxy(): void
     {
         $manager = $this->createManager(['default']);
@@ -72,7 +77,7 @@ class RedisManagerTest extends TestCase
 
     public function testPurgeAcceptsUnitEnum(): void
     {
-        $poolManager = m::mock(PoolManager::class)->makePartial();
+        $poolManager = Double::for(new PoolManager(new Container))->passthru();
         $poolManager->expects('purge')->with('default');
         $manager = $this->createManager(['default'], poolManager: $poolManager);
         $manager->connection('default');
@@ -86,8 +91,8 @@ class RedisManagerTest extends TestCase
 
     public function testIntegerBackedEnumConnectionNameIsNormalizedForResolutionAndPurge(): void
     {
-        $poolManager = m::mock(PoolManager::class)->makePartial();
-        $poolManager->shouldReceive('purge')->once()->with('0');
+        $poolManager = Double::for(new PoolManager(new Container))->passthru();
+        $poolManager->expects('purge')->with('0');
 
         $manager = $this->createManager(['0'], poolManager: $poolManager);
         $connection = $manager->connection(RedisConnectionName::Zero);
@@ -103,8 +108,8 @@ class RedisManagerTest extends TestCase
 
     public function testPurgeClearsProxyContextAndPool(): void
     {
-        $poolManager = m::mock(PoolManager::class)->makePartial();
-        $poolManager->shouldReceive('purge')->once()->with('default');
+        $poolManager = Double::for(new PoolManager(new Container))->passthru();
+        $poolManager->expects('purge')->with('default');
 
         $manager = $this->createManager(['default'], poolManager: $poolManager);
 
@@ -122,10 +127,10 @@ class RedisManagerTest extends TestCase
 
     public function testPurgeDiscardsContextPinnedConnection(): void
     {
-        $pinnedConnection = m::mock(PhpRedisConnection::class);
+        $pinnedConnection = Double::for(PhpRedisConnection::class)->strict();
         $pinnedConnection->expects('discard');
 
-        $poolManager = m::mock(PoolManager::class)->makePartial();
+        $poolManager = Double::for(new PoolManager(new Container))->passthru();
         $poolManager->expects('purge')->with('default');
         $manager = $this->createManager(['default'], poolManager: $poolManager);
         $contextKey = $this->contextKey($manager->connection('default'));
@@ -139,9 +144,9 @@ class RedisManagerTest extends TestCase
     public function testReleaseConnectionsExhaustsProxiesAndPreservesFirstFailure(): void
     {
         $firstException = new RuntimeException('First release failed.');
-        $first = m::mock(PhpRedisConnection::class);
-        $first->expects('release')->andThrow($firstException);
-        $second = m::mock(PhpRedisConnection::class);
+        $first = Double::for(PhpRedisConnection::class)->strict();
+        $first->expects('release')->throws($firstException);
+        $second = Double::for(PhpRedisConnection::class)->strict();
         $second->expects('release');
         $manager = $this->createManager(['first', 'second']);
         CoroutineContext::set($this->contextKey($manager->connection('first')), $first);
@@ -160,12 +165,12 @@ class RedisManagerTest extends TestCase
         $ordinaryFailure = new RuntimeException('First release failed.');
         $cancellation = new CanceledException('Second release canceled.');
         $laterCancellation = new CanceledException('Third release canceled.');
-        $first = m::mock(PhpRedisConnection::class);
-        $first->expects('release')->andThrow($ordinaryFailure);
-        $second = m::mock(PhpRedisConnection::class);
-        $second->expects('release')->andThrow($cancellation);
-        $third = m::mock(PhpRedisConnection::class);
-        $third->expects('release')->andThrow($laterCancellation);
+        $first = Double::for(PhpRedisConnection::class)->strict();
+        $first->expects('release')->throws($ordinaryFailure);
+        $second = Double::for(PhpRedisConnection::class)->strict();
+        $second->expects('release')->throws($cancellation);
+        $third = Double::for(PhpRedisConnection::class)->strict();
+        $third->expects('release')->throws($laterCancellation);
         $manager = $this->createManager(['first', 'second', 'third']);
         CoroutineContext::set($this->contextKey($manager->connection('first')), $first);
         CoroutineContext::set($this->contextKey($manager->connection('second')), $second);
@@ -181,9 +186,9 @@ class RedisManagerTest extends TestCase
 
     public function testDiscardConnectionsExhaustsEveryCreatedProxy(): void
     {
-        $first = m::mock(PhpRedisConnection::class);
+        $first = Double::for(PhpRedisConnection::class)->strict();
         $first->expects('discard');
-        $second = m::mock(PhpRedisConnection::class);
+        $second = Double::for(PhpRedisConnection::class)->strict();
         $second->expects('discard');
         $manager = $this->createManager(['first', 'second']);
         CoroutineContext::set($this->contextKey($manager->connection('first')), $first);
@@ -195,12 +200,12 @@ class RedisManagerTest extends TestCase
     public function testPurgeClosesPoolAfterDiscardFailureAndPreservesFirstFailure(): void
     {
         $discardException = new RuntimeException('Discard failed.');
-        $connection = m::mock(PhpRedisConnection::class);
-        $connection->expects('discard')->andThrow($discardException);
-        $poolManager = m::mock(PoolManager::class)->makePartial();
+        $connection = Double::for(PhpRedisConnection::class)->strict();
+        $connection->expects('discard')->throws($discardException);
+        $poolManager = Double::for(new PoolManager(new Container))->passthru();
         $poolManager->expects('purge')
             ->with('alias')
-            ->andThrow(new RuntimeException('Purge failed.'));
+            ->throws(new RuntimeException('Purge failed.'));
         $manager = $this->createManager(['alias'], poolManager: $poolManager);
         CoroutineContext::set($this->contextKey($manager->connection('alias')), $connection);
 
@@ -217,12 +222,12 @@ class RedisManagerTest extends TestCase
     public function testPurgeClosesPoolAndLetsCancellationSupersedeDiscardFailure(): void
     {
         $cancellation = new CanceledException('Purge canceled.');
-        $connection = m::mock(PhpRedisConnection::class);
-        $connection->expects('discard')->andThrow(new RuntimeException('Discard failed.'));
-        $poolManager = m::mock(PoolManager::class)->makePartial();
+        $connection = Double::for(PhpRedisConnection::class)->strict();
+        $connection->expects('discard')->throws(new RuntimeException('Discard failed.'));
+        $poolManager = Double::for(new PoolManager(new Container))->passthru();
         $poolManager->expects('purge')
             ->with('alias')
-            ->andThrow($cancellation);
+            ->throws($cancellation);
         $manager = $this->createManager(['alias'], poolManager: $poolManager);
         CoroutineContext::set($this->contextKey($manager->connection('alias')), $connection);
 
@@ -248,76 +253,76 @@ class RedisManagerTest extends TestCase
 
     public function testEnableEventsRefreshesOnlyExistingPoolsWithDisabledEvents(): void
     {
-        $app = m::mock(ContainerContract::class);
-        $disabledPool = m::mock(RedisPool::class);
-        $disabledPool->expects('getConfig')->andReturn(['events' => false]);
-        $enabledPool = m::mock(RedisPool::class);
-        $enabledPool->expects('getConfig')->andReturn(['events' => true]);
+        $app = Double::for(ContainerContract::class, override: true)->strict();
+        $disabledPool = Double::for(RedisPool::class)->strict();
+        $disabledPool->expects('getConfig')->returns(['events' => false]);
+        $enabledPool = Double::for(RedisPool::class)->strict();
+        $enabledPool->expects('getConfig')->returns(['events' => true]);
 
-        $config = m::mock(RedisConfig::class);
-        $config->expects('enableEvents')
-            ->globally()
-            ->ordered();
+        $operations = [];
+        $config = Double::for(RedisConfig::class)->strict();
+        $config->expects('enableEvents')->resolves(static function () use (&$operations): void {
+            $operations[] = 'enableEvents';
+        });
 
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = Double::for(PoolManager::class)->strict();
         $poolManager->expects('pool')->never();
-        $poolManager->expects('getPools')
-            ->globally()
-            ->ordered()
-            ->andReturn([
-                'disabled' => $disabledPool,
-                'enabled' => $enabledPool,
-            ]);
-        $poolManager->expects('purge')
-            ->with('disabled')
-            ->globally()
-            ->ordered();
+        $poolManager->expects('getPools')->resolves(static function () use (&$operations, $disabledPool, $enabledPool): array {
+            $operations[] = 'getPools';
+
+            return ['disabled' => $disabledPool, 'enabled' => $enabledPool];
+        });
+        $poolManager->expects('purge')->with('disabled')->resolves(static function () use (&$operations): void {
+            $operations[] = 'purge';
+        });
 
         $manager = new RedisManager(
-            $app,
+            $app->instance(),
             $poolManager,
             $config,
-            m::mock(RedisSentinelFactory::class),
+            Double::for(RedisSentinelFactory::class)->strict(),
         );
 
         $manager->enableEvents();
+
+        $this->assertSame(['enableEvents', 'getPools', 'purge'], $operations);
     }
 
     public function testDisableEventsRefreshesOnlyExistingPoolsWithEnabledEvents(): void
     {
-        $app = m::mock(ContainerContract::class);
-        $enabledPool = m::mock(RedisPool::class);
-        $enabledPool->expects('getConfig')->andReturn(['events' => true]);
-        $disabledPool = m::mock(RedisPool::class);
-        $disabledPool->expects('getConfig')->andReturn(['events' => false]);
+        $app = Double::for(ContainerContract::class, override: true)->strict();
+        $enabledPool = Double::for(RedisPool::class)->strict();
+        $enabledPool->expects('getConfig')->returns(['events' => true]);
+        $disabledPool = Double::for(RedisPool::class)->strict();
+        $disabledPool->expects('getConfig')->returns(['events' => false]);
 
-        $config = m::mock(RedisConfig::class);
-        $config->expects('disableEvents')
-            ->globally()
-            ->ordered();
+        $operations = [];
+        $config = Double::for(RedisConfig::class)->strict();
+        $config->expects('disableEvents')->resolves(static function () use (&$operations): void {
+            $operations[] = 'disableEvents';
+        });
 
-        $poolManager = m::mock(PoolManager::class);
+        $poolManager = Double::for(PoolManager::class)->strict();
         $poolManager->expects('pool')->never();
-        $poolManager->expects('getPools')
-            ->globally()
-            ->ordered()
-            ->andReturn([
-                'enabled' => $enabledPool,
-                'disabled' => $disabledPool,
-            ]);
-        $poolManager->expects('purge')
-            ->with('enabled')
-            ->globally()
-            ->ordered();
+        $poolManager->expects('getPools')->resolves(static function () use (&$operations, $disabledPool, $enabledPool): array {
+            $operations[] = 'getPools';
+
+            return ['enabled' => $enabledPool, 'disabled' => $disabledPool];
+        });
+        $poolManager->expects('purge')->with('enabled')->resolves(static function () use (&$operations): void {
+            $operations[] = 'purge';
+        });
 
         $manager = new RedisManager(
-            $app,
+            $app->instance(),
             $poolManager,
             $config,
-            m::mock(RedisSentinelFactory::class),
+            Double::for(RedisSentinelFactory::class)->strict(),
         );
 
         $manager->disableEvents();
+
+        $this->assertSame(['disableEvents', 'getPools', 'purge'], $operations);
     }
 
     public function testCallDelegatesToDefaultConnection(): void
@@ -331,20 +336,19 @@ class RedisManagerTest extends TestCase
 
     public function testListenRegistersCommandExecutedListener(): void
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('listen')
-            ->once()
-            ->with(CommandExecuted::class, m::type('Closure'));
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('listen')
+            ->with(CommandExecuted::class, Argument::type('Closure'));
 
-        $app = m::mock(ContainerContract::class);
-        $app->shouldReceive('bound')->with('events')->andReturn(true);
-        $app->shouldReceive('make')->with('events')->andReturn($dispatcher);
+        $app = Double::for(ContainerContract::class, override: true)->strict();
+        $app->allows('bound')->with('events')->returns(true);
+        $app->allows('make')->with('events')->returns($dispatcher);
 
         $manager = new RedisManager(
-            $app,
-            m::mock(PoolManager::class),
+            $app->instance(),
+            Double::for(PoolManager::class)->strict(),
             $this->createRedisConfig(['default']),
-            m::mock(RedisSentinelFactory::class),
+            Double::for(RedisSentinelFactory::class)->strict(),
         );
 
         $manager->listen(function () {});
@@ -352,20 +356,19 @@ class RedisManagerTest extends TestCase
 
     public function testListenForFailuresRegistersCommandFailedListener(): void
     {
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('listen')
-            ->once()
-            ->with(CommandFailed::class, m::type('Closure'));
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('listen')
+            ->with(CommandFailed::class, Argument::type('Closure'));
 
-        $app = m::mock(ContainerContract::class);
-        $app->shouldReceive('bound')->with('events')->andReturn(true);
-        $app->shouldReceive('make')->with('events')->andReturn($dispatcher);
+        $app = Double::for(ContainerContract::class, override: true)->strict();
+        $app->allows('bound')->with('events')->returns(true);
+        $app->allows('make')->with('events')->returns($dispatcher);
 
         $manager = new RedisManager(
-            $app,
-            m::mock(PoolManager::class),
+            $app->instance(),
+            Double::for(PoolManager::class)->strict(),
             $this->createRedisConfig(['default']),
-            m::mock(RedisSentinelFactory::class),
+            Double::for(RedisSentinelFactory::class)->strict(),
         );
 
         $manager->listenForFailures(function () {});
@@ -396,15 +399,15 @@ class RedisManagerTest extends TestCase
         array $configuredConnections,
         ?PoolManager $poolManager = null
     ): RedisManager {
-        $app = m::mock(ContainerContract::class);
-        $poolManager ??= m::mock(PoolManager::class)->makePartial();
+        $app = Double::for(ContainerContract::class, override: true)->strict();
+        $poolManager ??= new PoolManager(new Container);
         $config = $this->createRedisConfig($configuredConnections);
 
         return new RedisManager(
-            $app,
+            $app->instance(),
             $poolManager,
             $config,
-            m::mock(RedisSentinelFactory::class),
+            Double::for(RedisSentinelFactory::class)->strict(),
         );
     }
 
@@ -417,7 +420,7 @@ class RedisManagerTest extends TestCase
     }
 
     /**
-     * Create a RedisConfig mock that validates connection names.
+     * Create Redis configuration for the given connection names.
      *
      * @param list<string> $validNames
      */

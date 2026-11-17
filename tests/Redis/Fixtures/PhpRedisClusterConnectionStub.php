@@ -7,8 +7,6 @@ namespace Hypervel\Tests\Redis\Fixtures;
 use Hypervel\Contracts\ConnectionPool\ConnectionPool;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Redis\PhpRedisClusterConnection;
-use Mockery as m;
-use Redis;
 use RedisCluster;
 
 class PhpRedisClusterConnectionStub extends PhpRedisClusterConnection
@@ -30,33 +28,40 @@ class PhpRedisClusterConnectionStub extends PhpRedisClusterConnection
         // Skip reconnect() — tests inject connections via setActiveConnection()
     }
 
+    /**
+     * Keep reconnection under test control.
+     */
     public function reconnect(): bool
     {
         return true;
     }
 
+    /**
+     * Treat the injected client as healthy.
+     */
     public function check(): bool
     {
         return true;
     }
 
+    /**
+     * Restore the injected client without opening a socket.
+     */
     public function getActiveConnection(): static
     {
         if ($this->connection !== null) {
             return $this;
         }
 
-        // Use shouldIgnoreMissing() to prevent falling through to real RedisCluster
-        // methods when expectations don't match
-        $connection = $this->redisConnection
-            ?? m::mock(RedisCluster::class)->shouldIgnoreMissing();
-
-        $this->connection = $connection;
+        $this->connection = $this->redisConnection;
 
         return $this;
     }
 
-    public function setActiveConnection(Redis|RedisCluster $connection): static
+    /**
+     * Set the native client used by the test.
+     */
+    public function setActiveConnection(RedisCluster $connection): static
     {
         $this->redisConnection = $connection;
         $this->connection = $connection;
