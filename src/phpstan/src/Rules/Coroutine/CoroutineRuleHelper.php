@@ -77,7 +77,7 @@ class CoroutineRuleHelper
         'Hypervel\Coroutine\WaitGroup' => ['add', 'done', 'wait'],
         'Hypervel\Coroutine\Waiter' => ['wait'],
         'Swoole\Coroutine' => ['join'],
-        'Hypervel\Coroutine\Coroutine' => ['join'],
+        'Hypervel\Coroutine\Coroutine' => ['join', 'joinuninterruptibly'],
         'Hypervel\Engine\Coroutine' => ['join'],
     ];
 
