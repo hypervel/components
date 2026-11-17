@@ -6,11 +6,14 @@ namespace Hypervel\Tests\ServerProcess;
 
 use Hypervel\ServerProcess\ProcessCollector;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Swoole\Process;
 
 class ProcessCollectorTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testIsEmptyInitially(): void
     {
         $this->assertTrue(ProcessCollector::isEmpty());
@@ -18,7 +21,7 @@ class ProcessCollectorTest extends TestCase
 
     public function testAddAndGetByName(): void
     {
-        $process = m::mock(Process::class);
+        $process = Double::for(Process::class)->strict();
 
         ProcessCollector::add('worker', $process);
 
@@ -33,8 +36,8 @@ class ProcessCollectorTest extends TestCase
 
     public function testAddMultipleProcessesUnderSameName(): void
     {
-        $process1 = m::mock(Process::class);
-        $process2 = m::mock(Process::class);
+        $process1 = Double::for(Process::class)->strict();
+        $process2 = Double::for(Process::class)->strict();
 
         ProcessCollector::add('worker', $process1);
         ProcessCollector::add('worker', $process2);
@@ -46,8 +49,8 @@ class ProcessCollectorTest extends TestCase
 
     public function testAddProcessesUnderDifferentNames(): void
     {
-        $process1 = m::mock(Process::class);
-        $process2 = m::mock(Process::class);
+        $process1 = Double::for(Process::class)->strict();
+        $process2 = Double::for(Process::class)->strict();
 
         ProcessCollector::add('queue', $process1);
         ProcessCollector::add('scheduler', $process2);
@@ -58,9 +61,9 @@ class ProcessCollectorTest extends TestCase
 
     public function testAllReturnsFlattenedArray(): void
     {
-        $process1 = m::mock(Process::class);
-        $process2 = m::mock(Process::class);
-        $process3 = m::mock(Process::class);
+        $process1 = Double::for(Process::class)->strict();
+        $process2 = Double::for(Process::class)->strict();
+        $process3 = Double::for(Process::class)->strict();
 
         ProcessCollector::add('queue', $process1);
         ProcessCollector::add('queue', $process2);

@@ -4,23 +4,23 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\ServerProcess;
 
-use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Container\Container;
 use Hypervel\ServerProcess\AbstractProcess;
 use Hypervel\ServerProcess\Events\AfterProcessHandle;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\ServerProcess\Events\PipeMessage;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 
 class EventTest extends TestCase
 {
     public function testBeforeProcessHandleHoldsProcessAndIndex(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('bound')->andReturn(false);
-        $process = new class($container) extends AbstractProcess {
+        $process = new class(new Container) extends AbstractProcess {
             public string $name = 'test-process';
 
+            /**
+             * Leave process execution outside this event test.
+             */
             public function handle(): void
             {
             }
@@ -35,9 +35,10 @@ class EventTest extends TestCase
 
     public function testAfterProcessHandleHoldsProcessAndIndex(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('bound')->andReturn(false);
-        $process = new class($container) extends AbstractProcess {
+        $process = new class(new Container) extends AbstractProcess {
+            /**
+             * Leave process execution outside this event test.
+             */
             public function handle(): void
             {
             }

@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\ServerProcess;
 
-use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Container\Container;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use Hypervel\Tests\ServerProcess\Fixtures\ListenableProcess;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Swoole\Coroutine as SwooleCoroutine;
 
@@ -23,10 +22,7 @@ class ListenCreationFailureTest extends TestCase
         SwooleCoroutine::set(['max_coroutine' => 1]);
 
         SwooleCoroutine\run(function (): void {
-            $container = m::mock(ContainerContract::class);
-            $container->shouldReceive('bound')->with('events')->andReturn(false);
-
-            $process = new ListenableProcess($container);
+            $process = new ListenableProcess(new Container);
             $quit = new Channel(1);
 
             try {
