@@ -12,12 +12,15 @@ use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use LogicException;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class OutboxBatchTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Keep batch counters and a conflicting business transaction on separate sessions.
      */
@@ -47,7 +50,7 @@ class OutboxBatchTest extends TestCase
         Schema::swap(DB::connection('business')->getSchemaBuilder());
         (require $migrations . '0001_01_01_000006_testbench_create_jobs_table.php')->up();
         (require $migrations . '0001_01_01_000009_testbench_create_job_outbox_table.php')->up();
-        $this->app->instance('redis', m::mock(Factory::class));
+        $this->app->instance('redis', Double::for(Factory::class)->strict());
     }
 
     #[DataProvider('queueConnections')]

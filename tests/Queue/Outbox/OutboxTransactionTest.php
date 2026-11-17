@@ -23,12 +23,15 @@ use Hypervel\Queue\Outbox\OutboxDispatcher;
 use Hypervel\Queue\RedisQueue;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class OutboxTransactionTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[DataProvider('transactionDepths')]
     public function testFailedLaterInsertChunkLeavesNoPartialGroup(int $depth): void
     {
@@ -145,11 +148,11 @@ class OutboxTransactionTest extends TestCase
         Facade::setFacadeApplication($container);
         (require dirname(__DIR__, 3) . '/src/testbench/hypervel/migrations/0001_01_01_000009_testbench_create_job_outbox_table.php')->up();
 
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->with('business')->andReturn($database);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->allows('connection')->with('business')->returns($database);
         $repository = new DatabaseOutboxRepository($resolver, ['business'], 'job_outbox', 300);
         $container->instance(OutboxDispatcher::class, new OutboxDispatcher($repository, $resolver, $transactions));
-        $queue = new RedisQueue(m::mock(Factory::class), 'orders');
+        $queue = new RedisQueue(Double::for(Factory::class)->strict(), 'orders');
         $queue->setContainer($container)->setConnectionName('redis');
 
         return [$queue, $database, $events];

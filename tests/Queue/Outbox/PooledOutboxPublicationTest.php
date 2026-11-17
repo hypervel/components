@@ -15,7 +15,8 @@ use Hypervel\Queue\SyncQueue;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -23,12 +24,14 @@ use Throwable;
 
 class PooledOutboxPublicationTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testNativeBatchCapabilityUsesOneLeaseAndRetainsItsResult(): void
     {
-        $queue = m::mock(SyncQueue::class . ', ' . PublishesOutboxMessages::class)->makePartial();
+        $queue = Double::for(PooledOutboxPublishingQueue::class)->passthru();
         $messages = [$this->message(1), $this->message(2)];
         $expected = new OutboxBatchResult([1], failure: new RuntimeException('Partial rejection.'));
-        $queue->expects('publishOutboxMessages')->with($messages)->andReturn($expected);
+        $queue->expects('publishOutboxMessages')->with($messages)->returns($expected);
         $released = 0;
         $pools = new PoolManager;
         $proxy = $this->proxy($queue, $pools, $released);
@@ -45,11 +48,11 @@ class PooledOutboxPublicationTest extends TestCase
     public function testSequentialFallbackRetainsConfirmedPrefixAndDefersFutureRows(): void
     {
         CarbonImmutable::setTestNow('2040-01-01 12:00:00');
-        $queue = m::mock(SyncQueue::class)->makePartial();
+        $queue = Double::for(new SyncQueue)->passthru();
         $messages = [$this->message(1), $this->message(2, 60), $this->message(3), $this->message(4), $this->message(5, 120)];
         $failure = new RuntimeException('Publication outcome unknown.');
-        $queue->expects('pushRaw')->with($messages[0]->payload, 'orders', $messages[0]->options)->andReturn('accepted');
-        $queue->expects('pushRaw')->with($messages[2]->payload, 'orders', $messages[2]->options)->andThrow($failure);
+        $queue->expects('pushRaw')->with($messages[0]->payload, 'orders', $messages[0]->options)->returns('accepted');
+        $queue->expects('pushRaw')->with($messages[2]->payload, 'orders', $messages[2]->options)->throws($failure);
         $released = 0;
         $pools = new PoolManager;
         $proxy = $this->proxy($queue, $pools, $released);
@@ -71,12 +74,12 @@ class PooledOutboxPublicationTest extends TestCase
     #[TestWith([true])]
     public function testCancellationReleasesTheBorrowedTransportAndRemainsCancellation(bool $cleanupThrows): void
     {
-        $queue = m::mock(SyncQueue::class)->makePartial();
+        $queue = Double::for(new SyncQueue)->passthru();
         $cancellation = new CanceledException;
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Transport cleanup failed.', previous: $cancellation);
         }
-        $queue->expects('pushRaw')->andThrow($cancellation);
+        $queue->expects('pushRaw')->throws($cancellation);
         $released = 0;
         $pools = new PoolManager;
         $proxy = $this->proxy($queue, $pools, $released);
@@ -132,4 +135,8 @@ class PooledOutboxPublicationTest extends TestCase
             1,
         );
     }
+}
+
+abstract class PooledOutboxPublishingQueue extends SyncQueue implements PublishesOutboxMessages
+{
 }
