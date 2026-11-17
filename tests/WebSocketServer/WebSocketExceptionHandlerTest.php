@@ -7,13 +7,16 @@ namespace Hypervel\Tests\WebSocketServer;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Tests\TestCase;
 use Hypervel\WebSocketServer\Exceptions\Handler\WebSocketExceptionHandler;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class WebSocketExceptionHandlerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testPreservesClientHttpExceptionDetailsAndHeaders(): void
     {
         $handler = $this->handler();
@@ -58,8 +61,8 @@ class WebSocketExceptionHandlerTest extends TestCase
      */
     protected function handler(): WebSocketExceptionHandler
     {
-        $logger = m::mock(StdoutLoggerInterface::class);
-        $logger->shouldReceive('warning')->once();
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->expects('warning');
 
         return new WebSocketExceptionHandler($logger);
     }
