@@ -22,13 +22,15 @@ use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\DatabaseTruncation;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Ai\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 use function Hypervel\Coroutine\parallel;
 
 abstract class ConversationConcurrencyTestCase extends TestCase
 {
     use DatabaseTruncation;
+    use VerifiesDoubles;
 
     /**
      * Give concurrent requests separate pooled sessions with committed setup data.
@@ -61,7 +63,7 @@ abstract class ConversationConcurrencyTestCase extends TestCase
         DB::table('agent_conversations')->where('id', $conversationId)->update(['updated_at' => '2020-01-01 00:00:00']);
         $arrived = new Channel(2);
         $release = new Channel(2);
-        $provider = m::mock(TextProvider::class);
+        $provider = Double::for(TextProvider::class)->strict();
         $sessionIds = [];
 
         $write = function (string $text) use ($store, $conversationId, $arrived, $release, $provider, &$sessionIds): StoredTurn {
@@ -113,7 +115,7 @@ abstract class ConversationConcurrencyTestCase extends TestCase
     {
         $store = new DatabaseConversationStore;
         $conversationId = $store->storeConversation(null, null, 'Approval');
-        $prompt = new AgentPrompt(new AnonymousAgent('', [], []), 'Send an email', [], m::mock(TextProvider::class), 'model');
+        $prompt = new AgentPrompt(new AnonymousAgent('', [], []), 'Send an email', [], Double::for(TextProvider::class)->strict(), 'model');
         $response = (new AgentResponse('invocation', '', new TextUsage, new Meta('test', 'model')))
             ->withSteps(collect([
                 new Step('', [new ToolCall('call-1', 'send_email', [])], [], FinishReason::ToolCalls, new TextUsage, new Meta, '', []),
