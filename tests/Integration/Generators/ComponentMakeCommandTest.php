@@ -6,13 +6,16 @@ namespace Hypervel\Tests\Integration\Generators;
 
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\ComponentMakeCommand;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Tester\CommandTester;
 
 class ComponentMakeCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected $files = [
         'app/View/Components/Foo.php',
         'resources/views/components/foo.blade.php',
@@ -114,9 +117,9 @@ class ComponentMakeCommandTest extends TestCase
 
     public function testViewPublicationFailureDoesNotReportSuccess(): void
     {
-        $files = m::mock(Filesystem::class)->makePartial();
+        $files = Double::for(new Filesystem)->passthru();
         $publicationException = new RuntimeException('Unable to publish component view.');
-        $files->shouldReceive('replace')->once()->andThrow($publicationException);
+        $files->expects('replace')->throws($publicationException);
 
         $command = new ComponentMakeCommand($files);
         $command->setHypervel($this->app);

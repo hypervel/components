@@ -23,11 +23,14 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 abstract class DatabaseSessionHandlerTestCase extends DatabaseTestCase
 {
+    use VerifiesDoubles;
+
     protected const string CURRENT_SESSION_ID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
     protected const string OTHER_SESSION_ID = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -295,8 +298,8 @@ abstract class DatabaseSessionHandlerTestCase extends DatabaseTestCase
 
     public function testUnownedWriteClearsItsOwnerWithoutResolvingTheGuard(): void
     {
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('id')->never();
+        $guard = Double::for(Guard::class)->strict();
+        $guard->expects('id')->never();
         $this->useGuard($guard);
 
         $this->insertSession(
@@ -372,8 +375,8 @@ abstract class DatabaseSessionHandlerTestCase extends DatabaseTestCase
 
     public function testFailedReplacementWriteRetryRemainsUnowned(): void
     {
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('id')->never();
+        $guard = Double::for(Guard::class)->strict();
+        $guard->expects('id')->never();
         $this->useGuard($guard);
 
         $this->insertSession(
@@ -772,8 +775,8 @@ abstract class DatabaseSessionHandlerTestCase extends DatabaseTestCase
 
     protected function useGuardIdentity(int|string|null $userId, ?string $authProvider = 'users'): void
     {
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('id')->andReturn($userId);
+        $guard = Double::for(Guard::class)->strict();
+        $guard->allows('id')->returns($userId);
 
         $this->useGuard($guard, $authProvider);
     }

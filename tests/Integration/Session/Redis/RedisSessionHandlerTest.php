@@ -24,7 +24,8 @@ use Hypervel\Session\SessionManager;
 use Hypervel\Session\UserSessionIdentity;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Redis as PhpRedis;
 
@@ -32,6 +33,7 @@ class RedisSessionHandlerTest extends TestCase
 {
     use InteractsWithRedis;
     use RequiresHashFieldExpiration;
+    use VerifiesDoubles;
 
     private const string SESSION_ID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
@@ -214,10 +216,10 @@ class RedisSessionHandlerTest extends TestCase
     public function testTrackedWritesUseOnlyTheCurrentlySelectedGuard(): void
     {
         $this->skipIfHashFieldExpirationUnsupported();
-        $primaryGuard = m::mock(Guard::class);
-        $primaryGuard->shouldReceive('id')->once()->andReturn('primary-user');
-        $secondaryGuard = m::mock(Guard::class);
-        $secondaryGuard->shouldReceive('id')->once()->andReturn('secondary-user');
+        $primaryGuard = Double::for(Guard::class)->strict();
+        $primaryGuard->expects('id')->returns('primary-user');
+        $secondaryGuard = Double::for(Guard::class)->strict();
+        $secondaryGuard->expects('id')->returns('secondary-user');
         $config = $this->app->make('config');
         $config->set([
             'auth.defaults.guard' => 'primary',
@@ -765,8 +767,8 @@ class RedisSessionHandlerTest extends TestCase
 
     private function configureSelectedUser(string $userId): void
     {
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('id')->andReturn($userId);
+        $guard = Double::for(Guard::class)->strict();
+        $guard->allows('id')->returns($userId);
         $this->app->make('config')->set([
             'auth.defaults.guard' => 'web',
             'auth.guards.web' => ['driver' => 'session-test', 'provider' => 'users'],
@@ -799,8 +801,8 @@ class RedisSessionHandlerTest extends TestCase
         ?string $authProvider = 'users',
     ): Container {
         $guardCalls ??= $writes;
-        $guard = m::mock(Guard::class);
-        $guard->shouldReceive('id')->times($guardCalls)->andReturn($userId);
+        $guard = Double::for(Guard::class)->strict();
+        $guard->expects('id')->times($guardCalls)->returns($userId);
 
         $guardConfig = ['driver' => 'session-test'];
 

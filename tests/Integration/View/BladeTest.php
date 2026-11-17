@@ -12,7 +12,8 @@ use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\View\Component;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Override;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
@@ -23,6 +24,8 @@ use function Hypervel\Filesystem\join_paths;
 
 class BladeTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /**
      * Clear compiled views after the test.
      */
@@ -297,11 +300,13 @@ class BladeTest extends TestCase
         View::addNamespace('templates', join_paths(__DIR__, 'Fixtures', 'templates'));
         View::addNamespace('components', join_paths(__DIR__, 'Fixtures', 'templates', 'components'));
 
-        // Unmatched compile() calls need the configured compiler; a class-based partial mock skips its constructor.
-        Blade::swap(m::mock(Blade::getFacadeRoot())->makePartial());
-        Blade::expects('compile')->with(realpath(__DIR__ . '/Fixtures/templates/components/panel.blade.php'));
+        $path = realpath(__DIR__ . '/Fixtures/templates/components/panel.blade.php');
+        $compiler = Double::for(Blade::getFacadeRoot())->passthru();
+        Blade::swap($compiler);
 
         $this->artisan('view:cache');
+
+        $compiler->received('compile')->with($path)->times(1);
     }
 
     #[RequiresOperatingSystem('Linux|Darwin')]
