@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Foundation\Console\Actions;
 
-use Hypervel\Console\View\Components\Factory as ComponentsFactory;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Foundation\Console\Actions\GeneratesFile;
+use Hypervel\Tests\Console\Fixtures\ComponentsFactory;
 use Hypervel\Tests\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 
@@ -16,19 +17,21 @@ use function Hypervel\Filesystem\join_paths;
 
 class GeneratesFileTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[Test]
     public function itCanGeneratesFile(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $components = m::mock(ComponentsFactory::class);
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $components = Double::for(ComponentsFactory::class)->strict();
 
-        $filesystem->shouldReceive('exists')->once()->with('a')->andReturnTrue()
-            ->shouldReceive('exists')->once()->with('b')->andReturnFalse()
-            ->shouldReceive('copy')->once()->with('a', 'b')->andReturnTrue()
-            ->shouldReceive('exists')->once()->with(join_paths('.', '.gitkeep'))->andReturnTrue()
-            ->shouldReceive('delete')->once()->with(join_paths('.', '.gitkeep'));
+        $filesystem->expects('exists')->with('a')->returns(true);
+        $filesystem->expects('exists')->with('b')->returns(false);
+        $filesystem->expects('copy')->with('a', 'b')->returns(true);
+        $filesystem->expects('exists')->with(join_paths('.', '.gitkeep'))->returns(true);
+        $filesystem->expects('delete')->with(join_paths('.', '.gitkeep'));
 
-        $components->shouldReceive('task')->once()->with('File [b] generated');
+        $components->expects('task')->with('File [b] generated');
 
         (new GeneratesFile(
             filesystem: $filesystem,
@@ -39,14 +42,14 @@ class GeneratesFileTest extends TestCase
     #[Test]
     public function itCannotGeneratesFileWhenFileAlreadyGenerated(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $components = m::mock(ComponentsFactory::class);
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $components = Double::for(ComponentsFactory::class)->strict();
 
-        $filesystem->shouldReceive('exists')->once()->with('a')->andReturnTrue()
-            ->shouldReceive('exists')->once()->with('b')->andReturnTrue()
-            ->shouldReceive('copy')->never()->with('a', 'b');
+        $filesystem->expects('exists')->with('a')->returns(true);
+        $filesystem->expects('exists')->with('b')->returns(true);
+        $filesystem->expects('copy')->never()->with('a', 'b');
 
-        $components->shouldReceive('twoColumnDetail')->once()->with('File [b] already exists', '<fg=yellow;options=bold>SKIPPED</>');
+        $components->expects('twoColumnDetail')->with('File [b] already exists', '<fg=yellow;options=bold>SKIPPED</>');
 
         (new GeneratesFile(
             filesystem: $filesystem,
@@ -58,16 +61,16 @@ class GeneratesFileTest extends TestCase
     #[Test]
     public function itCanGeneratesFileWhenFileAlreadyGeneratedUsingForce(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $components = m::mock(ComponentsFactory::class);
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $components = Double::for(ComponentsFactory::class)->strict();
 
-        $filesystem->shouldReceive('exists')->once()->with('a')->andReturnTrue()
-            ->shouldReceive('exists')->never()->with('b')
-            ->shouldReceive('copy')->once()->with('a', 'b')->andReturnTrue()
-            ->shouldReceive('exists')->once()->with(join_paths('.', '.gitkeep'))->andReturnTrue()
-            ->shouldReceive('delete')->once()->with(join_paths('.', '.gitkeep'));
+        $filesystem->expects('exists')->with('a')->returns(true);
+        $filesystem->expects('exists')->never()->with('b');
+        $filesystem->expects('copy')->with('a', 'b')->returns(true);
+        $filesystem->expects('exists')->with(join_paths('.', '.gitkeep'))->returns(true);
+        $filesystem->expects('delete')->with(join_paths('.', '.gitkeep'));
 
-        $components->shouldReceive('task')->once()->with('File [b] generated');
+        $components->expects('task')->with('File [b] generated');
 
         (new GeneratesFile(
             filesystem: $filesystem,
@@ -79,15 +82,15 @@ class GeneratesFileTest extends TestCase
     #[Test]
     public function itCanPretendToGenerateFile(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $components = m::mock(ComponentsFactory::class);
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $components = Double::for(ComponentsFactory::class)->strict();
 
-        $filesystem->shouldReceive('exists')->once()->with('a')->andReturnTrue()
-            ->shouldReceive('exists')->once()->with('b')->andReturnFalse()
-            ->shouldReceive('copy')->never()
-            ->shouldReceive('delete')->never();
+        $filesystem->expects('exists')->with('a')->returns(true);
+        $filesystem->expects('exists')->with('b')->returns(false);
+        $filesystem->expects('copy')->never();
+        $filesystem->expects('delete')->never();
 
-        $components->shouldReceive('task')->once()->with('File [b] would be generated');
+        $components->expects('task')->with('File [b] would be generated');
 
         (new GeneratesFile(
             filesystem: $filesystem,
@@ -99,14 +102,14 @@ class GeneratesFileTest extends TestCase
     #[Test]
     public function itCannotGeneratesFileWhenSourceFileDoesNotExists(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $components = m::mock(ComponentsFactory::class);
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $components = Double::for(ComponentsFactory::class)->strict();
 
-        $filesystem->shouldReceive('exists')->once()->with('a')->andReturnFalse()
-            ->shouldReceive('exists')->never()->with('b')
-            ->shouldReceive('copy')->never()->with('a', 'b');
+        $filesystem->expects('exists')->with('a')->returns(false);
+        $filesystem->expects('exists')->never()->with('b');
+        $filesystem->expects('copy')->never()->with('a', 'b');
 
-        $components->shouldReceive('twoColumnDetail')->once()->with('Source file [a] doesn\'t exist', '<fg=yellow;options=bold>SKIPPED</>');
+        $components->expects('twoColumnDetail')->with('Source file [a] doesn\'t exist', '<fg=yellow;options=bold>SKIPPED</>');
 
         (new GeneratesFile(
             filesystem: $filesystem,
@@ -118,13 +121,13 @@ class GeneratesFileTest extends TestCase
     #[Test]
     public function itDoesNotReportSuccessOrDeleteThePlaceholderWhenCopyingFails(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $components = m::mock(ComponentsFactory::class);
-        $filesystem->expects('exists')->with('a')->andReturnTrue();
-        $filesystem->expects('exists')->with('b')->andReturnFalse();
-        $filesystem->expects('copy')->with('a', 'b')->andReturnFalse();
-        $filesystem->shouldNotReceive('delete');
-        $components->shouldNotReceive('task');
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $components = Double::for(ComponentsFactory::class)->strict();
+        $filesystem->expects('exists')->with('a')->returns(true);
+        $filesystem->expects('exists')->with('b')->returns(false);
+        $filesystem->expects('copy')->with('a', 'b')->returns(false);
+        $filesystem->expects('delete')->never();
+        $components->expects('task')->never();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Unable to generate file [b].');

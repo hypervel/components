@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Foundation\Console\Actions;
 
-use Hypervel\Console\View\Components\Factory as ComponentsFactory;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Foundation\Console\Actions\EnsureDirectoryExists;
+use Hypervel\Tests\Console\Fixtures\ComponentsFactory;
 use Hypervel\Tests\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 
@@ -16,25 +18,27 @@ use function Hypervel\Filesystem\join_paths;
 
 class EnsureDirectoryExistsTest extends TestCase
 {
+    use VerifiesDoubles;
+
     #[Test]
     public function itCanEnsureDirectoryExists(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $components = m::mock(ComponentsFactory::class);
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $components = Double::for(ComponentsFactory::class)->strict();
 
-        $filesystem->shouldReceive('isDirectory')->once()->with('a')->andReturnFalse()
-            ->shouldReceive('ensureDirectoryExists')->once()->with('a', 493, true)->andReturnNull()
-            ->shouldReceive('copy')->once()->with(m::type('string'), join_paths('a', '.gitkeep'))->andReturnTrue()
-            ->shouldReceive('isDirectory')->once()->with('b')->andReturnTrue()
-            ->shouldReceive('ensureDirectoryExists')->never()->with('b', 493, true)
-            ->shouldReceive('copy')->never()->with(m::type('string'), join_paths('b', '.gitkeep'))
-            ->shouldReceive('isDirectory')->once()->with(join_paths('c', 'd'))->andReturnFalse()
-            ->shouldReceive('ensureDirectoryExists')->once()->with(join_paths('c', 'd'), 493, true)->andReturnNull()
-            ->shouldReceive('copy')->once()->with(m::type('string'), join_paths('c', 'd', '.gitkeep'))->andReturnTrue();
+        $filesystem->expects('isDirectory')->with('a')->returns(false);
+        $filesystem->expects('ensureDirectoryExists')->with('a', 493, true);
+        $filesystem->expects('copy')->with(Argument::type('string'), join_paths('a', '.gitkeep'))->returns(true);
+        $filesystem->expects('isDirectory')->with('b')->returns(true);
+        $filesystem->expects('ensureDirectoryExists')->never()->with('b', 493, true);
+        $filesystem->expects('copy')->never()->with(Argument::type('string'), join_paths('b', '.gitkeep'));
+        $filesystem->expects('isDirectory')->with(join_paths('c', 'd'))->returns(false);
+        $filesystem->expects('ensureDirectoryExists')->with(join_paths('c', 'd'), 493, true);
+        $filesystem->expects('copy')->with(Argument::type('string'), join_paths('c', 'd', '.gitkeep'))->returns(true);
 
-        $components->shouldReceive('task')->once()->with('Prepare [a] directory')->andReturnNull()
-            ->shouldReceive('twoColumnDetail')->once()->with('Directory [b] already exists', '<fg=yellow;options=bold>SKIPPED</>')->andReturnNull()
-            ->shouldReceive('task')->once()->with(sprintf('Prepare [%s] directory', join_paths('c', 'd')))->andReturnNull();
+        $components->expects('task')->with('Prepare [a] directory');
+        $components->expects('twoColumnDetail')->with('Directory [b] already exists', '<fg=yellow;options=bold>SKIPPED</>');
+        $components->expects('task')->with(sprintf('Prepare [%s] directory', join_paths('c', 'd')));
 
         (new EnsureDirectoryExists(
             filesystem: $filesystem,
@@ -45,16 +49,16 @@ class EnsureDirectoryExistsTest extends TestCase
     #[Test]
     public function itCanPretendToEnsureDirectoryExists(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $components = m::mock(ComponentsFactory::class);
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $components = Double::for(ComponentsFactory::class)->strict();
 
-        $filesystem->shouldReceive('isDirectory')->once()->with('a')->andReturnFalse()
-            ->shouldReceive('isDirectory')->once()->with('b')->andReturnTrue()
-            ->shouldReceive('ensureDirectoryExists')->never()
-            ->shouldReceive('copy')->never();
+        $filesystem->expects('isDirectory')->with('a')->returns(false);
+        $filesystem->expects('isDirectory')->with('b')->returns(true);
+        $filesystem->expects('ensureDirectoryExists')->never();
+        $filesystem->expects('copy')->never();
 
-        $components->shouldReceive('task')->once()->with('Prepare [a] directory')->andReturnNull()
-            ->shouldReceive('twoColumnDetail')->once()->with('Directory [b] already exists', '<fg=yellow;options=bold>SKIPPED</>')->andReturnNull();
+        $components->expects('task')->with('Prepare [a] directory');
+        $components->expects('twoColumnDetail')->with('Directory [b] already exists', '<fg=yellow;options=bold>SKIPPED</>');
 
         (new EnsureDirectoryExists(
             filesystem: $filesystem,
@@ -66,14 +70,14 @@ class EnsureDirectoryExistsTest extends TestCase
     #[Test]
     public function itFailsWhenThePlaceholderCannotBeCopied(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $components = m::mock(ComponentsFactory::class);
-        $filesystem->expects('isDirectory')->with('a')->andReturnFalse();
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $components = Double::for(ComponentsFactory::class)->strict();
+        $filesystem->expects('isDirectory')->with('a')->returns(false);
         $filesystem->expects('ensureDirectoryExists')->with('a', 493, true);
         $filesystem->expects('copy')
-            ->with(m::type('string'), join_paths('a', '.gitkeep'))
-            ->andReturnFalse();
-        $components->shouldNotReceive('task');
+            ->with(Argument::type('string'), join_paths('a', '.gitkeep'))
+            ->returns(false);
+        $components->expects('task')->never();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIs('Unable to create placeholder file [a/.gitkeep].');
