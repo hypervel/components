@@ -11,6 +11,7 @@ use Hypervel\Doctor\Results\FixResult;
 use Hypervel\Doctor\Results\Message;
 use Hypervel\Doctor\Support\Composer;
 use Hypervel\Foundation\PackageManifest;
+use Hypervel\Support\Composer as ComposerSupport;
 use Hypervel\Support\Facades\Process;
 
 class ComposerAutoloadIsValid extends Diagnostic implements Fixable
@@ -26,14 +27,16 @@ class ComposerAutoloadIsValid extends Diagnostic implements Fixable
      */
     protected function messages(): array
     {
+        $command = 'composer dump-autoload ' . $this->autoloadOptimizationOption();
+
         return [
             'composer-missing' => 'The application does not have a composer.json file.',
             'dependencies-missing' => 'Composer dependencies are not installed.',
             'valid' => 'Composer can generate optimized autoload files.',
             'invalid' => Message::make(
                 summary: 'Composer cannot generate valid autoload files.',
-                remediation: 'Regenerate Composer autoload files with `composer dump-autoload`.',
-                confirmation: 'Regenerate Composer autoload files using `composer dump-autoload`?',
+                remediation: "Regenerate Composer autoload files with `{$command}`.",
+                confirmation: "Regenerate Composer autoload files using `{$command}`?",
             ),
             'regeneration-failed' => 'Composer autoload files could not be regenerated.',
             'regenerated' => 'Composer autoload files were regenerated.',
@@ -81,7 +84,7 @@ class ComposerAutoloadIsValid extends Diagnostic implements Fixable
         $process = Process::path(base_path())->forever()->run([
             ...Composer::command(),
             'dump-autoload',
-            '--optimize',
+            $this->autoloadOptimizationOption(),
             '--strict-psr',
             '--strict-ambiguous',
             '--no-interaction',
@@ -93,5 +96,14 @@ class ComposerAutoloadIsValid extends Diagnostic implements Fixable
         }
 
         return $this->fixed('regenerated');
+    }
+
+    /**
+     * Get the optimization option that preserves the current autoloader mode.
+     */
+    private function autoloadOptimizationOption(): string
+    {
+        // Unlike upstream's optimize-only repair, preserve authoritative class lookup when enabled.
+        return ComposerSupport::getLoader()->isClassMapAuthoritative() ? '--classmap-authoritative' : '--optimize';
     }
 }
