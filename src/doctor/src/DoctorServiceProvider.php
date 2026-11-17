@@ -11,6 +11,7 @@ use Hypervel\Doctor\Diagnostics\ApplicationKeyIsSet;
 use Hypervel\Doctor\Diagnostics\BootstrapCacheMatchesEnvironment;
 use Hypervel\Doctor\Diagnostics\CacheStoreIsReachable;
 use Hypervel\Doctor\Diagnostics\ComposerAuditPasses;
+use Hypervel\Doctor\Diagnostics\ComposerAutoloadIsAuthoritative;
 use Hypervel\Doctor\Diagnostics\ComposerAutoloadIsValid;
 use Hypervel\Doctor\Diagnostics\ComposerLockIsFresh;
 use Hypervel\Doctor\Diagnostics\ConfigurationCanBeCached;
@@ -54,6 +55,7 @@ class DoctorServiceProvider extends ServiceProvider
                 RecommendedPhpExtensionsAreLoaded::class,
                 // ApplicationTimezoneIsValid is omitted: Hypervel rejects invalid timezones during boot.
                 ComposerAutoloadIsValid::class,
+                ComposerAutoloadIsAuthoritative::class,
                 ComposerLockIsFresh::class,
                 ConfigurationFilesCanBeLoaded::class,
                 ConfigurationCanBeCached::class,

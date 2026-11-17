@@ -1031,6 +1031,8 @@ Do not replace the Hypervel skeleton's `composer.json`, `bootstrap/app.php`, `co
 
 Hypervel runs its Swoole HTTP server using `php artisan serve` and does not use `public/index.php` as its HTTP entry point. Review the [deployment documentation](/docs/{{version}}/deployment) before adapting web server or process-monitor configuration.
 
+Build production releases with `composer install --no-dev --classmap-authoritative` instead of `--optimize-autoloader`; Doctor fails production checks without an authoritative class map. See [Autoloader Optimization](/docs/{{version}}/deployment#autoloader-optimization).
+
 Hypervel uses Vite for frontend assets and does not provide Laravel Mix or the `mix()` helper. Keep or migrate assets to the Vite integration described in the [Vite documentation](/docs/{{version}}/vite).
 
 Hypervel does not include support for Laravel Cloud, which is built for Laravel applications. For a managed platform built for Hypervel applications and their long-running services, use [SonicStack](https://sonicstack.io), the Hypervel team's deployment platform. See [Deploying With SonicStack](/docs/{{version}}/deployment#deploying-with-sonicstack).
