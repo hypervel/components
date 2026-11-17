@@ -11,9 +11,11 @@ use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\Spinner;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Event;
+use Throwable;
 
 use function Hypervel\Prompts\spin;
 
@@ -64,15 +66,18 @@ class SpinnerTest extends TestCase
         }
     }
 
-    public function testCallbackFailureRemainsPrimaryWhenTerminalRestorationFails(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCallbackFailureRemainsPrimaryUnlessTerminalRestorationIsCanceled(bool $canceled): void
     {
         Prompt::fake();
         $callbackFailure = new RuntimeException('callback failed');
+        $cleanupFailure = $canceled ? new CanceledException : new RuntimeException('terminal restoration failed');
 
         Prompt::terminal()
             ->shouldReceive('restoreTty') // @phpstan-ignore-line
             ->once()
-            ->andThrow(new RuntimeException('terminal restoration failed'));
+            ->andThrow($cleanupFailure);
 
         try {
             (new Spinner('Running...'))->spin(function () use ($callbackFailure): never {
@@ -80,8 +85,8 @@ class SpinnerTest extends TestCase
             });
 
             $this->fail('Expected the spinner callback to fail.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($callbackFailure, $exception);
+        } catch (CanceledException|RuntimeException $exception) {
+            $this->assertSame($canceled ? $cleanupFailure : $callbackFailure, $exception);
         }
     }
 
@@ -161,8 +166,9 @@ class SpinnerTest extends TestCase
                 $spinner->spin(static function () use ($spinner, $callbackFinished): void {
                     $spinner->renderStarted->pop(1);
                     Event::defer(static fn () => $callbackFinished->push(true));
+                    throw new RuntimeException('Callback failed before the spinner stopped.');
                 });
-            } catch (CanceledException $exception) {
+            } catch (Throwable $exception) {
                 $cancellation = $exception;
             }
         });
