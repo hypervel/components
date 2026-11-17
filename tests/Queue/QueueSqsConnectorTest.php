@@ -26,7 +26,8 @@ use Hypervel\Support\ClassInvoker;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Http\Message\RequestInterface;
@@ -38,6 +39,8 @@ use UnitEnum;
 
 class QueueSqsConnectorTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected string $tempDir;
 
     /**
@@ -298,8 +301,8 @@ class QueueSqsConnectorTest extends TestCase
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Cache cleanup failed.', previous: $cancellation);
         }
-        $repository = m::mock(Repository::class, [new ArrayStore])->makePartial();
-        $repository->shouldReceive($cacheable ? 'put' : 'forget')->once()->andThrow($cancellation);
+        $repository = Double::for(new Repository(new ArrayStore))->passthru();
+        $repository->expects($cacheable ? 'put' : 'forget')->throws($cancellation);
 
         $promise = (new AwsCredentialCache(fn () => $repository))->resolve(
             'credentials',
@@ -381,11 +384,11 @@ class QueueSqsConnectorTest extends TestCase
     public function testCancellationWhileAcquiringTheRefreshLockDoesNotCallTheProvider(bool $cleanupThrows): void
     {
         $failure = $cleanupThrows ? new RuntimeException('Lock cleanup failed.', previous: new CanceledException) : new CanceledException;
-        $lock = m::mock(ArrayLock::class);
-        $lock->shouldReceive('block')->once()->andThrow($failure);
-        $lock->shouldReceive('release')->once()->andReturnFalse();
-        $store = m::mock(ArrayStore::class)->makePartial();
-        $store->shouldReceive('lock')->once()->andReturn($lock);
+        $lock = Double::for(ArrayLock::class)->strict();
+        $lock->expects('block')->throws($failure);
+        $lock->expects('release')->returns(false);
+        $store = Double::for(new ArrayStore)->passthru();
+        $store->expects('lock')->returns($lock);
         $repository = new Repository($store);
         $providerCalled = false;
         $caught = null;
@@ -805,8 +808,8 @@ class QueueSqsConnectorTest extends TestCase
      */
     protected function useCredentialCache(Repository $repository): void
     {
-        $cache = m::mock(Factory::class);
-        $cache->shouldReceive('store')->andReturn($repository);
+        $cache = Double::for(Factory::class)->strict();
+        $cache->allows('store')->returns($repository);
 
         Container::getInstance()->instance('cache', $cache);
     }

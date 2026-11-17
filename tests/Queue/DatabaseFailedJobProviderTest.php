@@ -14,12 +14,14 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use RuntimeException;
 
 class DatabaseFailedJobProviderTest extends TestCase
 {
     use RefreshDatabase;
+    use VerifiesDoubles;
 
     protected ?DatabaseFailedJobProvider $provider = null;
 
@@ -66,14 +68,13 @@ class DatabaseFailedJobProviderTest extends TestCase
 
     public function testNonIntegerFailedJobIdsAreCastToStrings(): void
     {
-        $builder = m::mock(Builder::class);
-        $builder->shouldReceive('when')->andReturnSelf();
-        $builder->shouldReceive('orderBy')->andReturnSelf();
-        $builder->shouldReceive('pluck')->with('id')->andReturn(new Collection([new Stringable('4'), 3]));
+        $builder = Double::for(Builder::class)->strict();
+        $builder->allows('when')->returns($builder);
+        $builder->allows('orderBy');
+        $builder->allows('pluck')->with('id')->returns(new Collection([new Stringable('4'), 3]));
 
-        $provider = m::mock(DatabaseFailedJobProvider::class, [$this->resolver, null, 'failed_jobs'])
-            ->makePartial();
-        $provider->shouldReceive('getTable')->andReturn($builder);
+        $provider = Double::for($this->provider)->passthru();
+        $provider->allows('getTable')->returns($builder);
 
         $this->assertSame(['4', 3], $provider->ids());
     }

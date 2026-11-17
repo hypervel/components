@@ -21,7 +21,7 @@ use Hypervel\Queue\Failed\DatabaseUuidFailedJobProvider;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
-use Mockery as m;
+use JMac\Testing\Double;
 use Swoole\Coroutine;
 use Swoole\Coroutine\Channel;
 use Swoole\Runtime;
@@ -184,10 +184,10 @@ Coroutine\run(static function () use ($argv): void {
         ], JSON_THROW_ON_ERROR));
     }
 
-    $manager = m::mock(Factory::class);
-    $manager->shouldReceive('connection')->andReturn($queue);
-    $exceptions = m::mock(ExceptionHandler::class);
-    $exceptions->shouldReceive('report')->andReturnUsing(static function (Throwable $exception): void {
+    $manager = Double::for(Factory::class)->strict();
+    $manager->allows('connection')->returns($queue);
+    $exceptions = Double::for(ExceptionHandler::class)->strict();
+    $exceptions->allows('report')->resolves(static function (Throwable $exception): void {
         fwrite(STDERR, (string) $exception);
     });
     $worker = new Worker($manager, $events, $exceptions, static fn (): bool => false);

@@ -21,17 +21,21 @@ use Hypervel\Queue\Jobs\BeanstalkdJob;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
-use Pheanstalk\Contract\JobIdInterface;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
 use Pheanstalk\Contract\PheanstalkPublisherInterface;
 use Pheanstalk\Contract\PheanstalkSubscriberInterface;
+use Pheanstalk\Values\Job as PheanstalkJob;
+use Pheanstalk\Values\JobId;
 use Pheanstalk\Values\JobStats;
 use RuntimeException;
 use stdClass;
 
 class PooledJobWorkerTest extends TestCase
 {
+    use VerifiesDoubles;
+
     /** @var list<CallbackObjectPool> */
     private array $pools = [];
 
@@ -48,16 +52,15 @@ class PooledJobWorkerTest extends TestCase
         Container::setInstance($container);
         $container->instance('handler', new PooledJobWorkerHandler);
 
-        $pheanstalk = m::mock(implode(',', [
+        $pheanstalk = Double::for(
             PheanstalkManagerInterface::class,
             PheanstalkPublisherInterface::class,
             PheanstalkSubscriberInterface::class,
-        ]));
-        $pheanstalk->shouldReceive('statsJob')->once()->andReturn($this->stats(3));
-        $pheanstalk->shouldReceive('delete')->once();
+        )->strict();
+        $pheanstalk->expects('statsJob')->returns($this->stats(3));
+        $pheanstalk->expects('delete');
 
-        $rawJob = m::mock(JobIdInterface::class);
-        $rawJob->shouldReceive('getData')->andReturn(json_encode([
+        $rawJob = new PheanstalkJob(new JobId(1), json_encode([
             'job' => 'handler',
             'data' => [],
         ], JSON_THROW_ON_ERROR));
@@ -73,12 +76,12 @@ class PooledJobWorkerTest extends TestCase
         $job->withPoolLease(new Lease($pool, $pool->borrow()));
 
         $attemptsObservedByListener = null;
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobProcessed::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobAttempted::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->times(3)
-            ->andReturnUsing(function (object $event) use (&$attemptsObservedByListener): array {
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(JobProcessing::class)->returns(true);
+        $events->expects('hasListeners')->with(JobProcessed::class)->returns(true);
+        $events->expects('hasListeners')->with(JobAttempted::class)->returns(true);
+        $events->expects('dispatch')->times(3)
+            ->resolves(function (object $event) use (&$attemptsObservedByListener): array {
                 if ($event instanceof JobProcessed) {
                     $attemptsObservedByListener = $event->job->attempts();
                 }
@@ -87,9 +90,9 @@ class PooledJobWorkerTest extends TestCase
             });
 
         $worker = new Worker(
-            m::mock(Factory::class),
+            Double::for(Factory::class)->strict(),
             $events,
-            m::mock(ExceptionHandler::class),
+            Double::for(ExceptionHandler::class)->strict(),
             fn () => false,
         );
 
@@ -108,28 +111,27 @@ class PooledJobWorkerTest extends TestCase
         $container = new Container;
         Container::setInstance($container);
         $container->instance('handler', new FailingPooledJobWorkerHandler);
-        $pheanstalk = m::mock(implode(',', [
+        $pheanstalk = Double::for(
             PheanstalkManagerInterface::class,
             PheanstalkPublisherInterface::class,
             PheanstalkSubscriberInterface::class,
-        ]));
-        $pheanstalk->shouldReceive('statsJob')->atLeast()->once()->andReturn($this->stats(1));
-        $pheanstalk->shouldReceive('release')->once();
-        $rawJob = m::mock(JobIdInterface::class);
-        $rawJob->shouldReceive('getData')->andReturn(json_encode([
+        )->strict();
+        $pheanstalk->expects('statsJob')->times(minimum: 1)->returns($this->stats(1));
+        $pheanstalk->expects('release');
+        $rawJob = new PheanstalkJob(new JobId(1), json_encode([
             'job' => 'handler',
             'data' => [],
         ], JSON_THROW_ON_ERROR));
         $job = new BeanstalkdJob($container, $pheanstalk, $rawJob, 'connection', 'queue');
         $pool = $this->pool();
         $job->withPoolLease(new Lease($pool, $pool->borrow()));
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobExceptionOccurred::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobReleasedAfterException::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobAttempted::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->times(4)->andReturn([]);
-        $worker = new Worker(m::mock(Factory::class), $events, m::mock(ExceptionHandler::class), fn () => false);
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(JobProcessing::class)->returns(true);
+        $events->expects('hasListeners')->with(JobExceptionOccurred::class)->returns(true);
+        $events->expects('hasListeners')->with(JobReleasedAfterException::class)->returns(true);
+        $events->expects('hasListeners')->with(JobAttempted::class)->returns(true);
+        $events->expects('dispatch')->times(4)->returns([]);
+        $worker = new Worker(Double::for(Factory::class)->strict(), $events, Double::for(ExceptionHandler::class)->strict(), fn () => false);
 
         try {
             $worker->process('connection', $job, new WorkerOptions(maxTries: 0, backoff: 3));
@@ -148,29 +150,28 @@ class PooledJobWorkerTest extends TestCase
         $container = new Container;
         Container::setInstance($container);
         $container->instance('handler', new FailingPooledJobWorkerHandler);
-        $pheanstalk = m::mock(implode(',', [
+        $pheanstalk = Double::for(
             PheanstalkManagerInterface::class,
             PheanstalkPublisherInterface::class,
             PheanstalkSubscriberInterface::class,
-        ]));
-        $pheanstalk->shouldReceive('statsJob')->atLeast()->once()->andReturn($this->stats(1));
-        $pheanstalk->shouldReceive('delete')->once();
-        $rawJob = m::mock(JobIdInterface::class);
-        $rawJob->shouldReceive('getData')->andReturn(json_encode([
+        )->strict();
+        $pheanstalk->expects('statsJob')->times(minimum: 1)->returns($this->stats(1));
+        $pheanstalk->expects('delete');
+        $rawJob = new PheanstalkJob(new JobId(1), json_encode([
             'job' => 'handler',
             'data' => [],
         ], JSON_THROW_ON_ERROR));
         $job = new BeanstalkdJob($container, $pheanstalk, $rawJob, 'connection', 'queue');
         $pool = $this->pool();
         $job->withPoolLease(new Lease($pool, $pool->borrow()));
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobExceptionOccurred::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobAttempted::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->times(4)->andReturn([]);
+        $events = Double::for(Dispatcher::class)->strict();
+        $events->expects('hasListeners')->with(JobProcessing::class)->returns(true);
+        $events->expects('hasListeners')->with(JobFailed::class)->returns(true);
+        $events->expects('hasListeners')->with(JobExceptionOccurred::class)->returns(true);
+        $events->expects('hasListeners')->with(JobAttempted::class)->returns(true);
+        $events->expects('dispatch')->times(4)->returns([]);
         $container->instance(Dispatcher::class, $events);
-        $worker = new Worker(m::mock(Factory::class), $events, m::mock(ExceptionHandler::class), fn () => false);
+        $worker = new Worker(Double::for(Factory::class)->strict(), $events, Double::for(ExceptionHandler::class)->strict(), fn () => false);
 
         try {
             $worker->process('connection', $job, new WorkerOptions(maxTries: 1));
