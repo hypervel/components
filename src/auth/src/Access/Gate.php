@@ -592,7 +592,9 @@ class Gate implements GateContract
      */
     protected function resolveAuthCallback(mixed $user, string $ability, array $arguments): callable
     {
+        // Gates also accept plain data; only classes and objects can identify a policy.
         if (isset($arguments[0])
+            && (is_object($arguments[0]) || is_string($arguments[0]))
             && ! is_null($policy = $this->getPolicyFor($arguments[0]))
             && $callback = $this->resolvePolicyCallback($user, $ability, $arguments, $policy)) {
             return $callback;
@@ -628,8 +630,18 @@ class Gate implements GateContract
             return $this->resolvePolicy($this->policies[$class]);
         }
 
-        $this->policyClassCache ??= new ArrayObject;
-        $policyClass = $this->policyClassCache[$class] ??= $this->resolvePolicyClass($class);
+        $policyClass = $this->policyClassCache[$class] ?? null;
+
+        if ($policyClass === null) {
+            $policyClass = $this->resolvePolicyClass($class);
+
+            // Gate arguments may be user data. Cache only real classes, not an unbounded set of strings.
+            // Discovery above may have autoloaded the class, so inspect it after resolving the policy.
+            if (class_exists($class, false)) {
+                $this->policyClassCache ??= new ArrayObject;
+                $this->policyClassCache[$class] = $policyClass;
+            }
+        }
 
         return $policyClass !== false
             ? $this->resolvePolicy($policyClass)

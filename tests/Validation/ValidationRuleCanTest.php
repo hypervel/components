@@ -13,11 +13,15 @@ use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rules\Can;
 use Hypervel\Validation\Validator;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use PHPUnit\Framework\Attributes\TestWith;
 use stdClass;
 
 class ValidationRuleCanTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected $user;
 
     protected $router;
@@ -26,7 +30,7 @@ class ValidationRuleCanTest extends TestCase
     {
         parent::setUp();
 
-        $this->user = m::mock(Authenticatable::class);
+        $this->user = Double::for(Authenticatable::class)->strict();
 
         $this->app->singleton(GateContract::class, function () {
             return new Gate($this->app, function () {
@@ -73,10 +77,34 @@ class ValidationRuleCanTest extends TestCase
         $v = new Validator(
             resolve('translator'),
             ['company' => '1'],
-            ['company' => new Can('update-company', [\App\Models\Company::class, m::mock(Authenticatable::class)])]
+            ['company' => new Can('update-company', [\App\Models\Company::class, Double::for(Authenticatable::class)->strict()])]
         );
 
         $this->assertTrue($v->passes());
+    }
+
+    #[TestWith([0, []])]
+    #[TestWith(['0', []])]
+    #[TestWith([false, []])]
+    #[TestWith([null, []])]
+    #[TestWith(['0', ['scope', false, 0, null, '']])]
+    public function testAuthorizationReceivesFalseyValuesAndArguments(mixed $value, array $arguments): void
+    {
+        foreach ([true, false] as $allowed) {
+            $this->gate()->define('check-value', function ($user, ...$received) use ($value, $arguments, $allowed): bool {
+                $this->assertSame([...$arguments, $value], $received);
+
+                return $allowed;
+            });
+
+            $validator = new Validator(
+                $this->app->make('translator'),
+                ['value' => $value],
+                ['value' => new Can('check-value', $arguments)],
+            );
+
+            $this->assertSame($allowed, $validator->passes());
+        }
     }
 
     public function testCustomMessageUsingDotNotationAndFqcnWorks(): void

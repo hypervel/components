@@ -32,11 +32,8 @@ class Can implements Rule, ValidatorAwareRule, Transient
      */
     public function passes(string $attribute, mixed $value): bool
     {
-        $arguments = $this->arguments;
-
-        $model = array_shift($arguments);
-
-        return Gate::allows($this->ability, array_filter([$model, ...$arguments, $value]));
+        // Unlike upstream's filtering, keep falsey values: they are authorization data.
+        return Gate::allows($this->ability, [...$this->arguments, $value]);
     }
 
     /**
