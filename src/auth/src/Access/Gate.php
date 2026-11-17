@@ -633,11 +633,13 @@ class Gate implements GateContract
         $policyClass = $this->policyClassCache[$class] ?? null;
 
         if ($policyClass === null) {
-            $policyClass = $this->resolvePolicyClass($class);
+            // Only declared model names are cached. Other inputs may be user data, so their
+            // policy guesses are normalized to avoid unbounded worker state. For those inputs,
+            // register policies explicitly when relying on container configuration for PHP class aliases.
+            $isDeclaredClass = class_exists($class) && (new ReflectionClass($class))->getName() === $class;
+            $policyClass = $this->resolvePolicyClass($class, $isDeclaredClass);
 
-            // Gate arguments may be user data. Cache only declared class names, not arbitrary spellings.
-            // Discovery above may have autoloaded the class, so inspect it after resolving the policy.
-            if (class_exists($class, false) && (new ReflectionClass($class))->getName() === $class) {
+            if ($isDeclaredClass) {
                 $this->policyClassCache ??= new ArrayObject;
                 $this->policyClassCache[$class] = $policyClass;
             }
@@ -657,7 +659,7 @@ class Gate implements GateContract
      *
      * @return class-string|false
      */
-    private function resolvePolicyClass(string $class): string|false
+    private function resolvePolicyClass(string $class, bool $isDeclaredClass): string|false
     {
         $policy = $this->getPolicyFromAttribute($class);
 
@@ -667,9 +669,7 @@ class Gate implements GateContract
 
         foreach ($this->guessPolicyName($class) as $guessedPolicy) {
             if (class_exists($guessedPolicy)) {
-                // Loaded classes match case-insensitively; use the declared name so input spelling
-                // cannot bypass its container binding or create separate policy instances.
-                return (new ReflectionClass($guessedPolicy))->getName();
+                return $isDeclaredClass ? $guessedPolicy : (new ReflectionClass($guessedPolicy))->getName();
             }
         }
 

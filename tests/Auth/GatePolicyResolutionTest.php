@@ -61,6 +61,21 @@ class GatePolicyResolutionTest extends TestCase
         }
     }
 
+    public function testGuessedPolicyAliasesHonorContainerExtenders(): void
+    {
+        $alias = __NAMESPACE__ . '\ConfiguredPolicyAlias';
+
+        if (! class_exists($alias, false)) {
+            class_alias(AuthTestUserPolicy::class, $alias);
+        }
+
+        $policy = new AuthTestUserPolicy;
+        $this->app->extend($alias, fn (): AuthTestUserPolicy => $policy);
+        Gate::guessPolicyNamesUsing(fn (): string => $alias);
+
+        $this->assertSame($policy, Gate::getPolicyFor(ModelAuthTestUser::class));
+    }
+
     public function testPolicyCacheDoesNotRetainAlternativeClassSpellings(): void
     {
         $received = [];
