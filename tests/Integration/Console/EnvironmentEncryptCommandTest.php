@@ -10,12 +10,16 @@ use Hypervel\Support\Facades\File;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Integration\Console\Fixtures\ArrayFilesystem;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
 class EnvironmentEncryptCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     protected ArrayFilesystem $filesystem;
 
     /**
@@ -53,17 +57,17 @@ class EnvironmentEncryptCommandTest extends TestCase
     public function testItPreservesCancellationWhileReadingTheEnvironment(): void
     {
         $cancellation = new CanceledException('canceled');
-        $filesystem = m::mock(Filesystem::class);
+        $filesystem = Double::for(Filesystem::class)->strict();
         $filesystem->expects('exists')
             ->with(base_path('.env'))
-            ->andReturn(true);
+            ->returns(true);
         $filesystem->expects('exists')
             ->with(base_path('.env.encrypted'))
-            ->andReturn(false);
+            ->returns(false);
         $filesystem->expects('get')
             ->with(base_path('.env'))
-            ->andThrow($cancellation);
-        $filesystem->shouldReceive('replace')->never();
+            ->throws($cancellation);
+        $filesystem->expects('replace')->never();
         File::swap($filesystem);
 
         try {
@@ -382,12 +386,12 @@ ENV;
     {
         $environmentFile = base_path('.env');
         $encryptedFile = base_path('.env.encrypted');
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('exists')->with($environmentFile)->twice()->andReturn(true, true);
-        $filesystem->expects('exists')->with($encryptedFile)->andReturnFalse();
-        $filesystem->expects('get')->with($environmentFile)->andReturn('APP_NAME=Hypervel');
-        $filesystem->expects('replace')->with($encryptedFile, m::type('string'), null);
-        $filesystem->expects('delete')->with($environmentFile)->andReturnFalse();
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $filesystem->expects('exists')->with($environmentFile)->times(2)->returns(true, true);
+        $filesystem->expects('exists')->with($encryptedFile)->returns(false);
+        $filesystem->expects('get')->with($environmentFile)->returns('APP_NAME=Hypervel');
+        $filesystem->expects('replace')->with($encryptedFile, Argument::type('string'), null);
+        $filesystem->expects('delete')->with($environmentFile)->returns(false);
         File::swap($filesystem);
 
         $this->artisan('env:encrypt', [
@@ -402,12 +406,12 @@ ENV;
     {
         $environmentFile = base_path('.env');
         $encryptedFile = base_path('.env.encrypted');
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('exists')->with($environmentFile)->twice()->andReturn(true, false);
-        $filesystem->expects('exists')->with($encryptedFile)->andReturnFalse();
-        $filesystem->expects('get')->with($environmentFile)->andReturn('APP_NAME=Hypervel');
-        $filesystem->expects('replace')->with($encryptedFile, m::type('string'), null);
-        $filesystem->expects('delete')->with($environmentFile)->andReturnFalse();
+        $filesystem = Double::for(Filesystem::class)->strict();
+        $filesystem->expects('exists')->with($environmentFile)->times(2)->returns(true, false);
+        $filesystem->expects('exists')->with($encryptedFile)->returns(false);
+        $filesystem->expects('get')->with($environmentFile)->returns('APP_NAME=Hypervel');
+        $filesystem->expects('replace')->with($encryptedFile, Argument::type('string'), null);
+        $filesystem->expects('delete')->with($environmentFile)->returns(false);
         File::swap($filesystem);
 
         $this->artisan('env:encrypt', [
@@ -432,10 +436,10 @@ ENV;
         $files->put($encryptedFile, $previousContents);
         chmod($encryptedFile, 0640);
 
-        $filesystem = m::mock(Filesystem::class)->makePartial();
+        $filesystem = Double::for(new Filesystem)->passthru();
         $filesystem->expects('replace')
-            ->with($encryptedFile, m::type('string'), 0640)
-            ->andThrow(new RuntimeException('publication failed'));
+            ->with($encryptedFile, Argument::type('string'), 0640)
+            ->throws(new RuntimeException('publication failed'));
         File::swap($filesystem);
 
         try {

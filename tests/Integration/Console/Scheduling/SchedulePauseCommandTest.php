@@ -10,17 +10,19 @@ use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
+use JMac\Testing\Double;
+use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 
 class SchedulePauseCommandTest extends TestCase
 {
+    use VerifiesDoubles;
+
     public function testDispatchesEvent(): void
     {
-        $cache = m::mock(Cache::class);
-        $cache->shouldReceive('forever')
-            ->once()
+        $cache = Double::for(Cache::class)->strict();
+        $cache->expects('forever')
             ->with('hypervel:schedule:paused', true)
-            ->andReturnTrue();
+            ->returns(true);
 
         $this->app->instance(Cache::class, $cache);
         Event::fake();
@@ -33,8 +35,8 @@ class SchedulePauseCommandTest extends TestCase
 
     public function testFailsWhenPausingIsDisabled(): void
     {
-        $cache = m::mock(Cache::class);
-        $cache->shouldNotReceive('forever');
+        $cache = Double::for(Cache::class)->strict();
+        $cache->expects('forever')->never();
 
         $this->app->instance(Cache::class, $cache);
         Event::fake();
@@ -49,11 +51,10 @@ class SchedulePauseCommandTest extends TestCase
 
     public function testPassiveObserverDoesNotCausePauseSignalToDispatch(): void
     {
-        $cache = m::mock(Cache::class);
-        $cache->shouldReceive('forever')
-            ->once()
+        $cache = Double::for(Cache::class)->strict();
+        $cache->expects('forever')
             ->with('hypervel:schedule:paused', true)
-            ->andReturnTrue();
+            ->returns(true);
         $this->app->instance(Cache::class, $cache);
 
         $observedEvents = [];
