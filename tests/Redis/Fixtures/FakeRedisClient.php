@@ -54,7 +54,7 @@ class FakeRedisClient extends Redis
     /**
      * Recorded scan calls for assertions.
      *
-     * @var array<int, array{pattern: ?string, count: int}>
+     * @var array<int, array{iterator: null|int|string, pattern: ?string, count: int}>
      */
     private array $scanCalls = [];
 
@@ -78,6 +78,15 @@ class FakeRedisClient extends Redis
      * @var array<int, array{key: string, iterator: null|int|string, pattern: ?string, count: int}>
      */
     private array $hScanCalls = [];
+
+    /** @var array<string, list<array{members: list<string>, iterator: int}>> */
+    private array $sScanResults;
+
+    /** @var array<string, int> */
+    private array $sScanCallIndex = [];
+
+    /** @var list<array{key: string, iterator: null|int|string, pattern: ?string, count: int}> */
+    private array $sScanCalls = [];
 
     /**
      * Pipeline mode flag.
@@ -227,6 +236,7 @@ class FakeRedisClient extends Redis
      * @param array<string, int> $zCardResults Configured zCard results per key
      * @param array<string, int> $zRemRangeByScoreResults Configured zRemRangeByScore results per key
      * @param array<int, mixed> $evalShaResults Configured EVALSHA results in call order
+     * @param array<string, list<array{members: list<string>, iterator: int}>> $sScanResults Configured SSCAN results
      */
     public function __construct(
         array $scanResults = [],
@@ -239,6 +249,7 @@ class FakeRedisClient extends Redis
         array $zCardResults = [],
         array $zRemRangeByScoreResults = [],
         array $evalShaResults = [],
+        array $sScanResults = [],
     ) {
         // Skip native initialization; this fake never connects to Redis.
         $this->scanResults = $scanResults;
@@ -251,6 +262,7 @@ class FakeRedisClient extends Redis
         $this->zCardResults = $zCardResults;
         $this->zRemRangeByScoreResults = $zRemRangeByScoreResults;
         $this->evalShaResults = $evalShaResults;
+        $this->sScanResults = $sScanResults;
     }
 
     /**
@@ -265,7 +277,7 @@ class FakeRedisClient extends Redis
     public function scan(int|string|null &$iterator, ?string $pattern = null, int $count = 0, ?string $type = null): array|false
     {
         // Record the call for assertions
-        $this->scanCalls[] = ['pattern' => $pattern, 'count' => $count];
+        $this->scanCalls[] = ['iterator' => $iterator, 'pattern' => $pattern, 'count' => $count];
 
         if (! isset($this->scanResults[$this->scanCallIndex])) {
             $iterator = 0;
@@ -282,7 +294,7 @@ class FakeRedisClient extends Redis
     /**
      * Get recorded scan calls for test assertions.
      *
-     * @return array<int, array{pattern: ?string, count: int}>
+     * @return array<int, array{iterator: null|int|string, pattern: ?string, count: int}>
      */
     public function getScanCalls(): array
     {
@@ -344,6 +356,38 @@ class FakeRedisClient extends Redis
     public function getHScanCallCount(): int
     {
         return count($this->hScanCalls);
+    }
+
+    /**
+     * Simulate SSCAN while updating its cursor by reference.
+     */
+    public function sscan(string $key, int|string|null &$iterator, ?string $pattern = null, int $count = 0): array|false
+    {
+        $this->sScanCalls[] = compact('key', 'iterator', 'pattern', 'count');
+        $index = $this->sScanCallIndex[$key] ?? 0;
+        $result = $this->sScanResults[$key][$index] ?? null;
+        $this->sScanCallIndex[$key] = $index + 1;
+        $iterator = $result['iterator'] ?? 0;
+
+        return $result['members'] ?? false;
+    }
+
+    /**
+     * Get recorded SSCAN calls.
+     *
+     * @return list<array{key: string, iterator: null|int|string, pattern: ?string, count: int}>
+     */
+    public function getSScanCalls(): array
+    {
+        return $this->sScanCalls;
+    }
+
+    /**
+     * Report the fake client's current command mode.
+     */
+    public function getMode(): int
+    {
+        return $this->inPipeline ? Redis::PIPELINE : Redis::ATOMIC;
     }
 
     /**
@@ -650,6 +694,8 @@ class FakeRedisClient extends Redis
         $this->scanCalls = [];
         $this->hScanCallIndex = [];
         $this->hScanCalls = [];
+        $this->sScanCallIndex = [];
+        $this->sScanCalls = [];
         $this->hLenCalls = [];
         $this->zRangeCallCount = 0;
         $this->zScanCallIndex = [];

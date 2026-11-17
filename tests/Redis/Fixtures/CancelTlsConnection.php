@@ -6,7 +6,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\ConnectionPool\ConnectionPool;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Tests\Redis\Fixtures\RespServer;
-use Mockery as m;
+use JMac\Testing\Double;
 use Swoole\Coroutine;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Coroutine\Channel;
@@ -51,7 +51,7 @@ run(function (): void {
         try {
             new PhpRedisConnection(
                 new Container,
-                m::mock(ConnectionPool::class),
+                Double::for(ConnectionPool::class)->strict(),
                 [
                     'url' => null,
                     'scheme' => 'tls',
