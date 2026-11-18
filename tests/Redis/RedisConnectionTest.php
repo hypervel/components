@@ -69,8 +69,7 @@ class RedisConnectionTest extends TestCase
         $pool->expects('release');
 
         $connection = $this->mockRedisConnection(pool: $pool);
-        $redis = Double::for(Redis::class)->strict();
-        $redis->expects('getMode')->returns(Redis::ATOMIC);
+        $redis = $this->mockIdleRedisClient();
         $connection->setActiveConnection($redis);
         $connection->shouldTransform(true);
 
@@ -242,10 +241,9 @@ class RedisConnectionTest extends TestCase
     ): void {
         $pool = $this->getMockedPool();
         $pool->expects('release')->with(Argument::type(RedisConnection::class));
-        $redis = Double::for(Redis::class)->strict();
+        $redis = $this->mockIdleRedisClient();
         $redis->expects('watch')->with('key')->returns(true);
         $redis->expects(strtolower($command))->returns($result);
-        $redis->expects('getMode')->returns(Redis::ATOMIC);
         $connection = $this->mockRedisConnection(pool: $pool);
         $connection->setActiveConnection($redis);
 
@@ -282,10 +280,9 @@ class RedisConnectionTest extends TestCase
     {
         $pool = $this->getMockedPool();
         $pool->expects('release')->with(Argument::type(RedisConnection::class));
-        $redis = Double::for(Redis::class)->strict();
+        $redis = $this->mockIdleRedisClient();
         $redis->expects('watch')->with('key')->returns(true);
         $redis->expects('discard')->returns(true);
-        $redis->expects('getMode')->returns(Redis::ATOMIC);
         $connection = $this->mockRedisConnection(pool: $pool);
         $connection->setActiveConnection($redis);
 
@@ -298,9 +295,8 @@ class RedisConnectionTest extends TestCase
     {
         $pool = $this->getMockedPool();
         $pool->expects('release')->with(Argument::type(RedisConnection::class));
-        $redis = Double::for(Redis::class)->strict();
+        $redis = $this->mockIdleRedisClient();
         $redis->expects('watch')->with('key')->returns(true);
-        $redis->expects('getMode')->returns(Redis::ATOMIC);
         $connection = $this->mockRedisConnection(pool: $pool);
         $connection->setActiveConnection($redis);
 
@@ -3819,6 +3815,19 @@ class RedisConnectionTest extends TestCase
             ->returns(true);
         $redis->expects('setOption')->with(Redis::OPT_BACKOFF_BASE, 100)->returns(true);
         $redis->expects('setOption')->with(Redis::OPT_BACKOFF_CAP, 1000)->returns(true);
+    }
+
+    /**
+     * Create a connected client ready to return to the pool on its default database.
+     */
+    protected function mockIdleRedisClient(): Redis
+    {
+        $redis = Double::for(Redis::class)->strict();
+        $redis->expects('getMode')->returns(Redis::ATOMIC);
+        $redis->allows('isConnected')->returns(true);
+        $redis->allows('getDBNum')->returns(0);
+
+        return $redis;
     }
 
     /**
