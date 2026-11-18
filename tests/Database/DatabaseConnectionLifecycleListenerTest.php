@@ -21,7 +21,7 @@ class DatabaseConnectionLifecycleListenerTest extends TestCase
 
     public function testTaskCleanupDoesNotResolveAnUnusedResolver(): void
     {
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('resolved')->with('db.resolver')->returns(false);
         $container->expects('make')->never();
 
@@ -30,9 +30,9 @@ class DatabaseConnectionLifecycleListenerTest extends TestCase
 
     public function testTaskCleanupReleasesTheConcretePooledResolver(): void
     {
-        $resolver = Double::for(ConnectionResolver::class);
+        $resolver = Double::for(ConnectionResolver::class)->strict();
         $resolver->expects('releaseConnections');
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('resolved')->with('db.resolver')->returns(true);
         $container->expects('make')->with('db.resolver')->returns($resolver);
 
@@ -42,7 +42,7 @@ class DatabaseConnectionLifecycleListenerTest extends TestCase
     public function testTaskCleanupLeavesCustomResolversAlone(): void
     {
         $resolver = Double::for(SimpleConnectionResolver::class)->strict();
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('resolved')->with('db.resolver')->returns(true);
         $container->expects('make')->with('db.resolver')->returns($resolver);
 
@@ -51,7 +51,7 @@ class DatabaseConnectionLifecycleListenerTest extends TestCase
 
     public function testProcessCleanupDoesNotResolveUnusedOwners(): void
     {
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('resolved')->with('db.resolver')->returns(false);
         $container->expects('resolved')->with(PoolManager::class)->returns(false);
         $container->expects('make')->never();
@@ -61,11 +61,11 @@ class DatabaseConnectionLifecycleListenerTest extends TestCase
 
     public function testProcessCleanupDiscardsResolverAndPurgesPools(): void
     {
-        $resolver = Double::for(ConnectionResolver::class);
+        $resolver = Double::for(ConnectionResolver::class)->strict();
         $resolver->expects('discardConnections');
-        $poolManager = Double::for(PoolManager::class);
+        $poolManager = Double::for(PoolManager::class)->strict();
         $poolManager->expects('purgeAll');
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('resolved')->with('db.resolver')->returns(true);
         $container->expects('make')->with('db.resolver')->returns($resolver);
         $container->expects('resolved')->with(PoolManager::class)->returns(true);
@@ -78,11 +78,11 @@ class DatabaseConnectionLifecycleListenerTest extends TestCase
     {
         $resolverException = new RuntimeException('Resolver discard failed.');
         $purgeException = new RuntimeException('Pool purge failed.');
-        $resolver = Double::for(ConnectionResolver::class);
+        $resolver = Double::for(ConnectionResolver::class)->strict();
         $resolver->expects('discardConnections')->throws($resolverException);
-        $poolManager = Double::for(PoolManager::class);
+        $poolManager = Double::for(PoolManager::class)->strict();
         $poolManager->expects('purgeAll')->throws($purgeException);
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('resolved')->with('db.resolver')->returns(true);
         $container->expects('make')->with('db.resolver')->returns($resolver);
         $container->expects('resolved')->with(PoolManager::class)->returns(true);
@@ -99,11 +99,11 @@ class DatabaseConnectionLifecycleListenerTest extends TestCase
     public function testPoolPurgeFailurePropagatesAfterResolverCleanup(): void
     {
         $exception = new RuntimeException('Pool purge failed.');
-        $resolver = Double::for(ConnectionResolver::class);
+        $resolver = Double::for(ConnectionResolver::class)->strict();
         $resolver->expects('discardConnections');
-        $poolManager = Double::for(PoolManager::class);
+        $poolManager = Double::for(PoolManager::class)->strict();
         $poolManager->expects('purgeAll')->throws($exception);
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('resolved')->with('db.resolver')->returns(true);
         $container->expects('make')->with('db.resolver')->returns($resolver);
         $container->expects('resolved')->with(PoolManager::class)->returns(true);
@@ -121,11 +121,11 @@ class DatabaseConnectionLifecycleListenerTest extends TestCase
     {
         $resolverException = new RuntimeException('Resolver discard failed.');
         $purgeCancellation = new CanceledException('Pool purge was canceled.');
-        $resolver = Double::for(ConnectionResolver::class);
+        $resolver = Double::for(ConnectionResolver::class)->strict();
         $resolver->expects('discardConnections')->throws($resolverException);
-        $poolManager = Double::for(PoolManager::class);
+        $poolManager = Double::for(PoolManager::class)->strict();
         $poolManager->expects('purgeAll')->throws($purgeCancellation);
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('resolved')->with('db.resolver')->returns(true);
         $container->expects('make')->with('db.resolver')->returns($resolver);
         $container->expects('resolved')->with(PoolManager::class)->returns(true);
@@ -143,11 +143,11 @@ class DatabaseConnectionLifecycleListenerTest extends TestCase
     {
         $resolverCancellation = new CanceledException('Resolver discard was canceled.');
         $purgeException = new RuntimeException('Pool purge failed.');
-        $resolver = Double::for(ConnectionResolver::class);
+        $resolver = Double::for(ConnectionResolver::class)->strict();
         $resolver->expects('discardConnections')->throws($resolverCancellation);
-        $poolManager = Double::for(PoolManager::class);
+        $poolManager = Double::for(PoolManager::class)->strict();
         $poolManager->expects('purgeAll')->throws($purgeException);
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('resolved')->with('db.resolver')->returns(true);
         $container->expects('make')->with('db.resolver')->returns($resolver);
         $container->expects('resolved')->with(PoolManager::class)->returns(true);

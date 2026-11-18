@@ -164,7 +164,7 @@ class DatabaseConnectionLeaseTest extends TestCase
         $secondFailure = $cancel ? new CanceledException('Second release canceled.') : new RuntimeException('Second release failed.');
 
         foreach (['first' => $firstFailure, 'second' => $secondFailure] as $name => $failure) {
-            $lease = Double::for(ConnectionLease::class);
+            $lease = Double::for(ConnectionLease::class)->strict();
             $lease->expects('releaseIfIdle')->throws($failure);
             CoroutineContext::set($name, $lease);
         }
@@ -1046,8 +1046,8 @@ class DatabaseConnectionLeaseTest extends TestCase
             'database' => ':memory:',
             'prefix' => '',
         ]);
-        $pool = Double::for(DatabasePool::class);
-        $wrapper = Double::for(PooledConnection::class);
+        $pool = Double::for(DatabasePool::class)->strict();
+        $wrapper = Double::for(PooledConnection::class)->strict();
         $pool->expects('borrow')->returns($wrapper);
         $wrapper->expects('attachLease')->times(2);
         $wrapper->expects('getDriverConnection')->returns($physical);

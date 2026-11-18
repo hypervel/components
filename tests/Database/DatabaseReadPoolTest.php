@@ -29,7 +29,7 @@ class DatabaseReadPoolTest extends TestCase
         $factory = new ReadPoolConnectionFactory($this->app);
         $this->app->instance('db.factory', $factory);
         $hosts = [];
-        $connector = Double::for(ConnectorInterface::class);
+        $connector = Double::for(ConnectorInterface::class)->strict();
         $connector->expects('connect')->times(3)->resolves(static function (array $config) use (&$hosts): PDO {
             $hosts[] = $config['host'];
 

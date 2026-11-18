@@ -142,7 +142,7 @@ class DatabasePostgresConnectionTest extends TestCase
      */
     protected function commitIdReadPdo(string $version): PDO
     {
-        $pdo = Double::for(PDO::class);
+        $pdo = Double::for(PDO::class)->strict();
         $pdo->allows('getAttribute')->with(PDO::ATTR_SERVER_VERSION)->returns($version);
         $pdo->allows('quote')->resolves(fn (string $value): string => "'{$value}'");
 
@@ -154,7 +154,7 @@ class DatabasePostgresConnectionTest extends TestCase
      */
     protected function commitIdStatement(bool|string $value): PDOStatement
     {
-        $statement = Double::for(PDOStatement::class);
+        $statement = Double::for(PDOStatement::class)->strict();
         $statement->allows('setFetchMode')->returns(true);
         $statement->allows('bindValue')->returns(true);
         $statement->expects('execute')->returns(true);
