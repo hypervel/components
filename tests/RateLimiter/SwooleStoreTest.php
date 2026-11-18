@@ -31,9 +31,9 @@ use function Hypervel\Coroutine\parallel;
 
 class SwooleStoreTest extends TestCase
 {
-    use VerifiesDoubles;
     use InteractsWithSwooleTables;
     use RateLimiterStoreContract;
+    use VerifiesDoubles;
 
     public function testFixedWindowOperationsUseNumericState(): void
     {

@@ -246,7 +246,7 @@ class FlushingRedisClient extends FakeRedisClient
     public ?Closure $unlinkCallback = null;
 
     /**
-     * Record deletion batches while retaining the real scan cursor updates.
+     * Record each deletion batch.
      */
     public function unlink(array|string $key, string ...$other_keys): Redis|int|false
     {

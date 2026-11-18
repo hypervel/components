@@ -25,8 +25,8 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 // REMOVED: RateLimitedWithRedis is replaced by RateLimited::store('redis').
 class RateLimitedRedisStoreTest extends TestCase
 {
-    use VerifiesDoubles;
     use InteractsWithRedis;
+    use VerifiesDoubles;
 
     public function testUnlimitedJobsAreExecuted(): void
     {
