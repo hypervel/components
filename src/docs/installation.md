@@ -43,7 +43,7 @@ The Hypervel framework has a few system requirements:
 - PDO PHP Extension
 - POSIX PHP Extension
 - Session PHP Extension
-- Swoole PHP Extension >= 6.3.0RC1
+- Swoole PHP Extension >= 6.3.0RC2
 - Tokenizer PHP Extension
 
 </div>
@@ -56,7 +56,7 @@ If your application uses Redis for cache, queues, sessions, or broadcasting, you
 You may install Swoole using [PIE](https://github.com/php/pie):
 
 ```shell
-pie install "swoole/swoole:^6.3.0@RC" --enable-openssl --enable-swoole-curl --enable-swoole-sqlite --enable-swoole-pgsql
+pie install "swoole/swoole:^6.3.0RC2@RC" --enable-openssl --enable-swoole-curl --enable-swoole-sqlite --enable-swoole-pgsql
 ```
 
 Swoole must be built with OpenSSL and native cURL support. The SQLite and PostgreSQL options are required to use those databases. Each option needs the matching development library (OpenSSL, libcurl, SQLite, or libpq) when Swoole is compiled. Applications using FTP disks also need `--enable-swoole-ftp`; see [FTP configuration](/docs/{{version}}/filesystem#ftp-driver-configuration).
