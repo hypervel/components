@@ -1087,11 +1087,10 @@ class AlgoliaEngineTest extends TestCase
         $capturedHeaders = [];
         $client->expects('searchSingleIndex')
             ->times(2)
-            ->with('users', Argument::any(), Argument::satisfies(function ($opts) use (&$capturedHeaders) {
-                $capturedHeaders[] = $opts['headers']['X-Forwarded-For'] ?? null;
-
-                return true;
-            }));
+            ->with('users', Argument::any(), Argument::any())
+            ->resolves(static function (string $indexName, mixed $searchParams, array $requestOptions) use (&$capturedHeaders): void {
+                $capturedHeaders[] = $requestOptions['headers']['X-Forwarded-For'] ?? null;
+            });
 
         $engine = new AlgoliaEngine($client, identify: true);
 
@@ -1128,11 +1127,10 @@ class AlgoliaEngineTest extends TestCase
         $capturedHeaders = [];
         $client->expects('searchSingleIndex')
             ->times(2)
-            ->with('users', Argument::any(), Argument::satisfies(function ($opts) use (&$capturedHeaders) {
-                $capturedHeaders[] = $opts['headers']['X-Forwarded-For'] ?? null;
-
-                return true;
-            }));
+            ->with('users', Argument::any(), Argument::any())
+            ->resolves(static function (string $indexName, mixed $searchParams, array $requestOptions) use (&$capturedHeaders): void {
+                $capturedHeaders[] = $requestOptions['headers']['X-Forwarded-For'] ?? null;
+            });
 
         $engine = new AlgoliaEngine($client, identify: true);
 
