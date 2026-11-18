@@ -676,14 +676,14 @@ class ConfiguresPromptsTest extends TestCase
      */
     protected function runCommand(Command $command, Closure $expectations, bool $runningUnitTests = false): int
     {
-        $application = Double::for(Application::class, override: true);
+        $application = Double::for(Application::class, override: true)->strict();
         $command->setHypervel($application->instance());
 
         $input = new ArrayInput([]);
         $output = new NullOutput;
         $outputStyle = new OutputStyle($input, $output);
         $application->expects('make')->with(OutputStyle::class, Argument::remaining())->returns($outputStyle);
-        $factory = Double::for(ComponentsFactory::class);
+        $factory = Double::for(ComponentsFactory::class)->strict();
         $application->expects('make')->with(Factory::class, Argument::remaining())->returns($factory);
         $application->allows('bound')->returns(false);
         $application->allows('runningUnitTests')->returns($runningUnitTests);

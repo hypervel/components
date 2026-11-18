@@ -53,7 +53,7 @@ class ConsoleApplicationDeferredCallbacksTest extends TestCase
     {
         $application = $this->createConsoleApplication();
         $calls = [];
-        $mutex = Double::for(CommandMutex::class);
+        $mutex = Double::for(CommandMutex::class)->strict();
         $mutex->expects('create')->resolves(function () use (&$calls): bool {
             $calls[] = 'mutex-created';
 

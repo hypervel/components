@@ -99,7 +99,7 @@ class InteractsWithIOTest extends TestCase
     public function testAskWithCompletionAcceptsGeneratorValues(): void
     {
         $command = new CommandInteractsWithIO;
-        $output = Double::for(OutputStyle::class);
+        $output = Double::for(OutputStyle::class)->strict();
         $command->setOutput($output);
 
         $choices = (function () {

@@ -32,7 +32,7 @@ class EventsTest extends TestCase
 
     public function testArtisanStartingCarriesApplication(): void
     {
-        $app = Double::for(Application::class);
+        $app = Double::for(Application::class)->strict();
 
         $event = new ArtisanStarting($app);
 
@@ -73,7 +73,7 @@ class EventsTest extends TestCase
 
     public function testBeforeHandleCarriesCommandAndInput(): void
     {
-        $command = Double::for(Command::class);
+        $command = Double::for(Command::class)->strict();
         $input = new ArrayInput([]);
 
         $event = new BeforeHandle($command, $input);
@@ -84,7 +84,7 @@ class EventsTest extends TestCase
 
     public function testAfterHandleCarriesCommand(): void
     {
-        $command = Double::for(Command::class);
+        $command = Double::for(Command::class)->strict();
 
         $event = new AfterHandle($command);
 
@@ -93,7 +93,7 @@ class EventsTest extends TestCase
 
     public function testAfterExecuteCarriesExecutionData(): void
     {
-        $command = Double::for(Command::class);
+        $command = Double::for(Command::class)->strict();
         $throwable = new RuntimeException('Execute failed');
         $input = new ArrayInput([]);
         $event = new AfterExecute($command, $throwable, $input, 1);
@@ -106,7 +106,7 @@ class EventsTest extends TestCase
 
     public function testScheduledTaskStartingCarriesTask(): void
     {
-        $task = new Event(Double::for(EventMutex::class), 'php foo');
+        $task = new Event(Double::for(EventMutex::class)->strict(), 'php foo');
 
         $event = new ScheduledTaskStarting($task);
 
@@ -115,7 +115,7 @@ class EventsTest extends TestCase
 
     public function testScheduledTaskFinishedCarriesTaskAndRuntime(): void
     {
-        $task = new Event(Double::for(EventMutex::class), 'php foo');
+        $task = new Event(Double::for(EventMutex::class)->strict(), 'php foo');
 
         $event = new ScheduledTaskFinished($task, 1.23);
 
@@ -125,7 +125,7 @@ class EventsTest extends TestCase
 
     public function testScheduledTaskSkippedCarriesTask(): void
     {
-        $task = new Event(Double::for(EventMutex::class), 'php foo');
+        $task = new Event(Double::for(EventMutex::class)->strict(), 'php foo');
 
         $event = new ScheduledTaskSkipped($task);
 
@@ -134,7 +134,7 @@ class EventsTest extends TestCase
 
     public function testScheduledTaskFailedCarriesTaskAndException(): void
     {
-        $task = new Event(Double::for(EventMutex::class), 'php foo');
+        $task = new Event(Double::for(EventMutex::class)->strict(), 'php foo');
         $exception = new RuntimeException('Task failed');
 
         $event = new ScheduledTaskFailed($task, $exception);
@@ -145,7 +145,7 @@ class EventsTest extends TestCase
 
     public function testScheduledBackgroundTaskFinishedCarriesTask(): void
     {
-        $task = new Event(Double::for(EventMutex::class), 'php foo');
+        $task = new Event(Double::for(EventMutex::class)->strict(), 'php foo');
 
         $event = new ScheduledBackgroundTaskFinished($task);
 

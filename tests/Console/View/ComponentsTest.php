@@ -132,7 +132,7 @@ class ComponentsTest extends TestCase
 
     public function testAskWithCompletionAcceptsGeneratorValues(): void
     {
-        $output = Double::for(OutputStyle::class);
+        $output = Double::for(OutputStyle::class)->strict();
 
         $output->expects('askQuestion')
             ->with(Argument::satisfies(function (Question $question): bool {

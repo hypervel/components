@@ -35,8 +35,8 @@ class CacheCommandMutexTest extends TestCase
     {
         parent::setUp();
 
-        $this->cacheFactory = Double::for(Factory::class);
-        $this->cacheRepository = Double::for(Repository::class);
+        $this->cacheFactory = Double::for(Factory::class)->strict();
+        $this->cacheRepository = Double::for(Repository::class)->strict();
         $this->mutex = new CacheCommandMutex($this->cacheFactory);
         $this->command = new class extends Command {
             protected ?string $name = 'command-name';
@@ -134,7 +134,7 @@ class CacheCommandMutexTest extends TestCase
     private function mockUsingCacheStore(?string $store = null): void
     {
         $this->cacheFactory->expects('store')->with($store)->returns($this->cacheRepository);
-        $this->cacheRepository->expects('getStore')->returns(Double::for(Store::class));
+        $this->cacheRepository->expects('getStore')->returns(Double::for(Store::class)->strict());
     }
 
     public function testCommandMutexNameWithoutIsolatedMutexNameMethod(): void

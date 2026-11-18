@@ -113,8 +113,8 @@ class CommandMutexTest extends TestCase
 
     public function testCommandReleasesTheExactMutexInstanceThatItAcquired(): void
     {
-        $acquiredMutex = Double::for(CommandMutex::class);
-        $unusedMutex = Double::for(CommandMutex::class);
+        $acquiredMutex = Double::for(CommandMutex::class)->strict();
+        $unusedMutex = Double::for(CommandMutex::class)->strict();
         $resolutions = 0;
 
         $acquiredMutex->expects('create')->with(Argument::same($this->command))->returns(true);
@@ -337,7 +337,7 @@ class CommandMutexTest extends TestCase
      */
     protected function mockCommandMutex(): CommandMutex&DoubleInterface
     {
-        $commandMutex = Double::for(CommandMutex::class);
+        $commandMutex = Double::for(CommandMutex::class)->strict();
 
         $this->app->instance(CommandMutex::class, $commandMutex);
 

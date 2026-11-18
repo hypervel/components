@@ -231,7 +231,7 @@ class ConsoleApplicationTest extends TestCase
     {
         $artisan = $this->getMockConsole(['addToParent']);
 
-        $command = Double::for(Command::class);
+        $command = Double::for(Command::class)->strict();
         $command->expects('setHypervel')->with(Argument::type(Application::class));
         $artisan->expects($this->once())->method('addToParent')->with($command)->willReturn($command);
 
@@ -579,7 +579,7 @@ class ConsoleApplicationTest extends TestCase
      */
     private function getMockConsole(array $methods): ConsoleApplication
     {
-        $app = Double::for(Application::class, override: true);
+        $app = Double::for(Application::class, override: true)->strict();
         $app->allows('version')->returns('1.0');
         $events = new EventsDispatcher;
 
