@@ -401,19 +401,15 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $key = hash('xxh128', '_all:tag:users:entries') . ':name';
 
         $connection->expects('evalWithShaCache')
-            ->with(Argument::all(function (string $script, array $keys, array $args) use ($key): bool {
-                $this->assertSame(["prefix:{$key}", 'prefix:_all:tag:users:entries'], $keys);
-                $this->assertSame(60, $args[0]);
-                $this->assertSame($key, $args[2]);
-
-                return true;
-            }))
+            ->with(Argument::type('string'), ["prefix:{$key}", 'prefix:_all:tag:users:entries'], Argument::capture($args))
             ->returns($succeeded);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['users'])->touch('name', 60);
 
         $this->assertSame($succeeded, $result);
+        $this->assertSame(60, $args[0]);
+        $this->assertSame($key, $args[2]);
     }
 
     public function testTouchWithDatetimeInPastOrZeroSecondsRemovesOldItem(): void

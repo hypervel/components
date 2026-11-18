@@ -18,23 +18,19 @@ class PutTest extends RedisCacheTestCase
 
         // Standard mode uses Lua script via evalWithShaCache
         $connection->expects('evalWithShaCache')
-            ->with(Argument::all(function ($script, $keys, $args) {
-                // Verify Lua script contains expected commands
-                $this->assertStringContainsString('SETEX', $script);
-                $this->assertStringContainsString('HSETEX', $script);
-                $this->assertStringContainsString('ZADD', $script);
-                $this->assertStringContainsString('SMEMBERS', $script);
-                // 2 keys: cache key + reverse index key
-                $this->assertCount(2, $keys);
-
-                return true;
-            }))
+            ->with(Argument::capture($script), Argument::capture($keys), Argument::any())
             ->returns(true);
 
         $redis = $this->createStore($connection);
         $redis->setTagMode('any');
         $result = $redis->anyTagOps()->put()->execute('foo', 'bar', 60, ['users', 'posts']);
         $this->assertTrue($result);
+        $this->assertStringContainsString('SETEX', $script);
+        $this->assertStringContainsString('HSETEX', $script);
+        $this->assertStringContainsString('ZADD', $script);
+        $this->assertStringContainsString('SMEMBERS', $script);
+
+        $this->assertCount(2, $keys);
     }
 
     public function testPutWithTagsUsesSequentialCommandsInClusterMode(): void
@@ -78,17 +74,12 @@ class PutTest extends RedisCacheTestCase
             ->with('prefix:_any:tag:users:entries', ['foo' => '1'], ['EX' => 1])
             ->returns(1);
         $client->expects('zadd')
-            ->with(Argument::all(function (string $key, array $options, int $expiresAt, string $tag) use ($startedAt): bool {
-                $this->assertSame('prefix:_any:tag:registry', $key);
-                $this->assertSame(['GT'], $options);
-                $this->assertGreaterThan($startedAt, $expiresAt);
-                $this->assertSame('users', $tag);
-
-                return true;
-            }))
+            ->with('prefix:_any:tag:registry', ['GT'], Argument::capture($expiresAt), 'users')
             ->returns(1);
 
         $this->assertTrue($redis->anyTagOps()->put()->execute('foo', 'bar', -60, ['users']));
+        $this->assertIsInt($expiresAt);
+        $this->assertGreaterThan($startedAt, $expiresAt);
     }
 
     public function testPutWithTagsHandlesEmptyTags(): void
@@ -109,17 +100,13 @@ class PutTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         $connection->expects('evalWithShaCache')
-            ->with(Argument::all(function ($script, $keys, $args) {
-                // Numeric values should be passed as strings in args
-                // Args array contains: value, ttl, tagPrefix, registryKey, currentTime, rawKey, tagHashSuffix, ...tags
-                $this->assertIsString($args[0]); // Serialized value
-                return true;
-            }))
+            ->with(Argument::any(), Argument::any(), Argument::capture($args))
             ->returns(true);
 
         $redis = $this->createStore($connection);
         $redis->setTagMode('any');
         $result = $redis->anyTagOps()->put()->execute('foo', 42, 60, ['numbers']);
         $this->assertTrue($result);
+        $this->assertIsString($args[0]);
     }
 }

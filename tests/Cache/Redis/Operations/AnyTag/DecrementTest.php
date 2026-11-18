@@ -18,20 +18,17 @@ class DecrementTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         $connection->expects('evalWithShaCache')
-            ->with(Argument::all(function ($script, $keys, $args) {
-                $this->assertStringContainsString('DECRBY', $script);
-                $this->assertStringContainsString('TTL', $script);
-                $this->assertStringContainsString((string) StoreContext::MAX_EXPIRY, $script);
-                $this->assertCount(2, $keys);
-
-                return true;
-            }))
+            ->with(Argument::capture($script), Argument::capture($keys), Argument::any())
             ->returns(5); // New value after decrement
 
         $redis = $this->createStore($connection);
         $redis->setTagMode('any');
         $result = $redis->anyTagOps()->decrement()->execute('counter', 5, ['stats']);
         $this->assertSame(5, $result);
+        $this->assertStringContainsString('DECRBY', $script);
+        $this->assertStringContainsString('TTL', $script);
+        $this->assertStringContainsString((string) StoreContext::MAX_EXPIRY, $script);
+        $this->assertCount(2, $keys);
     }
 
     public function testDecrementWithTagsUpdatesMetadataAfterAClusterCounterSucceeds(): void

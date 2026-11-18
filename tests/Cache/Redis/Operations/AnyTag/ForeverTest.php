@@ -18,20 +18,16 @@ class ForeverTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         $connection->expects('evalWithShaCache')
-            ->with(Argument::all(function ($script, $keys, $args) {
-                // Forever uses SET (no TTL), HSET (no expiration), ZADD with max expiry
-                $this->assertStringContainsString("redis.call('SET'", $script);
-                $this->assertStringContainsString('HSET', $script);
-                $this->assertStringContainsString((string) StoreContext::MAX_EXPIRY, $script);
-                $this->assertCount(2, $keys);
-
-                return true;
-            }))
+            ->with(Argument::capture($script), Argument::capture($keys), Argument::any())
             ->returns(true);
 
         $redis = $this->createStore($connection);
         $redis->setTagMode('any');
         $result = $redis->anyTagOps()->forever()->execute('foo', 'bar', ['users']);
         $this->assertTrue($result);
+        $this->assertStringContainsString("redis.call('SET'", $script);
+        $this->assertStringContainsString('HSET', $script);
+        $this->assertStringContainsString((string) StoreContext::MAX_EXPIRY, $script);
+        $this->assertCount(2, $keys);
     }
 }

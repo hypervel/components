@@ -16,21 +16,18 @@ class AddTest extends RedisCacheTestCase
 
         // evalWithShaCache returns true (key added)
         $connection->expects('evalWithShaCache')
-            ->with(Argument::all(function ($script, $keys, $args) {
-                $this->assertStringContainsString('SET', $script);
-                $this->assertStringContainsString('NX', $script);
-                $this->assertStringContainsString("redis.call('HSETEX', tagHash, 'EX', ttl, 'FIELDS', 1, rawKey, '1')", $script);
-                $this->assertCount(2, $keys);
-                $this->assertSame(60, $args[1]);
-
-                return true;
-            }))
+            ->with(Argument::capture($script), Argument::capture($keys), Argument::capture($args))
             ->returns(true);
 
         $redis = $this->createStore($connection);
         $redis->setTagMode('any');
         $result = $redis->anyTagOps()->add()->execute('foo', 'bar', 60, ['users']);
         $this->assertTrue($result);
+        $this->assertStringContainsString('SET', $script);
+        $this->assertStringContainsString('NX', $script);
+        $this->assertStringContainsString("redis.call('HSETEX', tagHash, 'EX', ttl, 'FIELDS', 1, rawKey, '1')", $script);
+        $this->assertCount(2, $keys);
+        $this->assertSame(60, $args[1]);
     }
 
     public function testAddWithTagsReturnsFalseWhenKeyExists(): void
@@ -85,36 +82,28 @@ class AddTest extends RedisCacheTestCase
             ->with('prefix:_any:tag:users:entries', ['foo' => '1'], ['EX' => 1])
             ->returns(1);
         $client->expects('zadd')
-            ->with(Argument::all(function (string $key, array $options, int $expiresAt, string $tag) use ($startedAt): bool {
-                $this->assertSame('prefix:_any:tag:registry', $key);
-                $this->assertSame(['GT'], $options);
-                $this->assertGreaterThan($startedAt, $expiresAt);
-                $this->assertSame('users', $tag);
-
-                return true;
-            }))
+            ->with('prefix:_any:tag:registry', ['GT'], Argument::capture($expiresAt), 'users')
             ->returns(1);
 
         $this->assertTrue($redis->anyTagOps()->add()->execute('foo', 'bar', -60, ['users']));
+        $this->assertIsInt($expiresAt);
+        $this->assertGreaterThan($startedAt, $expiresAt);
     }
 
     public function testAddWithoutTtlUsesPermanentLuaBranch(): void
     {
         $connection = $this->mockConnection();
         $connection->expects('evalWithShaCache')
-            ->with(Argument::all(function (string $script, array $keys, array $args): bool {
-                $this->assertStringContainsString("redis.call('SET', key, val, 'NX')", $script);
-                $this->assertStringContainsString('if not permanent then', $script);
-                $this->assertStringContainsString((string) StoreContext::MAX_EXPIRY, $script);
-                $this->assertCount(2, $keys);
-                $this->assertSame(0, $args[1]);
-
-                return true;
-            }))
+            ->with(Argument::capture($script), Argument::capture($keys), Argument::capture($args))
             ->returns(true);
 
         $redis = $this->createStore($connection, tagMode: 'any');
 
         $this->assertTrue($redis->anyTagOps()->add()->execute('foo', 'bar', null, ['users']));
+        $this->assertStringContainsString("redis.call('SET', key, val, 'NX')", $script);
+        $this->assertStringContainsString('if not permanent then', $script);
+        $this->assertStringContainsString((string) StoreContext::MAX_EXPIRY, $script);
+        $this->assertCount(2, $keys);
+        $this->assertSame(0, $args[1]);
     }
 }

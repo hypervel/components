@@ -390,17 +390,14 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         $connection->expects('evalWithShaCache')
-            ->with(Argument::all(function ($script, $keys, $args): bool {
-                $this->assertSame(0, $args[1]);
-
-                return true;
-            }))
+            ->with(Argument::any(), Argument::any(), Argument::capture($args))
             ->returns(true);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->add('mykey', 'myvalue', null);
 
         $this->assertTrue($result);
+        $this->assertSame(0, $args[1]);
     }
 
     public function testAddWithZeroTtlReturnsFalse(): void
@@ -613,12 +610,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
             ->returns(null);
 
         $connection->expects('evalWithShaCache')
-            ->with(Argument::all(function (string $script, array $keys, array $args): bool {
-                $this->assertSame('prefix:0', $keys[0]);
-                $this->assertSame('0', $args[5]);
-
-                return true;
-            }))
+            ->with(Argument::type('string'), Argument::capture($keys), Argument::capture($args))
             ->returns(true);
 
         $captured = [];
@@ -635,6 +627,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $tagged->setEventDispatcher($events);
 
         $result = $tagged->remember(AnyTaggedCacheTestKey::Profile, 60, fn () => 'computed_value');
+
+        $this->assertSame('prefix:0', $keys[0]);
+        $this->assertSame('0', $args[5]);
 
         $this->assertSame('computed_value', $result);
 
