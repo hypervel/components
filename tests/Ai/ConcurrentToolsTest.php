@@ -74,7 +74,7 @@ class ConcurrentToolsTest extends TestCase
         Coroutine::afterCreated(static function (): void {
             CoroutineContext::set('tool-test.account', 'startup');
         });
-        $providerGateway = Double::for(Gateway::class);
+        $providerGateway = Double::for(Gateway::class)->strict();
         Ai::extend('tool-test', static fn (Application $app, array $config): Provider => new class($providerGateway, $config, $app->make(Dispatcher::class)) extends Provider {});
         $accountProvider = Ai::build(['name' => 'tool-account', 'driver' => 'tool-test', 'key' => 'account-key']);
         $active = 0;
@@ -82,7 +82,7 @@ class ConcurrentToolsTest extends TestCase
         $accounts = [];
         $requestIds = [];
         $resolvedProviders = [];
-        $tool = Double::for(NamedTool::class);
+        $tool = Double::for(NamedTool::class)->strict();
         $tool->allows('name')->returns('tool');
         $tool->expects('handle')->times(3)->resolves(function (Request $request) use (&$active, &$maximum, &$accounts, &$requestIds, &$resolvedProviders): string {
             $this->assertSame('tool-connection', DB::getDefaultConnection());
@@ -100,7 +100,7 @@ class ConcurrentToolsTest extends TestCase
             }
         });
         $calls = [new ToolCall('first', 'tool', []), new ToolCall('second', 'tool', []), new ToolCall('third', 'tool', [])];
-        $provider = Double::for(TextProvider::class);
+        $provider = Double::for(TextProvider::class)->strict();
         $provider->allows('name')->returns('provider');
         $results = [];
         $gateway = $this->gateway($streaming, $calls, $results);
@@ -134,9 +134,9 @@ class ConcurrentToolsTest extends TestCase
 
     public function testInvalidConcurrencyFailsClearlyThroughTheLoop(): void
     {
-        $provider = Double::for(TextProvider::class);
+        $provider = Double::for(TextProvider::class)->strict();
         $provider->allows('name')->returns('provider');
-        $gateway = Double::for(StepTextGateway::class);
+        $gateway = Double::for(StepTextGateway::class)->strict();
         $gateway->expects('generateTextStep')->returns(new StepResponse('Finished', [], FinishReason::Stop, new TextUsage, new Meta));
 
         $this->expectException(InvalidArgumentException::class);
@@ -164,7 +164,7 @@ class ConcurrentToolsTest extends TestCase
 
         $active = 0;
         $resumed = false;
-        $tool = Double::for(NamedTool::class);
+        $tool = Double::for(NamedTool::class)->strict();
         $tool->allows('name')->returns('tool');
         $tool->expects('handle')->times(2)->resolves(function (Request $request) use ($failure, &$active, &$resumed): string {
             ++$active;
@@ -184,14 +184,14 @@ class ConcurrentToolsTest extends TestCase
                 --$active;
             }
         });
-        $provider = Double::for(TextProvider::class);
+        $provider = Double::for(TextProvider::class)->strict();
         $provider->allows('name')->returns('provider');
         $results = [];
         $gateway = $this->gateway(false, [new ToolCall('first', 'tool', []), new ToolCall('second', 'tool', [])], $results, completes: false);
         $caught = null;
 
         try {
-            (new TextGenerationLoop($gateway))->generate($provider, 'model', '', tools: [$tool], options: new TextGenerationOptions(agent: new ConcurrentToolsTestAgent('', [], [])), context: new RunContext('invocation', Double::for(Agent::class), $provider, 'model', $events));
+            (new TextGenerationLoop($gateway))->generate($provider, 'model', '', tools: [$tool], options: new TextGenerationOptions(agent: new ConcurrentToolsTestAgent('', [], [])), context: new RunContext('invocation', Double::for(Agent::class)->strict(), $provider, 'model', $events));
         } catch (Throwable $exception) {
             $caught = $exception;
         }
@@ -213,7 +213,7 @@ class ConcurrentToolsTest extends TestCase
         $active = 0;
         $resumed = false;
         $waiting = new Channel(1);
-        $agent = Double::for(Agent::class, CanActAsTool::class);
+        $agent = Double::for(Agent::class, CanActAsTool::class)->strict();
         $agent->allows('name')->returns('child');
         $agent->expects('stream')->times(2)->resolves(function (string $task) use (&$active, &$resumed, $waiting): StreamableAgentResponse {
             return new StreamableAgentResponse($task, function () use ($task, &$active, &$resumed, $waiting): Generator {
@@ -228,7 +228,7 @@ class ConcurrentToolsTest extends TestCase
                 }
             });
         });
-        $provider = Double::for(TextProvider::class);
+        $provider = Double::for(TextProvider::class)->strict();
         $provider->allows('name')->returns('provider');
         $results = [];
         $gateway = $this->gateway(true, [
@@ -270,7 +270,7 @@ class ConcurrentToolsTest extends TestCase
         $resumed = false;
         $caught = null;
         $waiting = new Channel(1);
-        $tool = Double::for(NamedTool::class);
+        $tool = Double::for(NamedTool::class)->strict();
         $tool->allows('name')->returns('tool');
         $tool->expects('handle')->times(2)->resolves(function () use ($waiting, &$active, &$resumed): string {
             ++$active;
@@ -284,7 +284,7 @@ class ConcurrentToolsTest extends TestCase
                 --$active;
             }
         });
-        $provider = Double::for(TextProvider::class);
+        $provider = Double::for(TextProvider::class)->strict();
         $provider->allows('name')->returns('provider');
         $results = [];
         $gateway = $this->gateway(true, [new ToolCall('first', 'tool', []), new ToolCall('second', 'tool', [])], $results, completes: false);
@@ -335,7 +335,7 @@ class ConcurrentToolsTest extends TestCase
 
             return new StepResponse('Finished', [], FinishReason::Stop, new TextUsage, new Meta);
         };
-        $gateway = Double::for(StepTextGateway::class);
+        $gateway = Double::for(StepTextGateway::class)->strict();
 
         if ($streaming) {
             $gateway->expects('generateStreamStep')->times($completes ? 2 : 1)->resolves(static function (...$arguments) use ($response): Generator {

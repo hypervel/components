@@ -62,12 +62,12 @@ class PendingProviderTest extends TestCase
     #[DataProvider('generations')]
     public function testContractProviderFailoverRetainsTheOriginalNamedFallback(string $kind, string $contract, string $method, string $responseClass): void
     {
-        $response = Double::for($responseClass);
+        $response = Double::for($responseClass)->strict();
         $exception = RateLimitedException::forProvider('first');
         $providers = [];
 
         foreach (['first', 'second'] as $name) {
-            $provider = $name === 'first' ? Double::for($contract) : Double::for(PendingTestProvider::class);
+            $provider = $name === 'first' ? Double::for($contract)->strict() : Double::for(PendingTestProvider::class)->strict();
             $provider->allows('name')->returns($name);
             $provider->expects('withHeaders')->with(['X-Provider' => $name]);
 
@@ -92,7 +92,7 @@ class PendingProviderTest extends TestCase
             $providers[$name] = $provider;
         }
 
-        $replacement = Double::for(PendingTestProvider::class);
+        $replacement = Double::for(PendingTestProvider::class)->strict();
         Ai::extend('custom', fn (Application $app, array $config): Provider => $config['key'] === 'replacement'
             ? $replacement
             : $providers[$config['name']]);
@@ -123,8 +123,8 @@ class PendingProviderTest extends TestCase
     #[DataProvider('generations')]
     public function testConfiguredDefaultsAcceptEnumsAndProviderLists(string $kind, string $contract, string $method, string $responseClass): void
     {
-        $response = Double::for($responseClass);
-        $provider = Double::for($contract);
+        $response = Double::for($responseClass)->strict();
+        $provider = Double::for($contract)->strict();
         $provider->expects('withHeaders')->times(2)->with([]);
         $provider->expects($method)->times(2)->returns($response);
 

@@ -144,7 +144,7 @@ class AiManagerTest extends TestCase
 
     public function testCustomDriversMayImplementProviderContractsWithoutExtendingTheBaseClass(): void
     {
-        $provider = Double::for(AudioProvider::class);
+        $provider = Double::for(AudioProvider::class)->strict();
         $this->manager->extend('custom', static fn (): AudioProvider => $provider);
 
         $this->assertSame($provider, $this->manager->audioProvider());

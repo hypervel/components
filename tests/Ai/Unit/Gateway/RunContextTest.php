@@ -36,10 +36,10 @@ class RunContextTest extends TestCase
         $events->listen('*', function (string $name) use (&$observed): void {
             $observed[] = $name;
         });
-        $context = new RunContext('invocation', Double::for(Agent::class), Double::for(TextProvider::class), 'model', $events);
+        $context = new RunContext('invocation', Double::for(Agent::class)->strict(), Double::for(TextProvider::class)->strict(), 'model', $events);
         $step = new StepContext;
         $response = new StepResponse('Answer', [], FinishReason::Stop, new TextUsage, new Meta);
-        $tool = Double::for(Tool::class);
+        $tool = Double::for(Tool::class)->strict();
         $exception = new RuntimeException('Failed');
         $report = static function () use ($context, $step, $response, $tool, $exception): void {
             $context->startingStep($step, [], null);

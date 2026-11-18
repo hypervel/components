@@ -90,7 +90,7 @@ class McpClientTransportTest extends TestCase
      */
     private function generate(Client $client, bool $completes = true): TextResponse
     {
-        $gateway = Double::for(StepTextGateway::class);
+        $gateway = Double::for(StepTextGateway::class)->strict();
         $gateway->expects('generateTextStep')->times($completes ? 2 : 1)->returns(
             new StepResponse('', [
                 new ToolCall('first-call', 'mcp_tools_first', []),
@@ -98,7 +98,7 @@ class McpClientTransportTest extends TestCase
             ], FinishReason::ToolCalls, new TextUsage, new Meta),
             new StepResponse('Finished', [], FinishReason::Stop, new TextUsage, new Meta),
         );
-        $provider = Double::for(TextProvider::class);
+        $provider = Double::for(TextProvider::class)->strict();
         $provider->allows('name')->returns('local-test');
         $tools = array_map(static fn (string $name): McpTool => new McpTool(Tool::from($client, [
             'name' => $name,

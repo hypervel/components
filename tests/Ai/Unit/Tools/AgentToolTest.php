@@ -36,7 +36,7 @@ class AgentToolTest extends TestCase
             new StreamEnd('event-2', 'stop', new TextUsage, time()),
         ], new Meta('fake', 'model'));
 
-        $agent = Double::for(Agent::class);
+        $agent = Double::for(Agent::class)->strict();
         $agent->expects('stream')->with('Do the thing')->returns($stream);
         $agent->expects('prompt')->never();
 
@@ -51,7 +51,7 @@ class AgentToolTest extends TestCase
 
     public function testAStructuredSubAgentAnswersThroughARegularPromptOnTheStreamingPath(): void
     {
-        $agent = Double::for(Agent::class, HasStructuredOutput::class);
+        $agent = Double::for(Agent::class, HasStructuredOutput::class)->strict();
         $agent->expects('stream')->never();
         $agent->expects('prompt')->returns(new StructuredAgentResponse(
             'invocation-sub',
@@ -73,7 +73,7 @@ class AgentToolTest extends TestCase
         Exceptions::fake();
         $exception = new RuntimeException('provider exploded');
 
-        $agent = Double::for(Agent::class);
+        $agent = Double::for(Agent::class)->strict();
         $agent->expects('stream')->throws($exception);
 
         $generator = (new AgentTool($agent))->stream(new Request(['task' => 'Do the thing']));
@@ -92,7 +92,7 @@ class AgentToolTest extends TestCase
         Exceptions::fake();
         $exception = new RuntimeException('provider exploded');
 
-        $agent = $structuredStream ? Double::for(Agent::class, HasStructuredOutput::class) : Double::for(Agent::class);
+        $agent = $structuredStream ? Double::for(Agent::class, HasStructuredOutput::class)->strict() : Double::for(Agent::class)->strict();
         $agent->expects('stream')->never();
         $agent->expects('prompt')->throws($exception);
 
@@ -130,7 +130,7 @@ class AgentToolTest extends TestCase
         if ($cleanupThrows) {
             $exception = new RuntimeException('Sub-agent cleanup failed.', previous: $exception);
         }
-        $agent = Double::for(Agent::class);
+        $agent = Double::for(Agent::class)->strict();
 
         if ($streaming) {
             $agent->expects('stream')->returns(new StreamableAgentResponse('invocation', function () use ($exception): Generator {

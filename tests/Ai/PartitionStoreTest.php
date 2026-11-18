@@ -148,7 +148,7 @@ class PartitionStoreTest extends TestCase
      */
     private function prompt(?Decisions $decisions = null): AgentPrompt
     {
-        return new AgentPrompt(new AnonymousAgent('', [], []), 'Hello', [], Double::for(TextProvider::class), 'model', approvalDecisions: $decisions);
+        return new AgentPrompt(new AnonymousAgent('', [], []), 'Hello', [], Double::for(TextProvider::class)->strict(), 'model', approvalDecisions: $decisions);
     }
 
     /**

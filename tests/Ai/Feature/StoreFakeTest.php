@@ -338,7 +338,7 @@ class StoreFakeTest extends TestCase
 
     public function testFileOperationsUseTheCapturedProvider(): void
     {
-        $provider = Double::for(FileProvider::class, StoreProvider::class);
+        $provider = Double::for(FileProvider::class, StoreProvider::class)->strict();
         $provider->allows('name')->returns('unregistered');
         $file = Document::fromString('Hello, world!', 'text/plain');
         $stored = new StoredFileResponse('file_123');

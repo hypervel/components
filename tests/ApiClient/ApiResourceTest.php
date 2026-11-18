@@ -30,8 +30,8 @@ class ApiResourceTest extends TestCase
     {
         parent::setUp();
 
-        $this->response = Double::for(ApiResponse::class);
-        $this->request = Double::for(ApiRequest::class);
+        $this->response = Double::for(ApiResponse::class)->strict();
+        $this->request = Double::for(ApiRequest::class)->strict();
 
         $this->resource = new ApiResource($this->response, $this->request);
     }

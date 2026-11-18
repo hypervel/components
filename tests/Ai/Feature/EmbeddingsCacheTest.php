@@ -342,7 +342,7 @@ class EmbeddingsCacheTest extends TestCase
 
     public function testSameNameOnDemandProvidersRetainTheirOwnCacheIdentity(): void
     {
-        $gateway = Double::for(Gateway::class);
+        $gateway = Double::for(Gateway::class)->strict();
         $gateway->expects('generateEmbeddings')->times(2)->resolves(
             fn (EmbeddingProvider $provider): EmbeddingsResponse => new EmbeddingsResponse(
                 [[$provider->providerCredentials()['key'] === 'first-key' ? 1 : 2]],
@@ -378,7 +378,7 @@ class EmbeddingsCacheTest extends TestCase
     protected function useCustomProvider(Closure $generate): void
     {
         Ai::extend('cache-test', function (Application $app, array $config) use ($generate): EmbeddingProvider {
-            $provider = Double::for(EmbeddingProvider::class);
+            $provider = Double::for(EmbeddingProvider::class)->strict();
             $provider->allows('name')->returns('cache-test');
             $provider->allows('driver')->returns('cache-test');
             $provider->allows('providerCredentials')->returns(['key' => $config['key']]);

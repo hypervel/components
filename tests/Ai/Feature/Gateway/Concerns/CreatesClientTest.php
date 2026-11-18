@@ -55,7 +55,7 @@ class CreatesClientTest extends TestCase
         config(['ai.providers.added-later' => ['driver' => 'openai', 'key' => 'test-key']]);
 
         foreach (['configured', 'on-demand', 'added-later'] as $name) {
-            $provider = Double::for(Provider::class);
+            $provider = Double::for(Provider::class)->strict();
             $provider->allows('name')->returns($name);
             $client = $this->httpClient(provider: $provider);
 
@@ -80,7 +80,7 @@ class CreatesClientTest extends TestCase
         $requests = [];
 
         foreach (['first', 'second'] as $index => $key) {
-            $provider = Double::for(BaseProvider::class);
+            $provider = Double::for(BaseProvider::class)->strict();
             $provider->allows('name')->returns('configured');
             $provider->allows('providerCredentials')->returns(['key' => $key]);
             $provider->allows('additionalConfiguration')->returns(['headers' => ['X-Request' => $key]]);

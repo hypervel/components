@@ -1152,7 +1152,7 @@ class TextGenerationLoopTest extends TestCase
         $regular = new TextGenerationLoopCountingTool;
         $webSearch = new WebSearch;
 
-        $provider = Double::for(TextProvider::class, SupportsWebSearch::class);
+        $provider = Double::for(TextProvider::class, SupportsWebSearch::class)->strict();
         $provider->allows('name')->returns('fake');
 
         (new TextGenerationLoop($gateway))->generate(
@@ -1406,7 +1406,7 @@ class TextGenerationLoopTest extends TestCase
 
     public function testASubAgentRunsSynchronouslyThroughTheNonStreamingLoop(): void
     {
-        $agent = Double::for(Agent::class, CanActAsTool::class);
+        $agent = Double::for(Agent::class, CanActAsTool::class)->strict();
         $agent->allows('name')->returns('research_agent');
         $agent->expects('prompt')->returns(new AgentResponse(
             'sub-invocation',
@@ -1441,7 +1441,7 @@ class TextGenerationLoopTest extends TestCase
     {
         $parent = null;
 
-        $agent = Double::for(Agent::class, CanActAsTool::class, HasStructuredOutput::class);
+        $agent = Double::for(Agent::class, CanActAsTool::class, HasStructuredOutput::class)->strict();
         $agent->allows('name')->returns('research_agent');
         $agent->expects('stream')->never();
         $agent->expects('prompt')->resolves(function () use (&$parent): StructuredAgentResponse {
@@ -1468,7 +1468,7 @@ class TextGenerationLoopTest extends TestCase
 
         textGenerationLoopSubAgentStream([new AgentTool($agent)], [$toolCall], context: new RunContext(
             'invocation-1',
-            Double::for(Agent::class),
+            Double::for(Agent::class)->strict(),
             textGenerationLoopProvider(),
             'model',
             $dispatcher,
@@ -1481,7 +1481,7 @@ class TextGenerationLoopTest extends TestCase
 
     public function testASubAgentIsNotExecutedOnTheFinalStreamedStep(): void
     {
-        $agent = Double::for(Agent::class, CanActAsTool::class);
+        $agent = Double::for(Agent::class, CanActAsTool::class)->strict();
         $agent->allows('name')->returns('research_agent');
         $agent->expects('prompt')->never();
         $agent->expects('stream')->never();
@@ -1529,7 +1529,7 @@ class TextGenerationLoopTest extends TestCase
 
         $events = textGenerationLoopSubAgentStream([$tool], [$toolCall], context: new RunContext(
             'invocation-1',
-            Double::for(Agent::class),
+            Double::for(Agent::class)->strict(),
             $provider,
             'model',
             $dispatcher,
@@ -1560,7 +1560,7 @@ class TextGenerationLoopTest extends TestCase
 
         textGenerationLoopSubAgentStream([$tool], [$toolCall], context: new RunContext(
             'invocation-1',
-            Double::for(Agent::class),
+            Double::for(Agent::class)->strict(),
             $provider,
             'model',
             new Dispatcher,
@@ -1593,7 +1593,7 @@ class TextGenerationLoopTest extends TestCase
     public function testEachResultIsPersistedBeforeTheNextToolRuns(): void
     {
         $provider = textGenerationLoopProvider();
-        $store = Double::for(ClaimsPendingApprovals::class);
+        $store = Double::for(ClaimsPendingApprovals::class)->strict();
         $claim = new ApprovalClaim('message', 'token');
         $recorded = [];
         $operations = [];
@@ -1615,9 +1615,9 @@ class TextGenerationLoopTest extends TestCase
 
             return 'done';
         });
-        $gateway = Double::for(StepTextGateway::class);
+        $gateway = Double::for(StepTextGateway::class)->strict();
         $gateway->expects('generateTextStep')->returns(new StepResponse('Finished', [], FinishReason::Stop, new TextUsage, new Meta));
-        $context = (new RunContext('invocation', Double::for(Agent::class), $provider, 'model', new Dispatcher))->withApprovalStore($store, 'conversation');
+        $context = (new RunContext('invocation', Double::for(Agent::class)->strict(), $provider, 'model', new Dispatcher))->withApprovalStore($store, 'conversation');
 
         (new TextGenerationLoop($gateway))->generate(
             $provider,
@@ -1643,14 +1643,14 @@ class TextGenerationLoopTest extends TestCase
     public function testAnUnavailableClaimPreventsToolExecution(): void
     {
         $provider = textGenerationLoopProvider();
-        $gateway = Double::for(StepTextGateway::class);
+        $gateway = Double::for(StepTextGateway::class)->strict();
         $gateway->allows('generateTextStep')->returns(new StepResponse('Finished', [], FinishReason::Stop, new TextUsage, new Meta));
-        $store = Double::for(ClaimsPendingApprovals::class);
+        $store = Double::for(ClaimsPendingApprovals::class)->strict();
         $store->expects('claimPendingApprovals')->with('conversation', ['call'])->returns(null);
         $store->expects('recordApprovalResult')->never();
         $tool = $this->approvalTool();
         $tool->expects('handle')->never();
-        $context = (new RunContext('invocation', Double::for(Agent::class), $provider, 'model', new Dispatcher))->withApprovalStore($store, 'conversation');
+        $context = (new RunContext('invocation', Double::for(Agent::class)->strict(), $provider, 'model', new Dispatcher))->withApprovalStore($store, 'conversation');
 
         $this->expectException(ApprovalMismatchException::class);
 
@@ -1670,9 +1670,9 @@ class TextGenerationLoopTest extends TestCase
     public function testCancellationIsNotRecordedAsACompletedToolFailure(bool $cleanupThrows): void
     {
         $provider = textGenerationLoopProvider();
-        $gateway = Double::for(StepTextGateway::class);
+        $gateway = Double::for(StepTextGateway::class)->strict();
         $gateway->expects('generateTextStep')->never();
-        $store = Double::for(ClaimsPendingApprovals::class);
+        $store = Double::for(ClaimsPendingApprovals::class)->strict();
         $claim = new ApprovalClaim('message', 'token');
         $store->expects('claimPendingApprovals')->with('conversation', ['call', 'next'])->returns($claim);
         $store->expects('recordApprovalResult')->never();
@@ -1682,7 +1682,7 @@ class TextGenerationLoopTest extends TestCase
         }
         $tool = $this->approvalTool();
         $tool->expects('handle')->throws($exception);
-        $context = (new RunContext('invocation', Double::for(Agent::class), $provider, 'model', new Dispatcher))->withApprovalStore($store, 'conversation');
+        $context = (new RunContext('invocation', Double::for(Agent::class)->strict(), $provider, 'model', new Dispatcher))->withApprovalStore($store, 'conversation');
 
         try {
             (new TextGenerationLoop($gateway))->generate(
@@ -1707,7 +1707,7 @@ class TextGenerationLoopTest extends TestCase
      */
     private function approvalTool(): Tool&Approvable&DoubleInterface
     {
-        $tool = Double::for(ApprovableNamedTool::class);
+        $tool = Double::for(ApprovableNamedTool::class)->strict();
         $tool->allows('name')->returns('tool');
         $tool->allows('shouldRequestApproval')->returns(Approval::required());
 
@@ -1720,7 +1720,7 @@ class TextGenerationLoopTest extends TestCase
  */
 function textGenerationLoopProvider(): TextProvider
 {
-    $provider = Double::for(TextProvider::class);
+    $provider = Double::for(TextProvider::class)->strict();
     $provider->allows('name')->returns('fake');
 
     return $provider;
@@ -1731,7 +1731,7 @@ function textGenerationLoopProvider(): TextProvider
  */
 function textGenerationLoopToolSearchProvider(): TextProvider
 {
-    $provider = Double::for(TextProvider::class, SupportsToolSearch::class);
+    $provider = Double::for(TextProvider::class, SupportsToolSearch::class)->strict();
     $provider->allows('name')->returns('fake');
 
     return $provider;
@@ -1932,7 +1932,7 @@ class ExtendedTextGenerationLoop extends TextGenerationLoop
  */
 function textGenerationLoopAgentTool(Closure|string $text = 'sub-agent result'): AgentTool
 {
-    $agent = Double::for(Agent::class, CanActAsTool::class);
+    $agent = Double::for(Agent::class, CanActAsTool::class)->strict();
     $agent->allows('name')->returns('research_agent');
     $agent->expects('prompt')->never();
     $agent->expects('stream')->times(minimum: 1)->resolves(fn (): StreamableAgentResponse => new StreamableAgentResponse(
