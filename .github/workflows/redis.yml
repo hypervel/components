@@ -52,22 +52,7 @@ jobs:
           REDIS_PORT: 6379
           REDIS_DB: 0
           REDIS_TEST_SECONDARY_DB: 1
-        # Cap ParaTest's auto-detected workers: database 1 is reserved via
-        # REDIS_TEST_SECONDARY_DB, leaving 15 worker databases in the 0-15 range.
-        run: |
-          vendor/bin/paratest --max-processes=15 tests/Integration/Auth/Redis
-          vendor/bin/paratest --max-processes=15 tests/Integration/Broadcasting/Redis
-          CACHE_STORE=redis vendor/bin/paratest --max-processes=15 tests/Integration/Cache
-          vendor/bin/paratest --max-processes=15 tests/Integration/Horizon
-          vendor/bin/paratest --max-processes=15 tests/Integration/Http/Redis
-          vendor/bin/paratest --max-processes=15 tests/Integration/OpenTelemetry/Redis
-          vendor/bin/paratest --max-processes=15 tests/Integration/Pennant/Redis
-          CACHE_STORE=redis vendor/bin/paratest --max-processes=15 tests/Permission
-          QUEUE_CONNECTION=redis vendor/bin/paratest --max-processes=15 tests/Integration/Queue
-          vendor/bin/paratest --max-processes=15 tests/Integration/RateLimiter/Redis
-          vendor/bin/paratest --max-processes=15 tests/Integration/Redis
-          vendor/bin/paratest --max-processes=15 tests/Integration/Saloon/Redis
-          vendor/bin/paratest --max-processes=15 tests/Integration/Session/Redis
+        run: bin/run-redis-tests.sh standalone
 
   redis_cluster:
     runs-on: ubuntu-latest
@@ -204,33 +189,7 @@ jobs:
           '
 
       - name: Execute Redis Cluster integration tests
-        run: |
-          vendor/bin/phpunit --no-progress tests/Integration/Auth/Redis
-          vendor/bin/phpunit --no-progress tests/Integration/Broadcasting/Redis
-          CACHE_STORE=redis vendor/bin/phpunit --no-progress tests/Integration/Cache
-          vendor/bin/phpunit --no-progress tests/Integration/Horizon
-          vendor/bin/phpunit --no-progress tests/Integration/Http/Redis
-          vendor/bin/phpunit --no-progress tests/Integration/OpenTelemetry/Redis
-          vendor/bin/phpunit --no-progress tests/Integration/Pennant/Redis
-          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue
-          vendor/bin/phpunit --no-progress tests/Integration/RateLimiter/Redis
-          vendor/bin/phpunit --no-progress tests/Integration/Saloon/Redis
-          vendor/bin/phpunit --no-progress tests/Integration/Session/Redis
-          # This explicit list contains the topology-neutral Redis tests; the remaining files require standalone-only behavior.
-          vendor/bin/phpunit --no-progress \
-            tests/Integration/Redis/ConcurrencyLimiterIntegrationTest.php \
-            tests/Integration/Redis/DurationLimiterIntegrationTest.php \
-            tests/Integration/Redis/EvalWithShaCacheIntegrationTest.php \
-            tests/Integration/Redis/RedisClusterIntegrationTest.php \
-            tests/Integration/Redis/RedisConnectionTest.php \
-            tests/Integration/Redis/RedisEventsIntegrationTest.php \
-            tests/Integration/Redis/RedisPoolHeartbeatIntegrationTest.php \
-            tests/Integration/Redis/RedisPoolTeardownLifecycleTest.php \
-            tests/Integration/Redis/RedisSubscribeIntegrationTest.php \
-            tests/Integration/Redis/SafeScanIntegrationTest.php
-          vendor/bin/phpunit --no-progress \
-            tests/Integration/Reverb/RedisSharedStateTest.php \
-            tests/Integration/Reverb/WebhookBatchBufferTest.php
+        run: bin/run-redis-tests.sh cluster
 
   valkey_9:
     runs-on: ubuntu-latest
@@ -274,19 +233,4 @@ jobs:
           REDIS_PORT: 6379
           REDIS_DB: 0
           REDIS_TEST_SECONDARY_DB: 1
-        # Cap ParaTest's auto-detected workers: database 1 is reserved via
-        # REDIS_TEST_SECONDARY_DB, leaving 15 worker databases in the 0-15 range.
-        run: |
-          vendor/bin/paratest --max-processes=15 tests/Integration/Auth/Redis
-          vendor/bin/paratest --max-processes=15 tests/Integration/Broadcasting/Redis
-          CACHE_STORE=redis vendor/bin/paratest --max-processes=15 tests/Integration/Cache
-          vendor/bin/paratest --max-processes=15 tests/Integration/Horizon
-          vendor/bin/paratest --max-processes=15 tests/Integration/Http/Redis
-          vendor/bin/paratest --max-processes=15 tests/Integration/OpenTelemetry/Redis
-          vendor/bin/paratest --max-processes=15 tests/Integration/Pennant/Redis
-          QUEUE_CONNECTION=redis vendor/bin/paratest --max-processes=15 tests/Integration/Queue
-          vendor/bin/paratest --max-processes=15 tests/Integration/RateLimiter/Redis
-          vendor/bin/paratest --max-processes=15 tests/Integration/Redis
-          vendor/bin/phpunit --no-progress tests/Integration/Reverb/ClearStateCommandTest.php
-          vendor/bin/paratest --max-processes=15 tests/Integration/Saloon/Redis
-          vendor/bin/paratest --max-processes=15 tests/Integration/Session/Redis
+        run: bin/run-redis-tests.sh standalone

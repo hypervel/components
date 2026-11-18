@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Reverb;
+namespace Hypervel\Tests\Integration\Reverb\Redis;
 
 use Hypervel\Console\Command as HypervelCommand;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
