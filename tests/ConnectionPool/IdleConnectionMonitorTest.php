@@ -26,7 +26,7 @@ class IdleConnectionMonitorTest extends TestCase
 
     public function testMonitorChecksIdleConnectionsAtItsInterval(): void
     {
-        $pool = Double::for(ConnectionPool::class);
+        $pool = Double::for(ConnectionPool::class)->strict();
         $pool->allows('isClosed')->returns(false);
         $pool->expects('checkIdleConnection')->times(minimum: 1);
         $timerCount = Timer::stats()['num'];
@@ -46,9 +46,9 @@ class IdleConnectionMonitorTest extends TestCase
 
     public function testStartAndStopAreIdempotentAndPermitRestart(): void
     {
-        $pool = Double::for(ConnectionPool::class);
+        $pool = Double::for(ConnectionPool::class)->strict();
         $pool->allows('isClosed')->returns(false);
-        $timer = Double::for(Timer::class);
+        $timer = Double::for(Timer::class)->strict();
         $timer->expects('tick')->with(5.0, Argument::type('callable'))->times(2)->returns(1, 2);
         $timer->expects('clear')->with(1);
         $timer->expects('clear')->with(2);
@@ -64,9 +64,9 @@ class IdleConnectionMonitorTest extends TestCase
 
     public function testClosedPoolCannotStartAMonitor(): void
     {
-        $pool = Double::for(ConnectionPool::class);
+        $pool = Double::for(ConnectionPool::class)->strict();
         $pool->allows('isClosed')->returns(true);
-        $timer = Double::for(Timer::class);
+        $timer = Double::for(Timer::class)->strict();
         $timer->expects('tick')->never();
 
         (new IdleConnectionMonitor($pool, 1.0, $timer))->start();
@@ -74,7 +74,7 @@ class IdleConnectionMonitorTest extends TestCase
 
     public function testSynchronousStartupReentryDoesNotCreateAnotherTimer(): void
     {
-        $pool = Double::for(ConnectionPool::class);
+        $pool = Double::for(ConnectionPool::class)->strict();
         $pool->allows('isClosed')->returns(false);
         $monitor = new IdleConnectionMonitor($pool, 60.0);
         $timerCount = Timer::stats()['num'];
@@ -117,10 +117,10 @@ class IdleConnectionMonitorTest extends TestCase
 
     public function testStartupFailureAllowsTheNextStart(): void
     {
-        $pool = Double::for(ConnectionPool::class);
+        $pool = Double::for(ConnectionPool::class)->strict();
         $pool->allows('isClosed')->returns(false);
         $failure = new RuntimeException('timer creation failed');
-        $timer = Double::for(Timer::class);
+        $timer = Double::for(Timer::class)->strict();
         $attempts = 0;
         $timer->expects('tick')->with(1.0, Argument::type('callable'))->times(2)->resolves(
             static function () use (&$attempts, $failure): int {
@@ -148,7 +148,7 @@ class IdleConnectionMonitorTest extends TestCase
 
     public function testWorkerExitStopsWithoutCheckingIdleConnections(): void
     {
-        $pool = Double::for(ConnectionPool::class);
+        $pool = Double::for(ConnectionPool::class)->strict();
         $pool->allows('isClosed')->returns(false);
         $pool->expects('checkIdleConnection')->never();
         $monitor = new IdleConnectionMonitor($pool, 60.0);
@@ -166,7 +166,7 @@ class IdleConnectionMonitorTest extends TestCase
 
     public function testEachMonitorOwnsItsTimer(): void
     {
-        $pool = Double::for(ConnectionPool::class);
+        $pool = Double::for(ConnectionPool::class)->strict();
         $pool->allows('isClosed')->returns(false);
         $first = new IdleConnectionMonitor($pool, 60.0);
         $second = new IdleConnectionMonitor($pool, 60.0);
@@ -208,7 +208,7 @@ class IdleConnectionMonitorTest extends TestCase
         $pool->release($first);
         $pool->release($second);
         $callback = null;
-        $timer = Double::for(Timer::class);
+        $timer = Double::for(Timer::class)->strict();
         $timer->expects('tick')->with(1.0, Argument::type('callable'))->resolves(
             static function (float $interval, callable $check) use (&$callback): int {
                 $callback = $check;
@@ -239,7 +239,7 @@ class IdleConnectionMonitorTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
 
-        new IdleConnectionMonitor(Double::for(ConnectionPool::class), $interval);
+        new IdleConnectionMonitor(Double::for(ConnectionPool::class)->strict(), $interval);
     }
 
     public static function invalidIntervals(): array
