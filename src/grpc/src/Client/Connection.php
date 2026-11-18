@@ -764,11 +764,7 @@ final class Connection
 
                 // Native close must wait for physical receiver and engine-client cleanup.
                 // A bounded join could still leave the socket owned when its timeout elapsed.
-                if (! Coroutine::join([$receiverCoroutineId]) && Coroutine::isCanceled()) {
-                    $cancellation = new CanceledException(
-                        'Waiting for the gRPC response receiver to stop was canceled.',
-                    );
-                }
+                FrameworkCoroutine::joinUninterruptibly([$receiverCoroutineId]);
             } catch (CanceledException $exception) {
                 $cancellation = $exception;
             }

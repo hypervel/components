@@ -16,9 +16,11 @@ use Hypervel\Prompts\Task;
 use Hypervel\Prompts\Themes\Default\TaskRenderer;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 use function Hypervel\Prompts\task;
 
@@ -89,6 +91,22 @@ class TaskTest extends TestCase
         }
 
         Prompt::assertStrippedOutputDoesntContain('✔ My Task');
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCancellationWhileRenderingTheFinalSummaryPropagatesAfterCallbackFailure(bool $decorated): void
+    {
+        Prompt::fake();
+        Prompt::setOutput(new BufferedConsoleOutput(decorated: $decorated));
+        $this->expectException(CanceledException::class);
+
+        (new Task('Deploy', keepSummary: true))->run(static function (Logger $logger): never {
+            $logger->success('Uploaded');
+            Prompt::terminal()->shouldReceive('cols')->once()->andThrow(new CanceledException);
+
+            throw new RuntimeException('Deploy failed.');
+        });
     }
 
     public function testPrintsCompletionLineAfterSuccessfulCoroutineTaskWithSummary(): void

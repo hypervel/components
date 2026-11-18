@@ -763,7 +763,7 @@ See the existing entries for database, Redis, Meilisearch, and Typesense as exam
 
 Components is analyzed with its own `hypervel/phpstan` extension. [Static Analysis](src/docs/static-analysis.md#fixing-and-ignoring-diagnostics) is the source of truth for each diagnostic's intended fix and legitimate exceptions; the rules below add Components-specific requirements.
 
-**Keep `hypervel/phpstan` evolving** — Codify framework contracts and useful conventions to help agents avoid mistakes. When implementation or review reveals a pattern worth checking, verify realistic usage, reliable detection and proportionate complexity; reach peer consensus, then seek owner approval for the new rule. Investigate false positives on realistic code; fix analyzer defects rather than rewriting correct code to work around them. Keep inference limits explicit; do not add brittle machinery merely to handle unusual cases.
+**Keep `hypervel/phpstan` evolving** — Codify framework contracts and useful conventions. Prefer a simple framework fix when it prevents the mistake. Add rules for mistakes likely to recur in packages or apps, even when existing cases are already fixed. Check each proposed rule against real mistakes and realistic correct usage. Reject rules that flag correct code or need a growing list of exceptions to avoid doing so. Keep inference limits explicit. Reach peer consensus, then seek owner approval for a new rule. If an existing rule flags correct code, fix the analyzer and leave the correct code alone.
 
 The `tests/` directory is excluded from phpstan. Do not run phpstan on tests.
 

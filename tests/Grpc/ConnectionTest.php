@@ -878,7 +878,9 @@ class ConnectionTest extends TestCase
         $this->assertSame(1, $retired);
     }
 
-    public function testCloseJoinsTheReceiverBeforeClosingItsNativeClient(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCloseJoinsTheReceiverBeforeClosingItsNativeClient(bool $interrupt): void
     {
         $client = new ConnectionCloseWaitTestClient;
         $connection = $this->connection(new ConnectionTestClientFactory($client));
@@ -890,7 +892,21 @@ class ConnectionTest extends TestCase
         $this->assertIsInt($receiverCoroutineId);
         $this->assertTrue($client->waiting);
 
-        $connection->close();
+        if ($interrupt) {
+            $cancellation = null;
+            $closer = Coroutine::create(static function () use ($connection, &$cancellation): void {
+                try {
+                    $connection->close();
+                } catch (CanceledException $exception) {
+                    $cancellation = $exception;
+                }
+            })->getId();
+            Coroutine::cancelById($closer, throwException: true);
+            Coroutine::join([$closer]);
+            $this->assertInstanceOf(CanceledException::class, $cancellation);
+        } else {
+            $connection->close();
+        }
 
         $this->assertFalse($client->waiting);
         $this->assertTrue($client->receiverCleanupCompleted);

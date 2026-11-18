@@ -104,11 +104,12 @@ class SwallowedCancellationRuleTest extends RuleTestCase
     public function testConcurrencyWaitsAndPropertyReceivers(): void
     {
         $this->analyse([__DIR__ . '/data/swallowed-cancellation-waits.php'], [
-            self::swallowed('a wait', 23),
-            self::swallowed('a wait', 30),
-            self::swallowed('a wait', 36),
-            self::swallowed('a database query', 44),
-            self::swallowed('a database query', 51),
+            self::swallowed('a wait', 24),
+            self::swallowed('a wait', 31),
+            self::swallowed('a wait', 37),
+            self::swallowed('a database query', 45),
+            self::swallowed('a database query', 52),
+            self::swallowed('a wait', 58),
         ]);
     }
 
