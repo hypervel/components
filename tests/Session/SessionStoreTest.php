@@ -96,7 +96,7 @@ class SessionStoreTest extends TestCase
 
     public function testStoresUseIndependentCoroutineState(): void
     {
-        $handler = Double::for(SessionHandlerInterface::class);
+        $handler = Double::for(SessionHandlerInterface::class)->strict();
         $handler->expects('read')->returns(serialize([]));
 
         $first = new Store('first', $handler, str_repeat('a', 40));
@@ -116,7 +116,7 @@ class SessionStoreTest extends TestCase
 
     public function testConstructionClearsStaleObjectSpecificCoroutineState(): void
     {
-        $handler = Double::for(SessionHandlerInterface::class);
+        $handler = Double::for(SessionHandlerInterface::class)->strict();
 
         $session = new class('name', $handler, str_repeat('b', 40)) extends Store {
             public function __construct(string $name, SessionHandlerInterface $handler, ?string $id = null)
@@ -141,7 +141,7 @@ class SessionStoreTest extends TestCase
 
     public function testStoreLazilyCreatesAnIdInAFreshCoroutine(): void
     {
-        $session = new Store('name', Double::for(SessionHandlerInterface::class), str_repeat('a', 40));
+        $session = new Store('name', Double::for(SessionHandlerInterface::class)->strict(), str_repeat('a', 40));
 
         [$id] = parallel([
             fn (): string => $session->getId(),
@@ -157,7 +157,7 @@ class SessionStoreTest extends TestCase
         $context = CoroutineContext::captureFrom();
 
         try {
-            new Store('name', Double::for(SessionHandlerInterface::class), serialization: 'yaml');
+            new Store('name', Double::for(SessionHandlerInterface::class)->strict(), serialization: 'yaml');
 
             $this->fail('Expected invalid session serialization to be rejected.');
         } catch (InvalidArgumentException $exception) {
@@ -320,7 +320,7 @@ class SessionStoreTest extends TestCase
 
     public function testFailedSaveDoesNotPublishAgedFlashDataBeforeRetry(): void
     {
-        $handler = Double::for(SessionHandlerInterface::class);
+        $handler = Double::for(SessionHandlerInterface::class)->strict();
         $handler->expects('read')->returns(serialize([]));
 
         $attempts = 0;
@@ -407,7 +407,7 @@ class SessionStoreTest extends TestCase
 
     public function testReadOnlyIsIsolatedBetweenCoroutines(): void
     {
-        $handler = Double::for(SessionHandlerInterface::class);
+        $handler = Double::for(SessionHandlerInterface::class)->strict();
         $handler->expects('read')->times(2)->returns(serialize([]));
         $handler->expects('write')->returns(true);
         $session = new Store('name', $handler, $this->getSessionId());
@@ -642,7 +642,7 @@ class SessionStoreTest extends TestCase
         $session->setRequestOnHandler(new Request);
         $session->getHandler()->unused();
 
-        $handler = Double::for(new CookieSessionHandler(new CookieJar, 60, false));
+        $handler = Double::for(new CookieSessionHandler(new CookieJar, 60, false))->strict();
         $session = new Store('test', $handler);
         $this->assertTrue($session->handlerNeedsRequest());
         $handler->expects('setRequest');
@@ -716,7 +716,7 @@ class SessionStoreTest extends TestCase
         $container = Container::setInstance(new Container);
 
         try {
-            $auth = Double::for(AuthFactory::class);
+            $auth = Double::for(AuthFactory::class)->strict();
             $auth->expects('getDefaultDriver')->returns('admin');
             $container->instance(AuthFactory::class, $auth);
 
@@ -811,7 +811,7 @@ class SessionStoreTest extends TestCase
 
     public function testHasAnyStopsAfterTheFirstPresentKey(): void
     {
-        $session = new class('name', Double::for(SessionHandlerInterface::class), $this->getSessionId()) extends Store {
+        $session = new class('name', Double::for(SessionHandlerInterface::class)->strict(), $this->getSessionId()) extends Store {
             public int $getCalls = 0;
 
             public function get(UnitEnum|string $key, mixed $default = null): mixed
@@ -1085,7 +1085,7 @@ class SessionStoreTest extends TestCase
 
     public function testFailedJsonSaveKeepsLiveErrorBagAndFlashUntilRetry(): void
     {
-        $handler = Double::for(SessionHandlerInterface::class);
+        $handler = Double::for(SessionHandlerInterface::class)->strict();
         $handler->expects('read')->returns(json_encode([]));
 
         $attempts = 0;
@@ -1131,7 +1131,7 @@ class SessionStoreTest extends TestCase
 
     public function testConsecutiveJsonSavesKeepTheLiveErrorBag(): void
     {
-        $handler = Double::for(SessionHandlerInterface::class);
+        $handler = Double::for(SessionHandlerInterface::class)->strict();
         $handler->expects('read')->returns(json_encode([]));
         $handler->expects('write')->times(2)->returns(true);
 
@@ -1154,7 +1154,7 @@ class SessionStoreTest extends TestCase
         }
 
         $storedPayload = null;
-        $writer = Double::for(SessionHandlerInterface::class);
+        $writer = Double::for(SessionHandlerInterface::class)->strict();
         $writer->expects('read')->returns('{}');
         $writer->expects('write')->resolves(
             function (string $sessionId, string $payload) use (&$storedPayload): bool {
@@ -1169,7 +1169,7 @@ class SessionStoreTest extends TestCase
         $session->put('nested', $value);
         $session->save();
 
-        $reader = Double::for(SessionHandlerInterface::class);
+        $reader = Double::for(SessionHandlerInterface::class)->strict();
         $reader->expects('read')->returns($storedPayload);
 
         $restored = new Store('name', $reader, $this->getSessionId(), 'json');
@@ -1186,7 +1186,7 @@ class SessionStoreTest extends TestCase
             $value = ['value' => $value];
         }
 
-        $handler = Double::for(SessionHandlerInterface::class);
+        $handler = Double::for(SessionHandlerInterface::class)->strict();
         $handler->expects('read')->returns('{}');
         $handler->expects('write')->never();
 
@@ -1201,7 +1201,7 @@ class SessionStoreTest extends TestCase
 
     public function testStartingJsonSessionRetainsLiveErrorBagWhenStorageHasNone(): void
     {
-        $handler = Double::for(SessionHandlerInterface::class);
+        $handler = Double::for(SessionHandlerInterface::class)->strict();
         $handler->expects('read')->returns(json_encode([]));
 
         $session = new Store('name', $handler, $this->getSessionId(), 'json');
@@ -1221,7 +1221,7 @@ class SessionStoreTest extends TestCase
 
     public function testPersistedJsonErrorBagOverridesLiveErrorBagOnStart(): void
     {
-        $handler = Double::for(SessionHandlerInterface::class);
+        $handler = Double::for(SessionHandlerInterface::class)->strict();
         $handler->expects('read')->returns(json_encode([
             'errors' => [
                 'persisted' => [
@@ -1252,7 +1252,7 @@ class SessionStoreTest extends TestCase
 
     public function testJsonEncodingFailureLeavesLiveStateUntouched(): void
     {
-        $handler = Double::for(SessionHandlerInterface::class);
+        $handler = Double::for(SessionHandlerInterface::class)->strict();
         $handler->expects('read')->returns(json_encode([]));
         $handler->expects('write')->never();
 
@@ -1420,7 +1420,7 @@ class SessionStoreTest extends TestCase
     {
         return new Store(
             $this->getSessionName(),
-            Double::for(SessionHandlerInterface::class),
+            Double::for(SessionHandlerInterface::class)->strict(),
             $this->getSessionId(),
             $serialization
         );

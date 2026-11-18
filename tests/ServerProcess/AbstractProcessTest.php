@@ -387,7 +387,7 @@ class AbstractProcessTest extends TestCase
         $dispatcher->expects('dispatch')->with(Argument::type(AfterProcessHandle::class));
 
         $handler = Double::for(ExceptionHandlerContract::class)->strict();
-        $handler->expects('report')->with($operationFailure)->throws($reporterFailure);
+        $handler->expects('report')->with(Argument::same($operationFailure))->throws($reporterFailure);
 
         $container = new Container;
         $container->instance('events', $dispatcher);

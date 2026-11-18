@@ -22,7 +22,7 @@ class AuthenticateSessionTest extends TestCase
 
     public function testGuardOverrideCanReturnAConcreteGuard(): void
     {
-        $user = Double::for(Authenticatable::class);
+        $user = Double::for(Authenticatable::class)->strict();
         $user->allows('getAuthPassword')->returns('password-hash');
 
         $request = new Request;
@@ -30,12 +30,12 @@ class AuthenticateSessionTest extends TestCase
         $session = new Store('name', new ArraySessionHandler(1));
         $request->setHypervelSession($session);
 
-        $guard = Double::for(SessionGuard::class);
+        $guard = Double::for(SessionGuard::class)->strict();
         $guard->expects('viaRemember')->returns(false);
         $guard->expects('hashPasswordForCookie')->times(2)->with('password-hash')->returns('password-mac');
         $guard->expects('user')->returns(null);
 
-        $authFactory = Double::for(AuthFactory::class);
+        $authFactory = Double::for(AuthFactory::class)->strict();
         $authFactory->allows('guard')->returns($guard);
         $authFactory->allows('getDefaultDriver')->returns('web');
 

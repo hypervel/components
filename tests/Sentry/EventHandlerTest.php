@@ -120,7 +120,7 @@ class EventHandlerTest extends TestCase
         SentrySdk::setCurrentHub(new Hub($client));
         CoordinatorManager::initialize(Constants::WORKER_EXIT);
         $exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
-        $exceptionHandler->expects('report')->with($flushException);
+        $exceptionHandler->expects('report')->with(Argument::same($flushException));
         $this->app->instance(ExceptionHandlerContract::class, $exceptionHandler);
 
         try {
