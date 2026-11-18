@@ -31,7 +31,7 @@ jobs:
       matrix:
         php: ["8.4", "8.5"]
 
-    name: PHP ${{ matrix.php }} (Swoole 6.3.0 RC1)
+    name: PHP ${{ matrix.php }} (Swoole 6.3.0 RC2)
 
     steps:
       - name: Checkout code
@@ -50,7 +50,7 @@ jobs:
       # including the required children of an image index.
       - name: Build image
         env:
-          IMAGE: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+          IMAGE: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
         run: |
           docker build \
             --pull \
@@ -62,7 +62,7 @@ jobs:
 
       - name: Publish image
         env:
-          IMAGE: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+          IMAGE: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
         run: docker push "$IMAGE"
 
   cleanup:
