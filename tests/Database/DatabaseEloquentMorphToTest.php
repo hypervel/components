@@ -226,7 +226,7 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testAssociateMethodUsesConfiguredOwnerKeyWithZeroValue(): void
     {
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->allows('getModel')->returns(new MorphToAssociateRelatedStub);
 
         $parent = new MorphToAssociateParentStub;
@@ -252,7 +252,7 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testAssociateMethodUsesConfiguredOwnerKeyWithNullValue(): void
     {
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->allows('getModel')->returns(new MorphToAssociateRelatedStub);
 
         $parent = new MorphToAssociateParentStub;
@@ -278,7 +278,7 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testAssociateMethodRejectsScalarValuesBeforeChangingTheParent(): void
     {
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->allows('getModel')->returns(new MorphToAssociateRelatedStub);
 
         $parent = (new MorphToAssociateParentStub)->forceFill([
@@ -309,7 +309,7 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testAssociateMethodRejectsUnmappedModelsBeforeChangingTheParent(): void
     {
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->allows('getModel')->returns(new MorphToAssociateRelatedStub);
 
         $parent = (new MorphToAssociateParentStub)->forceFill([
@@ -371,7 +371,7 @@ class DatabaseEloquentMorphToTest extends TestCase
             }
         };
 
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $related = new RelatedStub;
         $builder->expects('getModel')->returns($related);
 
@@ -385,7 +385,7 @@ class DatabaseEloquentMorphToTest extends TestCase
 
         $relation->addEagerConstraints([$parent]);
 
-        $result = Double::for(Model::class);
+        $result = Double::for(Model::class)->strict();
         $result->expects('getKey')->returns($uuidObject);
 
         $relation->callMatchToMorphParents('type_1', new EloquentCollection([$result]));
@@ -415,9 +415,9 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function getRelation($parent = null, $builder = null)
     {
-        $this->builder = $builder ?: Double::for(Builder::class);
+        $this->builder = $builder ?: Double::for(Builder::class)->strict();
         $this->builder->allows('where')->with('relation.id', '=', 'foreign.value')->returns($this->builder);
-        $this->related = Double::for(Model::class);
+        $this->related = Double::for(Model::class)->strict();
         $this->related->allows('getKeyName')->returns('id');
         $this->related->allows('getTable')->returns('relation');
         $this->related->allows('qualifyColumn')->resolves(fn (string $column) => "relation.{$column}");

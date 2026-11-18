@@ -98,7 +98,7 @@ class DatabaseEloquentBelongsToTest extends TestCase
     public function testRelationIsProperlyInitialized(): void
     {
         $relation = $this->getRelation();
-        $model = Double::for(Model::class);
+        $model = Double::for(Model::class)->strict();
         $model->expects('setRelation')->with('foo', null);
         $models = $relation->initRelation([$model], 'foo');
 
@@ -309,9 +309,9 @@ class DatabaseEloquentBelongsToTest extends TestCase
      */
     protected function getRelation(?Model $parent = null, string $keyType = 'int'): BelongsTo
     {
-        $this->builder = Double::for(Builder::class);
+        $this->builder = Double::for(Builder::class)->strict();
         $this->builder->expects('where')->with('relation.id', '=', 'foreign.value');
-        $this->related = Double::for(Model::class);
+        $this->related = Double::for(Model::class)->strict();
         $this->related->allows('getKeyType')->returns($keyType);
         $this->related->allows('getKeyName')->returns('id');
         $this->related->allows('getTable')->returns('relation');
@@ -331,7 +331,7 @@ class DatabaseEloquentBelongsToTest extends TestCase
      */
     protected function getRelationWithPartialMock(?Model $parent = null): BelongsTo
     {
-        $this->builder = Double::for(Builder::class);
+        $this->builder = Double::for(Builder::class)->strict();
         $this->builder->expects('where')->with('relation.id', '=', 'foreign.value');
         $this->related = Double::for(new ModelStub)->passthru();
         $this->related->allows('getKeyType')->returns('int');

@@ -84,6 +84,7 @@ use Hypervel\Tests\Database\Fixtures\TestValueObject;
 use InvalidArgumentException;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -864,7 +865,7 @@ class DatabaseEloquentModelTest extends TestCase
     #[TestWith([['name' => 'taylor'], 'insert into "stub" ("name") values (?)', ['taylor']])]
     public function testNonIncrementingModelInsertsOneRow(array $attributes, string $sql, array $bindings): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getTablePrefix')->returns('');
         $connection->allows('getWritableName')->returns('testing');
         $grammar = new Grammar($connection);
@@ -874,7 +875,7 @@ class DatabaseEloquentModelTest extends TestCase
         );
         $connection->expects('insert')->with($sql, $bindings)->returns(true);
 
-        Model::setConnectionResolver($resolver = Double::for(ConnectionResolverInterface::class));
+        Model::setConnectionResolver($resolver = Double::for(ConnectionResolverInterface::class)->strict());
         $resolver->allows('connection')->returns($connection);
 
         $model = new class extends ModelStub {
@@ -897,7 +898,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model->setConnection('testing');
         $model->setIncrementing(false);
         $model->timestamps = false;
-        $baseQuery = Double::for(BaseBuilder::class);
+        $baseQuery = Double::for(BaseBuilder::class)->strict();
         $baseQuery->expects('insert')->never();
         $query = new Builder($baseQuery);
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
@@ -993,7 +994,7 @@ class DatabaseEloquentModelTest extends TestCase
     #[TestWith([true, ['name' => 'taylor'], ['name'], 'insert into "stub" ("name") values (?) on conflict ("name") do nothing returning *', ['taylor']])]
     public function testInsertOrIgnorePreservesOneModelRow(bool $incrementing, array $attributes, array $uniqueBy, string $sql, array $bindings): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getTablePrefix')->returns('');
         $connection->allows('getWritableName')->returns('testing');
         $grammar = new PostgresGrammar($connection);
@@ -1005,7 +1006,7 @@ class DatabaseEloquentModelTest extends TestCase
             ->with($sql, $bindings)->returns([(object) ['id' => 1, ...$attributes]]);
         $connection->expects('recordsHaveBeenModified')->with(true);
 
-        Model::setConnectionResolver($resolver = Double::for(ConnectionResolverInterface::class));
+        Model::setConnectionResolver($resolver = Double::for(ConnectionResolverInterface::class)->strict());
         $resolver->allows('connection')->returns($connection);
 
         $model = new class($attributes) extends ModelStub {
@@ -1033,13 +1034,13 @@ class DatabaseEloquentModelTest extends TestCase
         $model = $this->getMockBuilder(ModelStub::class)
             ->onlyMethods(['newModelQuery', 'updateTimestamps'])
             ->getMock();
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
         $model->expects($this->once())->method('updateTimestamps');
 
-        $model::setEventDispatcher($events = Double::for(Dispatcher::class));
-        $events->expects('until')->with('eloquent.saving: ' . get_class($model), $model)->returns(true);
-        $events->expects('until')->with('eloquent.creating: ' . get_class($model), $model)->returns(true);
+        $model::setEventDispatcher($events = Double::for(Dispatcher::class)->strict());
+        $events->expects('until')->with('eloquent.saving: ' . get_class($model), Argument::same($model))->returns(true);
+        $events->expects('until')->with('eloquent.creating: ' . get_class($model), Argument::same($model))->returns(true);
 
         $this->expectExceptionObject(new LogicException('Cannot use saveOrIgnore on a model without attributes.'));
 
@@ -1188,7 +1189,7 @@ class DatabaseEloquentModelTest extends TestCase
     #[TestWith([ConnectionNameBacked::Foo])]
     public function testConnectionEnums(string|UnitEnum $connectionName): void
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         ModelStub::setConnectionResolver($resolver);
         $model = new ModelStub;
 
@@ -1196,7 +1197,7 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertEquals($retval, $model);
         $this->assertSame('Foo', $model->getConnectionName());
 
-        $mockConnection = Double::for(Connection::class);
+        $mockConnection = Double::for(Connection::class)->strict();
         $resolver->expects('connection')->with('Foo')->returns($mockConnection);
 
         $this->assertSame($mockConnection, $model->getConnection());
@@ -2114,11 +2115,11 @@ class DatabaseEloquentModelTest extends TestCase
     {
         $model = new ModelStub;
 
-        $resolver = Double::for(Resolver::class);
+        $resolver = Double::for(Resolver::class)->strict();
         ModelStub::setConnectionResolver($resolver);
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $resolver->allows('connection')->returns($connection);
-        $schema = Double::for(SchemaBuilder::class);
+        $schema = Double::for(SchemaBuilder::class)->strict();
         $schema->expects('getColumnListing')->returns(['name', 'age', 'foo']);
         $connection->expects('getSchemaBuilder')->returns($schema);
 
@@ -2160,11 +2161,11 @@ class DatabaseEloquentModelTest extends TestCase
 
     public function testUsesOverriddenHandlerWhenDiscardingAttributes(): void
     {
-        $resolver = Double::for(Resolver::class);
+        $resolver = Double::for(Resolver::class)->strict();
         ModelStub::setConnectionResolver($resolver);
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $resolver->allows('connection')->returns($connection);
-        $schema = Double::for(SchemaBuilder::class);
+        $schema = Double::for(SchemaBuilder::class)->strict();
         $schema->expects('getColumnListing')->returns(['name', 'age', 'foo']);
         $connection->expects('getSchemaBuilder')->returns($schema);
 
@@ -2617,7 +2618,7 @@ class DatabaseEloquentModelTest extends TestCase
 
     public function testModelObserversCanBeAttachedToModels(): void
     {
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('dispatch');
         $events->expects('listen')->with('eloquent.creating: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelStub', TestObserverStub::class . '@creating');
         $events->expects('listen')->with('eloquent.saved: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelStub', TestObserverStub::class . '@saved');
@@ -2629,7 +2630,7 @@ class DatabaseEloquentModelTest extends TestCase
 
     public function testModelObserversCanBeAttachedToModelsWithString(): void
     {
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('dispatch');
         $events->expects('listen')->with('eloquent.creating: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelStub', TestObserverStub::class . '@creating');
         $events->expects('listen')->with('eloquent.saved: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelStub', TestObserverStub::class . '@saved');
@@ -2641,7 +2642,7 @@ class DatabaseEloquentModelTest extends TestCase
 
     public function testModelObserversCanBeAttachedToModelsThroughAnArray(): void
     {
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('dispatch');
         $events->expects('listen')->with('eloquent.creating: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelStub', TestObserverStub::class . '@creating');
         $events->expects('listen')->with('eloquent.saved: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelStub', TestObserverStub::class . '@saved');
@@ -2653,7 +2654,7 @@ class DatabaseEloquentModelTest extends TestCase
 
     public function testModelObserversCanBeAttachedToModelsWithStringUsingAttribute(): void
     {
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('dispatch')->times(2);
         $events->expects('listen')->with('eloquent.creating: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelWithObserveAttributeStub', TestObserverStub::class . '@creating');
         $events->expects('listen')->with('eloquent.saved: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelWithObserveAttributeStub', TestObserverStub::class . '@saved');
@@ -2664,7 +2665,7 @@ class DatabaseEloquentModelTest extends TestCase
 
     public function testModelObserversCanBeAttachedToModelsThroughAnArrayUsingAttribute(): void
     {
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('dispatch')->times(2);
         $events->expects('listen')->with('eloquent.creating: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelWithObserveAttributeUsingArrayStub', TestObserverStub::class . '@creating');
         $events->expects('listen')->with('eloquent.saved: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelWithObserveAttributeUsingArrayStub', TestObserverStub::class . '@saved');
@@ -2675,7 +2676,7 @@ class DatabaseEloquentModelTest extends TestCase
 
     public function testModelObserversCanBeAttachedToModelsThroughAttributesOnParentClasses(): void
     {
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('dispatch')->times(2);
         $events->expects('listen')->with('eloquent.creating: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelWithObserveAttributeGrandchildStub', TestObserverStub::class . '@creating');
         $events->expects('listen')->with('eloquent.saved: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelWithObserveAttributeGrandchildStub', TestObserverStub::class . '@saved');
@@ -2702,7 +2703,7 @@ class DatabaseEloquentModelTest extends TestCase
 
     public function testModelObserversCanBeAttachedToModelsThroughCallingObserveMethodOnlyOnce(): void
     {
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('dispatch');
         $events->expects('listen')->with('eloquent.creating: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelStub', TestObserverStub::class . '@creating');
         $events->expects('listen')->with('eloquent.saved: Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelStub', TestObserverStub::class . '@saved');
@@ -2726,7 +2727,7 @@ class DatabaseEloquentModelTest extends TestCase
         // Boot the model before the dispatcher is set so booting events aren't dispatched.
         new SaveStub;
 
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('listen')->with('eloquent.creating: Hypervel\Tests\Database\DatabaseEloquentModelTest\SaveStub', TestObserverStub::class . '@creating');
         $events->expects('listen')->with('eloquent.saved: Hypervel\Tests\Database\DatabaseEloquentModelTest\SaveStub', TestObserverStub::class . '@saved');
         SaveStub::setEventDispatcher($events);
@@ -3027,9 +3028,9 @@ class DatabaseEloquentModelTest extends TestCase
         $model->foo = 1;
         $model->expects('newQueryWithoutScopes')->never();
 
-        $model->setEventDispatcher($events = Double::for(Dispatcher::class));
+        $model->setEventDispatcher($events = Double::for(Dispatcher::class)->strict());
         $events->expects('until')
-            ->with('eloquent.updating: ' . get_class($model), $model)
+            ->with('eloquent.updating: ' . get_class($model), Argument::same($model))
             ->returns(false);
 
         $this->assertFalse($model->publicIncrement('foo'));
@@ -3045,7 +3046,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model->foo = 2;
         $model->bar = 5;
 
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $model->expects('newQueryWithoutScopes')->times(2)->returns($query);
         $query->expects('where')->times(2)->returns($query);
         $query->expects('incrementEach')->times(2)->returns(1);
@@ -3075,7 +3076,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model->foo = 10;
         $model->bar = 5;
 
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $model->expects('newQueryWithoutScopes')->times(2)->returns($query);
         $query->expects('where')->times(2)->returns($query);
         $query->expects('decrementEach')->times(2)->returns(1);
@@ -3904,7 +3905,7 @@ class DatabaseEloquentModelTest extends TestCase
     {
         $model = new ModelStub;
         $model->exists = true;
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $query->expects('where')->never();
 
         $this->expectException(MissingAttributeException::class);
@@ -3916,7 +3917,7 @@ class DatabaseEloquentModelTest extends TestCase
     {
         $model = new ModelStub;
         $model->exists = true;
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $query->expects('where')->never();
 
         $this->expectException(MissingAttributeException::class);
@@ -3953,7 +3954,7 @@ class DatabaseEloquentModelTest extends TestCase
     public function testFlushGuardableColumnsRestoresOnlyGuardableColumnMetadata(): void
     {
         $reflection = new ReflectionClass(Model::class);
-        $resolver = Double::for(Resolver::class);
+        $resolver = Double::for(Resolver::class)->strict();
 
         Model::setConnectionResolver($resolver);
         $reflection->setStaticPropertyValue('guardableColumns', [ModelStub::class => ['id']]);
@@ -3968,8 +3969,8 @@ class DatabaseEloquentModelTest extends TestCase
     {
         $reflection = new ReflectionClass(Model::class);
 
-        Model::setConnectionResolver(Double::for(Resolver::class));
-        Model::setEventDispatcher(Double::for(Dispatcher::class));
+        Model::setConnectionResolver(Double::for(Resolver::class)->strict());
+        Model::setEventDispatcher(Double::for(Dispatcher::class)->strict());
         Model::preventLazyLoading();
         Model::automaticallyEagerLoadRelationships();
         Model::handleLazyLoadingViolationUsing(static function () {
@@ -3981,7 +3982,7 @@ class DatabaseEloquentModelTest extends TestCase
         Model::handleMissingAttributeViolationUsing(static function () {
         });
         Model::$snakeAttributes = false;
-        Model::encryptUsing(Double::for(Encrypter::class));
+        Model::encryptUsing(Double::for(Encrypter::class)->strict());
 
         $reflection->setStaticPropertyValue('booting', [ModelStub::class => 1]);
         $reflection->setStaticPropertyValue('booted', [ModelStub::class => true]);
@@ -4301,12 +4302,8 @@ class DatabaseEloquentModelTest extends TestCase
                 $this->assertSame($failure, $exception);
             }
 
-            try {
-                $model->missing;
-                $this->fail('Missing attribute checks were not restored.');
-            } catch (MissingAttributeException) {
-                $this->addToAssertionCount(1);
-            }
+            $this->expectException(MissingAttributeException::class);
+            $model->missing;
         } finally {
             Model::preventAccessingMissingAttributes($originalMode);
         }
@@ -4340,9 +4337,9 @@ class DatabaseEloquentModelTest extends TestCase
      */
     protected function addMockConnection(Model $model): void
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $model->setConnectionResolver($resolver);
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $resolver->allows('connection')->returns($connection);
         $grammar = new Grammar($connection);
         $connection->allows('getQueryGrammar')->returns($grammar);
@@ -5216,7 +5213,7 @@ class SaveStub extends Model
      */
     public function getConnection(): Connection
     {
-        $mock = Double::for(Connection::class);
+        $mock = Double::for(Connection::class)->strict();
         $grammar = new Grammar($mock);
         $mock->allows('getQueryGrammar')->returns($grammar);
         $processor = new Processor;

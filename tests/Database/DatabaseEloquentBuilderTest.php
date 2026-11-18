@@ -56,7 +56,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->setModel($model);
         $model->expects('getKeyType')->returns('int');
         $builder->getQuery()->expects('where')->with('foo_table.foo', '=', 'bar', 'and');
-        $expectedModel = Double::for(Model::class);
+        $expectedModel = Double::for(Model::class)->strict();
         $builder->expects('first')->with(['column'])->returns($expectedModel);
 
         $result = $builder->find('bar', ['column']);
@@ -102,7 +102,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->setModel($model);
         $model->expects('getKeyType')->returns('int');
         $builder->getQuery()->expects('where')->with('foo_table.foo', '=', 'bar', 'and');
-        $expectedModel = Double::for(Model::class);
+        $expectedModel = Double::for(Model::class)->strict();
         $builder->expects('sole')->with(['column'])->returns($expectedModel);
 
         $result = $builder->findSole('bar', ['column']);
@@ -222,7 +222,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $models = new Collection([$model]);
         $ids = [$id, $id, $value];
         $ids = $useCollection ? new BaseCollection($ids) : $ids;
-        $builder->expects('find')->with($ids, ['column'])->returns($models);
+        $builder->expects('find')->with(Argument::same($ids), ['column'])->returns($models);
 
         $this->assertSame($models, $builder->findOrFail($ids, ['column']));
     }
@@ -239,7 +239,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->setModel($model);
         $ids = ['existing', $id];
         $ids = $useCollection ? new BaseCollection($ids) : $ids;
-        $builder->expects('find')->with($ids, ['*'])->returns(new Collection([$model]));
+        $builder->expects('find')->with(Argument::same($ids), ['*'])->returns(new Collection([$model]));
 
         try {
             $builder->findOrFail($ids);
@@ -313,7 +313,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testQualifyColumn(): void
     {
-        $builder = new Builder(Double::for(BaseBuilder::class));
+        $builder = new Builder(Double::for(BaseBuilder::class)->strict());
         $builder->expects('from')->with('foo_table');
         $builder->getQuery()->allows('getFromAlias')->returns(null);
 
@@ -324,7 +324,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testQualifyColumns(): void
     {
-        $builder = new Builder(Double::for(BaseBuilder::class));
+        $builder = new Builder(Double::for(BaseBuilder::class)->strict());
         $builder->expects('from')->with('foo_table');
         $builder->getQuery()->allows('getFromAlias')->returns(null);
 
@@ -335,7 +335,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testQualifyColumnWithTableAlias(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getTablePrefix')->returns('');
         $query = new BaseBuilder($connection, new Grammar($connection), new Processor);
         $builder = new Builder($query);
@@ -869,7 +869,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         unset($_SERVER['__test.builder']);
         $builder = new Builder(new BaseBuilder(
             new PdoConnection(new PDO('sqlite::memory:')),
-            Double::for(Grammar::class),
+            Double::for(Grammar::class)->strict(),
             new Processor
         ));
         $builder->macro('fooBar', function ($builder) {
@@ -942,12 +942,12 @@ class DatabaseEloquentBuilderTest extends TestCase
             },
             'orders.lines' => fn () => $this->fail('Nested relationships must load on their own query.'),
         ]);
-        $relation = Double::for(Relation::class);
+        $relation = Double::for(Relation::class)->strict();
         $relation->expects('addEagerConstraints')->with(['models']);
         $relation->expects('initRelation')->with(['models'], 'orders')->returns(['models']);
         $eagerResults = new Collection(['results']);
         $relation->expects('getEager')->returns($eagerResults);
-        $relation->expects('match')->with(['models'], $eagerResults, 'orders')->returns(['models.matched']);
+        $relation->expects('match')->with(['models'], Argument::same($eagerResults), 'orders')->returns(['models.matched']);
         $builder->expects('getRelation')->with('orders')->returns($relation);
         $results = $builder->eagerLoadRelations(['models']);
 
@@ -1107,10 +1107,16 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testQueryPassThru(): void
     {
-        BaseBuilder::macro('foobar', fn () => 'foo');
-        $builder = $this->getBuilder();
+        $called = false;
+        BaseBuilder::macro('foobar', function () use (&$called) {
+            $called = true;
 
-        $this->assertInstanceOf(Builder::class, $builder->foobar());
+            return 'foo';
+        });
+        $builder = $this->newBuilder($this->useInMemoryConnection());
+
+        $this->assertSame($builder, $builder->foobar());
+        $this->assertTrue($called);
 
         $builder = $this->getBuilder();
         $builder->getQuery()->expects('insert')->with(['bar'])->returns(true);
@@ -2163,7 +2169,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testHasWithCustomCountExpression(): void
     {
-        $count = Double::for(ExpressionContract::class);
+        $count = Double::for(ExpressionContract::class)->strict();
         $count->allows('getValue')->returns('model_parent_stubs.required_count');
 
         $query = (new ModelParentStub)->whereHas('foo', static function (Builder $query): void {
@@ -2862,7 +2868,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder = $this->getBuilder()->setModel($model);
         $binary = new BinaryParameter("\0binary-key");
 
-        $builder->getQuery()->expects('where')->with($model->getQualifiedKeyName(), '=', $binary, 'and');
+        $builder->getQuery()->expects('where')->with($model->getQualifiedKeyName(), '=', Argument::same($binary), 'and');
 
         $builder->whereKey($binary);
     }
@@ -2965,7 +2971,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder = $this->getBuilder()->setModel($model);
         $binary = new BinaryParameter("\0binary-key");
 
-        $builder->getQuery()->expects('where')->with($model->getQualifiedKeyName(), '!=', $binary, 'and');
+        $builder->getQuery()->expects('where')->with($model->getQualifiedKeyName(), '!=', Argument::same($binary), 'and');
 
         $builder->whereKeyNot($binary);
     }
@@ -3225,7 +3231,7 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
 
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getTablePrefix')->returns('');
         $query = new BaseBuilder($connection, new Grammar($connection), new Processor);
         $builder = new Builder($query);
@@ -3241,7 +3247,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testUpdateWithTimestampValue(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getTablePrefix')->times(2)->returns('');
         $query = new BaseBuilder($connection, new Grammar($connection), new Processor);
         $builder = new Builder($query);
@@ -3257,7 +3263,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testUpdateWithQualifiedTimestampValue(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getTablePrefix')->returns('');
         $query = new BaseBuilder($connection, new Grammar($connection), new Processor);
         $builder = new Builder($query);
@@ -3273,7 +3279,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testUpdateWithoutTimestamp(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getTablePrefix')->returns('');
         $query = new BaseBuilder($connection, new Grammar($connection), new Processor);
         $builder = new Builder($query);
@@ -3291,7 +3297,7 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
 
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getTablePrefix')->returns('');
         $query = new BaseBuilder($connection, new Grammar($connection), new Processor);
         $builder = new Builder($query);
@@ -3309,7 +3315,7 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
 
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getTablePrefix')->returns('');
         $query = new BaseBuilder($connection, new Grammar($connection), new Processor);
         $builder = new Builder($query);
@@ -3327,9 +3333,9 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getTablePrefix')->returns('prefix_');
-        $query = new BaseBuilder($connection, new MySqlGrammar($connection), Double::for(Processor::class));
+        $query = new BaseBuilder($connection, new MySqlGrammar($connection), Double::for(Processor::class)->strict());
         $builder = (new Builder($query))->setModel((new Stub)->setDateFormat('Y-m-d H:i:s'));
         $connection->expects('update')->with(
             'update `prefix_table` as `prefix_target` inner join `prefix_profiles` on `prefix_profiles`.`user_id` = `prefix_target`.`id` set `prefix_target`.`name` = ?, `prefix_target`.`updated_at` = ?',
@@ -3455,7 +3461,7 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
 
-        $query = Double::for(BaseBuilder::class);
+        $query = Double::for(BaseBuilder::class)->strict();
         $query->expects('from')->with('foo_table')->returns($query);
         $query->from = 'foo_table';
 
@@ -3479,7 +3485,7 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
 
-        $query = Double::for(BaseBuilder::class);
+        $query = Double::for(BaseBuilder::class)->strict();
         $query->expects('from')->with('foo_table')->returns($query);
         $query->from = 'foo_table';
 
@@ -3510,7 +3516,7 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 
-        $query = Double::for(BaseBuilder::class);
+        $query = Double::for(BaseBuilder::class)->strict();
         $query->expects('from')->with('foo_table')->returns($query);
         $query->from = 'foo_table';
 
@@ -3529,7 +3535,7 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 
-        $query = Double::for(BaseBuilder::class);
+        $query = Double::for(BaseBuilder::class)->strict();
         $query->expects('from')->with('foo_table')->returns($query);
         $query->from = 'foo_table';
 
@@ -3548,7 +3554,7 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 
-        $query = Double::for(BaseBuilder::class);
+        $query = Double::for(BaseBuilder::class)->strict();
         $query->expects('from')->with('foo_table')->returns($query);
         $query->from = 'foo_table';
 
@@ -3567,7 +3573,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testTouchWithoutUpdatedAtColumn(): void
     {
-        $query = Double::for(BaseBuilder::class);
+        $query = Double::for(BaseBuilder::class)->strict();
         $query->expects('from')->with('table')->returns($query);
         $query->from = 'table';
 
@@ -3584,7 +3590,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testClone(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getTablePrefix')->times(2)->returns('');
         $query = new BaseBuilder($connection, new Grammar($connection), new Processor);
         $builder = new Builder($query);
@@ -3655,7 +3661,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testCloneModelMakesAFreshCopyOfTheModel(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getTablePrefix')->times(2)->returns('');
         $query = new BaseBuilder($connection, new Grammar($connection), new Processor);
         $builder = (new Builder($query))->setModel(new Stub);
@@ -3683,7 +3689,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testToRawSql(): void
     {
-        $query = Double::for(BaseBuilder::class);
+        $query = Double::for(BaseBuilder::class)->strict();
         $query->expects('toRawSql')
             ->returns('select * from "users" where "email" = \'foo\'');
 
@@ -3694,7 +3700,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testPassthruMethodsCallsAreNotCaseSensitive(): void
     {
-        $query = Double::for(BaseBuilder::class);
+        $query = Double::for(BaseBuilder::class)->strict();
 
         $mockResponse = 'select 1';
         $query
@@ -3711,7 +3717,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testPassthruArrayElementsMustAllBeLowercase(): void
     {
-        $builder = new class(Double::for(BaseBuilder::class)) extends Builder {
+        $builder = new class(Double::for(BaseBuilder::class)->strict()) extends Builder {
             // expose protected member for test
             public function getPassthru(): array
             {
@@ -3759,7 +3765,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testIncrementEachCallsToBaseWithUpdatedAt(): void
     {
-        $query = Double::for(BaseBuilder::class);
+        $query = Double::for(BaseBuilder::class)->strict();
         $query->expects('from')->with('foo_table');
         $query->expects('getFromAlias')->returns('foo_table');
         $query->expects('incrementEach')->with(Argument::all(function (array $columns, array $extra): bool {
@@ -3784,7 +3790,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testDecrementEachCallsToBaseWithUpdatedAt(): void
     {
-        $query = Double::for(BaseBuilder::class);
+        $query = Double::for(BaseBuilder::class)->strict();
         $query->expects('from')->with('foo_table');
         $query->expects('getFromAlias')->returns('foo_table');
         $query->expects('decrementEach')->with(Argument::all(function (array $columns, array $extra): bool {
@@ -3809,7 +3815,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testIncrementEachWithoutTimestamps(): void
     {
-        $query = Double::for(BaseBuilder::class);
+        $query = Double::for(BaseBuilder::class)->strict();
         $query->expects('from')->with('foo_table');
         $query->expects('incrementEach')->with(['votes' => 1], [])->returns(1);
 
@@ -3854,7 +3860,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $grammarClass = 'Hypervel\Database\Query\Grammars\\' . $database . 'Grammar';
         $processorClass = 'Hypervel\Database\Query\Processors\\' . $database . 'Processor';
         $processor = new $processorClass;
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getPostProcessor')->returns($processor);
         $grammar = new $grammarClass($connection);
         $connection->allows('getQueryGrammar')->returns($grammar);
@@ -3863,7 +3869,7 @@ class DatabaseEloquentBuilderTest extends TestCase
             return new BaseBuilder($connection, $grammar, $processor);
         });
         $connection->allows('getDatabaseName')->returns('database');
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->allows('connection')->returns($connection);
         $class = get_class($model);
         $class::setConnectionResolver($resolver);
@@ -3884,7 +3890,7 @@ class DatabaseEloquentBuilderTest extends TestCase
      */
     protected function getMockModel(): Model
     {
-        $model = Double::for(Model::class);
+        $model = Double::for(Model::class)->strict();
         $model->allows('getKeyName')->returns('foo');
         $model->allows('getTable')->returns('foo_table');
         $model->allows('getQualifiedKeyName')->returns('foo_table.foo');
@@ -3976,7 +3982,7 @@ class DatabaseEloquentBuilderTest extends TestCase
      */
     protected function getMockQueryBuilder(): BaseBuilder
     {
-        $query = Double::for(BaseBuilder::class);
+        $query = Double::for(BaseBuilder::class)->strict();
         $query->allows('from')->with('foo_table');
 
         return $query;

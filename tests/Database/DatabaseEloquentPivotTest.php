@@ -25,9 +25,9 @@ class DatabaseEloquentPivotTest extends TestCase
     {
         $parent = Double::for(Model::class)->passthru();
         $parent->expects('getConnectionName')->times(1)->returns('connection');
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $parent->setConnectionResolver($resolver);
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $resolver->expects('connection')->times(1)->returns($connection);
         $grammar = new Grammar($connection);
         $connection->expects('getQueryGrammar')->times(1)->returns($grammar);
@@ -124,7 +124,7 @@ class DatabaseEloquentPivotTest extends TestCase
         $pivot->setPivotKeys('foreign', 'other');
         $pivot->foreign = 'foreign.value';
         $pivot->other = 'other.value';
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $query->expects('where')->with(['foreign' => 'foreign.value', 'other' => 'other.value'])->returns($query);
         $query->expects('delete')->returns(1);
         $pivot->expects($this->once())->method('newQueryWithoutRelationships')->willReturn($query);
@@ -138,8 +138,8 @@ class DatabaseEloquentPivotTest extends TestCase
         $pivot = new DeleteReturnPivotStub;
         $pivot->exists = true;
 
-        $pivot->setConnectionResolver($resolver = Double::for(ConnectionResolverInterface::class));
-        $resolver->expects('connection')->returns($connection = Double::for(Connection::class));
+        $pivot->setConnectionResolver($resolver = Double::for(ConnectionResolverInterface::class)->strict());
+        $resolver->expects('connection')->returns($connection = Double::for(Connection::class)->strict());
         $connection->expects('transaction')->resolves(fn ($callback) => $callback());
 
         $this->assertSame(1, $pivot->deleteQuietly());
@@ -173,7 +173,7 @@ class DatabaseEloquentPivotTest extends TestCase
     public function testRestorationQueriesUsePrimaryKeys(string $pivotClass, array|int|string $ids): void
     {
         $pivot = $this->getMockBuilder($pivotClass)->onlyMethods(['newQueryWithoutScopes'])->getMock();
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $query->expects('whereKey')->with($ids)->returns($query);
         $pivot->expects($this->once())->method('newQueryWithoutScopes')->willReturn($query);
 
@@ -205,7 +205,7 @@ class DatabaseEloquentPivotTest extends TestCase
     {
         $original = new Pivot;
 
-        $parentModel = Double::for(Model::class);
+        $parentModel = Double::for(Model::class)->strict();
         $original->pivotParent = $parentModel;
         $original->setRelation('bar', 'baz');
 

@@ -140,7 +140,7 @@ class DatabaseEloquentJsonCastTest extends TestCase
     {
         $model = new JsonCastModel;
         $model->mergeCasts(['encrypted_payload' => 'encrypted:array']);
-        $encrypter = Double::for(Encrypter::class);
+        $encrypter = Double::for(Encrypter::class)->strict();
         $encrypter->expects('encrypt')->never();
         Model::encryptUsing($encrypter);
 

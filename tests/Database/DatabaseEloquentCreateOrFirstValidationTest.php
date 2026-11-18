@@ -24,13 +24,13 @@ class DatabaseEloquentCreateOrFirstValidationTest extends TestCase
     #[DataProvider('creationHelpers')]
     public function testRelatedBuilderValidationRunsBeforeQueriesAndValueCallbacks(string $relation, string $method): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getTablePrefix')->returns('');
         $connection->allows('query')->resolves(fn () => new QueryBuilder($connection, new Grammar($connection), new Processor));
         $connection->expects('select')->never();
         $connection->expects('insert')->never();
         $connection->expects('update')->never();
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->allows('connection')->returns($connection);
         Model::setConnectionResolver($resolver);
         $parent = new CreationValidationParent(['id' => 1]);
