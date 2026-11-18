@@ -44,7 +44,7 @@ class HttpRedirectResponseTest extends TestCase
     {
         $response = new RedirectResponse('foo.bar');
         $response->setRequest(Request::create('/', 'GET', ['name' => 'Taylor', 'age' => 26]));
-        $session = Double::for(Store::class);
+        $session = Double::for(Store::class)->strict();
         $response->setSession($session);
         $session->expects('flash')->with('0', 'name');
         $session->expects('flash')->with('1', 'age');
@@ -54,7 +54,7 @@ class HttpRedirectResponseTest extends TestCase
     public function testWithAssociativeArrayOnRedirect(): void
     {
         $response = new RedirectResponse('foo.bar');
-        $session = Double::for(Store::class);
+        $session = Double::for(Store::class)->strict();
         $session->expects('flash')->with('name', 'Taylor');
         $response->setSession($session);
         $response->with(['name' => 'Taylor']);
@@ -139,7 +139,7 @@ class HttpRedirectResponseTest extends TestCase
         $response->setRequest(Request::create('/', 'GET', ['name' => 'Taylor', 'age' => 26]));
         $session = new Store('test', new NullSessionHandler);
         $response->setSession($session);
-        $provider = Double::for(MessageProvider::class);
+        $provider = Double::for(MessageProvider::class)->strict();
         $provider->expects('getMessageBag')->returns(new MessageBag(['name' => ['required']]));
         $response->withErrors($provider);
 
