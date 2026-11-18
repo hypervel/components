@@ -25,8 +25,8 @@ class TaskCallbackTest extends TestCase
 
     public function testLegacySignatureBuildsTaskEvent(): void
     {
-        $server = Double::for(Server::class);
-        $dispatcher = Double::for(Dispatcher::class);
+        $server = Double::for(Server::class)->strict();
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
         $dispatcher->expects('dispatch')
             ->with(Argument::type(OnTask::class))
@@ -45,10 +45,10 @@ class TaskCallbackTest extends TestCase
 
     public function testMissingTaskListenerSkipsFinishAndStillDispatchesTerminalEvent(): void
     {
-        $server = Double::for(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->expects('finish')->never();
 
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(false);
         $dispatcher->expects('hasListeners')->with(TaskTerminated::class)->returns(true);
         $dispatcher->expects('dispatch')
@@ -66,13 +66,13 @@ class TaskCallbackTest extends TestCase
     #[DataProvider('objectModeSettings')]
     public function testDedicatedTaskSettingsUseNativeObjectSignature(array $settings): void
     {
-        $server = Double::for(Server::class);
+        $server = Double::for(Server::class)->strict();
         $task = new Task;
         $task->id = 21;
         $task->worker_id = 4;
         $task->data = 'payload';
 
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
         $dispatcher->expects('dispatch')
             ->with(Argument::type(OnTask::class))
@@ -104,8 +104,8 @@ class TaskCallbackTest extends TestCase
 
     public function testLegacyAliasPresenceTakesPrecedenceOverTaskObject(): void
     {
-        $server = Double::for(Server::class);
-        $dispatcher = Double::for(Dispatcher::class);
+        $server = Double::for(Server::class)->strict();
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
         $dispatcher->expects('dispatch')
             ->with(Argument::type(OnTask::class))
@@ -125,10 +125,10 @@ class TaskCallbackTest extends TestCase
 
     public function testLegacyResultIsFinishedThroughServer(): void
     {
-        $server = Double::for(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->expects('finish')->with('completed');
 
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
         $dispatcher->expects('dispatch')
             ->with(Argument::type(OnTask::class))
@@ -145,7 +145,7 @@ class TaskCallbackTest extends TestCase
     public function testLegacyResultIsFinishedBeforeTerminalDispatch(): void
     {
         $order = [];
-        $server = Double::for(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->expects('finish')
             ->with('completed')
             ->resolves(function () use (&$order): bool {
@@ -155,7 +155,7 @@ class TaskCallbackTest extends TestCase
             });
 
         $task = null;
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
         $dispatcher->expects('dispatch')
             ->with(Argument::type(OnTask::class))
@@ -183,10 +183,10 @@ class TaskCallbackTest extends TestCase
     public function testTaskFailureSkipsFinishButStillDispatchesTerminalEvent(): void
     {
         $exception = new RuntimeException('Task failed.');
-        $server = Double::for(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->expects('finish')->never();
 
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
         $dispatcher->expects('dispatch')
             ->with(Argument::type(OnTask::class))
@@ -208,10 +208,10 @@ class TaskCallbackTest extends TestCase
     public function testFinishFailureStillDispatchesTerminalEvent(): void
     {
         $exception = new RuntimeException('Finish failed.');
-        $server = Double::for(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->expects('finish')->throws($exception);
 
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
         $dispatcher->expects('dispatch')
             ->with(Argument::type(OnTask::class))
@@ -235,8 +235,8 @@ class TaskCallbackTest extends TestCase
     public function testTerminalFailurePropagatesAfterSuccessfulTask(): void
     {
         $exception = new RuntimeException('Terminal dispatch failed.');
-        $server = Double::for(Server::class);
-        $dispatcher = Double::for(Dispatcher::class);
+        $server = Double::for(Server::class)->strict();
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
         $dispatcher->expects('dispatch')
             ->with(Argument::type(OnTask::class));
@@ -259,8 +259,8 @@ class TaskCallbackTest extends TestCase
     {
         $taskException = new RuntimeException('Task failed.');
         $terminalException = new RuntimeException('Terminal dispatch failed.');
-        $server = Double::for(Server::class);
-        $dispatcher = Double::for(Dispatcher::class);
+        $server = Double::for(Server::class)->strict();
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
         $dispatcher->expects('dispatch')
             ->with(Argument::type(OnTask::class))
@@ -284,10 +284,10 @@ class TaskCallbackTest extends TestCase
     {
         $finishException = new RuntimeException('Finish failed.');
         $terminalException = new RuntimeException('Terminal dispatch failed.');
-        $server = Double::for(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->expects('finish')->throws($finishException);
 
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('hasListeners')->with(OnTask::class)->returns(true);
         $dispatcher->expects('dispatch')
             ->with(Argument::type(OnTask::class))

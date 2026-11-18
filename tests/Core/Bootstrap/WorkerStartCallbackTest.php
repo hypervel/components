@@ -30,10 +30,10 @@ class WorkerStartCallbackTest extends TestCase
     public function testLifecycleEventsAndStartupLoggingRemainOrdered(): void
     {
         $sequence = [];
-        $server = Double::for(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->taskworker = false;
 
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('hasListeners')->with(BeforeWorkerStart::class)->returns(true);
         $dispatcher->expects('hasListeners')->with(MainWorkerStart::class)->returns(true);
         $dispatcher->expects('hasListeners')->with(AfterWorkerStart::class)->returns(true);
@@ -56,7 +56,7 @@ class WorkerStartCallbackTest extends TestCase
                 $sequence[] = 'after';
             });
 
-        $logger = Double::for(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
         $logger->expects('info')
             ->with('Worker#0 started.')
             ->resolves(function () use (&$sequence): void {
@@ -73,16 +73,16 @@ class WorkerStartCallbackTest extends TestCase
 
     public function testWorkerStartsAndResumesCoordinationWithoutLifecycleListeners(): void
     {
-        $server = Double::for(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->taskworker = false;
 
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('hasListeners')->with(BeforeWorkerStart::class)->returns(false);
         $dispatcher->expects('hasListeners')->with(MainWorkerStart::class)->returns(false);
         $dispatcher->expects('hasListeners')->with(AfterWorkerStart::class)->returns(false);
         $dispatcher->expects('dispatch')->never();
 
-        $logger = Double::for(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
         $logger->expects('info')->with('Worker#0 started.');
         $coordinator = CoordinatorManager::until(Constants::WORKER_START);
 
@@ -98,10 +98,10 @@ class WorkerStartCallbackTest extends TestCase
         ]);
         $output = new BufferedOutput;
         $logger = new StdoutLogger($config, $output);
-        $server = Double::for(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->taskworker = false;
 
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('hasListeners')->with(BeforeWorkerStart::class)->returns(true);
         $dispatcher->expects('hasListeners')->with(MainWorkerStart::class)->returns(true);
         $dispatcher->expects('hasListeners')->with(AfterWorkerStart::class)->returns(true);
@@ -123,10 +123,10 @@ class WorkerStartCallbackTest extends TestCase
 
     public function testCustomLoggerOwnsItsConfiguration(): void
     {
-        $server = Double::for(Server::class);
+        $server = Double::for(Server::class)->strict();
         $server->taskworker = true;
 
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('hasListeners')->with(BeforeWorkerStart::class)->returns(true);
         $dispatcher->expects('hasListeners')->with(OtherWorkerStart::class)->returns(true);
         $dispatcher->expects('hasListeners')->with(AfterWorkerStart::class)->returns(true);
@@ -134,7 +134,7 @@ class WorkerStartCallbackTest extends TestCase
         $dispatcher->expects('dispatch')->with(Argument::type(OtherWorkerStart::class));
         $dispatcher->expects('dispatch')->with(Argument::type(AfterWorkerStart::class));
 
-        $logger = Double::for(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
         $logger->expects('info')->with('TaskWorker#2 started.');
 
         (new WorkerStartCallback($dispatcher, $logger))->onWorkerStart($server, 2);

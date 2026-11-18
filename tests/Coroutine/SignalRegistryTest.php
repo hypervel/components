@@ -14,6 +14,7 @@ use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
 use stdClass;
@@ -137,8 +138,8 @@ class SignalRegistryTest extends TestCase
         $handled = new Channel(1);
         $trace = [];
         $exception = new RuntimeException('Signal callback failed');
-        $handler = Double::for(ExceptionHandler::class);
-        $handler->expects('report')->times(2)->with($exception);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->times(2)->with(Argument::same($exception));
         Container::getInstance()->instance(ExceptionHandler::class, $handler);
 
         try {

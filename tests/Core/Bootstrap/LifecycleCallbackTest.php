@@ -47,13 +47,13 @@ class LifecycleCallbackTest extends TestCase
         string $eventClass,
         array $arguments,
     ): void {
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('hasListeners')->with($eventClass)->returns(false);
         $dispatcher->expects('dispatch')->never();
 
         $callback = new $callbackClass($dispatcher);
 
-        $this->assertNull($callback->{$method}(Double::for(Server::class), ...$arguments));
+        $this->assertNull($callback->{$method}(Double::for(Server::class)->strict(), ...$arguments));
     }
 
     #[DataProvider('callbacks')]
@@ -63,13 +63,13 @@ class LifecycleCallbackTest extends TestCase
         string $eventClass,
         array $arguments,
     ): void {
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('hasListeners')->with($eventClass)->returns(true);
         $dispatcher->expects('dispatch')->with(Argument::type($eventClass));
 
         $callback = new $callbackClass($dispatcher);
 
-        $this->assertNull($callback->{$method}(Double::for(Server::class), ...$arguments));
+        $this->assertNull($callback->{$method}(Double::for(Server::class)->strict(), ...$arguments));
     }
 
     /**
