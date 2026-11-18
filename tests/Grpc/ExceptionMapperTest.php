@@ -14,6 +14,7 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
@@ -48,7 +49,7 @@ class ExceptionMapperTest extends TestCase
     {
         $handler = Double::for(ExceptionHandler::class)->strict();
         $failure = new RuntimeException('database credentials leaked');
-        $handler->expects('report')->with($failure);
+        $handler->expects('report')->with(Argument::same($failure));
 
         $mapped = (new ExceptionMapper($handler))->map($failure);
 
@@ -61,7 +62,7 @@ class ExceptionMapperTest extends TestCase
     {
         $handler = Double::for(ExceptionHandler::class)->strict();
         $failure = new RuntimeException('The stream yielded a string.');
-        $handler->expects('report')->with($failure);
+        $handler->expects('report')->with(Argument::same($failure));
 
         $mapped = (new ExceptionMapper($handler))->invalidResponse($failure);
 
@@ -85,7 +86,7 @@ class ExceptionMapperTest extends TestCase
         $failure = new RuntimeException('service failed');
         $cancellation = new CanceledException;
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($failure)->throws($cancellation);
+        $handler->expects('report')->with(Argument::same($failure))->throws($cancellation);
 
         $this->expectExceptionObject($cancellation);
 
@@ -104,7 +105,7 @@ class ExceptionMapperTest extends TestCase
             $handler = Double::for(ExceptionHandler::class)->strict();
             $failure = new RuntimeException('The original service failure.');
             $handler->expects('report')
-                ->with($failure)
+                ->with(Argument::same($failure))
                 ->throws(new RuntimeException('The exception reporter failed.'));
 
             $mapped = (new ExceptionMapper($handler))->map($failure);

@@ -31,6 +31,7 @@ use Hypervel\Grpc\StatusCode;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use LogicException;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
@@ -1181,7 +1182,7 @@ class ConnectionTest extends TestCase
         if ($failure === null) {
             $handler->expects('report')->never();
         } else {
-            $handler->expects('report')->with($failure);
+            $handler->expects('report')->with(Argument::same($failure));
         }
 
         $container = new Container;

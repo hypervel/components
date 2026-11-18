@@ -245,7 +245,7 @@ class ResponseFactoryTest extends TestCase
         $cancellation = new CanceledException;
         $cleanupException = new RuntimeException('Stream cleanup failed.');
         if ($deadlineExpired && $cleanupThrows) {
-            $handler->expects('report')->with($cleanupException);
+            $handler->expects('report')->with(Argument::same($cleanupException));
         } else {
             $handler->expects('report')->never();
         }

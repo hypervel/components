@@ -35,8 +35,6 @@ class ServiceMethodTest extends TestCase
     {
         ServiceMethod::validateServiceName('Example.API_Service');
 
-        $this->addToAssertionCount(1);
-
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs('The gRPC service name is invalid.');
 
