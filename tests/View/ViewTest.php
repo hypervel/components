@@ -22,6 +22,7 @@ use Hypervel\View\ViewFinderInterface;
 use JMac\Testing\Double;
 use JMac\Testing\DoubleInterface;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -47,8 +48,8 @@ class ViewTest extends TestCase
     {
         $view = $this->getView(['foo' => 'bar']);
         $view->getFactory()->expects('incrementRender')->ordered();
-        $view->getFactory()->expects('callComposer')->ordered()->with($view);
-        $view->getFactory()->expects('notifyRendering')->ordered()->with($view);
+        $view->getFactory()->expects('callComposer')->ordered()->with(Argument::same($view));
+        $view->getFactory()->expects('notifyRendering')->ordered()->with(Argument::same($view));
         $view->getFactory()->expects('notifyRendered')->never();
         $view->getFactory()->expects('mergeSharedData')->with(['foo' => 'bar'])->returns(['foo' => 'bar', 'shared' => 'foo']);
         $view->getEngine()->expects('get')->with('path', ['foo' => 'bar', 'shared' => 'foo'])->returns('contents');
@@ -70,8 +71,8 @@ class ViewTest extends TestCase
         $cancellation = new CanceledException;
         $view = $this->getView();
         $view->getFactory()->expects('incrementRender');
-        $view->getFactory()->expects('callComposer')->with($view);
-        $view->getFactory()->expects('notifyRendering')->with($view);
+        $view->getFactory()->expects('callComposer')->with(Argument::same($view));
+        $view->getFactory()->expects('notifyRendering')->with(Argument::same($view));
         $view->getFactory()->expects('mergeSharedData')->with([])->returns([]);
         $view->getEngine()->expects('get')->with('path', [])->throws($cancellation);
         $view->getFactory()->expects('flushState');
@@ -89,7 +90,7 @@ class ViewTest extends TestCase
         $view = $this->getView();
         $view->getFactory()->expects('incrementRender')->times(4);
         $view->getFactory()->expects('callComposer')->times(4);
-        $view->getFactory()->expects('notifyRendering')->times(4)->with($view);
+        $view->getFactory()->expects('notifyRendering')->times(4)->with(Argument::same($view));
         $view->getFactory()->expects('mergeSharedData')->times(4)->with([])->returns(['shared' => 'foo']);
         $view->getEngine()->expects('get')->times(4)->returns('contents');
         $view->getFactory()->expects('decrementRender')->times(4);
@@ -115,8 +116,8 @@ class ViewTest extends TestCase
     public function testRenderSectionsReturnsEnvironmentSections(): void
     {
         $view = new TestView(
-            $factory = Double::for(Factory::class),
-            Double::for(Engine::class),
+            $factory = Double::for(Factory::class)->strict(),
+            Double::for(Engine::class)->strict(),
             'view',
             'path',
             [],
@@ -132,8 +133,8 @@ class ViewTest extends TestCase
     {
         $view = $this->getView(['foo' => 'bar']);
         $view->getFactory()->expects('incrementRender')->times(2);
-        $view->getFactory()->expects('callComposer')->times(2)->with($view);
-        $view->getFactory()->expects('notifyRendering')->times(2)->with($view);
+        $view->getFactory()->expects('callComposer')->times(2)->with(Argument::same($view));
+        $view->getFactory()->expects('notifyRendering')->times(2)->with(Argument::same($view));
         $view->getFactory()->expects('mergeSharedData')->times(2)->with(['foo' => 'bar'])->returns(['foo' => 'bar', 'shared' => 'foo']);
         $view->getEngine()->expects('get')->times(2)->with('path', ['foo' => 'bar', 'shared' => 'foo'])->returns('contents');
         $view->getFactory()->expects('decrementRender')->times(2);
@@ -230,13 +231,13 @@ class ViewTest extends TestCase
     {
         $view = $this->getView();
         $view->getFactory()->expects('incrementRender')->ordered();
-        $view->getFactory()->expects('callComposer')->ordered()->with($view);
-        $view->getFactory()->expects('notifyRendering')->ordered()->with($view);
+        $view->getFactory()->expects('callComposer')->ordered()->with(Argument::same($view));
+        $view->getFactory()->expects('notifyRendering')->ordered()->with(Argument::same($view));
         $view->getEngine()->expects('get')->returns('contents');
         $view->getFactory()->expects('decrementRender')->ordered();
         $view->getFactory()->expects('flushStateIfDoneRendering');
 
-        $view->renderable = Double::for(Renderable::class);
+        $view->renderable = Double::for(Renderable::class)->strict();
         $view->renderable->expects('render')->returns('text');
         $view->getFactory()->expects('mergeSharedData')->with(['renderable' => $view->renderable])->returns([
             'shared' => 'foo',
@@ -249,8 +250,8 @@ class ViewTest extends TestCase
     {
         $view = $this->getView();
         $view->getFactory()->expects('incrementRender')->ordered();
-        $view->getFactory()->expects('callComposer')->ordered()->with($view);
-        $view->getFactory()->expects('notifyRendering')->ordered()->with($view);
+        $view->getFactory()->expects('callComposer')->ordered()->with(Argument::same($view));
+        $view->getFactory()->expects('notifyRendering')->ordered()->with(Argument::same($view));
         $view->getFactory()->expects('mergeSharedData')->with([])->returns(['shared' => 'foo']);
         $view->getEngine()->expects('get')->returns('contents');
         $view->getFactory()->expects('decrementRender')->ordered();
@@ -286,9 +287,9 @@ class ViewTest extends TestCase
     public function testRenderingObserverIsCalled(): void
     {
         $factory = new Factory(
-            Double::for(EngineResolver::class),
-            Double::for(ViewFinderInterface::class),
-            $events = Double::for(Dispatcher::class),
+            Double::for(EngineResolver::class)->strict(),
+            Double::for(ViewFinderInterface::class)->strict(),
+            $events = Double::for(Dispatcher::class)->strict(),
         );
 
         $observedView = null;
@@ -296,7 +297,7 @@ class ViewTest extends TestCase
             $observedView = $view;
         });
 
-        $engine = Double::for(Engine::class);
+        $engine = Double::for(Engine::class)->strict();
         $engine->expects('get')->returns('contents');
         $events->allows('hasListeners')->returns(false);
 
@@ -309,9 +310,9 @@ class ViewTest extends TestCase
     public function testRenderingObserversNotClearedByFlushState(): void
     {
         $factory = new Factory(
-            Double::for(EngineResolver::class),
-            Double::for(ViewFinderInterface::class),
-            $events = Double::for(Dispatcher::class),
+            Double::for(EngineResolver::class)->strict(),
+            Double::for(ViewFinderInterface::class)->strict(),
+            $events = Double::for(Dispatcher::class)->strict(),
         );
 
         $observerCalled = false;
@@ -321,7 +322,7 @@ class ViewTest extends TestCase
 
         $factory->flushState();
 
-        $engine = Double::for(Engine::class);
+        $engine = Double::for(Engine::class)->strict();
         $engine->expects('get')->returns('contents');
         $events->allows('hasListeners')->returns(false);
 
@@ -334,9 +335,9 @@ class ViewTest extends TestCase
     public function testMultipleRenderingObserversAreAllCalled(): void
     {
         $factory = new Factory(
-            Double::for(EngineResolver::class),
-            Double::for(ViewFinderInterface::class),
-            $events = Double::for(Dispatcher::class),
+            Double::for(EngineResolver::class)->strict(),
+            Double::for(ViewFinderInterface::class)->strict(),
+            $events = Double::for(Dispatcher::class)->strict(),
         );
 
         $order = [];
@@ -347,7 +348,7 @@ class ViewTest extends TestCase
             $order[] = 'second';
         });
 
-        $engine = Double::for(Engine::class);
+        $engine = Double::for(Engine::class)->strict();
         $engine->expects('get')->returns('contents');
         $events->allows('hasListeners')->returns(false);
 
@@ -360,9 +361,9 @@ class ViewTest extends TestCase
     public function testRenderedObserverRunsAfterEngineAtTheSameRenderDepth(): void
     {
         $factory = new Factory(
-            Double::for(EngineResolver::class),
-            Double::for(ViewFinderInterface::class),
-            $events = Double::for(Dispatcher::class),
+            Double::for(EngineResolver::class)->strict(),
+            Double::for(ViewFinderInterface::class)->strict(),
+            $events = Double::for(Dispatcher::class)->strict(),
         );
 
         $order = [];
@@ -379,7 +380,7 @@ class ViewTest extends TestCase
             $this->assertFalse($factory->doneRendering());
         });
 
-        $engine = Double::for(Engine::class);
+        $engine = Double::for(Engine::class)->strict();
         $engine->expects('get')->resolves(function () use (&$order): string {
             $order[] = 'engine';
 
@@ -399,9 +400,9 @@ class ViewTest extends TestCase
     public function testRenderSectionsUsesCompletionObservers(): void
     {
         $factory = new Factory(
-            Double::for(EngineResolver::class),
-            Double::for(ViewFinderInterface::class),
-            $events = Double::for(Dispatcher::class),
+            Double::for(EngineResolver::class)->strict(),
+            Double::for(ViewFinderInterface::class)->strict(),
+            $events = Double::for(Dispatcher::class)->strict(),
         );
 
         $order = [];
@@ -415,7 +416,7 @@ class ViewTest extends TestCase
             $this->assertNull($exception);
         });
 
-        $engine = Double::for(Engine::class);
+        $engine = Double::for(Engine::class)->strict();
         $engine->expects('get')->resolves(function () use (&$order): string {
             $order[] = 'engine';
 
@@ -434,9 +435,9 @@ class ViewTest extends TestCase
         $renderingException = new RuntimeException('rendering failed');
         $completionException = new RuntimeException('completion failed');
         $factory = new Factory(
-            Double::for(EngineResolver::class),
-            Double::for(ViewFinderInterface::class),
-            $events = Double::for(Dispatcher::class),
+            Double::for(EngineResolver::class)->strict(),
+            Double::for(ViewFinderInterface::class)->strict(),
+            $events = Double::for(Dispatcher::class)->strict(),
         );
 
         $observed = [];
@@ -456,7 +457,7 @@ class ViewTest extends TestCase
             }
         });
 
-        $engine = Double::for(Engine::class);
+        $engine = Double::for(Engine::class)->strict();
         $engine->expects('get')->never();
         $events->allows('hasListeners')->returns(false);
         $reported = [];
@@ -480,9 +481,9 @@ class ViewTest extends TestCase
     {
         $renderingException = new RuntimeException('engine failed');
         $factory = new Factory(
-            Double::for(EngineResolver::class),
-            Double::for(ViewFinderInterface::class),
-            $events = Double::for(Dispatcher::class),
+            Double::for(EngineResolver::class)->strict(),
+            Double::for(ViewFinderInterface::class)->strict(),
+            $events = Double::for(Dispatcher::class)->strict(),
         );
 
         $observedException = null;
@@ -490,7 +491,7 @@ class ViewTest extends TestCase
             $observedException = $exception;
         });
 
-        $engine = Double::for(Engine::class);
+        $engine = Double::for(Engine::class)->strict();
         $engine->expects('get')->throws($renderingException);
         $events->allows('hasListeners')->returns(false);
 
@@ -509,9 +510,9 @@ class ViewTest extends TestCase
         $firstException = new RuntimeException('first completion failed');
         $secondException = new RuntimeException('second completion failed');
         $factory = new Factory(
-            Double::for(EngineResolver::class),
-            Double::for(ViewFinderInterface::class),
-            $events = Double::for(Dispatcher::class),
+            Double::for(EngineResolver::class)->strict(),
+            Double::for(ViewFinderInterface::class)->strict(),
+            $events = Double::for(Dispatcher::class)->strict(),
         );
 
         $order = [];
@@ -529,10 +530,10 @@ class ViewTest extends TestCase
             $order[] = 'third';
         });
 
-        $engine = Double::for(Engine::class);
+        $engine = Double::for(Engine::class)->strict();
         $engine->expects('get')->returns('contents');
         $events->allows('hasListeners')->returns(false);
-        $this->bindReportingHandler()->expects('report')->with($secondException);
+        $this->bindReportingHandler()->expects('report')->with(Argument::same($secondException));
 
         try {
             (new View($factory, $engine, 'test', 'path'))->render();
@@ -553,9 +554,9 @@ class ViewTest extends TestCase
             $cancellation = new RuntimeException('Render cleanup failed.', previous: $cancellation);
         }
         $factory = new Factory(
-            Double::for(EngineResolver::class),
-            Double::for(ViewFinderInterface::class),
-            $events = Double::for(Dispatcher::class),
+            Double::for(EngineResolver::class)->strict(),
+            Double::for(ViewFinderInterface::class)->strict(),
+            $events = Double::for(Dispatcher::class)->strict(),
         );
 
         $factory->inject('content', 'value');
@@ -568,7 +569,7 @@ class ViewTest extends TestCase
             $observed = $exception;
         });
 
-        $engine = Double::for(Engine::class);
+        $engine = Double::for(Engine::class)->strict();
         $engine->expects('get')->never();
         $events->allows('hasListeners')->returns(false);
 
@@ -594,9 +595,9 @@ class ViewTest extends TestCase
             $cancellation = new RuntimeException('Engine cleanup failed.', previous: $cancellation);
         }
         $factory = new Factory(
-            Double::for(EngineResolver::class),
-            Double::for(ViewFinderInterface::class),
-            $events = Double::for(Dispatcher::class),
+            Double::for(EngineResolver::class)->strict(),
+            Double::for(ViewFinderInterface::class)->strict(),
+            $events = Double::for(Dispatcher::class)->strict(),
         );
 
         $observed = null;
@@ -604,7 +605,7 @@ class ViewTest extends TestCase
             $observed = $exception;
         });
 
-        $engine = Double::for(Engine::class);
+        $engine = Double::for(Engine::class)->strict();
         $engine->expects('get')->throws($cancellation);
         $events->allows('hasListeners')->returns(false);
 
@@ -628,9 +629,9 @@ class ViewTest extends TestCase
             $cancellation = new RuntimeException('Observer cleanup failed.', previous: $cancellation);
         }
         $factory = new Factory(
-            Double::for(EngineResolver::class),
-            Double::for(ViewFinderInterface::class),
-            $events = Double::for(Dispatcher::class),
+            Double::for(EngineResolver::class)->strict(),
+            Double::for(ViewFinderInterface::class)->strict(),
+            $events = Double::for(Dispatcher::class)->strict(),
         );
 
         $order = [];
@@ -645,10 +646,10 @@ class ViewTest extends TestCase
             $order[] = 'second';
         });
 
-        $engine = Double::for(Engine::class);
+        $engine = Double::for(Engine::class)->strict();
         $engine->expects('get')->returns('contents');
         $events->allows('hasListeners')->returns(false);
-        $this->bindReportingHandler()->expects('report')->with($earlierFailure);
+        $this->bindReportingHandler()->expects('report')->with(Argument::same($earlierFailure));
 
         try {
             (new View($factory, $engine, 'test', 'path'))->render();
@@ -670,9 +671,9 @@ class ViewTest extends TestCase
             $cancellation = new RuntimeException('Observer cleanup failed.', previous: $cancellation);
         }
         $factory = new Factory(
-            Double::for(EngineResolver::class),
-            Double::for(ViewFinderInterface::class),
-            $events = Double::for(Dispatcher::class),
+            Double::for(EngineResolver::class)->strict(),
+            Double::for(ViewFinderInterface::class)->strict(),
+            $events = Double::for(Dispatcher::class)->strict(),
         );
 
         $factory->observeRendering(function () use ($renderingException): never {
@@ -684,10 +685,10 @@ class ViewTest extends TestCase
             throw $cancellation;
         });
 
-        $engine = Double::for(Engine::class);
+        $engine = Double::for(Engine::class)->strict();
         $engine->expects('get')->never();
         $events->allows('hasListeners')->returns(false);
-        $this->bindReportingHandler()->expects('report')->with($renderingException);
+        $this->bindReportingHandler()->expects('report')->with(Argument::same($renderingException));
 
         try {
             (new View($factory, $engine, 'test', 'path'))->render();
@@ -700,9 +701,9 @@ class ViewTest extends TestCase
     public function testRenderedObserversAreNotClearedByFlushState(): void
     {
         $factory = new Factory(
-            Double::for(EngineResolver::class),
-            Double::for(ViewFinderInterface::class),
-            $events = Double::for(Dispatcher::class),
+            Double::for(EngineResolver::class)->strict(),
+            Double::for(ViewFinderInterface::class)->strict(),
+            $events = Double::for(Dispatcher::class)->strict(),
         );
 
         $observerCalled = false;
@@ -711,7 +712,7 @@ class ViewTest extends TestCase
         });
         $factory->flushState();
 
-        $engine = Double::for(Engine::class);
+        $engine = Double::for(Engine::class)->strict();
         $engine->expects('get')->returns('contents');
         $events->allows('hasListeners')->returns(false);
 
@@ -725,12 +726,12 @@ class ViewTest extends TestCase
      */
     protected function getView(mixed $data = []): View
     {
-        $factory = Double::for(Factory::class);
+        $factory = Double::for(Factory::class)->strict();
         $factory->allows('hasRenderedObservers')->returns(false);
 
         return new View(
             $factory,
-            Double::for(Engine::class),
+            Double::for(Engine::class)->strict(),
             'view',
             'path',
             $data
@@ -744,7 +745,7 @@ class ViewTest extends TestCase
     {
         $container = new Container;
         Container::setInstance($container);
-        $handler = Double::for(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $container->instance(ExceptionHandler::class, $handler);
 
         return $handler;

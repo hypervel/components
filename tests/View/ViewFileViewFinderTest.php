@@ -182,6 +182,6 @@ class ViewFileViewFinderTest extends TestCase
      */
     protected function getFinder(): FileViewFinder
     {
-        return new FileViewFinder(Double::for(Filesystem::class), [__DIR__]);
+        return new FileViewFinder(Double::for(Filesystem::class)->strict(), [__DIR__]);
     }
 }

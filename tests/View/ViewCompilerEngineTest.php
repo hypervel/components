@@ -62,7 +62,7 @@ class ViewCompilerEngineTest extends TestCase
         $path = __DIR__ . '/Fixtures/foo.php';
         $compiled = __DIR__ . '/Fixtures/basic.php';
         $cancellation = new CanceledException;
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $files->expects('getRequire')->with($compiled, [])->throws($cancellation);
 
         $engine = $this->getEngine($files);
@@ -115,7 +115,7 @@ class ViewCompilerEngineTest extends TestCase
         $compiled = __DIR__ . '/Fixtures/basic.php';
         $path = __DIR__ . '/Fixtures/foo.php';
 
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $engine = $this->getEngine($files);
 
         $calls = 0;
@@ -152,7 +152,7 @@ class ViewCompilerEngineTest extends TestCase
         $compiled = __DIR__ . '/Fixtures/basic.php';
         $path = __DIR__ . '/Fixtures/foo.php';
 
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $engine = $this->getEngine($files);
 
         $calls = 0;
@@ -189,7 +189,7 @@ class ViewCompilerEngineTest extends TestCase
         $compiled = __DIR__ . '/Fixtures/basic.php';
         $path = __DIR__ . '/Fixtures/foo.php';
 
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $engine = $this->getEngine($files);
 
         $requires = 0;
@@ -226,7 +226,7 @@ class ViewCompilerEngineTest extends TestCase
         $compiled = __DIR__ . '/Fixtures/basic.php';
         $path = __DIR__ . '/Fixtures/foo.php';
 
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $engine = $this->getEngine($files);
 
         $files->expects('getRequire')
@@ -257,7 +257,7 @@ class ViewCompilerEngineTest extends TestCase
         $compiled = __DIR__ . '/Fixtures/basic.php';
         $path = __DIR__ . '/Fixtures/foo.php';
 
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $engine = $this->getEngine($files);
 
         $files->expects('getRequire')
@@ -300,7 +300,7 @@ class ViewCompilerEngineTest extends TestCase
     public function testEachCompiledVariantHasItsOwnFreshnessCheck(): void
     {
         $path = '/views/example.blade.php';
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $engine = $this->getEngine($files);
 
         $engine->getCompiler()->expects('getCompiledPath')->times(2)->with($path)
@@ -354,6 +354,6 @@ class ViewCompilerEngineTest extends TestCase
      */
     protected function getEngine(?Filesystem $filesystem = null): CompilerEngine
     {
-        return new CompilerEngine(Double::for(CompilerInterface::class), $filesystem ?: new Filesystem);
+        return new CompilerEngine(Double::for(CompilerInterface::class)->strict(), $filesystem ?: new Filesystem);
     }
 }

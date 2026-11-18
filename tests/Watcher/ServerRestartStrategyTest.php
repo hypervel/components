@@ -383,7 +383,7 @@ class ServerRestartStrategyTest extends TestCase
     {
         $failure = new RuntimeException('expected close failure');
         $handler = Double::for(ExceptionHandlerContract::class)->strict();
-        $handler->expects('report')->with($failure);
+        $handler->expects('report')->with(Argument::same($failure));
         $this->app->instance(ExceptionHandlerContract::class, $handler);
         $strategy = $this->createProbeStrategy();
         $strategy->closeFailures = [$failure, null];
@@ -401,7 +401,7 @@ class ServerRestartStrategyTest extends TestCase
     {
         $failure = new RuntimeException('malformed environment');
         $handler = Double::for(ExceptionHandlerContract::class)->strict();
-        $handler->expects('report')->with($failure);
+        $handler->expects('report')->with(Argument::same($failure));
         $this->app->instance(ExceptionHandlerContract::class, $handler);
         $strategy = $this->createProbeStrategy();
         $strategy->reloadFailures = [null, $failure, null];
