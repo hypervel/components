@@ -48,7 +48,7 @@ class MailResendTransportTest extends TestCase
         $message->bcc('bcc@example.com');
         $message->replyTo(new Address('reply@example.com', 'Reply'));
 
-        $emails = Double::for(EmailService::class);
+        $emails = Double::for(EmailService::class)->strict();
         $emails->expects('send')
             ->with(Argument::satisfies(function (array $arg): bool {
                 return $arg['from'] === 'sender@example.com'
@@ -88,7 +88,7 @@ class MailResendTransportTest extends TestCase
         $message->sender('sender@example.com');
         $message->to('recipient@example.com');
 
-        $emails = Double::for(EmailService::class);
+        $emails = Double::for(EmailService::class)->strict();
         $emails->expects('send')
             ->throws(new Exception('API key is invalid'));
 

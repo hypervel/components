@@ -40,7 +40,6 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
-use JMac\Testing\Matching\Argument;
 use Laravel\SerializableClosure\SerializableClosure;
 use stdClass;
 
@@ -51,7 +50,7 @@ class NotificationChannelManagerTest extends TestCase
     public function testGetDefaultChannel(): void
     {
         $container = $this->getContainer();
-        $container->instance(MailChannel::class, Double::for(MailChannel::class));
+        $container->instance(MailChannel::class, Double::for(MailChannel::class)->strict());
 
         $manager = new ChannelManager($container);
 
@@ -61,7 +60,7 @@ class NotificationChannelManagerTest extends TestCase
     public function testGetCustomChannelResolvesDirectly(): void
     {
         $container = $this->getContainer();
-        $container->instance(MailChannel::class, Double::for(MailChannel::class));
+        $container->instance(MailChannel::class, Double::for(MailChannel::class)->strict());
 
         $manager = new ChannelManager($container);
         $channel = new NotificationChannelManagerTestCustomChannel;
@@ -436,23 +435,25 @@ class NotificationChannelManagerTest extends TestCase
         $deduplicator = [NotificationChannelManagerTestDeduplicator::class, 'resolve'];
 
         $container = $this->getContainer();
-        $container->instance('queue.routes', $queueRoutes = Double::for(QueueRoutes::class));
+        $container->instance('queue.routes', $queueRoutes = Double::for(QueueRoutes::class)->strict());
         $queueRoutes->expects('getQueue')->times(2)->returns(null);
         $queueRoutes->expects('getConnection')->times(2)->returns(null);
+        $jobs = [];
         $container->make(BusDispatcherContract::class)
-            ->expects('dispatch')->times(2)->with(Argument::satisfies(function (SendQueuedNotifications $job) use ($deduplicator): bool {
-                $this->assertSame($deduplicator, $job->deduplicator);
-
-                $restored = unserialize(serialize($job));
-                $this->assertSame('queue:payload', ($restored->deduplicator)('payload', 'queue'));
-
-                return true;
-            }));
+            ->expects('dispatch')->times(2)->resolves(static function (SendQueuedNotifications $job) use (&$jobs): void {
+                $jobs[] = $job;
+            });
 
         $manager = new ChannelManager($container);
 
         $notification = (new NotificationChannelManagerTestQueuedNotificationWithTwoChannels)->withDeduplicator($deduplicator);
         $manager->send([new NotificationChannelManagerTestNotifiable], $notification);
+
+        foreach ($jobs as $job) {
+            $this->assertSame($deduplicator, $job->deduplicator);
+            $restored = unserialize(serialize($job));
+            $this->assertSame('queue:payload', ($restored->deduplicator)('payload', 'queue'));
+        }
     }
 
     public function testQueuedNotificationForwardsDeduplicatorSetToQueueJob(): void
@@ -558,7 +559,7 @@ class NotificationChannelManagerTest extends TestCase
         $container = new Container;
         $container->instance(ContainerContract::class, $container);
         $container->instance('config', new ConfigRepository([]));
-        $container->instance(BusDispatcherContract::class, Double::for(BusDispatcherContract::class));
+        $container->instance(BusDispatcherContract::class, Double::for(BusDispatcherContract::class)->strict());
         $container->instance(Dispatcher::class, $this->mockEventDispatcher());
 
         Container::setInstance($container);
@@ -571,7 +572,7 @@ class NotificationChannelManagerTest extends TestCase
      */
     protected function mockEventDispatcher(): Dispatcher
     {
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->allows('hasListeners')->returns(true);
 
         return $dispatcher;

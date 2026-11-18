@@ -1186,9 +1186,7 @@ class ProcessTest extends TestCase
         $factory->fake(fn () => $factory->result(exitCode: 1));
 
         $result = $factory->path(__DIR__)->run($this->ls());
-        $result->throwIf(false);
-
-        $this->assertTrue(true);
+        $this->assertSame($result, $result->throwIf(false));
     }
 
     #[RequiresOperatingSystem('Linux|Darwin')]
@@ -1539,9 +1537,7 @@ class ProcessTest extends TestCase
         $factory = new Factory;
         $result = $factory->path(__DIR__)->run('echo "Hello World" >&2; exit 1;');
 
-        $result->throwIf(false);
-
-        $this->assertTrue(true);
+        $this->assertSame($result, $result->throwIf(false));
     }
 
     #[RequiresOperatingSystem('Linux|Darwin')]

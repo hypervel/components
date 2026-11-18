@@ -53,11 +53,11 @@ class NotificationSenderTest extends TestCase
     public function testItCanSendNotificationsWithAStringVia(): void
     {
         $notifiable = new DummyNotifiable;
-        $manager = Double::for(ChannelManager::class);
+        $manager = Double::for(ChannelManager::class)->strict();
         $manager->expects('driver')
-            ->returns($driver = Double::for(ChannelSpy::class));
+            ->returns($driver = Double::for(ChannelSpy::class)->strict());
         $driver->expects('send');
-        $bus = Double::for(BusDispatcherContract::class);
+        $bus = Double::for(BusDispatcherContract::class)->strict();
         $bus->expects('dispatch')->never();
         $events = $this->mockEventDispatcher();
         $events->allows('until')->with(Argument::type(NotificationSending::class))->returns(true);
@@ -79,8 +79,8 @@ class NotificationSenderTest extends TestCase
                 $order[] = 'after-sending';
             }
         );
-        $manager = Double::for(ChannelManager::class);
-        $manager->expects('driver')->with('mail')->returns($driver = Double::for(ChannelSpy::class));
+        $manager = Double::for(ChannelManager::class)->strict();
+        $manager->expects('driver')->with('mail')->returns($driver = Double::for(ChannelSpy::class)->strict());
         $driver->expects('send')->resolves(function () use (&$order, $response): object {
             $order[] = 'channel';
 
@@ -113,7 +113,7 @@ class NotificationSenderTest extends TestCase
 
         (new NotificationSender(
             $manager,
-            Double::for(BusDispatcherContract::class),
+            Double::for(BusDispatcherContract::class)->strict(),
             $events,
         ))->sendNow($notifiable, $notification, ['mail']);
 
@@ -132,7 +132,7 @@ class NotificationSenderTest extends TestCase
                 return false;
             }
         };
-        $manager = Double::for(ChannelManager::class);
+        $manager = Double::for(ChannelManager::class)->strict();
         $manager->expects('driver')->never();
         $events = $this->mockEventDispatcher();
         $events->expects('until')->never();
@@ -144,14 +144,14 @@ class NotificationSenderTest extends TestCase
 
         (new NotificationSender(
             $manager,
-            Double::for(BusDispatcherContract::class),
+            Double::for(BusDispatcherContract::class)->strict(),
             $events,
         ))->sendNow($notifiable, $notification, ['mail']);
     }
 
     public function testSendingVetoDispatchesSkippedWithoutResolvingTheChannel(): void
     {
-        $manager = Double::for(ChannelManager::class);
+        $manager = Double::for(ChannelManager::class)->strict();
         $manager->expects('driver')->never();
         $events = $this->mockEventDispatcher();
         $events->expects('until')->with(Argument::type(NotificationSending::class))->returns(false);
@@ -159,7 +159,7 @@ class NotificationSenderTest extends TestCase
 
         (new NotificationSender(
             $manager,
-            Double::for(BusDispatcherContract::class),
+            Double::for(BusDispatcherContract::class)->strict(),
             $events,
         ))->sendNow(new AnonymousNotifiable, new Notification, ['mail']);
     }
@@ -167,7 +167,7 @@ class NotificationSenderTest extends TestCase
     public function testThrowingSendingListenerDispatchesFailedAndRethrows(): void
     {
         $exception = new RuntimeException('sending listener failed');
-        $manager = Double::for(ChannelManager::class);
+        $manager = Double::for(ChannelManager::class)->strict();
         $manager->expects('driver')->never();
         $events = $this->mockEventDispatcher();
         $events->expects('until')->with(Argument::type(NotificationSending::class))->throws($exception);
@@ -175,7 +175,7 @@ class NotificationSenderTest extends TestCase
             fn (object $event): bool => $event instanceof NotificationFailed
                 && $event->data['exception'] === $exception
         ));
-        $sender = new NotificationSender($manager, Double::for(BusDispatcherContract::class), $events);
+        $sender = new NotificationSender($manager, Double::for(BusDispatcherContract::class)->strict(), $events);
 
         try {
             $sender->sendNow(new AnonymousNotifiable, new Notification, ['mail']);
@@ -191,15 +191,15 @@ class NotificationSenderTest extends TestCase
         $observerFailure = new RuntimeException('Failure storage unavailable.');
         $events = new EventDispatcher(Container::getInstance());
         $events->listen(NotificationFailed::class, static fn () => throw $observerFailure);
-        $manager = Double::for(ChannelManager::class);
-        $driver = Double::for(ChannelSpy::class);
+        $manager = Double::for(ChannelManager::class)->strict();
+        $driver = Double::for(ChannelSpy::class)->strict();
         $manager->allows('driver')->returns($driver);
         $attempts = 0;
         $driver->allows('send')->resolves(static function () use ($cancellation, &$attempts): never {
             ++$attempts;
             throw $cancellation;
         });
-        $sender = new NotificationSender($manager, Double::for(BusDispatcherContract::class), $events);
+        $sender = new NotificationSender($manager, Double::for(BusDispatcherContract::class)->strict(), $events);
         $caught = null;
 
         try {
@@ -216,15 +216,15 @@ class NotificationSenderTest extends TestCase
     public function testThrowingDeliveredListenerIsNotRelabeledAsDeliveryFailure(): void
     {
         $exception = new RuntimeException('delivered listener failed');
-        $manager = Double::for(ChannelManager::class);
-        $manager->expects('driver')->returns($driver = Double::for(ChannelSpy::class));
+        $manager = Double::for(ChannelManager::class)->strict();
+        $manager->expects('driver')->returns($driver = Double::for(ChannelSpy::class)->strict());
         $driver->expects('send')->returns('response');
         $events = $this->mockEventDispatcher();
         $events->expects('until')->with(Argument::type(NotificationSending::class))->returns(true);
         $events->expects('dispatch')->with(Argument::type(NotificationDelivered::class))->throws($exception);
         $events->expects('dispatch')->never()->with(Argument::type(NotificationFailed::class));
         $events->expects('dispatch')->never()->with(Argument::type(NotificationSent::class));
-        $sender = new NotificationSender($manager, Double::for(BusDispatcherContract::class), $events);
+        $sender = new NotificationSender($manager, Double::for(BusDispatcherContract::class)->strict(), $events);
 
         try {
             $sender->sendNow(new AnonymousNotifiable, new Notification, ['mail']);
@@ -240,15 +240,15 @@ class NotificationSenderTest extends TestCase
         $notification = new DummyNotificationWithAfterSendingCallback(static function () use ($exception): never {
             throw $exception;
         });
-        $manager = Double::for(ChannelManager::class);
-        $manager->expects('driver')->returns($driver = Double::for(ChannelSpy::class));
+        $manager = Double::for(ChannelManager::class)->strict();
+        $manager->expects('driver')->returns($driver = Double::for(ChannelSpy::class)->strict());
         $driver->expects('send')->returns('response');
         $events = $this->mockEventDispatcher();
         $events->expects('until')->with(Argument::type(NotificationSending::class))->returns(true);
         $events->expects('dispatch')->with(Argument::type(NotificationDelivered::class));
         $events->expects('dispatch')->never()->with(Argument::type(NotificationFailed::class));
         $events->expects('dispatch')->never()->with(Argument::type(NotificationSent::class));
-        $sender = new NotificationSender($manager, Double::for(BusDispatcherContract::class), $events);
+        $sender = new NotificationSender($manager, Double::for(BusDispatcherContract::class)->strict(), $events);
 
         try {
             $sender->sendNow(new AnonymousNotifiable, $notification, ['mail']);
@@ -296,9 +296,9 @@ class NotificationSenderTest extends TestCase
     public function testItCanSendNotificationsWithAnEmptyStringVia(): void
     {
         $notifiable = new AnonymousNotifiable;
-        $manager = Double::for(ChannelManager::class);
+        $manager = Double::for(ChannelManager::class)->strict();
         $bus = new BusFake(new BusDispatcher(new Container));
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('dispatch')->never();
 
         $sender = new NotificationSender($manager, $bus, $events);
@@ -311,9 +311,9 @@ class NotificationSenderTest extends TestCase
     public function testItCannotSendNotificationsViaDatabaseForAnonymousNotifiables(): void
     {
         $notifiable = new AnonymousNotifiable;
-        $manager = Double::for(ChannelManager::class);
+        $manager = Double::for(ChannelManager::class)->strict();
         $bus = new BusFake(new BusDispatcher(new Container));
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('dispatch')->never();
 
         $sender = new NotificationSender($manager, $bus, $events);
@@ -446,7 +446,7 @@ class NotificationSenderTest extends TestCase
             }
         };
         $notification->onConnection($connection);
-        $bus = Double::for(BusDispatcherContract::class);
+        $bus = Double::for(BusDispatcherContract::class)->strict();
         $bus->expects('dispatch')->with(Argument::satisfies(
             fn (SendQueuedNotifications $job): bool => $job->channels === ['mail']
                 && $job->queue === 'admin_notifications'
@@ -458,7 +458,7 @@ class NotificationSenderTest extends TestCase
                 && $job->connection === 'database-connection'
         ));
 
-        (new NotificationSender(new ChannelManager($container), $bus, Double::for(Dispatcher::class)))
+        (new NotificationSender(new ChannelManager($container), $bus, Double::for(Dispatcher::class)->strict()))
             ->send(new AnonymousNotifiable, $notification);
     }
 
@@ -477,12 +477,12 @@ class NotificationSenderTest extends TestCase
         };
 
         $notifiable = new DummyNotifiable;
-        $manager = Double::for(ChannelManager::class);
+        $manager = Double::for(ChannelManager::class)->strict();
         $manager->allows('getContainer')->returns(app());
         $manager->allows('resolveQueueFromQueueRoute')->returns(null);
         $manager->allows('resolveConnectionFromQueueRoute')->returns(null);
 
-        $bus = Double::for(BusDispatcherContract::class);
+        $bus = Double::for(BusDispatcherContract::class)->strict();
         $bus->expects('dispatch')
             ->with(Argument::satisfies(function (SendQueuedNotifications $job): bool {
                 return $job->delay === 30;
@@ -518,12 +518,12 @@ class NotificationSenderTest extends TestCase
         };
 
         $notifiable = new DummyNotifiable;
-        $manager = Double::for(ChannelManager::class);
+        $manager = Double::for(ChannelManager::class)->strict();
         $manager->allows('getContainer')->returns(app());
         $manager->allows('resolveQueueFromQueueRoute')->returns(null);
         $manager->allows('resolveConnectionFromQueueRoute')->returns(null);
 
-        $bus = Double::for(BusDispatcherContract::class);
+        $bus = Double::for(BusDispatcherContract::class)->strict();
         $bus->expects('dispatch')
             ->with(Argument::satisfies(function (SendQueuedNotifications $job): bool {
                 return $job->delay === 60;
@@ -539,12 +539,12 @@ class NotificationSenderTest extends TestCase
     public function testItCanSendQueuedNotificationsWithDelayProperty(): void
     {
         $notifiable = new DummyNotifiable;
-        $manager = Double::for(ChannelManager::class);
+        $manager = Double::for(ChannelManager::class)->strict();
         $manager->allows('getContainer')->returns(app());
         $manager->allows('resolveQueueFromQueueRoute')->returns(null);
         $manager->allows('resolveConnectionFromQueueRoute')->returns(null);
 
-        $bus = Double::for(BusDispatcherContract::class);
+        $bus = Double::for(BusDispatcherContract::class)->strict();
         $bus->expects('dispatch')
             ->with(Argument::satisfies(function (SendQueuedNotifications $job): bool {
                 return $job->delay === 45;
@@ -564,10 +564,10 @@ class NotificationSenderTest extends TestCase
         $container->instance('config', new Config(['app' => ['name' => 'Name', 'logo' => 'Logo']]));
         $manager = Double::for(ChannelManager::class)->passthru(new ChannelManager($container));
         $driver = new ChannelSpy;
-        $response = Double::for(ResponseInterface::class);
+        $response = Double::for(ResponseInterface::class)->strict();
         $driver->exception = $exception = new HttpTransportException('Transport error', $response);
         $manager->expects('driver')->returns($driver);
-        $bus = Double::for(BusDispatcherContract::class);
+        $bus = Double::for(BusDispatcherContract::class)->strict();
 
         $events = new EventDispatcher;
         $failed = null;
@@ -652,7 +652,7 @@ class NotificationSenderTest extends TestCase
         $manager = Double::for(ChannelManager::class)->passthru(new ChannelManager($container));
         $driver = new ChannelSpy;
         $manager->expects('driver')->returns($driver);
-        $bus = Double::for(BusDispatcherContract::class);
+        $bus = Double::for(BusDispatcherContract::class)->strict();
 
         $events = new EventFake(new EventDispatcher);
 
@@ -766,13 +766,13 @@ class NotificationSenderTest extends TestCase
     public function testNotificationEventsAreSkippedWhenNoListenersAreRegistered(): void
     {
         $notifiable = new DummyNotifiable;
-        $manager = Double::for(ChannelManager::class);
+        $manager = Double::for(ChannelManager::class)->strict();
         $manager->expects('driver')
-            ->returns($driver = Double::for(ChannelSpy::class));
+            ->returns($driver = Double::for(ChannelSpy::class)->strict());
         $driver->expects('send');
-        $bus = Double::for(BusDispatcherContract::class);
+        $bus = Double::for(BusDispatcherContract::class)->strict();
         $bus->expects('dispatch')->never();
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('hasListeners')->with(NotificationSending::class)->returns(false);
         $events->expects('hasListeners')->with(NotificationDelivered::class)->returns(false);
         $events->expects('hasListeners')->with(NotificationSent::class)->returns(false);
@@ -787,14 +787,14 @@ class NotificationSenderTest extends TestCase
     public function testNotificationFailedIsSkippedWithoutListeners(): void
     {
         $notifiable = new AnonymousNotifiable;
-        $manager = Double::for(ChannelManager::class);
-        $manager->allows('driver')->returns($driver = Double::for(ChannelSpy::class));
-        $response = Double::for(ResponseInterface::class);
+        $manager = Double::for(ChannelManager::class)->strict();
+        $manager->allows('driver')->returns($driver = Double::for(ChannelSpy::class)->strict());
+        $response = Double::for(ResponseInterface::class)->strict();
         $exception = new HttpTransportException('Transport error', $response);
         $driver->expects('send')->throws($exception);
-        $bus = Double::for(BusDispatcherContract::class);
+        $bus = Double::for(BusDispatcherContract::class)->strict();
 
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('hasListeners')->with(NotificationSending::class)->returns(false);
         $events->expects('hasListeners')->with(NotificationFailed::class)->returns(false);
         $events->expects('until')->never();
@@ -841,7 +841,7 @@ class NotificationSenderTest extends TestCase
      */
     private function mockEventDispatcher(): Dispatcher
     {
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(true);
 
         return $events;

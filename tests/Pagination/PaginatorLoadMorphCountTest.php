@@ -23,7 +23,7 @@ class PaginatorLoadMorphCountTest extends TestCase
             'App\Company' => ['employees', 'calendars'],
         ];
 
-        $items = Double::for(Collection::class);
+        $items = Double::for(Collection::class)->strict();
         $items->expects('loadMorphCount')->with('parentable', $relations);
 
         $p = (new class extends AbstractPaginator {

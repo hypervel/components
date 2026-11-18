@@ -629,7 +629,7 @@ class MailMailableTest extends TestCase
 
     public function testMailablePriorityGetsSent(): void
     {
-        $view = Double::for(ViewFactory::class);
+        $view = Double::for(ViewFactory::class)->strict();
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
@@ -648,7 +648,7 @@ class MailMailableTest extends TestCase
 
     public function testMailableIsReleasedWithoutGarbageCollectionAfterSettingPriority(): void
     {
-        $mailer = new Mailer('array', Double::for(ViewFactory::class), new ArrayTransport);
+        $mailer = new Mailer('array', Double::for(ViewFactory::class)->strict(), new ArrayTransport);
         $garbageCollectionEnabled = gc_enabled();
         gc_disable();
 
@@ -674,7 +674,7 @@ class MailMailableTest extends TestCase
 
     public function testEnvelopeCallbackCanInspectAndReplaceRenderedContent(): void
     {
-        $view = Double::for(ViewFactory::class);
+        $view = Double::for(ViewFactory::class)->strict();
         $mailer = new Mailer('array', $view, new ArrayTransport);
         $renderedContent = null;
 
@@ -737,7 +737,7 @@ class MailMailableTest extends TestCase
         $this->assertTrue($mailable->hasMetadata('total', 1670));
 
         $this->stubMailer();
-        $view = Double::for(ViewFactory::class);
+        $view = Double::for(ViewFactory::class)->strict();
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $sentMessage = $mailer->send($mailable);
@@ -754,7 +754,7 @@ class MailMailableTest extends TestCase
     {
         $this->stubMailer();
 
-        $view = Double::for(ViewFactory::class);
+        $view = Double::for(ViewFactory::class)->strict();
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
@@ -799,7 +799,7 @@ class MailMailableTest extends TestCase
     {
         $this->stubMailer();
 
-        $view = Double::for(ViewFactory::class);
+        $view = Double::for(ViewFactory::class)->strict();
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
@@ -1061,13 +1061,13 @@ class MailMailableTest extends TestCase
 
     public function testHasAttachmentWithDeclaredStorageAttachmentsAndNoEnvelope(): void
     {
-        $storage = Double::for(FilesystemAdapter::class);
+        $storage = Double::for(FilesystemAdapter::class)->strict();
         $storage->allows('mimeType')->with('report.txt')->returns('text/plain');
         $storage->allows('mimeType')->with('other.txt')->returns('text/plain');
         $storage->allows('get')->with('report.txt')->returns('report content');
         $storage->allows('get')->with('other.txt')->returns('other content');
 
-        $factory = Double::for(FilesystemFactory::class);
+        $factory = Double::for(FilesystemFactory::class)->strict();
         $factory->allows('disk')->with('documents')->returns($storage);
         $this->app->instance(FilesystemFactory::class, $factory);
 
@@ -1248,11 +1248,11 @@ class MailMailableTest extends TestCase
 
     public function testStorageAttachmentOmitsFailedMimeDetection(): void
     {
-        $storage = Double::for(FilesystemAdapter::class);
+        $storage = Double::for(FilesystemAdapter::class)->strict();
         $storage->expects('mimeType')->with('report.txt')->returns(false);
         $storage->expects('get')->with('report.txt')->returns('file content');
 
-        $factory = Double::for(FilesystemFactory::class);
+        $factory = Double::for(FilesystemFactory::class)->strict();
         $factory->expects('disk')->with('documents')->returns($storage);
         $this->app->instance(FilesystemFactory::class, $factory);
 
@@ -1269,11 +1269,11 @@ class MailMailableTest extends TestCase
 
     public function testExplicitStorageAttachmentMimeSkipsDetection(): void
     {
-        $storage = Double::for(FilesystemAdapter::class);
+        $storage = Double::for(FilesystemAdapter::class)->strict();
         $storage->expects('mimeType')->never();
         $storage->expects('get')->with('report.txt')->returns('file content');
 
-        $factory = Double::for(FilesystemFactory::class);
+        $factory = Double::for(FilesystemFactory::class)->strict();
         $factory->expects('disk')->with('documents')->returns($storage);
         $this->app->instance(FilesystemFactory::class, $factory);
 
@@ -1433,7 +1433,7 @@ class MailMailableTest extends TestCase
     {
         $this->stubMailer();
 
-        $mailer = new Mailer('array', Double::for(ViewFactory::class), new ArrayTransport);
+        $mailer = new Mailer('array', Double::for(ViewFactory::class)->strict(), new ArrayTransport);
 
         foreach ([new WelcomeMailableStub, (new WelcomeMailableStub)->subject('0')] as $mailable) {
             $mailable->from('sender@example.com')->to('recipient@example.com')->html('test content');
@@ -1466,7 +1466,7 @@ class MailMailableTest extends TestCase
 
     public function testMailableHeadersGetSent(): void
     {
-        $view = Double::for(ViewFactory::class);
+        $view = Double::for(ViewFactory::class)->strict();
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
@@ -1490,7 +1490,7 @@ class MailMailableTest extends TestCase
 
     public function testMailableIsReleasedWithoutGarbageCollectionAfterSendingWithHeaders(): void
     {
-        $mailer = new Mailer('array', Double::for(ViewFactory::class), new ArrayTransport);
+        $mailer = new Mailer('array', Double::for(ViewFactory::class)->strict(), new ArrayTransport);
         $garbageCollectionEnabled = gc_enabled();
         gc_disable();
 
@@ -1562,7 +1562,7 @@ class MailMailableTest extends TestCase
      */
     protected function stubMailer(): void
     {
-        $mailer = Double::for(Mailer::class);
+        $mailer = Double::for(Mailer::class)->strict();
         $mailer->allows('render')
             ->returns('');
 
