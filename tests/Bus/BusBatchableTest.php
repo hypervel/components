@@ -29,8 +29,8 @@ class BusBatchableTest extends TestCase
 
         Container::setInstance($container = new Container);
 
-        $repository = Double::for(BatchRepository::class);
-        $batch = Double::for(Batch::class);
+        $repository = Double::for(BatchRepository::class)->strict();
+        $batch = Double::for(Batch::class)->strict();
         $repository->expects('find')->with('test-batch-id')->returns($batch);
         $container->instance(BatchRepository::class, $repository);
 
@@ -62,8 +62,8 @@ class BusBatchableTest extends TestCase
 
         Container::setInstance($container = new Container);
 
-        $repository = Double::for(BatchRepository::class);
-        $batch = Double::for(Batch::class);
+        $repository = Double::for(BatchRepository::class)->strict();
+        $batch = Double::for(Batch::class)->strict();
         $repository->expects('find')->with('0')->returns($batch);
         $container->instance(BatchRepository::class, $repository);
 

@@ -54,7 +54,7 @@ class BusDebounceLockTest extends TestCase
     public function testReleaseProbeFailureDoesNotRemoveEitherDebounceRecord(): void
     {
         $failure = new RuntimeException('Owner probe failed.');
-        $cache = Double::for(Cache::class);
+        $cache = Double::for(Cache::class)->strict();
         $cache->expects('get')->with('debounce-key')->throws($failure);
         $cache->expects('forget')->never();
 
@@ -74,7 +74,7 @@ class BusDebounceLockTest extends TestCase
         $key = DebounceLock::getKey($job);
         $failure = new RuntimeException('Maximum-wait read failed.');
         $cleanupFailure = new RuntimeException('Cleanup owner probe failed.', previous: $canceled ? new CanceledException : null);
-        $cache = Double::for(Cache::class);
+        $cache = Double::for(Cache::class)->strict();
         $cache->expects('put')->with($key, Argument::type('string'), 300)->returns(true);
         $cache->expects('get')->with($key . ':first_dispatched_at')->throws($failure);
         $cache->expects('get')->with($key)->throws($cleanupFailure);
@@ -91,7 +91,7 @@ class BusDebounceLockTest extends TestCase
     public function testReleasePreservesCancellationFromSecondCleanup(): void
     {
         $failure = new RuntimeException('Cache cleanup failed.', previous: new CanceledException);
-        $cache = Double::for(Cache::class);
+        $cache = Double::for(Cache::class)->strict();
         $cache->expects('forget')->with('key')->throws(new RuntimeException('First deletion failed.'));
         $cache->expects('forget')->with('key:first_dispatched_at')->throws($failure);
         $caught = null;

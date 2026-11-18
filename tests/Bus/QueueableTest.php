@@ -161,7 +161,7 @@ class QueueableTest extends TestCase
         $job->chainConnection = 'default-connection';
         $job->chainQueue = 'default-queue';
 
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch')->with(Argument::satisfies(function (FakeJob $next): bool {
             $this->assertSame('0', $next->connection);
             $this->assertSame('0', $next->queue);
@@ -180,7 +180,7 @@ class QueueableTest extends TestCase
         $job->chainConnection = 'default-connection';
         $job->chainQueue = 'default-queue';
 
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch')->with(Argument::satisfies(function (FakeJob $next): bool {
             $this->assertSame('default-connection', $next->connection);
             $this->assertSame('default-queue', $next->queue);
@@ -199,7 +199,7 @@ class QueueableTest extends TestCase
         $job->chainConnection = 'default-connection';
         $job->chainQueue = 'default-queue';
 
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch')->with(Argument::satisfies(function (AttributedFakeJob $next): bool {
             $this->assertNull($next->connection);
             $this->assertNull($next->queue);

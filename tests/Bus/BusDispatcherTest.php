@@ -58,7 +58,7 @@ class BusDispatcherTest extends TestCase
         $container->instance('queue.routes', new QueueRoutes);
         Container::setInstance($container);
         $dispatcher = new Dispatcher($container, function (): Queue {
-            $mock = Double::for(Queue::class);
+            $mock = Double::for(Queue::class)->strict();
             $mock->expects('later')->with(10, Argument::type(BusDispatcherTestSpecificQueueAndDelayCommand::class), '', 'foo');
 
             return $mock;
@@ -76,7 +76,7 @@ class BusDispatcherTest extends TestCase
         $dispatcher = new Dispatcher($container, function (?string $connection) use (&$usedConnection): Queue {
             $usedConnection = $connection;
 
-            $mock = Double::for(Queue::class);
+            $mock = Double::for(Queue::class)->strict();
             $mock->expects('later')->with(10, Argument::type(BusDispatcherTestQueueableChildCommand::class), '', 'foo');
 
             return $mock;
@@ -90,12 +90,12 @@ class BusDispatcherTest extends TestCase
     public function testCommandsThatShouldQueueIsQueuedUsingQueueAndDelayAttributes(): void
     {
         $container = new Container;
-        $queueRoutes = Double::for(QueueRoutes::class);
+        $queueRoutes = Double::for(QueueRoutes::class)->strict();
         $queueRoutes->expects('getConnection')->returns(null);
         $container->instance('queue.routes', $queueRoutes);
         Container::setInstance($container);
         $dispatcher = new Dispatcher($container, function (): Queue {
-            $mock = Double::for(Queue::class);
+            $mock = Double::for(Queue::class)->strict();
             $mock->expects('later')->with(10, Argument::type(BusDispatcherTestSpecificQueueAndDelayAttributesCommand::class), '', 'foo');
 
             return $mock;
@@ -107,12 +107,12 @@ class BusDispatcherTest extends TestCase
     public function testCommandDelayPropertyOverridesDelayAttribute(): void
     {
         $container = new Container;
-        $queueRoutes = Double::for(QueueRoutes::class);
+        $queueRoutes = Double::for(QueueRoutes::class)->strict();
         $queueRoutes->expects('getConnection')->returns(null);
         $container->instance('queue.routes', $queueRoutes);
         Container::setInstance($container);
         $dispatcher = new Dispatcher($container, function (): Queue {
-            $mock = Double::for(Queue::class);
+            $mock = Double::for(Queue::class)->strict();
             $mock->expects('later')->with(60, Argument::type(BusDispatcherTestSpecificQueueAndDelayAttributeWithPropertyCommand::class), '', 'foo');
 
             return $mock;
@@ -167,7 +167,7 @@ class BusDispatcherTest extends TestCase
         $queueRoutes->forward('reports', 'processing', 'cloud');
         $container->instance('queue.routes', $queueRoutes);
 
-        $mock = Double::for(Queue::class);
+        $mock = Double::for(Queue::class)->strict();
         $mock->expects('push')->with(Argument::type(BusDispatcherQueueable::class), '', 'reports');
 
         $usedConnection = false;
@@ -255,11 +255,11 @@ class BusDispatcherTest extends TestCase
         $container->instance('queue.routes', new QueueRoutes);
         Container::setInstance($container);
 
-        $defaultQueue = Double::for(Queue::class);
+        $defaultQueue = Double::for(Queue::class)->strict();
         $defaultQueue->expects('bulk')->with(Argument::satisfies(fn (array $jobs): bool => count($jobs) === 2), '', null);
         $defaultQueue->expects('bulk')->with(Argument::satisfies(fn (array $jobs): bool => count($jobs) === 1), '', 'high');
 
-        $priorityQueue = Double::for(Queue::class);
+        $priorityQueue = Double::for(Queue::class)->strict();
         $priorityQueue->expects('bulk')->with(Argument::satisfies(fn (array $jobs): bool => count($jobs) === 1), '', 'high');
 
         $dispatcher = new Dispatcher(
@@ -285,10 +285,10 @@ class BusDispatcherTest extends TestCase
         $firstJob = (new BusDispatcherQueueable)->onConnection('a:b')->onQueue('c');
         $secondJob = (new BusDispatcherQueueable)->onConnection('a')->onQueue('b:c');
 
-        $firstQueue = Double::for(Queue::class);
+        $firstQueue = Double::for(Queue::class)->strict();
         $firstQueue->expects('bulk')->with(Argument::same([$firstJob]), '', 'c');
 
-        $secondQueue = Double::for(Queue::class);
+        $secondQueue = Double::for(Queue::class)->strict();
         $secondQueue->expects('bulk')->with(Argument::same([$secondJob]), '', 'b:c');
 
         $dispatcher = new Dispatcher(
