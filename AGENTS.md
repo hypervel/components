@@ -442,7 +442,15 @@ In any test, PHPUnit assertion failures, skips, and incomplete markers extend `A
 
 Laravel-ported tests follow upstream placement; the rules below apply to Hypervel-only test files. All tests live in `tests/{PackageName}/` (PascalCase). Tests that require external services go in `tests/Integration/{PackageName}/` — see Integration tests below. When only some integration tests for a package require one service, group them in `tests/Integration/{PackageName}/{ServiceName}/`. When every integration test for the package requires that service, keep them directly in the package directory.
 
-Package-specific tests that require one database driver go in `tests/Integration/{PackageName}/Database/{Postgres|MySql|MariaDb|Sqlite}/`. The database workflows discover these directories by convention. The Redis, Valkey, and Redis Cluster jobs likewise discover `tests/Integration/{PackageName}/Redis/`.
+Use these paths for service-specific test directories under `tests/Integration/{PackageName}/`. CI discovers them automatically.
+
+| Path | Runs on |
+| --- | --- |
+| `Database/*Test.php` | MySQL, MariaDB, PostgreSQL, and SQLite |
+| `Database/{MySql\|MariaDb\|Postgres\|Sqlite}/` | The matching database |
+| `Redis/` | Redis, Valkey, and Redis Cluster |
+
+Put a test class shared by multiple databases directly in `Database/`. Use `#[RequiresDatabase(...)]` on the class or individual methods when only some drivers apply. Use a driver directory for a class specific to one database.
 
 ### Base classes
 
@@ -717,7 +725,7 @@ Tests requiring separately configured services or public APIs go in `tests/Integ
 
 **Optimize integration tests for parallel testing** — ParaTest runs tests concurrently. Use `RefreshDatabase` by default and `DatabaseTruncation` when transaction depth zero is required; reserve `DatabaseMigrations` for migration behavior or a genuinely fresh migrated schema/baseline. Set up only the tables and services each test needs. Keep database cases in one data-provider test when splitting them would make schema setup compete. Load the full schema only when testing migrations or schema parity; do not hide avoidable slowness with longer timeouts.
 
-For service suites outside the directory conventions above, register new test directories in the matching workflow. The service trait handles isolation and skips. CI discovers tests by their paths.
+For service suites outside the directory conventions above, register new test directories in the matching workflow or the runner script it calls. The service trait handles isolation and skips. CI discovers tests by their paths.
 
 #### External service test traits
 
@@ -747,7 +755,7 @@ When adding integration tests for a new service type that has no trait yet, crea
 
 #### GH workflows
 
-Check `.github/workflows/` to determine which workflow runs the affected integration tests. When adding a test directory, update the appropriate workflow so CI actually runs it.
+Check `.github/workflows/` to determine which workflow runs the affected integration tests.
 
 When adding integration tests that need a new service, either add them to an existing workflow or create a new one. The workflow must start the service and set the appropriate env vars.
 
