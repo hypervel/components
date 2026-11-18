@@ -29,7 +29,7 @@ class RequireExplicitDoubleModeRuleTest extends RuleTestCase
                 $line,
                 'For an intentionally lenient double, use @phpstan-ignore hypervel.implicitDoubleMode (reason).',
             ],
-            [21, 39, 43, 48, 52, 55, 58, 60, 64],
+            [22, 40, 44, 49, 53, 56, 59, 61, 65, 88, 91, 94],
         ));
     }
 }

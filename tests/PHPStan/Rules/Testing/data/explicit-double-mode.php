@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\PHPStan\Rules\Testing\Data;
 
+use ArrayIterator;
 use Hypervel\Config\Repository;
 use Hypervel\Support\Sleep;
 use JMac\Testing\Double as TestDouble;
@@ -75,7 +76,26 @@ class ExplicitDoubleMode
         return $double->strict();
     }
 
-    public function exercise(Repository $value): void
+    public function modeInArguments(bool $useCache, ?self $optional): void
+    {
+        $repository = TestDouble::for(Repository::class);
+        $repository->expects('get');
+        $this->exercise($repository->strict());
+
+        $forConstructor = TestDouble::for(Repository::class);
+        $iterator = new ArrayIterator($forConstructor->passthru());
+
+        $conditional = TestDouble::for(Repository::class);
+        $useCache && $conditional->strict();
+
+        $alreadyUsed = TestDouble::for(Repository::class);
+        $this->exercise($alreadyUsed->get('key'), $alreadyUsed->strict());
+
+        $skipped = TestDouble::for(Repository::class);
+        $optional?->exercise($skipped->strict());
+    }
+
+    public function exercise(mixed ...$values): void
     {
     }
 }

@@ -6,11 +6,14 @@ namespace Hypervel\PHPStan\Rules\Testing;
 
 use JMac\Testing\Double;
 use PhpParser\Node;
+use PhpParser\Node\Arg;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\Assign;
+use PhpParser\Node\Expr\CallLike;
 use PhpParser\Node\Expr\Match_;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\NullsafeMethodCall;
+use PhpParser\Node\Expr\NullsafePropertyFetch;
 use PhpParser\Node\Expr\PropertyFetch;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Expr\StaticPropertyFetch;
@@ -26,6 +29,7 @@ use PHPStan\Node\FileNode;
 use PHPStan\Rules\Rule;
 use PHPStan\Rules\RuleErrorBuilder;
 
+use function array_any;
 use function array_push;
 use function count;
 use function in_array;
@@ -170,12 +174,17 @@ class RequireExplicitDoubleModeRule implements Rule
                 continue;
             }
 
-            $call = $statement instanceof Expression || $statement instanceof Return_ ? $statement->expr : null;
+            $value = $statement instanceof Expression || $statement instanceof Return_ ? $statement->expr : null;
+            $call = $value;
             while (($call instanceof MethodCall || $call instanceof NullsafeMethodCall) && $call->var !== $mentions[0]) {
                 $call = $call->var;
             }
             if ((! $call instanceof MethodCall && ! $call instanceof NullsafeMethodCall) || $call->isFirstClassCallable()) {
-                return false;
+                // A nullsafe call can skip the rest of its chain, including its arguments.
+                return count($mentions) === 1
+                    && $value !== null
+                    && $this->evaluatesModeCall($value, $mentions[0])
+                    && $finder->findFirst($value, static fn (Node $node): bool => $node instanceof NullsafeMethodCall || $node instanceof NullsafePropertyFetch) === null;
             }
             if ($this->isModeCall($call)) {
                 // The arguments to passthru() run before it changes the mode.
@@ -187,6 +196,30 @@ class RequireExplicitDoubleModeRule implements Rule
         }
 
         return false;
+    }
+
+    /**
+     * Determine whether evaluating the expression always selects the binding's mode.
+     */
+    private function evaluatesModeCall(Expr $value, Node $binding): bool
+    {
+        if ($value instanceof Assign) {
+            return $this->evaluatesModeCall($value->expr, $binding);
+        }
+        if (! $value instanceof CallLike || $value->isFirstClassCallable()) {
+            return false;
+        }
+
+        if ($value instanceof MethodCall) {
+            if ($value->var === $binding && $this->isModeCall($value)) {
+                return true;
+            }
+            if ($this->evaluatesModeCall($value->var, $binding)) {
+                return true;
+            }
+        }
+
+        return array_any($value->getArgs(), fn (Arg $arg): bool => $this->evaluatesModeCall($arg->value, $binding));
     }
 
     /**
