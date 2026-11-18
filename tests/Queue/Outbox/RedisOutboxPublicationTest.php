@@ -173,7 +173,7 @@ class RedisOutboxPublicationTest extends TestCase
         $connection->expects('evalWithShaCache')->with(Argument::any(), Argument::satisfies(fn (array $keys): bool => $keys[0] === 'queues:second'), Argument::any())->throws(new RuntimeException('Redis unavailable.'));
         $cancellation = new RuntimeException('Reporting cleanup failed.', previous: new CanceledException);
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($observerFailure)->throws($cancellation);
+        $handler->expects('report')->with(Argument::same($observerFailure))->throws($cancellation);
         Container::getInstance()->instance(ExceptionHandler::class, $handler);
 
         try {

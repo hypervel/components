@@ -32,6 +32,7 @@ use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
 use Pheanstalk\Contract\PheanstalkPublisherInterface;
 use Pheanstalk\Contract\PheanstalkSubscriberInterface;
@@ -162,7 +163,7 @@ class OutboxDispatchTest extends TestCase
             : Double::for(OutboxDispatchBaseQueue::class)->passthru();
         $queue->setContainer($this->app)->setConnectionName($beanstalk ? 'beanstalkd' : 'custom');
         $direct = (new OutboxDispatchJob)->withoutOutbox();
-        $queue->expects('push')->with($direct, '', 'orders')->returns('direct');
+        $queue->expects('push')->with(Argument::same($direct), '', 'orders')->returns('direct');
         $jobs = array_map(static fn (): OutboxDispatchJob => (new OutboxDispatchJob)->viaOutbox(), range(1, 100));
         $connection = DB::connection();
         $connection->enableQueryLog();
@@ -262,7 +263,7 @@ class OutboxDispatchTest extends TestCase
         });
         $this->app->make('events')->listen(JobQueueingFailed::class, static fn () => throw $listener);
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($listener);
+        $handler->expects('report')->with(Argument::same($listener));
         $this->app->instance(ExceptionHandler::class, $handler);
         $jobs = [(new OutboxDispatchJob)->viaOutbox(), (new OutboxDispatchJob)->viaOutbox()];
 
