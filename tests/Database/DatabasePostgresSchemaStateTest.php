@@ -49,7 +49,7 @@ class DatabasePostgresSchemaStateTest extends TestCase
 
     public function testBaseVariablesUseConfiguredConnectionByDefault(): void
     {
-        $schemaState = new PostgresSchemaState(Double::for(PostgresConnection::class));
+        $schemaState = new PostgresSchemaState(Double::for(PostgresConnection::class)->strict());
 
         $variables = (new ReflectionMethod(PostgresSchemaState::class, 'baseVariables'))->invoke($schemaState, [
             'host' => 'pooler-host',
@@ -74,7 +74,7 @@ class DatabasePostgresSchemaStateTest extends TestCase
 
     public function testBaseVariablesDoNotExportEmptySslMode(): void
     {
-        $connection = Double::for(PostgresConnection::class);
+        $connection = Double::for(PostgresConnection::class)->strict();
         $schemaState = new PostgresSchemaState($connection);
 
         $method = new ReflectionMethod($schemaState, 'baseVariables');
@@ -105,14 +105,15 @@ class DatabasePostgresSchemaStateTest extends TestCase
             'database' => 'hypervel',
         ];
 
-        $schema = Double::for(PostgresBuilder::class);
+        $schema = Double::for(PostgresBuilder::class)->strict();
         $schema->expects('hasTable')->with('migrations')->returns(false);
 
-        $connection = Double::for(PostgresConnection::class);
+        $connection = Double::for(PostgresConnection::class)->strict();
         $connection->allows('getConfig')->returns($config);
         $connection->expects('getSchemaBuilder')->returns($schema);
 
-        $process = Double::for(Process::class);
+        $process = Double::for(Process::class)->strict();
+        $process->allows('stop')->with(0.0)->returns(0); // Symfony stops the process in its destructor.
         $process->expects('mustRun')->with(Argument::type('callable'), [
             'HYPERVEL_LOAD_HOST' => '127.0.0.1',
             'HYPERVEL_LOAD_PORT' => '5432',
@@ -142,10 +143,10 @@ class DatabasePostgresSchemaStateTest extends TestCase
 
     public function testMigrationDataUsesLiteralPathAndTableArguments(): void
     {
-        $schema = Double::for(PostgresBuilder::class);
+        $schema = Double::for(PostgresBuilder::class)->strict();
         $schema->expects('hasTable')->with('archive.Migration"History')->returns(true);
         $schema->expects('parseSchemaAndTable')->with('archive.Migration"History', true)->returns(['archive', 'Migration"History']);
-        $connection = Double::for(PostgresConnection::class);
+        $connection = Double::for(PostgresConnection::class)->strict();
         $connection->expects('getSchemaBuilder')->times(2)->returns($schema);
         $connection->expects('getTablePrefix')->returns('pre.');
         $connection->allows('getConfig')->returns([
@@ -179,8 +180,8 @@ class DatabasePostgresSchemaStateTest extends TestCase
 
     public function testMigrationTableUsesTheActualSchemaUnlessExplicitlyQualified(): void
     {
-        $connection = Double::for(PostgresConnection::class);
-        $connection->expects('getSchemaGrammar')->returns(Double::for(PostgresGrammar::class));
+        $connection = Double::for(PostgresConnection::class)->strict();
+        $connection->expects('getSchemaGrammar')->returns(Double::for(PostgresGrammar::class)->strict());
         $connection->expects('scalar')
             ->times(2)
             ->with('select current_schema()', [], false)
