@@ -135,11 +135,7 @@ class ComponentsTest extends TestCase
         $output = Double::for(OutputStyle::class)->strict();
 
         $output->expects('askQuestion')
-            ->with(Argument::satisfies(function (Question $question): bool {
-                $this->assertSame(['a', 'b'], $question->getAutocompleterValues());
-
-                return true;
-            }))
+            ->with(Argument::capture($question))
             ->returns('b');
 
         $choices = (function (): Generator {
@@ -150,6 +146,8 @@ class ComponentsTest extends TestCase
         $result = (new AskWithCompletion($output))->render('Question?', $choices);
 
         $this->assertSame('b', $result);
+        $this->assertInstanceOf(Question::class, $question);
+        $this->assertSame(['a', 'b'], $question->getAutocompleterValues());
     }
 
     public function testTask(): void

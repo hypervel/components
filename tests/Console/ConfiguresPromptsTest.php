@@ -448,18 +448,16 @@ class ConfiguresPromptsTest extends TestCase
                 $value . '/Models/User.php',
                 $value . '/Http/Kernel.php',
             ])),
-            fn ($components) => $components
-                ->expects('askWithCompletion')
-                ->with('File?', Argument::satisfies(function ($completion) {
-                    $this->assertIsCallable($completion);
-                    $this->assertSame(['app/Models/User.php', 'app/Http/Kernel.php'], $completion('app'));
-
-                    return true;
-                }), null)
-                ->returns('app/Models/User.php')
+            function ($components) use (&$completion): void {
+                $components->expects('askWithCompletion')
+                    ->with('File?', Argument::capture($completion), null)
+                    ->returns('app/Models/User.php');
+            }
         );
 
         $this->assertSame('app/Models/User.php', $answer);
+        $this->assertIsCallable($completion);
+        $this->assertSame(['app/Models/User.php', 'app/Http/Kernel.php'], $completion('app'));
     }
 
     public function testSuggestFallbackNormalizesClosureCollectionOptions(): void
@@ -471,18 +469,16 @@ class ConfiguresPromptsTest extends TestCase
                 $value . ' Taylor',
                 $value . ' Jess',
             ])),
-            fn ($components) => $components
-                ->expects('askWithCompletion')
-                ->with('Name?', Argument::satisfies(function ($completion) {
-                    $this->assertIsCallable($completion);
-                    $this->assertSame(['T Taylor', 'T Jess'], $completion('T'));
-
-                    return true;
-                }), null)
-                ->returns('T Taylor')
+            function ($components) use (&$completion): void {
+                $components->expects('askWithCompletion')
+                    ->with('Name?', Argument::capture($completion), null)
+                    ->returns('T Taylor');
+            }
         );
 
         $this->assertSame('T Taylor', $answer);
+        $this->assertIsCallable($completion);
+        $this->assertSame(['T Taylor', 'T Jess'], $completion('T'));
     }
 
     #[DataProvider('datatableDataProvider')]

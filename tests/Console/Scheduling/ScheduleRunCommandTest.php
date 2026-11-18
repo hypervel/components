@@ -1246,12 +1246,10 @@ class ScheduleRunCommandTest extends TestCase
 
         $schedule = Double::for(Schedule::class)->strict();
         $schedule->expects('serverShouldRun')
-            ->with(Argument::all(function (Event $event, CarbonInterface $time) use ($callbackEvent, $expectedStartedAt): bool {
-                $this->assertSame($callbackEvent, $event);
-                $this->assertSame($expectedStartedAt, $time->format('Y-m-d H:i:s'));
-
-                return true;
-            }))
+            ->with(
+                Argument::same($callbackEvent),
+                Argument::satisfies(static fn (CarbonInterface $time): bool => $time->format('Y-m-d H:i:s') === $expectedStartedAt),
+            )
             ->returns(true);
 
         $command = $this->makeCommand();

@@ -108,14 +108,12 @@ class InteractsWithIOTest extends TestCase
         })();
 
         $output->expects('askQuestion')
-            ->with(Argument::satisfies(function (Question $question): bool {
-                $this->assertSame(['alpha', 'bravo'], $question->getAutocompleterValues());
-
-                return true;
-            }))
+            ->with(Argument::capture($question))
             ->returns('bravo');
 
         $this->assertSame('bravo', $command->anticipate('Choose', $choices));
+        $this->assertInstanceOf(Question::class, $question);
+        $this->assertSame(['alpha', 'bravo'], $question->getAutocompleterValues());
     }
 }
 

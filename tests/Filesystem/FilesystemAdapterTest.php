@@ -870,11 +870,7 @@ class FilesystemAdapterTest extends TestCase
         [$reader, $writer] = $this->openStalledNonSeekableStream();
         $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
         $exceptionHandler->expects('report')
-            ->with(Argument::satisfies(static function (UnableToReadFile $exception): bool {
-                self::assertInstanceOf(RuntimeException::class, $exception->getPrevious());
-
-                return true;
-            }));
+            ->with(Argument::capture($exception));
         Container::getInstance()->bind(ExceptionHandler::class, static fn () => $exceptionHandler);
         $filesystemAdapter = Double::for(new FilesystemAdapter(
             $this->filesystem,
@@ -884,6 +880,9 @@ class FilesystemAdapterTest extends TestCase
         $filesystemAdapter->expects('readStream')->with('file.txt')->returns($reader);
 
         $this->assertNull($filesystemAdapter->readStreamRange('file.txt', 3, 5));
+
+        $this->assertInstanceOf(UnableToReadFile::class, $exception);
+        $this->assertInstanceOf(RuntimeException::class, $exception->getPrevious());
 
         $this->assertFalse(is_resource($reader));
         fclose($writer);
