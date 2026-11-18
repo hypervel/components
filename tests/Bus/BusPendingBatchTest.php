@@ -227,12 +227,7 @@ class BusPendingBatchTest extends TestCase
             $chainedBatch->chainQueue = 'chain-queue';
 
             $dispatcher = Double::for(BusDispatcher::class)->strict();
-            $dispatcher->expects('dispatch')->with(Argument::satisfies(function (ChainedBatchQueueableJob $job) use ($expectedConnection, $expectedQueue): bool {
-                $this->assertSame($expectedConnection, $job->connection);
-                $this->assertSame($expectedQueue, $job->queue);
-
-                return true;
-            }));
+            $dispatcher->expects('dispatch')->with(Argument::capture($job));
             $container->instance(BusDispatcher::class, $dispatcher);
 
             $pendingBatch = $chainedBatch->attachRemainder(
@@ -245,6 +240,10 @@ class BusPendingBatchTest extends TestCase
             $batch = Double::for(Batch::class)->strict();
             $batch->expects('cancelled')->returns(false);
             $callbacks[0]($batch);
+
+            $this->assertInstanceOf(ChainedBatchQueueableJob::class, $job);
+            $this->assertSame($expectedConnection, $job->connection);
+            $this->assertSame($expectedQueue, $job->queue);
         }
     }
 
@@ -260,14 +259,7 @@ class BusPendingBatchTest extends TestCase
         $chainedBatch->chainQueue = 'chain-queue';
 
         $dispatcher = Double::for(BusDispatcher::class)->strict();
-        $dispatcher->expects('dispatch')->with(Argument::satisfies(function (AttributedChainedBatchQueueableJob $job): bool {
-            $this->assertNull($job->connection);
-            $this->assertNull($job->queue);
-            $this->assertSame('chain-connection', $job->chainConnection);
-            $this->assertSame('chain-queue', $job->chainQueue);
-
-            return true;
-        }));
+        $dispatcher->expects('dispatch')->with(Argument::capture($job));
         $container->instance(BusDispatcher::class, $dispatcher);
 
         $callbacks = $chainedBatch->attachRemainder(new PendingBatch($container, new Collection([$sourceJob])))
@@ -276,6 +268,12 @@ class BusPendingBatchTest extends TestCase
         $batch = Double::for(Batch::class)->strict();
         $batch->expects('cancelled')->returns(false);
         $callbacks[0]($batch);
+
+        $this->assertInstanceOf(AttributedChainedBatchQueueableJob::class, $job);
+        $this->assertNull($job->connection);
+        $this->assertNull($job->queue);
+        $this->assertSame('chain-connection', $job->chainConnection);
+        $this->assertSame('chain-queue', $job->chainQueue);
     }
 
     public function testPendingBatchMayBeConfiguredAndDispatched(): void

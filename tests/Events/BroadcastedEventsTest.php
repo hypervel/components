@@ -187,19 +187,16 @@ class BroadcastedEventsTest extends TestCase
             $pendingBroadcast = new PendingBroadcastWithoutDestructor(new Dispatcher, new stdClass);
 
             $broadcast->expects('event')
-                ->with(Argument::satisfies(function (mixed $event): bool {
-                    $this->assertInstanceOf(BroadcastableNamedArgumentsEvent::class, $event);
-                    $this->assertSame('first-value', $event->first);
-                    $this->assertSame('second-value', $event->second);
-
-                    return true;
-                }))
+                ->with(Argument::capture($event))
                 ->returns($pendingBroadcast);
 
             $this->assertSame(
                 $pendingBroadcast,
                 BroadcastableNamedArgumentsEvent::broadcast(second: 'second-value', first: 'first-value')
             );
+            $this->assertInstanceOf(BroadcastableNamedArgumentsEvent::class, $event);
+            $this->assertSame('first-value', $event->first);
+            $this->assertSame('second-value', $event->second);
         } finally {
             Container::setInstance($originalContainer);
         }
