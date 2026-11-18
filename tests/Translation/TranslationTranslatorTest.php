@@ -341,7 +341,7 @@ class TranslationTranslatorTest extends TestCase
     {
         $exception = new RuntimeException('Unable to load translations.');
         $attempts = 0;
-        $loader = Double::for(Loader::class);
+        $loader = Double::for(Loader::class)->strict();
         $loader->expects('load')->with('en', '*', '*')->returns([]);
         $loader->expects('load')->times(2)->with('en', 'messages', '*')->resolves(
             static function () use (&$attempts, $exception): array {
@@ -495,7 +495,7 @@ class TranslationTranslatorTest extends TestCase
         ]);
         $translator = new Translator($loader, 'en');
         $translator->setFallback('fr');
-        $selector = Double::for(MessageSelector::class);
+        $selector = Double::for(MessageSelector::class)->strict();
         $selector->expects('choose')->with('{0} aucun|{1} un|[2,*] :count éléments', 2, 'fr')->returns(':count éléments');
         $translator->setSelector($selector);
 
@@ -571,7 +571,7 @@ class TranslationTranslatorTest extends TestCase
 
     public function testNullJsonTranslationValueIsTreatedAsMissing(): void
     {
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $files->expects('exists')->with(__DIR__ . '/en.json')->returns(true);
         $files->expects('get')->with(__DIR__ . '/en.json')->returns('{"untranslated":null}');
         $files->expects('exists')->with(__DIR__ . '/en/untranslated.php')->returns(false);
@@ -863,7 +863,7 @@ class TranslationTranslatorTest extends TestCase
 
     public function testConfiguredInvalidLocaleIsRejectedBeforeFilesystemAccess(): void
     {
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $files->expects('exists')->never();
 
         $this->expectException(InvalidArgumentException::class);
@@ -874,7 +874,7 @@ class TranslationTranslatorTest extends TestCase
 
     public function testExplicitInvalidLocaleIsRejectedBeforeFilesystemAccess(): void
     {
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $files->expects('exists')->never();
         $translator = new Translator(new FileLoader($files, __DIR__), 'en');
 
@@ -886,7 +886,7 @@ class TranslationTranslatorTest extends TestCase
 
     public function testInvalidFallbackLocaleIsRejectedBeforeItsFilesystemAccess(): void
     {
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $files->expects('exists')->never();
         $translator = new Translator(new FileLoader($files, __DIR__), 'en');
 
@@ -898,7 +898,7 @@ class TranslationTranslatorTest extends TestCase
 
     public function testInvalidLocaleFromResolverIsRejectedBeforeItsFilesystemAccess(): void
     {
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $files->expects('exists')->with(__DIR__ . '/en.json')->returns(false);
         $translator = new Translator(new FileLoader($files, __DIR__), 'en');
         $translator->determineLocalesUsing(static fn (array $locales): array => ['en\US']);
@@ -911,7 +911,7 @@ class TranslationTranslatorTest extends TestCase
 
     public function testLocaleSettersRejectInvalidLocaleImmediately(): void
     {
-        $loader = Double::for(Loader::class);
+        $loader = Double::for(Loader::class)->strict();
         $loader->expects('load')->never();
         $translator = new Translator($loader, 'en');
 
@@ -978,7 +978,7 @@ class TranslationTranslatorTest extends TestCase
 
     protected function getLoader(): Loader
     {
-        return Double::for(Loader::class);
+        return Double::for(Loader::class)->strict();
     }
 
     protected function missingGroupCount(?MissingTranslationGroups $missingTranslationGroups): int

@@ -42,11 +42,11 @@ class ValidationProhibitedIfTest extends TestCase
 
     public function testItAcceptsCallableAndBooleanArguments(): void
     {
+        $this->expectNotToPerformAssertions();
+
         new ProhibitedIf(false);
         new ProhibitedIf(true);
         new ProhibitedIf(fn (): bool => true);
-
-        $this->addToAssertionCount(1);
     }
 
     #[DataProvider('dataProviderItRejectsNonCallableNonBooleanArguments')]
