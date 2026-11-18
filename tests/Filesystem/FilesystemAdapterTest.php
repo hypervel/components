@@ -485,7 +485,7 @@ class FilesystemAdapterTest extends TestCase
 
     public function testPrependDoesNotOverwriteAnUnreadableExistingFile(): void
     {
-        $driver = Double::for(FilesystemOperator::class);
+        $driver = Double::for(FilesystemOperator::class)->strict();
         $driver->expects('fileExists')->with('file.txt')->returns(true);
         $driver->expects('read')->with('file.txt')->throws(UnableToReadFile::fromLocation('file.txt'));
         $driver->expects('write')->never();
@@ -504,7 +504,7 @@ class FilesystemAdapterTest extends TestCase
 
     public function testAppendDoesNotOverwriteAnUnreadableExistingFile(): void
     {
-        $driver = Double::for(FilesystemOperator::class);
+        $driver = Double::for(FilesystemOperator::class)->strict();
         $driver->expects('fileExists')->with('file.txt')->returns(true);
         $driver->expects('read')->with('file.txt')->throws(UnableToReadFile::fromLocation('file.txt'));
         $driver->expects('write')->never();
@@ -564,7 +564,7 @@ class FilesystemAdapterTest extends TestCase
 
         $backupFilesystem = new Filesystem($backupAdapter = new LocalFilesystemAdapter($this->tempDir . '/backup'));
 
-        $filesystemFactory = Double::for(FilesystemFactory::class);
+        $filesystemFactory = Double::for(FilesystemFactory::class)->strict();
         $filesystemFactory->expects('disk')->returns(new FilesystemAdapter($backupFilesystem, $backupAdapter));
 
         Container::getInstance()->instance(FilesystemFactory::class, $filesystemFactory);
@@ -582,7 +582,7 @@ class FilesystemAdapterTest extends TestCase
 
         $backupFilesystem = new Filesystem($backupAdapter = new LocalFilesystemAdapter($this->tempDir . '/backup'));
 
-        $filesystemFactory = Double::for(FilesystemFactory::class);
+        $filesystemFactory = Double::for(FilesystemFactory::class)->strict();
         $filesystemFactory->expects('disk')->returns(new FilesystemAdapter($backupFilesystem, $backupAdapter));
 
         Container::getInstance()->instance(FilesystemFactory::class, $filesystemFactory);
@@ -600,7 +600,7 @@ class FilesystemAdapterTest extends TestCase
 
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
 
-        $filesystemFactory = Double::for(FilesystemFactory::class);
+        $filesystemFactory = Double::for(FilesystemFactory::class)->strict();
         $filesystemFactory->expects('disk')->returns($filesystemAdapter);
 
         Container::getInstance()->instance(FilesystemFactory::class, $filesystemFactory);
@@ -868,7 +868,7 @@ class FilesystemAdapterTest extends TestCase
     public function testReadStreamRangeReportsAndClosesAStalledStreamWhenConfigured(): void
     {
         [$reader, $writer] = $this->openStalledNonSeekableStream();
-        $exceptionHandler = Double::for(ExceptionHandler::class);
+        $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
         $exceptionHandler->expects('report')
             ->with(Argument::satisfies(static function (UnableToReadFile $exception): bool {
                 self::assertInstanceOf(RuntimeException::class, $exception->getPrevious());
@@ -891,7 +891,7 @@ class FilesystemAdapterTest extends TestCase
 
     public function testReadStreamRangePreservesCancellationAndClosesTheSourceWithoutReporting(): void
     {
-        $exceptionHandler = Double::for(ExceptionHandler::class);
+        $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
         $exceptionHandler->expects('report')->never();
         Container::getInstance()->bind(ExceptionHandler::class, static fn () => $exceptionHandler);
         $originalHookFlags = Runtime::getHookFlags();
@@ -975,7 +975,7 @@ class FilesystemAdapterTest extends TestCase
     public function testPutWithStreamAllowsTheWriterToCloseItsInput(): void
     {
         $body = new CachingStream(new Stream(fopen('php://temp', 'w+b')));
-        $driver = Double::for(FilesystemOperator::class);
+        $driver = Double::for(FilesystemOperator::class)->strict();
         $driver->expects('writeStream')->resolves(
             static function (string $path, mixed $stream): void {
                 fclose($stream);
@@ -1324,10 +1324,10 @@ class FilesystemAdapterTest extends TestCase
     #[DataProvider('canceledFilesystemOperations')]
     public function testCancellationBypassesTheFilesystemFailurePolicy(string $method, array $arguments, string $driverMethod, Throwable $failure): void
     {
-        $handler = Double::for(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $handler->expects('report')->never();
         $this->app->instance(ExceptionHandler::class, $handler);
-        $driver = Double::for(Filesystem::class);
+        $driver = Double::for(Filesystem::class)->strict();
         $driver->expects($driverMethod)->throws($failure);
         $adapter = new FilesystemAdapter($driver, $this->adapter, ['throw' => false, 'report' => true]);
         $stream = $method === 'writeStream' ? fopen('php://memory', 'w+b') : null;
@@ -1391,7 +1391,7 @@ class FilesystemAdapterTest extends TestCase
             ]);
         }
         $stream = StreamWrapper::detach($body);
-        $driver = Double::for(FilesystemOperator::class);
+        $driver = Double::for(FilesystemOperator::class)->strict();
         $driver->expects('readStream')->returns($stream);
         $adapter = new FilesystemAdapter($driver, $this->adapter);
         $caught = null;
@@ -1420,30 +1420,16 @@ class FilesystemAdapterTest extends TestCase
     {
         $adapter = new FilesystemAdapter($this->filesystem, $this->adapter, ['throw' => true]);
 
-        try {
-            $adapter->get('/foo.txt');
-        } catch (UnableToReadFile) {
-            $this->assertTrue(true);
-
-            return;
-        }
-
-        $this->fail('Exception was not thrown.');
+        $this->expectException(UnableToReadFile::class);
+        $adapter->get('/foo.txt');
     }
 
     public function testThrowExceptionsForReadStream(): void
     {
         $adapter = new FilesystemAdapter($this->filesystem, $this->adapter, ['throw' => true]);
 
-        try {
-            $adapter->readStream('/foo.txt');
-        } catch (UnableToReadFile) {
-            $this->assertTrue(true);
-
-            return;
-        }
-
-        $this->fail('Exception was not thrown.');
+        $this->expectException(UnableToReadFile::class);
+        $adapter->readStream('/foo.txt');
     }
 
     public function testThrowExceptionsForPut(): void
@@ -1459,16 +1445,11 @@ class FilesystemAdapterTest extends TestCase
 
             $adapter = new FilesystemAdapter($this->filesystem, $this->adapter, ['throw' => true]);
 
+            $this->expectException(UnableToWriteFile::class);
             $adapter->put('/foo.txt', 'Hello World!');
-        } catch (UnableToWriteFile) {
-            $this->assertTrue(true);
-
-            return;
         } finally {
             chmod($this->tempDir . '/foo.txt', 0600);
         }
-
-        $this->fail('Exception was not thrown.');
     }
 
     public function testThrowExceptionsForMimeType(): void
@@ -1477,15 +1458,8 @@ class FilesystemAdapterTest extends TestCase
 
         $adapter = new FilesystemAdapter($this->filesystem, $this->adapter, ['throw' => true]);
 
-        try {
-            $adapter->mimeType('unknown.mime-type');
-        } catch (UnableToRetrieveMetadata) {
-            $this->assertTrue(true);
-
-            return;
-        }
-
-        $this->fail('Exception was not thrown.');
+        $this->expectException(UnableToRetrieveMetadata::class);
+        $adapter->mimeType('unknown.mime-type');
     }
 
     public function testReportExceptionsForGet(): void

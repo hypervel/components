@@ -333,9 +333,9 @@ class AwsS3V3AdapterTest extends TestCase
             'options' => ['@http' => ['timeout' => 12]],
         ]);
         $adapter->getDriver()->allows('fileExists')->returns(true);
-        $emptyDriver = Double::for(FilesystemOperator::class);
+        $emptyDriver = Double::for(FilesystemOperator::class)->strict();
         $emptyDriver->allows('fileExists')->returns(false);
-        $empty = new FilesystemAdapter($emptyDriver, Double::for(FlysystemAdapter::class));
+        $empty = new FilesystemAdapter($emptyDriver, Double::for(FlysystemAdapter::class)->strict());
         $pools = new PoolManager;
         $definition = new PoolDefinition('filesystem:read-through-range', 's3', 'test', PoolOptions::fromArray([]));
         $cloud = match ($poolType) {
@@ -354,7 +354,7 @@ class AwsS3V3AdapterTest extends TestCase
             ),
             null => $adapter,
         };
-        $exceptionHandler = Double::for(ExceptionHandler::class);
+        $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
         $exceptionHandler->expects('report')->never();
         Container::getInstance()->instance(ExceptionHandler::class, $exceptionHandler);
         $manager = new FilesystemManager(Container::getInstance());
@@ -435,7 +435,7 @@ class AwsS3V3AdapterTest extends TestCase
     {
         $cancellation = new CanceledException('read canceled');
         $failure = $wrapped ? new S3Exception('SDK request canceled.', new Command('GetObject'), previous: $cancellation) : $cancellation;
-        $exceptionHandler = Double::for(ExceptionHandler::class);
+        $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
         $exceptionHandler->expects('report')->never();
         Container::getInstance()->bind(ExceptionHandler::class, static fn () => $exceptionHandler);
         $handler = new MockHandler([$failure]);
@@ -459,7 +459,7 @@ class AwsS3V3AdapterTest extends TestCase
 
     public function testReadStreamRangeRejectsAResultWithoutAResource(): void
     {
-        $body = Double::for(StreamInterface::class);
+        $body = Double::for(StreamInterface::class)->strict();
         $body->allows('isReadable')->returns(false);
         $body->allows('isWritable')->returns(false);
         $handler = new MockHandler([new Result(['Body' => $body])]);
@@ -533,8 +533,8 @@ class AwsS3V3AdapterTest extends TestCase
         ]);
 
         return new AwsS3V3Adapter(
-            Double::for(FilesystemOperator::class),
-            Double::for(FlysystemAdapter::class),
+            Double::for(FilesystemOperator::class)->strict(),
+            Double::for(FlysystemAdapter::class)->strict(),
             $config,
             $client,
         );

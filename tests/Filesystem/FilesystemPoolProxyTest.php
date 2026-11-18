@@ -295,7 +295,7 @@ class FilesystemPoolProxyTest extends TestCase
     #[DataProvider('bufferedReadProvider')]
     public function testBufferedReadsReleaseTheWholeDriverImmediately(string $uri, ?int $start, ?int $end, string $expected): void
     {
-        $driver = Double::for(FilesystemOperator::class);
+        $driver = Double::for(FilesystemOperator::class)->strict();
         $driver->expects('readStream')->with('file.txt')->resolves(static function () use ($uri): mixed {
             $stream = fopen($uri, 'w+b');
             fwrite($stream, '0123456789');
@@ -342,7 +342,7 @@ class FilesystemPoolProxyTest extends TestCase
             return ++$reads === 1 ? 'remote bytes' : false;
         });
         $range = StreamWrapper::getResource(new LimitStream(new CachingStream($source), 3));
-        $driver = Double::for(FilesystemOperator::class);
+        $driver = Double::for(FilesystemOperator::class)->strict();
         $driver->expects('readStream')->with('file.txt')->returns($range);
         $proxy = $this->proxy(fn (): FilesystemAdapter => new FilesystemAdapter($driver, $this->adapter));
         $stream = $proxy->readStream('file.txt');
@@ -457,7 +457,7 @@ class FilesystemPoolProxyTest extends TestCase
 
     public function testContractOnlyFilesystemPoolsWhenCallbacksAreUnset(): void
     {
-        $filesystem = Double::for(FilesystemContract::class);
+        $filesystem = Double::for(FilesystemContract::class)->strict();
         $filesystem->expects('exists')->with('file.txt')->returns(true);
         $proxy = $this->proxy(static fn (): FilesystemContract => $filesystem);
 
@@ -468,7 +468,7 @@ class FilesystemPoolProxyTest extends TestCase
 
     public function testSettingCallbacksOnAContractOnlyFilesystemFailsAndDiscardsIt(): void
     {
-        $filesystem = Double::for(FilesystemContract::class);
+        $filesystem = Double::for(FilesystemContract::class)->strict();
         $proxy = $this->proxy(static fn (): FilesystemContract => $filesystem);
         $proxy->buildTemporaryUrlsUsing(static fn (): string => 'url');
 

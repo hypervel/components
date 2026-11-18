@@ -797,9 +797,9 @@ class FilesystemTest extends TestCase
 
     public function testRelativeLinkAcceptsTheWindowsNullResult(): void
     {
-        (new StubLinkFilesystem(null))->relativeLink('/root/target.txt', '/root/link.txt');
+        $this->expectNotToPerformAssertions();
 
-        $this->addToAssertionCount(1);
+        (new StubLinkFilesystem(null))->relativeLink('/root/target.txt', '/root/link.txt');
     }
 
     public function testNameReturnsName(): void
