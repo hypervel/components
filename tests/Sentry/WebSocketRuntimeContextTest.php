@@ -23,6 +23,7 @@ use Hypervel\WebSocketServer\Security;
 use Hypervel\WebSocketServer\Server;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Sentry\EventType;
 use Sentry\Logs\Log;
 use Sentry\Metrics\Types\Metric;
@@ -78,6 +79,7 @@ class WebSocketRuntimeContextTest extends TestCase
         $route = Double::for(Route::class)->strict();
         $route->allows('getControllerClass')->returns(SentryWebSocketRuntimeHandler::class);
         $router = Double::for(Router::class)->strict();
+        $router->allows('gatherRouteMiddleware')->with(Argument::same($route))->returns([]);
         $router->expects('dispatchToCallback')
             ->resolves(static function (HttpRequest $request) use ($route): Response {
                 $request->setRouteResolver(static fn (): Route => $route);
