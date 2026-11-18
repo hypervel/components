@@ -239,7 +239,7 @@ class DeferredMetricsTest extends TestCase
             ->with('runtime.count', null, null, [])
             ->returns($counterDelegate);
         $workerMeter->expects('batchObserve')
-            ->with($callback, $counterDelegate, $foreignGauge)
+            ->with(Argument::same($callback), Argument::same($counterDelegate), Argument::same($foreignGauge))
             ->returns($delegateToken);
         $workerProvider = Double::for(MeterProviderInterface::class)->strict();
         $workerProvider->expects('getMeter')
@@ -288,23 +288,23 @@ class DeferredMetricsTest extends TestCase
         $batchToken = Double::for(ObservableCallbackInterface::class)->strict();
         $counter = Double::for(ObservableCounterInterface::class)->strict();
         $counter->allows('isEnabled')->returns(true);
-        $counter->expects('observe')->with($counterCallback)->returns($counterToken);
+        $counter->expects('observe')->with(Argument::same($counterCallback))->returns($counterToken);
         $gauge = Double::for(ObservableGaugeInterface::class)->strict();
         $gauge->allows('isEnabled')->returns(true);
         $upDownCounter = Double::for(ObservableUpDownCounterInterface::class)->strict();
         $upDownCounter->allows('isEnabled')->returns(true);
         $meter = Double::for(MeterInterface::class)->strict();
         $meter->expects('createObservableCounter')
-            ->with('runtime.count', null, null, [], $counterCreation)
+            ->with('runtime.count', null, null, [], Argument::same($counterCreation))
             ->returns($counter);
         $meter->expects('createObservableGauge')
-            ->with('runtime.gauge', null, null, [], $gaugeCreation)
+            ->with('runtime.gauge', null, null, [], Argument::same($gaugeCreation))
             ->returns($gauge);
         $meter->expects('createObservableUpDownCounter')
             ->with('runtime.active', null, null, [])
             ->returns($upDownCounter);
         $meter->expects('batchObserve')
-            ->with($batchCallback, $counter, $gauge)
+            ->with(Argument::same($batchCallback), Argument::same($counter), Argument::same($gauge))
             ->returns($batchToken);
         $provider = Double::for(MeterProviderInterface::class)->strict();
         $provider->expects('getMeter')

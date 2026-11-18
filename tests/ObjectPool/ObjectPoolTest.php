@@ -18,6 +18,7 @@ use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -70,7 +71,7 @@ class ObjectPoolTest extends TestCase
             $secondCancellation = new RuntimeException('Second cleanup failed.', previous: $secondCancellation);
         }
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($secondCancellation)->times($secondCleanupThrows ? 1 : 0);
+        $handler->expects('report')->with(Argument::same($secondCancellation))->times($secondCleanupThrows ? 1 : 0);
         $this->container()->instance(ExceptionHandler::class, $handler);
         $destroyed = [];
         $pool = $this->pool(
@@ -749,7 +750,7 @@ class ObjectPoolTest extends TestCase
         $container = $this->container();
         $failure = new RuntimeException('destroy failed');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->times(2)->with($failure);
+        $handler->expects('report')->times(2)->with(Argument::same($failure));
         $container->instance(ExceptionHandler::class, $handler);
         $pool = new InspectableObjectPool(
             PoolOptions::fromArray(['max_objects' => 2]),

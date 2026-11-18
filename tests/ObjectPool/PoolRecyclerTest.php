@@ -44,7 +44,7 @@ class PoolRecyclerTest extends TestCase
         $pool->expects('isIdleExpired')->returns(true);
         $manager = Double::for(Factory::class)->strict();
         $manager->expects('getPools')->returns(['idle' => $pool]);
-        $manager->expects('purge')->with('idle', $pool)->returns(true);
+        $manager->expects('purge')->with('idle', Argument::same($pool))->returns(true);
 
         (new InspectablePoolRecycler($manager))->maintain();
     }
@@ -59,7 +59,7 @@ class PoolRecyclerTest extends TestCase
         $snapshotManager = Double::for(Factory::class)->strict();
         $snapshotManager->expects('getPools')->returns(['shared' => $stale]);
         $snapshotManager->expects('purge')
-            ->with('shared', $stale)
+            ->with('shared', Argument::same($stale))
             ->resolves(fn (): bool => $manager->purge('shared', $stale));
 
         (new InspectablePoolRecycler($snapshotManager))->maintain();
@@ -214,7 +214,7 @@ class PoolRecyclerTest extends TestCase
         ]);
 
         if ($operation === 'purge') {
-            $manager->expects('purge')->with('canceled', $pool)->throws($cancellation);
+            $manager->expects('purge')->with('canceled', Argument::same($pool))->throws($cancellation);
         } else {
             $pool->expects('sweepExpired')->throws($cancellation);
             $pool->expects('trimIdle')->never();
@@ -264,7 +264,7 @@ class PoolRecyclerTest extends TestCase
     {
         $failure = new RuntimeException('maintenance failed');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($failure);
+        $handler->expects('report')->with(Argument::same($failure));
         $container = new Container;
         $container->instance(ExceptionHandler::class, $handler);
         Container::setInstance($container);

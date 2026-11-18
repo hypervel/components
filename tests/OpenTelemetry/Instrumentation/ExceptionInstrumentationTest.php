@@ -24,6 +24,7 @@ use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\DoubleInterface;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use OpenTelemetry\API\Common\Time\ClockInterface;
 use OpenTelemetry\API\Logs\LogRecordBuilderInterface;
 use OpenTelemetry\API\Logs\Severity;
@@ -203,7 +204,7 @@ class ExceptionInstrumentationTest extends TestCase
         );
         RequestTelemetryState::set($state);
         $this->userContexts->expects('resolve')
-            ->with($state)
+            ->with(Argument::same($state))
             ->returns(['user.id' => '42']);
 
         $this->handler->report(new RuntimeException('Request failed.'));

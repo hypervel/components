@@ -18,6 +18,7 @@ use Hypervel\ObjectPool\PoolProxy;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 
 class PoolProxyTest extends TestCase
@@ -126,12 +127,12 @@ class PoolProxyTest extends TestCase
         $configureFailure = new RuntimeException('configuration failed');
         $discardFailure = new RuntimeException('discard failed');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($discardFailure);
+        $handler->expects('report')->with(Argument::same($discardFailure));
         $this->container->instance(ExceptionHandler::class, $handler);
 
         $pool = Double::for(ObjectPoolContract::class)->strict();
         $pool->expects('borrow')->returns($object);
-        $pool->expects('discard')->with($object)->throws($discardFailure);
+        $pool->expects('discard')->with(Argument::same($object))->throws($discardFailure);
         $factory = Double::for(Factory::class)->strict();
         $factory->expects('getOrCreate')->returns($pool);
         $proxy = new InspectablePoolProxy(
@@ -156,7 +157,7 @@ class PoolProxyTest extends TestCase
         $operationFailure = new RuntimeException('operation failed');
         $finalizationFailure = new RuntimeException('release failed');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($finalizationFailure);
+        $handler->expects('report')->with(Argument::same($finalizationFailure));
         $this->container->instance(ExceptionHandler::class, $handler);
         $proxy = $this->proxy(
             static fn (): object => new PoolProxyObject($operationFailure),

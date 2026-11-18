@@ -10,6 +10,7 @@ use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 
 class PoolErrorReporterTest extends TestCase
@@ -24,7 +25,7 @@ class PoolErrorReporterTest extends TestCase
         Container::setInstance($container);
         $exception = new RuntimeException('reported through handler');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($exception);
+        $handler->expects('report')->with(Argument::same($exception));
         $container->instance(ExceptionHandler::class, $handler);
 
         PoolErrorReporter::report($exception);
