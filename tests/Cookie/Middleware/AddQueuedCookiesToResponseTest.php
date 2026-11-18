@@ -21,7 +21,7 @@ class AddQueuedCookiesToResponseTest extends TestCase
     {
         $queuedCookie = new Cookie('foo', 'bar');
 
-        $cookieManager = Double::for(CookieJar::class);
+        $cookieManager = Double::for(CookieJar::class)->strict();
         $cookieManager->expects('getQueuedCookies')->returns([$queuedCookie]);
 
         $request = Request::create('/test');

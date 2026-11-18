@@ -20,6 +20,7 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\LoggerInterface;
 use ReflectionProperty;
@@ -145,7 +146,7 @@ class TimerTest extends TestCase
 
     public function testCancellationDuringStartupReportingRollsBackThePublishedTimer(): void
     {
-        $handler = Double::for(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
         Container::getInstance()->instance(ExceptionHandlerContract::class, $handler);
         $timer = new Timer;
         $hookFailure = new RuntimeException('The startup hook failed.');
@@ -159,7 +160,7 @@ class TimerTest extends TestCase
         $callbackCalled = false;
 
         $handler->expects('report')
-            ->with($hookFailure)
+            ->with(Argument::same($hookFailure))
             ->resolves(static function () use (
                 $timer,
                 $reportStarted,
@@ -429,7 +430,7 @@ class TimerTest extends TestCase
     public function testTickStopsSilentlyWhenItsCallbackIsCancelled(): void
     {
         $logs = 0;
-        $logger = Double::for(LoggerInterface::class);
+        $logger = Double::for(LoggerInterface::class)->strict();
         $logger->allows('error')->resolves(
             static function () use (&$logs): void {
                 ++$logs;
@@ -474,7 +475,7 @@ class TimerTest extends TestCase
     {
         $this->wait(function (): void {
             $exception = new RuntimeException('recurring timer failed');
-            $logger = Double::for(LoggerInterface::class);
+            $logger = Double::for(LoggerInterface::class)->strict();
             $logger->expects('error')->with((string) $exception);
             $timer = new Timer($logger);
             $calls = 0;
@@ -548,11 +549,10 @@ class TimerTest extends TestCase
 
     public function testClearDontExistsClosure(): void
     {
+        $this->expectNotToPerformAssertions();
         $timer = new Timer;
 
         $timer->clear(999);
-
-        $this->assertTrue(true);
     }
 
     public function testUntil(): void
