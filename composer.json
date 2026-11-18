@@ -405,7 +405,12 @@
             "php-http/discovery": true,
             "tbachert/spi": true
         },
-        "sort-packages": true
+        "sort-packages": true,
+        "policy": {
+            "cooldown": {
+                "period": "3 days"
+            }
+        }
     },
     "extra": {
         "branch-alias": {

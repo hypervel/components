@@ -41,6 +41,13 @@
         "phpunit/phpunit": "~13.4.3",
         "symfony/yaml": "^8.1"
     },
+    "config": {
+        "policy": {
+            "cooldown": {
+                "period": "3 days"
+            }
+        }
+    },
     "extra": {
         "hypervel": {
             "providers": [
