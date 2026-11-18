@@ -87,7 +87,7 @@ class ScheduleTest extends TestCase
         Container::setInstance($this->container);
         $this->eventMutex = new FakeEventMutex;
         $this->container->instance(EventMutex::class, $this->eventMutex);
-        $this->schedulingMutex = Double::for(SchedulingMutex::class);
+        $this->schedulingMutex = Double::for(SchedulingMutex::class)->strict();
         $this->container->instance(SchedulingMutex::class, $this->schedulingMutex);
     }
 
@@ -126,7 +126,7 @@ class ScheduleTest extends TestCase
     public function testSynchronousJobResolvesToAFreshInstanceForEachFiring(): void
     {
         $dispatched = [];
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatchNow')->times(2)
             ->resolves(function (ScheduleTestMutableJob $job) use (&$dispatched): void {
                 self::assertFalse($job->handled);
@@ -160,7 +160,7 @@ class ScheduleTest extends TestCase
     {
         $job = new ScheduleTestMutableJob;
         ScheduleTestMutableJob::$constructions = 0;
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatchNow')
             ->resolves(static function (object $dispatched) use ($job): void {
                 self::assertSame($job, $dispatched);
@@ -176,7 +176,7 @@ class ScheduleTest extends TestCase
     public function testSuppliedQueuedJobIsDispatchedAsProvided(): void
     {
         $job = new ScheduleTestQueuedJob;
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch')
             ->resolves(static function (object $dispatched) use ($job): void {
                 self::assertSame($job, $dispatched);
@@ -193,7 +193,7 @@ class ScheduleTest extends TestCase
     public function testQueuedClassStringDoesNotRetainQueueStateAcrossEvents(): void
     {
         $dispatched = [];
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch')->times(2)
             ->resolves(static function (object $job) use (&$dispatched): void {
                 $dispatched[] = $job;
@@ -244,7 +244,7 @@ class ScheduleTest extends TestCase
     public function testDueEventsAtUsesGivenTime(bool $alwaysOnOneServer): void
     {
         Schedule::alwaysOnOneServer($alwaysOnOneServer);
-        $appDouble = Double::for(ApplicationContract::class, override: true);
+        $appDouble = Double::for(ApplicationContract::class, override: true)->strict();
         $app = $appDouble->instance();
         $appDouble->allows('isDownForMaintenance')->returns(false);
         $appDouble->allows('environment')->returns('production');
@@ -306,10 +306,10 @@ class ScheduleTest extends TestCase
 
     public function testUseCacheAcceptsStringBackedEnum(): void
     {
-        $eventMutex = Double::for(EventMutex::class, CacheAware::class);
+        $eventMutex = Double::for(EventMutex::class, CacheAware::class)->strict();
         $eventMutex->expects('useStore')->with('redis');
 
-        $schedulingMutex = Double::for(SchedulingMutex::class, CacheAware::class);
+        $schedulingMutex = Double::for(SchedulingMutex::class, CacheAware::class)->strict();
         $schedulingMutex->expects('useStore')->with('redis');
 
         $this->container->instance(EventMutex::class, $eventMutex);
@@ -321,10 +321,10 @@ class ScheduleTest extends TestCase
 
     public function testUseCacheAcceptsIntegerBackedEnum(): void
     {
-        $eventMutex = Double::for(EventMutex::class, CacheAware::class);
+        $eventMutex = Double::for(EventMutex::class, CacheAware::class)->strict();
         $eventMutex->expects('useStore')->with('1');
 
-        $schedulingMutex = Double::for(SchedulingMutex::class, CacheAware::class);
+        $schedulingMutex = Double::for(SchedulingMutex::class, CacheAware::class)->strict();
         $schedulingMutex->expects('useStore')->with('1');
 
         $this->container->instance(EventMutex::class, $eventMutex);

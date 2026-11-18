@@ -41,7 +41,7 @@ class ScheduleRunContextPropagationTest extends TestCase
     {
         parent::setUp();
 
-        $this->dispatcher = Double::for(Dispatcher::class);
+        $this->dispatcher = Double::for(Dispatcher::class)->strict();
         $this->dispatcher->allows('hasListeners')->returns(true);
         $this->dispatcher->allows('dispatch');
 
@@ -135,7 +135,7 @@ class ScheduleRunContextPropagationTest extends TestCase
         ContextRepository::getInstance()->add('parent_key', 'original');
         $childValues = [];
 
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
         $eventMutex->allows('create')->returns(true);
         $eventMutex->allows('forget');
 
@@ -169,7 +169,7 @@ class ScheduleRunContextPropagationTest extends TestCase
             ->addHidden('token', 'secret');
 
         $context = null;
-        $event = new Event(Double::for(EventMutex::class), 'printf %s "$__HYPERVEL_CONTEXT"', isSystem: true);
+        $event = new Event(Double::for(EventMutex::class)->strict(), 'printf %s "$__HYPERVEL_CONTEXT"', isSystem: true);
         $event->thenWithOutput(static function (Stringable $output) use (&$context): void {
             $context = (string) $output;
         });
@@ -189,7 +189,7 @@ class ScheduleRunContextPropagationTest extends TestCase
      */
     protected function makeBackgroundEvent(callable $callback): Event
     {
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
         $eventMutex->allows('create')->returns(true);
         $eventMutex->allows('forget');
 
@@ -226,9 +226,9 @@ class ScheduleRunContextPropagationTest extends TestCase
         $command = new ScheduleRunCommand;
         $command->setHypervel($this->app);
 
-        (new ReflectionProperty($command, 'schedule'))->setValue($command, Double::for(Schedule::class));
+        (new ReflectionProperty($command, 'schedule'))->setValue($command, Double::for(Schedule::class)->strict());
         (new ReflectionProperty($command, 'dispatcher'))->setValue($command, $this->dispatcher);
-        $cache = Double::for(Cache::class);
+        $cache = Double::for(Cache::class)->strict();
         $cache->allows('get')
             ->with('hypervel:schedule:paused', false)
             ->returns(false);
