@@ -285,9 +285,10 @@ class RedisSessionHandlerTest extends TestCase
     {
         $owners = [];
 
-        foreach (['users', 'admins'] as $authProvider) {
+        $connections = $this->expectConnections(2);
+        foreach (['users', 'admins'] as $index => $authProvider) {
+            $connection = $connections[$index];
             $container = $this->authenticatedContainer('1', withRequest: false, authProvider: $authProvider);
-            $connection = $this->expectConnection();
 
             $connection->expects('getOption')->with(Redis::OPT_PREFIX)->returns('');
             $connection->expects('evalSha')
@@ -348,12 +349,10 @@ class RedisSessionHandlerTest extends TestCase
         $owner = $this->ownerDigest('users', 'user-1');
         $expiresAt = CarbonImmutable::now()->getTimestamp() + 600;
         $handler = $this->handler(tracked: true);
-        $readConnection = $this->expectConnection(cluster: true);
+        [$readConnection, $connection] = $this->expectConnections(2, cluster: true);
         $readConnection->expects('get')->returns("\0HVS1{$owner}old");
 
         $this->assertSame('old', $handler->read(self::SESSION_ID));
-
-        $connection = $this->expectConnection(cluster: true);
 
         $connection->expects('evalSha')
             ->ordered()
@@ -407,12 +406,10 @@ class RedisSessionHandlerTest extends TestCase
     {
         $owner = $this->ownerDigest('users', 'user-1');
         $handler = $this->handler(tracked: true);
-        $readConnection = $this->expectConnection(cluster: true);
+        [$readConnection, $connection] = $this->expectConnections(2, cluster: true);
         $readConnection->expects('get')->returns("\0HVS1{$owner}old");
 
         $this->assertSame('old', $handler->read(self::SESSION_ID));
-
-        $connection = $this->expectConnection(cluster: true);
 
         $connection->expects('evalSha')
             ->with(Argument::type('string'), Argument::satisfies(static fn (array $parameters): bool => $parameters[0] === 'sessions:_users:' . $owner . ':sessions'), 1)
@@ -479,12 +476,11 @@ class RedisSessionHandlerTest extends TestCase
         $owner = $this->ownerDigest('users', 'user-1');
         $expiresAt = CarbonImmutable::now()->getTimestamp() + 600;
         $handler = $this->handler(tracked: true);
-        $readConnection = $this->expectConnection(cluster: true);
+        [$readConnection, $racedConnection, $retryConnection] = $this->expectConnections(3, cluster: true);
         $readConnection->expects('get')->returns(false);
 
         $this->assertSame('', $handler->read(self::SESSION_ID));
 
-        $racedConnection = $this->expectConnection(cluster: true);
         $racedConnection->expects('get')->never();
         $racedConnection->expects('hsetex')->never();
         $racedConnection->expects('evalSha')
@@ -498,7 +494,6 @@ class RedisSessionHandlerTest extends TestCase
 
         $this->assertFalse($handler->write(self::SESSION_ID, 'first'));
 
-        $retryConnection = $this->expectConnection(cluster: true);
         $retryConnection->expects('get')->never();
         $retryConnection->expects('evalSha')
             ->ordered()
@@ -524,12 +519,11 @@ class RedisSessionHandlerTest extends TestCase
         $actualOwner = $this->ownerDigest('users', 'actual-user');
         $expiresAt = CarbonImmutable::now()->getTimestamp() + 600;
         $handler = new ObservableRedisSessionHandler($this->redis, 'session', 'sessions:', 10, true);
-        $readConnection = $this->expectConnection(cluster: true);
+        [$readConnection, $racedConnection, $retryConnection] = $this->expectConnections(3, cluster: true);
         $readConnection->expects('get')->returns("\0HVS1{$observedOwner}old");
 
         $this->assertSame('old', $handler->read(self::SESSION_ID));
 
-        $racedConnection = $this->expectConnection(cluster: true);
         $racedConnection->expects('get')->never();
         $racedConnection->expects('evalSha')
             ->ordered()
@@ -548,7 +542,6 @@ class RedisSessionHandlerTest extends TestCase
         $this->assertFalse($handler->write(self::SESSION_ID, 'first'));
         $this->assertSame($actualOwner, $handler->observedOwnerForTesting(self::SESSION_ID));
 
-        $retryConnection = $this->expectConnection(cluster: true);
         $retryConnection->expects('get')->never();
         $retryConnection->expects('evalSha')
             ->ordered()
@@ -1112,23 +1105,42 @@ class RedisSessionHandlerTest extends TestCase
      */
     private function expectConnection(bool $cluster = false): (Redis&DoubleInterface)|(RedisCluster&DoubleInterface)
     {
-        $client = Double::for($cluster ? RedisCluster::class : Redis::class)->strict();
-        $client->expects('getOption')->with(Redis::OPT_SERIALIZER)->returns(Redis::SERIALIZER_NONE);
-        $client->expects('getOption')->with(Redis::OPT_COMPRESSION)->returns(Redis::COMPRESSION_NONE);
-        $client->allows('clearLastError');
-        $client->allows('getLastError')->returns(null);
+        return $this->expectConnections(1, $cluster)[0];
+    }
 
-        $connection = ($cluster ? new PhpRedisClusterConnectionStub : new PhpRedisConnectionStub)
-            ->setActiveConnection($client);
-        $proxy = Double::for(RedisProxy::class)->strict();
+    /**
+     * Expect the session connection lookups in order and return their native client doubles.
+     *
+     * @return list<(DoubleInterface&Redis)|(DoubleInterface&RedisCluster)>
+     */
+    private function expectConnections(int $count, bool $cluster = false): array
+    {
+        $clients = [];
+        $proxies = [];
 
-        $this->redis->allows('connection')->with('session')->returns($proxy);
-        $proxy->expects('isCluster')->returns($cluster);
-        $proxy->expects('withConnection')
-            ->with(Argument::type('callable'), false)
-            ->resolves(static fn (callable $callback): mixed => $callback($connection));
+        for ($i = 0; $i < $count; ++$i) {
+            $client = Double::for($cluster ? RedisCluster::class : Redis::class)->strict();
+            $client->expects('getOption')->with(Redis::OPT_SERIALIZER)->returns(Redis::SERIALIZER_NONE);
+            $client->expects('getOption')->with(Redis::OPT_COMPRESSION)->returns(Redis::COMPRESSION_NONE);
+            $client->allows('clearLastError');
+            $client->allows('getLastError')->returns(null);
 
-        return $client;
+            $connection = ($cluster ? new PhpRedisClusterConnectionStub : new PhpRedisConnectionStub)
+                ->setActiveConnection($client);
+            $proxy = Double::for(RedisProxy::class)->strict();
+
+            $proxy->expects('isCluster')->returns($cluster);
+            $proxy->expects('withConnection')
+                ->with(Argument::type('callable'), false)
+                ->resolves(static fn (callable $callback): mixed => $callback($connection));
+
+            $clients[] = $client;
+            $proxies[] = $proxy;
+        }
+
+        $this->redis->expects('connection')->with('session')->times($count)->returns(...$proxies);
+
+        return $clients;
     }
 
     /**
