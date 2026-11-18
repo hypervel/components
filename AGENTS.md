@@ -600,7 +600,7 @@ Double is lenient by default. Use `expects('method')->never()` to forbid a call,
 
 `with()` compares objects, including doubles, using `==`. Use `Argument::same($object)` when the exact instance matters or to preserve Mockery’s default identity check.
 
-Keep matcher predicates free of side effects. Use `Argument::capture()` to save an argument or `resolves()` to record a matched call.
+Keep matcher predicates free of side effects, including assertions. Use `Argument::capture()` to save an argument or `resolves()` to record a matched call.
 
 Do not overlap `allows()` stubs with `expects()` constraints when enforcing maximum call counts or `never()`; a matching stub can absorb those calls regardless of registration order.
 
