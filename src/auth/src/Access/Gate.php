@@ -633,9 +633,9 @@ class Gate implements GateContract
         $policyClass = $this->policyClassCache[$class] ?? null;
 
         if ($policyClass === null) {
-            // Only declared model names are cached. Other inputs may be user data, so their
-            // policy guesses are normalized to avoid unbounded worker state. For those inputs,
-            // register policies explicitly when relying on container configuration for PHP class aliases.
+            // Cache only declared model names. Normalize other guesses so the container doesn't
+            // cache a policy instance per user-supplied spelling. Register policies explicitly
+            // when those inputs rely on container configuration for PHP class aliases.
             $isDeclaredClass = class_exists($class) && (new ReflectionClass($class))->getName() === $class;
             $policyClass = $this->resolvePolicyClass($class, $isDeclaredClass);
 
