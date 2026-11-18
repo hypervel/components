@@ -39,7 +39,7 @@ class RedisBroadcasterTest extends TestCase
         parent::setUp();
 
         $this->container = new Container;
-        $this->redis = Double::for(Redis::class);
+        $this->redis = Double::for(Redis::class)->strict();
         $this->broadcaster = new RedisBroadcaster($this->container, $this->redis);
     }
 
@@ -147,10 +147,10 @@ class RedisBroadcasterTest extends TestCase
     public function testAuthUsesRewrittenChannelForConfiguredGuardAndPresenceUser(): void
     {
         $broadcaster = new RedisBroadcaster($this->container, $this->redis, 'default', 'redis.');
-        $user = Double::for(Authenticatable::class);
+        $user = Double::for(Authenticatable::class)->strict();
         $user->expects('getAuthIdentifier')->returns(42);
 
-        $request = Double::for(Request::class, override: true);
+        $request = Double::for(Request::class, override: true)->strict();
         $request->allows('input')
             ->with('channel_name')
             ->returns('redis.presence-application.tenant.orders.5');
@@ -255,7 +255,7 @@ class RedisBroadcasterTest extends TestCase
 
     public function testBroadcastUsesPublishPerChannelOnCluster(): void
     {
-        $connection = Double::for(RedisBroadcasterConnection::class);
+        $connection = Double::for(RedisBroadcasterConnection::class)->strict();
         $connection->expects('isCluster')->returns(true);
         $connection->expects('publish')->with('test-channel-1', Argument::type('string'));
         $connection->expects('publish')->with('test-channel-2', Argument::type('string'));
@@ -269,7 +269,7 @@ class RedisBroadcasterTest extends TestCase
 
     public function testClusterBroadcastWrapsRedisClusterException(): void
     {
-        $connection = Double::for(RedisBroadcasterConnection::class);
+        $connection = Double::for(RedisBroadcasterConnection::class)->strict();
         $connection->expects('isCluster')->returns(true);
         $connection->expects('publish')
             ->with('test-channel', Argument::type('string'))
@@ -286,7 +286,7 @@ class RedisBroadcasterTest extends TestCase
 
     public function testBroadcastUsesEvalOnNonCluster(): void
     {
-        $connection = Double::for(RedisBroadcasterConnection::class);
+        $connection = Double::for(RedisBroadcasterConnection::class)->strict();
         $connection->expects('isCluster')->returns(false);
         $connection->expects('eval');
         $connection->expects('publish')->never();
@@ -306,7 +306,7 @@ class RedisBroadcasterTest extends TestCase
             ),
         );
 
-        $connection = Double::for(RedisBroadcasterConnection::class);
+        $connection = Double::for(RedisBroadcasterConnection::class)->strict();
         $connection->expects('isCluster')->returns(true);
         $connection->expects('publish')
             ->with('application.orders', Argument::type('string'));
@@ -329,7 +329,7 @@ class RedisBroadcasterTest extends TestCase
             ),
         );
 
-        $connection = Double::for(RedisBroadcasterConnection::class);
+        $connection = Double::for(RedisBroadcasterConnection::class)->strict();
         $connection->expects('isCluster')->returns(false);
         $connection->expects('eval')
             ->with(
@@ -353,7 +353,7 @@ class RedisBroadcasterTest extends TestCase
         $this->expectException(JsonException::class);
 
         $this->redis->expects('connection')->returns(
-            Double::for(RedisBroadcasterConnection::class)
+            Double::for(RedisBroadcasterConnection::class)->strict()
         );
 
         $this->broadcaster->broadcast(
@@ -365,7 +365,7 @@ class RedisBroadcasterTest extends TestCase
 
     public function testBroadcastPayloadDoesNotDuplicateSocketInData(): void
     {
-        $connection = Double::for(RedisBroadcasterConnection::class);
+        $connection = Double::for(RedisBroadcasterConnection::class)->strict();
         $connection->allows('isCluster')->returns(false);
         $connection->expects('eval')->with(Argument::all(function (string $script, int $numberOfKeys, string $payload): bool {
             $decoded = json_decode($payload, true);

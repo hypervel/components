@@ -55,7 +55,7 @@ class BroadcastEventTest extends TestCase
 
     public function testBasicEventBroadcastParameterFormatting(): void
     {
-        $broadcaster = Double::for(Broadcaster::class);
+        $broadcaster = Double::for(Broadcaster::class)->strict();
 
         $broadcaster->expects('broadcast')->with(
             ['test-channel'],
@@ -63,7 +63,7 @@ class BroadcastEventTest extends TestCase
             ['firstName' => 'Taylor', 'lastName' => 'Otwell', 'collection' => ['foo' => 'bar']]
         );
 
-        $manager = Double::for(BroadcastingFactory::class);
+        $manager = Double::for(BroadcastingFactory::class)->strict();
 
         $manager->expects('connection')->with(null)->returns($broadcaster);
 
@@ -74,7 +74,7 @@ class BroadcastEventTest extends TestCase
 
     public function testManualParameterSpecification(): void
     {
-        $broadcaster = Double::for(Broadcaster::class);
+        $broadcaster = Double::for(Broadcaster::class)->strict();
 
         $broadcaster->expects('broadcast')->with(
             ['test-channel'],
@@ -82,7 +82,7 @@ class BroadcastEventTest extends TestCase
             ['name' => 'Taylor', 'socket' => null]
         );
 
-        $manager = Double::for(BroadcastingFactory::class);
+        $manager = Double::for(BroadcastingFactory::class)->strict();
 
         $manager->expects('connection')->with(null)->returns($broadcaster);
 
@@ -104,13 +104,13 @@ class BroadcastEventTest extends TestCase
         $payload = get_object_vars($event);
         $payload['collection'] = ['foo' => 'bar'];
 
-        $broadcaster = Double::for(Broadcaster::class);
+        $broadcaster = Double::for(Broadcaster::class)->strict();
         $broadcaster->expects('broadcast')->with(
             ['test-channel'],
             $event::class,
             Argument::satisfies(static fn (array $actual): bool => $actual == $payload),
         );
-        $manager = Double::for(BroadcastingFactory::class);
+        $manager = Double::for(BroadcastingFactory::class)->strict();
         $manager->expects('connection')->with(null)->returns($broadcaster);
 
         (new BroadcastEvent($event))->handle($manager);
@@ -118,11 +118,11 @@ class BroadcastEventTest extends TestCase
 
     public function testSpecificBroadcasterGiven(): void
     {
-        $broadcaster = Double::for(Broadcaster::class);
+        $broadcaster = Double::for(Broadcaster::class)->strict();
 
         $broadcaster->expects('broadcast');
 
-        $manager = Double::for(BroadcastingFactory::class);
+        $manager = Double::for(BroadcastingFactory::class)->strict();
 
         $manager->expects('connection')->with('log')->returns($broadcaster);
 
@@ -133,7 +133,7 @@ class BroadcastEventTest extends TestCase
 
     public function testSpecificChannelsPerConnection(): void
     {
-        $broadcaster = Double::for(Broadcaster::class);
+        $broadcaster = Double::for(Broadcaster::class)->strict();
 
         $broadcaster->expects('broadcast')->with(
             ['first-channel'],
@@ -147,7 +147,7 @@ class BroadcastEventTest extends TestCase
             ['firstName' => 'Taylor']
         );
 
-        $manager = Double::for(BroadcastingFactory::class);
+        $manager = Double::for(BroadcastingFactory::class)->strict();
 
         $manager->expects('connection')->with('first_connection')->returns($broadcaster);
         $manager->expects('connection')->with('second_connection')->returns($broadcaster);
@@ -191,11 +191,11 @@ class BroadcastEventTest extends TestCase
 
     public function testSingleStringChannelIsBroadcast(): void
     {
-        $broadcaster = Double::for(Broadcaster::class);
+        $broadcaster = Double::for(Broadcaster::class)->strict();
         $broadcaster->expects('broadcast')
             ->with(['test-channel'], TestBroadcastEventWithStringChannel::class, Argument::type('array'));
 
-        $manager = Double::for(BroadcastingFactory::class);
+        $manager = Double::for(BroadcastingFactory::class)->strict();
         $manager->expects('connection')->with(null)->returns($broadcaster);
 
         (new BroadcastEvent(new TestBroadcastEventWithStringChannel))->handle($manager);
@@ -294,14 +294,14 @@ class BroadcastEventTest extends TestCase
      */
     protected function assertEventBroadcastsAs(object $event, string $name): void
     {
-        $broadcaster = Double::for(Broadcaster::class);
+        $broadcaster = Double::for(Broadcaster::class)->strict();
         $broadcaster->expects('broadcast')->with(
             ['test-channel'],
             $name,
             ['firstName' => 'Taylor', 'lastName' => 'Otwell', 'collection' => ['foo' => 'bar']]
         );
 
-        $manager = Double::for(BroadcastingFactory::class);
+        $manager = Double::for(BroadcastingFactory::class)->strict();
         $manager->expects('connection')->with(null)->returns($broadcaster);
 
         (new BroadcastEvent($event))->handle($manager);

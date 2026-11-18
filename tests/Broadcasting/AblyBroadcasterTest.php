@@ -155,10 +155,10 @@ class AblyBroadcasterTest extends TestCase
     public function testAuthUsesRewrittenChannelForConfiguredGuardAndOriginalNameForPresenceSignature(): void
     {
         $wireChannel = 'presence-application.tenant.orders.5';
-        $user = Double::for(Authenticatable::class);
+        $user = Double::for(Authenticatable::class)->strict();
         $user->expects('getAuthIdentifier')->returns(42);
 
-        $request = Double::for(Request::class, override: true);
+        $request = Double::for(Request::class, override: true)->strict();
         $request->allows('input')->with('channel_name')->returns($wireChannel);
         $request->allows('input')->with('socket_id')->returns('abcd.1234');
         $request->expects('user')->times(3)->with('members')->returns($user);

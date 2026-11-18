@@ -26,7 +26,7 @@ class LogBroadcasterTest extends TestCase
             ),
         );
 
-        $logger = Double::for(LoggerInterface::class);
+        $logger = Double::for(LoggerInterface::class)->strict();
         $logger->expects('info')
             ->with(Argument::satisfies(
                 static fn (string $message): bool => str_contains(
@@ -46,7 +46,7 @@ class LogBroadcasterTest extends TestCase
     {
         $this->expectException(JsonException::class);
 
-        $logger = Double::for(LoggerInterface::class);
+        $logger = Double::for(LoggerInterface::class)->strict();
         $logger->expects('info')->never();
 
         (new LogBroadcaster($logger))->broadcast(

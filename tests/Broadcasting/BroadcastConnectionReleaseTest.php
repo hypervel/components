@@ -47,7 +47,7 @@ class BroadcastConnectionReleaseTest extends TestCase
     public function testPusherReleasesIdleSessionsAndPreservesTransactionsAndPins(): void
     {
         $observed = [];
-        $pusher = Double::for(Pusher::class);
+        $pusher = Double::for(Pusher::class)->strict();
         $pusher->expects('trigger')->times(12)->resolves(function () use (&$observed): object {
             $observed[] = $this->borrowedConnections();
             DB::connection('broadcast')->selectOne('select 1');
@@ -66,13 +66,13 @@ class BroadcastConnectionReleaseTest extends TestCase
     public function testAblyReleasesAfterPreparingTheMessage(): void
     {
         $observed = [];
-        $ably = Double::for(AblyRest::class);
-        $channel = Double::for(Channel::class);
+        $ably = Double::for(AblyRest::class)->strict();
+        $channel = Double::for(Channel::class)->strict();
         $channel->expects('publish')->times(3)->resolves(function () use (&$observed): void {
             $observed[] = $this->borrowedConnections();
         });
         $channel->expects('getCipherParams')->times(3)->returns(null);
-        $ably->channels = Double::for(Channels::class);
+        $ably->channels = Double::for(Channels::class)->strict();
         $ably->channels->expects('get')->times(3)->returns($channel);
         $ably->channels->expects('release')->times(3);
         $broadcaster = Double::for(new AblyBroadcaster($this->app, $ably))->passthru();
@@ -90,7 +90,7 @@ class BroadcastConnectionReleaseTest extends TestCase
     public function testMercureReleasesBeforeBorrowingItsHttpClient(): void
     {
         $observed = [];
-        $token = Double::for(TokenProviderInterface::class);
+        $token = Double::for(TokenProviderInterface::class)->strict();
         $token->allows('getJwt')->returns('test.token.signature');
         $hub = new Hub(
             new PoolDefinition('release-test', 'mercure', 'release-test', PoolOptions::fromArray([])),

@@ -41,7 +41,7 @@ class PusherBroadcasterTest extends TestCase
         parent::setUp();
 
         $this->container = new ApplicationContainer;
-        $this->pusher = Double::for(Pusher::class);
+        $this->pusher = Double::for(Pusher::class)->strict();
         $this->broadcaster = new PusherBroadcaster($this->container, $this->pusher);
     }
 
@@ -151,10 +151,10 @@ class PusherBroadcasterTest extends TestCase
         $wireChannel = 'presence-application.tenant.orders.5';
         $calls = 0;
         $boundOrder = null;
-        $user = Double::for(Authenticatable::class);
+        $user = Double::for(Authenticatable::class)->strict();
         $user->expects('getAuthIdentifier')->returns(42);
 
-        $request = Double::for(Request::class, override: true);
+        $request = Double::for(Request::class, override: true)->strict();
         $request->allows('input')->with('channel_name')->returns($wireChannel);
         $request->allows('input')->with('socket_id')->returns('abcd.1234');
         $request->allows('input')->with('callback', false)->returns(false);
@@ -303,8 +303,8 @@ class PusherBroadcasterTest extends TestCase
         $container->singleton(
             ResponseFactoryContract::class,
             fn (): ResponseFactory => new ResponseFactory(
-                Double::for(ViewFactory::class),
-                Double::for(Redirector::class),
+                Double::for(ViewFactory::class)->strict(),
+                Double::for(Redirector::class)->strict(),
             )
         );
 

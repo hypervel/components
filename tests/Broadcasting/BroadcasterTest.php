@@ -72,7 +72,7 @@ class BroadcasterTest extends TestCase
         $this->assertSame([], $parameters);
 
         // Test Explicit Binding...
-        $binder = Double::for(BindingRegistrar::class);
+        $binder = Double::for(BindingRegistrar::class)->strict();
         $binder->expects('getBindingCallback')->times(2)->with('model')->returns(function (): string {
             return 'bound';
         });
@@ -96,7 +96,7 @@ class BroadcasterTest extends TestCase
     public function testCallableChannelHandlersReceiveTheUserAndBoundModel(callable $handler): void
     {
         $user = new DummyUser;
-        $request = Double::for(Request::class, override: true);
+        $request = Double::for(Request::class, override: true)->strict();
         $request->expects('user')->with(Argument::none())->returns($user);
 
         $this->broadcaster->channel('orders.{order}', $handler);
@@ -122,7 +122,7 @@ class BroadcasterTest extends TestCase
 
     public function testModelRouteBinding(): void
     {
-        $binder = Double::for(BindingRegistrar::class);
+        $binder = Double::for(BindingRegistrar::class)->strict();
         $routeModelCallback = RouteBinding::forModel($this->container, BroadcasterTestEloquentModelStub::class);
 
         $binder->expects('getBindingCallback')->times(2)->with('model')->returns($routeModelCallback);
@@ -348,7 +348,7 @@ class BroadcasterTest extends TestCase
 
     public function testChannelAuthorizerRewritesTheNameBeforeGuardLookupBindingAndInvocation(): void
     {
-        $request = Double::for(Request::class, override: true);
+        $request = Double::for(Request::class, override: true)->strict();
         $user = new DummyUser;
         $request->expects('user')->times(2)->with('members')->returns($user);
 
@@ -410,7 +410,7 @@ class BroadcasterTest extends TestCase
 
     public function testChannelAuthorizerLeavesUnchangedNamesOnTheNativePath(): void
     {
-        $request = Double::for(Request::class, override: true);
+        $request = Double::for(Request::class, override: true)->strict();
         $user = new DummyUser;
         $request->expects('user')->with(Argument::none())->returns($user);
 
@@ -429,7 +429,7 @@ class BroadcasterTest extends TestCase
 
     public function testChannelAuthorizerIsSingleOwner(): void
     {
-        $request = Double::for(Request::class, override: true);
+        $request = Double::for(Request::class, override: true)->strict();
         $request->expects('user')->with(Argument::none())->returns(new DummyUser);
 
         Broadcaster::authorizeChannelsUsing(static fn (Request $request, string $channel): ?string => null);
@@ -444,7 +444,7 @@ class BroadcasterTest extends TestCase
 
     public function testPassingNullRemovesChannelAuthorizer(): void
     {
-        $request = Double::for(Request::class, override: true);
+        $request = Double::for(Request::class, override: true)->strict();
         $request->expects('user')->with(Argument::none())->returns(new DummyUser);
 
         Broadcaster::authorizeChannelsUsing(static fn (Request $request, string $channel): ?string => null);
@@ -457,7 +457,7 @@ class BroadcasterTest extends TestCase
 
     public function testBaseChannelResponsePathPreservesPublicOverrides(): void
     {
-        $request = Double::for(Request::class, override: true);
+        $request = Double::for(Request::class, override: true)->strict();
         $request->expects('user')->with(Argument::none())->returns(new DummyUser);
 
         $broadcaster = new PublicResponseOnlyBroadcaster($this->container);
@@ -528,7 +528,7 @@ class BroadcasterTest extends TestCase
         $this->assertSame([], $this->broadcaster->retrieveChannelOptions('orders'));
         $this->assertSame(['orders'], $this->broadcaster->formatOutgoingChannels(['orders']));
 
-        $request = Double::for(Request::class, override: true);
+        $request = Double::for(Request::class, override: true)->strict();
         $request->expects('user')->with(Argument::none())->returns(new DummyUser);
         $this->broadcaster->channel('orders', static fn (): bool => true);
         $this->assertTrue($this->broadcaster->verifyAccess($request->instance(), 'orders'));

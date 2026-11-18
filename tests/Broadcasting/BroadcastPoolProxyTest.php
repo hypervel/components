@@ -35,7 +35,7 @@ class BroadcastPoolProxyTest extends TestCase
 
     public function testAuthenticatedUserResolverStateIsWrittenOnEveryBorrowIncludingNull(): void
     {
-        $broadcaster = new PoolProxyUserAuthenticationBroadcaster(Double::for(ContainerContract::class, override: true)->instance());
+        $broadcaster = new PoolProxyUserAuthenticationBroadcaster(Double::for(ContainerContract::class, override: true)->strict()->instance());
         [$configured, $pools, $definition] = $this->proxy(fn () => $broadcaster);
         [$unconfigured] = $this->proxy(fn () => $broadcaster, $pools, $definition);
         $configured->resolveAuthenticatedUserUsing(function (Request $request): array {
@@ -64,7 +64,7 @@ class BroadcastPoolProxyTest extends TestCase
     public function testReplacingAndClearingAuthenticatedUserResolverUpdatesBorrowedBroadcaster(): void
     {
         [$proxy] = $this->proxy(
-            fn () => new PoolProxyUserAuthenticationBroadcaster(Double::for(ContainerContract::class, override: true)->instance())
+            fn () => new PoolProxyUserAuthenticationBroadcaster(Double::for(ContainerContract::class, override: true)->strict()->instance())
         );
         $request = Request::create('/broadcasting/user-auth', 'POST');
 
@@ -110,7 +110,7 @@ class BroadcastPoolProxyTest extends TestCase
     public function testChannelRegistrationReturnsTheProxy(): void
     {
         [$proxy] = $this->proxy(
-            fn () => new PoolProxyUserAuthenticationBroadcaster(Double::for(ContainerContract::class, override: true)->instance())
+            fn () => new PoolProxyUserAuthenticationBroadcaster(Double::for(ContainerContract::class, override: true)->strict()->instance())
         );
 
         $this->assertSame($proxy, $proxy->channel('orders.{order}', fn (): bool => true));
