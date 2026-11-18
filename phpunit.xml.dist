@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit backupGlobals="false"
+         defaultTestSuite="Hypervel Packages Test Suite"
          bootstrap="tests/bootstrap.php"
          beStrictAboutTestsThatDoNotTestAnything="false"
          colors="true"
@@ -19,6 +20,24 @@
             <directory suffix="Test.php">./tests</directory>
             <!-- PHPStan analyzer tests run through phpunit.phpstan.xml.dist. -->
             <exclude>./tests/PHPStan</exclude>
+        </testsuite>
+        <testsuite name="database">
+            <directory>./tests/Integration/Database</directory>
+            <directory>./tests/Integration/*/Database</directory>
+            <!-- Only direct package tests are shared. Each driver suite includes its own subdirectories. -->
+            <exclude>./tests/Integration/*/Database/*/</exclude>
+        </testsuite>
+        <testsuite name="mysql">
+            <directory>./tests/Integration/*/Database/MySql</directory>
+        </testsuite>
+        <testsuite name="mariadb">
+            <directory>./tests/Integration/*/Database/MariaDb</directory>
+        </testsuite>
+        <testsuite name="pgsql">
+            <directory>./tests/Integration/*/Database/Postgres</directory>
+        </testsuite>
+        <testsuite name="sqlite">
+            <directory>./tests/Integration/*/Database/Sqlite</directory>
         </testsuite>
     </testsuites>
     <extensions>
