@@ -38,8 +38,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testRetriesSingleJobByPushingItsRawPayload(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $job = $this->failedJob(id: '5', connection: 'database', queue: 'default');
 
@@ -52,8 +52,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testRetriesSingleJobByPushingItsRawPayloadWithOptions(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(SqsQueue::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(SqsQueue::class)->strict();
 
         $job = $this->failedJob(id: '5', connection: 'database', queue: 'default');
 
@@ -71,7 +71,7 @@ class QueueRetryCommandTest extends TestCase
     #[TestWith(['0'])]
     public function testDisplaysErrorWhenJobIsNotFound(string $id): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
         $failer->expects('find')->with($id)->returns(null);
 
         $output = $this->runRetryCommand(['id' => [$id]], $failer, []);
@@ -83,8 +83,8 @@ class QueueRetryCommandTest extends TestCase
     #[TestWith([[1, 2]])]
     public function testRetriesAllFailedJobsUsingTheProvidersIds(array $ids): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $failer->expects('ids')->with()->returns($ids);
 
@@ -106,8 +106,8 @@ class QueueRetryCommandTest extends TestCase
     #[TestWith(['0'])]
     public function testRetriesJobsOnTheSpecifiedQueue(string $queueName): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $failer->expects('ids')->with($queueName)->returns(['2']);
         $failer->expects('find')->with('2')->returns($this->failedJob(id: '2', connection: 'database', queue: $queueName));
@@ -119,7 +119,7 @@ class QueueRetryCommandTest extends TestCase
 
     public function testDisplaysErrorWhenTheSpecifiedQueueHasNoFailedJobs(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
         $failer->expects('ids')->with('emails')->returns([]);
 
         $output = $this->runRetryCommand(['--queue' => 'emails'], $failer, []);
@@ -130,8 +130,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testRetriesJobsWithinTheGivenIdRange(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $failer->expects('find')->with('1')->returns($this->failedJob(id: '1', connection: 'database', queue: 'default'));
         $queue->expects('pushRaw')->with($this->retriedPayload(id: '1'), 'default', []);
@@ -159,8 +159,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testItResetsAttemptsCountWhenRetryingAJob(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $job = $this->failedJob(id: '1', connection: 'database', queue: 'default', payload: ['attempts' => 5]);
 
@@ -177,8 +177,8 @@ class QueueRetryCommandTest extends TestCase
     #[TestWith([true], 'custom object handler')]
     public function testRefreshesTheRetryUntilTimestampWhenTheJobDefinesRetryUntil(bool $customHandler): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $job = $this->failedJob(
             id: '1',
@@ -207,8 +207,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testPassesQueueableOptionsToTheQueueWhenRetryingASingleJob(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(SqsQueue::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(SqsQueue::class)->strict();
 
         $job = $this->failedJob(id: '1', connection: 'sqs', queue: 'default');
 
@@ -224,9 +224,9 @@ class QueueRetryCommandTest extends TestCase
 
     public function testDispatchesRetryRequestedEventWhenRetryingASingleJob(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
-        $events = Double::for(Dispatcher::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
+        $events = Double::for(Dispatcher::class)->strict();
 
         $job = $this->failedJob(id: '1', connection: 'database', queue: 'default');
 
@@ -240,8 +240,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testRetriesCollectionOfJobs(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $jobs = new Collection([
             'job-1' => $this->failedJob(id: 'job-1', connection: 'database', queue: 'default'),
@@ -261,8 +261,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testRetriesALazyCollectionOfJobsAndDoesNotResolveThemAllEagerly(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $unresolvedCounts = [];
 
@@ -315,8 +315,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testItResetsAttemptsCountWhenRetryingACollectionOfJobs(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $jobs = new Collection([
             'job-1' => $this->failedJob(id: 'job-1', connection: 'database', queue: 'default', payload: ['attempts' => 5]),
@@ -333,8 +333,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testRefreshesTheRetryUntilTimestampWhenRetryingACollectionOfJobs(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $jobs = new Collection([
             'job-1' => $this->failedJob(
@@ -357,7 +357,7 @@ class QueueRetryCommandTest extends TestCase
 
     public function testDisplaysErrorWhenTheGivenIdResolvesToAnEmptyCollection(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
         $failer->expects('find')->with('batch')->returns(new Collection);
 
         $output = $this->runRetryCommand(['id' => ['batch']], $failer, []);
@@ -369,7 +369,7 @@ class QueueRetryCommandTest extends TestCase
 
     public function testDisplaysErrorWhenTheGivenIdResolvesToAnEmptyLazyCollection(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
 
         $resolved = false;
 
@@ -390,8 +390,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testContinuesRetryingRemainingJobsAfterAJobIsNotFound(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $failer->expects('find')->with('1')->returns(null);
 
@@ -407,8 +407,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testContinuesRetryingRemainingJobsAfterAnIdResolvesToAnEmptyCollection(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $failer->expects('find')->with('batch')->returns(new Collection);
 
@@ -424,8 +424,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testRetriesAMixtureOfSingleJobsAndCollectionsOfJobs(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $failer->expects('find')->with('batch')->returns(new Collection([
             'job-1' => $this->failedJob(id: 'job-1', connection: 'database', queue: 'default'),
@@ -448,8 +448,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testForgetsJobsUsingTheCollectionKeyRatherThanTheJobId(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $key = 'https://cloud.test/failed-jobs/batch-1:job-1';
 
@@ -467,8 +467,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testForgetsJobsUsingTheCollectionKeyWhenTheCollectionIsNotKeyed(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $failer->expects('find')->with('batch')->returns(new Collection([
             $this->failedJob(id: 'job-1', connection: 'database', queue: 'default'),
@@ -486,9 +486,9 @@ class QueueRetryCommandTest extends TestCase
 
     public function testDispatchesRetryRequestedEventForEveryJobInACollection(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
-        $events = Double::for(Dispatcher::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
+        $events = Double::for(Dispatcher::class)->strict();
 
         $jobs = new Collection([
             'job-1' => $this->failedJob(id: 'job-1', connection: 'database', queue: 'default'),
@@ -514,8 +514,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testStopsRetryingWhenAJobInACollectionFailsToBePushed(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $pendingJobs = [
             'job-1' => $this->failedJob(id: 'job-1', connection: 'database', queue: 'default'),
@@ -557,8 +557,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testRetriesRemainingJobsWhenAJobsModelNoLongerExists(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $missing = $this->failedJob(id: 'job-1', connection: 'database', queue: 'default', job: new QueueRetryCommandTestJobWithMissingModel);
 
@@ -580,8 +580,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testRetriesStringJobsWithoutInterpretingTheirCommandData(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
         $data = ['command' => 'backup:run', 'commandName' => 'backup:run'];
         $job = $this->failedJob(id: '1', connection: 'database', queue: 'default');
         $job->payload = (new QueueRetryCommandCustomQueue)->payloadFor('RunCommand@handle', $data);
@@ -595,7 +595,7 @@ class QueueRetryCommandTest extends TestCase
 
     public function testRetriesJobWithoutQueueableOptionsWhenItsModelNoLongerExists(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
         $handler = new MockHandler([new Result(['MessageId' => 'message-1'])]);
         $sqs = $this->sqsClient($handler);
         $queue = new SqsQueue($sqs, 'default', 'https://sqs.example.test');
@@ -616,7 +616,7 @@ class QueueRetryCommandTest extends TestCase
     #[DataProvider('jobsWithoutRestorableObjects')]
     public function testRetriesSqsJobsWithDefaultOptionsWhenNoObjectCanBeRestored(string $queueName, array $payload): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
         $handler = new MockHandler([new Result(['MessageId' => 'message-1'])]);
         $sqs = $this->sqsClient($handler);
         $queue = new SqsQueue($sqs, $queueName, 'https://sqs.example.test');
@@ -671,9 +671,9 @@ class QueueRetryCommandTest extends TestCase
 
     public function testDispatchesTheEventBeforePushingAndForgetsTheJobAfterwards(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
-        $events = Double::for(Dispatcher::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
+        $events = Double::for(Dispatcher::class)->strict();
 
         $jobs = new Collection([
             'job-1' => $this->failedJob(id: 'job-1', connection: 'database', queue: 'default'),
@@ -704,8 +704,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testOutputsAnEntryForEveryJobInACollection(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $jobs = new Collection([
             'job-1' => $this->failedJob(id: 'job-1', connection: 'database', queue: 'default'),
@@ -728,8 +728,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testRetriesCollectionsOfJobsWhenRetryingAllFailedJobs(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $failer->expects('ids')->with()->returns(['batch-1', 'batch-2']);
 
@@ -752,8 +752,8 @@ class QueueRetryCommandTest extends TestCase
 
     public function testRetriesTheSameJobTwiceWhenItAppearsInTwoCollections(): void
     {
-        $failer = Double::for(FailedJobProviderInterface::class);
-        $queue = Double::for(QueueContract::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
 
         $failer->expects('find')->with('batch-1')->returns(new Collection([
             'job-1' => $this->failedJob(id: 'job-1', connection: 'database', queue: 'default'),
@@ -832,7 +832,7 @@ class QueueRetryCommandTest extends TestCase
 
         $container->instance('queue.failer', $failer);
 
-        $manager = Double::for(QueueManager::class);
+        $manager = Double::for(QueueManager::class)->strict();
 
         foreach ($connections as $name => $queue) {
             $manager->allows('connection')->with($name)->returns($queue);
@@ -840,14 +840,10 @@ class QueueRetryCommandTest extends TestCase
 
         $container->instance('queue', $manager);
 
-        if (is_null($events)) {
-            $events = Double::for(Dispatcher::class);
-            $events->allows('dispatch');
+        if ($events !== null) {
+            $events->allows('hasListeners')->resolves(static fn (string $event): bool => $event === JobRetryRequested::class);
+            $container->instance('events', $events);
         }
-
-        $events->allows('hasListeners')->with(JobRetryRequested::class)->returns(true);
-
-        $container->instance('events', $events);
 
         $command = new RetryCommand;
         $command->setHypervel($container);

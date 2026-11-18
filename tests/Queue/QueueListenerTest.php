@@ -71,7 +71,6 @@ class QueueListenerTest extends TestCase
         $stop = new RuntimeException('Stop listening.');
         $runs = 0;
         $listener = Double::for(Listener::class)->passthru(new Listener(__DIR__));
-        $listener->allows('makeProcess')->returns(Double::for(Process::class));
         $listener->expects('runProcess')->times(2)->resolves(static function () use (&$runs, $stop): void {
             if (++$runs === 2) {
                 throw $stop;

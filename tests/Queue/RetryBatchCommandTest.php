@@ -26,7 +26,7 @@ class RetryBatchCommandTest extends TestCase
     #[TestWith(['0'])]
     public function testItFailsWhenTheBatchCannotBeFound(string $id): void
     {
-        $repo = Double::for(BatchRepository::class);
+        $repo = Double::for(BatchRepository::class)->strict();
         $repo->expects('find')->with($id)->returns(null);
 
         $this->app->instance(BatchRepository::class, $repo);
@@ -45,8 +45,8 @@ class RetryBatchCommandTest extends TestCase
     public function testItFailsWhenTheBatchHasNoFailedJobs(): void
     {
         $batch = new Batch(
-            Double::for(QueueFactory::class),
-            Double::for(BatchRepository::class),
+            Double::for(QueueFactory::class)->strict(),
+            Double::for(BatchRepository::class)->strict(),
             'empty-batch',
             'Empty Batch',
             0,
@@ -57,7 +57,7 @@ class RetryBatchCommandTest extends TestCase
             CarbonImmutable::now(),
         );
 
-        $repo = Double::for(BatchRepository::class);
+        $repo = Double::for(BatchRepository::class)->strict();
         $repo->expects('find')->with('empty-batch')->returns($batch);
 
         $this->app->instance(BatchRepository::class, $repo);
@@ -79,12 +79,12 @@ class RetryBatchCommandTest extends TestCase
 
     public function testItCanBeRunInIsolation(): void
     {
-        $repo = Double::for(BatchRepository::class);
+        $repo = Double::for(BatchRepository::class)->strict();
         $repo->expects('find')->with('batch-id')->returns(null);
 
         $this->app->instance(BatchRepository::class, $repo);
 
-        $mutex = Double::for(CommandMutex::class);
+        $mutex = Double::for(CommandMutex::class)->strict();
         $mutex->expects('create')->returns(true);
         $mutex->expects('forget')->returns(true);
 

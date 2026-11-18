@@ -169,7 +169,7 @@ class QueueListFailedCommandTest extends TestCase
         $container = new Application;
 
         // The command resolves the failer via the queue.failer container binding.
-        $failer = Double::for(FailedJobProviderInterface::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
         $failer->expects('all')->returns($rows);
         $container->instance('queue.failer', $failer);
 

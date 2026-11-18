@@ -360,7 +360,7 @@ class QueueWorkerTest extends TestCase
     public function testInvalidPayloadTerminatesBeforeProcessingAndIsReportedOnce(): void
     {
         $this->spyEvents();
-        $this->exceptionHandler = Double::for(ExceptionHandlerContract::class);
+        $this->exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
         $order = [];
         $attemptedEvent = null;
         $exception = new InvalidPayloadException('Invalid queue payload.', '{invalid');
@@ -378,7 +378,7 @@ class QueueWorkerTest extends TestCase
         );
         $this->exceptionHandler->expects('report')
             ->times(1)
-            ->with($exception)
+            ->with(Argument::same($exception))
             ->resolves(function () use (&$order): void {
                 $order[] = 'reported';
             });
@@ -553,6 +553,7 @@ class QueueWorkerTest extends TestCase
     public function testJobPopEventsAreSkippedWhenNoListenersAreRegistered(): void
     {
         $this->spyEvents();
+        $this->events->allows('dispatch');
         $this->events->allows('hasListeners')->with(JobPopping::class)->returns(false);
         $this->events->allows('hasListeners')->with(JobPopped::class)->returns(false);
 
@@ -673,6 +674,7 @@ class QueueWorkerTest extends TestCase
     public function testNonKillingTimeoutUnwindsAndRetriesOnlyTheExpiredJob(bool $listenerThrows, bool $catchCancellation): void
     {
         $this->spyEvents();
+        $this->events->allows('dispatch');
         Worker::$killOnTimeout = false;
         Worker::$pausable = false;
         $timer = new QueueWorkerTimer;
@@ -846,8 +848,8 @@ class QueueWorkerTest extends TestCase
         $errorLog = null;
         if ($reportingMode !== 'normal') {
             $errorLog = $this->captureErrorLog();
-            $this->exceptionHandler = Double::for(ExceptionHandlerContract::class);
-            $report = $this->exceptionHandler->expects('report')->with($cleanupException);
+            $this->exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
+            $report = $this->exceptionHandler->expects('report')->with(Argument::same($cleanupException));
             if ($reportingMode === 'cancellation') {
                 $report->resolves(function () use ($reportingFailure): never {
                     try {
@@ -866,11 +868,11 @@ class QueueWorkerTest extends TestCase
         $command = new class {
             use InteractsWithQueue;
         };
-        $limiter = Double::for(Limiter::class);
+        $limiter = Double::for(Limiter::class)->strict();
         $limiter->expects('inspect')->with(Argument::type(Limit::class))->returns(new LimitResult(true, 10, 10, 0, 0));
         $limiter->expects('consume')->never();
         $limiter->expects('clear')->never();
-        $rateLimiter = Double::for(RateLimiter::class, override: true);
+        $rateLimiter = Double::for(RateLimiter::class, override: true)->strict();
         $rateLimiter->expects('store')->with(null)->returns($limiter);
         $this->container->instance(RateLimiter::class, $rateLimiter->instance());
         $job = Double::for(WorkerFakeJob::class)->passthru(new WorkerFakeJob(static function () use ($command, $gate, $cleanupException): void {
@@ -1028,6 +1030,7 @@ class QueueWorkerTest extends TestCase
     public function testTimeoutScanDoesNotCancelCompletedCleanupOrTimeoutAnotherFinishedJob(): void
     {
         $this->spyEvents();
+        $this->events->allows('dispatch');
         Worker::$killOnTimeout = false;
         $timer = new QueueWorkerTimer;
         $firstGate = new Channel(1);
@@ -1051,14 +1054,14 @@ class QueueWorkerTest extends TestCase
         $worker->currentTime = 100;
         $options = new WorkerOptions;
         $worker->startMonitorForTest($options);
-        $interruptible = Double::for(Interruptible::class);
+        $interruptible = Double::for(Interruptible::class)->strict();
         $interruptible->expects('interrupted')->with(SIGALRM)->resolves(
             static function () use ($firstGate, $secondGate): void {
                 $firstGate->push(true);
                 $secondGate->push(true);
             }
         );
-        $handler = Double::for(CallQueuedHandler::class);
+        $handler = Double::for(CallQueuedHandler::class)->strict();
         $handler->expects('getRunningCommand')->returns($interruptible);
         $first->resolvedJob = $handler;
         $coroutines = [];
@@ -1106,7 +1109,7 @@ class QueueWorkerTest extends TestCase
         $callbackCoroutineIds = [];
         $contextValues = [];
         $completed = new Channel(1);
-        $logger = Double::for(LoggerInterface::class);
+        $logger = Double::for(LoggerInterface::class)->strict();
         $logger->expects('error')->times(1)->resolves(
             static fn (string $message): bool => $completed->push($message),
         );
@@ -1193,8 +1196,8 @@ class QueueWorkerTest extends TestCase
         $errorLog = null;
         if ($reportingThrows) {
             $errorLog = $this->captureErrorLog();
-            $this->exceptionHandler = Double::for(ExceptionHandlerContract::class);
-            $this->exceptionHandler->expects('report')->with($error)->throws(new RuntimeException('Reporting failed.'));
+            $this->exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
+            $this->exceptionHandler->expects('report')->with(Argument::same($error))->throws(new RuntimeException('Reporting failed.'));
         }
         $timer = new QueueWorkerTimer;
         $worker = new KillTestWorker(...$this->workerDependencies(timer: $timer));
@@ -1294,18 +1297,19 @@ class QueueWorkerTest extends TestCase
     public function testDaemonClearsItsMonitorWhenTheLoopThrows(): void
     {
         $timer = new QueueWorkerTimer;
+        $failure = new LoopBreakerException;
         $worker = $this->getWorker(
             'default',
             ['queue' => []],
-            static fn (): never => throw new LoopBreakerException,
+            static fn (): never => throw $failure,
             $timer,
         );
 
         try {
             $worker->daemon('default', 'queue', new WorkerOptions);
             $this->fail('Expected the daemon loop to fail.');
-        } catch (LoopBreakerException) {
-            $this->addToAssertionCount(1);
+        } catch (LoopBreakerException $exception) {
+            $this->assertSame($failure, $exception);
         }
 
         $this->assertSame([1], $timer->registered);
@@ -1704,7 +1708,7 @@ class QueueWorkerTest extends TestCase
 
     public function testDaemonShouldRunSkipsLoopingEventWhenNoListenersAreRegistered(): void
     {
-        $events = Double::for(EventDispatcher::class);
+        $events = Double::for(EventDispatcher::class)->strict();
         $events->expects('hasListeners')->times(1)->with(Looping::class)->returns(false);
         $events->expects('until')->never();
 
@@ -1721,7 +1725,7 @@ class QueueWorkerTest extends TestCase
     public function testLoopingEventCarriesWorkerOptions(): void
     {
         $options = new WorkerOptions;
-        $events = Double::for(EventDispatcher::class);
+        $events = Double::for(EventDispatcher::class)->strict();
         $events->expects('hasListeners')->times(1)->with(Looping::class)->returns(true);
         $events->expects('until')->times(1)->with(Argument::satisfies(
             static fn (object $event): bool => $event instanceof Looping
@@ -1742,7 +1746,7 @@ class QueueWorkerTest extends TestCase
 
     public function testForcedWorkerDoesNotCheckMaintenanceMode(): void
     {
-        $events = Double::for(EventDispatcher::class);
+        $events = Double::for(EventDispatcher::class)->strict();
         $events->expects('hasListeners')->times(1)->with(Looping::class)->returns(false);
 
         $worker = new LoopAwareWorker(
@@ -1759,7 +1763,7 @@ class QueueWorkerTest extends TestCase
     {
         $this->spyEvents();
         $paused = ['emails'];
-        $manager = Double::for(QueueManager::class);
+        $manager = Double::for(QueueManager::class)->strict();
         $manager->allows('connection')->with('first')->returns(
             new WorkerFakeConnection('first', ['emails' => [], 'default' => []]),
         );
@@ -1774,7 +1778,7 @@ class QueueWorkerTest extends TestCase
             },
         );
         $worker = new InsomniacWorker($manager, $this->events, $this->exceptionHandler, static fn (): bool => false);
-        $worker->setCache(Double::for(CacheContract::class));
+        $worker->setCache(Double::for(CacheContract::class)->strict());
         $options = new WorkerOptions(sleep: 0);
         $observed = [];
         $this->events->allows('dispatch')->resolves(function (object $event) use (&$observed): void {
@@ -1808,7 +1812,7 @@ class QueueWorkerTest extends TestCase
     public function testPauseHistoryIsRetainedWithoutEventListeners(): void
     {
         $this->spyEvents();
-        $manager = Double::for(QueueManager::class);
+        $manager = Double::for(QueueManager::class)->strict();
         $manager->allows('connection')->with('default')->returns(
             new WorkerFakeConnection('default', ['queue' => []]),
         );
@@ -1824,7 +1828,7 @@ class QueueWorkerTest extends TestCase
             },
         );
         $worker = new InsomniacWorker($manager, $this->events, $this->exceptionHandler, static fn (): bool => false);
-        $worker->setCache(Double::for(CacheContract::class));
+        $worker->setCache(Double::for(CacheContract::class)->strict());
 
         $worker->runNextJob('default', 'queue', new WorkerOptions(sleep: 0));
         $this->assertSame([], $dispatched);
@@ -1841,12 +1845,12 @@ class QueueWorkerTest extends TestCase
 
     public function testEachDaemonRunReportsInitiallyPausedQueues(): void
     {
-        $manager = Double::for(QueueManager::class);
+        $manager = Double::for(QueueManager::class)->strict();
         $manager->allows('connection')->with('default')->returns(
             new WorkerFakeConnection('default', ['queue' => []]),
         );
         $manager->allows('getPausedQueues')->with(['queue'], 'default')->returns(['queue']);
-        $cache = Double::for(CacheContract::class);
+        $cache = Double::for(CacheContract::class)->strict();
         $cache->allows('get')->with(Worker::RESTART_SIGNAL_CACHE_KEY)->returns(null);
         $worker = new InsomniacWorker($manager, $this->events, $this->exceptionHandler, static fn (): bool => false);
         $worker->setCache($cache);
@@ -1911,8 +1915,8 @@ class QueueWorkerTest extends TestCase
         $e = new RuntimeException('Pop failed.');
         if ($reportingThrows) {
             $this->captureErrorLog();
-            $this->exceptionHandler = Double::for(ExceptionHandlerContract::class);
-            $this->exceptionHandler->expects('report')->with($e)->throws(new RuntimeException('Reporting failed.'));
+            $this->exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
+            $this->exceptionHandler->expects('report')->with(Argument::same($e))->throws(new RuntimeException('Reporting failed.'));
         }
         $worker = new InsomniacWorker(
             new WorkerFakeManager('default', new BrokenQueueConnection('default', $e)),
@@ -2053,7 +2057,7 @@ class QueueWorkerTest extends TestCase
         };
         if ($scenario === 'do not retry') {
             $this->exceptionHandler = Double::for(ShouldntRetryExceptionHandler::class)->passthru(new ShouldntRetryExceptionHandler);
-            $this->exceptionHandler->expects('report')->with($exception);
+            $this->exceptionHandler->expects('report')->with(Argument::same($exception));
             $this->exceptionHandler->expects('shouldStopRetries')->never();
         }
         $worker = $this->getWorker('default', ['queue' => [$job]]);
@@ -2444,7 +2448,7 @@ class QueueWorkerTest extends TestCase
         $job->expects($outcome === 'release' ? 'delete' : 'release')->never();
         $job->shouldFailOnTimeout = true;
         $job->maxExceptions = 2;
-        $interruptible = Double::for(Interruptible::class);
+        $interruptible = Double::for(Interruptible::class)->strict();
         $interruptible->expects('interrupted')->with(SIGALRM)->resolves(
             static function () use ($notificationGate, &$notificationStarted, $job, $outcome): void {
                 $notificationStarted = true;
@@ -2452,7 +2456,7 @@ class QueueWorkerTest extends TestCase
                 $job->{$outcome}();
             }
         );
-        $handler = Double::for(CallQueuedHandler::class);
+        $handler = Double::for(CallQueuedHandler::class)->strict();
         $handler->expects('getRunningCommand')->returns($interruptible);
         $job->resolvedJob = $handler;
         $worker = new KillTestWorker(...$this->workerDependencies('default', ['queue' => [$job]], timer: $timer));
@@ -2557,9 +2561,9 @@ class QueueWorkerTest extends TestCase
             }
             $releaseStarted->push(true);
         }, 5));
-        $interruptible = Double::for(Interruptible::class);
+        $interruptible = Double::for(Interruptible::class)->strict();
         $interruptible->expects('interrupted')->with(SIGALRM)->resolves(static fn (): mixed => $first->release());
-        $handler = Double::for(CallQueuedHandler::class);
+        $handler = Double::for(CallQueuedHandler::class)->strict();
         $handler->expects('getRunningCommand')->returns($interruptible);
         $first->allows('getResolvedJob')->returns($handler);
         $first->onReleased = static function () use (&$handedOff, &$coroutines, &$failures, $worker, $next): void {
@@ -2669,7 +2673,7 @@ class QueueWorkerTest extends TestCase
         $exception = new RuntimeException('Job failed.');
         $job = new WorkerFakeJob;
         $job->maxExceptions = 3;
-        $cache = Double::for(CacheContract::class);
+        $cache = Double::for(CacheContract::class)->strict();
         $cache->expects('get')->with('job-exceptions:' . $job->uuid)->returns(true);
         $cache->expects('increment')->with('job-exceptions:' . $job->uuid)->returns(3);
         $cache->expects('forget')->with('job-exceptions:' . $job->uuid)->returns(true);
@@ -2686,7 +2690,7 @@ class QueueWorkerTest extends TestCase
             $exception = new RuntimeException('Job failed.');
             $job = new WorkerFakeJob;
             $job->maxExceptions = 0;
-            $cache = Double::for(CacheContract::class);
+            $cache = Double::for(CacheContract::class)->strict();
             $cache->expects('get')->with('job-exceptions:' . $job->uuid)->returns(true);
             $cache->expects('increment')->with('job-exceptions:' . $job->uuid)->returns($counterResult);
             $cache->expects('forget')->never();
@@ -2907,8 +2911,8 @@ class QueueWorkerTest extends TestCase
         $failure = new RuntimeException('The stopping listener failed.');
         $this->spyEvents();
         $this->events->expects('dispatch')->times(1)->with(Argument::type(WorkerStopping::class))->throws($failure);
-        $this->exceptionHandler = Double::for(ExceptionHandlerContract::class);
-        $report = $this->exceptionHandler->expects('report')->times(1)->with($failure);
+        $this->exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
+        $report = $this->exceptionHandler->expects('report')->times(1)->with(Argument::same($failure));
         if ($reportingThrows) {
             $this->captureErrorLog();
             $report->throws(new RuntimeException('Reporting failed.'));
@@ -2996,8 +3000,8 @@ class QueueWorkerTest extends TestCase
     {
         if ($reportingThrows) {
             $this->captureErrorLog();
-            $this->exceptionHandler = Double::for(ExceptionHandlerContract::class);
-            $this->exceptionHandler->expects('report')->with($failure)->throws(new RuntimeException('Reporting failed.'));
+            $this->exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
+            $this->exceptionHandler->expects('report')->with(Argument::same($failure))->throws(new RuntimeException('Reporting failed.'));
         }
         $workerOptions = new WorkerOptions(stopWhenEmpty: true);
         $worker = $this->getWorker('default', ['queue' => [
@@ -3144,7 +3148,7 @@ class QueueWorkerTest extends TestCase
             }
         };
 
-        $handler = Double::for(CallQueuedHandler::class);
+        $handler = Double::for(CallQueuedHandler::class)->strict();
         $handler->expects('getRunningCommand')->returns($interruptible);
 
         $job = new WorkerFakeJob;
@@ -3197,7 +3201,7 @@ class QueueWorkerTest extends TestCase
                 $this->releaseJob->push(true);
             }
         };
-        $handler = Double::for(CallQueuedHandler::class);
+        $handler = Double::for(CallQueuedHandler::class)->strict();
         $handler->expects('getRunningCommand')->returns($interruptible);
         $job = new WorkerFakeJob(function () use (&$worker, $options, $releaseJob): void {
             $worker->handleInterruptionSignalForTest(SIGTERM, 'default', 'queue', $options);
@@ -3503,7 +3507,7 @@ class QueueWorkerTest extends TestCase
      */
     private function spyEvents(): void
     {
-        $this->events = Double::for(EventDispatcher::class);
+        $this->events = Double::for(EventDispatcher::class)->strict();
         $this->events->allows('hasListeners')->returns(true);
     }
 
@@ -3562,7 +3566,7 @@ class QueueWorkerTest extends TestCase
 
     private function workerJobWithRunningCommand(object $command): WorkerFakeJob
     {
-        $handler = Double::for(CallQueuedHandler::class);
+        $handler = Double::for(CallQueuedHandler::class)->strict();
         $handler->expects('getRunningCommand')->returns($command);
 
         $job = new WorkerFakeJob;

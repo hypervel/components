@@ -302,7 +302,7 @@ class WorkCommandTest extends QueueTestCase
 
         Worker::$restartable = false;
 
-        $cache = Double::for(Repository::class);
+        $cache = Double::for(Repository::class)->strict();
         $cache->expects('get')->with(Worker::RESTART_SIGNAL_CACHE_KEY)->never();
         $cache->expects('get')->with('illuminate:queues:paused', false)->returns(false);
         $cache->expects('get')
@@ -332,7 +332,7 @@ class WorkCommandTest extends QueueTestCase
 
         Worker::$pausable = false;
 
-        $cache = Double::for(Repository::class);
+        $cache = Double::for(Repository::class)->strict();
 
         $cache->expects('get')->times(2)->with(Worker::RESTART_SIGNAL_CACHE_KEY)->returns(null);
 

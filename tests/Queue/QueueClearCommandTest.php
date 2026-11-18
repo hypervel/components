@@ -87,7 +87,7 @@ class QueueClearCommandTest extends TestCase
         ClearCommand::prohibit();
 
         $container = new Application;
-        $queueManager = Double::for(QueueManager::class);
+        $queueManager = Double::for(QueueManager::class)->strict();
         $queueManager->expects('connection')->never();
         $container->instance('queue', $queueManager);
 
@@ -107,13 +107,13 @@ class QueueClearCommandTest extends TestCase
         $container = new Application;
         $container->instance('env', 'testing');
 
-        $config = Double::for(Repository::class);
+        $config = Double::for(Repository::class)->strict();
         $config->expects('string')->with('queue.default')->returns('redis');
         $config->allows('string')->with('queue.connections.redis.queue', 'default')->returns('default');
 
         $container->instance('config', $config);
 
-        $queueManager = Double::for(QueueManager::class);
+        $queueManager = Double::for(QueueManager::class)->strict();
         $queueManager->expects('connection')->with('redis')->returns($queue);
 
         $container->instance('queue', $queueManager);
