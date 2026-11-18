@@ -27,7 +27,7 @@ class TinkerCasterTest extends TestCase
 
     public function testApplicationPropertyErrorsDoNotSuppressLaterValues(): void
     {
-        // The caster also reads application properties unrelated to this failure.
+        // @phpstan-ignore hypervel.implicitDoubleMode (The caster also reads application properties unrelated to this failure.)
         $application = Double::for(Application::class, override: true);
         $application->expects('configurationIsCached')->throws(new Error('Unavailable'));
         $application->expects('version')->returns('1.0.0');

@@ -60,7 +60,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
 
         $container = Container::setInstance(new Container);
         $this->cacheManager = Double::for(CacheManager::class)->strict();
-        // Cache tests ignore store validation unless they explicitly check it.
+        // @phpstan-ignore hypervel.implicitDoubleMode (Cache tests ignore store validation unless they explicitly check it.)
         $this->storeValidator = Double::for(ModelCacheStoreValidator::class);
         $this->cacheCoordinator = Double::for(ModelCacheCoordinator::class)->strict();
         $container->instance('cache', $this->cacheManager);

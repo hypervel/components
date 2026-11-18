@@ -494,9 +494,14 @@
             "Composer\\Config::disableProcessTimeout",
             "phpstan analyse",
             "phpstan analyse -c phpstan.types.neon.dist",
+            "@analyse:tests @no_additional_args",
             "@analyse:skeletons @no_additional_args"
         ],
         "analyse:skeletons": "@composer --working-dir=skeletons/hypervel analyse",
+        "analyse:tests": [
+            "Composer\\Config::disableProcessTimeout",
+            "phpstan analyse -c phpstan.tests.neon.dist"
+        ],
         "check": [
             "@check:skeleton-config",
             "@test",
