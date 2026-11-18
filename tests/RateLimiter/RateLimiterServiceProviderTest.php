@@ -15,6 +15,7 @@ use Hypervel\Support\DefaultProviders;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Swoole\Server as SwooleServer;
 
 class RateLimiterServiceProviderTest extends TestCase
@@ -47,8 +48,8 @@ class RateLimiterServiceProviderTest extends TestCase
         $beforeServerStart = new BeforeServerStart('server');
         $server = Double::for(SwooleServer::class)->strict();
         $afterWorkerStart = new AfterWorkerStart($server, 0);
-        $tables->expects('handle')->with($beforeServerStart);
-        $timers->expects('handle')->with($afterWorkerStart);
+        $tables->expects('handle')->with(Argument::same($beforeServerStart));
+        $timers->expects('handle')->with(Argument::same($afterWorkerStart));
 
         (new RateLimiterServiceProvider($application->instance()))->boot();
 

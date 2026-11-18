@@ -136,7 +136,7 @@ class ConcurrencyLimiterTest extends TestCase
     public function testBlockThrowsTimeoutExceptionWhenCannotAcquire(): void
     {
         $redis = $this->mockRedis();
-        $connection = Double::for(RedisConnection::class);
+        $connection = Double::for(RedisConnection::class)->strict();
 
         // acquire() always fails (returns falsy)
         $redis->allows('withConnection')
@@ -157,7 +157,7 @@ class ConcurrencyLimiterTest extends TestCase
         Sleep::fake(syncWithCarbon: true);
         CarbonImmutable::setTestNow(CarbonImmutable::now());
         $redis = $this->mockRedis();
-        $connection = Double::for(RedisConnection::class);
+        $connection = Double::for(RedisConnection::class)->strict();
         $redis->allows('withConnection')
             ->resolves(fn (callable $callback): mixed => $callback($connection));
         $connection->expects('evalWithShaCache')->times(4)
@@ -255,8 +255,7 @@ class ConcurrencyLimiterTest extends TestCase
 
     public function testAcquireUsesHashTagsOnPhpRedisClusterConnection(): void
     {
-        $redis = $this->mockRedis();
-        $redis->expects('isCluster')->returns(true);
+        $redis = $this->mockRedis(cluster: true);
 
         $this->expectSlotClaim(
             $redis,
@@ -280,7 +279,6 @@ class ConcurrencyLimiterTest extends TestCase
     public function testAcquireUsesPlainKeysOnNonClusterConnection(): void
     {
         $redis = $this->mockRedis();
-        $redis->expects('isCluster')->returns(false);
 
         $this->expectSlotClaim(
             $redis,
@@ -306,8 +304,7 @@ class ConcurrencyLimiterTest extends TestCase
 
     public function testReleaseKeyMatchesAcquireKeyOnCluster(): void
     {
-        $redis = $this->mockRedis();
-        $redis->expects('isCluster')->returns(true);
+        $redis = $this->mockRedis(cluster: true);
 
         // Acquire returns the slot key.
         $this->expectSlotClaim($redis, '{mykey}2');
@@ -323,8 +320,7 @@ class ConcurrencyLimiterTest extends TestCase
     #[DataProvider('existingHashTags')]
     public function testAcquireDoesNotDoubleWrapPreExistingHashTags(string $name): void
     {
-        $redis = $this->mockRedis();
-        $redis->expects('isCluster')->returns(true);
+        $redis = $this->mockRedis(cluster: true);
 
         // The name already has a hash tag and must not be double-wrapped.
         $this->expectSlotClaim($redis, $name . '1', function (string $script, array $keys, array $arguments) use ($name): bool {
@@ -351,8 +347,7 @@ class ConcurrencyLimiterTest extends TestCase
 
     public function testAcquireWrapsUnmatchedBraceOnCluster(): void
     {
-        $redis = $this->mockRedis();
-        $redis->expects('isCluster')->returns(true);
+        $redis = $this->mockRedis(cluster: true);
 
         // An opening brace without a closing brace is not a valid hash tag.
         $this->expectSlotClaim($redis, '{my{lock}1', function (string $script, array $keys, array $arguments): bool {
@@ -371,8 +366,7 @@ class ConcurrencyLimiterTest extends TestCase
 
     public function testAcquireWrapsEmptyBracesOnCluster(): void
     {
-        $redis = $this->mockRedis();
-        $redis->expects('isCluster')->returns(true);
+        $redis = $this->mockRedis(cluster: true);
 
         // Empty braces are not a valid hash tag.
         $this->expectSlotClaim($redis, '{my{}lock}1', function (string $script, array $keys, array $arguments): bool {
@@ -392,9 +386,12 @@ class ConcurrencyLimiterTest extends TestCase
     /**
      * Create a mock RedisProxy.
      */
-    private function mockRedis(): ConcurrencyLimiterRedisProxy
+    private function mockRedis(bool $cluster = false): ConcurrencyLimiterRedisProxy
     {
-        return Double::for(ConcurrencyLimiterRedisProxy::class);
+        $redis = Double::for(ConcurrencyLimiterRedisProxy::class)->strict();
+        $redis->expects('isCluster')->returns($cluster);
+
+        return $redis;
     }
 
     /**
@@ -405,7 +402,7 @@ class ConcurrencyLimiterTest extends TestCase
         false|string $result,
         ?callable $assertion = null,
     ): void {
-        $connection = Double::for(RedisConnection::class);
+        $connection = Double::for(RedisConnection::class)->strict();
 
         $redis->expects('withConnection')
             ->resolves(fn (callable $callback): mixed => $callback($connection));

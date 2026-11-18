@@ -104,7 +104,7 @@ class RedisEventsTest extends TestCase
     {
         $exception = new Exception('Test exception');
 
-        $mockEventDispatcher = Double::for(Dispatcher::class);
+        $mockEventDispatcher = Double::for(Dispatcher::class)->strict();
         $mockEventDispatcher->allows('hasListeners')
             ->with(CommandFailed::class)
             ->returns(true);
@@ -132,7 +132,7 @@ class RedisEventsTest extends TestCase
 
     public function testListenRegistersCallback(): void
     {
-        $mockEventDispatcher = Double::for(Dispatcher::class);
+        $mockEventDispatcher = Double::for(Dispatcher::class)->strict();
         $mockEventDispatcher->expects('listen')
             ->with(CommandExecuted::class, Argument::type(Closure::class));
 
@@ -164,7 +164,7 @@ class RedisEventsTest extends TestCase
 
     public function testCommandExecutedNotDispatchedWhenNoListeners(): void
     {
-        $mockEventDispatcher = Double::for(Dispatcher::class);
+        $mockEventDispatcher = Double::for(Dispatcher::class)->strict();
         $mockEventDispatcher->allows('hasListeners')
             ->with(CommandFailed::class)
             ->returns(false);
@@ -185,7 +185,7 @@ class RedisEventsTest extends TestCase
     {
         $exception = new Exception('Redis error');
 
-        $mockEventDispatcher = Double::for(Dispatcher::class);
+        $mockEventDispatcher = Double::for(Dispatcher::class)->strict();
         $mockEventDispatcher->allows('hasListeners')
             ->with(CommandFailed::class)
             ->returns(false);
@@ -215,12 +215,9 @@ class RedisEventsTest extends TestCase
 
         $redis = $this->createRedis($this->createMockRedisConnection());
 
-        // Should not throw
-        $redis->listen(function (): void {
-            // callback
-        });
+        $redis->listen(fn () => $this->fail('Registering a listener must not invoke it.'));
 
-        $this->assertTrue(true);
+        $this->assertFalse($container->bound('events'));
     }
 
     public function testListenForFailuresNoOpsWhenEventsUnbound(): void
@@ -232,12 +229,9 @@ class RedisEventsTest extends TestCase
 
         $redis = $this->createRedis($this->createMockRedisConnection());
 
-        // Should not throw
-        $redis->listenForFailures(function (): void {
-            // callback
-        });
+        $redis->listenForFailures(fn () => $this->fail('Registering a listener must not invoke it.'));
 
-        $this->assertTrue(true);
+        $this->assertFalse($container->bound('events'));
     }
 
     /**
@@ -245,17 +239,17 @@ class RedisEventsTest extends TestCase
      */
     private function createRedis(RedisConnection $connection): RedisProxy
     {
-        $pool = Double::for(RedisPool::class);
+        $pool = Double::for(RedisPool::class)->strict();
         $pool->allows('borrow')->returns($connection);
         $pool->allows('getOptions')->returns(PoolOptions::fromArray([]));
 
-        $poolManager = Double::for(PoolManager::class);
+        $poolManager = Double::for(PoolManager::class)->passthru();
         $poolManager->allows('pool')->with('default')->returns($pool);
 
         return new RedisProxy(
             $poolManager,
             'default',
-            Double::for(RedisSentinelFactory::class),
+            Double::for(RedisSentinelFactory::class)->strict(),
         );
     }
 
@@ -268,7 +262,7 @@ class RedisEventsTest extends TestCase
         ?Throwable $exception = null,
         ?Dispatcher $eventDispatcher = null
     ): RedisConnection&DoubleInterface {
-        $mockRedisConnection = Double::for(RedisEventsConnection::class);
+        $mockRedisConnection = Double::for(RedisEventsConnection::class)->strict();
         $mockRedisConnection->allows('shouldTransform')->returns($mockRedisConnection);
         $mockRedisConnection->allows('getConnection')->returns($mockRedisConnection);
         $mockRedisConnection->allows('getEventDispatcher')->returns($eventDispatcher);
