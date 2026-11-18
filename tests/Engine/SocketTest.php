@@ -15,6 +15,7 @@ use Hypervel\Engine\Socket;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Psr\Log\LoggerInterface;
 use ReflectionProperty;
@@ -355,10 +356,11 @@ class SocketTest extends TestCase
                         if ($throw) {
                             try {
                                 $socket->sendAll('after-close');
-                                $this->fail('A closed SafeSocket should reject later sends.');
                             } catch (SocketClosedException) {
-                                $this->addToAssertionCount(1);
+                                continue;
                             }
+
+                            $this->fail('A closed SafeSocket should reject later sends.');
                         } else {
                             $this->assertFalse($socket->sendAll('after-close'));
                         }
@@ -374,12 +376,12 @@ class SocketTest extends TestCase
     {
         $sendFailure = new RuntimeException('Send failed.');
         $loggingFailure = new RuntimeException('Logging failed.');
-        $handler = Double::for(ExceptionHandler::class);
-        $handler->expects('report')->with($loggingFailure);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($loggingFailure));
         $container = new Container;
         $container->instance(ExceptionHandler::class, $handler);
         Container::setInstance($container);
-        $logger = Double::for(LoggerInterface::class);
+        $logger = Double::for(LoggerInterface::class)->strict();
         $logger->expects('critical')->with((string) $sendFailure)->throws($loggingFailure);
         $nativeSocket = new FailingSendSocket($sendFailure);
         $socket = new SafeSocket($nativeSocket, logger: $logger);

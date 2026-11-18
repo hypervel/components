@@ -31,24 +31,26 @@ class CoroutineTest extends TestCase
 
     public function testCoroutineCreate(): void
     {
-        $coroutine = new Coroutine(function () {
-            $this->assertTrue(true);
+        $id = null;
+        $coroutine = new Coroutine(static function () use (&$id): void {
+            $id = Coroutine::id();
         });
 
         $coroutine->execute();
 
         $this->assertInstanceOf(CoroutineInterface::class, $coroutine);
-        $this->assertIsInt($coroutine->getId());
+        $this->assertSame($coroutine->getId(), $id);
     }
 
     public function testCoroutineCreateStatic(): void
     {
-        $coroutine = Coroutine::create(function () {
-            $this->assertTrue(true);
+        $id = null;
+        $coroutine = Coroutine::create(static function () use (&$id): void {
+            $id = Coroutine::id();
         });
 
         $this->assertInstanceOf(CoroutineInterface::class, $coroutine);
-        $this->assertIsInt($coroutine->getId());
+        $this->assertSame($coroutine->getId(), $id);
     }
 
     public function testCreatedCoroutineKeepsErrorReportingEnabledAfterSuspension(): void

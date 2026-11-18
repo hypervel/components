@@ -117,8 +117,8 @@ class QueuedEventsTest extends TestCase
     public function testQueueIsSetByGetConnection(): void
     {
         $d = new Dispatcher;
-        $factory = Double::for(QueueFactory::class);
-        $queue = Double::for(Queue::class);
+        $factory = Double::for(QueueFactory::class)->strict();
+        $queue = Double::for(Queue::class)->strict();
 
         $factory->expects('connection')->with('some_other_connection')->returns($queue);
         $queue->expects('pushOn')->with(null, Argument::type(CallQueuedListener::class));
@@ -134,8 +134,8 @@ class QueuedEventsTest extends TestCase
     public function testEnumQueueAndConnectionResultsAreNormalizedBeforeDispatch(): void
     {
         $dispatcher = new Dispatcher;
-        $factory = Double::for(QueueFactory::class);
-        $queue = Double::for(Queue::class);
+        $factory = Double::for(QueueFactory::class)->strict();
+        $queue = Double::for(Queue::class)->strict();
 
         $factory->expects('connection')->with('0')->returns($queue);
         $queue->expects('pushOn')->with('1', Argument::type(CallQueuedListener::class));
@@ -148,8 +148,8 @@ class QueuedEventsTest extends TestCase
     public function testDelayIsSetByWithDelay(): void
     {
         $d = new Dispatcher;
-        $factory = Double::for(QueueFactory::class);
-        $queue = Double::for(Queue::class);
+        $factory = Double::for(QueueFactory::class)->strict();
+        $queue = Double::for(Queue::class)->strict();
 
         $factory->expects('connection')->with(null)->returns($queue);
         $queue->expects('laterOn')->with(null, 20, Argument::type(CallQueuedListener::class));
@@ -165,8 +165,8 @@ class QueuedEventsTest extends TestCase
     public function testDelayIsSetByAttribute(): void
     {
         $d = new Dispatcher;
-        $factory = Double::for(QueueFactory::class);
-        $queue = Double::for(Queue::class);
+        $factory = Double::for(QueueFactory::class)->strict();
+        $queue = Double::for(Queue::class)->strict();
 
         $factory->expects('connection')->with(null)->returns($queue);
         $queue->expects('laterOn')->with(null, 30, Argument::type(CallQueuedListener::class));
@@ -182,8 +182,8 @@ class QueuedEventsTest extends TestCase
     public function testWithDelayOverridesDelayAttribute(): void
     {
         $d = new Dispatcher;
-        $factory = Double::for(QueueFactory::class);
-        $queue = Double::for(Queue::class);
+        $factory = Double::for(QueueFactory::class)->strict();
+        $queue = Double::for(Queue::class)->strict();
 
         $factory->expects('connection')->with(null)->returns($queue);
         $queue->expects('laterOn')->with(null, 20, Argument::type(CallQueuedListener::class));
@@ -247,7 +247,7 @@ class QueuedEventsTest extends TestCase
         $queueRoutes->set(TestDispatcherQueueRoutes::class, 'event-queue', 'event-connection');
         $container->instance('queue.routes', $queueRoutes);
 
-        $factory = Double::for(QueueFactory::class);
+        $factory = Double::for(QueueFactory::class)->strict();
         $queue = new QueueFake($container);
 
         $factory->expects('connection')->with('event-connection')->returns($queue);
@@ -274,7 +274,7 @@ class QueuedEventsTest extends TestCase
         $queueRoutes->forward('reports', 'processing', 'cloud');
         $container->instance('queue.routes', $queueRoutes);
 
-        $factory = Double::for(QueueFactory::class);
+        $factory = Double::for(QueueFactory::class)->strict();
         $queue = new QueueFake($container);
         $factory->expects('connection')->with('cloud')->returns($queue);
 
@@ -295,8 +295,8 @@ class QueuedEventsTest extends TestCase
         $routes->forward('my_queue', 'unused', 'wrong-connection');
         $routes->forward('some_other_queue', 'processing', 'cloud');
         $container->instance('queue.routes', $routes);
-        $factory = Double::for(QueueFactory::class);
-        $queue = Double::for(Queue::class);
+        $factory = Double::for(QueueFactory::class)->strict();
+        $queue = Double::for(Queue::class)->strict();
         $factory->expects('connection')->with('cloud')->returns($queue);
         $queue->expects('pushOn')->with('some_other_queue', Argument::type(CallQueuedListener::class));
 
@@ -308,8 +308,8 @@ class QueuedEventsTest extends TestCase
     public function testDelayIsSetByWithDelayDynamically(): void
     {
         $d = new Dispatcher;
-        $factory = Double::for(QueueFactory::class);
-        $queue = Double::for(Queue::class);
+        $factory = Double::for(QueueFactory::class)->strict();
+        $queue = Double::for(Queue::class)->strict();
 
         $factory->expects('connection')->with(null)->returns($queue);
         $queue->expects('laterOn')->with(null, 60, Argument::type(CallQueuedListener::class));
@@ -526,12 +526,12 @@ class QueuedEventsTest extends TestCase
         $d = new Dispatcher($container);
 
         $fakeQueue = new QueueFake($container);
-        $cache = Double::for(Cache::class, LockProvider::class);
-        $lock = Double::for(Lock::class);
+        $cache = Double::for(Cache::class, LockProvider::class)->strict();
+        $lock = Double::for(Lock::class)->strict();
 
         $container->instance(Cache::class, $cache);
 
-        $cache->expects('getStore')->returns(Double::for(CacheStore::class, LockProvider::class));
+        $cache->expects('getStore')->returns(Double::for(CacheStore::class, LockProvider::class)->strict());
         $cache->expects('lock')->returns($lock);
         $lock->expects('get')->returns(true);
         $lock->expects('owner')->returns('unique-lock-owner');
@@ -557,12 +557,12 @@ class QueuedEventsTest extends TestCase
         $d = new Dispatcher($container);
 
         $fakeQueue = new QueueFake($container);
-        $cache = Double::for(Cache::class, LockProvider::class);
-        $lock = Double::for(Lock::class);
+        $cache = Double::for(Cache::class, LockProvider::class)->strict();
+        $lock = Double::for(Lock::class)->strict();
 
         $container->instance(Cache::class, $cache);
 
-        $cache->expects('getStore')->returns(Double::for(CacheStore::class, LockProvider::class));
+        $cache->expects('getStore')->returns(Double::for(CacheStore::class, LockProvider::class)->strict());
         $cache->expects('lock')->returns($lock);
         $lock->expects('get')->returns(false);
 
@@ -582,12 +582,12 @@ class QueuedEventsTest extends TestCase
         $d = new Dispatcher($container);
 
         $fakeQueue = new QueueFake($container);
-        $cache = Double::for(Cache::class, LockProvider::class);
-        $lock = Double::for(Lock::class);
+        $cache = Double::for(Cache::class, LockProvider::class)->strict();
+        $lock = Double::for(Lock::class)->strict();
 
         $container->instance(Cache::class, $cache);
 
-        $cache->expects('getStore')->returns(Double::for(CacheStore::class, LockProvider::class));
+        $cache->expects('getStore')->returns(Double::for(CacheStore::class, LockProvider::class)->strict());
         $cache->expects('lock')->returns($lock);
         $lock->expects('get')->returns(true);
         $lock->expects('owner')->returns('unique-lock-owner');
@@ -611,12 +611,12 @@ class QueuedEventsTest extends TestCase
         $d = new Dispatcher($container);
 
         $fakeQueue = new QueueFake($container);
-        $cache = Double::for(Cache::class, LockProvider::class);
-        $lock = Double::for(Lock::class);
+        $cache = Double::for(Cache::class, LockProvider::class)->strict();
+        $lock = Double::for(Lock::class)->strict();
 
         $container->instance(Cache::class, $cache);
 
-        $cache->expects('getStore')->returns(Double::for(CacheStore::class, LockProvider::class));
+        $cache->expects('getStore')->returns(Double::for(CacheStore::class, LockProvider::class)->strict());
         $cache->expects('lock')->returns($lock);
         $lock->expects('get')->returns(true);
         $lock->expects('owner')->returns('unique-lock-owner');
@@ -652,8 +652,8 @@ class QueuedEventsTest extends TestCase
         $d = new Dispatcher($container);
 
         $fakeQueue = new QueueFake($container);
-        $cache = Double::for(Cache::class, LockProvider::class);
-        $lock = Double::for(Lock::class);
+        $cache = Double::for(Cache::class, LockProvider::class)->strict();
+        $lock = Double::for(Lock::class)->strict();
 
         $container->instance(Cache::class, $cache);
 
@@ -662,7 +662,7 @@ class QueuedEventsTest extends TestCase
         $cache->expects('lock')
             ->with($expectedKey, 60)
             ->returns($lock);
-        $cache->expects('getStore')->returns(Double::for(CacheStore::class, LockProvider::class));
+        $cache->expects('getStore')->returns(Double::for(CacheStore::class, LockProvider::class)->strict());
         $lock->expects('get')->returns(true);
         $lock->expects('owner')->returns('unique-lock-owner');
 
@@ -682,9 +682,9 @@ class QueuedEventsTest extends TestCase
         $d = new Dispatcher($container);
 
         $fakeQueue = new QueueFake($container);
-        $defaultCache = Double::for(Cache::class, LockProvider::class);
-        $uniqueCache = Double::for(Cache::class, LockProvider::class);
-        $lock = Double::for(Lock::class);
+        $defaultCache = Double::for(Cache::class, LockProvider::class)->strict();
+        $uniqueCache = Double::for(Cache::class, LockProvider::class)->strict();
+        $lock = Double::for(Lock::class)->strict();
 
         $container->instance(Cache::class, $defaultCache);
 
@@ -697,7 +697,7 @@ class QueuedEventsTest extends TestCase
         $uniqueCache->expects('lock')
             ->with($expectedKey, 60)
             ->returns($lock);
-        $uniqueCache->expects('getStore')->returns(Double::for(CacheStore::class, LockProvider::class));
+        $uniqueCache->expects('getStore')->returns(Double::for(CacheStore::class, LockProvider::class)->strict());
         $lock->expects('get')->returns(true);
         $lock->expects('owner')->returns('unique-lock-owner');
 
@@ -714,8 +714,8 @@ class QueuedEventsTest extends TestCase
     public function testUniqueLockIsReleasedOnProcessingWithListenerClassName(): void
     {
         $container = new Container;
-        $cache = Double::for(Cache::class, LockProvider::class);
-        $lock = Double::for(Lock::class);
+        $cache = Double::for(Cache::class, LockProvider::class)->strict();
+        $lock = Double::for(Lock::class)->strict();
 
         $container->instance(Cache::class, $cache);
         $container->instance(BusDispatcher::class, new BusDispatcher($container));
@@ -800,8 +800,8 @@ class QueuedEventsTest extends TestCase
     {
         $container = new Container;
         $dispatcher = new Dispatcher($container);
-        $factory = Double::for(QueueFactory::class);
-        $queue = Double::for(Queue::class);
+        $factory = Double::for(QueueFactory::class)->strict();
+        $queue = Double::for(Queue::class)->strict();
         $cache = new Repository(new ArrayStore);
 
         $container->instance(Cache::class, $cache);
@@ -825,8 +825,8 @@ class QueuedEventsTest extends TestCase
 
         $container = new Container;
         $dispatcher = new Dispatcher($container);
-        $factory = Double::for(QueueFactory::class);
-        $queue = Double::for(Queue::class);
+        $factory = Double::for(QueueFactory::class)->strict();
+        $queue = Double::for(Queue::class)->strict();
         $cache = new Repository(new ArrayStore);
 
         $container->instance(Cache::class, $cache);
@@ -883,7 +883,7 @@ class QueuedEventsTest extends TestCase
         $container = new Container;
         $dispatcher = new Dispatcher($container);
         $queue = new QueueFake($container);
-        $cache = Double::for(Cache::class, LockProvider::class);
+        $cache = Double::for(Cache::class, LockProvider::class)->strict();
 
         $cache->expects('put')->never();
         $cache->expects('lock')->never();
@@ -902,7 +902,7 @@ class QueuedEventsTest extends TestCase
     {
         $container = new Container;
         $dispatcher = new Dispatcher($container);
-        $factory = Double::for(QueueFactory::class);
+        $factory = Double::for(QueueFactory::class)->strict();
         $cache = new Repository(new ArrayStore);
         $failure = new Exception('Queue unavailable.');
         $lockKey = 'laravel_unique_job:' . hash('xxh128', TestDispatcherShouldBeUnique::class) . ':unique-listener-id';
@@ -929,8 +929,8 @@ class QueuedEventsTest extends TestCase
     {
         $container = new Container;
         $dispatcher = new Dispatcher($container);
-        $factory = Double::for(QueueFactory::class);
-        $queue = Double::for(Queue::class);
+        $factory = Double::for(QueueFactory::class)->strict();
+        $queue = Double::for(Queue::class)->strict();
         $cache = new Repository(new ArrayStore);
         $failure = new Exception('Queue unavailable.');
         $lockKey = 'laravel_debounced_job:' . hash('xxh128', TestDispatcherDebouncedHandlerWithMaxWait::class) . ':event-123';
