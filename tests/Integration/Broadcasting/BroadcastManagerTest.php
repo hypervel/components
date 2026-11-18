@@ -371,7 +371,7 @@ class BroadcastManagerTest extends TestCase
         $this->app->instance(ExceptionHandler::class, $handler);
 
         if ($rescued && ! $cancellation) {
-            $handler->expects('report')->with($failure, []);
+            $handler->expects('report')->with(Argument::same($failure), []);
         } else {
             $handler->expects('report')->never();
         }
@@ -460,7 +460,11 @@ class BroadcastManagerTest extends TestCase
         config(['cache.default' => 'array', 'broadcasting.default' => 'log']);
         $failure = $mode === 'cancellation' ? new CanceledException : new RuntimeException('Queue unavailable.');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($failure, [])->times($mode === 'cancellation' ? 0 : 1);
+        if ($mode === 'cancellation') {
+            $handler->expects('report')->never();
+        } else {
+            $handler->expects('report')->with(Argument::same($failure), []);
+        }
         $this->app->instance(ExceptionHandler::class, $handler);
 
         if ($mode === 'rollback') {
@@ -1236,7 +1240,7 @@ class BroadcastManagerTest extends TestCase
     {
         $failure = new RuntimeException('Broadcast operation failed.');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($failure, []);
+        $handler->expects('report')->with(Argument::same($failure), []);
         $this->app->instance(ExceptionHandler::class, $handler);
         $published = 0;
         $manager = $this->synchronousMercureManager(function () use (&$published, $phase, $failure): void {
