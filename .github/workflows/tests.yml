@@ -51,7 +51,7 @@ jobs:
       matrix: &runtime_matrix
         php: ["8.4", "8.5"]
 
-    name: Framework Tests (PHP ${{ matrix.php }}, Swoole 6.3.0 RC1)
+    name: Framework Tests (PHP ${{ matrix.php }}, Swoole 6.3.0 RC2)
 
     container:
       image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
@@ -83,7 +83,7 @@ jobs:
       fail-fast: false
       matrix: *runtime_matrix
 
-    name: PHPStan and Package Tests (PHP ${{ matrix.php }}, Swoole 6.3.0 RC1)
+    name: PHPStan and Package Tests (PHP ${{ matrix.php }}, Swoole 6.3.0 RC2)
 
     container:
       image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
