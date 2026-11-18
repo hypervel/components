@@ -26,9 +26,9 @@ class DatabaseMonitorCommandTest extends TestCase
     {
         $this->app->instance('config', new Repository(['database' => []]));
 
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
 
-        $command = new MonitorCommand($resolver, Double::for(Dispatcher::class));
+        $command = new MonitorCommand($resolver, Double::for(Dispatcher::class)->strict());
         $command->setHypervel($this->app);
 
         $this->expectException(InvalidArgumentException::class);
@@ -39,13 +39,13 @@ class DatabaseMonitorCommandTest extends TestCase
 
     public function testMonitorCommandPreservesConnectionNameZero(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('threadCount')->returns(1);
 
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->expects('connection')->with('0')->returns($connection);
 
-        $command = new MonitorCommand($resolver, Double::for(Dispatcher::class));
+        $command = new MonitorCommand($resolver, Double::for(Dispatcher::class)->strict());
         $command->setHypervel($this->app);
 
         $this->assertSame(0, $command->run(new ArrayInput(['--databases' => '0']), new NullOutput));
@@ -53,11 +53,11 @@ class DatabaseMonitorCommandTest extends TestCase
 
     public function testBusyEventIsNotDispatchedWithoutListeners(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('threadCount')->returns(2);
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->expects('connection')->with('primary')->returns($connection);
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('hasListeners')->with(DatabaseBusy::class)->returns(false);
         $events->expects('dispatch')->never();
         $command = new MonitorCommand($resolver, $events);
@@ -71,11 +71,11 @@ class DatabaseMonitorCommandTest extends TestCase
 
     public function testBusyEventIsDispatchedWithAListener(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('threadCount')->returns(2);
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->expects('connection')->with('primary')->returns($connection);
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('hasListeners')->with(DatabaseBusy::class)->returns(true);
         $events->expects('dispatch')->with(Argument::satisfies(
             static fn (DatabaseBusy $event): bool => $event->connectionName === 'primary'

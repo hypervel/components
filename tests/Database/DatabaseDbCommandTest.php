@@ -435,7 +435,7 @@ class DatabaseDbCommandTest extends TestCase
      */
     private function applicationWithConfig(array $connections): DoubleInterface
     {
-        $application = Double::for(Application::class, override: true);
+        $application = Double::for(Application::class, override: true)->strict();
         $application->expects('make')
             ->with('config')
             ->returns(new Repository([
