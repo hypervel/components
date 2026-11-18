@@ -1,0 +1,23 @@
+parameters:
+    customRulesetUsed: true
+    tmpDir: .cache/phpstan-tests
+    paths:
+        - tests
+    # Analyzer fixtures exercise other rules and type configurations.
+    excludePaths:
+        analyse:
+            - tests/PHPStan/*/data/*
+            - tests/PHPStan/Fixtures
+            - tests/PHPStan/application
+    # Inline ignores in shared test files may belong to the other configurations.
+    reportUnmatchedIgnoredErrors: false
+    ignoreErrors:
+        # PHPStan API compatibility is separate from the test authoring checks.
+        -
+            identifiers:
+                - phpstanApi.method
+                - phpstanApi.classConstant
+            path: tests/PHPStan/*
+
+rules:
+    - Hypervel\PHPStan\Rules\Testing\RequireExplicitDoubleModeRule

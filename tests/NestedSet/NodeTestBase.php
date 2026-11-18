@@ -138,6 +138,8 @@ abstract class NodeTestBase extends TestCase
 
     /**
      * Assert that the tree has no structural errors.
+     *
+     * countErrors() uses window functions, which MySQL supports from 8.0.
      */
     protected function assertTreeNotBroken(): void
     {

@@ -3,6 +3,7 @@
 - [Introduction](#introduction)
 - [Installation](#installation)
     - [Analyzing Packages](#analyzing-packages)
+    - [Checking Test Doubles](#checking-test-doubles)
     - [Runtime Requirements](#runtime-requirements)
 - [Configuration](#configuration)
 - [What the Analysis Knows](#what-the-analysis-knows)
@@ -82,7 +83,7 @@ Hypervel's `hypervel/phpstan` package extends [PHPStan](https://phpstan.org) wit
 <a name="installation"></a>
 ## Installation
 
-New applications include the package already, so you may run `composer analyse` right away. To add it to an existing application or package, install it as a development dependency. The package requires PHPStan 2.3.5 or later:
+New applications include the package already, so you may run `composer analyse` right away. To add it to an existing application or package, install it as a development dependency. The package requires PHPStan 2.3.6 or later:
 
 ```shell
 composer require hypervel/phpstan --dev
@@ -113,6 +114,29 @@ You should load the extension whenever you analyze Hypervel code. Without it, PH
 ### Analyzing Packages
 
 To analyze a package, install `hypervel/testbench` as a development dependency. PHPStan uses the providers, configuration and package discovery settings in your `testbench.yaml` file, just like your package's tests. Authentication types come from the Testbench application, where `AUTH_MODEL` or the workbench `User` model selects the user model.
+
+<a name="checking-test-doubles"></a>
+### Checking Test Doubles
+
+Double accepts unexpected calls by default. To check that your tests choose `strict()` or `passthru()` before using a double, add a separate `phpstan.tests.neon.dist` file:
+
+```neon
+parameters:
+    customRulesetUsed: true
+    tmpDir: .cache/phpstan-tests
+    paths:
+        - tests
+
+rules:
+    - Hypervel\PHPStan\Rules\Testing\RequireExplicitDoubleModeRule
+```
+
+Run `vendor/bin/phpstan analyse -c phpstan.tests.neon.dist`. If a test intentionally ignores unrelated calls, explain why with a local ignore:
+
+```php
+// @phpstan-ignore hypervel.implicitDoubleMode (Logging is incidental to this test.)
+$logger = Double::for(LoggerInterface::class);
+```
 
 <a name="runtime-requirements"></a>
 ### Runtime Requirements

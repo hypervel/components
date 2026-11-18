@@ -136,6 +136,9 @@ RUN set -eux; \
 
 RUN printf '%s\n' 'swoole.use_shortname=Off' > /usr/local/etc/php/conf.d/99-swoole-shortname.ini
 
+# The base image can ship an older Composer than the 2.11+ required for the cooldown.
+COPY --from=composer/composer:latest-bin /composer /usr/local/bin/composer
+
 # The development Composer root declares the FTP capability supplied by Swoole.
 RUN php -r 'if (! function_exists("ftp_connect") || extension_loaded("ftp")) { fwrite(STDERR, "Swoole FTP support without the separate FTP extension is required for filesystem tests.\n"); exit(1); }'
 

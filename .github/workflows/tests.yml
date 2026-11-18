@@ -13,24 +13,19 @@ env:
   RUN_BLOCKING_TESTS: true
 
 jobs:
-  linux_tests:
+  code_style:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[ci skip]')"
 
-    strategy:
-      fail-fast: false
-      matrix:
-        php: ["8.4", "8.5"]
-
-    name: PHP ${{ matrix.php }} (Swoole 6.3.0 RC1)
+    name: Code Style and Skeleton Config
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
@@ -38,8 +33,7 @@ jobs:
         uses: ./.github/actions/log-trigger-context
 
       - name: Install dependencies
-        run: |
-            COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
       - name: Check code style
         run: PHP_CS_FIXER_IGNORE_ENV=1 vendor/bin/php-cs-fixer fix --dry-run --diff
@@ -47,11 +41,64 @@ jobs:
       - name: Check skeleton configuration
         run: composer check:skeleton-config
 
+  framework_tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[ci skip]')"
+
+    strategy:
+      fail-fast: false
+      matrix: &runtime_matrix
+        php: ["8.4", "8.5"]
+
+    name: Framework Tests (PHP ${{ matrix.php }}, Swoole 6.3.0 RC1)
+
+    container:
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Log trigger context
+        uses: ./.github/actions/log-trigger-context
+
+      - name: Install dependencies
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
+
       - name: Run framework test suite
         run: vendor/bin/paratest -c phpunit.xml.dist
 
       - name: Run Permission suite with the database cache store
         run: CACHE_STORE=database vendor/bin/paratest -c phpunit.xml.dist tests/Permission
+
+  package_tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[ci skip]')"
+
+    strategy:
+      fail-fast: false
+      matrix: *runtime_matrix
+
+    name: PHPStan and Package Tests (PHP ${{ matrix.php }}, Swoole 6.3.0 RC1)
+
+    container:
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Log trigger context
+        uses: ./.github/actions/log-trigger-context
+
+      - name: Install dependencies
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
       - name: Run PHPStan analyzer suite
         run: vendor/bin/paratest -c phpunit.phpstan.xml.dist
@@ -89,7 +136,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
@@ -103,7 +150,7 @@ jobs:
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
       - name: Setup Vite+ and install dependencies
-        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        uses: voidzero-dev/setup-vp@v1.22.0
         with:
           node-version-file: package.json
           cache: true

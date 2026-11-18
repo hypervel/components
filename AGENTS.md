@@ -442,7 +442,15 @@ In any test, PHPUnit assertion failures, skips, and incomplete markers extend `A
 
 Laravel-ported tests follow upstream placement; the rules below apply to Hypervel-only test files. All tests live in `tests/{PackageName}/` (PascalCase). Tests that require external services go in `tests/Integration/{PackageName}/` — see Integration tests below. When only some integration tests for a package require one service, group them in `tests/Integration/{PackageName}/{ServiceName}/`. When every integration test for the package requires that service, keep them directly in the package directory.
 
-Package-specific tests that require one database driver go in `tests/Integration/{PackageName}/Database/{Postgres|MySql|MariaDb|Sqlite}/`. The database workflows discover these directories by convention.
+Use these paths for service-specific test directories under `tests/Integration/{PackageName}/`. CI discovers them automatically.
+
+| Path | Runs on |
+| --- | --- |
+| `Database/*Test.php` | MySQL, MariaDB, PostgreSQL, and SQLite |
+| `Database/{MySql\|MariaDb\|Postgres\|Sqlite}/` | The matching database |
+| `Redis/` | Redis, Valkey, and Redis Cluster |
+
+Put a test class shared by multiple databases directly in `Database/`. Use `#[RequiresDatabase(...)]` on the class or individual methods when only some drivers apply. Use a driver directory for a class specific to one database.
 
 ### Base classes
 
@@ -596,7 +604,7 @@ A per-package base class is only justified when there is shared setUp logic — 
 
 Use Double for test doubles in new tests. When porting, convert direct Mockery mocks and spies to Double regardless of the upstream library; keep upstream PHPUnit doubles. Retain Mockery where required to use or test framework APIs backed by it, such as `$this->mock()`, facade expectations and `Sanctum::actingAs()`. Add `JMac\Testing\Integrations\PHPUnit\VerifiesDoubles` to each test class using Double; it owns verification and cleanup.
 
-Double is lenient by default. Use `expects('method')->never()` to forbid a call, or `unused()` after exercising the code to assert no calls occurred. `allows()->with(...)` neither requires a matching call nor rejects other arguments. `expects()->with(...)` requires the call and rejects unmatched arguments for that method. Use `strict()` unless the test deliberately ignores unrelated calls; this applies equally to tests ported from upstream.
+Double is lenient by default. Use `expects('method')->never()` to forbid a call, or `unused()` after exercising the code to assert no calls occurred. `allows()->with(...)` neither requires a matching call nor rejects other arguments. `expects()->with(...)` requires the call and rejects unmatched arguments for that method. Use `strict()` unless the test deliberately ignores unrelated calls; this applies equally to tests ported from upstream. For an intentionally lenient double, use `@phpstan-ignore hypervel.implicitDoubleMode (reason)` for the factory call.
 
 `with()` compares objects, including doubles, using `==`. Use `Argument::same($object)` when the exact instance matters or to preserve Mockery’s default identity check.
 
@@ -717,7 +725,7 @@ Tests requiring separately configured services or public APIs go in `tests/Integ
 
 **Optimize integration tests for parallel testing** — ParaTest runs tests concurrently. Use `RefreshDatabase` by default and `DatabaseTruncation` when transaction depth zero is required; reserve `DatabaseMigrations` for migration behavior or a genuinely fresh migrated schema/baseline. Set up only the tables and services each test needs. Keep database cases in one data-provider test when splitting them would make schema setup compete. Load the full schema only when testing migrations or schema parity; do not hide avoidable slowness with longer timeouts.
 
-Service workflows enumerate their test directories explicitly. Adding a service-specific directory requires adding it to the matching workflow; using the service trait provides isolation and skip behavior but does not make CI discover the test.
+For service suites outside the directory conventions above, register new test directories in the matching workflow or the runner script it calls. The service trait handles isolation and skips. CI discovers tests by their paths.
 
 #### External service test traits
 
@@ -747,7 +755,7 @@ When adding integration tests for a new service type that has no trait yet, crea
 
 #### GH workflows
 
-Check `.github/workflows/` to determine which workflow runs the affected integration tests. When adding a test directory, update the appropriate workflow so CI actually runs it.
+Check `.github/workflows/` to determine which workflow runs the affected integration tests.
 
 When adding integration tests that need a new service, either add them to an existing workflow or create a new one. The workflow must start the service and set the appropriate env vars.
 
@@ -765,7 +773,7 @@ Components is analyzed with its own `hypervel/phpstan` extension. [Static Analys
 
 **Keep `hypervel/phpstan` evolving** — Codify framework contracts and useful conventions. Prefer a simple framework fix when it prevents the mistake. Add rules for mistakes likely to recur in packages or apps, even when existing cases are already fixed. Check each proposed rule against real mistakes and realistic correct usage. Reject rules that flag correct code or need a growing list of exceptions to avoid doing so. Keep inference limits explicit. Reach peer consensus, then seek owner approval for a new rule. If an existing rule flags correct code, fix the analyzer and leave the correct code alone.
 
-The `tests/` directory is excluded from phpstan. Do not run phpstan on tests.
+The main PHPStan configuration excludes `tests/`. Use `composer analyse:tests` for test-only rules.
 
 Run full PHPStan checks with `composer analyse`. During implementation, use targeted PHPStan only when investigating or validating a specific type issue.
 
