@@ -26,7 +26,7 @@ class RequirePasswordMiddlewareTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(20000));
 
-        $session = Double::for(Session::class);
+        $session = Double::for(Session::class)->strict();
         $session->expects('get')
             ->with('auth.password_confirmed_at_web', 0)
             ->returns(0); // Never confirmed
@@ -36,12 +36,12 @@ class RequirePasswordMiddlewareTest extends TestCase
         $request->headers->set('Accept', 'application/json');
 
         $jsonResponse = new JsonResponse(['message' => 'Password confirmation required.'], 423);
-        $responseFactory = Double::for(ResponseFactory::class);
+        $responseFactory = Double::for(ResponseFactory::class)->strict();
         $responseFactory->expects('json')
             ->with(['message' => 'Password confirmation required.'], 423)
             ->returns($jsonResponse);
 
-        $urlGenerator = Double::for(UrlGenerator::class);
+        $urlGenerator = Double::for(UrlGenerator::class)->strict();
 
         $middleware = $this->middleware(responseFactory: $responseFactory, urlGenerator: $urlGenerator);
         $result = $middleware->handle($request, fn () => new Response('should not reach'));
@@ -55,7 +55,7 @@ class RequirePasswordMiddlewareTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(1000));
 
-        $session = Double::for(Session::class);
+        $session = Double::for(Session::class)->strict();
         $session->expects('get')->times(2)
             ->with('auth.password_confirmed_at_web', 0)
             ->returns(990); // Confirmed 10 seconds ago
@@ -63,8 +63,8 @@ class RequirePasswordMiddlewareTest extends TestCase
         $request = Request::create('/');
         $request->setHypervelSession($session);
 
-        $responseFactory = Double::for(ResponseFactory::class);
-        $urlGenerator = Double::for(UrlGenerator::class);
+        $responseFactory = Double::for(ResponseFactory::class)->strict();
+        $urlGenerator = Double::for(UrlGenerator::class)->strict();
 
         $middleware = $this->middleware(responseFactory: $responseFactory, urlGenerator: $urlGenerator);
 
@@ -95,7 +95,7 @@ class RequirePasswordMiddlewareTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(20000));
 
-        $session = Double::for(Session::class);
+        $session = Double::for(Session::class)->strict();
         $session->expects('get')
             ->with('auth.password_confirmed_at_admin', 0)
             ->returns(0);
@@ -104,7 +104,7 @@ class RequirePasswordMiddlewareTest extends TestCase
         $request->setHypervelSession($session);
         $request->headers->set('Accept', 'application/json');
 
-        $responseFactory = Double::for(ResponseFactory::class);
+        $responseFactory = Double::for(ResponseFactory::class)->strict();
         $responseFactory->expects('json')
             ->with(['message' => 'Password confirmation required.'], 423)
             ->returns($jsonResponse = new JsonResponse(['message' => 'Password confirmation required.'], 423));
@@ -121,7 +121,7 @@ class RequirePasswordMiddlewareTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(1000));
 
-        $session = Double::for(Session::class);
+        $session = Double::for(Session::class)->strict();
         $session->expects('get')
             ->with('auth.password_confirmed_at_admin', 0)
             ->times(2)
@@ -130,7 +130,7 @@ class RequirePasswordMiddlewareTest extends TestCase
         $request = Request::create('/');
         $request->setHypervelSession($session);
 
-        $responseFactory = Double::for(ResponseFactory::class);
+        $responseFactory = Double::for(ResponseFactory::class)->strict();
         $responseFactory->expects('json')
             ->with(['message' => 'Password confirmation required.'], 423)
             ->returns($jsonResponse = new JsonResponse(['message' => 'Password confirmation required.'], 423));
@@ -162,7 +162,7 @@ class RequirePasswordMiddlewareTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(1000));
 
-        $session = Double::for(Session::class);
+        $session = Double::for(Session::class)->strict();
         $session->expects('get')
             ->with('auth.password_confirmed_at_admin', 0)
             ->returns(994);
@@ -171,7 +171,7 @@ class RequirePasswordMiddlewareTest extends TestCase
         $request->setHypervelSession($session);
         $request->headers->set('Accept', 'application/json');
 
-        $responseFactory = Double::for(ResponseFactory::class);
+        $responseFactory = Double::for(ResponseFactory::class)->strict();
         $responseFactory->expects('json')
             ->with(['message' => 'Password confirmation required.'], 423)
             ->returns($jsonResponse = new JsonResponse(['message' => 'Password confirmation required.'], 423));
@@ -203,12 +203,12 @@ class RequirePasswordMiddlewareTest extends TestCase
         ?Repository $config = null,
         string $guard = 'web'
     ): RequirePassword {
-        $auth = Double::for(AuthFactory::class);
+        $auth = Double::for(AuthFactory::class)->strict();
         $auth->allows('getDefaultDriver')->returns($guard);
 
         return new RequirePassword(
-            $responseFactory ?? Double::for(ResponseFactory::class),
-            $urlGenerator ?? Double::for(UrlGenerator::class),
+            $responseFactory ?? Double::for(ResponseFactory::class)->strict(),
+            $urlGenerator ?? Double::for(UrlGenerator::class)->strict(),
             $auth,
             $config ?? new Repository([
                 'auth' => [

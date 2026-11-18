@@ -52,7 +52,7 @@ class AuthServiceProviderTest extends TestCase
             ],
         ]);
         $resolver = null;
-        $manager = Double::for(CacheManager::class);
+        $manager = Double::for(CacheManager::class)->strict();
         $manager->expects('allowSerializableClassesUsing')
             ->with(Argument::capture($resolver));
         $application = $this->consoleApplication();
@@ -61,7 +61,7 @@ class AuthServiceProviderTest extends TestCase
         (new AuthServiceProvider($application->instance()))->boot(
             $manager,
             $config,
-            Double::for(GateContract::class, override: true)->instance(),
+            Double::for(GateContract::class, override: true)->strict()->instance(),
         );
 
         $this->assertInstanceOf(Closure::class, $resolver);
@@ -90,13 +90,13 @@ class AuthServiceProviderTest extends TestCase
                 ],
             ],
         ]);
-        $defaultRepository = Double::for(CacheRepository::class);
-        $redisRepository = Double::for(CacheRepository::class);
-        $manager = Double::for(CacheManager::class);
+        $defaultRepository = Double::for(CacheRepository::class)->strict();
+        $redisRepository = Double::for(CacheRepository::class)->strict();
+        $manager = Double::for(CacheManager::class)->strict();
         $manager->expects('allowSerializableClassesUsing');
         $manager->expects('store')->with(null)->returns($defaultRepository);
         $manager->expects('store')->with('redis')->returns($redisRepository);
-        $validator = Double::for(ModelCacheStoreValidator::class);
+        $validator = Double::for(ModelCacheStoreValidator::class)->strict();
         $validator->expects('validate')
             ->with(Argument::same($defaultRepository), 'Auth user provider [0]');
         $validator->expects('validate')
@@ -112,7 +112,7 @@ class AuthServiceProviderTest extends TestCase
         (new AuthServiceProvider($application->instance()))->boot(
             $manager,
             $config,
-            Double::for(GateContract::class, override: true)->instance(),
+            Double::for(GateContract::class, override: true)->strict()->instance(),
         );
 
         $this->assertInstanceOf(Closure::class, $bootedCallback);
@@ -140,7 +140,7 @@ class AuthServiceProviderTest extends TestCase
                 ],
             ],
         ]);
-        $manager = Double::for(CacheManager::class);
+        $manager = Double::for(CacheManager::class)->strict();
         $resolver = null;
         $manager->expects('allowSerializableClassesUsing')
             ->with(Argument::capture($resolver));
@@ -154,7 +154,7 @@ class AuthServiceProviderTest extends TestCase
         (new AuthServiceProvider($application->instance()))->boot(
             $manager,
             $config,
-            Double::for(GateContract::class, override: true)->instance(),
+            Double::for(GateContract::class, override: true)->strict()->instance(),
         );
 
         $this->assertSame([], $resolver());
@@ -174,20 +174,20 @@ class AuthServiceProviderTest extends TestCase
                 ],
             ],
         ]);
-        $masterManager = Double::for(CacheManager::class);
+        $masterManager = Double::for(CacheManager::class)->strict();
         $masterManager->expects('allowSerializableClassesUsing');
         $masterManager->expects('store')->never();
-        $workerRepository = Double::for(CacheRepository::class);
-        $workerManager = Double::for(CacheManager::class);
+        $workerRepository = Double::for(CacheRepository::class)->strict();
+        $workerManager = Double::for(CacheManager::class)->strict();
         $workerManager->expects('store')->with('worker')->returns($workerRepository);
-        $validator = Double::for(ModelCacheStoreValidator::class);
+        $validator = Double::for(ModelCacheStoreValidator::class)->strict();
         $validator->expects('validate')
             ->with(Argument::same($workerRepository), 'Auth user provider [users]');
         $listener = null;
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('listen')
             ->with(AfterWorkerStart::class, Argument::capture($listener));
-        $application = Double::for(Application::class, override: true);
+        $application = Double::for(Application::class, override: true)->strict();
         $application->expects('make')
             ->with(CacheManager::class)
             ->returns($workerManager);
@@ -204,11 +204,11 @@ class AuthServiceProviderTest extends TestCase
         (new AuthServiceProvider($application->instance()))->boot(
             $masterManager,
             $masterConfig,
-            Double::for(GateContract::class, override: true)->instance(),
+            Double::for(GateContract::class, override: true)->strict()->instance(),
         );
 
         $this->assertInstanceOf(Closure::class, $listener);
-        $server = Double::for(SwooleServer::class);
+        $server = Double::for(SwooleServer::class)->strict();
         // Store validation runs in request workers and taskworkers, unlike Swoole timer registration.
         $server->taskworker = true;
         $listener(new AfterWorkerStart($server, 8));
@@ -219,13 +219,13 @@ class AuthServiceProviderTest extends TestCase
         $config = new ConfigRepository([
             'auth' => ['providers' => []],
         ]);
-        $firstManager = Double::for(CacheManager::class);
+        $firstManager = Double::for(CacheManager::class)->strict();
         $firstManager->expects('allowSerializableClassesUsing');
-        $secondManager = Double::for(CacheManager::class);
+        $secondManager = Double::for(CacheManager::class)->strict();
         $secondManager->expects('allowSerializableClassesUsing');
-        $firstGate = Double::for(GateContract::class, override: true);
+        $firstGate = Double::for(GateContract::class, override: true)->strict();
         $firstGate->expects('scope')->never();
-        $secondGate = Double::for(GateContract::class, override: true);
+        $secondGate = Double::for(GateContract::class, override: true)->strict();
         $secondGate->expects('scope')
             ->with('edit', Argument::type(EloquentBuilder::class))
             ->resolves(static fn (mixed $ability, EloquentBuilder $query): EloquentBuilder => $query);
@@ -237,7 +237,7 @@ class AuthServiceProviderTest extends TestCase
         (new AuthServiceProvider($firstApplication->instance()))->boot($firstManager, $config, $firstGate->instance());
         (new AuthServiceProvider($secondApplication->instance()))->boot($secondManager, $config, $secondGate->instance());
 
-        $query = new EloquentBuilder(Double::for(QueryBuilder::class));
+        $query = new EloquentBuilder(Double::for(QueryBuilder::class)->strict());
 
         $this->assertSame($query, $query->whereCan('edit'));
     }
@@ -251,7 +251,7 @@ class AuthServiceProviderTest extends TestCase
                 ],
             ],
         ]);
-        $manager = Double::for(CacheManager::class);
+        $manager = Double::for(CacheManager::class)->strict();
         $startup = $this->bootAndCaptureStartupValidation($manager, $config);
 
         $this->expectException(InvalidArgumentException::class);
@@ -271,7 +271,7 @@ class AuthServiceProviderTest extends TestCase
                 ],
             ],
         ]);
-        $manager = Double::for(CacheManager::class);
+        $manager = Double::for(CacheManager::class)->strict();
         $startup = $this->bootAndCaptureStartupValidation($manager, $config);
 
         $this->expectException(InvalidArgumentException::class);
@@ -292,7 +292,7 @@ class AuthServiceProviderTest extends TestCase
                 ],
             ],
         ]);
-        $manager = Double::for(CacheManager::class);
+        $manager = Double::for(CacheManager::class)->strict();
         $startup = $this->bootAndCaptureStartupValidation($manager, $config);
 
         $this->expectException(InvalidArgumentException::class);
@@ -323,7 +323,7 @@ class AuthServiceProviderTest extends TestCase
                 ],
             ],
         ]);
-        $manager = Double::for(CacheManager::class);
+        $manager = Double::for(CacheManager::class)->strict();
         $startup = $this->bootAndCaptureStartupValidation($manager, $config);
 
         $this->expectException(InvalidArgumentException::class);
@@ -351,10 +351,10 @@ class AuthServiceProviderTest extends TestCase
                 ],
             ],
         ]);
-        $repository = Double::for(CacheRepository::class);
-        $manager = Double::for(CacheManager::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $manager = Double::for(CacheManager::class)->strict();
         $manager->expects('store')->with('redis')->returns($repository);
-        $validator = Double::for(ModelCacheStoreValidator::class);
+        $validator = Double::for(ModelCacheStoreValidator::class)->strict();
         $validator->expects('validate')
             ->with(Argument::same($repository), 'Auth user provider [users]');
         $validator->expects('validateAnyModeTags')
@@ -394,7 +394,7 @@ class AuthServiceProviderTest extends TestCase
      */
     private function consoleApplication(): OverriddenDouble
     {
-        $application = Double::for(Application::class, override: true);
+        $application = Double::for(Application::class, override: true)->strict();
         $application->expects('runningInConsole')->returns(true);
 
         return $application;
@@ -424,7 +424,7 @@ class AuthServiceProviderTest extends TestCase
         (new AuthServiceProvider($application->instance()))->boot(
             $manager,
             $config,
-            Double::for(GateContract::class, override: true)->instance(),
+            Double::for(GateContract::class, override: true)->strict()->instance(),
         );
 
         $this->assertInstanceOf(Closure::class, $startup);

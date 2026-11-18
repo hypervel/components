@@ -42,10 +42,10 @@ class AuthenticateWithBasicAuthMiddlewareTest extends TestCase
 
     public function testItCallsBasicWithDefaultField(): void
     {
-        $guard = Double::for(Guard::class, SupportsBasicAuth::class);
+        $guard = Double::for(Guard::class, SupportsBasicAuth::class)->strict();
         $guard->expects('basic')->with('email')->returns(null);
 
-        $authFactory = Double::for(AuthFactory::class);
+        $authFactory = Double::for(AuthFactory::class)->strict();
         $authFactory->expects('guard')->with(null)->returns($guard);
 
         $middleware = new AuthenticateWithBasicAuth($authFactory);
@@ -59,10 +59,10 @@ class AuthenticateWithBasicAuthMiddlewareTest extends TestCase
 
     public function testItCallsBasicWithCustomField(): void
     {
-        $guard = Double::for(Guard::class, SupportsBasicAuth::class);
+        $guard = Double::for(Guard::class, SupportsBasicAuth::class)->strict();
         $guard->expects('basic')->with('username')->returns(null);
 
-        $authFactory = Double::for(AuthFactory::class);
+        $authFactory = Double::for(AuthFactory::class)->strict();
         $authFactory->expects('guard')->with('api')->returns($guard);
 
         $middleware = new AuthenticateWithBasicAuth($authFactory);
@@ -76,10 +76,10 @@ class AuthenticateWithBasicAuthMiddlewareTest extends TestCase
 
     public function testItUsesSpecifiedGuard(): void
     {
-        $guard = Double::for(Guard::class, SupportsBasicAuth::class);
+        $guard = Double::for(Guard::class, SupportsBasicAuth::class)->strict();
         $guard->expects('basic')->with('email')->returns(null);
 
-        $authFactory = Double::for(AuthFactory::class);
+        $authFactory = Double::for(AuthFactory::class)->strict();
         $authFactory->expects('guard')->with('web')->returns($guard);
 
         $middleware = new AuthenticateWithBasicAuth($authFactory);
@@ -101,7 +101,7 @@ class AuthenticateWithBasicAuthMiddlewareTest extends TestCase
             ],
         ]));
 
-        $guard = Double::for(Guard::class, SupportsBasicAuth::class);
+        $guard = Double::for(Guard::class, SupportsBasicAuth::class)->strict();
         $guard->expects('basic')->with('username')->returns(null);
 
         $auth = new AuthManager($container);

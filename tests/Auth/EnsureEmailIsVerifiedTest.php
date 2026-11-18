@@ -26,7 +26,7 @@ class EnsureEmailIsVerifiedTest extends TestCase
 
     public function testVerifiedUserPassesThrough(): void
     {
-        $user = Double::for(Authenticatable::class, MustVerifyEmail::class);
+        $user = Double::for(Authenticatable::class, MustVerifyEmail::class)->strict();
         $user->allows('hasVerifiedEmail')->returns(true);
 
         $request = Request::create('/');
@@ -42,7 +42,7 @@ class EnsureEmailIsVerifiedTest extends TestCase
     public function testUserThatDoesNotImplementMustVerifyEmailPassesThrough(): void
     {
         // User implements Authenticatable but does not implement MustVerifyEmail.
-        $user = Double::for(Authenticatable::class);
+        $user = Double::for(Authenticatable::class)->strict();
 
         $request = Request::create('/');
         $request->setUserResolver(fn () => $user);
@@ -68,7 +68,7 @@ class EnsureEmailIsVerifiedTest extends TestCase
 
     public function testUnverifiedUserReturnsJsonWhenExpectsJson(): void
     {
-        $user = Double::for(Authenticatable::class, MustVerifyEmail::class);
+        $user = Double::for(Authenticatable::class, MustVerifyEmail::class)->strict();
         $user->allows('hasVerifiedEmail')->returns(false);
 
         $request = Request::create('/');
@@ -86,7 +86,7 @@ class EnsureEmailIsVerifiedTest extends TestCase
         // Register a named route so URL::route() can resolve it
         $this->app->make('router')->get('/email/verify', fn () => 'verify')->name('verify.email');
 
-        $user = Double::for(Authenticatable::class, MustVerifyEmail::class);
+        $user = Double::for(Authenticatable::class, MustVerifyEmail::class)->strict();
         $user->allows('hasVerifiedEmail')->returns(false);
 
         $request = Request::create('/');

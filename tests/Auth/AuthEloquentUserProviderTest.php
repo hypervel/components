@@ -63,7 +63,7 @@ class AuthEloquentUserProviderTest extends TestCase
     public function testUpdateRememberTokenRestoresTimestampsAfterSaving(): void
     {
         $user = new EloquentProviderRememberUserStub;
-        $provider = new EloquentUserProvider(Double::for(Hasher::class), $user::class);
+        $provider = new EloquentUserProvider(Double::for(Hasher::class)->strict(), $user::class);
 
         $provider->updateRememberToken($user, 'remember-token');
 
@@ -76,7 +76,7 @@ class AuthEloquentUserProviderTest extends TestCase
     {
         $user = new EloquentProviderRememberUserStub;
         $user->timestamps = false;
-        $provider = new EloquentUserProvider(Double::for(Hasher::class), $user::class);
+        $provider = new EloquentUserProvider(Double::for(Hasher::class)->strict(), $user::class);
 
         $provider->updateRememberToken($user, 'remember-token');
 
@@ -89,7 +89,7 @@ class AuthEloquentUserProviderTest extends TestCase
         $exception = new RuntimeException('Save failed.');
         $user = new EloquentProviderRememberUserStub;
         $user->saveException = $exception;
-        $provider = new EloquentUserProvider(Double::for(Hasher::class), $user::class);
+        $provider = new EloquentUserProvider(Double::for(Hasher::class)->strict(), $user::class);
 
         try {
             $provider->updateRememberToken($user, 'remember-token');
@@ -153,10 +153,10 @@ class AuthEloquentUserProviderTest extends TestCase
 
     public function testCredentialValidationFailsGracefullyWithNullPassword(): void
     {
-        $hasher = Double::for(Hasher::class);
+        $hasher = Double::for(Hasher::class)->strict();
         $hasher->expects('check')->never();
         $provider = new EloquentUserProvider($hasher, 'foo');
-        $user = Double::for(Authenticatable::class);
+        $user = Double::for(Authenticatable::class)->strict();
         $user->expects('getAuthPassword')->returns(null);
         $result = $provider->validateCredentials($user, ['password' => 'plain']);
 
@@ -194,7 +194,7 @@ class AuthEloquentUserProviderTest extends TestCase
 
     public function testDontRehashPasswordIfNotRequired(): void
     {
-        $hasher = Double::for(Hasher::class);
+        $hasher = Double::for(Hasher::class)->strict();
         $hasher->expects('needsRehash')->with('hash')->returns(false);
         $hasher->expects('make')->never();
 

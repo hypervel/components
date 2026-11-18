@@ -1580,7 +1580,7 @@ class AuthAccessGateTest extends TestCase
     public function testGateEvaluationSkipsDispatchWhenThereAreNoListeners(): void
     {
         $container = new Container;
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('hasListeners')->with(GateEvaluated::class)->returns(false);
         $events->expects('dispatch')->never();
         $container->instance(Dispatcher::class, $events);
@@ -1594,7 +1594,7 @@ class AuthAccessGateTest extends TestCase
     public function testGateEvaluationDispatchesWhenThereIsAListener(): void
     {
         $container = new Container;
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('hasListeners')->with(GateEvaluated::class)->returns(true);
         $events->expects('dispatch')
             ->with(Argument::satisfies(fn (GateEvaluated $event): bool => $event->ability === 'allowed'));

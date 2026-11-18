@@ -29,8 +29,8 @@ class TimeboxIsolationTest extends TestCase
     {
         $recorder = new TimeboxOperationRecorder;
         $timebox = new TrackingTimebox($recorder);
-        $provider = Double::for(UserProvider::class);
-        $user = Double::for(Authenticatable::class);
+        $provider = Double::for(UserProvider::class)->strict();
+        $user = Double::for(Authenticatable::class)->strict();
 
         $provider->expects('retrieveByCredentials')->times(2)->returns($user, null);
         $provider->expects('validateCredentials')->with(Argument::same($user), ['email' => 'test@example.com'])->returns(true);
@@ -42,8 +42,8 @@ class TimeboxIsolationTest extends TestCase
         $guard = new TrackingSessionGuard(
             'web',
             $provider,
-            Double::for(Session::class),
-            Double::for(Container::class, override: true)->instance(),
+            Double::for(Session::class)->strict(),
+            Double::for(Container::class, override: true)->strict()->instance(),
             $timebox,
             timeboxDuration: 1_000_000,
         );
@@ -69,11 +69,11 @@ class TimeboxIsolationTest extends TestCase
     {
         $recorder = new TimeboxOperationRecorder;
         $timebox = new TrackingTimebox($recorder);
-        $users = Double::for(UserProvider::class);
+        $users = Double::for(UserProvider::class)->strict();
         $users->expects('retrieveByCredentials')->times(2)->with(['email' => 'missing@example.com'])->returns(null);
 
         $broker = new PasswordBroker(
-            Double::for(TokenRepositoryInterface::class),
+            Double::for(TokenRepositoryInterface::class)->strict(),
             $users,
             'users',
             timebox: $timebox,
@@ -91,9 +91,9 @@ class TimeboxIsolationTest extends TestCase
     {
         $recorder = new TimeboxOperationRecorder;
         $timebox = new TrackingTimebox($recorder);
-        $tokens = Double::for(TokenRepositoryInterface::class);
-        $users = Double::for(UserProvider::class);
-        $user = Double::for(Authenticatable::class, CanResetPassword::class);
+        $tokens = Double::for(TokenRepositoryInterface::class)->strict();
+        $users = Double::for(UserProvider::class)->strict();
+        $user = Double::for(Authenticatable::class, CanResetPassword::class)->strict();
         $credentials = [
             'email' => 'test@example.com',
             'password' => 'secret',

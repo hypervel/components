@@ -99,13 +99,13 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
 
     public function testMultipleGuardsRedirectsIfAnyAuthenticated(): void
     {
-        $guestGuard = Double::for(Guard::class);
+        $guestGuard = Double::for(Guard::class)->strict();
         $guestGuard->allows('check')->returns(false);
 
-        $authGuard = Double::for(Guard::class);
+        $authGuard = Double::for(Guard::class)->strict();
         $authGuard->allows('check')->returns(true);
 
-        $factory = Double::for(AuthFactory::class);
+        $factory = Double::for(AuthFactory::class)->strict();
         $factory->expects('guard')->with('web')->returns($guestGuard);
         $factory->expects('guard')->with('api')->returns($authGuard);
         Auth::swap($factory);
@@ -120,13 +120,13 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
 
     public function testPassesThroughWhenAllGuardsAreGuests(): void
     {
-        $guard1 = Double::for(Guard::class);
+        $guard1 = Double::for(Guard::class)->strict();
         $guard1->allows('check')->returns(false);
 
-        $guard2 = Double::for(Guard::class);
+        $guard2 = Double::for(Guard::class)->strict();
         $guard2->allows('check')->returns(false);
 
-        $factory = Double::for(AuthFactory::class);
+        $factory = Double::for(AuthFactory::class)->strict();
         $factory->expects('guard')->with('web')->returns($guard1);
         $factory->expects('guard')->with('api')->returns($guard2);
         $factory->expects('shouldUse')->with('web');
@@ -240,10 +240,10 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
      */
     protected function swapAuthGuard(bool $authenticated): void
     {
-        $guard = Double::for(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
         $guard->allows('check')->returns($authenticated);
 
-        $factory = Double::for(AuthFactory::class);
+        $factory = Double::for(AuthFactory::class)->strict();
         $factory->allows('guard')->returns($guard);
         Auth::swap($factory);
     }
@@ -268,16 +268,16 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
 
         $auth->extend('web', fn (): RequestGuard => new RequestGuard(
             'web',
-            static fn (): ?Authenticatable => $webAuthenticated ? Double::for(Authenticatable::class) : null,
+            static fn (): ?Authenticatable => $webAuthenticated ? Double::for(Authenticatable::class)->strict() : null,
             $container,
-            Double::for(EloquentUserProvider::class),
+            Double::for(EloquentUserProvider::class)->strict(),
         ));
 
         $auth->extend('secondary', fn (): RequestGuard => new RequestGuard(
             'secondary',
-            static fn (): ?Authenticatable => $secondaryAuthenticated ? Double::for(Authenticatable::class) : null,
+            static fn (): ?Authenticatable => $secondaryAuthenticated ? Double::for(Authenticatable::class)->strict() : null,
             $container,
-            Double::for(EloquentUserProvider::class),
+            Double::for(EloquentUserProvider::class)->strict(),
         ));
 
         return $auth;

@@ -17,7 +17,7 @@ class VerifiedEventTest extends TestCase
 
     public function testAcceptsVerifiableUserThatIsNotAuthenticatable(): void
     {
-        $user = Double::for(MustVerifyEmail::class);
+        $user = Double::for(MustVerifyEmail::class)->strict();
 
         $this->assertNotInstanceOf(Authenticatable::class, $user);
         $this->assertSame($user, (new Verified($user))->user);
