@@ -7,7 +7,9 @@ namespace Hypervel\PHPStan\Rules\Testing;
 use JMac\Testing\Double;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
+use PhpParser\Node\ArrayItem;
 use PhpParser\Node\Expr;
+use PhpParser\Node\Expr\Array_;
 use PhpParser\Node\Expr\Assign;
 use PhpParser\Node\Expr\CallLike;
 use PhpParser\Node\Expr\Match_;
@@ -41,6 +43,7 @@ use function strtolower;
 /**
  * Follow the factory result through chained calls, ternaries and match arms, or through
  * a local variable or property configured in the same statement list before use.
+ * Split setup can select the mode in a call argument, assignment value or array item value.
  * Mode changes through aliases, helpers and conditional statements are not inferred.
  *
  * @implements Rule<FileNode>
@@ -205,6 +208,9 @@ class RequireExplicitDoubleModeRule implements Rule
     {
         if ($value instanceof Assign) {
             return $this->evaluatesModeCall($value->expr, $binding);
+        }
+        if ($value instanceof Array_) {
+            return array_any($value->items, fn (ArrayItem $item): bool => $this->evaluatesModeCall($item->value, $binding));
         }
         if (! $value instanceof CallLike || $value->isFirstClassCallable()) {
             return false;

@@ -95,6 +95,15 @@ class ExplicitDoubleMode
         $optional?->exercise($skipped->strict());
     }
 
+    /** @return list<Repository> */
+    public function repositories(): array
+    {
+        $repository = TestDouble::for(Repository::class);
+        $repository->expects('get');
+
+        return [$repository->strict()];
+    }
+
     public function exercise(mixed ...$values): void
     {
     }
