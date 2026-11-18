@@ -17,7 +17,7 @@ class DatabaseMariaDbBuilderTest extends TestCase
 
     public function testCreateDatabase(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new MariaDbGrammar($connection);
 
         $connection->expects('getConfig')->with('charset')->returns('utf8mb4');
@@ -33,7 +33,7 @@ class DatabaseMariaDbBuilderTest extends TestCase
 
     public function testDropDatabaseIfExists(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new MariaDbGrammar($connection);
 
         $connection->expects('getSchemaGrammar')->returns($grammar);

@@ -3788,14 +3788,14 @@ class DatabaseQueryBuilderTest extends TestCase
 
     public function testCrossDatabaseQualificationKeepsQualifiedDerivedTablesAndTablelessSubqueriesUnchanged(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getDatabaseName')->returns('other_database');
         $connection->allows('getTablePrefix')->returns('');
 
-        $derived = new Builder($connection, new Grammar($connection), Double::for(Processor::class));
+        $derived = new Builder($connection, new Grammar($connection), Double::for(Processor::class)->strict());
         $derived->from('other_database.events');
 
-        $subquery = new Builder($connection, new Grammar($connection), Double::for(Processor::class));
+        $subquery = new Builder($connection, new Grammar($connection), Double::for(Processor::class)->strict());
         $subquery->fromSub($derived, 'derived');
 
         $outer = $this->getBuilder()->from('users')->whereIn('id', $subquery);
@@ -3805,7 +3805,7 @@ class DatabaseQueryBuilderTest extends TestCase
             $outer->toSql()
         );
 
-        $tableless = new Builder($connection, new Grammar($connection), Double::for(Processor::class));
+        $tableless = new Builder($connection, new Grammar($connection), Double::for(Processor::class)->strict());
         $tableless->selectRaw('1');
 
         $this->assertSame(
@@ -6165,7 +6165,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->from('users')->truncate();
 
         $builder = $this->getSQLiteBuilder();
-        $schemaBuilder = Double::for(SchemaBuilder::class);
+        $schemaBuilder = Double::for(SchemaBuilder::class)->strict();
         $schemaBuilder->expects('parseSchemaAndTable')->returns([null, 'users']);
         $builder->getConnection()->expects('getSchemaBuilder')->returns($schemaBuilder);
         $builder->from('users');
@@ -6183,7 +6183,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->from('users')->truncate();
 
         $builder = $this->getSQLiteBuilder(prefix: 'prefix_');
-        $schemaBuilder = Double::for(SchemaBuilder::class);
+        $schemaBuilder = Double::for(SchemaBuilder::class)->strict();
         $schemaBuilder->expects('parseSchemaAndTable')->returns([null, 'users']);
         $builder->getConnection()->expects('getSchemaBuilder')->returns($schemaBuilder);
         $builder->from('users');
@@ -6201,7 +6201,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->from('my_schema.users')->truncate();
 
         $builder = $this->getSQLiteBuilder(prefix: 'prefix_');
-        $schemaBuilder = Double::for(SchemaBuilder::class);
+        $schemaBuilder = Double::for(SchemaBuilder::class)->strict();
         $schemaBuilder->expects('parseSchemaAndTable')->returns(['my_schema', 'users']);
         $builder->getConnection()->expects('getSchemaBuilder')->returns($schemaBuilder);
         $builder->from('my_schema.users');
@@ -6211,7 +6211,7 @@ class DatabaseQueryBuilderTest extends TestCase
         ], $builder->getGrammar()->compileTruncate($builder));
 
         $builder = $this->getSQLiteBuilder();
-        $schemaBuilder = Double::for(SchemaBuilder::class);
+        $schemaBuilder = Double::for(SchemaBuilder::class)->strict();
         $schemaBuilder->expects('parseSchemaAndTable')->returns(['0', 'users']);
         $builder->getConnection()->expects('getSchemaBuilder')->returns($schemaBuilder);
         $builder->from('0.users');
@@ -9333,7 +9333,7 @@ SQL, ['"John"'])->returns(1);
      */
     protected function getConnection(string $prefix = '', string $connectionClass = Connection::class): Connection&DoubleInterface
     {
-        $connection = Double::for($connectionClass);
+        $connection = Double::for($connectionClass)->strict();
         $connection->allows('getDatabaseName')->returns('database');
         $connection->allows('getTablePrefix')->returns($prefix);
 
@@ -9351,14 +9351,14 @@ SQL, ['"John"'])->returns(1);
      */
     protected function getRelationSubquery(string $database = 'database', string $grammarClass = Grammar::class): HasMany
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getDatabaseName')->returns($database);
         $connection->allows('getTablePrefix')->returns('');
 
         $query = new EloquentBuilder(new Builder(
             $connection,
             new $grammarClass($connection),
-            Double::for(Processor::class),
+            Double::for(Processor::class)->strict(),
         ));
         $query->setModel(new QueryableSubqueryRelatedModel);
 
@@ -9444,7 +9444,7 @@ SQL, ['"John"'])->returns(1);
     {
         $connection = $this->getConnection(prefix: $prefix);
         $grammar = new Grammar($connection);
-        $processor = Double::for(Processor::class);
+        $processor = Double::for(Processor::class)->strict();
 
         return new Builder($connection, $grammar, $processor);
     }
@@ -9456,7 +9456,7 @@ SQL, ['"John"'])->returns(1);
     {
         $connection = $this->getConnection(prefix: $prefix);
         $grammar = new PostgresGrammar($connection);
-        $processor = Double::for(Processor::class);
+        $processor = Double::for(Processor::class)->strict();
 
         return new Builder($connection, $grammar, $processor);
     }
@@ -9468,7 +9468,7 @@ SQL, ['"John"'])->returns(1);
     {
         $connection = $this->getConnection(prefix: $prefix, connectionClass: MySqlConnection::class);
         $grammar = new MySqlGrammar($connection);
-        $processor = Double::for(Processor::class);
+        $processor = Double::for(Processor::class)->strict();
 
         return new Builder($connection, $grammar, $processor);
     }
@@ -9480,7 +9480,7 @@ SQL, ['"John"'])->returns(1);
     {
         $connection = $this->getConnection(prefix: $prefix, connectionClass: MariaDbConnection::class);
         $grammar = new MariaDbGrammar($connection);
-        $processor = Double::for(Processor::class);
+        $processor = Double::for(Processor::class)->strict();
 
         return new Builder($connection, $grammar, $processor);
     }
@@ -9492,7 +9492,7 @@ SQL, ['"John"'])->returns(1);
     {
         $connection = $this->getConnection(prefix: $prefix);
         $grammar = new SQLiteGrammar($connection);
-        $processor = Double::for(Processor::class);
+        $processor = Double::for(Processor::class)->strict();
 
         return new Builder($connection, $grammar, $processor);
     }

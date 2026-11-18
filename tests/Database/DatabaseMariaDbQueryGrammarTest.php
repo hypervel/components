@@ -21,13 +21,13 @@ class DatabaseMariaDbQueryGrammarTest extends TestCase
     {
         $this->expectException(JsonException::class);
 
-        (new MariaDbGrammar(Double::for(Connection::class)))
+        (new MariaDbGrammar(Double::for(Connection::class)->strict()))
             ->prepareBindingsForUpdate([], ['payload' => [NAN]]);
     }
 
     public function testToRawSql(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('escape')->with('foo', false)->returns("'foo'");
         $grammar = new MariaDbGrammar($connection);
 
@@ -106,14 +106,14 @@ class DatabaseMariaDbQueryGrammarTest extends TestCase
 
     protected function getBuilder(): Builder
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getDatabaseName')->returns('database');
         $connection->allows('getTablePrefix')->returns('');
 
         return new Builder(
             $connection,
             new MariaDbGrammar($connection),
-            Double::for(Processor::class)
+            Double::for(Processor::class)->strict()
         );
     }
 }

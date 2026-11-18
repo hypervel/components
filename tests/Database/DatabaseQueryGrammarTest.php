@@ -27,12 +27,12 @@ class DatabaseQueryGrammarTest extends TestCase
     {
         $this->expectException(JsonException::class);
 
-        (new Grammar(Double::for(Connection::class)))->prepareBindingForJsonContains(NAN);
+        (new Grammar(Double::for(Connection::class)->strict()))->prepareBindingForJsonContains(NAN);
     }
 
     public function testWrapIdentifierEscapesOneIdentifierWithoutApplyingTheTablePrefix(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getTablePrefix')->never();
 
         $grammar = new Grammar($connection);
@@ -44,7 +44,7 @@ class DatabaseQueryGrammarTest extends TestCase
 
     public function testQualifiedColumnsPrefixOnlyTheTableSegment(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getTablePrefix')->returns('app_');
         $grammar = new Grammar($connection);
 
@@ -122,7 +122,7 @@ class DatabaseQueryGrammarTest extends TestCase
         $resourceIdentity = (string) $resource;
 
         try {
-            $connection = Double::for(Connection::class);
+            $connection = Double::for(Connection::class)->strict();
             $connection->expects('escape')->with('first', false)->returns("'first'");
             $connection->expects('escape')->with($resourceIdentity, false)->returns("'resource'");
 
@@ -202,7 +202,7 @@ class DatabaseQueryGrammarTest extends TestCase
     public function testRawSqlBindingSubstitutionHandlesLongBindingLists(): void
     {
         $bindings = range(1, 250);
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('escape')
             ->times(count($bindings))
             ->resolves(static fn (int $value, bool $binary): string => (string) $value);
