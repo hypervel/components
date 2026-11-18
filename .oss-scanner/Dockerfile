@@ -4,7 +4,7 @@
 #
 # Network access is only available while this image builds. PHP test dependencies are installed here.
 # Run `hypervel-services-start` to start Redis. Testbench uses in-memory SQLite by default.
-FROM ghcr.io/hypervel/components-ci:php8.5-swoole6.3.0-rc1
+FROM ghcr.io/hypervel/components-ci:php8.5-swoole6.3.0-rc2
 
 ENV DEBIAN_FRONTEND=noninteractive \
     COMPOSER_ALLOW_SUPERUSER=1 \

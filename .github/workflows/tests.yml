@@ -21,7 +21,7 @@ jobs:
     name: Code Style and Skeleton Config
 
     container:
-      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc2
 
     steps:
       - name: Checkout code
@@ -54,7 +54,7 @@ jobs:
     name: Framework Tests (PHP ${{ matrix.php }}, Swoole 6.3.0 RC1)
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
 
     steps:
       - name: Checkout code
@@ -86,7 +86,7 @@ jobs:
     name: PHPStan and Package Tests (PHP ${{ matrix.php }}, Swoole 6.3.0 RC1)
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
 
     steps:
       - name: Checkout code
@@ -132,7 +132,7 @@ jobs:
     name: JavaScript
 
     container:
-      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc2
 
     steps:
       - name: Checkout code

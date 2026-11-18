@@ -37,7 +37,7 @@ jobs:
           --health-retries 15
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
 
     strategy:
       fail-fast: false

@@ -27,7 +27,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
 
     strategy:
       fail-fast: false
@@ -67,7 +67,7 @@ jobs:
           TYPESENSE_DATA_DIR: /tmp
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
 
     strategy:
       fail-fast: false
@@ -101,7 +101,7 @@ jobs:
     timeout-minutes: 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
 
     strategy:
       fail-fast: false
