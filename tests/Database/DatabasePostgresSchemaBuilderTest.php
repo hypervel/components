@@ -18,7 +18,7 @@ class DatabasePostgresSchemaBuilderTest extends TestCase
 
     public function testHasTable(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new PostgresGrammar($connection);
         $connection->expects('getSchemaGrammar')->returns($grammar);
         $builder = new PostgresBuilder($connection);
@@ -32,7 +32,7 @@ class DatabasePostgresSchemaBuilderTest extends TestCase
 
     public function testGetColumnListing(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new PostgresGrammar($connection);
         $connection->allows('getServerVersion')->returns('12.0.0');
         $processor = new PostgresProcessor;

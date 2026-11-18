@@ -703,10 +703,8 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
 
     public function testAddingNativeJson(): void
     {
-        $connection = Double::for(Connection::class);
-        $connection->expects('getTablePrefix')->returns('');
-        $connection->expects('getConfig')->with('use_native_json')->returns(true);
-        $connection->expects('getSchemaGrammar')->returns($this->getGrammar($connection));
+        $connection = $this->getConnection();
+        $connection->allows('getConfig')->with('use_native_json')->returns(true);
 
         $blueprint = new Blueprint($connection, 'users');
         $blueprint->json('foo');
@@ -728,10 +726,8 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
 
     public function testAddingNativeJsonb(): void
     {
-        $connection = Double::for(Connection::class);
-        $connection->expects('getTablePrefix')->returns('');
-        $connection->expects('getConfig')->with('use_native_jsonb')->returns(true);
-        $connection->expects('getSchemaGrammar')->returns($this->getGrammar($connection));
+        $connection = $this->getConnection();
+        $connection->allows('getConfig')->with('use_native_jsonb')->returns(true);
 
         $blueprint = new Blueprint($connection, 'users');
         $blueprint->jsonb('foo');
@@ -1260,7 +1256,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         ?SQLiteBuilder $builder = null,
         string $prefix = ''
     ): Connection&DoubleInterface {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar ??= $this->getGrammar($connection);
         $builder ??= $this->getBuilder();
 

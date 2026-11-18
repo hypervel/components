@@ -885,7 +885,7 @@ class DatabaseMySqlSchemaGrammarTest extends TestCase
     #[DataProvider('escapedSchemaLiteralsProvider')]
     public function testSchemaLiteralsUseTheConfiguredSqlMode(array $modes, string $literal, string $path): void
     {
-        $connection = new MySqlConnection(Double::for(PDO::class), config: ['modes' => $modes]);
+        $connection = new MySqlConnection(Double::for(PDO::class)->strict(), config: ['modes' => $modes]);
         $connection->useDefaultSchemaGrammar();
         $blueprint = new Blueprint($connection, 'users');
         $value = "O'Brien\\User";
@@ -954,7 +954,6 @@ SQL],
     public function testAddingDate(): void
     {
         $conn = $this->getConnection();
-        $conn->expects('isMaria')->returns(false);
         $conn->expects('getServerVersion')->returns('8.0.13');
 
         $blueprint = new Blueprint($conn, 'users');
@@ -968,7 +967,6 @@ SQL],
     public function testAddingDateWithDefaultCurrent(): void
     {
         $conn = $this->getConnection();
-        $conn->expects('isMaria')->returns(false);
         $conn->expects('getServerVersion')->returns('8.0.13');
 
         $blueprint = new Blueprint($conn, 'users');
@@ -982,7 +980,6 @@ SQL],
     public function testAddingDateWithDefaultCurrentOn57(): void
     {
         $conn = $this->getConnection();
-        $conn->expects('isMaria')->returns(false);
         $conn->expects('getServerVersion')->returns('5.7');
 
         $blueprint = new Blueprint($conn, 'users');
@@ -996,7 +993,6 @@ SQL],
     public function testAddingYear(): void
     {
         $conn = $this->getConnection();
-        $conn->expects('isMaria')->returns(false);
         $conn->expects('getServerVersion')->returns('8.0.13');
 
         $blueprint = new Blueprint($conn, 'users');
@@ -1009,7 +1005,6 @@ SQL],
     public function testAddingYearWithDefaultCurrent(): void
     {
         $conn = $this->getConnection();
-        $conn->expects('isMaria')->returns(false);
         $conn->expects('getServerVersion')->returns('8.0.13');
 
         $blueprint = new Blueprint($conn, 'users');
@@ -1023,7 +1018,6 @@ SQL],
     public function testAddingYearWithDefaultCurrentOn57(): void
     {
         $conn = $this->getConnection();
-        $conn->expects('isMaria')->returns(false);
         $conn->expects('getServerVersion')->returns('5.7');
 
         $blueprint = new Blueprint($conn, 'users');
@@ -1683,7 +1677,8 @@ SQL],
         ?MySqlBuilder $builder = null,
         string $prefix = ''
     ): Connection&DoubleInterface {
-        $connection = Double::for(MySqlConnection::class);
+        $connection = Double::for(MySqlConnection::class)->strict();
+        $connection->allows('isMaria')->returns(false);
         $connection->allows('usesBackslashEscapes')->returns(true);
         $connection->allows('getTablePrefix')->returns($prefix);
         $connection->allows('getConfig')->with('prefix_indexes')->returns(null);
@@ -1996,6 +1991,6 @@ SQL],
      */
     public function getBuilder(): MySqlBuilder
     {
-        return Double::for(MySqlBuilder::class);
+        return Double::for(MySqlBuilder::class)->strict();
     }
 }

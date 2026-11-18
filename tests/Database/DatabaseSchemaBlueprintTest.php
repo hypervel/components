@@ -37,7 +37,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
 
     public function testToSqlRunsCommandsFromBlueprint(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getSchemaGrammar')->returns(new MySqlGrammar($connection));
         $connection->expects('statement')->with('foo')->returns(true)->ordered();
         $connection->expects('statement')->with('bar')->returns(true)->ordered();
@@ -1022,7 +1022,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
             'MySql' => MySqlConnection::class,
             'MariaDb' => MariaDbConnection::class,
             default => Connection::class,
-        });
+        })->strict();
         $connection->allows('getTablePrefix')->returns($prefix);
         $connection->allows('getConfig')->with('prefix_indexes')->returns(true);
 
@@ -1030,13 +1030,14 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $builderClass = 'Hypervel\Database\Schema\\' . $grammar . 'Builder';
 
         $connection->allows('getSchemaGrammar')->returns(new $grammarClass($connection));
-        $connection->allows('getSchemaBuilder')->returns(Double::for($builderClass));
+        $connection->allows('getSchemaBuilder')->returns(Double::for($builderClass)->strict());
 
         if ($grammar === 'SQLite') {
             $connection->allows('getServerVersion')->returns('3.35');
         }
 
         if ($connection instanceof MySqlConnection) {
+            $connection->allows('isMaria')->returns($connection instanceof MariaDbConnection);
             $connection->allows('usesBackslashEscapes')->returns(true);
         }
 

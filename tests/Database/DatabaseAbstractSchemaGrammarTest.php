@@ -41,7 +41,7 @@ class DatabaseAbstractSchemaGrammarTest extends TestCase
     #[TestWith(['compileCreateRangePartition', ['users', 'users_1', [1], [2]]])]
     public function testPartitioningIsUnsupportedByDefault(string $method, array $arguments): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new class($connection) extends Grammar {
         };
 

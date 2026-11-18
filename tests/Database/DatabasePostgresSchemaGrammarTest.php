@@ -1714,7 +1714,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         ?PostgresBuilder $builder = null,
         string $prefix = ''
     ): Connection&DoubleInterface {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getTablePrefix')->returns($prefix);
         $connection->allows('getConfig')->with('prefix_indexes')->returns(null);
 

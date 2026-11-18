@@ -18,7 +18,7 @@ class DatabaseMySQLSchemaBuilderTest extends TestCase
 
     public function testHasTable(): void
     {
-        $connection = Double::for(MySqlConnection::class);
+        $connection = Double::for(MySqlConnection::class)->strict();
         $connection->allows('usesBackslashEscapes')->returns(true);
         $grammar = new MySqlGrammar($connection);
         $connection->expects('getSchemaGrammar')->returns($grammar);
@@ -31,7 +31,7 @@ class DatabaseMySQLSchemaBuilderTest extends TestCase
 
     public function testGetColumnListing(): void
     {
-        $connection = Double::for(MySqlConnection::class);
+        $connection = Double::for(MySqlConnection::class)->strict();
         $connection->allows('usesBackslashEscapes')->returns(true);
         $grammar = new MySqlGrammar($connection);
         $processor = new MySqlProcessor;
