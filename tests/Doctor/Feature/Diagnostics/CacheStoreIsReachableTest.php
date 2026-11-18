@@ -370,7 +370,7 @@ class CacheStoreIsReachableTest extends TestCase
             $cleanupCanceled => new CanceledException('cleanup canceled'),
             default => new RuntimeException('cleanup failed'),
         };
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('put')->throws($primary);
         $store->expects('forget')->throws($cleanup);
         Cache::extend('probe', fn (): Repository => new Repository($store));

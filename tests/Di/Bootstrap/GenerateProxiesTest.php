@@ -76,7 +76,7 @@ class GenerateProxiesTest extends TestCase
     public function testBootstrapClosesRegistration(string $aspects): void
     {
         $this->withProxyFixture(function (string $className, string $sourceFile, string $overrideFile, string $proxyDir) use ($aspects): void {
-            $app = Double::for(ApplicationContract::class, override: true);
+            $app = Double::for(ApplicationContract::class, override: true)->strict();
 
             if ($aspects === 'none') {
                 $app->expects('bootstrapPath')->never();

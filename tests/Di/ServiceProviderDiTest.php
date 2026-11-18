@@ -64,7 +64,7 @@ class ServiceProviderDiTest extends TestCase
      */
     protected function createMockApp(): ApplicationContract
     {
-        return Double::for(ApplicationContract::class, override: true)->instance();
+        return Double::for(ApplicationContract::class, override: true)->strict()->instance();
     }
 }
 

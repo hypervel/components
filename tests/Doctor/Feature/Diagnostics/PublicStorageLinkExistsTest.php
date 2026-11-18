@@ -162,7 +162,7 @@ class PublicStorageLinkExistsTest extends TestCase
             'filesystems.disks.public' => ['driver' => 'local', 'root' => $root],
             'filesystems.links' => [$link => $root, $this->basePath . '/missing' => $root],
         ]);
-        $kernel = Double::for(Kernel::class);
+        $kernel = Double::for(Kernel::class)->strict();
         $kernel->expects('call')->never();
         Artisan::swap($kernel);
         $diagnostic = new PublicStorageLinkExists;
@@ -201,7 +201,7 @@ class PublicStorageLinkExistsTest extends TestCase
             'filesystems.disks.public' => ['driver' => 'local', 'root' => $root],
             'filesystems.links' => [$this->basePath . '/uploads' => $root],
         ]);
-        $kernel = Double::for(Kernel::class);
+        $kernel = Double::for(Kernel::class)->strict();
         Artisan::swap($kernel);
         $command = $kernel->expects('call')->with('storage:link');
 

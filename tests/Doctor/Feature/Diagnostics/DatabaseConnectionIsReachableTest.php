@@ -146,7 +146,7 @@ class DatabaseConnectionIsReachableTest extends TestCase
             'database.default' => 'analytics',
             'database.connections.analytics' => ['driver' => 'custom', 'options' => 'transport-owned'],
         ]);
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $version = $connection->expects('getServerVersion');
 
         if ($fails) {
@@ -268,7 +268,7 @@ class DatabaseConnectionIsReachableTest extends TestCase
                 'read' => ['driver' => 'replica', 'options' => 'transport-owned'],
             ],
         ]);
-        $custom = Double::for(Connection::class);
+        $custom = Double::for(Connection::class)->strict();
         if ($suffix === '::read') {
             $custom->expects('getServerVersion')->returns('1.0');
             $custom->expects('disconnect');

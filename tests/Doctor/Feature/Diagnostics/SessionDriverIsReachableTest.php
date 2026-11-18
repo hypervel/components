@@ -122,7 +122,7 @@ class SessionDriverIsReachableTest extends TestCase
     public function testDatabaseSessionsKeepTheDefaultSchemaConnection(): void
     {
         config(['session.driver' => 'database', 'session.connection' => null, 'session.table' => 'custom_sessions']);
-        $schema = Double::for(Builder::class);
+        $schema = Double::for(Builder::class)->strict();
         $schema->expects('hasTable')->with('custom_sessions')->returns(true);
         Schema::shouldReceive('connection')->with(null)->andReturn($schema);
 
