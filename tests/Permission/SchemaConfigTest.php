@@ -70,7 +70,7 @@ class SchemaConfigTest extends TestCase
         try {
             $migration->up();
 
-            $this->addToAssertionCount(1);
+            $this->assertFalse(Schema::hasColumn('roles', 'team_id'));
         } finally {
             config()->set('permission', $original);
         }
