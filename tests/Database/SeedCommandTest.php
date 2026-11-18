@@ -39,7 +39,7 @@ class SeedCommandTest extends TestCase
 
     public function testHandle(): void
     {
-        $seeder = Double::for(Seeder::class);
+        $seeder = Double::for(Seeder::class)->strict();
         $seeder->expects('setContainer')->returns($seeder);
         $seeder->expects('setCommand')->returns($seeder);
         $seeder->expects('__invoke')->resolves(function (): void {
@@ -50,7 +50,7 @@ class SeedCommandTest extends TestCase
             );
         });
 
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
 
         $app = new ApplicationDatabaseSeedStub([
             ConnectionResolverInterface::class => $resolver,
@@ -75,7 +75,7 @@ class SeedCommandTest extends TestCase
     public function testReportsProgressForExplicitSeedersOnly(array $arguments, bool $reportsProgress): void
     {
         $seeder = new RecordsRootSeeder;
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $app = new ApplicationDatabaseSeedStub([
             ConnectionResolverInterface::class => $resolver,
             'DatabaseSeeder' => $seeder,
@@ -121,7 +121,7 @@ class SeedCommandTest extends TestCase
 
     public function testRootSeederConstructorCanMassAssignModels(): void
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $app = new ApplicationDatabaseSeedStub;
         $command = new SeedCommand($resolver);
         $command->setHypervel($app);
@@ -138,7 +138,7 @@ class SeedCommandTest extends TestCase
     public function testFailedSeederResolutionDoesNotReportProgress(): void
     {
         $exception = new RuntimeException('Seeder resolution failed');
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $app = new ApplicationDatabaseSeedStub;
         $app->bind(RecordsRootSeeder::class, fn () => throw $exception);
         $command = new SeedCommand($resolver);
@@ -169,7 +169,7 @@ class SeedCommandTest extends TestCase
         // seeder throws, not leak 'sqlite' or clear it entirely.
         CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, 'pgsql');
 
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
 
         $app = new ApplicationDatabaseSeedStub([
             ConnectionResolverInterface::class => $resolver,
@@ -214,7 +214,7 @@ class SeedCommandTest extends TestCase
         $seeder->expects('setContainer')->returns($seeder);
         $seeder->expects('setCommand')->returns($seeder);
 
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
 
         $app = new ApplicationDatabaseSeedStub([
             ConnectionResolverInterface::class => $resolver,
@@ -241,7 +241,7 @@ class SeedCommandTest extends TestCase
 
     public function testProhibitable(): void
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
 
         $app = new ApplicationDatabaseSeedStub([
             ConnectionResolverInterface::class => $resolver,
@@ -264,7 +264,7 @@ class SeedCommandTest extends TestCase
         // from the resolver (which respects an active Context override)
         // rather than going straight to config. This lets an outer scope's
         // Context override flow through to db:seed correctly.
-        $seeder = Double::for(Seeder::class);
+        $seeder = Double::for(Seeder::class)->strict();
         $seeder->expects('setContainer')->returns($seeder);
         $seeder->expects('setCommand')->returns($seeder);
         $seeder->expects('__invoke')->resolves(function (): void {
@@ -275,7 +275,7 @@ class SeedCommandTest extends TestCase
             );
         });
 
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->expects('getDefaultConnection')->returns('tenant_reporting');
 
         $app = new ApplicationDatabaseSeedStub([
@@ -291,7 +291,7 @@ class SeedCommandTest extends TestCase
 
     public function testHandlePreservesZeroDatabaseOption(): void
     {
-        $seeder = Double::for(Seeder::class);
+        $seeder = Double::for(Seeder::class)->strict();
         $seeder->expects('setContainer')->returns($seeder);
         $seeder->expects('setCommand')->returns($seeder);
         $seeder->expects('__invoke')->resolves(function (): void {
@@ -301,7 +301,7 @@ class SeedCommandTest extends TestCase
             );
         });
 
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
 
         $app = new ApplicationDatabaseSeedStub([
             ConnectionResolverInterface::class => $resolver,
@@ -319,7 +319,7 @@ class SeedCommandTest extends TestCase
 
     public function testHandleWithEmptyDatabaseOptionUsesResolverDefault(): void
     {
-        $seeder = Double::for(Seeder::class);
+        $seeder = Double::for(Seeder::class)->strict();
         $seeder->expects('setContainer')->returns($seeder);
         $seeder->expects('setCommand')->returns($seeder);
         $seeder->expects('__invoke')->resolves(function (): void {
@@ -329,7 +329,7 @@ class SeedCommandTest extends TestCase
             );
         });
 
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->expects('getDefaultConnection')->returns('tenant_reporting');
 
         $app = new ApplicationDatabaseSeedStub([
@@ -350,12 +350,12 @@ class SeedCommandTest extends TestCase
     {
         // Regression: db:seed must use Context, not config mutation. config
         // ('database.default') should be untouched after a seed run.
-        $seeder = Double::for(Seeder::class);
+        $seeder = Double::for(Seeder::class)->strict();
         $seeder->expects('setContainer')->returns($seeder);
         $seeder->expects('setCommand')->returns($seeder);
         $seeder->expects('__invoke');
 
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
 
         $config = new Repository(['database' => ['default' => 'pgsql']]);
 
@@ -382,7 +382,7 @@ class SeedCommandTest extends TestCase
 
     public function testHandleResolvesAFreshUnboundRootSeederForEachRun(): void
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
 
         $app = new ApplicationDatabaseSeedStub([
             ConnectionResolverInterface::class => $resolver,

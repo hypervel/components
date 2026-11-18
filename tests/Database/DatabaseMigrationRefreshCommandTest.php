@@ -31,14 +31,14 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
         $command = new RefreshCommand;
 
         $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $dispatcher = $app->instance(Dispatcher::class, $events);
         $console = Double::for(new ConsoleApplication)->passthru();
         $command->setHypervel($app);
         $command->setApplication($console);
 
-        $resetCommand = Double::for(ResetCommand::class);
-        $migrateCommand = Double::for(MigrateCommand::class);
+        $resetCommand = Double::for(ResetCommand::class)->strict();
+        $migrateCommand = Double::for(MigrateCommand::class)->strict();
 
         $console->expects('find')->with('migrate:reset')->returns($resetCommand);
         $console->expects('find')->with('migrate')->returns($migrateCommand);
@@ -62,14 +62,14 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
         $command = new RefreshCommand;
 
         $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $dispatcher = $app->instance(Dispatcher::class, $events);
         $console = Double::for(new ConsoleApplication)->passthru();
         $command->setHypervel($app);
         $command->setApplication($console);
 
-        $rollbackCommand = Double::for(RollbackCommand::class);
-        $migrateCommand = Double::for(MigrateCommand::class);
+        $rollbackCommand = Double::for(RollbackCommand::class)->strict();
+        $migrateCommand = Double::for(MigrateCommand::class)->strict();
 
         $console->expects('find')->with('migrate:rollback')->returns($rollbackCommand);
         $console->expects('find')->with('migrate')->returns($migrateCommand);
@@ -92,7 +92,7 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
     public function testChildFailureStopsRefresh(string $failedCommand, array $options, array $expectedOperations, string $message): void
     {
         $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
-        $dispatcher = $app->instance(Dispatcher::class, Double::for(Dispatcher::class));
+        $dispatcher = $app->instance(Dispatcher::class, Double::for(Dispatcher::class)->strict());
         $dispatcher->allows('hasListeners')->returns(false);
         $command = $this->getMockBuilder(RefreshCommand::class)->onlyMethods(['call'])->getMock();
         $command->setHypervel($app);
@@ -148,8 +148,9 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
         $command = new RefreshCommand;
 
         $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
-        $events = Double::for(Dispatcher::class);
-        $dispatcher = $app->instance(Dispatcher::class, $events);
+        $dispatcher = $app->instance(Dispatcher::class, Double::for(Dispatcher::class)->strict());
+        $dispatcher->allows('hasListeners')->resolves(static fn (string $event): bool => $event === DatabaseRefreshed::class);
+        $dispatcher->expects('dispatch')->never();
         $console = Double::for(new ConsoleApplication)->passthru();
         $command->setHypervel($app);
         $command->setApplication($console);
@@ -161,7 +162,6 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
         $this->assertSame(1, $code);
 
         $console->received('find')->never();
-        $dispatcher->received('dispatch')->never();
     }
 
     /**

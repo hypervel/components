@@ -23,7 +23,7 @@ class DatabaseMigrationInstallCommandTest extends TestCase
     public function testFireCallsRepositoryToInstall(): void
     {
         $app = new ApplicationDatabaseInstallStub;
-        $repository = Double::for(MigrationRepositoryInterface::class);
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
         $command = new InstallCommand($repository);
         $command->setHypervel($app);
         $repository->expects('setSource')->with('foo');
@@ -36,7 +36,7 @@ class DatabaseMigrationInstallCommandTest extends TestCase
     public function testFireCallsRepositoryToInstallExists(): void
     {
         $app = new ApplicationDatabaseInstallStub;
-        $repository = Double::for(MigrationRepositoryInterface::class);
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
         $command = new InstallCommand($repository);
         $command->setHypervel($app);
         $repository->expects('setSource')->with('foo');
@@ -58,7 +58,7 @@ class DatabaseMigrationInstallCommandTest extends TestCase
             ],
         ]));
 
-        $repository = Double::for(MigrationRepositoryInterface::class);
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
         $command = new InstallCommand($repository);
         $command->setHypervel($app);
         $repository->expects('setSource')->with('pgsql');
@@ -85,7 +85,7 @@ class DatabaseMigrationInstallCommandTest extends TestCase
             ],
         ]));
 
-        $repository = Double::for(MigrationRepositoryInterface::class);
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
         $command = new InstallCommand($repository);
         $command->setHypervel($app);
         $repository->expects('setSource')->with('pgsql');
@@ -120,7 +120,7 @@ class DatabaseMigrationInstallCommandTest extends TestCase
 
         CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, 'tenant-pooled');
 
-        $repository = Double::for(MigrationRepositoryInterface::class);
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
         $command = new InstallCommand($repository);
         $command->setHypervel($app);
         $repository->expects('setSource')->with('tenant-direct');

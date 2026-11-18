@@ -59,7 +59,7 @@ class DatabaseMigratorIntegrationTest extends TestCase
             new Filesystem
         );
 
-        $output = Double::for(OutputStyle::class);
+        $output = Double::for(OutputStyle::class)->strict();
         $output->allows('write');
         $output->allows('writeln');
         $output->allows('newLinesWritten');
