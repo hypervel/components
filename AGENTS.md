@@ -596,7 +596,7 @@ A per-package base class is only justified when there is shared setUp logic — 
 
 Use Double for test doubles in new tests. When porting, convert direct Mockery mocks and spies to Double regardless of the upstream library; keep upstream PHPUnit doubles. Retain Mockery where required to use or test framework APIs backed by it, such as `$this->mock()`, facade expectations and `Sanctum::actingAs()`. Add `JMac\Testing\Integrations\PHPUnit\VerifiesDoubles` to each test class using Double; it owns verification and cleanup.
 
-Double is lenient by default. Use `expects('method')->never()` to forbid a call, or `unused()` after exercising the code to assert no calls occurred. `allows()->with(...)` neither requires a matching call nor rejects other arguments. `expects()->with(...)` requires the call and rejects unmatched arguments for that method. Use `strict()` unless the test deliberately ignores unrelated calls; this applies equally to tests ported from upstream.
+Double is lenient by default. Use `expects('method')->never()` to forbid a call, or `unused()` after exercising the code to assert no calls occurred. `allows()->with(...)` neither requires a matching call nor rejects other arguments. `expects()->with(...)` requires the call and rejects unmatched arguments for that method. Use `strict()` unless the test deliberately ignores unrelated calls; this applies equally to tests ported from upstream. For an intentionally lenient double, use `@phpstan-ignore hypervel.implicitDoubleMode (reason)` for the factory call.
 
 `with()` compares objects, including doubles, using `==`. Use `Argument::same($object)` when the exact instance matters or to preserve Mockery’s default identity check.
 
@@ -765,7 +765,7 @@ Components is analyzed with its own `hypervel/phpstan` extension. [Static Analys
 
 **Keep `hypervel/phpstan` evolving** — Codify framework contracts and useful conventions. Prefer a simple framework fix when it prevents the mistake. Add rules for mistakes likely to recur in packages or apps, even when existing cases are already fixed. Check each proposed rule against real mistakes and realistic correct usage. Reject rules that flag correct code or need a growing list of exceptions to avoid doing so. Keep inference limits explicit. Reach peer consensus, then seek owner approval for a new rule. If an existing rule flags correct code, fix the analyzer and leave the correct code alone.
 
-The `tests/` directory is excluded from phpstan. Do not run phpstan on tests.
+The main PHPStan configuration excludes `tests/`. Use `composer analyse:tests` for test-only rules.
 
 Run full PHPStan checks with `composer analyse`. During implementation, use targeted PHPStan only when investigating or validating a specific type issue.
 
