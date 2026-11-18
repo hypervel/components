@@ -378,6 +378,7 @@ class QueuePoolProxyTest extends TestCase
             $this->assertSame($backendException, $exception);
         }
 
+        $this->assertSame('DeleteMessage', $handler->getLastCommand()->getName());
         $pool = $pools->get($proxy->getPoolName());
         $this->assertSame(0, $pool->getManagedCount());
 
