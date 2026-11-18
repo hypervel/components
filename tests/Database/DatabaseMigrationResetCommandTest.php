@@ -22,7 +22,7 @@ class DatabaseMigrationResetCommandTest extends TestCase
 
     public function testResetCommandCallsMigratorWithProperArguments(): void
     {
-        $migrator = Double::for(Migrator::class);
+        $migrator = Double::for(Migrator::class)->strict();
         $command = new ResetCommand($migrator);
         $app = new ApplicationDatabaseResetStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
@@ -40,7 +40,7 @@ class DatabaseMigrationResetCommandTest extends TestCase
 
     public function testResetCommandCanBePretended(): void
     {
-        $migrator = Double::for(Migrator::class);
+        $migrator = Double::for(Migrator::class)->strict();
         $command = new ResetCommand($migrator);
         $app = new ApplicationDatabaseResetStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
@@ -58,7 +58,7 @@ class DatabaseMigrationResetCommandTest extends TestCase
 
     public function testResetCommandExitsWhenProhibited(): void
     {
-        $migrator = Double::for(Migrator::class);
+        $migrator = Double::for(Migrator::class)->strict();
         $command = new ResetCommand($migrator);
 
         $app = new ApplicationDatabaseResetStub(['path.database' => __DIR__]);

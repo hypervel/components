@@ -261,7 +261,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
             ->with(["prefix:{$key}profile", "prefix:{$key}missing"])
             ->returns([serialize('cached'), null]);
 
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->allows('hasListeners')->returns(true);
         $dispatcher->allows('dispatch')->resolves(function (object $event) use (&$events): void {
             $events[] = $event;
@@ -401,19 +401,15 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $key = hash('xxh128', '_all:tag:users:entries') . ':name';
 
         $connection->expects('evalWithShaCache')
-            ->with(Argument::all(function (string $script, array $keys, array $args) use ($key): bool {
-                $this->assertSame(["prefix:{$key}", 'prefix:_all:tag:users:entries'], $keys);
-                $this->assertSame(60, $args[0]);
-                $this->assertSame($key, $args[2]);
-
-                return true;
-            }))
+            ->with(Argument::type('string'), ["prefix:{$key}", 'prefix:_all:tag:users:entries'], Argument::capture($args))
             ->returns($succeeded);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['users'])->touch('name', 60);
 
         $this->assertSame($succeeded, $result);
+        $this->assertSame(60, $args[0]);
+        $this->assertSame($key, $args[2]);
     }
 
     public function testTouchWithDatetimeInPastOrZeroSecondsRemovesOldItem(): void
@@ -528,7 +524,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $connection->client()->expects('exec')->returns([true, 1]);
 
         $captured = [];
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(true);
         $events->allows('dispatch')
             ->resolves(function (object $event) use (&$captured): void {
@@ -645,7 +641,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
             ->returns(serialize(NullSentinel::VALUE));
 
         $captured = [];
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(true);
         $events->allows('dispatch')
             ->resolves(function ($event) use (&$captured) {
@@ -677,7 +673,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $connection->client()->expects('exec')->returns([true, 1]);
 
         $captured = [];
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(true);
         $events->allows('dispatch')
             ->resolves(function ($event) use (&$captured) {
@@ -747,7 +743,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
             ->returns(serialize('cached_settings'));
 
         $captured = [];
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(true);
         $events->allows('dispatch')
             ->resolves(function (object $event) use (&$captured): void {
@@ -946,13 +942,13 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
     public function testAllTaggedCacheSkipsEventDispatchSeamWithoutListenersAndEntersItWithListeners(): void
     {
-        $put = Double::for(Put::class);
+        $put = Double::for(Put::class)->strict();
         $put->expects('execute')->times(2)->returns(true);
-        $operations = Double::for(AllTagOperations::class);
+        $operations = Double::for(AllTagOperations::class)->strict();
         $operations->expects('put')->times(2)->returns($put);
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->expects('allTagOps')->times(2)->returns($operations);
-        $tags = Double::for(AllTagSet::class);
+        $tags = Double::for(AllTagSet::class)->strict();
         $tags->allows('getNamespace')->returns('namespace');
         $tags->allows('tagIds')->returns([]);
         $tags->allows('getNames')->returns(['users']);
@@ -967,7 +963,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
                 parent::event($event);
             }
         };
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(false);
         $events->expects('dispatch')->never();
         $cache->setEventDispatcher($events);
@@ -1078,10 +1074,10 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     public function testPutDispatchesTheRepositoryFailureEventWhenTheOperationThrows(): void
     {
         $exception = new RuntimeException('write failed');
-        $put = Double::for(Put::class);
+        $put = Double::for(Put::class)->strict();
         $put->expects('execute')->throws($exception);
 
-        $operations = Double::for(AllTagOperations::class);
+        $operations = Double::for(AllTagOperations::class)->strict();
         $operations->expects('put')->returns($put);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
@@ -1106,10 +1102,10 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
         }
-        $put = Double::for(Put::class);
+        $put = Double::for(Put::class)->strict();
         $put->expects('execute')->throws($cancellation);
 
-        $operations = Double::for(AllTagOperations::class);
+        $operations = Double::for(AllTagOperations::class)->strict();
         $operations->expects('put')->returns($put);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
@@ -1128,10 +1124,10 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $exception = new RuntimeException('batch write failed');
         $values = ['name' => 'John', 'age' => 30];
-        $putMany = Double::for(PutMany::class);
+        $putMany = Double::for(PutMany::class)->strict();
         $putMany->expects('execute')->throws($exception);
 
-        $operations = Double::for(AllTagOperations::class);
+        $operations = Double::for(AllTagOperations::class)->strict();
         $operations->expects('putMany')->returns($putMany);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
@@ -1161,10 +1157,10 @@ class AllTaggedCacheTest extends RedisCacheTestCase
             $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
         }
         $values = ['name' => 'John', 'age' => 30];
-        $putMany = Double::for(PutMany::class);
+        $putMany = Double::for(PutMany::class)->strict();
         $putMany->expects('execute')->throws($cancellation);
 
-        $operations = Double::for(AllTagOperations::class);
+        $operations = Double::for(AllTagOperations::class)->strict();
         $operations->expects('putMany')->returns($putMany);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
@@ -1181,10 +1177,10 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
     public function testEmptyPutManyReturnsTrueWithoutOperationOrEvents(): void
     {
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->expects('allTagOps')->never();
-        $tags = Double::for(AllTagSet::class);
-        $events = Double::for(Dispatcher::class);
+        $tags = Double::for(AllTagSet::class)->strict();
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('hasListeners')->never();
         $events->expects('dispatch')->never();
         $tagged = new AllTaggedCache($store, $tags);
@@ -1196,10 +1192,10 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     public function testForeverDispatchesTheRepositoryFailureEventWhenTheOperationThrows(): void
     {
         $exception = new RuntimeException('forever write failed');
-        $forever = Double::for(Forever::class);
+        $forever = Double::for(Forever::class)->strict();
         $forever->expects('execute')->throws($exception);
 
-        $operations = Double::for(AllTagOperations::class);
+        $operations = Double::for(AllTagOperations::class)->strict();
         $operations->expects('forever')->returns($forever);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
@@ -1224,10 +1220,10 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
         }
-        $forever = Double::for(Forever::class);
+        $forever = Double::for(Forever::class)->strict();
         $forever->expects('execute')->throws($cancellation);
 
-        $operations = Double::for(AllTagOperations::class);
+        $operations = Double::for(AllTagOperations::class)->strict();
         $operations->expects('forever')->returns($forever);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
@@ -1309,10 +1305,10 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     public function testFlushDispatchesFailureEventWithExactOperationException(): void
     {
         $exception = new RuntimeException('flush failed');
-        $flush = Double::for(Flush::class);
+        $flush = Double::for(Flush::class)->strict();
         $flush->expects('execute')->throws($exception);
 
-        $operations = Double::for(AllTagOperations::class);
+        $operations = Double::for(AllTagOperations::class)->strict();
         $operations->expects('flush')->returns($flush);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
@@ -1336,10 +1332,10 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
         }
-        $flush = Double::for(Flush::class);
+        $flush = Double::for(Flush::class)->strict();
         $flush->expects('execute')->throws($cancellation);
 
-        $operations = Double::for(AllTagOperations::class);
+        $operations = Double::for(AllTagOperations::class)->strict();
         $operations->expects('flush')->returns($flush);
         $captured = [];
         $tagged = $this->taggedCacheWithOperations($operations, $captured);
@@ -1361,7 +1357,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
      */
     private function capturingDispatcher(array &$captured): Dispatcher
     {
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->allows('hasListeners')->returns(true);
         $dispatcher->allows('dispatch')
             ->resolves(function (object $event) use (&$captured): void {
@@ -1373,10 +1369,10 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
     private function taggedCacheWithOperations(AllTagOperations $operations, array &$captured): AllTaggedCache
     {
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->expects('allTagOps')->returns($operations);
 
-        $tags = Double::for(AllTagSet::class);
+        $tags = Double::for(AllTagSet::class)->strict();
         $tags->allows('getNames')->returns(['users']);
         $tags->allows('getNamespace')->returns('users');
         $tags->allows('tagIds')->returns(['users-id']);

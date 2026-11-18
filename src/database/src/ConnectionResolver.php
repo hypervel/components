@@ -258,10 +258,20 @@ class ConnectionResolver implements ConnectionResolverInterface
      */
     public static function releaseIdleConnections(): void
     {
+        $failure = null;
+
         foreach (CoroutineContext::getContainer() ?? [] as $value) {
             if ($value instanceof ConnectionLease) {
-                $value->releaseIfIdle();
+                try {
+                    $value->releaseIfIdle();
+                } catch (Throwable $exception) {
+                    $failure = Coroutine::preferCancellation($failure, $exception);
+                }
             }
+        }
+
+        if ($failure !== null) {
+            throw $failure;
         }
     }
 

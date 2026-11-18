@@ -64,8 +64,8 @@ class CommandTest extends TestCase
 
     public function testExceptionPropagatesFromExecute(): void
     {
-        $output = Double::for(OutputStyle::class);
-        $application = Double::for(ConsoleApplication::class);
+        $output = Double::for(OutputStyle::class)->strict();
+        $application = Double::for(ConsoleApplication::class)->strict();
         $application->allows('getHelperSet');
 
         $instance = new FooExceptionCommand('foo');
@@ -73,7 +73,7 @@ class CommandTest extends TestCase
         $command = new ClassInvoker($instance);
         $command->setApplication($application);
         $command->setOutput($output);
-        $input = Double::for(InputInterface::class);
+        $input = Double::for(InputInterface::class)->strict();
         $input->allows('getOption')->returns(true);
 
         $this->expectException(RuntimeException::class);
@@ -82,10 +82,10 @@ class CommandTest extends TestCase
 
     public function testExitCodeFromExitExceptionAndNormalCommand(): void
     {
-        $output = Double::for(OutputStyle::class);
-        $application = Double::for(ConsoleApplication::class);
+        $output = Double::for(OutputStyle::class)->strict();
+        $application = Double::for(ConsoleApplication::class)->strict();
         $application->allows('getHelperSet');
-        $input = Double::for(InputInterface::class);
+        $input = Double::for(InputInterface::class)->strict();
         $input->allows('getOption')->returns(true);
 
         /** @var FooExitCommand $command */
@@ -109,10 +109,10 @@ class CommandTest extends TestCase
 
     public function testSetUpTraits(): void
     {
-        $output = Double::for(OutputStyle::class);
-        $application = Double::for(ConsoleApplication::class);
+        $output = Double::for(OutputStyle::class)->strict();
+        $application = Double::for(ConsoleApplication::class)->strict();
         $application->allows('getHelperSet');
-        $input = Double::for(InputInterface::class);
+        $input = Double::for(InputInterface::class)->strict();
         $input->allows('getOption')->returns(false);
 
         $command = new FooTraitCommand;
@@ -125,7 +125,7 @@ class CommandTest extends TestCase
     public function testSignalHandlersAreRemovedWhenTraitSetupFails(): void
     {
         $command = new CommandTestFailingTraitSetupCommand;
-        $registry = Double::for(SignalRegistry::class);
+        $registry = Double::for(SignalRegistry::class)->strict();
         $registry->expects('register')->with(Argument::same($command), SIGTERM, Argument::type('callable'));
         $registry->expects('unregister')->with(Argument::same($command), null);
 
@@ -239,30 +239,30 @@ class CommandTest extends TestCase
 
     public function testProhibitableCommand(): void
     {
-        $application = Double::for(ConsoleApplication::class);
+        $application = Double::for(ConsoleApplication::class)->strict();
         $application->allows('getHelperSet');
 
-        $output = Double::for(OutputStyle::class);
+        $output = Double::for(OutputStyle::class)->strict();
         $instance = new FooProhibitableCommand;
         $instance->setHypervel($this->app);
         $command = new ClassInvoker($instance);
         $command->setApplication($application);
         $command->setOutput($output);
-        $input = Double::for(InputInterface::class);
+        $input = Double::for(InputInterface::class)->strict();
         $input->allows('getOption')->returns(true);
         $result = $command->execute($input, $output);
         $this->assertSame(FooProhibitableCommand::SUCCESS, $result);
 
         FooProhibitableCommand::prohibit(true);
 
-        $output = Double::for(OutputStyle::class);
+        $output = new OutputStyle(new ArrayInput([]), new NullOutput);
         $instance = new FooProhibitableCommand;
         $instance->setHypervel($this->app);
         $instance->setApplication($application);
         $instance->setOutput($output);
         (fn () => $this->components = new Factory($output))->call($instance);
         $command = new ClassInvoker($instance);
-        $input = Double::for(InputInterface::class);
+        $input = Double::for(InputInterface::class)->strict();
         $input->allows('getOption')->returns(true);
         $result = $command->execute($input, $output);
         $this->assertSame(FooProhibitableCommand::FAILURE, $result);
@@ -323,7 +323,7 @@ class CommandTest extends TestCase
             }
         };
 
-        $application = Double::for(Application::class, override: true);
+        $application = Double::for(Application::class, override: true)->strict();
         $hypervel = $application->instance();
         $command->setHypervel($hypervel);
 
@@ -335,7 +335,7 @@ class CommandTest extends TestCase
         $application->allows('bound')->returns(false);
 
         $application->expects('call')->with([$command, 'handle'])->resolves(function () use ($command, $application, $hypervel): void {
-            $commandCalled = Double::for(Command::class);
+            $commandCalled = Double::for(Command::class)->strict();
 
             $application->expects('make')->with(Command::class)->returns($commandCalled);
 
@@ -505,7 +505,7 @@ class CommandTest extends TestCase
 
     public function testTheOutputSetterOverwrite(): void
     {
-        $output = Double::for(OutputStyle::class);
+        $output = Double::for(OutputStyle::class)->strict();
         $output->expects('writeln')->with('<info>foo</info>', Argument::remaining());
 
         $command = new CommandTestStubCommand;

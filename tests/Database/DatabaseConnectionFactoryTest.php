@@ -322,8 +322,8 @@ class DatabaseConnectionFactoryTest extends TestCase
     public function testReadEndpointMetadataMatchesTheSelectedPdoConfiguration(): void
     {
         $container = new Container;
-        $pdo = Double::for(PDO::class);
-        $connector = Double::for(ConnectorInterface::class);
+        $pdo = Double::for(PDO::class)->strict();
+        $connector = Double::for(ConnectorInterface::class)->strict();
         $connector->expects('connect')->with(Argument::satisfies(
             static fn (array $config): bool => $config['host'] === 'first-reader'
             && $config['options'][PDO::ATTR_EMULATE_PREPARES] === true
@@ -361,7 +361,7 @@ class DatabaseConnectionFactoryTest extends TestCase
     {
         $this->expectExceptionObject(new InvalidArgumentException('Unsupported driver [foo]'));
 
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('bound')->returns(false);
         $factory = new ConnectionFactory($container->instance());
         $factory->createConnector(['driver' => 'foo']);
@@ -369,8 +369,8 @@ class DatabaseConnectionFactoryTest extends TestCase
 
     public function testCustomConnectorsCanBeResolvedViaContainer(): void
     {
-        $connector = Double::for(ConnectorInterface::class);
-        $container = Double::for(Container::class, override: true);
+        $connector = Double::for(ConnectorInterface::class)->strict();
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('bound')->with('db.connector.foo')->returns(true);
         $container->expects('make')->with('db.connector.foo')->returns($connector);
         $factory = new ConnectionFactory($container->instance());
@@ -520,7 +520,7 @@ class DatabaseConnectionFactoryTest extends TestCase
 
     public function testConfigFirstExtensionCreatesNeutralConnectionWithoutResolvingAConnector(): void
     {
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $factory = new ConnectionFactory($container->instance());
         $receivedConfig = null;
 

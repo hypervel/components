@@ -161,16 +161,15 @@ class QueueableTest extends TestCase
         $job->chainConnection = 'default-connection';
         $job->chainQueue = 'default-queue';
 
-        $dispatcher = Double::for(Dispatcher::class);
-        $dispatcher->expects('dispatch')->with(Argument::satisfies(function (FakeJob $next): bool {
-            $this->assertSame('0', $next->connection);
-            $this->assertSame('0', $next->queue);
-
-            return true;
-        }));
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('dispatch')->with(Argument::capture($next));
         Container::getInstance()->instance(Dispatcher::class, $dispatcher);
 
         $job->dispatchNextJobInChain();
+
+        $this->assertInstanceOf(FakeJob::class, $next);
+        $this->assertSame('0', $next->connection);
+        $this->assertSame('0', $next->queue);
     }
 
     public function testDispatchNextJobInheritsChainIdentifiersForEmptyStrings(): void
@@ -180,16 +179,15 @@ class QueueableTest extends TestCase
         $job->chainConnection = 'default-connection';
         $job->chainQueue = 'default-queue';
 
-        $dispatcher = Double::for(Dispatcher::class);
-        $dispatcher->expects('dispatch')->with(Argument::satisfies(function (FakeJob $next): bool {
-            $this->assertSame('default-connection', $next->connection);
-            $this->assertSame('default-queue', $next->queue);
-
-            return true;
-        }));
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('dispatch')->with(Argument::capture($next));
         Container::getInstance()->instance(Dispatcher::class, $dispatcher);
 
         $job->dispatchNextJobInChain();
+
+        $this->assertInstanceOf(FakeJob::class, $next);
+        $this->assertSame('default-connection', $next->connection);
+        $this->assertSame('default-queue', $next->queue);
     }
 
     public function testDispatchNextJobKeepsItsAttributesOverChainDefaults(): void
@@ -199,18 +197,17 @@ class QueueableTest extends TestCase
         $job->chainConnection = 'default-connection';
         $job->chainQueue = 'default-queue';
 
-        $dispatcher = Double::for(Dispatcher::class);
-        $dispatcher->expects('dispatch')->with(Argument::satisfies(function (AttributedFakeJob $next): bool {
-            $this->assertNull($next->connection);
-            $this->assertNull($next->queue);
-            $this->assertSame('default-connection', $next->chainConnection);
-            $this->assertSame('default-queue', $next->chainQueue);
-
-            return true;
-        }));
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $dispatcher->expects('dispatch')->with(Argument::capture($next));
         Container::getInstance()->instance(Dispatcher::class, $dispatcher);
 
         $job->dispatchNextJobInChain();
+
+        $this->assertInstanceOf(AttributedFakeJob::class, $next);
+        $this->assertNull($next->connection);
+        $this->assertNull($next->queue);
+        $this->assertSame('default-connection', $next->chainConnection);
+        $this->assertSame('default-queue', $next->chainQueue);
     }
 }
 

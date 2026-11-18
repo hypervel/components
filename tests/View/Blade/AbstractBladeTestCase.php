@@ -28,6 +28,6 @@ abstract class AbstractBladeTestCase extends TestCase
      */
     protected function getFiles(): Filesystem
     {
-        return Double::for(Filesystem::class);
+        return Double::for(Filesystem::class)->strict();
     }
 }

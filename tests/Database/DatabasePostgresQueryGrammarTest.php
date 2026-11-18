@@ -23,7 +23,7 @@ class DatabasePostgresQueryGrammarTest extends TestCase
     {
         $this->expectException(JsonException::class);
 
-        (new PostgresGrammar(Double::for(Connection::class)))
+        (new PostgresGrammar(Double::for(Connection::class)->strict()))
             ->prepareBindingsForUpdate([], ['payload' => [NAN]]);
     }
 
@@ -37,13 +37,13 @@ class DatabasePostgresQueryGrammarTest extends TestCase
 
         $this->expectException(JsonException::class);
 
-        (new PostgresGrammar(Double::for(Connection::class)))
+        (new PostgresGrammar(Double::for(Connection::class)->strict()))
             ->prepareBindingsForUpdateFrom([], ['payload' => $value]);
     }
 
     public function testToRawSql(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('escape')->with('foo', false)->returns("'foo'");
         $grammar = new PostgresGrammar($connection);
 
@@ -75,7 +75,7 @@ class DatabasePostgresQueryGrammarTest extends TestCase
 
     public function testCompileTruncate(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getTablePrefix')->times(3)->returns('');
 
         $postgres = new PostgresGrammar($connection);
@@ -101,11 +101,11 @@ class DatabasePostgresQueryGrammarTest extends TestCase
 
     public function testFlushStateRestoresDefaults(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getTablePrefix')->returns('');
 
         $postgres = new PostgresGrammar($connection);
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->from = 'users';
 
         PostgresGrammar::customOperators(['@@@']);

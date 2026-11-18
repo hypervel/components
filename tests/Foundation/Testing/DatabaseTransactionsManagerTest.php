@@ -144,7 +144,7 @@ class DatabaseTransactionsManagerTest extends TestCase
     public function testRoleWrappersExcludeOnlyTheirResolvedOwnersTransaction(): void
     {
         $manager = new DatabaseTransactionsManager(['foo::write']);
-        $database = Double::for(DatabaseManager::class);
+        $database = Double::for(DatabaseManager::class)->strict();
         $writer = new SQLiteConnection(new PDO('sqlite::memory:'), config: ['name' => 'foo']);
         $writer->setReadWriteType('write');
         $database->expects('connection')->with('foo::write')->returns($writer);
@@ -178,7 +178,7 @@ class DatabaseTransactionsManagerTest extends TestCase
      */
     protected function beginWrappingTransactions(DatabaseTransactionsManager $manager, array $names = [null]): void
     {
-        $database = Double::for(DatabaseManager::class);
+        $database = Double::for(DatabaseManager::class)->strict();
 
         foreach ($names as $name) {
             $connection = new SQLiteConnection(new PDO('sqlite::memory:'), config: ['name' => $name ?? 'foo']);

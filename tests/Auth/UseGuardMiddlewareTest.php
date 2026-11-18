@@ -26,7 +26,7 @@ class UseGuardMiddlewareTest extends TestCase
 
     public function testItSelectsTheGuardForTheCurrentRequest(): void
     {
-        $auth = Double::for(AuthFactory::class);
+        $auth = Double::for(AuthFactory::class)->strict();
         $auth->expects('shouldUse')->with('admin');
 
         $request = Request::create('/login');
@@ -90,7 +90,7 @@ class UseGuardMiddlewareTest extends TestCase
                 $guard,
                 static fn (): ?Authenticatable => null,
                 $container,
-                Double::for(EloquentUserProvider::class),
+                Double::for(EloquentUserProvider::class)->strict(),
             ));
         }
 

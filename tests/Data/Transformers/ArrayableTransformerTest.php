@@ -21,7 +21,7 @@ class ArrayableTransformerTest extends TestCase
         $value = new Collection(['A', 'B']);
 
         $result = (new ArrayableTransformer)->transform(
-            Double::for(DataProperty::class),
+            Double::for(DataProperty::class)->strict(),
             $value,
             new TransformationContext,
         );

@@ -79,7 +79,7 @@ class BenchmarkCommandTest extends TestCase
             'file' => ['driver' => 'file'],
         ]);
 
-        $cache = Double::for(CacheContract::class);
+        $cache = Double::for(CacheContract::class)->strict();
         $cache->expects('store')->never();
         $this->app->instance(CacheContract::class, $cache);
 
@@ -102,7 +102,7 @@ class BenchmarkCommandTest extends TestCase
             'all-tag-pattern:*',
         ];
 
-        $context = Double::for(BenchmarkContext::class);
+        $context = Double::for(BenchmarkContext::class)->strict();
         $context->expects('getCleanupPatterns')->returns($patterns);
 
         $command = $this->createCommand();
@@ -171,7 +171,7 @@ class BenchmarkCommandTest extends TestCase
     {
         $this->mockFullCacheStore('redis');
         $context = $this->mockBenchmarkContext();
-        $context->expects('getStoreInstance')->returns(Double::for(RedisStore::class));
+        $context->expects('getStoreInstance')->returns(Double::for(RedisStore::class)->strict());
         $command = $this->createFullCommand($context);
 
         $this->assertSame(Command::SUCCESS, $command->run(new ArrayInput([
@@ -287,13 +287,13 @@ class BenchmarkCommandTest extends TestCase
      */
     private function mockCacheStore(string $name): void
     {
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
 
-        $repository = Double::for(Repository::class);
+        $repository = Double::for(Repository::class)->strict();
         $repository->expects('getStore')->returns($store);
         $repository->expects('get')->with('test')->returns(null);
 
-        $cache = Double::for(CacheContract::class);
+        $cache = Double::for(CacheContract::class)->strict();
         $cache->expects('store')->times(2)->with($name)->returns($repository);
 
         $this->app->instance(CacheContract::class, $cache);
@@ -304,10 +304,10 @@ class BenchmarkCommandTest extends TestCase
      */
     private function mockFullCacheStore(string $name, ?Throwable $displayException = null): void
     {
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
 
         if ($displayException === null) {
-            $storeContext = Double::for(StoreContext::class);
+            $storeContext = Double::for(StoreContext::class)->strict();
             $storeContext->expects('withConnection')
                 ->returns(['redis_version' => '8.0.0']);
 
@@ -318,7 +318,7 @@ class BenchmarkCommandTest extends TestCase
             $store->expects('getTagMode')->never();
         }
 
-        $repository = Double::for(Repository::class);
+        $repository = Double::for(Repository::class)->strict();
 
         if ($displayException === null) {
             $repository->expects('getStore')->times(2)->returns($store);
@@ -339,7 +339,7 @@ class BenchmarkCommandTest extends TestCase
 
         $repository->expects('get')->with('test')->returns(null);
 
-        $cacheManager = Double::for(CacheContract::class);
+        $cacheManager = Double::for(CacheContract::class)->strict();
         $cacheManager->expects('store')->times(3)->with($name)->returns($repository);
 
         $this->app->instance(CacheContract::class, $cacheManager);
@@ -350,7 +350,7 @@ class BenchmarkCommandTest extends TestCase
      */
     private function mockBenchmarkContext(?Throwable $cleanupException = null): BenchmarkContext
     {
-        $context = Double::for(BenchmarkContext::class);
+        $context = Double::for(BenchmarkContext::class)->strict();
         $context->allows('getCleanupPatterns')->returns(['cache:_bench:*']);
         $cleanup = $context->expects('cleanup');
 

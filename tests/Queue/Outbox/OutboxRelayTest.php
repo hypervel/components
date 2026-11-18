@@ -111,13 +111,11 @@ class OutboxRelayTest extends TestCase
             $this->assertSame(1, $event->failed);
             $this->assertSame($failure, $event->exception);
         });
-        $exceptions->expects('report')->with($failure, Argument::satisfies(function (array $context) use (&$settled): bool {
+        $exceptions->expects('report')->with(Argument::same($failure), Argument::type('array'))->resolves(function (RuntimeException $failure, array $context) use (&$settled): void {
             $this->assertSame([[1], [3]], $settled);
             $this->assertSame([1, 2], $context['outbox_ids']);
             $this->assertSame(['SendInvoice', 'SendInvoice'], $context['jobs']);
-
-            return true;
-        }));
+        });
 
         $this->assertFalse((new OutboxRelay($repository, $queues, $events, $exceptions))->deliver('primary', $messages));
     }
@@ -131,16 +129,14 @@ class OutboxRelayTest extends TestCase
         $exceptions = Double::for(ExceptionHandler::class)->strict();
         $queues->expects('connection')->returns($queue);
         $queue->expects('publishOutboxMessages')->returns($invalid);
-        $repository->expects('settle')->with('primary', Argument::type('array'), Argument::satisfies(function (OutboxBatchResult $result): bool {
-            $this->assertSame([], $result->accepted);
-            $this->assertSame([], $result->deferred);
-            $this->assertInstanceOf(LogicException::class, $result->failure);
-
-            return true;
-        }))->returns(2);
+        $repository->expects('settle')->with('primary', Argument::type('array'), Argument::capture($result))->returns(2);
         $exceptions->expects('report')->with(Argument::type(LogicException::class), Argument::type('array'));
 
         $this->assertFalse((new OutboxRelay($repository, $queues, new Dispatcher, $exceptions))->deliver('primary', [$this->message(1), $this->message(2)]));
+        $this->assertInstanceOf(OutboxBatchResult::class, $result);
+        $this->assertSame([], $result->accepted);
+        $this->assertSame([], $result->deferred);
+        $this->assertInstanceOf(LogicException::class, $result->failure);
     }
 
     /**
@@ -185,8 +181,8 @@ class OutboxRelayTest extends TestCase
         $queues->expects('connection')->returns($queue);
         $queue->expects('pushRaw')->throws($publication);
         $repository->expects('settle')->throws($settlement);
-        $exceptions->expects('report')->with($publication, Argument::type('array'));
-        $exceptions->expects('report')->with($settlement, Argument::type('array'));
+        $exceptions->expects('report')->with(Argument::same($publication), Argument::type('array'));
+        $exceptions->expects('report')->with(Argument::same($settlement), Argument::type('array'));
         $events->listen(OutboxBatchDeliveryFailed::class, function (OutboxBatchDeliveryFailed $event) use ($publication): void {
             $this->assertSame($publication, $event->exception);
         });
@@ -234,7 +230,7 @@ class OutboxRelayTest extends TestCase
             throw $listenerFailure;
         });
         $events->listen(OutboxBatchDeliveryFailed::class, fn () => $this->fail('Listener failure must not change the delivery event.'));
-        $report = $exceptions->expects('report')->with($listenerFailure, Argument::type('array'));
+        $report = $exceptions->expects('report')->with(Argument::same($listenerFailure), Argument::type('array'));
 
         if ($reporterFails) {
             $report->throws($reporterFailure);

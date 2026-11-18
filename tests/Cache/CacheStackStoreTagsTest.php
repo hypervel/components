@@ -75,10 +75,11 @@ class CacheStackStoreTagsTest extends TestCase
 
             try {
                 $stack->tags(['t']);
-                $this->fail('Expected NotSupportedException was not thrown.');
             } catch (NotSupportedException) {
-                $this->assertTrue(true);
+                continue;
             }
+
+            $this->fail('Expected NotSupportedException was not thrown.');
         }
     }
 
@@ -427,7 +428,7 @@ class CacheStackStoreTagsTest extends TestCase
                 parent::event($event);
             }
         };
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->allows('hasListeners')->returns(false);
         $dispatcher->expects('dispatch')->never();
         $cache->setEventDispatcher($dispatcher);
@@ -696,17 +697,18 @@ class CacheStackStoreTagsTest extends TestCase
         ] as $operation) {
             try {
                 $operation();
-                $this->fail('Expected BadMethodCallException was not thrown.');
             } catch (BadMethodCallException) {
-                $this->assertTrue(true);
+                continue;
             }
+
+            $this->fail('Expected BadMethodCallException was not thrown.');
         }
     }
 
     public function testClearFlushesTaggableLayersOnly(): void
     {
         $taggable = $this->anyModeTaggableStore();
-        $tagSet = Double::for(TagSet::class);
+        $tagSet = Double::for(TagSet::class)->strict();
         $taggedCache = Double::for(TaggedCache::class)->strict();
 
         $taggable->expects('tags')->with(['tag'])->returns($taggedCache);
@@ -726,8 +728,8 @@ class CacheStackStoreTagsTest extends TestCase
         $secondTaggable = $this->anyModeTaggableStore();
         $firstTaggedCache = Double::for(TaggedCache::class)->strict();
         $secondTaggedCache = Double::for(TaggedCache::class)->strict();
-        $firstTagSet = Double::for(TagSet::class);
-        $secondTagSet = Double::for(TagSet::class);
+        $firstTagSet = Double::for(TagSet::class)->strict();
+        $secondTagSet = Double::for(TagSet::class)->strict();
 
         $firstTaggable->expects('tags')->with(['tag'])->returns($firstTaggedCache);
         $secondTaggable->expects('tags')->with(['tag'])->returns($secondTaggedCache);
@@ -748,8 +750,8 @@ class CacheStackStoreTagsTest extends TestCase
         $secondTaggable = $this->anyModeTaggableStore();
         $firstTaggedCache = Double::for(TaggedCache::class)->strict();
         $secondTaggedCache = Double::for(TaggedCache::class)->strict();
-        $firstTagSet = Double::for(TagSet::class);
-        $secondTagSet = Double::for(TagSet::class);
+        $firstTagSet = Double::for(TagSet::class)->strict();
+        $secondTagSet = Double::for(TagSet::class)->strict();
 
         $firstTaggable->expects('tags')->with(['tag'])->returns($firstTaggedCache);
         $secondTaggable->expects('tags')->with(['tag'])->returns($secondTaggedCache);
@@ -777,7 +779,7 @@ class CacheStackStoreTagsTest extends TestCase
         $firstTaggable = $this->anyModeTaggableStore();
         $secondTaggable = $this->anyModeTaggableStore();
         $firstTaggedCache = Double::for(TaggedCache::class)->strict();
-        $firstTagSet = Double::for(TagSet::class);
+        $firstTagSet = Double::for(TagSet::class)->strict();
 
         $firstTaggable->expects('tags')->with(['tag'])->returns($firstTaggedCache);
         $firstTaggedCache->expects('getTags')->returns($firstTagSet);
@@ -799,8 +801,8 @@ class CacheStackStoreTagsTest extends TestCase
         $secondTaggable = $this->anyModeTaggableStore();
         $firstTaggedCache = Double::for(TaggedCache::class)->strict();
         $secondTaggedCache = Double::for(TaggedCache::class)->strict();
-        $firstTagSet = Double::for(TagSet::class);
-        $secondTagSet = Double::for(TagSet::class);
+        $firstTagSet = Double::for(TagSet::class)->strict();
+        $secondTagSet = Double::for(TagSet::class)->strict();
         $firstTaggable->expects('tags')->with(['tag'])->returns($firstTaggedCache);
         $secondTaggable->expects('tags')->with(['tag'])->returns($secondTaggedCache);
         $firstTaggedCache->expects('getTags')->returns($firstTagSet);
@@ -834,7 +836,7 @@ class CacheStackStoreTagsTest extends TestCase
         $firstTaggable = $this->anyModeTaggableStore();
         $secondTaggable = $this->anyModeTaggableStore();
         $firstTaggedCache = Double::for(TaggedCache::class)->strict();
-        $firstTagSet = Double::for(TagSet::class);
+        $firstTagSet = Double::for(TagSet::class)->strict();
         $firstTaggable->expects('tags')->with(['tag'])->returns($firstTaggedCache);
         $firstTaggedCache->expects('getTags')->returns($firstTagSet);
         $firstTagSet->expects('flush')->throws($cancellation);
@@ -891,7 +893,7 @@ class CacheStackStoreTagsTest extends TestCase
      */
     private function capturingDispatcher(array &$captured): Dispatcher&DoubleInterface
     {
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(true);
         $events->allows('dispatch')
             ->resolves(function (object $event) use (&$captured): void {

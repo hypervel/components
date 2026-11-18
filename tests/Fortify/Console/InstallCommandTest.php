@@ -172,7 +172,7 @@ class InstallCommandTest extends TestCase
         $laterFile = $this->publishedSupportFiles()[1];
         (new Filesystem)->replace($laterFile, '<?php // later file');
 
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $files->expects('replace')->throws(new RuntimeException('replace failed'));
         $this->app->instance(Filesystem::class, $files);
 

@@ -15,6 +15,7 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 
 class PresenceChannelTest extends ReverbTestCase
 {
@@ -128,7 +129,7 @@ class PresenceChannelTest extends ReverbTestCase
         $channel = $this->channels()->findOrCreate('presence-test-channel');
 
         $this->channelConnectionManager->expects('add')
-            ->with($this->connection, []);
+            ->with(Argument::same($this->connection), []);
 
         $this->channelConnectionManager->allows('all')
             ->returns($connections = static::factory(3));
@@ -148,7 +149,7 @@ class PresenceChannelTest extends ReverbTestCase
         $data = json_encode(['name' => 'Joe']);
 
         $this->channelConnectionManager->expects('add')
-            ->with($this->connection, ['name' => 'Joe']);
+            ->with(Argument::same($this->connection), ['name' => 'Joe']);
 
         $this->channelConnectionManager->allows('all')
             ->returns($connections = static::factory(3));
@@ -184,7 +185,7 @@ class PresenceChannelTest extends ReverbTestCase
             ->returns($connections = static::factory(3));
 
         $this->channelConnectionManager->expects('remove')
-            ->with($this->connection);
+            ->with(Argument::same($this->connection));
 
         $channel->unsubscribe($this->connection);
 

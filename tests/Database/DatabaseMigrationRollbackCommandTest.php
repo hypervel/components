@@ -20,7 +20,7 @@ class DatabaseMigrationRollbackCommandTest extends TestCase
 
     public function testRollbackCommandCallsMigratorWithProperArguments(): void
     {
-        $migrator = Double::for(Migrator::class);
+        $migrator = Double::for(Migrator::class)->strict();
         $command = new RollbackCommand($migrator);
         $app = new ApplicationDatabaseRollbackStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
@@ -37,7 +37,7 @@ class DatabaseMigrationRollbackCommandTest extends TestCase
 
     public function testRollbackCommandCallsMigratorWithStepOption(): void
     {
-        $migrator = Double::for(Migrator::class);
+        $migrator = Double::for(Migrator::class)->strict();
         $command = new RollbackCommand($migrator);
         $app = new ApplicationDatabaseRollbackStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
@@ -54,7 +54,7 @@ class DatabaseMigrationRollbackCommandTest extends TestCase
 
     public function testRollbackCommandCanBePretended(): void
     {
-        $migrator = Double::for(Migrator::class);
+        $migrator = Double::for(Migrator::class)->strict();
         $command = new RollbackCommand($migrator);
         $app = new ApplicationDatabaseRollbackStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
@@ -71,7 +71,7 @@ class DatabaseMigrationRollbackCommandTest extends TestCase
 
     public function testRollbackCommandCanBePretendedWithStepOption(): void
     {
-        $migrator = Double::for(Migrator::class);
+        $migrator = Double::for(Migrator::class)->strict();
         $command = new RollbackCommand($migrator);
         $app = new ApplicationDatabaseRollbackStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
@@ -88,7 +88,7 @@ class DatabaseMigrationRollbackCommandTest extends TestCase
 
     public function testRollbackCommandCallsMigratorWithBatchOption(): void
     {
-        $migrator = Double::for(Migrator::class);
+        $migrator = Double::for(Migrator::class)->strict();
         $command = new RollbackCommand($migrator);
         $app = new ApplicationDatabaseRollbackStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);

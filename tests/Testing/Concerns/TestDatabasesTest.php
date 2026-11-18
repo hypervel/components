@@ -65,7 +65,7 @@ class TestDatabasesTest extends TestCase
     {
         $container = Container::getInstance();
 
-        $db = Double::for(DatabaseManager::class);
+        $db = Double::for(DatabaseManager::class)->strict();
         $db->expects('purge');
         $container->instance('db', $db);
 
@@ -87,7 +87,7 @@ class TestDatabasesTest extends TestCase
     ): void {
         $container = Container::getInstance();
 
-        $db = Double::for(DatabaseManager::class);
+        $db = Double::for(DatabaseManager::class)->strict();
         $db->expects('purge');
         $container->instance('db', $db);
 
@@ -333,7 +333,7 @@ class TestDatabasesTest extends TestCase
         array $configuration = [],
         bool $expectsConnectionLookup = true,
     ): void {
-        $db = Double::for(Connection::class);
+        $db = Double::for(Connection::class)->strict();
 
         if ($expectsConnectionLookup) {
             $db->allows('getConfig')->with('database')->returns($database);

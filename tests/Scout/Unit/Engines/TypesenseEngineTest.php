@@ -1177,15 +1177,12 @@ class TypesenseEngineTest extends TestCase
     {
         $engine = $this->createPartialEngineWithConfig(maxTotalResults: 10);
         $engine->expects('performSearch')
-            ->with(Argument::all(function (Builder $builder, array $options): bool {
-                $this->assertSame(500_000_000, $options['page']);
-                $this->assertSame(250, $options['per_page']);
-
-                return true;
-            }))
+            ->with(Argument::type(Builder::class), Argument::capture($options))
             ->returns(['hits' => [], 'found' => 0]);
 
         $engine->paginate(new Builder(new TypesenseLifecycleModel, 'scout'), 250, 500_000_000);
+        $this->assertSame(500_000_000, $options['page']);
+        $this->assertSame(250, $options['per_page']);
     }
 
     public function testMapReturnsEmptyCollectionWhenNoResults(): void

@@ -476,7 +476,7 @@ class InteractsWithRedisParallelTest extends TestCase
 
     public function testTeardownClosesPoolsAndPropagatesAFlushFailure(): void
     {
-        $pools = Double::for(PoolManager::class);
+        $pools = Double::for(PoolManager::class)->strict();
         $pools->expects('purgeAll');
         $this->app->instance(PoolManager::class, $pools);
         $harness = $this->harness();

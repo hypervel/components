@@ -251,7 +251,7 @@ class FoundationHelpersTest extends TestCase
 
     public function testInfoWritesToTheLogger(): void
     {
-        $logger = Double::for(LoggerInterface::class);
+        $logger = Double::for(LoggerInterface::class)->strict();
         $logger->expects('info')->with('User login attempt failed.', ['id' => 1]);
         $this->app->instance(LoggerInterface::class, $logger);
 
@@ -261,7 +261,7 @@ class FoundationHelpersTest extends TestCase
     public function testInfoAddsTheCallerLocationToTheContext(): void
     {
         $loggedContext = null;
-        $logger = Double::for(LoggerInterface::class);
+        $logger = Double::for(LoggerInterface::class)->strict();
         $logger->expects('info')->with('Cache warmed.', Argument::capture($loggedContext));
         $this->app->instance(LoggerInterface::class, $logger);
 
@@ -273,8 +273,8 @@ class FoundationHelpersTest extends TestCase
 
     public function testLogsResolvesAChannelNamedZero(): void
     {
-        $manager = Double::for(LogManager::class);
-        $logger = Double::for(LoggerInterface::class);
+        $manager = Double::for(LogManager::class)->strict();
+        $logger = Double::for(LoggerInterface::class)->strict();
         $manager->expects('driver')->with('0')->returns($logger);
         $this->app->instance('log', $manager);
 

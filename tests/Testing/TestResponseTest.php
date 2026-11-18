@@ -3859,7 +3859,7 @@ EOT,
      */
     private function makeMockResponse(array $content): TestResponse
     {
-        $view = Double::for(View::class);
+        $view = Double::for(View::class)->strict();
 
         foreach ($content as $method => $value) {
             $view->allows($method)->returns($value);

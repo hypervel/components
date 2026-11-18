@@ -94,8 +94,8 @@ class ToolRequestValidationTest extends TestCase
 
         $context = new RunContext(
             'inv_1',
-            Double::for(Agent::class),
-            Double::for(TextProvider::class),
+            Double::for(Agent::class)->strict(),
+            Double::for(TextProvider::class)->strict(),
             'stub-model',
             $events,
         );

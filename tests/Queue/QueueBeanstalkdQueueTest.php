@@ -213,7 +213,7 @@ class QueueBeanstalkdQueueTest extends TestCase
     {
         $this->setQueue('default', 60);
 
-        $jobId = Double::for(JobIdInterface::class);
+        $jobId = Double::for(JobIdInterface::class)->strict();
         $pheanstalk = $this->queue->getPheanstalk();
         $pheanstalk->expects('useTube')->with(Argument::satisfies(fn (TubeName $tube): bool => $tube->value === '0'));
         $pheanstalk->expects('put')->returns($jobId);
@@ -273,7 +273,7 @@ class QueueBeanstalkdQueueTest extends TestCase
         $pheanstalk->expects('watch')->with(Argument::type(TubeName::class));
         $pheanstalk->expects('listTubesWatched')->returns(new TubeList($tube));
 
-        $jobId = Double::for(JobIdInterface::class);
+        $jobId = Double::for(JobIdInterface::class)->strict();
         $jobId->expects('getId');
         $job = new Job($jobId, '');
         $pheanstalk->expects('reserveWithTimeout')->with(0)->returns($job);
@@ -292,7 +292,7 @@ class QueueBeanstalkdQueueTest extends TestCase
         $pheanstalk->expects('watch')->with(Argument::type(TubeName::class));
         $pheanstalk->expects('listTubesWatched')->returns(new TubeList($tube));
 
-        $jobId = Double::for(JobIdInterface::class);
+        $jobId = Double::for(JobIdInterface::class)->strict();
         $jobId->expects('getId');
         $job = new Job($jobId, '');
         $pheanstalk->expects('reserveWithTimeout')->with(60)->returns($job);
@@ -319,7 +319,7 @@ class QueueBeanstalkdQueueTest extends TestCase
     private function setQueue(string $default, int $timeToRun, int $blockFor = 0): void
     {
         $this->queue = new BeanstalkdQueue(
-            Double::for(PheanstalkManagerInterface::class, PheanstalkPublisherInterface::class, PheanstalkSubscriberInterface::class),
+            Double::for(PheanstalkManagerInterface::class, PheanstalkPublisherInterface::class, PheanstalkSubscriberInterface::class)->strict(),
             $default,
             $timeToRun,
             $blockFor

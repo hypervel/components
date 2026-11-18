@@ -24,16 +24,16 @@ class DatabaseWipeCommandTest extends TestCase
 
     public function testWipeCommandDropsSchemaObjectsAndDisconnectsConnection(): void
     {
-        $schemaBuilder = Double::for(Builder::class);
+        $schemaBuilder = Double::for(Builder::class)->strict();
         $schemaBuilder->expects('dropAllViews');
         $schemaBuilder->expects('dropAllTables');
         $schemaBuilder->expects('dropAllTypes');
 
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getSchemaBuilder')->times(3)->returns($schemaBuilder);
         $connection->expects('disconnect');
 
-        $db = Double::for(DatabaseManager::class);
+        $db = Double::for(DatabaseManager::class)->strict();
         $db->expects('connection')->times(4)->with('pgsql')->returns($connection);
         $db->expects('purge')->never();
 
@@ -55,14 +55,14 @@ class DatabaseWipeCommandTest extends TestCase
 
     public function testWipeCommandRoutesToMigrationsConnection(): void
     {
-        $schemaBuilder = Double::for(Builder::class);
+        $schemaBuilder = Double::for(Builder::class)->strict();
         $schemaBuilder->expects('dropAllTables');
 
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getSchemaBuilder')->returns($schemaBuilder);
         $connection->expects('disconnect');
 
-        $db = Double::for(DatabaseManager::class);
+        $db = Double::for(DatabaseManager::class)->strict();
         // db:wipe --database=pgsql-pooled should route to 'pgsql' because
         // pgsql-pooled has migrations_connection => 'pgsql'. Schema drops
         // need a direct (unpooled) connection.
@@ -97,14 +97,14 @@ class DatabaseWipeCommandTest extends TestCase
         // should use the configured default — and if that default has a
         // migrations_connection, should route to it rather than dropping
         // tables on the pooled connection.
-        $schemaBuilder = Double::for(Builder::class);
+        $schemaBuilder = Double::for(Builder::class)->strict();
         $schemaBuilder->expects('dropAllTables');
 
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getSchemaBuilder')->returns($schemaBuilder);
         $connection->expects('disconnect');
 
-        $db = Double::for(DatabaseManager::class);
+        $db = Double::for(DatabaseManager::class)->strict();
         $db->expects('connection')->times(2)->with('pgsql')->returns($connection);
         $db->expects('purge')->never();
 
@@ -135,14 +135,14 @@ class DatabaseWipeCommandTest extends TestCase
         // when an outer scope has set Context (e.g. via DB::usingConnection),
         // db:wipe with no --database must route to that Context target's
         // migrations_connection, not to the configured default's sibling.
-        $schemaBuilder = Double::for(Builder::class);
+        $schemaBuilder = Double::for(Builder::class)->strict();
         $schemaBuilder->expects('dropAllTables');
 
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getSchemaBuilder')->returns($schemaBuilder);
         $connection->expects('disconnect');
 
-        $db = Double::for(DatabaseManager::class);
+        $db = Double::for(DatabaseManager::class)->strict();
         $db->expects('connection')->times(2)->with('tenant-direct')->returns($connection);
         $db->expects('purge')->never();
 

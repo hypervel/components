@@ -17,6 +17,7 @@ use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use League\Flysystem\UnableToReadFile;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
@@ -420,8 +421,8 @@ class FileResponseBuilderTest extends TestCase
         Container::setInstance($container);
         $writerFailure = new RuntimeException('writer failed');
         $closeFailure = new RuntimeException('close failed');
-        $handler = Double::for(ExceptionHandler::class);
-        $handler->expects('report')->with($closeFailure);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($closeFailure));
         $container->instance(ExceptionHandler::class, $handler);
         $state = new FileResponseBuilderStreamState('contents', closeFailure: $closeFailure);
         $response = $this->build(

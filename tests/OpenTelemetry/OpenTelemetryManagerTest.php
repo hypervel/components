@@ -25,6 +25,7 @@ use Hypervel\OpenTelemetry\Support\ProviderSet;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use JMac\Testing\OverriddenDouble;
 use LogicException;
 use OpenTelemetry\API\Trace\Propagation\TraceContextPropagator;
@@ -136,7 +137,7 @@ class OpenTelemetryManagerTest extends TestCase
 
         $manager->bind($identity);
 
-        $container->received('instance')->with(ProcessIdentity::class, $identity)->times(1);
+        $container->received('instance')->with(ProcessIdentity::class, Argument::same($identity))->times(1);
         $this->assertSame(['metrics' => true, 'custom' => 'value'], $instrumentation->options);
         $manager->shutdown();
     }
@@ -162,7 +163,7 @@ class OpenTelemetryManagerTest extends TestCase
         $exceptionContexts->enable();
 
         $manager->bind($identity);
-        $container->received('instance')->with(ProcessIdentity::class, $identity)->times(1);
+        $container->received('instance')->with(ProcessIdentity::class, Argument::same($identity))->times(1);
         $manager->shutdown();
         $expected = new RuntimeException('failure');
 
@@ -341,7 +342,7 @@ class OpenTelemetryManagerTest extends TestCase
 
         $this->assertTrue($manager->isBound());
         $manager->bind($identity);
-        $container->received('instance')->with(ProcessIdentity::class, $identity)->times(1);
+        $container->received('instance')->with(ProcessIdentity::class, Argument::same($identity))->times(1);
         $this->assertSame(1, $instrumentation->registrations);
         $this->assertSame(1, $failingInstrumentation->registrations);
         $this->assertTrue($manager->shutdown());

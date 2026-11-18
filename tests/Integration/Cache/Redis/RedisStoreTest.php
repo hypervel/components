@@ -501,7 +501,7 @@ class RedisStoreTest extends TestCase
         $context = $store->getStore()->getContext();
         $scanner = new GetEntries($context);
         $requests = 0;
-        $entries = Double::for(GetEntries::class);
+        $entries = Double::for(GetEntries::class)->strict();
         $entries->expects('execute')
             ->times(2)
             ->resolves(function (array $tagIds) use ($scanner, $store, &$requests): LazyCollection {

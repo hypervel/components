@@ -31,7 +31,7 @@ class SupportFacadesQueueTest extends TestCase
     {
         parent::setUp();
 
-        $this->queueManager = Double::for(QueueContract::class, QueueInterface::class);
+        $this->queueManager = Double::for(QueueContract::class, QueueInterface::class)->strict();
 
         $container = new Container;
         $container->instance('queue', $this->queueManager);

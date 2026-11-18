@@ -23,15 +23,15 @@ class NotificationDatabaseChannelTest extends TestCase
     {
         $notification = new NotificationDatabaseChannelTestNotification;
         $notification->id = '1';
-        $notifiable = Double::for(AnonymousNotifiable::class);
+        $notifiable = Double::for(AnonymousNotifiable::class)->strict();
 
-        $notifiable->expects('routeNotificationFor')->returns($relation = Double::for(HasMany::class));
+        $notifiable->expects('routeNotificationFor')->returns($relation = Double::for(HasMany::class)->strict());
         $relation->expects('create')->with([
             'id' => '1',
             'type' => get_class($notification),
             'data' => ['invoice_id' => '1'],
             'read_at' => null,
-        ])->returns(Double::for(Model::class));
+        ])->returns(Double::for(Model::class)->strict());
 
         $channel = new DatabaseChannel;
         $channel->send($notifiable, $notification);
@@ -41,16 +41,16 @@ class NotificationDatabaseChannelTest extends TestCase
     {
         $notification = new NotificationDatabaseChannelTestNotification;
         $notification->id = '1';
-        $notifiable = Double::for(AnonymousNotifiable::class);
+        $notifiable = Double::for(AnonymousNotifiable::class)->strict();
 
-        $notifiable->expects('routeNotificationFor')->returns($relation = Double::for(HasMany::class));
+        $notifiable->expects('routeNotificationFor')->returns($relation = Double::for(HasMany::class)->strict());
         $relation->expects('create')->with([
             'id' => '1',
             'type' => get_class($notification),
             'data' => ['invoice_id' => '1'],
             'read_at' => null,
             'something' => 'else',
-        ])->returns(Double::for(Model::class));
+        ])->returns(Double::for(Model::class)->strict());
 
         $channel = new ExtendedDatabaseChannel;
         $channel->send($notifiable, $notification);
@@ -62,16 +62,16 @@ class NotificationDatabaseChannelTest extends TestCase
 
         $notification = new NotificationDatabaseChannelCustomizeTypeTestNotification;
         $notification->id = '1';
-        $notifiable = Double::for(AnonymousNotifiable::class);
+        $notifiable = Double::for(AnonymousNotifiable::class)->strict();
 
-        $notifiable->expects('routeNotificationFor')->returns($relation = Double::for(HasMany::class));
+        $notifiable->expects('routeNotificationFor')->returns($relation = Double::for(HasMany::class)->strict());
         $relation->expects('create')->with([
             'id' => '1',
             'type' => 'MONTHLY',
             'data' => ['invoice_id' => '1'],
             'read_at' => CarbonImmutable::now(),
             'something' => 'else',
-        ])->returns(Double::for(Model::class));
+        ])->returns(Double::for(Model::class)->strict());
 
         $channel = new ExtendedDatabaseChannel;
         $channel->send($notifiable, $notification);

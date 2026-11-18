@@ -187,7 +187,7 @@ class WebSocketHandlerTest extends ReverbTestCase
         $connection = $this->createStoredConnection(1);
 
         $this->pusherServer->expects('message')
-            ->with($connection, '{"event":"pusher:ping"}');
+            ->with(Argument::same($connection), '{"event":"pusher:ping"}');
 
         $swooleServer = Double::for(WebSocketServer::class)->strict();
 
@@ -224,7 +224,7 @@ class WebSocketHandlerTest extends ReverbTestCase
         $connection = $this->createStoredConnection(1);
 
         $this->pusherServer->expects('control')
-            ->with($connection, WEBSOCKET_OPCODE_PING);
+            ->with(Argument::same($connection), WEBSOCKET_OPCODE_PING);
 
         $swooleServer = Double::for(WebSocketServer::class)->strict();
         $swooleServer->expects('push')
@@ -242,7 +242,7 @@ class WebSocketHandlerTest extends ReverbTestCase
         $connection = $this->createStoredConnection(1);
 
         $this->pusherServer->expects('control')
-            ->with($connection, WEBSOCKET_OPCODE_PONG);
+            ->with(Argument::same($connection), WEBSOCKET_OPCODE_PONG);
 
         $swooleServer = Double::for(WebSocketServer::class)->strict();
         // No pong response should be sent for pong frames
@@ -274,7 +274,7 @@ class WebSocketHandlerTest extends ReverbTestCase
     {
         $connection = $this->createStoredConnection(1);
 
-        $this->pusherServer->expects('close')->with($connection);
+        $this->pusherServer->expects('close')->with(Argument::same($connection));
 
         $swooleServer = Double::for(Server::class)->strict();
 

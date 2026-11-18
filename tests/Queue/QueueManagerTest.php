@@ -31,6 +31,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use RuntimeException;
@@ -52,7 +53,7 @@ class QueueManagerTest extends TestCase
         $queue = Double::for(NullQueue::class)->strict();
         $queue->expects('setConnectionName')->with('0');
         $queue->expects('setConfig');
-        $queue->expects('setContainer')->with($container);
+        $queue->expects('setContainer')->with(Argument::same($container));
         $connector->expects('connect')->with(['driver' => 'sync'])->returns($queue);
         $manager->addConnector('sync', fn () => $connector);
 
@@ -367,7 +368,7 @@ class QueueManagerTest extends TestCase
             'driver' => 'custom',
             'queue' => 'shared',
         ])->returns($queue);
-        $queue->expects('setContainer')->with($container);
+        $queue->expects('setContainer')->with(Argument::same($container));
         $queue->expects('setConfig')->with([
             'driver' => 'custom',
             'queue' => 'shared',
@@ -406,7 +407,7 @@ class QueueManagerTest extends TestCase
             'driver' => 'custom',
             'queue' => 'shared',
         ])->returns($queue);
-        $queue->expects('setContainer')->times(2)->with($container);
+        $queue->expects('setContainer')->times(2)->with(Argument::same($container));
         $queue->expects('setConfig')->times(2)->with([
             'driver' => 'custom',
             'queue' => 'shared',
@@ -448,7 +449,7 @@ class QueueManagerTest extends TestCase
         $currentName = '';
 
         $connector->expects('connect')->with($connectionConfig)->returns($queue);
-        $queue->expects('setContainer')->with($container);
+        $queue->expects('setContainer')->with(Argument::same($container));
         $queue->expects('setConfig')->with($connectionConfig);
         $queue->expects('setConnectionName')->times(2)
             ->resolves(function (string $name) use (&$currentName, $queue): Queue {
@@ -492,8 +493,8 @@ class QueueManagerTest extends TestCase
         $manager->addConnector('custom', fn () => $connector);
 
         $connector->expects('connect')->times(2)->returns($queue);
-        $queue->expects('setContainer')->with($oldContainer);
-        $queue->expects('setContainer')->with($newContainer);
+        $queue->expects('setContainer')->with(Argument::same($oldContainer));
+        $queue->expects('setContainer')->with(Argument::same($newContainer));
         $queue->expects('setConfig')->times(2);
         $queue->expects('setConnectionName')->times(2)->with('foo');
         $queue->expects('size')->times(2)->with()->returns(1);
@@ -532,10 +533,10 @@ class QueueManagerTest extends TestCase
         $manager->addConnector('sync', fn () => $connector);
 
         $connector->expects('connect')->with(['driver' => 'sync'])->returns($queue);
-        $queue->expects('setContainer')->with($oldContainer);
+        $queue->expects('setContainer')->with(Argument::same($oldContainer));
         $queue->expects('setConfig')->with(['driver' => 'sync']);
         $queue->expects('setConnectionName')->with('sync');
-        $queue->expects('setContainer')->with($newContainer);
+        $queue->expects('setContainer')->with(Argument::same($newContainer));
 
         $this->assertSame($queue, $manager->connection('sync'));
         $this->assertSame($manager, $manager->setApplication($newContainer));

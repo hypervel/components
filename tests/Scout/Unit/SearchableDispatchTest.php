@@ -13,6 +13,7 @@ use Hypervel\Scout\Searchable;
 use Hypervel\Tests\Scout\ScoutTestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 
 class SearchableDispatchTest extends ScoutTestCase
@@ -130,7 +131,7 @@ class SearchableDispatchTest extends ScoutTestCase
     {
         $exception = new RuntimeException('indexing failed');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($exception, []);
+        $handler->expects('report')->with(Argument::same($exception), []);
         $this->app->instance(ExceptionHandler::class, $handler);
         $events = [];
 

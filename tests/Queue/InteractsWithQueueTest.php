@@ -20,12 +20,8 @@ class InteractsWithQueueTest extends TestCase
 
     public function testCreatesAnExceptionFromString(): void
     {
-        $queueJob = Double::for(Job::class);
-        $queueJob->expects('fail')->with(Argument::satisfies(function (Exception $exception): bool {
-            $this->assertSame('Whoops!', $exception->getMessage());
-
-            return true;
-        }));
+        $queueJob = Double::for(Job::class)->strict();
+        $queueJob->expects('fail')->with(Argument::capture($exception));
 
         $job = new class {
             use InteractsWithQueue;
@@ -35,13 +31,16 @@ class InteractsWithQueueTest extends TestCase
 
         $job->job = $queueJob;
         $job->fail('Whoops!');
+
+        $this->assertInstanceOf(Exception::class, $exception);
+        $this->assertSame('Whoops!', $exception->getMessage());
     }
 
     public function testReleasesUsingDateInterval(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::now());
 
-        $queueJob = Double::for(Job::class);
+        $queueJob = Double::for(Job::class)->strict();
         $queueJob->expects('release')->with(60);
 
         $job = new class {

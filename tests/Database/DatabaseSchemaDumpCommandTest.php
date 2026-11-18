@@ -11,6 +11,7 @@ use Hypervel\Database\Schema\SchemaState;
 use Hypervel\Testbench\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseSchemaDumpCommandTest extends TestCase
@@ -53,15 +54,15 @@ class DatabaseSchemaDumpCommandTest extends TestCase
             'database.connections.pgsql' => ['driver' => 'pgsql'],
         ]);
 
-        $connection = Double::for(Connection::class);
-        $state = Double::for(SchemaState::class);
+        $connection = Double::for(Connection::class)->strict();
+        $state = Double::for(SchemaState::class)->strict();
         $connection->allows('getName')->returns('pgsql');
         $connection->allows('getSchemaState')->returns($state);
         $state->allows('withMigrationTable');
         $state->allows('handleOutputUsing');
-        $state->expects('dump')->with($connection, database_path('schema/pgsql-schema.sql'));
+        $state->expects('dump')->with(Argument::same($connection), database_path('schema/pgsql-schema.sql'));
 
-        $connections = Double::for(ConnectionResolverInterface::class);
+        $connections = Double::for(ConnectionResolverInterface::class)->strict();
         $connections->expects('connection')->with('pgsql')->returns($connection);
         $this->app->instance(ConnectionResolverInterface::class, $connections);
 

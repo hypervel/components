@@ -127,9 +127,9 @@ class DatabaseManagerSetDefaultConnectionTest extends TestCase
 
         $app = Container::getInstance();
         $app->instance('config', $config);
-        $app->instance(PoolManager::class, Double::for(PoolManager::class));
+        $app->instance(PoolManager::class, Double::for(PoolManager::class)->strict());
 
-        $factory = Double::for(ConnectionFactory::class);
+        $factory = Double::for(ConnectionFactory::class)->strict();
 
         return new DatabaseManager($app, $factory);
     }

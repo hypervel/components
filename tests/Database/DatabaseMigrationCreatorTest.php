@@ -152,7 +152,7 @@ class DatabaseMigrationCreatorTest extends TestCase
 
     public function testOverriddenCreateMethodRetainsExistingDatePrefixBehavior(): void
     {
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $files->expects('glob')->never();
 
         $creator = new class($files, 'stubs') extends MigrationCreator {
@@ -259,7 +259,7 @@ class DatabaseMigrationCreatorTest extends TestCase
 
     public function testDatePrefixUsesTheFrameworkClockWithoutAnActivePath(): void
     {
-        $creator = new class(Double::for(Filesystem::class)) extends MigrationCreator {
+        $creator = new class(Double::for(Filesystem::class)->strict()) extends MigrationCreator {
             public function datePrefix(): string
             {
                 return $this->getDatePrefix();
@@ -321,7 +321,7 @@ class DatabaseMigrationCreatorTest extends TestCase
      */
     protected function getCreator(array $methods = ['getDatePrefix']): MigrationCreator
     {
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $customStubs = 'stubs';
 
         if ($methods === []) {

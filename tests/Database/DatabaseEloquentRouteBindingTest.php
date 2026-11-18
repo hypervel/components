@@ -23,7 +23,7 @@ class DatabaseEloquentRouteBindingTest extends TestCase
     #[DataProvider('invalidIntegerKeyProvider')]
     public function testItRejectsValuesThatCannotAddressAnIntegerKeyWithoutQuerying(mixed $value): void
     {
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $query->expects('where')->never();
 
         $this->expectException(ModelNotFoundException::class);
@@ -55,7 +55,7 @@ class DatabaseEloquentRouteBindingTest extends TestCase
     #[DataProvider('validIntegerKeyProvider')]
     public function testItPassesThroughValuesTheDatabaseCanStillMatch(int|string $value): void
     {
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $query->expects('where')->with('id', $value);
 
         $this->assertSame($query, (new RouteBindingIntKeyModel)->resolveRouteBindingQuery($query, $value));
@@ -83,7 +83,7 @@ class DatabaseEloquentRouteBindingTest extends TestCase
     #[TestWith(['integer'])]
     public function testItValidatesQualifiedKeyColumnsFromChildBindings(string $keyType): void
     {
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $query->expects('where')->never();
 
         $this->expectException(ModelNotFoundException::class);
@@ -93,7 +93,7 @@ class DatabaseEloquentRouteBindingTest extends TestCase
 
     public function testItDoesNotValidateNonKeyBindingFields(): void
     {
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $query->expects('where')->with('slug', 'abc');
 
         (new RouteBindingIntKeyModel)->resolveRouteBindingQuery($query, 'abc', 'slug');
@@ -101,7 +101,7 @@ class DatabaseEloquentRouteBindingTest extends TestCase
 
     public function testItDoesNotValidateModelsWithStringKeys(): void
     {
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $query->expects('where')->with('id', 'abc');
 
         (new RouteBindingStringKeyModel)->resolveRouteBindingQuery($query, 'abc');
@@ -112,7 +112,7 @@ class DatabaseEloquentRouteBindingTest extends TestCase
 
     public function testItValidatesNonIncrementingModelsWithTheDefaultKeyType(): void
     {
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $query->expects('where')->never();
 
         $this->expectException(ModelNotFoundException::class);
@@ -122,7 +122,7 @@ class DatabaseEloquentRouteBindingTest extends TestCase
 
     public function testItDoesNotValidateNullValuesForModelsWithStringKeys(): void
     {
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $query->expects('where')->with('id', null);
 
         (new RouteBindingStringKeyModel)->resolveRouteBindingQuery($query, null);
@@ -130,7 +130,7 @@ class DatabaseEloquentRouteBindingTest extends TestCase
 
     public function testTheInvalidKeyHandlerMayBeOverridden(): void
     {
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $query->expects('where')->never();
 
         $this->expectException(RuntimeException::class);
@@ -141,7 +141,7 @@ class DatabaseEloquentRouteBindingTest extends TestCase
 
     public function testTheExceptionCarriesTheModelAndValue(): void
     {
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
 
         try {
             (new RouteBindingIntKeyModel)->resolveRouteBindingQuery($query, 'abc');
@@ -161,7 +161,7 @@ class DatabaseEloquentRouteBindingTest extends TestCase
     #[DataProvider('nullRouteKeyModelProvider')]
     public function testNullValuesCarryNoIdentifiers(string $model): void
     {
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $query->expects('where')->never();
 
         try {
@@ -190,7 +190,7 @@ class DatabaseEloquentRouteBindingTest extends TestCase
 
     public function testItValidatesQualifiedUniqueIdColumnsFromChildBindings(): void
     {
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $query->expects('where')->never();
 
         $this->expectException(ModelNotFoundException::class);
@@ -202,7 +202,7 @@ class DatabaseEloquentRouteBindingTest extends TestCase
     {
         $uuid = '0190ecbd-0aa7-7cc8-9d51-4b4f6fb3a3c7';
 
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $query->expects('where')->with('route_binding_uuid_key_models.id', $uuid);
 
         $this->assertSame($query, (new RouteBindingUuidKeyModel)->resolveRouteBindingQuery($query, $uuid, 'route_binding_uuid_key_models.id'));

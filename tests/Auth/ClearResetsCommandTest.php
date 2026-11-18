@@ -21,9 +21,9 @@ class ClearResetsCommandTest extends TestCase
 
     public function testClearsExpiredTokensThroughDefaultBroker(): void
     {
-        $command = $this->makeCommand($manager = Double::for(PasswordBrokerManager::class));
-        $broker = Double::for(PasswordBroker::class);
-        $repository = Double::for(TokenRepositoryInterface::class);
+        $command = $this->makeCommand($manager = Double::for(PasswordBrokerManager::class)->strict());
+        $broker = Double::for(PasswordBroker::class)->strict();
+        $repository = Double::for(TokenRepositoryInterface::class)->strict();
 
         $manager->expects('broker')->with(null)->returns($broker);
         $broker->expects('getRepository')->returns($repository);
@@ -34,9 +34,9 @@ class ClearResetsCommandTest extends TestCase
 
     public function testClearsExpiredTokensThroughNamedBroker(): void
     {
-        $command = $this->makeCommand($manager = Double::for(PasswordBrokerManager::class));
-        $broker = Double::for(PasswordBroker::class);
-        $repository = Double::for(TokenRepositoryInterface::class);
+        $command = $this->makeCommand($manager = Double::for(PasswordBrokerManager::class)->strict());
+        $broker = Double::for(PasswordBroker::class)->strict();
+        $repository = Double::for(TokenRepositoryInterface::class)->strict();
 
         $manager->expects('broker')->with('admins')->returns($broker);
         $broker->expects('getRepository')->returns($repository);

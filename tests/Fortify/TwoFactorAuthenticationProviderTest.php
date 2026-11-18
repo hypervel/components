@@ -130,7 +130,7 @@ class TwoFactorAuthenticationProviderTest extends TestCase
         $secondKey = 'fortify.2fa_codes.' . hash('xxh128', $secondSecret . '|' . $code);
         $timecode = intdiv(self::TIMESTAMP, TOTPInterface::DEFAULT_PERIOD);
         $ttl = 90;
-        $cache = Double::for(CacheRepositoryContract::class);
+        $cache = Double::for(CacheRepositoryContract::class)->strict();
 
         $this->assertSame($code, $this->codeAt($secondSecret, self::TIMESTAMP));
         $this->assertNotSame($firstKey, $secondKey);
@@ -169,7 +169,7 @@ class TwoFactorAuthenticationProviderTest extends TestCase
         foreach ([0 => 30, 1 => 90, 2 => 150] as $window => $ttl) {
             Features::twoFactorAuthentication(['window' => $window]);
 
-            $cache = Double::for(CacheRepositoryContract::class);
+            $cache = Double::for(CacheRepositoryContract::class)->strict();
             $key = 'fortify.2fa_codes.' . hash('xxh128', self::SECRET . '|' . $this->codeAt(self::SECRET, self::TIMESTAMP));
             $timecode = intdiv(self::TIMESTAMP, TOTPInterface::DEFAULT_PERIOD);
 

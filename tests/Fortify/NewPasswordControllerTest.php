@@ -94,7 +94,7 @@ class NewPasswordControllerTest extends TestCase
     public function testPasswordCanBeResetWithCustomizedEmailAddressField(): void
     {
         $this->app->make('config')->set('fortify.email', 'emailAddress');
-        Password::shouldReceive('broker')->andReturn($broker = Double::for(PasswordBroker::class));
+        Password::shouldReceive('broker')->andReturn($broker = Double::for(PasswordBroker::class)->strict());
 
         $user = User::forceCreate(UserFactory::new()->raw());
         $rememberToken = $user->remember_token;

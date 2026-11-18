@@ -34,7 +34,7 @@ class CacheServiceProviderTest extends TestCase
         $manager->allowSerializableClassesUsing(
             static fn (): array => [CachePolicyEarlyContribution::class],
         );
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $listeners = [];
         $events->expects('listen')
             ->times(2)
@@ -42,7 +42,7 @@ class CacheServiceProviderTest extends TestCase
                 $listeners[$event][] = $listener;
             });
         $bootedCallback = null;
-        $application = Double::for(Application::class, override: true);
+        $application = Double::for(Application::class, override: true)->strict();
         $application->expects('make')
             ->with(CacheManager::class)
             ->returns($manager);
@@ -85,7 +85,7 @@ class CacheServiceProviderTest extends TestCase
     public function testServerFinalizationResolvesTheWorkerManagerAtEventTime(bool $customProcess): void
     {
         $workerManager = $this->manager();
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $listeners = [];
         $events->expects('listen')
             ->times(3)
@@ -94,7 +94,7 @@ class CacheServiceProviderTest extends TestCase
                     $listeners[$name][] = $listener;
                 }
             });
-        $application = Double::for(Application::class, override: true);
+        $application = Double::for(Application::class, override: true)->strict();
         $application->expects('make')
             ->with(CacheManager::class)
             ->returns($workerManager);
@@ -113,9 +113,9 @@ class CacheServiceProviderTest extends TestCase
         $this->assertCount(2, $listeners[AfterWorkerStart::class]);
 
         if ($customProcess) {
-            $event = new BeforeProcessHandle(Double::for(AbstractProcess::class), 0);
+            $event = new BeforeProcessHandle(Double::for(AbstractProcess::class)->strict(), 0);
         } else {
-            $server = Double::for(SwooleServer::class);
+            $server = Double::for(SwooleServer::class)->strict();
             // Policy finalization runs in request workers and taskworkers, unlike Swoole timer registration.
             $server->taskworker = true;
             $event = new AfterWorkerStart($server, 9);
@@ -131,7 +131,7 @@ class CacheServiceProviderTest extends TestCase
     public function testFacadeCallsTheManagerExtensionWithoutResolvingAStore(): void
     {
         $resolver = static fn (): array => [CachePolicyEarlyContribution::class];
-        $manager = Double::for(CacheManager::class);
+        $manager = Double::for(CacheManager::class)->strict();
         $manager->expects('allowSerializableClassesUsing')
             ->with(Argument::same($resolver));
         $manager->expects('store')->never();

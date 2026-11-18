@@ -202,7 +202,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
 
     public function testSetDefaultDriverOverridesGuardDeclaration(): void
     {
-        $auth = Double::for(AuthFactory::class);
+        $auth = Double::for(AuthFactory::class)->strict();
         $auth->expects('getDefaultDriver')->never();
 
         $container = $this->makeContainer([
@@ -225,7 +225,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
     #[DataProvider('backedBrokerNames')]
     public function testBrokerCanResolveBackedEnum(BackedEnum $name, string $expected): void
     {
-        $broker = Double::for(PasswordBrokerContract::class);
+        $broker = Double::for(PasswordBrokerContract::class)->strict();
         $manager = new AuthPasswordBrokerManagerStub(new Container);
         $manager->resolvedBroker = $broker;
 
@@ -313,14 +313,14 @@ class AuthPasswordBrokerManagerTest extends TestCase
                 ],
             ],
         ]);
-        $container->instance('auth', $auth = Double::for(AuthManager::class));
-        $container->instance('db', $database = Double::for(ConnectionResolverInterface::class));
-        $container->instance('hash', Double::for(Hasher::class));
+        $container->instance('auth', $auth = Double::for(AuthManager::class)->strict());
+        $container->instance('db', $database = Double::for(ConnectionResolverInterface::class)->strict());
+        $container->instance('hash', Double::for(Hasher::class)->strict());
 
         $auth->expects('createUserProvider')
             ->with('admins')
-            ->returns(Double::for(UserProvider::class));
-        $connection = Double::for(Connection::class);
+            ->returns(Double::for(UserProvider::class)->strict());
+        $connection = Double::for(Connection::class)->strict();
         $resolutions = 0;
         $database->expects('connection')
             ->with('passwords')
@@ -356,13 +356,13 @@ class AuthPasswordBrokerManagerTest extends TestCase
                 ],
             ],
         ]);
-        $container->instance('auth', $auth = Double::for(AuthManager::class));
-        $container->instance('db', $database = Double::for(ConnectionResolverInterface::class));
-        $container->instance('hash', Double::for(Hasher::class));
+        $container->instance('auth', $auth = Double::for(AuthManager::class)->strict());
+        $container->instance('db', $database = Double::for(ConnectionResolverInterface::class)->strict());
+        $container->instance('hash', Double::for(Hasher::class)->strict());
 
         $auth->expects('createUserProvider')
             ->with('zero')
-            ->returns(Double::for(UserProvider::class));
+            ->returns(Double::for(UserProvider::class)->strict());
         $database->expects('connection')->never();
 
         $this->assertInstanceOf(PasswordBrokerContract::class, (new PasswordBrokerManager($container))->broker('0'));
@@ -370,7 +370,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
 
     public function testBrokerWithEmptyNameUsesDefaultDriver(): void
     {
-        $broker = Double::for(PasswordBrokerContract::class);
+        $broker = Double::for(PasswordBrokerContract::class)->strict();
         $manager = new AuthPasswordBrokerManagerStub(new Container);
         $manager->resolvedBroker = $broker;
         $manager->setDefaultDriver('users');
@@ -387,14 +387,14 @@ class AuthPasswordBrokerManagerTest extends TestCase
             ],
             'auth' => require __DIR__ . '/../../src/foundation/config/auth.php',
         ]);
-        $container->instance('auth', $auth = Double::for(AuthManager::class));
-        $container->instance('db', $database = Double::for(ConnectionResolverInterface::class));
-        $container->instance('hash', Double::for(Hasher::class));
+        $container->instance('auth', $auth = Double::for(AuthManager::class)->strict());
+        $container->instance('db', $database = Double::for(ConnectionResolverInterface::class)->strict());
+        $container->instance('hash', Double::for(Hasher::class)->strict());
 
         $auth->expects('createUserProvider')
             ->with('users')
-            ->returns(Double::for(UserProvider::class));
-        $connection = Double::for(Connection::class);
+            ->returns(Double::for(UserProvider::class)->strict());
+        $connection = Double::for(Connection::class)->strict();
         $database->expects('connection')->with(null)->returns($connection);
 
         $broker = (new PasswordBrokerManager($container))->broker('users');
@@ -421,13 +421,13 @@ class AuthPasswordBrokerManagerTest extends TestCase
                 ],
             ],
         ]);
-        $container->instance('auth', $auth = Double::for(AuthManager::class));
-        $container->instance('db', $database = Double::for(ConnectionResolverInterface::class));
-        $container->instance('hash', Double::for(Hasher::class));
+        $container->instance('auth', $auth = Double::for(AuthManager::class)->strict());
+        $container->instance('db', $database = Double::for(ConnectionResolverInterface::class)->strict());
+        $container->instance('hash', Double::for(Hasher::class)->strict());
 
         $auth->expects('createUserProvider')
             ->with('users')
-            ->returns(Double::for(UserProvider::class));
+            ->returns(Double::for(UserProvider::class)->strict());
         $database->expects('connection')->never();
 
         $broker = (new PasswordBrokerManager($container))->broker('users');
@@ -455,16 +455,16 @@ class AuthPasswordBrokerManagerTest extends TestCase
                 ],
             ],
         ]);
-        $container->instance('auth', $auth = Double::for(AuthManager::class));
-        $container->instance('cache', $cache = Double::for(CacheFactory::class));
-        $container->instance('hash', Double::for(Hasher::class));
+        $container->instance('auth', $auth = Double::for(AuthManager::class)->strict());
+        $container->instance('cache', $cache = Double::for(CacheFactory::class)->strict());
+        $container->instance('hash', Double::for(Hasher::class)->strict());
 
         $auth->expects('createUserProvider')
             ->with('users')
-            ->returns(Double::for(UserProvider::class));
+            ->returns(Double::for(UserProvider::class)->strict());
         $cache->expects('store')
             ->with(null)
-            ->returns(Double::for(CacheRepository::class));
+            ->returns(Double::for(CacheRepository::class)->strict());
 
         $this->assertInstanceOf(
             PasswordBrokerContract::class,
@@ -513,9 +513,9 @@ class AuthPasswordBrokerManagerTest extends TestCase
     public function testRefreshingDispatcherUpdatesOnlyConcreteResolvedBrokers(): void
     {
         $manager = new AuthPasswordBrokerManagerStub(new Container);
-        $concreteBroker = Double::for(PasswordBrokerImplementation::class);
-        $customBroker = Double::for(PasswordBrokerContract::class);
-        $events = Double::for(Dispatcher::class);
+        $concreteBroker = Double::for(PasswordBrokerImplementation::class)->strict();
+        $customBroker = Double::for(PasswordBrokerContract::class)->strict();
+        $events = Double::for(Dispatcher::class)->strict();
         $concreteBroker->expects('setDispatcher')->with(Argument::same($events));
         $manager->seedBroker('concrete', $concreteBroker);
         $manager->seedBroker('custom', $customBroker);
@@ -565,7 +565,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
      */
     private function mockAuthFactory(string $guard): AuthFactory
     {
-        $auth = Double::for(AuthFactory::class);
+        $auth = Double::for(AuthFactory::class)->strict();
         $auth->allows('getDefaultDriver')->returns($guard);
 
         return $auth;

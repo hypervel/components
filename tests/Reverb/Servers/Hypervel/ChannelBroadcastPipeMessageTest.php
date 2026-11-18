@@ -242,7 +242,7 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
     {
         $message = new MetricsResponsePipeMessage('request', ['count' => 1]);
         $metrics = Double::for(MetricsHandler::class)->strict();
-        $metrics->expects('receive')->with($message);
+        $metrics->expects('receive')->with(Argument::same($message));
         $this->app->instance(MetricsHandler::class, $metrics);
 
         event(new OnPipeMessage(Double::for(Server::class)->strict(), 2, $message));

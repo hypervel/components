@@ -45,7 +45,7 @@ class ServerTest extends TestCase
     {
         $exception = new RuntimeException('request callback failed');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($exception);
+        $handler->expects('report')->with(Argument::same($exception));
         $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->with(ExceptionHandler::class)->returns($handler);
         $response = Double::for(SwooleResponse::class)->strict();
@@ -80,7 +80,7 @@ class ServerTest extends TestCase
     {
         $exception = new RuntimeException('request callback failed');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($exception);
+        $handler->expects('report')->with(Argument::same($exception));
         $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->with(ExceptionHandler::class)->returns($handler);
         $response = Double::for(SwooleResponse::class)->strict();
@@ -104,7 +104,7 @@ class ServerTest extends TestCase
         $previousErrorLog = ini_set('error_log', $errorLog);
         $exception = new RuntimeException('request callback failed');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($exception)->throws(new RuntimeException('reporting failed'));
+        $handler->expects('report')->with(Argument::same($exception))->throws(new RuntimeException('reporting failed'));
         $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->with(ExceptionHandler::class)->returns($handler);
         $response = Double::for(SwooleResponse::class)->strict();
@@ -181,7 +181,7 @@ class ServerTest extends TestCase
     {
         $exception = new RuntimeException('worker delivery callback failed');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($exception);
+        $handler->expects('report')->with(Argument::same($exception));
         $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->with(ExceptionHandler::class)->returns($handler);
         $callback = $this->server($container->instance())->guardedWorkerDeliveryCallback(
@@ -215,7 +215,7 @@ class ServerTest extends TestCase
         $previousErrorLog = ini_set('error_log', $errorLog);
         $exception = new RuntimeException('worker delivery callback failed');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($exception)->throws(new RuntimeException('reporting failed'));
+        $handler->expects('report')->with(Argument::same($exception))->throws(new RuntimeException('reporting failed'));
         $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->with(ExceptionHandler::class)->returns($handler);
         $callback = $this->server($container->instance())->guardedWorkerDeliveryCallback(

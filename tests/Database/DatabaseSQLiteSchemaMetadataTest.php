@@ -114,9 +114,9 @@ class DatabaseSQLiteSchemaMetadataTest extends TestCase
 
     protected function builder(): array
     {
-        $connection = Double::for(Connection::class);
-        $grammar = Double::for(SQLiteGrammar::class);
-        $processor = Double::for(SQLiteProcessor::class);
+        $connection = Double::for(Connection::class)->strict();
+        $grammar = Double::for(SQLiteGrammar::class)->strict();
+        $processor = Double::for(SQLiteProcessor::class)->strict();
         $connection->allows('getSchemaGrammar')->returns($grammar);
         $connection->allows('getPostProcessor')->returns($processor);
 

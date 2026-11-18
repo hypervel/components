@@ -1095,8 +1095,12 @@ class QueueSqsQueueTest extends TestCase
         $container->instance('events', $events);
         $cancellation = new RuntimeException('Listener cleanup failed.', previous: new CanceledException);
         $earlierFailure = new RuntimeException('Earlier notification failed.');
-        $handler = Double::for(ExceptionHandler::class);
-        $handler->expects('report')->times($phase === 'queued' ? 1 : 0)->with($earlierFailure);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        if ($phase === 'queued') {
+            $handler->expects('report')->with(Argument::same($earlierFailure));
+        } else {
+            $handler->expects('report')->never();
+        }
         $container->instance(ExceptionHandler::class, $handler);
         $notified = [];
         $canceled = null;
@@ -1152,10 +1156,10 @@ class QueueSqsQueueTest extends TestCase
         $path = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . $uuid;
         $pointer = json_encode(['@pointer' => $path], JSON_THROW_ON_ERROR);
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('put')->with($path, $payload)->returns(true);
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
         $container = Double::for(Container::class, override: true)->passthru(new Container);
@@ -1216,10 +1220,10 @@ class QueueSqsQueueTest extends TestCase
         $path = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'always-overflow';
         $pointer = json_encode(['@pointer' => $path], JSON_THROW_ON_ERROR);
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('put')->with($path, $payload)->returns(true);
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
         $container = Double::for(Container::class, override: true)->passthru(new Container);
@@ -1275,10 +1279,10 @@ class QueueSqsQueueTest extends TestCase
         ], JSON_THROW_ON_ERROR);
         $path = null;
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('put')->with(Argument::capture($path), $payload)->returns(true);
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
         $container = Double::for(Container::class, override: true)->passthru(new Container);
@@ -1332,7 +1336,7 @@ class QueueSqsQueueTest extends TestCase
             $cancellation = new RuntimeException('Delete cleanup failed.', previous: $cancellation);
         }
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('put')->returns(false);
         if ($cleanupThrows === null) {
             $store->expects('forget')->with($path)->returns(true);
@@ -1340,10 +1344,10 @@ class QueueSqsQueueTest extends TestCase
             $store->expects('forget')->with($path)->throws($cancellation);
         }
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
-        $container = Double::for(ContainerContract::class, override: true);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
         $container->allows('make')->with(QueueRoutes::class)->returns(new QueueRoutes);
         $container->expects('make')->with('cache')->returns($cache);
 
@@ -1382,11 +1386,15 @@ class QueueSqsQueueTest extends TestCase
             $cleanupCancellation = new RuntimeException('delete cleanup failed', previous: $cleanupCancellation);
         }
 
-        $handler = Double::for(ExceptionHandler::class);
-        $handler->expects('report')->with($cleanupCancellation)->times($deleteCleanupThrows ? 1 : 0);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        if ($deleteCleanupThrows) {
+            $handler->expects('report')->with(Argument::same($cleanupCancellation));
+        } else {
+            $handler->expects('report')->never();
+        }
         Container::getInstance()->instance(ExceptionHandler::class, $handler);
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('put')->with($path, $payload)->throws($cancellation);
         if ($deleteCleanupThrows === null) {
             $store->expects('forget')->with($path)->returns(true);
@@ -1394,10 +1402,10 @@ class QueueSqsQueueTest extends TestCase
             $store->expects('forget')->with($path)->throws($cleanupCancellation);
         }
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
-        $container = Double::for(ContainerContract::class, override: true);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
         $container->allows('make')->with(QueueRoutes::class)->returns(new QueueRoutes);
         $container->expects('make')->with('cache')->returns($cache);
 
@@ -1435,11 +1443,11 @@ class QueueSqsQueueTest extends TestCase
     {
         $payload = json_encode(['uuid' => 'ambiguous'], JSON_THROW_ON_ERROR);
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('put')->returns(true);
         $store->expects('forget')->never();
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
         $container = Double::for(Container::class, override: true)->passthru(new Container);
@@ -1467,11 +1475,11 @@ class QueueSqsQueueTest extends TestCase
         $payload = json_encode(['uuid' => 'canceled-delivery'], JSON_THROW_ON_ERROR);
         $cancellation = new CanceledException;
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('put')->returns(true);
         $store->expects('forget')->never();
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
         $container = Double::for(Container::class, override: true)->passthru(new Container);
@@ -1501,7 +1509,7 @@ class QueueSqsQueueTest extends TestCase
         $store = new Repository(new ArrayStore);
         $store->put('foo', 'bar');
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
         $container = $this->createSpyContainer();
@@ -1534,16 +1542,16 @@ class QueueSqsQueueTest extends TestCase
 
     public function testClearFailsWhenTheOverflowStoreCannotBeFlushed(): void
     {
-        $store = Double::for(CacheStore::class);
+        $store = Double::for(CacheStore::class)->strict();
         $store->expects('flush')->returns(false);
 
-        $repository = Double::for(CacheRepository::class);
+        $repository = Double::for(CacheRepository::class)->strict();
         $repository->expects('getStore')->returns($store);
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($repository);
 
-        $container = Double::for(ContainerContract::class, override: true);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
         $container->allows('make')->with(QueueRoutes::class)->returns(new QueueRoutes);
         $container->expects('make')->with('cache')->returns($cache);
 
@@ -1631,7 +1639,7 @@ class QueueSqsQueueTest extends TestCase
         $store = new Repository(new ArrayStore);
         $store->put('foo', 'bar');
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('redis')->returns($store);
 
         $container = $this->createSpyContainer();
@@ -1680,7 +1688,8 @@ class QueueSqsQueueTest extends TestCase
     {
         $immediate = new FakeSqsJob;
         $afterCommit = (new FakeSqsJob)->afterCommit()->delay(10);
-        $container = Double::for(ContainerContract::class, override: true);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $container->allows('bound')->with('queue.routes')->returns(false);
         $container->allows('make')->with(QueueRoutes::class)->returns(new QueueRoutes);
         $container->expects('has')->never();
 
@@ -1692,7 +1701,7 @@ class QueueSqsQueueTest extends TestCase
         $queue->expects($this->never())->method('createPayload');
 
         $this->expectException(LogicException::class);
-
+        $this->expectExceptionMessageIs('SQS FIFO queues do not support per-message delays.');
         $queue->bulk([$immediate, $afterCommit], 'data', $this->fifoQueueName);
     }
 
@@ -1761,7 +1770,7 @@ class QueueSqsQueueTest extends TestCase
 
     public function testBulkRaisesQueueingAndQueuedEventsForEachJob(): void
     {
-        $events = Double::for(EventDispatcher::class);
+        $events = Double::for(EventDispatcher::class)->strict();
         $events->allows('hasListeners')->with(JobPayloadFinalizing::class)->returns(false);
         $events->allows('hasListeners')->with(JobQueueing::class)->returns(true);
         $events->allows('hasListeners')->with(JobQueued::class)->returns(true);
@@ -1966,7 +1975,7 @@ class QueueSqsQueueTest extends TestCase
 
     public function testBulkRaisesExactEventsForSuccessfulAndRejectedEntries(): void
     {
-        $events = Double::for(EventDispatcher::class);
+        $events = Double::for(EventDispatcher::class)->strict();
         $events->allows('hasListeners')->with(JobPayloadFinalizing::class)->returns(true);
         $events->allows('hasListeners')->with(JobQueueing::class)->returns(true);
         $events->allows('hasListeners')->with(JobQueued::class)->returns(true);
@@ -2032,13 +2041,13 @@ class QueueSqsQueueTest extends TestCase
         $acceptedPath = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'accepted';
         $rejectedPath = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'rejected';
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('put')->with($acceptedPath, $firstPayload)->returns(true);
         $store->expects('put')->with($rejectedPath, $secondPayload)->returns(true);
         $store->expects('forget')->with($rejectedPath)->returns(true);
         $store->expects('forget')->never()->with($acceptedPath);
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
         $container = new Container;
@@ -2077,11 +2086,11 @@ class QueueSqsQueueTest extends TestCase
         $payload = json_encode(['uuid' => 'ambiguous'], JSON_THROW_ON_ERROR);
         $path = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'ambiguous';
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('put')->with($path, $payload)->returns(true);
         $store->expects('forget')->never();
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
         $container = new Container;
@@ -2120,16 +2129,16 @@ class QueueSqsQueueTest extends TestCase
         $firstPath = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'job-1';
         $secondPath = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'job-2';
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('put')->with($firstPath, $firstPayload)->ordered()->returns(true);
         $store->expects('put')->with($secondPath, $secondPayload)->ordered()->returns(false);
         $store->expects('forget')->with($firstPath)->ordered()->returns(true);
         $store->expects('forget')->with($secondPath)->ordered()->returns(true);
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
-        $events = Double::for(EventDispatcher::class);
+        $events = Double::for(EventDispatcher::class)->strict();
         $events->allows('hasListeners')->with(JobPayloadFinalizing::class)->returns(false);
         $events->allows('hasListeners')->with(JobQueueing::class)->returns(true);
         $events->allows('hasListeners')->with(JobQueueingFailed::class)->returns(true);
@@ -2195,11 +2204,15 @@ class QueueSqsQueueTest extends TestCase
             $cleanupCancellation = new RuntimeException('delete cleanup failed', previous: $cleanupCancellation);
         }
 
-        $handler = Double::for(ExceptionHandler::class);
-        $handler->expects('report')->with($cleanupCancellation)->times($deleteCleanupThrows ? 1 : 0);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        if ($deleteCleanupThrows) {
+            $handler->expects('report')->with(Argument::same($cleanupCancellation));
+        } else {
+            $handler->expects('report')->never();
+        }
         Container::getInstance()->instance(ExceptionHandler::class, $handler);
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('put')->with($firstPath, $firstPayload)->ordered()->returns(true);
         $store->expects('put')->with($secondPath, $secondPayload)->ordered()->throws($cancellation);
         if ($deleteCleanupThrows === null) {
@@ -2209,10 +2222,10 @@ class QueueSqsQueueTest extends TestCase
         }
         $store->expects('forget')->with($secondPath)->ordered()->returns(true);
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
-        $events = Double::for(EventDispatcher::class);
+        $events = Double::for(EventDispatcher::class)->strict();
         $events->allows('hasListeners')->with(JobPayloadFinalizing::class)->returns(false);
         $events->allows('hasListeners')->with(JobQueueing::class)->returns(true);
         $events->expects('hasListeners')->with(JobQueueingFailed::class)->never();
@@ -2279,13 +2292,13 @@ class QueueSqsQueueTest extends TestCase
             $cleanupCancellation = new RuntimeException('delete cleanup failed', previous: $cleanupCancellation);
         }
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('put')->with($firstPath, $firstPayload)->ordered()->returns(true);
         $store->expects('put')->with($secondPath, $secondPayload)->ordered()->returns(false);
         $store->expects('forget')->with($firstPath)->ordered()->throws($cleanupCancellation);
         $store->expects('forget')->with($secondPath)->ordered()->returns(true);
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
         $container = new Container;
@@ -2328,14 +2341,14 @@ class QueueSqsQueueTest extends TestCase
             $cancellation = new RuntimeException('transport cleanup failed', previous: $cancellation);
         }
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('put')->with($path, $payload)->returns(true);
         $store->expects('forget')->never();
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
-        $events = Double::for(EventDispatcher::class);
+        $events = Double::for(EventDispatcher::class)->strict();
         $events->allows('hasListeners')->with(JobPayloadFinalizing::class)->returns(false);
         $events->allows('hasListeners')->with(JobQueueing::class)->returns(true);
         $events->expects('hasListeners')->with(JobQueueingFailed::class)->never();
@@ -2392,7 +2405,7 @@ class QueueSqsQueueTest extends TestCase
         $currentPath = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'job-11';
         $writes = 0;
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('put')->times(11)->resolves(
             function () use (&$writes, $cancellation): bool {
                 if (++$writes === 11) {
@@ -2404,7 +2417,7 @@ class QueueSqsQueueTest extends TestCase
         );
         $store->expects('forget')->with($currentPath)->returns(true);
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
         $container = new Container;
@@ -2442,14 +2455,14 @@ class QueueSqsQueueTest extends TestCase
         $payload = json_encode(['uuid' => 'listener-canceled'], JSON_THROW_ON_ERROR);
         $cancellation = new CanceledException;
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('put')->never();
         $store->expects('forget')->never();
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
-        $events = Double::for(EventDispatcher::class);
+        $events = Double::for(EventDispatcher::class)->strict();
         $events->expects('hasListeners')->with(JobPayloadFinalizing::class)->returns(false);
         $events->expects('hasListeners')->with(JobQueueing::class)->returns(true);
         $events->expects('dispatch')->with(Argument::type(JobQueueing::class))->throws($cancellation);
@@ -2490,14 +2503,14 @@ class QueueSqsQueueTest extends TestCase
 
     public function testBulkRetainsAmbiguousChunkPointersAndNeverWritesLaterChunks(): void
     {
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('put')->times(10)->returns(true);
         $store->expects('forget')->never();
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
-        $events = Double::for(EventDispatcher::class);
+        $events = Double::for(EventDispatcher::class)->strict();
         $events->allows('hasListeners')->with(JobPayloadFinalizing::class)->returns(false);
         $events->allows('hasListeners')->with(JobQueueing::class)->returns(true);
         $events->allows('hasListeners')->with(JobQueueingFailed::class)->returns(true);
@@ -2616,7 +2629,7 @@ class QueueSqsQueueTest extends TestCase
     {
         $job = new SqsQueueTestUniqueJob;
         $job->afterCommit = true;
-        DispatchLockContext::registerUnique($job, Double::for(CacheRepository::class), null, 'unique-key', 'owner');
+        DispatchLockContext::registerUnique($job, Double::for(CacheRepository::class)->strict(), null, 'unique-key', 'owner');
 
         $transactions = Double::for(DatabaseTransactionsManager::class)->passthru(new DatabaseTransactionsManager);
         $transactions->begin('default', 1);
@@ -2643,10 +2656,10 @@ class QueueSqsQueueTest extends TestCase
         $path = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . $this->mockedDeduplicationId;
         $finalPayload = null;
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('put')->with($path, Argument::capture($finalPayload))->returns(true);
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
         $dispatcher = new ConcreteEventDispatcher($container = new Container);
@@ -2688,7 +2701,7 @@ class QueueSqsQueueTest extends TestCase
 
     public function testBulkFiresQueuedEventsForSuccessfulChunksWhenAnotherChunkFails(): void
     {
-        $events = Double::for(EventDispatcher::class);
+        $events = Double::for(EventDispatcher::class)->strict();
         $events->allows('hasListeners')->with(JobPayloadFinalizing::class)->returns(false);
         $events->allows('hasListeners')->with(JobQueueing::class)->returns(true);
         $events->allows('hasListeners')->with(JobQueued::class)->returns(true);
@@ -2762,9 +2775,9 @@ class QueueSqsQueueTest extends TestCase
         $path = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'popped-job';
         $pointer = json_encode(['@pointer' => $path], JSON_THROW_ON_ERROR);
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('get')->with($path)->returns($payload);
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
         $container = Double::for(Container::class, override: true)->passthru(new Container);
         $container->allows('make')->with(QueueRoutes::class)->returns(new QueueRoutes);

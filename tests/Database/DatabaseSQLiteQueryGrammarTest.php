@@ -21,7 +21,7 @@ class DatabaseSQLiteQueryGrammarTest extends TestCase
     {
         $this->expectException(JsonException::class);
 
-        (new SQLiteGrammar(Double::for(Connection::class)))
+        (new SQLiteGrammar(Double::for(Connection::class)->strict()))
             ->prepareBindingsForUpdate([], ['payload' => [NAN]]);
     }
 

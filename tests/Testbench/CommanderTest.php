@@ -19,6 +19,7 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Testbench\Fixtures\Providers\MergedConfigServiceProvider;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\Attributes\Test;
@@ -302,8 +303,8 @@ class CommanderTest extends TestCase
         $output->setErrorOutput($errorOutput);
 
         $handler = Double::for(ExceptionHandlerContract::class)->strict();
-        $handler->expects('report')->with($exception);
-        $handler->expects('renderForConsole')->with($errorOutput, $exception);
+        $handler->expects('report')->with(Argument::same($exception));
+        $handler->expects('renderForConsole')->with(Argument::same($errorOutput), Argument::same($exception));
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
         $commander = new CommanderThrowableHarness([], __DIR__);
@@ -318,7 +319,7 @@ class CommanderTest extends TestCase
         $original = new RuntimeException('Application failure');
         $reportingFailure = new RuntimeException('Reporting failure');
         $handler = Double::for(ExceptionHandlerContract::class)->strict();
-        $handler->expects('report')->with($original)->throws($reportingFailure);
+        $handler->expects('report')->with(Argument::same($original))->throws($reportingFailure);
         $handler->expects('renderForConsole')->never();
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 

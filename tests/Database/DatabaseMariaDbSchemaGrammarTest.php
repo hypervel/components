@@ -1607,7 +1607,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         ?MariaDbBuilder $builder = null,
         string $prefix = ''
     ): Connection&DoubleInterface {
-        $connection = Double::for(MariaDbConnection::class);
+        $connection = Double::for(MariaDbConnection::class)->strict();
         $connection->allows('usesBackslashEscapes')->returns(true);
         $connection->allows('getTablePrefix')->returns($prefix);
         $connection->allows('getConfig')->with('prefix_indexes')->returns(null);
@@ -1647,6 +1647,6 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
      */
     public function getBuilder(): MariaDbBuilder&DoubleInterface
     {
-        return Double::for(MariaDbBuilder::class);
+        return Double::for(MariaDbBuilder::class)->strict();
     }
 }

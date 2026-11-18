@@ -84,7 +84,7 @@ class KernelEventReroutingTest extends TestCase
 
     public function testReroutedEventsAreNotDispatchedWithoutListeners(): void
     {
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('hasListeners')->with(CommandStarting::class)->returns(false);
         $events->expects('hasListeners')->with(CommandFinished::class)->returns(false);
         $events->expects('dispatch')->never();

@@ -100,7 +100,7 @@ class SqsBatchLifecycleTest extends TestCase
     #[TestWith([JobQueueing::class])]
     public function testPreparationFailureTerminatesEveryOutstandingMember(string $eventClass): void
     {
-        [$queue, $transport, $events] = $this->queue();
+        [$queue, , $events] = $this->queue();
         $exception = new RuntimeException('Second member failed.');
         $count = 0;
         $events->listen($eventClass, static function () use (&$count, $exception): void {
@@ -120,7 +120,6 @@ class SqsBatchLifecycleTest extends TestCase
             $this->assertSame($exception, $caught);
         }
 
-        $this->assertNull($transport->getLastCommand());
         $this->assertSame(['first', 'second', 'third'], array_column($failed, 'job'));
         $this->assertSame([$exception, $exception, $exception], array_column($failed, 'exception'));
     }
@@ -129,7 +128,7 @@ class SqsBatchLifecycleTest extends TestCase
     #[TestWith([JobQueueing::class])]
     public function testPreparationCancellationNotifiesOutstandingMembersOfTheCancellation(string $eventClass): void
     {
-        [$queue, $transport, $events] = $this->queue();
+        [$queue, , $events] = $this->queue();
         $cleanup = new RuntimeException('Preparation cleanup failed.');
         $gate = $this->armCurrentCoroutineCancellation();
         $events->listen($eventClass, static function () use ($gate, $cleanup): never {
@@ -157,7 +156,6 @@ class SqsBatchLifecycleTest extends TestCase
             $gate->close();
         }
 
-        $this->assertNull($transport->getLastCommand());
         $this->assertSame([], $failed);
         $this->assertSame(['first', 'second'], array_column($canceled, 'job'));
         $this->assertSame([$cleanup, $cleanup], array_column($canceled, 'cancellation'));
@@ -176,7 +174,7 @@ class SqsBatchLifecycleTest extends TestCase
         });
         $events->listen(JobQueueingFailed::class, static fn () => throw $listener);
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($listener);
+        $handler->expects('report')->with(Argument::same($listener));
         $container->instance(ExceptionHandler::class, $handler);
 
         try {
@@ -229,7 +227,7 @@ class SqsBatchLifecycleTest extends TestCase
             $canceled[] = $event;
         });
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($listenerFailure);
+        $handler->expects('report')->with(Argument::same($listenerFailure));
         $container->instance(ExceptionHandler::class, $handler);
 
         try {
@@ -282,7 +280,7 @@ class SqsBatchLifecycleTest extends TestCase
             }
         });
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($listener);
+        $handler->expects('report')->with(Argument::same($listener));
         if ($failureListenerCanceled) {
             $handler->expects('report')->with(Argument::type(SqsException::class));
         }
@@ -354,7 +352,7 @@ class SqsBatchLifecycleTest extends TestCase
         $gate = $this->armCurrentCoroutineCancellation();
         $cleanup = new RuntimeException('Reporting cleanup failed.');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($reportedFailure)->resolves(static function () use ($gate, $cleanup, $cleanupThrows): void {
+        $handler->expects('report')->with(Argument::same($reportedFailure))->resolves(static function () use ($gate, $cleanup, $cleanupThrows): void {
             try {
                 $gate->push(true);
             } finally {

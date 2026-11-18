@@ -17,7 +17,7 @@ class MigrationGeneratorCommandTest extends TestCase
 
     public function testGlobFailureIsReported(): void
     {
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $files->expects('glob')->with('/app/database/migrations/*.php')->returns(false);
 
         $command = new TestMigrationGeneratorCommand($files);

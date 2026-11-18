@@ -38,7 +38,7 @@ class EventTest extends TestCase
         $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->with(Argument::not(RoleAttachedEvent::class))->returns(false);
         $events->expects('hasListeners')->with(RoleAttachedEvent::class)->returns(false);
-        $events->expects('dispatch')->with(Argument::type(RoleAttachedEvent::class), Argument::any(), Argument::any())->never();
+        $events->expects('dispatch')->with(Argument::type(RoleAttachedEvent::class))->never();
 
         $this->app->instance('events', $events);
         $this->app->instance(Dispatcher::class, $events);

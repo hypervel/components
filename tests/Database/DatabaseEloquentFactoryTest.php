@@ -54,7 +54,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $container->singleton(Generator::class, function (Container $app, array $parameters): Generator {
             return FakerFactory::create('en_US');
         });
-        $app = Double::for(Application::class, override: true);
+        $app = Double::for(Application::class, override: true)->strict();
         $app->allows('getNamespace')->returns('App\\');
         $container->instance(Application::class, $app->instance());
 
@@ -846,7 +846,7 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testResolveNestedModelNameFromFactory(): void
     {
-        $app = Double::for(Application::class, override: true);
+        $app = Double::for(Application::class, override: true)->strict();
         $app->expects('getNamespace')->returns('Hypervel\Tests\Database\Fixtures\\');
         Container::getInstance()->instance(Application::class, $app->instance());
 
@@ -859,7 +859,7 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testResolveNonAppNestedModelFactories(): void
     {
-        $app = Double::for(Application::class, override: true);
+        $app = Double::for(Application::class, override: true)->strict();
         $app->allows('getNamespace')->returns('Foo\\');
         Container::getInstance()->instance(Application::class, $app->instance());
 
@@ -930,19 +930,13 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testFactoryCanConditionallyExecuteCode(): void
     {
-        UserFactory::new()
-            ->when(true, function () {
-                $this->assertTrue(true);
-            })
-            ->when(false, function () {
-                $this->fail('Unreachable code that has somehow been reached.');
-            })
-            ->unless(false, function () {
-                $this->assertTrue(true);
-            })
-            ->unless(true, function () {
-                $this->fail('Unreachable code that has somehow been reached.');
-            });
+        $factory = UserFactory::new();
+        $callback = static fn () => 'called';
+
+        $this->assertSame('called', $factory->when(true, $callback));
+        $this->assertSame($factory, $factory->when(false, $callback));
+        $this->assertSame('called', $factory->unless(false, $callback));
+        $this->assertSame($factory, $factory->unless(true, $callback));
     }
 
     public function testDynamicTrashedStateForSoftdeletesModels(): void

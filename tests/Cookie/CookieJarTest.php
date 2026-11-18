@@ -519,7 +519,7 @@ class CookieJarTest extends TestCase
 
     public function testIntegerBackedEnumNamesAreNormalizedAcrossRequestCreationAndQueuePaths(): void
     {
-        $request = Double::for(Request::class, override: true);
+        $request = Double::for(Request::class, override: true)->strict();
         $request->expects('cookie')->with('0', null)->returns('request-value');
         RequestContext::set($request->instance());
 

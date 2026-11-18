@@ -10,6 +10,7 @@ use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 
 class IterableStreamedResponseTest extends TestCase
@@ -94,7 +95,7 @@ class IterableStreamedResponseTest extends TestCase
         unset($chunks);
 
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($releaseFailure);
+        $handler->expects('report')->with(Argument::same($releaseFailure));
         Container::getInstance()->instance(ExceptionHandler::class, $handler);
 
         try {
@@ -125,7 +126,7 @@ class IterableStreamedResponseTest extends TestCase
         unset($chunks);
 
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($releaseFailure);
+        $handler->expects('report')->with(Argument::same($releaseFailure));
         Container::getInstance()->instance(ExceptionHandler::class, $handler);
 
         $level = ob_get_level();

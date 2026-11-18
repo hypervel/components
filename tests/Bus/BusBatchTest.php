@@ -9,6 +9,7 @@ use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchFactory;
 use Hypervel\Bus\BatchRepository;
+use Hypervel\Bus\ChainedBatch;
 use Hypervel\Bus\DatabaseBatchRepository;
 use Hypervel\Bus\Events\BatchCanceled;
 use Hypervel\Bus\Events\BatchFinished;
@@ -119,7 +120,7 @@ class BusBatchTest extends TestCase
 
     public function testBatchRepositoryAppliesAZeroBeforeCursor(): void
     {
-        $queue = Double::for(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
         $batch = $this->createTestBatch($queue);
 
         $repository = new DatabaseBatchRepository(
@@ -134,7 +135,7 @@ class BusBatchTest extends TestCase
 
     public function testJobsCanBeAddedToTheBatch(): void
     {
-        $queue = Double::for(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
 
         $batch = $this->createTestBatch($queue);
 
@@ -149,7 +150,7 @@ class BusBatchTest extends TestCase
         $thirdJob = function (): void {
         };
 
-        $connection = Double::for(QueueContract::class);
+        $connection = Double::for(QueueContract::class)->strict();
         $queue->expects('connection')
             ->with('test-connection')
             ->returns($connection);
@@ -279,12 +280,12 @@ class BusBatchTest extends TestCase
     public function testProgressContinuesOnlyAfterOrdinaryCallbackFailures(bool $canceled): void
     {
         $failure = new RuntimeException('Progress failed.', previous: $canceled ? new CanceledException : null);
-        $handler = Double::for(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $handler->expects('report')->times($canceled ? 0 : 1)->with(Argument::same($failure), []);
         $this->app->instance(ExceptionHandler::class, $handler);
-        $repository = Double::for(BatchRepository::class);
+        $repository = Double::for(BatchRepository::class)->strict();
         $continued = false;
-        $batch = new Batch(Double::for(Factory::class), $repository, 'batch', 'batch', 2, 2, 0, [], [
+        $batch = new Batch(Double::for(Factory::class)->strict(), $repository, 'batch', 'batch', 2, 2, 0, [], [
             'progress' => [
                 static fn () => throw $failure,
                 static function () use (&$continued): void { $continued = true; },
@@ -306,7 +307,7 @@ class BusBatchTest extends TestCase
 
     public function testSuccessfulJobsCanBeRecorded(): void
     {
-        $queue = Double::for(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
 
         $batch = $this->createTestBatch($queue);
 
@@ -318,7 +319,7 @@ class BusBatchTest extends TestCase
             use Batchable;
         };
 
-        $connection = Double::for(QueueContract::class);
+        $connection = Double::for(QueueContract::class)->strict();
         $queue->expects('connection')
             ->with('test-connection')
             ->returns($connection);
@@ -428,7 +429,7 @@ class BusBatchTest extends TestCase
 
     public function testFailedJobsCanBeRecordedWhileNotAllowingFailures(): void
     {
-        $queue = Double::for(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
 
         $batch = $this->createTestBatch($queue, $allowFailures = false);
 
@@ -440,7 +441,7 @@ class BusBatchTest extends TestCase
             use Batchable;
         };
 
-        $connection = Double::for(QueueContract::class);
+        $connection = Double::for(QueueContract::class)->strict();
         $queue->expects('connection')
             ->with('test-connection')
             ->returns($connection);
@@ -469,7 +470,7 @@ class BusBatchTest extends TestCase
 
     public function testFailedJobsCanBeRecordedWhileAllowingFailures(): void
     {
-        $queue = Double::for(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
 
         $batch = $this->createTestBatch($queue, $allowFailures = true);
 
@@ -481,7 +482,7 @@ class BusBatchTest extends TestCase
             use Batchable;
         };
 
-        $connection = Double::for(QueueContract::class);
+        $connection = Double::for(QueueContract::class)->strict();
         $queue->expects('connection')
             ->with('test-connection')
             ->returns($connection);
@@ -528,7 +529,7 @@ class BusBatchTest extends TestCase
 
     public function testFailureCallbacksExecuteCorrectly(): void
     {
-        $queue = Double::for(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
 
         $repository = new DatabaseBatchRepository(
             new BatchFactory($queue),
@@ -561,7 +562,7 @@ class BusBatchTest extends TestCase
             use Batchable;
         };
 
-        $connection = Double::for(QueueContract::class);
+        $connection = Double::for(QueueContract::class)->strict();
         $queue->expects('connection')
             ->with('test-connection')
             ->returns($connection);
@@ -635,14 +636,14 @@ class BusBatchTest extends TestCase
 
     public function testDeletedBatchIgnoresLateJobResultsAndCallbacks(): void
     {
-        $queue = Double::for(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
         $batch = $this->createTestBatch($queue, $allowFailures = true);
 
         $job = new class {
             use Batchable;
         };
 
-        $connection = Double::for(QueueContract::class);
+        $connection = Double::for(QueueContract::class)->strict();
         $queue->expects('connection')
             ->with('test-connection')
             ->returns($connection);
@@ -704,7 +705,7 @@ class BusBatchTest extends TestCase
 
     public function testChainCanBeAddedToBatch(): void
     {
-        $queue = Double::for(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
 
         $batch = $this->createTestBatch($queue);
 
@@ -714,7 +715,7 @@ class BusBatchTest extends TestCase
 
         $thirdJob = new ThirdTestJob;
 
-        $connection = Double::for(QueueContract::class);
+        $connection = Double::for(QueueContract::class)->strict();
         $queue->expects('connection')
             ->with('test-connection')
             ->returns($connection);
@@ -741,7 +742,7 @@ class BusBatchTest extends TestCase
 
     public function testChainedJobsInBatchPreserveTheirQueueWhenBatchHasNoQueue(): void
     {
-        $queue = Double::for(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
 
         $repository = new DatabaseBatchRepository(
             new BatchFactory($queue),
@@ -757,7 +758,7 @@ class BusBatchTest extends TestCase
         $firstJob = (new ChainHeadJob)->onQueue('custom-queue');
         $secondJob = (new SecondTestJob)->onQueue('custom-queue');
 
-        $connection = Double::for(QueueContract::class);
+        $connection = Double::for(QueueContract::class)->strict();
         $queue->expects('connection')
             ->with('test-connection')
             ->returns($connection);
@@ -774,7 +775,7 @@ class BusBatchTest extends TestCase
 
     public function testChainedJobsPreserveTheirRoutesWhenTheBatchHasNone(): void
     {
-        $queue = Double::for(Factory::class);
+        $queue = Double::for(Factory::class)->strict();
 
         $repository = new DatabaseBatchRepository(
             new BatchFactory($queue),
@@ -791,7 +792,7 @@ class BusBatchTest extends TestCase
             ->onConnection('custom-connection')
             ->onQueue('custom-queue');
 
-        $connection = Double::for(QueueContract::class);
+        $connection = Double::for(QueueContract::class)->strict();
         $queue->expects('connection')
             ->with(null)
             ->returns($connection);
@@ -819,7 +820,7 @@ class BusBatchTest extends TestCase
             },
         ])->dispatch();
 
-        $this->assertTrue(true);
+        Queue::assertPushedWithChain(ChainedBatch::class, [ChainedBatch::class, CallQueuedClosure::class]);
     }
 
     public function testOptionsSerializationOnPostgres(): void
@@ -827,12 +828,15 @@ class BusBatchTest extends TestCase
         $pendingBatch = (new PendingBatch($this->app, Collection::make()))
             ->onQueue('test-queue');
 
-        $connection = Double::for(PostgresConnection::class);
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $connection = Double::for(PostgresConnection::class)->strict();
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->allows('connection')->returns($connection);
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
 
         $connection->expects('table')->times(2)->returns($builder);
+        $builder->expects('insert')->with(Argument::satisfies(static function (array $values) use ($pendingBatch): bool {
+            return unserialize(base64_decode($values['options'])) === $pendingBatch->options;
+        }))->returns(true);
         $builder->expects('useWritePdo')->returns($builder);
         $builder->expects('where')->returns($builder);
         $builder->expects('first')->returns((object) [
@@ -849,28 +853,23 @@ class BusBatchTest extends TestCase
         ]);
 
         $repository = new DatabaseBatchRepository(
-            new BatchFactory(Double::for(Factory::class)),
+            new BatchFactory(Double::for(Factory::class)->strict()),
             $resolver,
             'job_batches'
         );
 
         $repository->store($pendingBatch);
-
-        $builder->received('insert')
-            ->with(Argument::satisfies(function (array $argument) use ($pendingBatch): bool {
-                return unserialize(base64_decode($argument['options'])) === $pendingBatch->options;
-            }));
     }
 
     #[TestWith([false], 'ordinary restoration failure')]
     #[TestWith([true], 'wrapped cancellation')]
     public function testOptionsRestorationFallbackDoesNotSwallowCancellation(bool $canceled): void
     {
-        $factory = Double::for(BatchFactory::class);
-        $connection = Double::for(PostgresConnection::class);
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $factory = Double::for(BatchFactory::class)->strict();
+        $connection = Double::for(PostgresConnection::class)->strict();
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->allows('connection')->returns($connection);
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $connection->expects('table')->returns($builder);
         $builder->expects('useWritePdo')->returns($builder);
         $builder->expects('where')->returns($builder);
@@ -886,7 +885,7 @@ class BusBatchTest extends TestCase
         } else {
             $factory->expects('make')
                 ->with(Argument::same($repository), 'batch', '', 0, 0, 0, [], [], Argument::remaining())
-                ->returns(Double::for(Batch::class));
+                ->returns(Double::for(Batch::class)->strict());
         }
         $caught = null;
 
@@ -907,13 +906,13 @@ class BusBatchTest extends TestCase
     #[DataProvider('serializedOptions')]
     public function testOptionsUnserializeOnPostgres(string $serialize, array $options): void
     {
-        $factory = Double::for(BatchFactory::class);
+        $factory = Double::for(BatchFactory::class)->strict();
 
-        $connection = Double::for(PostgresConnection::class);
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $connection = Double::for(PostgresConnection::class)->strict();
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->allows('connection')->returns($connection);
 
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $connection->expects('table')->returns($builder);
         $builder->expects('useWritePdo')->returns($builder);
         $builder->expects('where')->returns($builder);
@@ -934,8 +933,8 @@ class BusBatchTest extends TestCase
         $batch = new DatabaseBatchRepository($factory, $resolver, 'job_batches');
 
         $factory->expects('make')
-            ->with($batch, '', '', 0, 0, 0, [], $options, Argument::remaining())
-            ->returns(Double::for(Batch::class));
+            ->with(Argument::same($batch), '', '', 0, 0, 0, [], $options, Argument::remaining())
+            ->returns(Double::for(Batch::class)->strict());
 
         $batch->find('1');
     }

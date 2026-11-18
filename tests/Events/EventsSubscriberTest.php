@@ -17,7 +17,7 @@ class EventsSubscriberTest extends TestCase
     public function testEventSubscribeCanAcceptObject(): void
     {
         $d = new Dispatcher;
-        $subs = Double::for(ExampleSubscriber::class);
+        $subs = Double::for(ExampleSubscriber::class)->strict();
         $subs->expects('subscribe')->with(Argument::same($d));
 
         $d->subscribe($subs);

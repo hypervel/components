@@ -39,7 +39,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
     {
         parent::setUp();
 
-        $this->connection = Double::for(Connection::class);
+        $this->connection = Double::for(Connection::class)->strict();
     }
 
     public function testSeeInDatabaseFindsResults(): void
@@ -72,7 +72,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
 
     public function testAssertDatabaseSupportsArrays(): void
     {
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->expects('where')->ordered()->with(['title' => 'Spark', 'name' => 'Hypervel'])->returns($builder);
         $builder->expects('where')->ordered()->with(['title' => 'Forge', 'name' => 'Hypervel'])->returns($builder);
         $builder->expects('exists')->times(2)->returns(true);
@@ -118,7 +118,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
 
     public function testAssertDatabaseMissingSupportsArrays(): void
     {
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->expects('where')->ordered()->with(['title' => 'Spark', 'name' => 'Hypervel'])->returns($builder);
         $builder->expects('where')->ordered()->with(['title' => 'Forge', 'name' => 'Hypervel'])->returns($builder);
         $builder->expects('exists')->times(2)->returns(false);
@@ -208,7 +208,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
 
     public function testAssertDatabaseEmptySupportsArrays(): void
     {
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->expects('count')->times(2)->returns(0);
 
         $this->connection->expects('table')->with($this->table)->returns($builder);
@@ -227,7 +227,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
 
     public function testAssertSoftDeletedSupportsArrays(): void
     {
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->expects('where')->ordered()->with(['title' => 'Spark', 'name' => 'Hypervel'])->returns($builder);
         $builder->expects('where')->ordered()->with(['title' => 'Forge', 'name' => 'Hypervel'])->returns($builder);
         $builder->expects('whereNotNull')->with('deleted_at')->times(2)->returns($builder);
@@ -243,7 +243,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
 
     public function testAssertSoftDeletedSupportsModelWithArrays(): void
     {
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->expects('where')->ordered()->with(['title' => 'Spark', 'id' => 1])->returns($builder);
         $builder->expects('where')->ordered()->with(['name' => 'Hypervel', 'id' => 1])->returns($builder);
         $builder->expects('whereNotNull')->with('trashed_at')->times(2)->returns($builder);
@@ -259,7 +259,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
 
     public function testAssertNotSoftDeletedSupportsArrays(): void
     {
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->expects('where')->ordered()->with(['title' => 'Spark', 'name' => 'Hypervel'])->returns($builder);
         $builder->expects('where')->ordered()->with(['title' => 'Forge', 'name' => 'Hypervel'])->returns($builder);
         $builder->expects('whereNull')->with('deleted_at')->times(2)->returns($builder);
@@ -275,7 +275,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
 
     public function testAssertNotSoftDeletedSupportsModelWithArrays(): void
     {
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->expects('where')->ordered()->with(['title' => 'Spark', 'id' => 1])->returns($builder);
         $builder->expects('where')->ordered()->with(['name' => 'Hypervel', 'id' => 1])->returns($builder);
         $builder->expects('whereNull')->with('trashed_at')->times(2)->returns($builder);
@@ -291,7 +291,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
 
     public function testAssertSoftDeletedTableSupportsIterablesWithCustomDeletedAtColumn(): void
     {
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->expects('where')->with($this->data)->times(2)->returns($builder);
         $builder->expects('whereNotNull')->with('removed_at')->times(2)->returns($builder);
         $builder->expects('exists')->times(2)->returns(true);
@@ -304,7 +304,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
 
     public function testAssertNotSoftDeletedTableSupportsIterablesWithCustomDeletedAtColumn(): void
     {
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->expects('where')->with($this->data)->times(2)->returns($builder);
         $builder->expects('whereNull')->with('removed_at')->times(2)->returns($builder);
         $builder->expects('exists')->times(2)->returns(true);
@@ -595,7 +595,7 @@ class FoundationInteractsWithDatabaseTest extends TestCase
      */
     protected function mockCountBuilder(bool $existsResult, string $deletedAtColumn = 'deleted_at', array|int|null $countResult = null): Builder&DoubleInterface
     {
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
 
         $countResult = Arr::wrap($countResult);
         $countResult = ! empty($countResult) ? $countResult : [$existsResult ? 1 : 0];

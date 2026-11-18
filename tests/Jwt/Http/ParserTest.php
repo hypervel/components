@@ -13,6 +13,7 @@ use Hypervel\Jwt\Http\Parser\Parser;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class ParserTest extends TestCase
@@ -218,13 +219,13 @@ class ParserTest extends TestCase
         $request = Request::create('/');
 
         $missing = Double::for(TokenExtractor::class)->strict();
-        $missing->expects('parseToken')->with($request)->returns(null);
+        $missing->expects('parseToken')->with(Argument::same($request))->returns(null);
 
         $empty = Double::for(TokenExtractor::class)->strict();
-        $empty->expects('parseToken')->with($request)->returns('');
+        $empty->expects('parseToken')->with(Argument::same($request))->returns('');
 
         $found = Double::for(TokenExtractor::class)->strict();
-        $found->expects('parseToken')->with($request)->returns('custom-token');
+        $found->expects('parseToken')->with(Argument::same($request))->returns('custom-token');
 
         $unused = Double::for(TokenExtractor::class)->strict();
         $unused->expects('parseToken')->never();

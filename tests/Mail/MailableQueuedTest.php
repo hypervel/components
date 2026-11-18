@@ -366,7 +366,7 @@ class MailableQueuedTest extends TestCase
      */
     protected function getMocks(): array
     {
-        return ['smtp', Double::for(Factory::class), Double::for(TransportInterface::class)];
+        return ['smtp', Double::for(Factory::class)->strict(), Double::for(TransportInterface::class)->strict()];
     }
 
     /**

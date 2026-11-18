@@ -241,7 +241,7 @@ class BroadcastBatchingTest extends TestCase
     {
         config(['broadcasting.default' => 'null', 'ai.broadcasting.batching.max_bytes' => 1]);
         $failure = $cleanupThrows ? new RuntimeException('Release cleanup failed.', previous: new CanceledException) : new CanceledException;
-        $lease = Double::for(ConnectionLease::class);
+        $lease = Double::for(ConnectionLease::class)->strict();
         $lease->expects('releaseIfIdle')->throws($failure);
         $waiting = new Channel(1);
         $senderCanceled = false;

@@ -87,7 +87,7 @@ class MailMailerTest extends TestCase
 
     public function testMailerSendSendsMessageWithProperViewContentUsingHtmlStrings(): void
     {
-        $view = Double::for(ViewFactory::class);
+        $view = Double::for(ViewFactory::class)->strict();
         $view->expects('make')->never();
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
@@ -107,7 +107,7 @@ class MailMailerTest extends TestCase
 
     public function testMailerSendSendsMessageWithProperViewContentUsingStringCallbacks(): void
     {
-        $view = Double::for(ViewFactory::class);
+        $view = Double::for(ViewFactory::class)->strict();
         $view->expects('make')->never();
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
@@ -138,7 +138,7 @@ class MailMailerTest extends TestCase
 
     public function testMailerSendSendsMessageWithProperViewContentUsingHtmlMethod(): void
     {
-        $view = Double::for(ViewFactory::class);
+        $view = Double::for(ViewFactory::class)->strict();
         $view->expects('make')->never();
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
@@ -350,7 +350,7 @@ class MailMailerTest extends TestCase
     {
         $view = $this->viewFactory('rendered.view');
 
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('hasListeners')->with(MessageSending::class)->returns(false);
         $events->expects('hasListeners')->with(MessageSent::class)->returns(false);
         $events->expects('until')->never();
@@ -369,7 +369,7 @@ class MailMailerTest extends TestCase
             return 'bar';
         });
 
-        $mailer = new Mailer('array', Double::for(ViewFactory::class), new ArrayTransport);
+        $mailer = new Mailer('array', Double::for(ViewFactory::class)->strict(), new ArrayTransport);
 
         $this->assertSame(
             'bar',
@@ -379,7 +379,7 @@ class MailMailerTest extends TestCase
 
     public function testSendQueuedMailableReturnsNull(): void
     {
-        $view = Double::for(ViewFactory::class);
+        $view = Double::for(ViewFactory::class)->strict();
         $view->expects('make')->never();
         $queueFake = new QueueFake($this->app);
 
@@ -400,11 +400,11 @@ class MailMailerTest extends TestCase
      */
     protected function viewFactory(string ...$rendered): ViewFactory
     {
-        $factory = Double::for(ViewFactory::class);
+        $factory = Double::for(ViewFactory::class)->strict();
         $views = [];
 
         foreach ($rendered as $contents) {
-            $view = Double::for(ViewContract::class);
+            $view = Double::for(ViewContract::class)->strict();
             $view->expects('render')->returns($contents);
             $views[] = $view;
         }

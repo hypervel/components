@@ -163,7 +163,7 @@ class MigratorCoroutineIsolationTest extends TestCase
     public function testReplacementMigratorDoesNotInheritReleasedInstanceState(): void
     {
         run(function (): void {
-            $resolver = Double::for(ConnectionResolverInterface::class);
+            $resolver = Double::for(ConnectionResolverInterface::class)->strict();
             $repository = new DatabaseMigrationRepository($resolver, 'migrations');
             $files = new Filesystem;
             $output = new BufferedOutput;
@@ -185,8 +185,8 @@ class MigratorCoroutineIsolationTest extends TestCase
     public function testReplacementRepositoryDoesNotInheritReleasedInstanceConnection(): void
     {
         run(function (): void {
-            $connection = Double::for(Connection::class);
-            $resolver = Double::for(ConnectionResolverInterface::class);
+            $connection = Double::for(Connection::class)->strict();
+            $resolver = Double::for(ConnectionResolverInterface::class)->strict();
             $resolver->expects('connection')->with(null)->returns($connection);
             $repository = new DatabaseMigrationRepository($resolver, 'migrations');
             $repository->setSource('previous');
@@ -205,9 +205,9 @@ class MigratorCoroutineIsolationTest extends TestCase
      */
     private function migrator(): array
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->allows('connection')->resolves(static function (?string $name): Connection {
-            $connection = Double::for(Connection::class);
+            $connection = Double::for(Connection::class)->strict();
             $connection->allows('getName')->returns($name ?? 'default');
 
             return $connection;

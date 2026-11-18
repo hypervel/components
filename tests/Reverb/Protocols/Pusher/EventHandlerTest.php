@@ -88,7 +88,7 @@ class EventHandlerTest extends ReverbTestCase
         $sender->expects('send')->throws($failure);
         $this->app->instance(WebhookSender::class, $sender);
         $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
-        $exceptionHandler->expects('report')->with($failure);
+        $exceptionHandler->expects('report')->with(Argument::same($failure));
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
         $this->pusher->subscribe($this->connection, 'test-channel');
@@ -132,7 +132,7 @@ class EventHandlerTest extends ReverbTestCase
         $metrics = $this->app->make(MetricsHandler::class);
 
         $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
-        $exceptionHandler->expects('report')->with($failure);
+        $exceptionHandler->expects('report')->with(Argument::same($failure));
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
         $data = ['user_id' => '1', 'user_info' => ['name' => 'Taylor']];
@@ -202,7 +202,7 @@ class EventHandlerTest extends ReverbTestCase
         $this->app->make(ServerProviderManager::class)->withPublishing();
 
         $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
-        $exceptionHandler->expects('report')->with($failure);
+        $exceptionHandler->expects('report')->with(Argument::same($failure));
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
         $data = ['user_id' => '1', 'user_info' => ['name' => 'Taylor']];
@@ -275,7 +275,7 @@ class EventHandlerTest extends ReverbTestCase
         $this->app->instance(MetricsHandler::class, $metrics);
 
         $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
-        $exceptionHandler->expects('report')->with($failure);
+        $exceptionHandler->expects('report')->with(Argument::same($failure));
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
         $data = json_encode(['user_id' => 1, 'user_info' => ['name' => 'Joe']]);

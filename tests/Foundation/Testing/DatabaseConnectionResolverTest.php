@@ -135,7 +135,7 @@ class DatabaseConnectionResolverTest extends TestCase
     {
         $manager = $this->app->make('db');
         $connection = $manager->connection('testing::read');
-        $transactions = Double::for(DatabaseTransactionsManager::class);
+        $transactions = Double::for(DatabaseTransactionsManager::class)->strict();
         $transactions->expects('rollback')->with('testing', 0);
         $connection->setTransactionManager($transactions);
 
@@ -220,16 +220,16 @@ class DatabaseConnectionResolverTest extends TestCase
     {
         DatabaseConnectionResolver::flushCachedConnections();
 
-        $firstConnection = Double::for(Connection::class);
+        $firstConnection = Double::for(Connection::class)->strict();
         $firstConnection->expects('resetForPool');
         $firstConnection->expects('isReusable')->returns(false);
-        $secondConnection = Double::for(Connection::class);
+        $secondConnection = Double::for(Connection::class)->strict();
         $secondConnection->expects('resetForPool');
         $secondConnection->expects('isReusable')->returns(false);
         $failure = new RuntimeException('discard failed');
-        $firstPooledConnection = Double::for(PooledConnection::class);
+        $firstPooledConnection = Double::for(PooledConnection::class)->strict();
         $firstPooledConnection->expects('discard')->throws($failure);
-        $secondPooledConnection = Double::for(PooledConnection::class);
+        $secondPooledConnection = Double::for(PooledConnection::class)->strict();
         $secondPooledConnection->expects('discard');
 
         (new ReflectionProperty(DatabaseConnectionResolver::class, 'connections'))->setValue([

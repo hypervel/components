@@ -64,7 +64,7 @@ class QueueBeanstalkdJobTest extends TestCase
         $job = $this->getJob(json_encode(['job' => 'foo', 'uuid' => 'test-uuid', 'data' => ['data']]));
         $handler = new BeanstalkdJobTestFailedTest;
         $job->getContainer()->instance('foo', $handler);
-        $job->getPheanstalk()->expects('delete')->with($job->getPheanstalkJob());
+        $job->getPheanstalk()->expects('delete')->with(Argument::same($job->getPheanstalkJob()));
         $events = new EventsDispatcher;
         $failed = [];
         $events->listen(JobFailed::class, function (JobFailed $event) use (&$failed): void {
@@ -87,7 +87,7 @@ class QueueBeanstalkdJobTest extends TestCase
 
     public function testFailWithNullFailedDriverDoesNotRollBackDatabaseTransaction(): void
     {
-        $container = Double::for(ContainerContract::class, override: true);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
         $job = $this->getJob(
             json_encode(['job' => 'foo', 'uuid' => 'test-uuid', 'data' => ['data']]),
             $container->instance(),
@@ -102,10 +102,10 @@ class QueueBeanstalkdJobTest extends TestCase
         ]));
         $container->expects('bound')->never();
         $container->expects('make')->never()->with('db');
-        $container->expects('make')->with('foo')->returns($handler = Double::for(BeanstalkdJobTestFailedTest::class));
-        $job->getPheanstalk()->expects('delete')->with($job->getPheanstalkJob());
+        $container->expects('make')->with('foo')->returns($handler = Double::for(BeanstalkdJobTestFailedTest::class)->strict());
+        $job->getPheanstalk()->expects('delete')->with(Argument::same($job->getPheanstalkJob()));
         $handler->expects('failed')->with(['data'], Argument::type(TimeoutExceededException::class), 'test-uuid', Argument::type(BeanstalkdJob::class));
-        $container->expects('make')->with(Dispatcher::class)->returns($events = Double::for(Dispatcher::class));
+        $container->expects('make')->with(Dispatcher::class)->returns($events = Double::for(Dispatcher::class)->strict());
         $events->expects('hasListeners')->with(JobFailed::class)->returns(true);
         $events->expects('dispatch')->with(Argument::type(JobFailed::class))->returns(null);
 
@@ -115,7 +115,7 @@ class QueueBeanstalkdJobTest extends TestCase
     public function testDeleteRemovesTheJobFromBeanstalkd(): void
     {
         $job = $this->getJob();
-        $job->getPheanstalk()->expects('delete')->with($job->getPheanstalkJob());
+        $job->getPheanstalk()->expects('delete')->with(Argument::same($job->getPheanstalkJob()));
 
         $job->delete();
     }
@@ -123,7 +123,7 @@ class QueueBeanstalkdJobTest extends TestCase
     public function testReleaseProperlyReleasesJobOntoBeanstalkd(): void
     {
         $job = $this->getJob();
-        $job->getPheanstalk()->expects('release')->with($job->getPheanstalkJob(), Pheanstalk::DEFAULT_PRIORITY, 0);
+        $job->getPheanstalk()->expects('release')->with(Argument::same($job->getPheanstalkJob()), Pheanstalk::DEFAULT_PRIORITY, 0);
 
         $job->release();
     }
@@ -131,7 +131,7 @@ class QueueBeanstalkdJobTest extends TestCase
     public function testBuryProperlyBuryTheJobFromBeanstalkd(): void
     {
         $job = $this->getJob();
-        $job->getPheanstalk()->expects('bury')->with($job->getPheanstalkJob());
+        $job->getPheanstalk()->expects('bury')->with(Argument::same($job->getPheanstalkJob()));
 
         $job->bury();
     }
@@ -141,7 +141,7 @@ class QueueBeanstalkdJobTest extends TestCase
         [$pool, $lease] = $this->lease();
         $job = $this->getJob();
         $job->getPheanstalk()->expects('statsJob')->returns($this->stats(1));
-        $job->getPheanstalk()->expects('delete')->with($job->getPheanstalkJob())
+        $job->getPheanstalk()->expects('delete')->with(Argument::same($job->getPheanstalkJob()))
             ->resolves(function () use ($pool): void {
                 $this->assertSame(1, $pool->getBorrowedCount());
             });
@@ -158,7 +158,7 @@ class QueueBeanstalkdJobTest extends TestCase
         $job = $this->getJob();
         $job->getPheanstalk()->expects('statsJob')->returns($this->stats(1));
         $job->getPheanstalk()->expects('release')
-            ->with($job->getPheanstalkJob(), Pheanstalk::DEFAULT_PRIORITY, 5)
+            ->with(Argument::same($job->getPheanstalkJob()), Pheanstalk::DEFAULT_PRIORITY, 5)
             ->resolves(function () use ($pool): void {
                 $this->assertSame(1, $pool->getBorrowedCount());
             });
@@ -174,7 +174,7 @@ class QueueBeanstalkdJobTest extends TestCase
         [$pool, $lease] = $this->lease();
         $job = $this->getJob();
         $job->getPheanstalk()->expects('statsJob')->returns($this->stats(1));
-        $job->getPheanstalk()->expects('bury')->with($job->getPheanstalkJob())
+        $job->getPheanstalk()->expects('bury')->with(Argument::same($job->getPheanstalkJob()))
             ->resolves(function () use ($pool): void {
                 $this->assertSame(1, $pool->getBorrowedCount());
             });
@@ -277,7 +277,7 @@ class QueueBeanstalkdJobTest extends TestCase
     {
         return new BeanstalkdJob(
             $container ?? new Container,
-            Double::for(PheanstalkManagerInterface::class, PheanstalkPublisherInterface::class, PheanstalkSubscriberInterface::class),
+            Double::for(PheanstalkManagerInterface::class, PheanstalkPublisherInterface::class, PheanstalkSubscriberInterface::class)->strict(),
             new PheanstalkJob(new JobId(1), $data),
             'connection-name',
             'default'

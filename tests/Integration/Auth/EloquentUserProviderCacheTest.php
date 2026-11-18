@@ -590,7 +590,7 @@ class EloquentUserProviderCacheTest extends TestCase
         $this->cacheCoordinator->expects('fill')
             ->times(2)
             ->with(
-                $repo,
+                Argument::same($repo),
                 Argument::type(Closure::class),
                 $expectedKey,
                 300,

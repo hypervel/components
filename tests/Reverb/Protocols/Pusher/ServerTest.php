@@ -26,6 +26,7 @@ use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -124,7 +125,7 @@ class ServerTest extends ReverbTestCase
         $server->open($connection = new FakeConnection);
         $server->close($connection);
 
-        $scopedManager->received('unsubscribeFromAll')->with($connection)->times(1);
+        $scopedManager->received('unsubscribeFromAll')->with(Argument::same($connection))->times(1);
     }
 
     public function testCanHandleANewMessage(): void
@@ -263,7 +264,7 @@ class ServerTest extends ReverbTestCase
         $handler->expects('handle')->throws($exception);
 
         $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
-        $exceptionHandler->expects('report')->with($exception);
+        $exceptionHandler->expects('report')->with(Argument::same($exception));
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
         $server = $this->app->makeWith(Server::class, ['handler' => $handler]);

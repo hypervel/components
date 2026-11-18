@@ -18,6 +18,7 @@ use Hypervel\ObjectPool\PoolRecycler;
 use Hypervel\Testbench\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use stdClass;
 use Swoole\Server;
 
@@ -89,7 +90,7 @@ class ObjectPoolServiceProviderTest extends TestCase
         $recycler = Double::for(StartRecycler::class)->strict();
         $server = Double::for(Server::class)->strict();
         $afterWorkerStart = new AfterWorkerStart($server, 0);
-        $recycler->expects('handle')->with($afterWorkerStart);
+        $recycler->expects('handle')->with(Argument::same($afterWorkerStart));
         $application = Double::for(Application::class, override: true)->strict();
         $application->expects('make')->with('events')->returns($events);
         $application->expects('resolved')->with(PoolManager::class)->returns(true);

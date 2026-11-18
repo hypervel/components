@@ -442,9 +442,9 @@ class PoolManagerTest extends TestCase
 
     public function testPurgeAllDetachesPoolsBeforeClosingThem(): void
     {
-        $container = Double::for(ContainerContract::class, override: true);
-        $original = Double::for(DatabasePool::class);
-        $replacement = Double::for(DatabasePool::class);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $original = Double::for(DatabasePool::class)->strict();
+        $replacement = Double::for(DatabasePool::class)->strict();
         $original->expects('start');
         $replacement->expects('start');
         $replacement->allows('isClosed')->returns(false);
@@ -472,9 +472,9 @@ class PoolManagerTest extends TestCase
     {
         $firstFailure = new RuntimeException('first close failed');
         $secondFailure = new RuntimeException('second close failed');
-        $firstPool = Double::for(DatabasePool::class);
-        $secondPool = Double::for(DatabasePool::class);
-        $thirdPool = Double::for(DatabasePool::class);
+        $firstPool = Double::for(DatabasePool::class)->strict();
+        $secondPool = Double::for(DatabasePool::class)->strict();
+        $thirdPool = Double::for(DatabasePool::class)->strict();
         $firstPool->expects('start');
         $secondPool->expects('start');
         $thirdPool->expects('start');
@@ -482,7 +482,7 @@ class PoolManagerTest extends TestCase
         $secondPool->expects('close')->throws($secondFailure);
         $thirdPool->expects('close');
 
-        $container = Double::for(ContainerContract::class, override: true);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
         $container->expects('make')->with(DatabasePool::class, ['name' => 'first'])->returns($firstPool);
         $container->expects('make')->with(DatabasePool::class, ['name' => 'second'])->returns($secondPool);
         $container->expects('make')->with(DatabasePool::class, ['name' => 'third'])->returns($thirdPool);
@@ -535,9 +535,9 @@ class PoolManagerTest extends TestCase
 
     public function testPurgeDetachesPoolBeforeClosingIt(): void
     {
-        $container = Double::for(ContainerContract::class, override: true);
-        $original = Double::for(DatabasePool::class);
-        $replacement = Double::for(DatabasePool::class);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
+        $original = Double::for(DatabasePool::class)->strict();
+        $replacement = Double::for(DatabasePool::class)->strict();
         $original->expects('start');
         $replacement->expects('start');
         $replacement->allows('isClosed')->returns(false);
@@ -733,10 +733,10 @@ class PoolManagerTest extends TestCase
     {
         $ordinaryFailure = new RuntimeException('write pool close failed');
         $cancellation = new CanceledException;
-        $writePool = Double::for(DatabasePool::class);
-        $readPool = Double::for(DatabasePool::class);
-        $cachePool = Double::for(DatabasePool::class);
-        $poolManager = new PoolManager(Double::for(ContainerContract::class, override: true)->instance());
+        $writePool = Double::for(DatabasePool::class)->strict();
+        $readPool = Double::for(DatabasePool::class)->strict();
+        $cachePool = Double::for(DatabasePool::class)->strict();
+        $poolManager = new PoolManager(Double::for(ContainerContract::class, override: true)->strict()->instance());
         $detachedPools = null;
 
         $writePool->expects('close')->resolves(
@@ -798,7 +798,7 @@ class PoolManagerTest extends TestCase
             ],
         ]);
 
-        $container = Double::for(ContainerContract::class, override: true);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
         $factory = new ConnectionFactory($container->instance());
 
         $container->allows('make')->with('config')->returns($config);

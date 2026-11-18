@@ -73,7 +73,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testTransactionIsRecordedAndCommitted(): void
     {
-        $transactionManager = Double::for(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $transactionManager->expects('begin')->with('default', 1);
         $transactionManager->expects('commit')->with('default', 1, 0);
 
@@ -92,7 +92,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testTransactionIsRecordedAndCommittedUsingTheSeparateMethods(): void
     {
-        $transactionManager = Double::for(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $transactionManager->expects('begin')->with('default', 1);
         $transactionManager->expects('commit')->with('default', 1, 0);
 
@@ -111,7 +111,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testNestedTransactionIsRecordedAndCommitted(): void
     {
-        $transactionManager = Double::for(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $transactionManager->expects('begin')->with('default', 1);
         $transactionManager->expects('begin')->with('default', 2);
         $transactionManager->expects('commit')->with('default', 2, 1);
@@ -138,7 +138,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testNestedTransactionIsRecordeForDifferentConnectionsdAndCommitted(): void
     {
-        $transactionManager = Double::for(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $transactionManager->expects('begin')->with('default', 1);
         $transactionManager->expects('begin')->with('second_connection', 1);
         $transactionManager->expects('begin')->with('second_connection', 2);
@@ -174,7 +174,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testTransactionIsRolledBack(): void
     {
-        $transactionManager = Double::for(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $transactionManager->expects('begin')->with('default', 1);
         $transactionManager->expects('rollback')->with('default', 0);
         $transactionManager->expects('commit')->never();
@@ -231,7 +231,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testTransactionIsRolledBackUsingSeparateMethods(): void
     {
-        $transactionManager = Double::for(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $transactionManager->expects('begin')->with('default', 1);
         $transactionManager->expects('rollback')->with('default', 0);
         $transactionManager->expects('commit')->never();
@@ -253,7 +253,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testNestedTransactionsAreRolledBack(): void
     {
-        $transactionManager = Double::for(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $transactionManager->expects('begin')->with('default', 1);
         $transactionManager->expects('begin')->with('default', 2);
         $transactionManager->expects('rollback')->with('default', 1);
@@ -286,7 +286,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testAfterCommitRegistersTheCurrentConnectionName(): void
     {
-        $transactionManager = Double::for(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $callback = static function (): void {
         };
 
@@ -326,7 +326,7 @@ class DatabaseTransactionsTest extends TestCase
         $manager = new TestingTransactionsManager(['default', 'second_connection']);
         $first = $this->connection();
         $second = $this->connection('second_connection');
-        $database = Double::for(DatabaseManager::class);
+        $database = Double::for(DatabaseManager::class)->strict();
         $database->expects('connection')->with('default')->returns($first);
         $database->expects('connection')->with('second_connection')->returns($second);
         $manager->beginTransactions($database);
@@ -381,7 +381,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testAfterCommitOrNowDelegatesToTheTransactionManager(): void
     {
-        $transactionManager = Double::for(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $callback = static function (): void {
         };
 
@@ -410,7 +410,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testAfterRollbackRegistersTheCurrentConnectionName(): void
     {
-        $transactionManager = Double::for(new DatabaseTransactionsManager);
+        $transactionManager = Double::for(new DatabaseTransactionsManager)->strict();
         $callback = static function (): void {
         };
 

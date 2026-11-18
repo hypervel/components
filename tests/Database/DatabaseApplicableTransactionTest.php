@@ -102,7 +102,7 @@ class DatabaseApplicableTransactionTest extends TestCase
     public function testCustomManagerResolversProvideTransactionStateAndDateFormat(): void
     {
         $connection = DB::connection('first');
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->expects('connection')->with('first')->times(3)->returns($connection);
         $this->app->instance('db.resolver', $resolver);
 
@@ -135,7 +135,7 @@ class DatabaseApplicableTransactionTest extends TestCase
     {
         $connection = DB::connection('second');
         $connection->beginTransaction();
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->expects('connection')->with(null)->returns($connection);
         Model::setConnectionResolver($resolver);
 

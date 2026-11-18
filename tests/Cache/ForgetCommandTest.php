@@ -20,8 +20,8 @@ class ForgetCommandTest extends TestCase
 
     public function testForgetKeyFromDefaultStore(): void
     {
-        $cacheManager = Double::for(CacheManager::class);
-        $repository = Double::for(Repository::class);
+        $cacheManager = Double::for(CacheManager::class)->strict();
+        $repository = Double::for(Repository::class)->strict();
 
         $cacheManager->expects('store')->with(null)->returns($repository);
         $repository->expects('forget')->with('my-key');
@@ -40,8 +40,8 @@ class ForgetCommandTest extends TestCase
 
     public function testForgetKeyFromSpecifiedStore(): void
     {
-        $cacheManager = Double::for(CacheManager::class);
-        $repository = Double::for(Repository::class);
+        $cacheManager = Double::for(CacheManager::class)->strict();
+        $repository = Double::for(Repository::class)->strict();
 
         $cacheManager->expects('store')->with('redis')->returns($repository);
         $repository->expects('forget')->with('my-key');

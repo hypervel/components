@@ -15,6 +15,7 @@ use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\DoubleInterface;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -110,7 +111,7 @@ class EngineOperationRunnerTest extends TestCase
             fn (): null => null,
         ));
 
-        $this->bindReportingHandler()->expects('report')->with($completionFailure);
+        $this->bindReportingHandler()->expects('report')->with(Argument::same($completionFailure));
         $caught = null;
 
         try {
@@ -203,7 +204,7 @@ class EngineOperationRunnerTest extends TestCase
             },
         ));
 
-        $this->bindReportingHandler()->expects('report')->with($secondFailure);
+        $this->bindReportingHandler()->expects('report')->with(Argument::same($secondFailure));
         $caught = null;
 
         try {
@@ -305,7 +306,7 @@ class EngineOperationRunnerTest extends TestCase
                 $secondFinished = true;
             },
         ));
-        $this->bindReportingHandler()->expects('report')->with($operationFailure);
+        $this->bindReportingHandler()->expects('report')->with(Argument::same($operationFailure));
 
         $caught = null;
 

@@ -139,7 +139,7 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $events = Double::for(EventDispatcher::class);
+        $events = Double::for(EventDispatcher::class)->strict();
         $events->expects('hasListeners')->with(JobProcessing::class)->returns(false);
         $events->expects('hasListeners')->with(JobProcessed::class)->returns(false);
         $events->expects('hasListeners')->with(JobAttempted::class)->returns(false);
@@ -332,8 +332,8 @@ class QueueSyncQueueTest extends TestCase
             throw $listenerFailure;
         });
         $container->instance('events', $events);
-        $handler = Double::for(ExceptionHandler::class);
-        $handler->expects('report')->with($listenerFailure);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($listenerFailure));
         $container->instance(ExceptionHandler::class, $handler);
         $sync->setContainer($container);
 
@@ -351,7 +351,7 @@ class QueueSyncQueueTest extends TestCase
         $cleanupException = new RuntimeException('Failure observer cleanup failed.');
         $jobFailure = new RuntimeException('Job failed.');
         $gate = $this->armCurrentCoroutineCancellation();
-        $events = Double::for(EventDispatcher::class);
+        $events = Double::for(EventDispatcher::class)->strict();
         $events->allows('hasListeners')->with(JobProcessing::class)->returns(false);
         $events->allows('hasListeners')->with(JobExceptionOccurred::class)->returns(true);
         $events->allows('hasListeners')->with(JobAttempted::class)->returns(true);
@@ -369,7 +369,7 @@ class QueueSyncQueueTest extends TestCase
         ));
         $container = $this->getContainer();
         $container->instance('events', $events);
-        $job = Double::for(SyncJob::class);
+        $job = Double::for(SyncJob::class)->strict();
         $job->expects('fire')->throws($jobFailure);
         $job->expects('fail')->never();
         $sync = Double::for(SyncQueue::class)->passthru(new SyncQueue);
@@ -394,10 +394,8 @@ class QueueSyncQueueTest extends TestCase
         CancelingSerializationJob::$gate = $this->armCurrentCoroutineCancellation();
 
         try {
+            $this->expectException(CanceledException::class);
             $sync->push(new CancelingSerializationJob);
-            $this->fail('Expected cancellation to escape payload serialization.');
-        } catch (CanceledException) {
-            $this->addToAssertionCount(1);
         } finally {
             CancelingSerializationJob::$gate = null;
         }
@@ -456,7 +454,7 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $transactionManager = Double::for(DatabaseTransactionsManager::class);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
         $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
         $transactionManager->expects('addCallback')->returns(null);
         $transactionManager->expects('addCallbackForRollback')->never();
@@ -471,7 +469,7 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $transactionManager = Double::for(DatabaseTransactionsManager::class);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
         $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
         $transactionManager->expects('addCallback')->returns(null);
         $transactionManager->expects('addCallbackForRollback')->never();
@@ -486,7 +484,7 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $transactionManager = Double::for(DatabaseTransactionsManager::class);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
         $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
         $transactionManager->expects('addCallback')->returns(null);
         $transactionManager->expects('addCallbackForRollback')->returns(null);
@@ -504,7 +502,7 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $transactionManager = Double::for(DatabaseTransactionsManager::class);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
         $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
         $transactionManager->expects('addCallback')->returns(null);
         $transactionManager->expects('addCallbackForRollback')->returns(null);
@@ -522,7 +520,7 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $transactionManager = Double::for(DatabaseTransactionsManager::class);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
         $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
         $transactionManager->expects('addCallback')->returns(null);
         $transactionManager->expects('addCallbackForRollback')->returns(null);
@@ -540,7 +538,7 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $transactionManager = Double::for(DatabaseTransactionsManager::class);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
         $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
         $transactionManager->expects('addCallback')->returns(null);
         $transactionManager->expects('addCallbackForRollback')->never();
@@ -573,7 +571,7 @@ class QueueSyncQueueTest extends TestCase
     protected function getContainer(): Container
     {
         $container = new Container;
-        $container->instance(Cache::class, Double::for(Cache::class));
+        $container->instance(Cache::class, Double::for(Cache::class)->strict());
         $container->instance(EventDispatcher::class, new EventsDispatcher($container));
         $container->instance(ContainerContract::class, $container);
         Container::setInstance($container);

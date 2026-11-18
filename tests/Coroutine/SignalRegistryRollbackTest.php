@@ -15,6 +15,7 @@ use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
 use Swoole\Coroutine as SwooleCoroutine;
@@ -55,7 +56,7 @@ class SignalRegistryRollbackTest extends TestCase
     public function testUnregisterTerminallyCancelsItsWaiterWithoutReporting(): void
     {
         SwooleCoroutine\run(function (): void {
-            $handler = Double::for(ExceptionHandlerContract::class);
+            $handler = Double::for(ExceptionHandlerContract::class)->strict();
             $handler->expects('report')->never();
             Container::getInstance()->instance(ExceptionHandlerContract::class, $handler);
 
@@ -134,10 +135,10 @@ class SignalRegistryRollbackTest extends TestCase
         $releaseReport = new Channel(1);
         $parentCoroutineId = EngineCoroutine::id();
         $reports = 0;
-        $handler = Double::for(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
         $handler->expects('report')
             ->times($creation)
-            ->with($hookFailure)
+            ->with(Argument::same($hookFailure))
             ->resolves(static function () use ($creation, $reportStarted, $releaseReport, &$reports): void {
                 if (++$reports !== $creation) {
                     return;

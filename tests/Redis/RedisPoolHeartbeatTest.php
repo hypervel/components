@@ -26,6 +26,7 @@ use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Redis;
 use RedisCluster;
@@ -496,7 +497,7 @@ class RedisPoolHeartbeatTest extends TestCase
             $childCoroutineId = null;
 
             $handler->expects('report')
-                ->with($hookFailure)
+                ->with(Argument::same($hookFailure))
                 ->resolves(static function () use ($reportStarted, $releaseReport, $cleanupStarted, $releaseCleanup, &$childCoroutineId): void {
                     $childCoroutineId = Coroutine::id();
                     $reportStarted->push(true);

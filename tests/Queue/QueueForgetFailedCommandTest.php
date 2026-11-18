@@ -21,7 +21,7 @@ class QueueForgetFailedCommandTest extends TestCase
     public function testItForgetsASingleJob(): void
     {
         $container = new Application;
-        $failer = Double::for(FailedJobProviderInterface::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
         $failer->expects('forget')->with('5')->returns(true);
         $container->instance(FailedJobProviderInterface::class, $failer);
 
@@ -37,7 +37,7 @@ class QueueForgetFailedCommandTest extends TestCase
     public function testItForgetsMultipleJobs(): void
     {
         $container = new Application;
-        $failer = Double::for(FailedJobProviderInterface::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
         $failer->expects('forget')->with('5')->returns(true);
         $failer->expects('forget')->with('6')->returns(true);
         $container->instance(FailedJobProviderInterface::class, $failer);
@@ -58,7 +58,7 @@ class QueueForgetFailedCommandTest extends TestCase
     public function testItFailsWhenAJobCannotBeFound(): void
     {
         $container = new Application;
-        $failer = Double::for(FailedJobProviderInterface::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
         $failer->expects('forget')->with('5')->returns(false);
         $container->instance(FailedJobProviderInterface::class, $failer);
 
@@ -74,7 +74,7 @@ class QueueForgetFailedCommandTest extends TestCase
     public function testItForgetsTheRemainingJobsWhenOneCannotBeFound(): void
     {
         $container = new Application;
-        $failer = Double::for(FailedJobProviderInterface::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
         $failer->expects('forget')->with('5')->returns(true);
         $failer->expects('forget')->with('6')->returns(false);
         $failer->expects('forget')->with('7')->returns(true);

@@ -55,7 +55,7 @@ class CacheDatabaseLockTest extends TestCase
         $reader->exec("insert into cache_locks values ('key', 'stale', 1010)");
         $connection = new SQLiteConnection($writer, ':memory:');
         $connection->setReadPdo($reader);
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->allows('connection')->returns($connection);
         $lock = new DatabaseLock($resolver, null, 'key', 'cache_locks', 60, 'fresh', null);
 
@@ -97,7 +97,7 @@ class CacheDatabaseLockTest extends TestCase
         // So it tries to update
         $table->expects('where')->with('key', 'foo')->returns($table);
         $table->expects('where')->with(Argument::type(Closure::class))->resolves(function ($callback) use ($table, $owner) {
-            $query = Double::for(Builder::class);
+            $query = Double::for(Builder::class)->strict();
             $query->expects('where')->with('owner', $owner)->returns($query);
             $query->expects('orWhere')->with('expiration', '<=', Argument::type('int'))->returns($query);
             $callback($query);
@@ -122,7 +122,7 @@ class CacheDatabaseLockTest extends TestCase
         // Update fails too (someone else owns it)
         $table->expects('where')->with('key', 'foo')->returns($table);
         $table->expects('where')->with(Argument::type(Closure::class))->resolves(function ($callback) use ($table, $lock) {
-            $query = Double::for(Builder::class);
+            $query = Double::for(Builder::class)->strict();
             $query->expects('where')->with('owner', $lock->owner())->returns($query);
             $query->expects('orWhere')->with('expiration', '<=', Argument::type('int'))->returns($query);
 
@@ -158,14 +158,14 @@ class CacheDatabaseLockTest extends TestCase
     public function testSqliteLockHeldByAnotherOwnerIsRefusedWithoutWriting(): void
     {
         // The lottery always prunes, so any write, including pruning, fails the unexpected call.
-        [$lock] = $this->getLock(lockLottery: [1, 1], driver: 'sqlite', tables: [$this->liveOwnerRead(static fn (): string => 'other-owner')->strict()]);
+        [$lock] = $this->getLock(lockLottery: [1, 1], driver: 'sqlite', tables: [$this->liveOwnerRead(static fn (): string => 'other-owner')]);
 
         $this->assertFalse($lock->acquire());
     }
 
     public function testSqliteLockIsInsertedWhenNoLiveLockExists(): void
     {
-        $insert = Double::for(Builder::class);
+        $insert = Double::for(Builder::class)->strict();
         $insert->expects('insertOrIgnore')->returns(1);
 
         [$lock] = $this->getLock(driver: 'sqlite', tables: [$this->liveOwnerRead(static fn (): null => null), $insert]);
@@ -182,9 +182,9 @@ class CacheDatabaseLockTest extends TestCase
         $read = $this->liveOwnerRead(static function () use (&$lock, $own): ?string {
             return $own ? $lock->owner() : null;
         });
-        $insert = Double::for(Builder::class);
+        $insert = Double::for(Builder::class)->strict();
         $insert->expects('insertOrIgnore')->returns(0);
-        $update = Double::for(Builder::class);
+        $update = Double::for(Builder::class)->strict();
         $update->expects('where')->with('key', 'foo');
         $update->expects('where')->with(Argument::type(Closure::class));
         $update->expects('update')->returns(1);
@@ -199,13 +199,13 @@ class CacheDatabaseLockTest extends TestCase
     #[TestWith(['mariadb', true])]
     public function testATakeoverThatChangedNoRowIsConfirmedWithACurrentReadWhereOnlyChangedRowsCount(string $driver, bool $owned): void
     {
-        $insert = Double::for(Builder::class);
+        $insert = Double::for(Builder::class)->strict();
         $insert->expects('insert')->throws(new UniqueConstraintViolationException('', '', [], new Exception));
-        $update = Double::for(Builder::class);
+        $update = Double::for(Builder::class)->strict();
         $update->expects('where')->with('key', 'foo');
         $update->expects('where')->with(Argument::type(Closure::class));
         $update->expects('update')->returns(0);
-        $read = Double::for(Builder::class);
+        $read = Double::for(Builder::class)->strict();
 
         // A lock object that never acquired: a lost-connection retry can still meet the row its first insert committed.
         [$lock] = $this->getLock(driver: $driver, tables: [$insert, $update, $read]);
@@ -218,12 +218,12 @@ class CacheDatabaseLockTest extends TestCase
     #[TestWith([false])]
     public function testARefreshThatChangedNoRowIsConfirmedWithACurrentReadWhereOnlyChangedRowsCount(bool $owned): void
     {
-        $update = Double::for(Builder::class);
+        $update = Double::for(Builder::class)->strict();
         $update->expects('where')->with('key', 'foo');
         $update->expects('where')->with('owner', Argument::type('string'));
         $update->expects('where')->with('expiration', '>', Argument::type('int'));
         $update->expects('update')->returns(0);
-        $read = Double::for(Builder::class);
+        $read = Double::for(Builder::class)->strict();
 
         [$lock] = $this->getLock(driver: 'mysql', tables: [$update, $read]);
         $this->expectLiveOwnerCurrentRead($read, $lock->owner(), $owned);
@@ -250,7 +250,6 @@ class CacheDatabaseLockTest extends TestCase
     {
         [$lock, $table] = $this->getLock(lockLottery: $lottery);
 
-        $table->strict();
         $table->expects('insertOrIgnore')->returns(1);
 
         $this->assertTrue($lock->acquire());
@@ -488,9 +487,9 @@ class CacheDatabaseLockTest extends TestCase
      */
     protected function getLock(int $seconds = 10, ?array $lockLottery = [0, 1], ?string $connectionName = 'default', string $driver = 'pgsql', array $tables = []): array
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
-        $connection = Double::for(Connection::class);
-        $table = Double::for(Builder::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
+        $table = Double::for(Builder::class)->strict();
         $table->allows('useWritePdo');
 
         $resolver->allows('connection')->with($connectionName)->returns($connection);
@@ -529,7 +528,7 @@ class CacheDatabaseLockTest extends TestCase
      */
     protected function liveOwnerRead(Closure $owner): Builder&DoubleInterface
     {
-        $read = Double::for(Builder::class);
+        $read = Double::for(Builder::class)->strict();
         $read->expects('useWritePdo');
         $read->expects('where')->with('key', 'foo');
         $read->expects('where')->with('expiration', '>', Argument::type('int'));

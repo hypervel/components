@@ -17,7 +17,7 @@ class FooExitCommand extends Command
     {
         parent::__construct($name);
 
-        $this->eventDispatcher = Double::for(Dispatcher::class);
+        $this->eventDispatcher = Double::for(Dispatcher::class)->strict();
         $this->eventDispatcher->allows('hasListeners')->returns(true);
         $this->eventDispatcher->allows('dispatch')->returns(null);
     }

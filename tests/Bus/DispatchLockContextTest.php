@@ -41,11 +41,11 @@ class DispatchLockContextTest extends TestCase
     public function testReleaseAttemptsBothLocksAndPreservesCancellationFromDebounceCleanup(): void
     {
         $failure = new RuntimeException('Debounce cleanup failed.', previous: new CanceledException);
-        $unique = Double::for(Cache::class, LockProvider::class);
-        $lock = Double::for(Lock::class);
+        $unique = Double::for(Cache::class, LockProvider::class)->strict();
+        $lock = Double::for(Lock::class)->strict();
         $unique->expects('lock')->with('unique')->returns($lock);
         $lock->expects('forceRelease')->throws(new RuntimeException('Unique release failed.'));
-        $debounce = Double::for(Cache::class);
+        $debounce = Double::for(Cache::class)->strict();
         $debounce->expects('get')->with('debounce')->returns('owner');
         $debounce->expects('forget')->with('debounce')->throws($failure);
         $debounce->expects('forget')->with('debounce:first_dispatched_at')->returns(true);
@@ -204,12 +204,12 @@ class DispatchLockContextTest extends TestCase
     public function testMetadataSurvivesUntilAfterCommitPayloadCreation(string $queueClass, bool $delayed): void
     {
         $container = new Container;
-        $container->instance(Cache::class, Double::for(Cache::class));
+        $container->instance(Cache::class, Double::for(Cache::class)->strict());
         $container->instance(ContainerContract::class, $container);
         $container->instance(EventDispatcher::class, new EventsDispatcher($container));
         Container::setInstance($container);
 
-        $transactionManager = Double::for(DatabaseTransactionsManager::class);
+        $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
         $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
         $transactionManager->expects('addCallback')
             ->resolves(fn (callable $callback) => $callback());

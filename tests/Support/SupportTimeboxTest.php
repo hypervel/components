@@ -20,11 +20,9 @@ class SupportTimeboxTest extends TestCase
 
     public function testMakeExecutesCallback(): void
     {
-        $callback = function (): void {
-            $this->assertTrue(true);
-        };
+        $result = (new Timebox)->call(fn () => 'completed', 0);
 
-        (new Timebox)->call($callback, 0);
+        $this->assertSame('completed', $result);
     }
 
     public function testMakeWaitsForMicroseconds(): void

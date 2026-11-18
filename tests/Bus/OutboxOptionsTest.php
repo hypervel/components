@@ -47,7 +47,7 @@ class OutboxOptionsTest extends TestCase
     public function testPendingDispatchForwardsOutboxOptions(): void
     {
         $job = new OutboxQueueableJob;
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         Container::getInstance()->instance(Dispatcher::class, $dispatcher);
         $dispatcher->expects('dispatch')->with(Argument::same($job))->returns(null);
 

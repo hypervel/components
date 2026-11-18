@@ -41,7 +41,7 @@ class GeneratorCommandTest extends TestCase
         $command = new GeneratorCommandStub;
         $command->setHypervel($this->app);
 
-        $input = Double::for(InputInterface::class);
+        $input = Double::for(InputInterface::class)->strict();
         $input->expects('getOption')->times(minimum: 1)
             ->with('target-path')
             ->returns('packages/my-package/src');
@@ -57,7 +57,7 @@ class GeneratorCommandTest extends TestCase
         $command = new GeneratorCommandStub;
         $command->setHypervel($this->app);
 
-        $input = Double::for(InputInterface::class);
+        $input = Double::for(InputInterface::class)->strict();
         $input->expects('getOption')->times(minimum: 1)
             ->with('target-path')
             ->returns('packages/my-package/src/');
@@ -72,7 +72,7 @@ class GeneratorCommandTest extends TestCase
     {
         $command = new GeneratorCommandStub;
 
-        $input = Double::for(InputInterface::class);
+        $input = Double::for(InputInterface::class)->strict();
         $input->expects('getOption')->times(minimum: 1)
             ->with('target-path')
             ->returns('/tmp/custom-path');
@@ -87,7 +87,7 @@ class GeneratorCommandTest extends TestCase
     {
         $command = new GeneratorCommandStub;
 
-        $input = Double::for(InputInterface::class);
+        $input = Double::for(InputInterface::class)->strict();
         $input->expects('getOption')->times(minimum: 1)
             ->with('target-path')
             ->returns('/tmp/custom-path/');
@@ -103,7 +103,7 @@ class GeneratorCommandTest extends TestCase
         $command = new GeneratorCommandStub;
         $command->setHypervel($this->app);
 
-        $input = Double::for(InputInterface::class);
+        $input = Double::for(InputInterface::class)->strict();
         $input->expects('getOption')->times(minimum: 1)
             ->with('target-path')
             ->returns('src/Controllers');
@@ -123,7 +123,7 @@ class GeneratorCommandTest extends TestCase
         $command = new GeneratorCommandStub;
         $command->setHypervel($this->app);
 
-        $input = Double::for(InputInterface::class);
+        $input = Double::for(InputInterface::class)->strict();
         $input->expects('getOption')->times(minimum: 1)
             ->with('target-path')
             ->returns(null);
@@ -240,7 +240,7 @@ PHP;
     {
         $command = new GeneratorCommandStub;
 
-        $input = Double::for(InputInterface::class);
+        $input = Double::for(InputInterface::class)->strict();
         $input->expects('getOption')->times(minimum: 1)
             ->with('target-namespace')
             ->returns(null);
@@ -253,7 +253,7 @@ PHP;
     {
         $command = new GeneratorCommandStub;
 
-        $input = Double::for(InputInterface::class);
+        $input = Double::for(InputInterface::class)->strict();
         $input->expects('getOption')->times(minimum: 1)
             ->with('target-namespace')
             ->returns(null);
@@ -266,7 +266,7 @@ PHP;
     {
         $command = new GeneratorCommandStub;
 
-        $input = Double::for(InputInterface::class);
+        $input = Double::for(InputInterface::class)->strict();
         $input->expects('getOption')->times(minimum: 1)
             ->with('target-namespace')
             ->returns('Custom\Namespace');
@@ -277,7 +277,7 @@ PHP;
 
     public function testWriteFailureDoesNotCreateMatchingTestOrReportSuccess(): void
     {
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $files->allows('exists')->returns(false);
         $files->expects('ensureDirectoryExists');
         $files->expects('get')->returns('<?php class DummyClass {}');

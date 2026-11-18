@@ -119,7 +119,7 @@ class QueueConnectionIsReachableTest extends TestCase
     public function testRemoteQueuesMustCompleteAReadOnlyOperation(string $driver, bool $fails): void
     {
         config(['queue.default' => 'remote', 'queue.connections.remote' => ['driver' => $driver]]);
-        $queue = Double::for(QueueContract::class);
+        $queue = Double::for(QueueContract::class)->strict();
         $probe = $queue->expects('size')->with(Argument::none());
 
         if ($fails) {

@@ -239,7 +239,7 @@ class HandleCallTest extends TestCase
     {
         $cleanupException = new RuntimeException('Service cleanup failed.');
         if ($cleanupThrows) {
-            $this->exceptions->expects('report')->with($cleanupException);
+            $this->exceptions->expects('report')->with(Argument::same($cleanupException));
         } else {
             $this->exceptions->expects('report')->never();
         }

@@ -191,8 +191,8 @@ class HttpServerTest extends ReverbTestCase
         $router->expects('dispatch')->returns(new Response('OK'));
         $this->app->instance(ReverbRouter::class, $router);
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($heldFailure)->ordered();
-        $handler->expects('report')->with($listenerFailure)->ordered();
+        $handler->expects('report')->with(Argument::same($heldFailure))->ordered();
+        $handler->expects('report')->with(Argument::same($listenerFailure))->ordered();
         $this->app->instance(ExceptionHandler::class, $handler);
 
         $canceled = null;
@@ -274,7 +274,7 @@ class HttpServerTest extends ReverbTestCase
 
         $original = new RuntimeException('Request body failed');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($original);
+        $handler->expects('report')->with(Argument::same($original));
         $handler->expects('render')->never();
         $this->app->instance(ExceptionHandler::class, $handler);
 
@@ -291,7 +291,7 @@ class HttpServerTest extends ReverbTestCase
         $original = new RuntimeException('Request failed');
         $reportingFailure = new RuntimeException('Reporting failed');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($original)->throws($reportingFailure);
+        $handler->expects('report')->with(Argument::same($original))->throws($reportingFailure);
         $handler->expects('render')->never();
         $this->app->instance(ExceptionHandler::class, $handler);
 
@@ -313,9 +313,9 @@ class HttpServerTest extends ReverbTestCase
 
         $original = new RuntimeException('Request failed');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($original);
+        $handler->expects('report')->with(Argument::same($original));
         $handler->expects('render')
-            ->with(Argument::type(Request::class), $original)
+            ->with(Argument::type(Request::class), Argument::same($original))
             ->returns(new Response('Internal Server Error', 500));
         $this->app->instance(ExceptionHandler::class, $handler);
 
@@ -369,9 +369,9 @@ class HttpServerTest extends ReverbTestCase
         $original = new RuntimeException('Request failed');
         $emissionFailure = new RuntimeException('Response emission failed');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($original);
+        $handler->expects('report')->with(Argument::same($original));
         $handler->expects('render')
-            ->with(Argument::type(Request::class), $original)
+            ->with(Argument::type(Request::class), Argument::same($original))
             ->returns(new Response('Internal Server Error', 500));
         $this->app->instance(ExceptionHandler::class, $handler);
 

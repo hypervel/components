@@ -40,6 +40,6 @@ class CacheRedisStoreTest extends TestCase
      */
     protected function getRedis(): RedisStore
     {
-        return new RedisStore(Double::for(Factory::class), 'prefix:');
+        return new RedisStore(Double::for(Factory::class)->strict(), 'prefix:');
     }
 }

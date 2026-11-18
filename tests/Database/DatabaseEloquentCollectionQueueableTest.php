@@ -19,7 +19,7 @@ class DatabaseEloquentCollectionQueueableTest extends TestCase
 
     public function testSerializesPivotsEntitiesId(): void
     {
-        $spy = Double::for(Pivot::class);
+        $spy = Double::for(Pivot::class)->strict();
         $spy->expects('getQueueableId')->with(Argument::none())->returns('project_id:1:user_id:2');
 
         $c = new Collection([$spy]);
@@ -29,7 +29,7 @@ class DatabaseEloquentCollectionQueueableTest extends TestCase
 
     public function testSerializesModelEntitiesById(): void
     {
-        $spy = Double::for(Model::class);
+        $spy = Double::for(Model::class)->strict();
         $spy->expects('getQueueableId')->with(Argument::none())->returns(1);
 
         $c = new Collection([$spy]);
@@ -68,7 +68,7 @@ class DatabaseEloquentCollectionQueueableTest extends TestCase
         // When the ID of a Model is binary instead of int or string, the Collection
         // serialization + JSON encoding breaks because of UTF-8 issues. Encoding
         // of a QueueableCollection must favor QueueableEntity::queueableId().
-        $mock = Double::for(Model::class);
+        $mock = Double::for(Model::class)->strict();
         $mock->expects('getKey')->never();
         $mock->expects('getQueueableId')->returns('mocked');
 

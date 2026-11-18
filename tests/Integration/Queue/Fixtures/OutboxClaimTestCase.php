@@ -29,8 +29,8 @@ use function Hypervel\Coroutine\parallel;
 #[ResetRefreshDatabaseState]
 abstract class OutboxClaimTestCase extends TestCase
 {
-    use VerifiesDoubles;
     use DatabaseTruncation;
+    use VerifiesDoubles;
 
     /**
      * Enable independent database sessions for competing relay coroutines.

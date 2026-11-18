@@ -18,7 +18,7 @@ class FoundationCacheBasedMaintenanceModeTest extends TestCase
 
     public function testItDeterminesWhetherMaintenanceModeIsActive(): void
     {
-        $cache = Double::for(Factory::class, Repository::class);
+        $cache = Double::for(Factory::class, Repository::class)->strict();
         $cache->expects('store')->times(2)->with('store-key')->returns($cache);
 
         $manager = new CacheBasedMaintenanceMode($cache, 'store-key', 'key');
@@ -31,7 +31,7 @@ class FoundationCacheBasedMaintenanceModeTest extends TestCase
 
     public function testItRetrievesPayloadFromCache(): void
     {
-        $cache = Double::for(Factory::class, Repository::class);
+        $cache = Double::for(Factory::class, Repository::class)->strict();
         $cache->expects('store')->with('store-key')->returns($cache);
 
         $manager = new CacheBasedMaintenanceMode($cache, 'store-key', 'key');
@@ -42,7 +42,7 @@ class FoundationCacheBasedMaintenanceModeTest extends TestCase
 
     public function testItReturnsEmptyPayloadWhenCacheKeyIsMissing(): void
     {
-        $cache = Double::for(Factory::class, Repository::class);
+        $cache = Double::for(Factory::class, Repository::class)->strict();
         $cache->expects('store')->with('store-key')->returns($cache);
 
         $manager = new CacheBasedMaintenanceMode($cache, 'store-key', 'key');
@@ -53,7 +53,7 @@ class FoundationCacheBasedMaintenanceModeTest extends TestCase
 
     public function testItStoresPayloadInCache(): void
     {
-        $cache = Double::for(Factory::class, Repository::class);
+        $cache = Double::for(Factory::class, Repository::class)->strict();
         $cache->expects('store')->with('store-key')->returns($cache);
         $cache->expects('put')->with('key', ['payload'])->returns(true);
 
@@ -63,7 +63,7 @@ class FoundationCacheBasedMaintenanceModeTest extends TestCase
 
     public function testItRemovesPayloadFromCache(): void
     {
-        $cache = Double::for(Factory::class, Repository::class);
+        $cache = Double::for(Factory::class, Repository::class)->strict();
         $cache->expects('store')->with('store-key')->returns($cache);
         $cache->expects('forget')->with('key')->returns(true);
 
@@ -73,7 +73,7 @@ class FoundationCacheBasedMaintenanceModeTest extends TestCase
 
     public function testItFailsWhenPayloadCannotBeStored(): void
     {
-        $cache = Double::for(Factory::class, Repository::class);
+        $cache = Double::for(Factory::class, Repository::class)->strict();
         $cache->expects('store')->with('store-key')->returns($cache);
         $cache->expects('put')->with('key', ['payload'])->returns(false);
 
@@ -85,7 +85,7 @@ class FoundationCacheBasedMaintenanceModeTest extends TestCase
 
     public function testItFailsWhenPayloadCannotBeRemoved(): void
     {
-        $cache = Double::for(Factory::class, Repository::class);
+        $cache = Double::for(Factory::class, Repository::class)->strict();
         $cache->expects('store')->with('store-key')->returns($cache);
         $cache->expects('forget')->with('key')->returns(false);
 

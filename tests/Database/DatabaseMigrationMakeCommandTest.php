@@ -24,7 +24,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
     {
         $app = new ApplicationDatabaseMigrationMakeStub;
         $app->useDatabasePath(__DIR__);
-        $creator = Double::for(MigrationCreator::class);
+        $creator = Double::for(MigrationCreator::class)->strict();
         $command = new MigrateMakeCommand($creator);
         $command->setHypervel($app);
         $creator->expects('create')
@@ -38,7 +38,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
     {
         $app = new ApplicationDatabaseMigrationMakeStub;
         $app->useDatabasePath(__DIR__);
-        $creator = Double::for(MigrationCreator::class);
+        $creator = Double::for(MigrationCreator::class)->strict();
         $command = new MigrateMakeCommand($creator);
         $command->setHypervel($app);
         $creator->expects('create')
@@ -52,7 +52,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
     {
         $app = new ApplicationDatabaseMigrationMakeStub;
         $app->useDatabasePath(__DIR__);
-        $creator = Double::for(MigrationCreator::class);
+        $creator = Double::for(MigrationCreator::class)->strict();
         $command = new MigrateMakeCommand($creator);
         $command->setHypervel($app);
         $creator->expects('create')
@@ -66,7 +66,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
     {
         $app = new ApplicationDatabaseMigrationMakeStub;
         $app->useDatabasePath(__DIR__);
-        $creator = Double::for(MigrationCreator::class);
+        $creator = Double::for(MigrationCreator::class)->strict();
         $command = new MigrateMakeCommand($creator);
         $command->setHypervel($app);
         $creator->expects('create')
@@ -79,7 +79,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
     public function testCanSpecifyPathToCreateMigrationsIn(): void
     {
         $app = new ApplicationDatabaseMigrationMakeStub;
-        $creator = Double::for(MigrationCreator::class);
+        $creator = Double::for(MigrationCreator::class)->strict();
         $command = new MigrateMakeCommand($creator);
         $command->setHypervel($app);
         $app->setBasePath('/home/hypervel');

@@ -50,8 +50,8 @@ class EncryptedSessionStoreTest extends TestCase
     {
         return new EncryptedStore(
             $this->getSessionName(),
-            Double::for(SessionHandlerInterface::class),
-            Double::for(Encrypter::class),
+            Double::for(SessionHandlerInterface::class)->strict(),
+            Double::for(Encrypter::class)->strict(),
             $this->getSessionId()
         );
     }

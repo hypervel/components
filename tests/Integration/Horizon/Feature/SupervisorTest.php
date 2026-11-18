@@ -30,6 +30,7 @@ use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\SupervisorThatThrowsExce
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use Throwable;
 
@@ -486,7 +487,7 @@ class SupervisorTest extends IntegrationTestCase
 
         // Mock the scaler...
         $autoScaler = Double::for(AutoScaler::class)->strict();
-        $autoScaler->expects('scale')->with($supervisor);
+        $autoScaler->expects('scale')->with(Argument::same($supervisor));
         $this->app->singleton(AutoScaler::class, fn () => $autoScaler);
 
         // Start the supervisor...

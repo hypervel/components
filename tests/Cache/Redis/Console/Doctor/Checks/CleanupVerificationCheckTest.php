@@ -21,8 +21,8 @@ class CleanupVerificationCheckTest extends TestCase
 
     public function testVerificationScansLogicalPatternsThroughTheClusterAwareHelper(): void
     {
-        $connection = Double::for(PhpRedisClusterConnection::class);
-        $store = Double::for(RedisStore::class);
+        $connection = Double::for(PhpRedisClusterConnection::class)->strict();
+        $store = Double::for(RedisStore::class)->strict();
         $store->allows('getTagMode')->returns(TagMode::All);
         $context = new DoctorContext(
             cache: new Repository($store),

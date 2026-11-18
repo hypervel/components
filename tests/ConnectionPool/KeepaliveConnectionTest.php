@@ -65,7 +65,7 @@ class KeepaliveConnectionTest extends TestCase
 
     public function testConnectionAcceptsPoolContract(): void
     {
-        $pool = Double::for(ConnectionPool::class);
+        $pool = Double::for(ConnectionPool::class)->strict();
         $connection = new KeepaliveConnectionStub(
             new Container,
             $pool,
@@ -401,7 +401,7 @@ class KeepaliveConnectionTest extends TestCase
     public function testConcurrentReconnectKeepsOneSocketAndOneTimer(?Throwable $closeFailure): void
     {
         $container = new Container;
-        $logger = Double::for(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
         $container->instance(StdoutLoggerInterface::class, $logger);
 
         if ($closeFailure !== null && ! $closeFailure instanceof CanceledException) {
@@ -765,14 +765,14 @@ class KeepaliveConnectionTest extends TestCase
     public function testHeartbeatCancellationRemainsPrimaryWhenProtocolCloseFails(): void
     {
         $container = new Container;
-        $logger = Double::for(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
         $logger->expects('error')->never();
         $container->instance(StdoutLoggerInterface::class, $logger);
         $pool = new HeartbeatPoolStub($container, 'test', ['heartbeat_interval' => 3600.0]);
         $connection = $pool->borrow();
         $connection->setActiveConnection(new stdClass);
         $callback = null;
-        $timer = Double::for(Timer::class);
+        $timer = Double::for(Timer::class)->strict();
         $timer->expects('tick')->resolves(
             function (float $interval, callable $heartbeat) use (&$callback): int {
                 $callback = $heartbeat;
@@ -808,7 +808,7 @@ class KeepaliveConnectionTest extends TestCase
     public function testLateHeartbeatFailureDoesNotCloseTheReplacement(Throwable $failure): void
     {
         $container = new Container;
-        $logger = Double::for(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
         $container->instance(StdoutLoggerInterface::class, $logger);
 
         if ($failure instanceof CanceledException) {
@@ -827,7 +827,7 @@ class KeepaliveConnectionTest extends TestCase
         $connection->createCallback = static fn () => new stdClass;
         $callbacks = [];
         $cleared = [];
-        $timer = Double::for(Timer::class);
+        $timer = Double::for(Timer::class)->strict();
         $timer->expects('tick')->times(2)->resolves(
             function (float $interval, callable $heartbeat) use (&$callbacks): int {
                 $callbacks[] = $heartbeat;

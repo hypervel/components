@@ -697,6 +697,7 @@ class ResponseTest extends TestCase
         $source->expects('isSeekable')->returns(false);
         $source->expects('eof')->returns(false);
         $source->expects('read')->throws(new RuntimeException('read failed'));
+        $source->allows('getMetadata')->with('timed_out')->returns(false);
         $response = $this->response(200, body: $source);
         $resource = fopen('php://temp', 'wb+');
         $this->assertIsResource($resource);

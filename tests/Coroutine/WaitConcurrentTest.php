@@ -15,6 +15,7 @@ use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -61,7 +62,7 @@ class WaitConcurrentTest extends TestCase
     #[DataProvider('creationMethods')]
     public function testCreationCancellationWhileStartupReportingYieldsReleasesOwnershipOnce(string $method): void
     {
-        $handler = Double::for(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
         Container::getInstance()->instance(ExceptionHandlerContract::class, $handler);
         $concurrent = new WaitConcurrent(1);
         $hookFailure = new RuntimeException('The startup hook failed.');
@@ -73,7 +74,7 @@ class WaitConcurrentTest extends TestCase
         $childBodyRan = false;
 
         $handler->expects('report')
-            ->with($hookFailure)
+            ->with(Argument::same($hookFailure))
             ->resolves(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
                 $childCoroutineId = EngineCoroutine::id();
                 $reportStarted->push(true);

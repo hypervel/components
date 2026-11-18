@@ -21,7 +21,7 @@ class DatabaseMySqlBuilderTest extends TestCase
 
     public function testCreateDatabase(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new MySqlGrammarSchema($connection);
 
         $connection->expects('getConfig')->with('charset')->returns('utf8mb4');
@@ -37,7 +37,7 @@ class DatabaseMySqlBuilderTest extends TestCase
 
     public function testDropDatabaseIfExists(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new MySqlGrammarSchema($connection);
 
         $connection->expects('getSchemaGrammar')->returns($grammar);
@@ -52,7 +52,7 @@ class DatabaseMySqlBuilderTest extends TestCase
 
     public function testDeleteWithJoinCompilesOrderByAndLimit(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $processor = new Processor;
         $grammar = new MySqlGrammar($connection);
 
@@ -75,7 +75,7 @@ class DatabaseMySqlBuilderTest extends TestCase
 
     public function testDropAllTablesPreservesEnabledForeignKeyConstraints(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new MySqlGrammarSchema($connection);
 
         $connection->expects('getSchemaGrammar')->returns($grammar);
@@ -98,7 +98,7 @@ class DatabaseMySqlBuilderTest extends TestCase
 
     public function testDropAllTablesPreservesDisabledForeignKeyConstraints(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new MySqlGrammarSchema($connection);
 
         $connection->expects('getSchemaGrammar')->returns($grammar);
@@ -119,7 +119,7 @@ class DatabaseMySqlBuilderTest extends TestCase
 
     public function testDropAllTablesPropagatesAFalseStatementResultAfterRestoringConstraints(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new MySqlGrammarSchema($connection);
 
         $connection->expects('getSchemaGrammar')->returns($grammar);
@@ -143,7 +143,7 @@ class DatabaseMySqlBuilderTest extends TestCase
 
     public function testDropAllViewsPropagatesAFalseStatementResult(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new MySqlGrammarSchema($connection);
 
         $connection->expects('getSchemaGrammar')->returns($grammar);

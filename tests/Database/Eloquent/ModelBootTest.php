@@ -145,7 +145,7 @@ class ModelBootTest extends TestCase
     public function testBootedEventFailureLeavesTheModelPublishedAndClearsOwnership(): void
     {
         $failure = new RuntimeException('booted event failure');
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch')
             ->with('eloquent.booting: ' . PostPublicationFailureModel::class, Argument::type(PostPublicationFailureModel::class))
             ->returns(null);

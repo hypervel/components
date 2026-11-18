@@ -173,13 +173,13 @@ class QueueSqsJobTest extends TestCase
         $pointer = 'laravel:sqs-payloads:some-uuid';
         $pointerBody = json_encode(['@pointer' => $pointer], JSON_THROW_ON_ERROR);
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('get')->with($pointer)->returns($payload);
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->with('cache')->returns($cache);
 
         $job = new SqsJob(
@@ -207,13 +207,13 @@ class QueueSqsJobTest extends TestCase
         $pointer = 'laravel:sqs-payloads:missing';
         $pointerBody = json_encode(['@pointer' => $pointer], JSON_THROW_ON_ERROR);
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('get')->with($pointer)->returns($payload);
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->with('cache')->returns($cache);
 
         $job = new SqsJob(
@@ -248,7 +248,7 @@ class QueueSqsJobTest extends TestCase
             '@pointer' => 'laravel:sqs-payloads:disabled',
         ], JSON_THROW_ON_ERROR);
 
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->never();
 
         $job = new SqsJob(
@@ -268,13 +268,13 @@ class QueueSqsJobTest extends TestCase
         $pointer = 'laravel:sqs-payloads:some-uuid';
         $pointerBody = json_encode(['@pointer' => $pointer], JSON_THROW_ON_ERROR);
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('get')->with($pointer)->returns($payload);
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->with('cache')->returns($cache);
 
         $job = new SqsJob(
@@ -296,7 +296,7 @@ class QueueSqsJobTest extends TestCase
         $pointer = 'laravel:sqs-payloads:delete';
         $pointerBody = json_encode(['@pointer' => $pointer], JSON_THROW_ON_ERROR);
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('forget')->with($pointer)->resolves(
             function (): bool {
                 $this->assertSame('DeleteMessage', $this->handler->getLastCommand()->getName());
@@ -305,10 +305,10 @@ class QueueSqsJobTest extends TestCase
             }
         );
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->with('cache')->returns($cache);
 
         $this->handler->append(new Result([]));
@@ -331,7 +331,7 @@ class QueueSqsJobTest extends TestCase
             '@pointer' => 'laravel:sqs-payloads:retained',
         ], JSON_THROW_ON_ERROR);
 
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->never();
         $this->handler->append(new Result([]));
 
@@ -349,7 +349,7 @@ class QueueSqsJobTest extends TestCase
 
     public function testDeleteDoesNotCleanUpWhenNoPointer(): void
     {
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->never();
         $this->handler->append(new Result([]));
 
@@ -376,7 +376,7 @@ class QueueSqsJobTest extends TestCase
             '@pointer' => 'laravel:sqs-payloads:released',
         ], JSON_THROW_ON_ERROR);
 
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->never();
         $this->handler->append(new Result([]));
 
@@ -399,7 +399,7 @@ class QueueSqsJobTest extends TestCase
             '@pointer' => 'laravel:sqs-payloads:retained',
         ], JSON_THROW_ON_ERROR);
 
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->never();
         $expected = new Exception('delete failed');
         $this->handler->append($expected);
@@ -432,13 +432,13 @@ class QueueSqsJobTest extends TestCase
         $pointer = 'laravel:sqs-payloads:cleanup';
         $pointerBody = json_encode(['@pointer' => $pointer], JSON_THROW_ON_ERROR);
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('forget')->with($pointer)->returns(true);
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->with('cache')->returns($cache);
         $this->handler->append(new Result([]));
 
@@ -472,11 +472,8 @@ class QueueSqsJobTest extends TestCase
         );
         $pointer = 'laravel:sqs-payloads:cleanup';
         $pointerBody = json_encode(['@pointer' => $pointer], JSON_THROW_ON_ERROR);
-        $store = Double::for(CacheRepository::class);
-        $cache = Double::for(CacheFactory::class);
-        $cache->allows('store')->returns($store);
-        $container = Double::for(Container::class, override: true);
-        $container->allows('make')->returns($cache);
+        $container = Double::for(Container::class, override: true)->strict();
+        $container->expects('make')->with('cache')->never();
         $this->handler->append(new Result([]));
         $job = new SqsJob(
             $container->instance(),
@@ -493,8 +490,6 @@ class QueueSqsJobTest extends TestCase
         } catch (Throwable $exception) {
             $this->assertSame($releaseCancellation, $exception);
         }
-
-        $store->received('forget')->never();
     }
 
     public function testDeleteSurfacesOverflowCleanupFailureAfterSuccessfulDeletion(): void
@@ -502,13 +497,13 @@ class QueueSqsJobTest extends TestCase
         $pointer = 'laravel:sqs-payloads:cleanup';
         $pointerBody = json_encode(['@pointer' => $pointer], JSON_THROW_ON_ERROR);
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('forget')->with($pointer)->returns(false);
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->with('cache')->returns($cache);
         $this->handler->append(new Result([]));
 
@@ -537,24 +532,18 @@ class QueueSqsJobTest extends TestCase
         $pointer = 'laravel:sqs-payloads:cleanup';
         $pointerBody = json_encode(['@pointer' => $pointer], JSON_THROW_ON_ERROR);
 
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('forget')->with($pointer)->returns(false);
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
 
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->with('cache')->returns($cache);
         $this->handler->append(new Result([]));
 
-        $handler = Double::for(ExceptionHandler::class);
-        $handler->expects('report')->with(Argument::satisfies(
-            function (Throwable $exception) use (&$cleanupFailure): bool {
-                $cleanupFailure = $exception;
-
-                return true;
-            }
-        ));
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::capture($cleanupFailure));
 
         $application = new Application;
         $application->instance(ExceptionHandler::class, $handler);
@@ -594,11 +583,11 @@ class QueueSqsJobTest extends TestCase
         );
         $pointer = 'laravel:sqs-payloads:cleanup';
         $pointerBody = json_encode(['@pointer' => $pointer], JSON_THROW_ON_ERROR);
-        $store = Double::for(CacheRepository::class);
+        $store = Double::for(CacheRepository::class)->strict();
         $store->expects('forget')->with($pointer)->throws($cleanupCancellation);
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('database')->returns($store);
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->with('cache')->returns($cache);
         $this->handler->append(new Result([]));
         $job = new SqsJob(

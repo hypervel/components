@@ -148,7 +148,7 @@ class CacheMemoizedStoreTest extends TestCase
 
     public function testPutManyWithEmptyInputReturnsDelegatedRepositoryResult(): void
     {
-        $repository = Double::for(Repository::class);
+        $repository = Double::for(Repository::class)->strict();
         $repository->expects('putMany')->with([], 60)->returns(false);
 
         $store = new MemoizedStore('memoized', $repository);
@@ -211,7 +211,7 @@ class CacheMemoizedStoreTest extends TestCase
     public function testTagSupportDelegatesToTheUnderlyingStore(): void
     {
         $taggable = new MemoizedStore('array', new Repository(new ArrayStore));
-        $nonTaggable = new MemoizedStore('test', new Repository(Double::for(Store::class)));
+        $nonTaggable = new MemoizedStore('test', new Repository(Double::for(Store::class)->strict()));
 
         $this->assertTrue($taggable->supportsTags());
         $this->assertSame(TagMode::All, $taggable->getTagMode());
@@ -391,7 +391,7 @@ class CacheMemoizedStoreTest extends TestCase
         // Capture only the many() read-path events by attaching the dispatcher
         // after the write.
         $captured = [];
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(true);
         $events->allows('dispatch')
             ->resolves(function ($event) use (&$captured) {
@@ -413,7 +413,7 @@ class CacheMemoizedStoreTest extends TestCase
     public function testLockFlushCapabilityDelegatesToUnderlyingStore(): void
     {
         $flushable = new MemoizedStore('test', new Repository(new ArrayStore));
-        $nonFlushableStore = Double::for(Store::class);
+        $nonFlushableStore = Double::for(Store::class)->strict();
         $nonFlushable = new MemoizedStore('test', new Repository($nonFlushableStore));
 
         $this->assertTrue($flushable->supportsFlushingLocks());
@@ -428,7 +428,7 @@ class CacheMemoizedStoreTest extends TestCase
 
     public function testFlushLocksDelegatesToUnderlyingStore(): void
     {
-        $store = Double::for(Store::class, CanFlushLocks::class);
+        $store = Double::for(Store::class, CanFlushLocks::class)->strict();
         $store->expects('supportsFlushingLocks')->returns(true);
         $store->expects('flushLocks')->returns(true);
 
@@ -452,7 +452,7 @@ class CacheMemoizedStoreTest extends TestCase
 
     public function testFlushLocksRejectsUnsupportedUnderlyingStore(): void
     {
-        $store = Double::for(Store::class, CanFlushLocks::class);
+        $store = Double::for(Store::class, CanFlushLocks::class)->strict();
         $store->expects('supportsFlushingLocks')->returns(false);
         $store->expects('flushLocks')->never();
 

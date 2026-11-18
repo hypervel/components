@@ -22,6 +22,7 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Http\Client\Guzzle\Fixtures\HttpServer;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -152,7 +153,7 @@ class CoroutineStateTest extends TestCase
         $url = $this->startServer();
         $failure = new RuntimeException('exit callback failed');
         $reporter = Double::for(ExceptionHandler::class)->strict();
-        $reporter->expects('report')->with($failure);
+        $reporter->expects('report')->with(Argument::same($failure));
         $this->app->instance(ExceptionHandler::class, $reporter);
         $transfer = null;
         $earlierDeferRan = false;

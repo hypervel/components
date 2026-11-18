@@ -85,9 +85,9 @@ class DatabaseMigratorTest extends TestCase
     public function testRunMethodPreservesWriteConnectionName(): void
     {
         CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, 'pgsql');
-        $resolver = Double::for(Resolver::class);
+        $resolver = Double::for(Resolver::class)->strict();
         $migrator = $this->migrator($resolver);
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getNameWithReadWriteType')->returns('pgsql::write');
 
         $migration = new class($this) {
@@ -350,8 +350,8 @@ class DatabaseMigratorTest extends TestCase
             'pgsql' => ['driver' => 'pgsql'],
         ]);
 
-        $resolver = Double::for(Resolver::class);
-        $repository = Double::for(MigrationRepositoryInterface::class);
+        $resolver = Double::for(Resolver::class)->strict();
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
 
         $repository->expects('setSource')->with('pgsql');
 
@@ -370,8 +370,8 @@ class DatabaseMigratorTest extends TestCase
     {
         $this->bindConfig([]);
 
-        $resolver = Double::for(Resolver::class);
-        $repository = Double::for(MigrationRepositoryInterface::class);
+        $resolver = Double::for(Resolver::class)->strict();
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
         $repository->expects('setSource')->never();
 
         $migrator = new Migrator($repository, $resolver, new Filesystem);
@@ -388,8 +388,8 @@ class DatabaseMigratorTest extends TestCase
             'pgsql' => ['driver' => 'pgsql'],
         ]);
 
-        $resolver = Double::for(Resolver::class);
-        $repository = Double::for(MigrationRepositoryInterface::class);
+        $resolver = Double::for(Resolver::class)->strict();
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
 
         $repository->expects('setSource')->with('pgsql');
 
@@ -410,9 +410,9 @@ class DatabaseMigratorTest extends TestCase
             'pgsql' => ['driver' => 'pgsql'],
         ]);
 
-        $resolver = Double::for(Resolver::class);
-        $repository = Double::for(MigrationRepositoryInterface::class);
-        $resolvedConnection = Double::for(Connection::class);
+        $resolver = Double::for(Resolver::class)->strict();
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
+        $resolvedConnection = Double::for(Connection::class)->strict();
 
         $repository->expects('setSource')->with('pgsql');
         $resolver->expects('connection')->times(2)->with('pgsql')->returns($resolvedConnection);
@@ -434,9 +434,9 @@ class DatabaseMigratorTest extends TestCase
             default: 'pgsql',
         );
 
-        $resolver = Double::for(Resolver::class);
-        $repository = Double::for(MigrationRepositoryInterface::class);
-        $resolvedConnection = Double::for(Connection::class);
+        $resolver = Double::for(Resolver::class)->strict();
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
+        $resolvedConnection = Double::for(Connection::class)->strict();
 
         $resolver->expects('connection')->with('0')->returns($resolvedConnection);
 
@@ -455,9 +455,9 @@ class DatabaseMigratorTest extends TestCase
             'pgsql' => ['driver' => 'pgsql'],
         ]);
 
-        $resolver = Double::for(Resolver::class);
-        $repository = Double::for(MigrationRepositoryInterface::class);
-        $resolvedConnection = Double::for(Connection::class);
+        $resolver = Double::for(Resolver::class)->strict();
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
+        $resolvedConnection = Double::for(Connection::class)->strict();
 
         $resolver->expects('connection')->with('pgsql')->returns($resolvedConnection);
 
@@ -473,9 +473,9 @@ class DatabaseMigratorTest extends TestCase
             'pgsql' => ['driver' => 'pgsql'],
         ]);
 
-        $resolver = Double::for(Resolver::class);
-        $repository = Double::for(MigrationRepositoryInterface::class);
-        $resolvedConnection = Double::for(Connection::class);
+        $resolver = Double::for(Resolver::class)->strict();
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
+        $resolvedConnection = Double::for(Connection::class)->strict();
 
         $capturedName = null;
         Migrator::resolveConnectionsUsing(function (Resolver $r, ?string $name) use (&$capturedName, $resolvedConnection) {
@@ -503,8 +503,8 @@ class DatabaseMigratorTest extends TestCase
             default: 'pgsql-pooled',
         );
 
-        $resolver = Double::for(Resolver::class);
-        $repository = Double::for(MigrationRepositoryInterface::class);
+        $resolver = Double::for(Resolver::class)->strict();
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
         $repository->expects('setSource')->with('pgsql');
 
         $migrator = new Migrator($repository, $resolver, new Filesystem);
@@ -531,9 +531,9 @@ class DatabaseMigratorTest extends TestCase
             default: 'pgsql-pooled',
         );
 
-        $resolver = Double::for(Resolver::class);
-        $repository = Double::for(MigrationRepositoryInterface::class);
-        $resolvedConnection = Double::for(Connection::class);
+        $resolver = Double::for(Resolver::class)->strict();
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
+        $resolvedConnection = Double::for(Connection::class)->strict();
 
         $resolver->expects('connection')->with('pgsql')->returns($resolvedConnection);
 
@@ -555,8 +555,8 @@ class DatabaseMigratorTest extends TestCase
             default: 'stored',
         );
 
-        $resolver = Double::for(Resolver::class);
-        $repository = Double::for(MigrationRepositoryInterface::class);
+        $resolver = Double::for(Resolver::class)->strict();
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
         $repository->expects('setSource')->times(2)->with('stored');
         $repository->expects('setSource')->with('inner-direct');
 
@@ -593,8 +593,8 @@ class DatabaseMigratorTest extends TestCase
             default: 'stored',
         );
 
-        $resolver = Double::for(Resolver::class);
-        $repository = Double::for(MigrationRepositoryInterface::class);
+        $resolver = Double::for(Resolver::class)->strict();
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
         $repository->expects('setSource')->times(2)->with('stored');
         $repository->expects('setSource')->with('inner-direct');
 
@@ -630,8 +630,8 @@ class DatabaseMigratorTest extends TestCase
             default: 'pgsql-pooled',
         );
 
-        $resolver = Double::for(Resolver::class);
-        $repository = Double::for(MigrationRepositoryInterface::class);
+        $resolver = Double::for(Resolver::class)->strict();
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
 
         $repository->expects('setSource')->with('pgsql');
         $repository->expects('setSource')->with(null);
@@ -669,8 +669,8 @@ class DatabaseMigratorTest extends TestCase
             default: 'default-pooled',
         );
 
-        $resolver = Double::for(Resolver::class);
-        $repository = Double::for(MigrationRepositoryInterface::class);
+        $resolver = Double::for(Resolver::class)->strict();
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
         $repository->expects('setSource')->with('default-direct');
         $repository->expects('setSource')->with(null);
         $migrator = new Migrator($repository, $resolver, new Filesystem);
@@ -698,8 +698,8 @@ class DatabaseMigratorTest extends TestCase
             default: 'default-pooled',
         );
 
-        $resolver = Double::for(Resolver::class);
-        $repository = Double::for(MigrationRepositoryInterface::class);
+        $resolver = Double::for(Resolver::class)->strict();
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
         $repository->expects('setSource')->with('default-direct');
         $repository->expects('setSource')->with(null);
         $migrator = new Migrator($repository, $resolver, new Filesystem);
@@ -727,8 +727,8 @@ class DatabaseMigratorTest extends TestCase
             default: null,
         );
 
-        $resolver = Double::for(Resolver::class);
-        $repository = Double::for(MigrationRepositoryInterface::class);
+        $resolver = Double::for(Resolver::class)->strict();
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
 
         // Outer enter: setSource('pgsql'). Inner enter: setSource('mysql').
         // Inner exit: setSource back to 'pgsql' (outer's stored). Outer exit:

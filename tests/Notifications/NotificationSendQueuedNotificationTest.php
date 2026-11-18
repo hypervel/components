@@ -47,7 +47,7 @@ class NotificationSendQueuedNotificationTest extends TestCase
     {
         $notification = new TestNotification;
         $job = new SendQueuedNotifications('notifiables', $notification);
-        $manager = Double::for(ChannelManager::class);
+        $manager = Double::for(ChannelManager::class)->strict();
         $manager->expects('sendNow')->with(Argument::all(function (mixed $notifiables, mixed $notification, ?array $channels): bool {
             return $notifiables instanceof Collection && $notifiables->toArray() === ['notifiables']
                 && $notification instanceof TestNotification

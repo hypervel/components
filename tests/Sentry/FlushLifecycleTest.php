@@ -28,6 +28,7 @@ use JMac\Testing\Matching\Argument;
 use Sentry\ClientInterface;
 use Sentry\Event;
 use Sentry\EventType;
+use Sentry\Integration\OTLPIntegration;
 use Sentry\Logs\Logs;
 use Sentry\Metrics\TraceMetrics;
 use Sentry\Options;
@@ -46,6 +47,8 @@ class FlushLifecycleTest extends TestCase
     public function testDrainPublishesBufferedTelemetryBeforeTheBoundedWait(): void
     {
         $client = Double::for(ClientInterface::class)->strict();
+        // Once installed, Sentry's process-wide OTLP callback looks up the integration on the current client.
+        $client->allows('getIntegration')->with(OTLPIntegration::class)->returns(null);
         $client->expects('getOptions')
             ->times(3)
             ->returns(new Options);

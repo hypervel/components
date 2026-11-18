@@ -21,6 +21,7 @@ use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\DoubleInterface;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -124,7 +125,7 @@ class GrpcOperationRunnerTest extends TestCase
                 throw $startingFailure;
             },
         ));
-        $this->bindReportingHandler()->expects('report')->with($completionFailure);
+        $this->bindReportingHandler()->expects('report')->with(Argument::same($completionFailure));
 
         try {
             $runner->start($this->clientOperation());
@@ -163,7 +164,7 @@ class GrpcOperationRunnerTest extends TestCase
         ));
         $handle = $runner->start($this->clientOperation());
         $result = new GrpcOperationResult(new Status(StatusCode::Ok), null, 2);
-        $this->bindReportingHandler()->expects('report')->with($secondFailure);
+        $this->bindReportingHandler()->expects('report')->with(Argument::same($secondFailure));
 
         try {
             $handle->finish($result);
@@ -196,7 +197,7 @@ class GrpcOperationRunnerTest extends TestCase
                     throw $observerFailure;
                 },
             ));
-            $this->bindReportingHandler()->expects('report')->with($observerFailure);
+            $this->bindReportingHandler()->expects('report')->with(Argument::same($observerFailure));
 
             $runner->start($this->clientOperation())->finish($result);
 
@@ -304,7 +305,7 @@ class GrpcOperationRunnerTest extends TestCase
                 throw $observerFailure;
             },
         ));
-        $this->bindReportingHandler()->expects('report')->with($observerFailure);
+        $this->bindReportingHandler()->expects('report')->with(Argument::same($observerFailure));
         $handle = $runner->start($this->clientOperation());
 
         $handle->finish(new GrpcOperationResult(null, new CanceledException, 1));

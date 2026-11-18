@@ -94,7 +94,7 @@ class ValidationRequiredUnlessRuleTest extends TestCase
                 Rule::requiredUnless($condition);
                 $this->fail('The RequiredUnless constructor must not accept ' . gettype($condition));
             } catch (TypeError) {
-                $this->assertTrue(true);
+                $this->addToAssertionCount(1);
             }
         }
     }

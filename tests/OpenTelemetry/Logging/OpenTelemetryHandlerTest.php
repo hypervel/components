@@ -17,6 +17,7 @@ use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\DoubleInterface;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use JMac\Testing\OverriddenDouble;
 use Monolog\Level;
 use Monolog\LogRecord;
@@ -169,8 +170,8 @@ class OpenTelemetryHandlerTest extends TestCase
         $reported = new RuntimeException('Reported.');
         $other = new RuntimeException('Other.');
         $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
-        $exceptionHandler->expects('isReporting')->with($reported)->returns(true);
-        $exceptionHandler->expects('isReporting')->with($other)->returns(false);
+        $exceptionHandler->expects('isReporting')->with(Argument::same($reported))->returns(true);
+        $exceptionHandler->expects('isReporting')->with(Argument::same($other))->returns(false);
         $this->container->expects('make')
             ->with(ExceptionHandlerContract::class)
             ->returns($exceptionHandler);

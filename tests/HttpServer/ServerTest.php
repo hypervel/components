@@ -291,9 +291,9 @@ class ServerTest extends TestCase
         $terminateFailure = new RuntimeException('terminate failed');
 
         $handler = $this->bindReportingHandler();
-        $handler->expects('report')->with($handledFailure)->ordered();
-        $handler->expects('report')->with($sendFailure)->ordered();
-        $handler->expects('report')->with($terminateFailure)->ordered();
+        $handler->expects('report')->with(Argument::same($handledFailure))->ordered();
+        $handler->expects('report')->with(Argument::same($sendFailure))->ordered();
+        $handler->expects('report')->with(Argument::same($terminateFailure))->ordered();
 
         $kernel = Double::for(KernelContract::class)->strict();
         $kernel->expects('handle')->never();
@@ -344,8 +344,8 @@ class ServerTest extends TestCase
         $sendFailure = new RuntimeException('send failed');
         $terminateFailure = new RuntimeException('terminate failed');
         $handler = $this->bindReportingHandler();
-        $handler->expects('report')->with($sendFailure)->ordered();
-        $handler->expects('report')->with($terminateFailure)->ordered();
+        $handler->expects('report')->with(Argument::same($sendFailure))->ordered();
+        $handler->expects('report')->with(Argument::same($terminateFailure))->ordered();
         $kernel = Double::for(KernelContract::class)->strict();
         $kernel->expects('handle')->returns(new Response('OK'));
         $kernel->expects('terminate')->throws($terminateFailure);
@@ -386,7 +386,7 @@ class ServerTest extends TestCase
         CoordinatorManager::until(Constants::WORKER_START)->resume();
         $sendFailure = new RuntimeException('send failed');
         $terminateFailure = new RuntimeException('terminate failed');
-        $this->bindReportingHandler()->expects('report')->with($terminateFailure);
+        $this->bindReportingHandler()->expects('report')->with(Argument::same($terminateFailure));
 
         $kernel = Double::for(KernelContract::class)->strict();
         $kernel->expects('handle')->returns(new Response('OK'));
@@ -758,8 +758,8 @@ class ServerTest extends TestCase
         $listenerFailure = new RuntimeException('Canceled listener failed.');
         $cancellation = new CanceledException;
         $handler = $this->bindReportingHandler();
-        $handler->expects('report')->with($listenerFailure)->ordered();
-        $handler->expects('report')->with($heldFailure)->ordered();
+        $handler->expects('report')->with(Argument::same($listenerFailure))->ordered();
+        $handler->expects('report')->with(Argument::same($heldFailure))->ordered();
 
         $kernel = Double::for(KernelContract::class)->strict();
         $kernel->expects('handle')->returns(new Response('OK'));

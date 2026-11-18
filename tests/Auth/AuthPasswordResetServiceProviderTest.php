@@ -22,7 +22,7 @@ class AuthPasswordResetServiceProviderTest extends TestCase
     public function testEventRebindDoesNotResolveAnUnusedPasswordManager(): void
     {
         [$application, $callback] = $this->registerProvider();
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $application->expects('resolved')->with('auth.password')->returns(false);
         $application->expects('make')->never()->with('auth.password');
 
@@ -32,8 +32,8 @@ class AuthPasswordResetServiceProviderTest extends TestCase
     public function testEventRebindRefreshesAnAlreadyResolvedPasswordManager(): void
     {
         [$application, $callback] = $this->registerProvider();
-        $events = Double::for(Dispatcher::class);
-        $manager = Double::for(PasswordBrokerManager::class);
+        $events = Double::for(Dispatcher::class)->strict();
+        $manager = Double::for(PasswordBrokerManager::class)->strict();
         $application->expects('resolved')->with('auth.password')->returns(true);
         $application->expects('make')->with('auth.password')->returns($manager);
         $manager->expects('refreshEventDispatcher')->with(Argument::same($events));
@@ -49,7 +49,7 @@ class AuthPasswordResetServiceProviderTest extends TestCase
     private function registerProvider(): array
     {
         $callback = null;
-        $application = Double::for(Application::class, override: true);
+        $application = Double::for(Application::class, override: true)->strict();
         $application->expects('singleton')
             ->with('auth.password', Argument::type(Closure::class));
         $application->expects('bind')

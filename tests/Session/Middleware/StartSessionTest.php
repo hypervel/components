@@ -153,7 +153,7 @@ class StartSessionTest extends TestCase
         $session = Double::for(Session::class)->strict();
         $middleware = new StartSession($manager, $cache, $exceptionHandler);
 
-        $session->expects('setRequestOnHandler')->with($request);
+        $session->expects('setRequestOnHandler')->with(Argument::same($request));
         $session->expects('start')->throws($failure);
         $exceptionHandler->expects('afterResponse')->never();
 
@@ -183,7 +183,7 @@ class StartSessionTest extends TestCase
         $middleware = new StartSession($manager, $cache, $exceptionHandler);
         $afterResponse = null;
 
-        $session->expects('setRequestOnHandler')->with($request);
+        $session->expects('setRequestOnHandler')->with(Argument::same($request));
         $session->expects('start')->returns(true);
         $session->expects('isReadOnly')->returns(false);
         $manager->expects('getSessionConfig')->returns([
@@ -222,7 +222,7 @@ class StartSessionTest extends TestCase
         $middleware = new StartSession($manager, $cache, $exceptionHandler);
         $afterResponse = null;
 
-        $session->expects('setRequestOnHandler')->with($request);
+        $session->expects('setRequestOnHandler')->with(Argument::same($request));
         $session->expects('start')->returns(true);
         $session->expects('isReadOnly')->times(2)->returns(false);
         $manager->expects('getSessionConfig')->times(2)->returns([

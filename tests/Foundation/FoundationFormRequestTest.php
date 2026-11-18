@@ -869,7 +869,7 @@ class FoundationFormRequestTest extends TestCase
      */
     protected function createValidationFactory(Container $container): ValidationFactory
     {
-        $translator = Double::for(Translator::class);
+        $translator = Double::for(Translator::class)->strict();
         $translator->allows('get')->returns('error');
         $translator->allows('string')->returns('error');
         $translator->allows('choice')->returns('error');
@@ -899,7 +899,7 @@ class FoundationFormRequestTest extends TestCase
      */
     protected function createMockRedirector(FormRequest $request): Redirector
     {
-        $redirector = $this->mocks['redirector'] = Double::for(Redirector::class);
+        $redirector = $this->mocks['redirector'] = Double::for(Redirector::class)->strict();
 
         $redirector->allows('getUrlGenerator')
             ->returns($generator = $this->createMockUrlGenerator());
@@ -918,7 +918,7 @@ class FoundationFormRequestTest extends TestCase
      */
     protected function createMockUrlGenerator(): UrlGenerator
     {
-        return $this->mocks['generator'] = Double::for(UrlGenerator::class);
+        return $this->mocks['generator'] = Double::for(UrlGenerator::class)->strict();
     }
 
     /**
@@ -926,7 +926,7 @@ class FoundationFormRequestTest extends TestCase
      */
     protected function createMockRedirectResponse(): RedirectResponse
     {
-        return $this->mocks['redirect'] = Double::for(RedirectResponse::class);
+        return $this->mocks['redirect'] = Double::for(RedirectResponse::class)->strict();
     }
 
     public function testAttributeConfigurationIsCachedPerClass(): void

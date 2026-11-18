@@ -18,10 +18,10 @@ class DatabaseProcessorTest extends TestCase
 
     public function testInsertGetIdProcessing(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('insert')->with('sql', ['foo']);
         $connection->expects('getLastInsertId')->with('id')->returns('1');
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->expects('getConnection')->times(2)->returns($connection);
         $processor = new Processor;
         $result = $processor->processInsertGetId($builder, 'sql', ['foo'], 'id');
@@ -31,10 +31,10 @@ class DatabaseProcessorTest extends TestCase
     public function testInsertGetIdPreservesTheConnectionFailureAfterTheInsertCompletes(): void
     {
         $failure = new RuntimeException('The database driver could not retrieve the last insert ID.');
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('insert')->with('sql', ['foo'])->returns(true);
         $connection->expects('getLastInsertId')->with('id')->throws($failure);
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $builder->expects('getConnection')->times(2)->returns($connection);
 
         $exception = null;

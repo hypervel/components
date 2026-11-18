@@ -32,13 +32,7 @@ class WorkCommandTest extends TestCase
             ->with('default');
         $worker->expects('setCache');
         $worker->expects('runNextJob')
-            ->with(Argument::all(function (string $connection, string $queue, WorkerOptions $options): bool {
-                $this->assertSame('sync', $connection);
-                $this->assertSame('default', $queue);
-                $this->assertSame(7, $options->stopWhenEmptyFor);
-
-                return true;
-            }))
+            ->with('sync', 'default', Argument::capture($options))
             ->returns(null);
 
         $this->app->instance(Worker::class, $worker);
@@ -48,6 +42,8 @@ class WorkCommandTest extends TestCase
             '--once' => true,
             '--stop-when-empty-for' => 7,
         ])->assertSuccessful();
+        $this->assertInstanceOf(WorkerOptions::class, $options);
+        $this->assertSame(7, $options->stopWhenEmptyFor);
     }
 
     public function testHorizonWorkKeepsTheQueueWorkerOptionSurface(): void

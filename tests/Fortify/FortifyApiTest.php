@@ -199,7 +199,7 @@ class FortifyApiTest extends TestCase
 
         $action = new FortifyApiConfirmPassword;
 
-        $this->assertTrue($action(Double::for(StatefulGuard::class), new User, 'secret'));
+        $this->assertTrue($action(Double::for(StatefulGuard::class)->strict(), new User, 'secret'));
         $this->assertTrue($action->customCallbackInvoked);
     }
 

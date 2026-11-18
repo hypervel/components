@@ -26,8 +26,9 @@ class InteractsWithSignalsTest extends TestCase
         $invoker = new ClassInvoker($command);
         $this->assertNull($invoker->signalRegistry);
 
-        $signalRegistry = Double::for(SignalRegistry::class);
+        $signalRegistry = Double::for(SignalRegistry::class)->strict();
         $signalRegistry->expects('register');
+        $signalRegistry->expects('unregister')->with(Argument::same($command));
         Container::getInstance()->instance(SignalRegistry::class, $signalRegistry);
 
         $command->callTrap(SIGTERM, fn (int $signo) => null);
@@ -37,7 +38,7 @@ class InteractsWithSignalsTest extends TestCase
 
     public function testTrapReusesExistingRegistry(): void
     {
-        $signalRegistry = Double::for(SignalRegistry::class);
+        $signalRegistry = Double::for(SignalRegistry::class)->strict();
         $signalRegistry->expects('register')->times(2);
 
         $command = new InteractsWithSignalsTestStub;
@@ -50,7 +51,7 @@ class InteractsWithSignalsTest extends TestCase
     public function testUntrapDelegatesToRegistry(): void
     {
         $command = new InteractsWithSignalsTestStub;
-        $signalRegistry = Double::for(SignalRegistry::class);
+        $signalRegistry = Double::for(SignalRegistry::class)->strict();
         $signalRegistry->expects('register');
         $signalRegistry->expects('unregister')->with(Argument::same($command), SIGTERM);
 
@@ -72,7 +73,7 @@ class InteractsWithSignalsTest extends TestCase
     public function testUntrapAllSignals(): void
     {
         $command = new InteractsWithSignalsTestStub;
-        $signalRegistry = Double::for(SignalRegistry::class);
+        $signalRegistry = Double::for(SignalRegistry::class)->strict();
         $signalRegistry->expects('register');
         $signalRegistry->expects('unregister')->with(Argument::same($command), null);
 
@@ -91,8 +92,9 @@ class InteractsWithSignalsTest extends TestCase
             yield SIGINT;
         })();
         $callback = static fn (int $signal): null => null;
-        $registry = Double::for(SignalRegistry::class);
+        $registry = Double::for(SignalRegistry::class)->strict();
         $registry->expects('register')->with(Argument::same($command), Argument::same($signals), Argument::same($callback));
+        $registry->expects('unregister')->with(Argument::same($command));
         Container::getInstance()->instance(SignalRegistry::class, $registry);
         $calls = 0;
 

@@ -83,8 +83,8 @@ function stubRunContext(Dispatcher $events, string $invocationId = 'inv_1'): Run
 {
     return new RunContext(
         $invocationId,
-        Double::for(Agent::class),
-        Double::for(TextProvider::class),
+        Double::for(Agent::class)->strict(),
+        Double::for(TextProvider::class)->strict(),
         'stub-model',
         $events,
     );

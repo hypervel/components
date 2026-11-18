@@ -487,7 +487,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
 
         $post->tags()->attach(TagStringPrimaryKey::all());
 
-        $this->assertEquals($tag2->name, $post->tags()->find($tag2->id)->name);
+        $this->assertSame($tag2->id, $post->tags()->find($tag2->id)->id);
         $this->assertCount(0, $post->tags()->findMany([]));
         $this->assertCount(2, $post->tags()->findMany([$tag->id, $tag2->id]));
         $this->assertCount(0, $post->tags()->findMany(new Collection));
@@ -509,12 +509,8 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         // Test with no records
         $post->tags()->detach($tag);
 
-        try {
-            $post->tags()->findSole($tag);
-            $this->fail('Expected RecordsNotFoundException was not thrown.');
-        } catch (RecordsNotFoundException) {
-            $this->assertTrue(true);
-        }
+        $this->expectException(RecordsNotFoundException::class);
+        $post->tags()->findSole($tag);
     }
 
     #[TestWith([false])]

@@ -86,11 +86,11 @@ class RedisStoreTest extends RedisCacheTestCase
         $connection2 = $this->mockConnection();
         $connection2->client()->expects('get')->with('prefix:foo')->returns(serialize('value2'));
 
-        $redisProxy1 = Double::for(RedisProxy::class);
+        $redisProxy1 = Double::for(RedisProxy::class)->strict();
         $redisProxy1->expects('withConnection')
             ->resolves(fn (callable $callback) => $callback($connection1->shouldTransform(false)));
 
-        $redisProxy2 = Double::for(RedisProxy::class);
+        $redisProxy2 = Double::for(RedisProxy::class)->strict();
         $redisProxy2->expects('withConnection')
             ->resolves(fn (callable $callback) => $callback($connection2->shouldTransform(false)));
 
@@ -335,7 +335,7 @@ class RedisStoreTest extends RedisCacheTestCase
 
     public function testLockReturnsRedisLockInstance(): void
     {
-        $redisProxy = Double::for(RedisProxy::class);
+        $redisProxy = Double::for(RedisProxy::class)->strict();
         $redisFactory = Double::for(Redis::class)->strict();
         $redisFactory->allows('connection')->with('default')->returns($redisProxy);
 
@@ -352,7 +352,7 @@ class RedisStoreTest extends RedisCacheTestCase
 
     public function testLockWithOwner(): void
     {
-        $redisProxy = Double::for(RedisProxy::class);
+        $redisProxy = Double::for(RedisProxy::class)->strict();
         $redisFactory = Double::for(Redis::class)->strict();
         $redisFactory->allows('connection')->with('default')->returns($redisProxy);
 
@@ -369,7 +369,7 @@ class RedisStoreTest extends RedisCacheTestCase
 
     public function testRestoreLockReturnsRedisLockInstance(): void
     {
-        $redisProxy = Double::for(RedisProxy::class);
+        $redisProxy = Double::for(RedisProxy::class)->strict();
         $redisFactory = Double::for(Redis::class)->strict();
         $redisFactory->allows('connection')->with('default')->returns($redisProxy);
 
@@ -396,8 +396,8 @@ class RedisStoreTest extends RedisCacheTestCase
 
     public function testLockUsesLockConnectionWhenSet(): void
     {
-        $redisProxy = Double::for(RedisProxy::class);
-        $lockProxy = Double::for(RedisProxy::class);
+        $redisProxy = Double::for(RedisProxy::class)->strict();
+        $lockProxy = Double::for(RedisProxy::class)->strict();
         $redisFactory = Double::for(Redis::class)->strict();
         $redisFactory->allows('connection')->with('default')->returns($redisProxy);
         $redisFactory->allows('connection')->with('locks')->returns($lockProxy);
@@ -429,7 +429,7 @@ class RedisStoreTest extends RedisCacheTestCase
 
     public function testConnectionReturnsRedisProxy(): void
     {
-        $redisProxy = Double::for(RedisProxy::class);
+        $redisProxy = Double::for(RedisProxy::class)->strict();
         $redisFactory = Double::for(Redis::class)->strict();
         $redisFactory->allows('connection')->with('default')->returns($redisProxy);
 

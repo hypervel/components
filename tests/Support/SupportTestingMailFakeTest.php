@@ -578,7 +578,7 @@ class SupportTestingMailFakeTest extends TestCase
 
     public function testDefaultMailerIsResolvedWhenEachOperationOccurs(): void
     {
-        $manager = Double::for(MailManager::class);
+        $manager = Double::for(MailManager::class)->strict();
         $manager->expects('getDefaultDriver')->times(2)->returns('smtp', 'ses');
         $fake = new MailFake($manager);
 
@@ -695,7 +695,7 @@ class SupportTestingMailFakeTest extends TestCase
 
     public function testShouldQueueSendResolvesTheDefaultMailerOnce(): void
     {
-        $manager = Double::for(MailManager::class);
+        $manager = Double::for(MailManager::class)->strict();
         $manager->expects('getDefaultDriver')->returns('smtp');
         $fake = new MailFake($manager);
         $mailable = new QueueableMailableStub;

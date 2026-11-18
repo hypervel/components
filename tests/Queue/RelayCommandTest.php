@@ -21,20 +21,16 @@ class RelayCommandTest extends TestCase
     public function testCommandPassesThePinnedSourceAndTypedOptionsToTheWorker(): void
     {
         $worker = Double::for(OutboxWorker::class)->strict();
-        $worker->expects('run')->with('orders', Argument::satisfies(function (OutboxWorkerOptions $options): bool {
-            $this->assertEquals(new OutboxWorkerOptions(
-                batch: 50,
-                sleep: 0.25,
-                concurrency: 4,
-                maxJobs: 500,
-                maxTime: 60,
-                memory: 256,
-                stopWhenEmpty: true,
-                once: true,
-            ), $options);
-
-            return true;
-        }))->returns(12);
+        $worker->expects('run')->with('orders', new OutboxWorkerOptions(
+            batch: 50,
+            sleep: 0.25,
+            concurrency: 4,
+            maxJobs: 500,
+            maxTime: 60,
+            memory: 256,
+            stopWhenEmpty: true,
+            once: true,
+        ))->returns(12);
         $this->app->instance(OutboxWorker::class, $worker);
 
         $this->assertSame(12, Artisan::call('queue:relay', [
@@ -53,7 +49,7 @@ class RelayCommandTest extends TestCase
     public function testCommandDefaultsToAllConfiguredSources(): void
     {
         $worker = Double::for(OutboxWorker::class)->strict();
-        $worker->expects('run')->with(null, Argument::satisfies(fn (OutboxWorkerOptions $options): bool => $options == new OutboxWorkerOptions))->returns(0);
+        $worker->expects('run')->with(null, new OutboxWorkerOptions)->returns(0);
         $this->app->instance(OutboxWorker::class, $worker);
 
         $this->assertSame(0, Artisan::call('queue:relay'));

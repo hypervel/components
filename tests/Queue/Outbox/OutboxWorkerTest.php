@@ -81,7 +81,7 @@ class OutboxWorkerTest extends TestCase
         $this->relay->expects('claim')->with('broken', 1)->throws($failure);
         $this->relay->expects('claim')->with('healthy', 1)->times(3)->returns([$this->message(1)]);
         $this->relay->expects('deliver')->with('healthy', Argument::type('array'))->times(3)->returns(true);
-        $this->exceptions->expects('report')->with($failure, ['outbox_database' => 'broken']);
+        $this->exceptions->expects('report')->with(Argument::same($failure), ['outbox_database' => 'broken']);
 
         $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(batch: 1, sleep: 60, maxJobs: 3, memory: 1024)));
         Sleep::assertNeverSlept();
@@ -94,7 +94,7 @@ class OutboxWorkerTest extends TestCase
         $failure = new RuntimeException('Missing table.');
         $this->relay->expects('claim')->with('broken', 100)->throws($failure);
         $this->relay->expects('claim')->with('empty', 100)->returns([]);
-        $this->exceptions->expects('report')->with($failure, ['outbox_database' => 'broken']);
+        $this->exceptions->expects('report')->with(Argument::same($failure), ['outbox_database' => 'broken']);
 
         $this->assertSame(0, $worker->run(null, new OutboxWorkerOptions(memory: 1024, stopWhenEmpty: true)));
         Sleep::assertNeverSlept();

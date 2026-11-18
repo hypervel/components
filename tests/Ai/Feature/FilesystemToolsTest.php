@@ -76,7 +76,7 @@ class FilesystemToolsTest extends TestCase
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Filesystem cleanup failed.', previous: $cancellation);
         }
-        $disk = Double::for(FilesystemAdapter::class);
+        $disk = Double::for(FilesystemAdapter::class)->strict();
         $disk->allows('fileExists')->returns(true);
         foreach (['size' => 10, 'lastModified' => 1, 'mimeType' => 'text/plain', 'getVisibility' => 'public'] as $operation => $value) {
             if ($operation !== $method) {
@@ -155,7 +155,7 @@ class FilesystemToolsTest extends TestCase
     {
         Exceptions::fake();
         $failure = UnableToRetrieveMetadata::fileSize('file.txt', 'Access denied.');
-        $disk = Double::for(FilesystemAdapter::class);
+        $disk = Double::for(FilesystemAdapter::class)->strict();
         $disk->expects('size')->with('file.txt')->throws($failure);
         $disk->expects('fileExists')->with('file.txt')->returns(true);
 
@@ -239,7 +239,7 @@ class FilesystemToolsTest extends TestCase
 
     public function testReadFileReportsAnUnreadableFile(): void
     {
-        $disk = Double::for(FilesystemAdapter::class);
+        $disk = Double::for(FilesystemAdapter::class)->strict();
         $disk->expects('size')->with('note.txt')->returns(10);
         $disk->expects('get')->with('note.txt')->returns(null);
 
@@ -360,7 +360,7 @@ class FilesystemToolsTest extends TestCase
 
     public function testDeleteFileReportsDeleteFailures(): void
     {
-        $disk = Double::for(Filesystem::class);
+        $disk = Double::for(Filesystem::class)->strict();
         $disk->expects('fileExists')->with('gone.txt')->returns(true);
         $disk->expects('delete')->with('gone.txt')->returns(false);
 
@@ -399,7 +399,7 @@ class FilesystemToolsTest extends TestCase
 
     public function testCopyFileReportsCopyFailures(): void
     {
-        $disk = Double::for(Filesystem::class);
+        $disk = Double::for(Filesystem::class)->strict();
         $disk->expects('fileExists')->with('a.txt')->returns(true);
         $disk->expects('copy')->with('a.txt', 'b.txt')->returns(false);
 
@@ -439,7 +439,7 @@ class FilesystemToolsTest extends TestCase
 
     public function testMoveFileReportsMoveFailures(): void
     {
-        $disk = Double::for(Filesystem::class);
+        $disk = Double::for(Filesystem::class)->strict();
         $disk->expects('fileExists')->with('a.txt')->returns(true);
         $disk->expects('move')->with('a.txt', 'b.txt')->returns(false);
 

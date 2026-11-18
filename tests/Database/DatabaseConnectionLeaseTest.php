@@ -156,6 +156,27 @@ class DatabaseConnectionLeaseTest extends TestCase
         $this->assertCount($queries, $connection->getQueryLog());
     }
 
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testIdleReleaseContinuesAfterFailureAndGivesCancellationPriority(bool $cancel): void
+    {
+        $firstFailure = new RuntimeException('First release failed.');
+        $secondFailure = $cancel ? new CanceledException('Second release canceled.') : new RuntimeException('Second release failed.');
+
+        foreach (['first' => $firstFailure, 'second' => $secondFailure] as $name => $failure) {
+            $lease = Double::for(ConnectionLease::class)->strict();
+            $lease->expects('releaseIfIdle')->throws($failure);
+            CoroutineContext::set($name, $lease);
+        }
+
+        try {
+            DB::releaseIdleConnections();
+            $this->fail('Expected idle release to propagate a failure.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancel ? $secondFailure : $firstFailure, $exception);
+        }
+    }
+
     public function testConcurrentExternalWaitsDoNotRetainTheOnlyPoolSlot(): void
     {
         $ready = new Channel(2);
@@ -1025,8 +1046,8 @@ class DatabaseConnectionLeaseTest extends TestCase
             'database' => ':memory:',
             'prefix' => '',
         ]);
-        $pool = Double::for(DatabasePool::class);
-        $wrapper = Double::for(PooledConnection::class);
+        $pool = Double::for(DatabasePool::class)->strict();
+        $wrapper = Double::for(PooledConnection::class)->strict();
         $pool->expects('borrow')->returns($wrapper);
         $wrapper->expects('attachLease')->times(2);
         $wrapper->expects('getDriverConnection')->returns($physical);

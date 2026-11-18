@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\Sqlite;
 
 use Closure;
-use Exception;
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Grammar;
@@ -1526,19 +1525,11 @@ SQL);
             $table->timestamp('created_at');
         });
 
-        try {
-            // this would only fail in mysql, postgres and sql server
-            Schema::table('users', function (Blueprint $table) {
-                $table->renameColumn('created_at', 'new_created_at');
-            });
+        Schema::table('users', function (Blueprint $table) {
+            $table->renameColumn('created_at', 'new_created_at');
+        });
 
-            $this->addToAssertionCount(1); // it did not throw
-        } catch (Exception $e) {
-            // Expecting something similar to:
-            // QueryException
-            //   SQLSTATE[42000]: Syntax error or access violation: 1426 Too big precision 10 specified for 'my_timestamp'. Maximum is 6....
-            $this->fail('test_it_does_not_set_precision_higher_than_supported_when_renaming_timestamps has failed. Error: ' . $e->getMessage());
-        }
+        $this->assertSame(['new_created_at'], Schema::getColumnListing('users'));
     }
 
     public function testItEnsuresDroppingForeignKeyIsAvailable(): void

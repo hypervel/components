@@ -26,14 +26,14 @@ class NewBaseQueryBuilderTest extends TestCase
 
     public function testModelUsesConnectionQueryMethod(): void
     {
-        $mockConnection = Double::for(Connection::class);
+        $mockConnection = Double::for(Connection::class)->strict();
         $customBuilder = new CustomQueryBuilder(
             $mockConnection,
             new Grammar($mockConnection),
             new Processor
         );
 
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('query')->returns($customBuilder);
 
         $model = new NewBaseQueryBuilderTestModel;
@@ -47,14 +47,14 @@ class NewBaseQueryBuilderTest extends TestCase
 
     public function testPivotUsesConnectionQueryMethod(): void
     {
-        $mockConnection = Double::for(Connection::class);
+        $mockConnection = Double::for(Connection::class)->strict();
         $customBuilder = new CustomQueryBuilder(
             $mockConnection,
             new Grammar($mockConnection),
             new Processor
         );
 
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('query')->returns($customBuilder);
 
         $pivot = new NewBaseQueryBuilderTestPivot;
@@ -68,14 +68,14 @@ class NewBaseQueryBuilderTest extends TestCase
 
     public function testMorphPivotUsesConnectionQueryMethod(): void
     {
-        $mockConnection = Double::for(Connection::class);
+        $mockConnection = Double::for(Connection::class)->strict();
         $customBuilder = new CustomQueryBuilder(
             $mockConnection,
             new Grammar($mockConnection),
             new Processor
         );
 
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('query')->returns($customBuilder);
 
         $morphPivot = new NewBaseQueryBuilderTestMorphPivot;

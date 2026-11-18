@@ -13,6 +13,7 @@ use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PDO;
 use RuntimeException;
 
@@ -23,13 +24,13 @@ class DatabaseTransactionsTest extends TestCase
     public function testBeginTransactionRestoresTheDispatcherWhenItFails(): void
     {
         $failure = new RuntimeException('Transaction begin failed.');
-        $dispatcher = Double::for(Dispatcher::class);
-        $connection = Double::for(Connection::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('setTransactionManager');
         $connection->expects('getEventDispatcher')->returns($dispatcher);
         $connection->expects('unsetEventDispatcher')->ordered();
         $connection->expects('beginTransaction')->throws($failure)->ordered();
-        $connection->expects('setEventDispatcher')->with($dispatcher)->ordered();
+        $connection->expects('setEventDispatcher')->with(Argument::same($dispatcher))->ordered();
         $testCase = $this->createTestCase($connection);
 
         try {
@@ -59,13 +60,13 @@ class DatabaseTransactionsTest extends TestCase
     public function testRollbackRestoresTheDispatcherWhenItFails(): void
     {
         $failure = new RuntimeException('Transaction rollback failed.');
-        $dispatcher = Double::for(Dispatcher::class);
-        $connection = Double::for(Connection::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getEventDispatcher')->returns($dispatcher);
         $connection->expects('unsetEventDispatcher')->ordered();
         $connection->expects('forgetRecordModificationState')->ordered();
         $connection->expects('rollBack')->throws($failure)->ordered();
-        $connection->expects('setEventDispatcher')->with($dispatcher)->ordered();
+        $connection->expects('setEventDispatcher')->with(Argument::same($dispatcher))->ordered();
         $testCase = $this->createTestCase($connection);
 
         try {
@@ -81,7 +82,7 @@ class DatabaseTransactionsTest extends TestCase
      */
     private function createTestCase(Connection $connection): DatabaseTransactionsTestCase
     {
-        $database = Double::for(DatabaseManager::class);
+        $database = Double::for(DatabaseManager::class)->strict();
         $database->expects('connection')->with(null)->returns($connection);
         $app = new Container;
         $app->instance('db', $database);

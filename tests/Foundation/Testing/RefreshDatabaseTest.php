@@ -221,7 +221,7 @@ class RefreshDatabaseTest extends TestCase
     {
         $this->mockConsoleOutput = true;
 
-        $kernel = Double::for(KernelContract::class);
+        $kernel = Double::for(KernelContract::class)->strict();
         $kernel->expects('call')
             ->throws(new RuntimeException('Migration failed.'));
 
@@ -252,15 +252,15 @@ class RefreshDatabaseTest extends TestCase
         $this->runTestsInCoroutine = false;
         $this->afterRefreshingDatabaseException = new RuntimeException('After refresh failed.');
 
-        $kernel = Double::for(KernelContract::class);
+        $kernel = Double::for(KernelContract::class)->strict();
         $kernel->expects('call')
             ->with('migrate:fresh', Argument::type('array'))
             ->returns(0);
         $kernel->expects('setArtisan')->with(null);
 
-        $pdo = Double::for(PDO::class);
-        $eventDispatcher = Double::for(Dispatcher::class);
-        $connection = Double::for(PdoConnection::class);
+        $pdo = Double::for(PDO::class)->strict();
+        $eventDispatcher = Double::for(Dispatcher::class)->strict();
+        $connection = Double::for(PdoConnection::class)->strict();
         $connection->expects('getPdo')->returns($pdo);
         $connection->expects('getNameWithReadWriteType')->returns('default');
         $connection->expects('setTransactionManager');
@@ -272,9 +272,9 @@ class RefreshDatabaseTest extends TestCase
         $connection->expects('inTransaction')->returns(true);
         $connection->expects('forgetRecordModificationState');
         $connection->expects('rollBack');
-        $connection->expects('setEventDispatcher')->times(2)->with($eventDispatcher);
+        $connection->expects('setEventDispatcher')->times(2)->with(Argument::same($eventDispatcher));
 
-        $database = Double::for(DatabaseManager::class);
+        $database = Double::for(DatabaseManager::class)->strict();
         $database->expects('connection')->times(3)->with(null)->returns($connection);
 
         $this->app = new Application;
@@ -307,18 +307,18 @@ class RefreshDatabaseTest extends TestCase
         $this->migrateRefresh = false;
         $this->runTestsInCoroutine = true;
 
-        $pdo = Double::for(PDO::class);
-        $connection = Double::for(PdoConnection::class);
+        $pdo = Double::for(PDO::class)->strict();
+        $connection = Double::for(PdoConnection::class)->strict();
         $connection->expects('getPdo')->resolves(function () use ($pdo): PDO {
             $this->assertFalse(RefreshDatabaseState::$migrated);
 
             return $pdo;
         });
 
-        $database = Double::for(DatabaseManager::class);
+        $database = Double::for(DatabaseManager::class)->strict();
         $database->expects('connection')->with(null)->returns($connection);
 
-        $kernel = Double::for(KernelContract::class);
+        $kernel = Double::for(KernelContract::class)->strict();
         $kernel->expects('call')
             ->with('migrate:fresh', Argument::type('array'))
             ->returns(0);
@@ -347,13 +347,13 @@ class RefreshDatabaseTest extends TestCase
 
     public function testRestoreInMemoryDatabaseUsesResolvedDefaultConnectionName(): void
     {
-        $pdo = Double::for(PDO::class);
-        $eventDispatcher = Double::for(Dispatcher::class);
-        $connection = Double::for(PdoConnection::class);
-        $connection->expects('setPdo')->with($pdo);
-        $connection->expects('setEventDispatcher')->with($eventDispatcher);
+        $pdo = Double::for(PDO::class)->strict();
+        $eventDispatcher = Double::for(Dispatcher::class)->strict();
+        $connection = Double::for(PdoConnection::class)->strict();
+        $connection->expects('setPdo')->with(Argument::same($pdo));
+        $connection->expects('setEventDispatcher')->with(Argument::same($eventDispatcher));
 
-        $database = Double::for(DatabaseManager::class);
+        $database = Double::for(DatabaseManager::class)->strict();
         $database->expects('connection')->with(null)->returns($connection);
 
         RefreshDatabaseState::$inMemoryConnections = ['default' => $pdo];
@@ -412,15 +412,15 @@ class RefreshDatabaseTest extends TestCase
         $this->migrateRefresh = false;
         $this->runTestsInCoroutine = true;
 
-        $memoryPdo = Double::for(PDO::class);
-        $memoryConnection = Double::for(PdoConnection::class);
+        $memoryPdo = Double::for(PDO::class)->strict();
+        $memoryConnection = Double::for(PdoConnection::class)->strict();
         $memoryConnection->expects('getPdo')->returns($memoryPdo);
 
-        $database = Double::for(DatabaseManager::class);
+        $database = Double::for(DatabaseManager::class)->strict();
         $database->expects('connection')->never()->with('file');
         $database->expects('connection')->with('memory')->returns($memoryConnection);
 
-        $kernel = Double::for(KernelContract::class);
+        $kernel = Double::for(KernelContract::class)->strict();
         $kernel->expects('call')
             ->with('migrate:fresh', Argument::type('array'))
             ->returns(0);
@@ -460,12 +460,12 @@ class RefreshDatabaseTest extends TestCase
         $this->migrateRefresh = false;
         $this->runTestsInCoroutine = true;
 
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
 
-        $database = Double::for(DatabaseManager::class);
+        $database = Double::for(DatabaseManager::class)->strict();
         $database->expects('connection')->with(null)->returns($connection);
 
-        $kernel = Double::for(KernelContract::class);
+        $kernel = Double::for(KernelContract::class)->strict();
         $kernel->expects('call')
             ->with('migrate:fresh', Argument::type('array'))
             ->returns(0);
@@ -491,9 +491,9 @@ class RefreshDatabaseTest extends TestCase
 
     public function testRestoreInMemoryDatabaseRequiresPdoConnection(): void
     {
-        $pdo = Double::for(PDO::class);
-        $connection = Double::for(Connection::class);
-        $database = Double::for(DatabaseManager::class);
+        $pdo = Double::for(PDO::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
+        $database = Double::for(DatabaseManager::class)->strict();
         $database->expects('connection')->with(null)->returns($connection);
         RefreshDatabaseState::$inMemoryConnections = ['default' => $pdo];
 
@@ -521,14 +521,14 @@ class RefreshDatabaseTest extends TestCase
         $this->migrateRefresh = false;
         $this->runTestsInCoroutine = true;
 
-        $pdo = Double::for(PDO::class);
-        $connection = Double::for(PdoConnection::class);
+        $pdo = Double::for(PDO::class)->strict();
+        $connection = Double::for(PdoConnection::class)->strict();
         $connection->expects('getPdo')->returns($pdo);
 
-        $database = Double::for(DatabaseManager::class);
+        $database = Double::for(DatabaseManager::class)->strict();
         $database->expects('connection')->with(null)->returns($connection);
 
-        $kernel = Double::for(KernelContract::class);
+        $kernel = Double::for(KernelContract::class)->strict();
         $kernel->expects('call')
             ->with('migrate:fresh', Argument::type('array'))
             ->returns(0);
@@ -554,7 +554,7 @@ class RefreshDatabaseTest extends TestCase
 
     public function testRefreshTestDatabaseSkipsMigrationWhenTheSchemaAndPdoCacheAreReady(): void
     {
-        $pdo = Double::for(PDO::class);
+        $pdo = Double::for(PDO::class)->strict();
         RefreshDatabaseState::$migrated = true;
         RefreshDatabaseState::$inMemoryConnections = ['default' => $pdo];
         $this->migrateRefresh = false;
@@ -579,20 +579,20 @@ class RefreshDatabaseTest extends TestCase
 
     public function testMigrateRefreshReplacesTheCachedInMemoryPdo(): void
     {
-        $oldPdo = Double::for(PDO::class);
-        $freshPdo = Double::for(PDO::class);
+        $oldPdo = Double::for(PDO::class)->strict();
+        $freshPdo = Double::for(PDO::class)->strict();
         RefreshDatabaseState::$migrated = true;
         RefreshDatabaseState::$inMemoryConnections = ['default' => $oldPdo];
         $this->migrateRefresh = true;
         $this->runTestsInCoroutine = true;
 
-        $connection = Double::for(PdoConnection::class);
+        $connection = Double::for(PdoConnection::class)->strict();
         $connection->expects('getPdo')->returns($freshPdo);
 
-        $database = Double::for(DatabaseManager::class);
+        $database = Double::for(DatabaseManager::class)->strict();
         $database->expects('connection')->with(null)->returns($connection);
 
-        $kernel = Double::for(KernelContract::class);
+        $kernel = Double::for(KernelContract::class)->strict();
         $kernel->expects('call')
             ->with('migrate:fresh', Argument::type('array'))
             ->returns(0);
@@ -619,15 +619,15 @@ class RefreshDatabaseTest extends TestCase
     public function testBeginTransactionRestoresTheDispatcherWhenItFails(): void
     {
         $failure = new RuntimeException('Transaction begin failed.');
-        $dispatcher = Double::for(Dispatcher::class);
-        $connection = Double::for(Connection::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('setTransactionManager');
         $connection->expects('getEventDispatcher')->returns($dispatcher);
         $connection->expects('unsetEventDispatcher')->ordered();
         $connection->expects('beginTransaction')->throws($failure)->ordered();
-        $connection->expects('setEventDispatcher')->with($dispatcher)->ordered();
+        $connection->expects('setEventDispatcher')->with(Argument::same($dispatcher))->ordered();
 
-        $database = Double::for(DatabaseManager::class);
+        $database = Double::for(DatabaseManager::class)->strict();
         $database->expects('connection')->with(null)->returns($connection);
         $this->app->instance('db', $database);
 
@@ -643,16 +643,16 @@ class RefreshDatabaseTest extends TestCase
     {
         RefreshDatabaseState::$migrated = true;
         $failure = new RuntimeException('Transaction rollback failed.');
-        $dispatcher = Double::for(Dispatcher::class);
-        $connection = Double::for(PdoConnection::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
+        $connection = Double::for(PdoConnection::class)->strict();
         $connection->expects('getEventDispatcher')->returns($dispatcher);
         $connection->expects('unsetEventDispatcher')->ordered();
         $connection->expects('inTransaction')->returns(false)->ordered();
         $connection->expects('forgetRecordModificationState')->ordered();
         $connection->expects('rollBack')->throws($failure)->ordered();
-        $connection->expects('setEventDispatcher')->with($dispatcher)->ordered();
+        $connection->expects('setEventDispatcher')->with(Argument::same($dispatcher))->ordered();
 
-        $database = Double::for(DatabaseManager::class);
+        $database = Double::for(DatabaseManager::class)->strict();
         $database->expects('connection')->with(null)->returns($connection);
         $this->app->instance('db', $database);
 
@@ -671,9 +671,9 @@ class RefreshDatabaseTest extends TestCase
      */
     protected function getMockedDatabase(): DatabaseManager
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getNameWithReadWriteType')->returns('default');
-        $eventDispatcher = Double::for(Dispatcher::class);
+        $eventDispatcher = Double::for(Dispatcher::class)->strict();
         $connection->expects('getEventDispatcher')
             ->times(2)
             ->returns($eventDispatcher);
@@ -686,13 +686,13 @@ class RefreshDatabaseTest extends TestCase
         $connection->expects('rollback');
         $connection->expects('setEventDispatcher')
             ->times(2)
-            ->with($eventDispatcher);
+            ->with(Argument::same($eventDispatcher));
         $connection->expects('setTransactionManager');
 
         $connection->expects('inTransaction')
             ->returns(true);
 
-        $database = Double::for(DatabaseManager::class);
+        $database = Double::for(DatabaseManager::class)->strict();
         $database->expects('connection')
             ->times(2)
             ->with(null)

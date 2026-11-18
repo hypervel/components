@@ -79,7 +79,7 @@ class EmailVerificationRequestTest extends TestCase
     {
         Event::fake([Verified::class]);
 
-        $user = Double::for(User::class);
+        $user = Double::for(User::class)->strict();
         $user->allows('getKey')->returns(123);
         $user->allows('getAuthIdentifier')->returns(123);
         $user->allows('getEmailForVerification')->returns('user@example.com');
@@ -143,7 +143,7 @@ class EmailVerificationRequestTest extends TestCase
      */
     private function mockUser(int|string $id, string $email): Authenticatable&MustVerifyEmail
     {
-        $user = Double::for(EmailVerificationUser::class);
+        $user = Double::for(EmailVerificationUser::class)->strict();
         $user->allows('getKey')->returns($id);
         $user->allows('getAuthIdentifier')->returns($id);
         $user->allows('getEmailForVerification')->returns($email);

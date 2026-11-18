@@ -54,7 +54,7 @@ class DatabaseManagerTest extends TestCase
         $config = new Repository(['database' => ['default' => 'sqlite']]);
         $container->instance('config', $config);
 
-        $manager = new DatabaseManager($container, Double::for(ConnectionFactory::class));
+        $manager = new DatabaseManager($container, Double::for(ConnectionFactory::class)->strict());
 
         $manager->setDefaultConnection(DatabaseManagerTestBackedConnection::Reporting);
 
@@ -76,7 +76,7 @@ class DatabaseManagerTest extends TestCase
         $container = new Container;
         $container->instance('config', new Repository(['database' => ['default' => 'sqlite']]));
 
-        $manager = new DatabaseManager($container, Double::for(ConnectionFactory::class));
+        $manager = new DatabaseManager($container, Double::for(ConnectionFactory::class)->strict());
 
         $default = $manager->usingConnection(DatabaseManagerTestBackedConnection::Reporting, fn (): ?string => $manager->getDefaultConnection());
 
@@ -239,10 +239,9 @@ class DatabaseManagerTest extends TestCase
     {
         $manager = $this->db->getDatabaseManager();
 
-        // Should not throw — no connection has been resolved yet
         $manager->disconnect();
 
-        $this->assertTrue(true);
+        $this->assertSame([], $manager->getConnections());
     }
 
     public function testReconnectAfterDisconnectOnNonPooledConnection(): void

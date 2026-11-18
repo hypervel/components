@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\WebSocketServer;
 
-use Hypervel\Container\Container as BaseContainer;
+use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
@@ -34,9 +33,9 @@ use Hypervel\WebSocketServer\Server;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JMac\Testing\Matching\Argument;
-use JMac\Testing\OverriddenDouble;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
+use Psr\Log\NullLogger;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Request as SwooleRequest;
@@ -56,7 +55,7 @@ class ServerTest extends TestCase
     {
         parent::setUp();
 
-        BaseContainer::getInstance()->scoped(DeferredCallbackCollection::class);
+        Container::getInstance()->scoped(DeferredCallbackCollection::class);
     }
 
     protected function tearDown(): void
@@ -77,7 +76,7 @@ class ServerTest extends TestCase
         WebSocketStub::$coroutineId = 0;
 
         $container = $this->createContainer();
-        $server = new Server($container->instance());
+        $server = new Server($container);
 
         $invoker = new ClassInvoker($server);
         $swooleServer = Double::for(WebSocketSwooleServer::class)->strict();
@@ -95,13 +94,13 @@ class ServerTest extends TestCase
 
     public function testDeferOnOpenLogsExceptionFromOnOpen(): void
     {
-        $logger = Double::for(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
         $logger->expects('error')->with(Argument::satisfies(
             fn (string $message): bool => str_contains($message, 'onOpen failed')
         ));
 
         $container = $this->createContainer($logger);
-        $server = new Server($container->instance());
+        $server = new Server($container);
         $invoker = new ClassInvoker($server);
         $swooleServer = Double::for(WebSocketSwooleServer::class)->strict();
 
@@ -120,7 +119,7 @@ class ServerTest extends TestCase
         ));
 
         $container = $this->createContainer(dispatcher: $dispatcher);
-        $server = new Server($container->instance());
+        $server = new Server($container);
         $invoker = new ClassInvoker($server);
         $swooleServer = Double::for(WebSocketSwooleServer::class)->strict();
 
@@ -137,7 +136,7 @@ class ServerTest extends TestCase
         $dispatcher->expects('dispatch')->never();
 
         $container = $this->createContainer(dispatcher: $dispatcher);
-        $server = new Server($container->instance());
+        $server = new Server($container);
         $invoker = new ClassInvoker($server);
         $swooleServer = Double::for(WebSocketSwooleServer::class)->strict();
 
@@ -149,7 +148,7 @@ class ServerTest extends TestCase
 
     public function testConnectionOpenedEventDispatchedEvenWhenOnOpenThrows(): void
     {
-        $logger = Double::for(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
         $logger->expects('error');
 
         $dispatcher = Double::for(EventDispatcherContract::class)->strict();
@@ -159,7 +158,7 @@ class ServerTest extends TestCase
         ));
 
         $container = $this->createContainer($logger, $dispatcher);
-        $server = new Server($container->instance());
+        $server = new Server($container);
         $invoker = new ClassInvoker($server);
         $swooleServer = Double::for(WebSocketSwooleServer::class)->strict();
 
@@ -173,14 +172,14 @@ class ServerTest extends TestCase
     {
         WebSocketStub::$coroutineId = 0;
 
-        $logger = Double::for(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
         $logger->expects('error')->with(Argument::type('string'));
 
         $dispatcher = Double::for(EventDispatcherContract::class)->strict();
         $dispatcher->allows('hasListeners')->with(ConnectionOpened::class)->returns(true);
         $dispatcher->expects('dispatch')->throws(new RuntimeException('event failed'));
 
-        $server = new Server($this->createContainer($logger, $dispatcher)->instance());
+        $server = new Server($this->createContainer($logger, $dispatcher));
         $invoker = new ClassInvoker($server);
         $swooleServer = Double::for(WebSocketSwooleServer::class)->strict();
 
@@ -224,12 +223,12 @@ class ServerTest extends TestCase
             }
         });
         $container = $this->createContainer(dispatcher: $dispatcher);
-        $container->allows('make')->with(OnMessageInterface::class)->returns($handler);
+        $container->instance(OnMessageInterface::class, $handler);
         FdCollector::set(1, OnMessageInterface::class);
         $frame = new Frame;
         $frame->fd = 1;
 
-        (new Server($container->instance()))->onMessage(Double::for(WebSocketSwooleServer::class)->strict(), $frame);
+        (new Server($container))->onMessage(Double::for(WebSocketSwooleServer::class)->strict(), $frame);
 
         $this->assertSame($expected, $calls);
     }
@@ -271,7 +270,7 @@ class ServerTest extends TestCase
                 throw new RuntimeException('open failed');
             }
         });
-        $server = new Server($this->createContainer(dispatcher: $dispatcher)->instance());
+        $server = new Server($this->createContainer(dispatcher: $dispatcher));
         $native = Double::for(WebSocketSwooleServer::class)->strict();
 
         (new Waiter(1))->wait(fn () => (new ClassInvoker($server))->deferOnOpen(
@@ -305,12 +304,12 @@ class ServerTest extends TestCase
             }
         });
         $container = $this->createContainer(dispatcher: $dispatcher);
-        $container->allows('make')->with(OnCloseInterface::class)->returns($handler);
+        $container->instance(OnCloseInterface::class, $handler);
         FdCollector::set(1, OnCloseInterface::class);
         CoroutineContext::set(WebSocketContext::FD, 1);
         WebSocketContext::set('value', 'context');
 
-        (new Server($container->instance()))->onClose(Double::for(SwooleServer::class)->strict(), 1, 0);
+        (new Server($container))->onClose(Double::for(SwooleServer::class)->strict(), 1, 0);
 
         $this->assertSame($fail ? ['closed', 'context'] : ['closed', 'deferred', 'context'], $calls);
         $this->assertNull(WebSocketContext::get('value', fd: 1));
@@ -334,12 +333,12 @@ class ServerTest extends TestCase
             defer(function () use (&$calls): void { $calls[] = 'later'; })->always();
         });
         $container = $this->createContainer();
-        $container->allows('make')->with(OnCloseInterface::class)->returns($handler);
+        $container->instance(OnCloseInterface::class, $handler);
         FdCollector::set(1, OnCloseInterface::class);
         CoroutineContext::set(WebSocketContext::FD, 1);
         WebSocketContext::set('value', 'context');
 
-        (new Server($container->instance()))->onClose(Double::for(SwooleServer::class)->strict(), 1, 0);
+        (new Server($container))->onClose(Double::for(SwooleServer::class)->strict(), 1, 0);
 
         $this->assertSame([], $calls);
         $this->assertNull(WebSocketContext::get('value', fd: 1));
@@ -363,11 +362,10 @@ class ServerTest extends TestCase
         ))->ordered();
 
         $container = $this->createContainer(dispatcher: $dispatcher);
-        $container->allows('make')->with(WebSocketMessageStub::class)->returns(new WebSocketMessageStub);
 
         FdCollector::set(1, WebSocketMessageStub::class);
 
-        $server = new Server($container->instance());
+        $server = new Server($container);
         $swooleServer = Double::for(WebSocketSwooleServer::class)->strict();
 
         $frame = new Frame;
@@ -387,11 +385,10 @@ class ServerTest extends TestCase
         $dispatcher->expects('dispatch')->never();
 
         $container = $this->createContainer(dispatcher: $dispatcher);
-        $container->allows('make')->with(WebSocketMessageStub::class)->returns(new WebSocketMessageStub);
 
         FdCollector::set(1, WebSocketMessageStub::class);
 
-        $server = new Server($container->instance());
+        $server = new Server($container);
         $swooleServer = Double::for(WebSocketSwooleServer::class)->strict();
 
         $frame = new Frame;
@@ -408,7 +405,7 @@ class ServerTest extends TestCase
         $exception = new RuntimeException('event failed');
 
         $exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
-        $exceptionHandler->expects('report')->with($exception);
+        $exceptionHandler->expects('report')->with(Argument::same($exception));
 
         $dispatcher = Double::for(EventDispatcherContract::class)->strict();
         $dispatcher->expects('hasListeners')->with(MessageReceived::class)->returns(true);
@@ -420,13 +417,12 @@ class ServerTest extends TestCase
         ));
 
         $container = $this->createContainer(dispatcher: $dispatcher, exceptionHandler: $exceptionHandler);
-        $container->allows('make')->with(WebSocketMessageStub::class)->returns(new WebSocketMessageStub);
         FdCollector::set(1, WebSocketMessageStub::class);
 
         $frame = new Frame;
         $frame->fd = 1;
 
-        (new Server($container->instance()))->onMessage(Double::for(WebSocketSwooleServer::class)->strict(), $frame);
+        (new Server($container))->onMessage(Double::for(WebSocketSwooleServer::class)->strict(), $frame);
 
         $this->assertTrue(WebSocketMessageStub::$messageHandled);
     }
@@ -439,7 +435,7 @@ class ServerTest extends TestCase
             ? new RuntimeException('received cleanup failed', previous: new CanceledException)
             : new CanceledException;
         $exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
-        $exceptionHandler->expects('report')->times($wrapped ? 1 : 0)->with($cancellation);
+        $exceptionHandler->expects('report')->times($wrapped ? 1 : 0)->with(Argument::same($cancellation));
         $dispatcher = Double::for(EventDispatcherContract::class)->strict();
         $dispatcher->expects('hasListeners')->with(MessageReceived::class)->returns(true);
         $dispatcher->expects('dispatch')->with(Argument::type(MessageReceived::class))->throws($cancellation);
@@ -449,13 +445,12 @@ class ServerTest extends TestCase
         ));
 
         $container = $this->createContainer(dispatcher: $dispatcher, exceptionHandler: $exceptionHandler);
-        $container->allows('make')->with(WebSocketMessageStub::class)->returns(new WebSocketMessageStub);
         FdCollector::set(1, WebSocketMessageStub::class);
 
         $frame = new Frame;
         $frame->fd = 1;
 
-        (new Server($container->instance()))->onMessage(Double::for(WebSocketSwooleServer::class)->strict(), $frame);
+        (new Server($container))->onMessage(Double::for(WebSocketSwooleServer::class)->strict(), $frame);
 
         $this->assertFalse(WebSocketMessageStub::$messageHandled);
     }
@@ -465,11 +460,11 @@ class ServerTest extends TestCase
         $exception = new RuntimeException('message failed');
         WebSocketMessageStub::$messageException = $exception;
 
-        $logger = Double::for(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
         $logger->expects('error')->never();
 
         $exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
-        $exceptionHandler->expects('report')->with($exception);
+        $exceptionHandler->expects('report')->with(Argument::same($exception));
 
         $dispatcher = Double::for(EventDispatcherContract::class)->strict();
         $dispatcher->expects('hasListeners')->with(MessageReceived::class)->returns(false);
@@ -479,13 +474,12 @@ class ServerTest extends TestCase
         ));
 
         $container = $this->createContainer($logger, $dispatcher, $exceptionHandler);
-        $container->allows('make')->with(WebSocketMessageStub::class)->returns(new WebSocketMessageStub);
         FdCollector::set(1, WebSocketMessageStub::class);
 
         $frame = new Frame;
         $frame->fd = 1;
 
-        (new Server($container->instance()))->onMessage(Double::for(WebSocketSwooleServer::class)->strict(), $frame);
+        (new Server($container))->onMessage(Double::for(WebSocketSwooleServer::class)->strict(), $frame);
 
         $this->assertTrue(WebSocketMessageStub::$messageHandled);
     }
@@ -513,13 +507,12 @@ class ServerTest extends TestCase
         ));
 
         $container = $this->createContainer(dispatcher: $dispatcher, exceptionHandler: $exceptionHandler);
-        $container->allows('make')->with(WebSocketMessageStub::class)->returns(new WebSocketMessageStub);
         FdCollector::set(1, WebSocketMessageStub::class);
 
         $frame = new Frame;
         $frame->fd = 1;
 
-        (new Server($container->instance()))->onMessage(Double::for(WebSocketSwooleServer::class)->strict(), $frame);
+        (new Server($container))->onMessage(Double::for(WebSocketSwooleServer::class)->strict(), $frame);
 
         $this->assertSame([$receivedException, $messageException], $reported);
     }
@@ -533,7 +526,7 @@ class ServerTest extends TestCase
         WebSocketMessageStub::$messageException = $cancellation;
 
         $exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
-        $exceptionHandler->expects('report')->times($receivedFails ? 1 : 0)->with($receivedFailure);
+        $exceptionHandler->expects('report')->times($receivedFails ? 1 : 0)->with(Argument::same($receivedFailure));
 
         $dispatcher = Double::for(EventDispatcherContract::class)->strict();
         $dispatcher->expects('hasListeners')->with(MessageReceived::class)->returns($receivedFails);
@@ -546,13 +539,12 @@ class ServerTest extends TestCase
         ));
 
         $container = $this->createContainer(dispatcher: $dispatcher, exceptionHandler: $exceptionHandler);
-        $container->allows('make')->with(WebSocketMessageStub::class)->returns(new WebSocketMessageStub);
         FdCollector::set(1, WebSocketMessageStub::class);
 
         $frame = new Frame;
         $frame->fd = 1;
 
-        (new Server($container->instance()))->onMessage(Double::for(WebSocketSwooleServer::class)->strict(), $frame);
+        (new Server($container))->onMessage(Double::for(WebSocketSwooleServer::class)->strict(), $frame);
 
         $this->assertTrue(WebSocketMessageStub::$messageHandled);
     }
@@ -565,7 +557,7 @@ class ServerTest extends TestCase
         $listenerFailure = $cancel ? new CanceledException : new RuntimeException('completion failed');
 
         $exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
-        $exceptionHandler->expects('report')->times($cancel ? 0 : 1)->with($listenerFailure);
+        $exceptionHandler->expects('report')->times($cancel ? 0 : 1)->with(Argument::same($listenerFailure));
 
         $dispatcher = Double::for(EventDispatcherContract::class)->strict();
         $dispatcher->expects('hasListeners')->with(MessageReceived::class)->returns(false);
@@ -573,13 +565,12 @@ class ServerTest extends TestCase
         $dispatcher->expects('dispatch')->with(Argument::type(MessageHandled::class))->throws($listenerFailure);
 
         $container = $this->createContainer(dispatcher: $dispatcher, exceptionHandler: $exceptionHandler);
-        $container->allows('make')->with(WebSocketMessageStub::class)->returns(new WebSocketMessageStub);
         FdCollector::set(1, WebSocketMessageStub::class);
 
         $frame = new Frame;
         $frame->fd = 1;
 
-        (new Server($container->instance()))->onMessage(Double::for(WebSocketSwooleServer::class)->strict(), $frame);
+        (new Server($container))->onMessage(Double::for(WebSocketSwooleServer::class)->strict(), $frame);
 
         $this->assertTrue(WebSocketMessageStub::$messageHandled);
     }
@@ -589,7 +580,7 @@ class ServerTest extends TestCase
         $exception = new RuntimeException('completion failed');
 
         $exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
-        $exceptionHandler->expects('report')->with($exception);
+        $exceptionHandler->expects('report')->with(Argument::same($exception));
 
         $dispatcher = Double::for(EventDispatcherContract::class)->strict();
         $dispatcher->expects('hasListeners')->with(MessageReceived::class)->returns(false);
@@ -597,20 +588,19 @@ class ServerTest extends TestCase
         $dispatcher->expects('dispatch')->with(Argument::type(MessageHandled::class))->throws($exception);
 
         $container = $this->createContainer(dispatcher: $dispatcher, exceptionHandler: $exceptionHandler);
-        $container->allows('make')->with(WebSocketMessageStub::class)->returns(new WebSocketMessageStub);
         FdCollector::set(1, WebSocketMessageStub::class);
 
         $frame = new Frame;
         $frame->fd = 1;
 
-        (new Server($container->instance()))->onMessage(Double::for(WebSocketSwooleServer::class)->strict(), $frame);
+        (new Server($container))->onMessage(Double::for(WebSocketSwooleServer::class)->strict(), $frame);
 
         $this->assertTrue(WebSocketMessageStub::$messageHandled);
     }
 
     public function testMessageHandledCancellationIsContained(): void
     {
-        $logger = Double::for(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
         $logger->expects('error')->never();
 
         $dispatcher = Double::for(EventDispatcherContract::class)->strict();
@@ -619,13 +609,12 @@ class ServerTest extends TestCase
         $dispatcher->expects('dispatch')->with(Argument::type(MessageHandled::class))->throws(new CanceledException);
 
         $container = $this->createContainer($logger, $dispatcher);
-        $container->allows('make')->with(WebSocketMessageStub::class)->returns(new WebSocketMessageStub);
         FdCollector::set(1, WebSocketMessageStub::class);
 
         $frame = new Frame;
         $frame->fd = 1;
 
-        (new Server($container->instance()))->onMessage(Double::for(WebSocketSwooleServer::class)->strict(), $frame);
+        (new Server($container))->onMessage(Double::for(WebSocketSwooleServer::class)->strict(), $frame);
 
         $this->assertTrue(WebSocketMessageStub::$messageHandled);
     }
@@ -649,11 +638,10 @@ class ServerTest extends TestCase
         ))->ordered();
 
         $container = $this->createContainer(dispatcher: $dispatcher);
-        $container->allows('make')->with(WebSocketMessageStub::class)->returns(new WebSocketMessageStub);
 
         FdCollector::set(1, WebSocketMessageStub::class);
 
-        $server = new Server($container->instance());
+        $server = new Server($container);
         $swooleServer = Double::for(SwooleServer::class)->strict();
 
         $server->onClose($swooleServer, 1, 0);
@@ -669,11 +657,10 @@ class ServerTest extends TestCase
         $dispatcher->expects('dispatch')->never();
 
         $container = $this->createContainer(dispatcher: $dispatcher);
-        $container->allows('make')->with(WebSocketMessageStub::class)->returns(new WebSocketMessageStub);
 
         FdCollector::set(1, WebSocketMessageStub::class);
 
-        $server = new Server($container->instance());
+        $server = new Server($container);
         $swooleServer = Double::for(SwooleServer::class)->strict();
 
         $server->onClose($swooleServer, 1, 0);
@@ -685,7 +672,7 @@ class ServerTest extends TestCase
     {
         $exception = new RuntimeException('closing event failed');
         $exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
-        $exceptionHandler->expects('report')->with($exception);
+        $exceptionHandler->expects('report')->with(Argument::same($exception));
         $dispatcher = Double::for(EventDispatcherContract::class)->strict();
         $dispatcher->allows('hasListeners')->with(ConnectionClosing::class)->returns(true);
         $dispatcher->expects('dispatch')
@@ -697,12 +684,11 @@ class ServerTest extends TestCase
             dispatcher: $dispatcher,
             exceptionHandler: $exceptionHandler,
         );
-        $container->allows('make')->with(WebSocketMessageStub::class)->returns(new WebSocketMessageStub);
         CoroutineContext::set(WebSocketContext::FD, 1);
         WebSocketContext::set('connection.id', 'one');
         FdCollector::set(1, WebSocketMessageStub::class);
 
-        (new Server($container->instance()))->onClose(Double::for(SwooleServer::class)->strict(), 1, 0);
+        (new Server($container))->onClose(Double::for(SwooleServer::class)->strict(), 1, 0);
 
         $this->assertTrue(WebSocketMessageStub::$closeHandled);
         $this->assertNull(FdCollector::get(1));
@@ -730,13 +716,13 @@ class ServerTest extends TestCase
         $dispatcher->allows('hasListeners')->with(ConnectionClosed::class)->returns(true);
         $dispatcher->expects('dispatch')->with(Argument::type(ConnectionClosed::class))->throws($listenerFailure);
         $container = $this->createContainer(dispatcher: $dispatcher, exceptionHandler: $exceptionHandler);
-        $container->expects('make')->never()->with(WebSocketMessageStub::class);
         CoroutineContext::set(WebSocketContext::FD, 1);
         WebSocketContext::set('connection.id', 'one');
         FdCollector::set(1, WebSocketMessageStub::class);
 
-        (new Server($container->instance()))->onClose(Double::for(SwooleServer::class)->strict(), 1, 0);
+        (new Server($container))->onClose(Double::for(SwooleServer::class)->strict(), 1, 0);
 
+        $this->assertFalse($container->resolved(WebSocketMessageStub::class));
         $this->assertSame($wrapped ? [$cancellation, $listenerFailure] : [$listenerFailure], $reported);
         $this->assertFalse(WebSocketMessageStub::$closeHandled);
         $this->assertNull(FdCollector::get(1));
@@ -748,7 +734,7 @@ class ServerTest extends TestCase
         CoroutineContext::set(WebSocketContext::FD, 1);
         WebSocketContext::set('connection.id', 'one');
 
-        (new Server($this->createContainer()->instance()))->onClose(Double::for(SwooleServer::class)->strict(), 1, 0);
+        (new Server($this->createContainer()))->onClose(Double::for(SwooleServer::class)->strict(), 1, 0);
 
         $this->assertArrayNotHasKey(1, WebSocketContext::getStorage());
     }
@@ -757,7 +743,8 @@ class ServerTest extends TestCase
     {
         WebSocketMessageStub::$closeException = new RuntimeException('close failed');
 
-        $logger = Double::for(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->allows('debug');
         $logger->expects('error')->with(Argument::type('string'));
 
         $dispatcher = Double::for(EventDispatcherContract::class)->strict();
@@ -766,13 +753,12 @@ class ServerTest extends TestCase
         $dispatcher->expects('dispatch');
 
         $container = $this->createContainer($logger, $dispatcher);
-        $container->allows('make')->with(WebSocketMessageStub::class)->returns(new WebSocketMessageStub);
 
         CoroutineContext::set(WebSocketContext::FD, 1);
         WebSocketContext::set('connection.id', 'one');
         FdCollector::set(1, WebSocketMessageStub::class);
 
-        (new Server($container->instance()))->onClose(Double::for(SwooleServer::class)->strict(), 1, 0);
+        (new Server($container))->onClose(Double::for(SwooleServer::class)->strict(), 1, 0);
 
         $this->assertTrue(WebSocketMessageStub::$closeHandled);
         $this->assertNull(FdCollector::get(1));
@@ -781,7 +767,8 @@ class ServerTest extends TestCase
 
     public function testCloseEventFailureDoesNotSkipCleanup(): void
     {
-        $logger = Double::for(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->allows('debug');
         $logger->expects('error')->with(Argument::type('string'));
 
         $dispatcher = Double::for(EventDispatcherContract::class)->strict();
@@ -790,13 +777,12 @@ class ServerTest extends TestCase
         $dispatcher->expects('dispatch')->throws(new RuntimeException('event failed'));
 
         $container = $this->createContainer($logger, $dispatcher);
-        $container->allows('make')->with(WebSocketMessageStub::class)->returns(new WebSocketMessageStub);
 
         CoroutineContext::set(WebSocketContext::FD, 1);
         WebSocketContext::set('connection.id', 'one');
         FdCollector::set(1, WebSocketMessageStub::class);
 
-        (new Server($container->instance()))->onClose(Double::for(SwooleServer::class)->strict(), 1, 0);
+        (new Server($container))->onClose(Double::for(SwooleServer::class)->strict(), 1, 0);
 
         $this->assertTrue(WebSocketMessageStub::$closeHandled);
         $this->assertNull(FdCollector::get(1));
@@ -807,17 +793,17 @@ class ServerTest extends TestCase
     {
         WebSocketMessageStub::$closeException = new CanceledException;
 
-        $logger = Double::for(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->allows('debug');
         $logger->expects('error')->never();
 
         $container = $this->createContainer($logger);
-        $container->allows('make')->with(WebSocketMessageStub::class)->returns(new WebSocketMessageStub);
 
         CoroutineContext::set(WebSocketContext::FD, 1);
         WebSocketContext::set('connection.id', 'one');
         FdCollector::set(1, WebSocketMessageStub::class);
 
-        (new Server($container->instance()))->onClose(Double::for(SwooleServer::class)->strict(), 1, 0);
+        (new Server($container))->onClose(Double::for(SwooleServer::class)->strict(), 1, 0);
 
         $this->assertTrue(WebSocketMessageStub::$closeHandled);
         $this->assertNull(FdCollector::get(1));
@@ -830,17 +816,15 @@ class ServerTest extends TestCase
         $response = new Response('Unauthorized', Response::HTTP_UNAUTHORIZED);
         $handler = Double::for(WebSocketExceptionHandler::class)->strict();
         $handler->expects('handle')
-            ->with($original, Argument::type(Response::class))
+            ->with(Argument::same($original), Argument::type(Response::class))
             ->returns($response);
 
         $container = $this->createContainer();
-        $container->expects('make')
-            ->with(WebSocketExceptionHandler::class)
-            ->returns($handler);
+        $container->instance(WebSocketExceptionHandler::class, $handler);
 
         $this->assertSame(
             $response,
-            (new ClassInvoker(new Server($container->instance())))->handleException($original)
+            (new ClassInvoker(new Server($container)))->handleException($original)
         );
     }
 
@@ -850,16 +834,14 @@ class ServerTest extends TestCase
         $handlingFailure = new RuntimeException('exception handler failed');
         $handler = Double::for(WebSocketExceptionHandler::class)->strict();
         $handler->expects('handle')
-            ->with($original, Argument::type(Response::class))
+            ->with(Argument::same($original), Argument::type(Response::class))
             ->throws($handlingFailure);
 
         $container = $this->createContainer();
-        $container->expects('make')
-            ->with(WebSocketExceptionHandler::class)
-            ->returns($handler);
+        $container->instance(WebSocketExceptionHandler::class, $handler);
 
         try {
-            (new ClassInvoker(new Server($container->instance())))->handleException($original);
+            (new ClassInvoker(new Server($container)))->handleException($original);
             $this->fail('Expected exception handling to fail.');
         } catch (RuntimeException $exception) {
             $this->assertSame($handlingFailure, $exception);
@@ -884,29 +866,21 @@ class ServerTest extends TestCase
     }
 
     /**
-     * Create a container mock with logger and optional event dispatcher.
+     * Create a container with the services used by the WebSocket server.
      */
     protected function createContainer(
         ?StdoutLoggerInterface $logger = null,
         ?EventDispatcherContract $dispatcher = null,
         ?ExceptionHandlerContract $exceptionHandler = null,
-    ): OverriddenDouble {
-        $logger ??= Double::for(StdoutLoggerInterface::class);
-
-        $container = Double::for(Container::class, override: true)->strict();
-        $container->allows('make')->with(StdoutLoggerInterface::class)->returns($logger);
+    ): Container {
+        $container = new Container;
+        $container->instance(StdoutLoggerInterface::class, $logger ?? new class extends NullLogger implements StdoutLoggerInterface {});
 
         if ($exceptionHandler !== null) {
-            $container->allows('make')
-                ->with(ExceptionHandlerContract::class)
-                ->returns($exceptionHandler);
+            $container->instance(ExceptionHandlerContract::class, $exceptionHandler);
         }
-
-        if ($dispatcher) {
-            $container->allows('bound')->with('events')->returns(true);
-            $container->allows('make')->with('events')->returns($dispatcher);
-        } else {
-            $container->allows('bound')->with('events')->returns(false);
+        if ($dispatcher !== null) {
+            $container->instance('events', $dispatcher);
         }
 
         return $container;

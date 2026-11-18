@@ -20,7 +20,7 @@ class RecommendedPhpExtensionsAreLoadedTest extends TestCase
     #[RequiresPhpExtension('Zend OPcache')]
     public function testRecognizesComposerNormalizedExtensionNames(): void
     {
-        $composer = Double::for(ComposerJson::class);
+        $composer = Double::for(ComposerJson::class)->strict();
         $composer->allows('suggestedExtensions')->returns(['zend-opcache']);
 
         $result = (new RecommendedPhpExtensionsAreLoaded($composer))->check();

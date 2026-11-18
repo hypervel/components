@@ -21,7 +21,7 @@ class ExceptionTest extends TestCase
 
     public function testApplicationQueriesPreserveBindingText(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getName')->returns(null);
         $connection->expects('prepareBindings')->resolves(fn (array $bindings): array => $bindings);
 

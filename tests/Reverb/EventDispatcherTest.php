@@ -155,7 +155,7 @@ class EventDispatcherTest extends ReverbTestCase
         $channels->expects('find')->with('first')->returns($channel);
         $channels->expects('find')->never()->with('later');
         $manager = Double::for(ChannelManager::class)->strict();
-        $manager->expects('for')->with($app)->returns($channels);
+        $manager->expects('for')->with(Argument::same($app))->returns($channels);
         $this->app->instance(ChannelManager::class, $manager);
         $server = Double::for(Server::class)->strict();
         $server->setting = ['worker_num' => 2];
@@ -242,7 +242,7 @@ class EventDispatcherTest extends ReverbTestCase
         $channels->expects('find')->with('cache-first')->returns($cacheChannel);
         $channels->expects('find')->with('later')->returns($laterChannel);
         $manager = Double::for(ChannelManager::class)->strict();
-        $manager->expects('for')->times(2)->with($app)->returns($channels);
+        $manager->expects('for')->times(2)->with(Argument::same($app))->returns($channels);
         $this->app->instance(ChannelManager::class, $manager);
         $sharedState = Double::for(SharedState::class)->strict();
         $sharedState->expects('clearCacheMissLock')

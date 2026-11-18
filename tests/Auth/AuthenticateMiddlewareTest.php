@@ -160,7 +160,7 @@ class AuthenticateMiddlewareTest extends TestCase
         $this->auth->extend(__CLASS__, function () use (&$boundTo): Guard {
             $boundTo = $this;
 
-            return Double::for(Guard::class);
+            return Double::for(Guard::class)->strict();
         });
 
         $this->auth->guard(__CLASS__);
@@ -170,7 +170,7 @@ class AuthenticateMiddlewareTest extends TestCase
 
     public function testCustomDriverStatic(): void
     {
-        $driver = Double::for(Guard::class);
+        $driver = Double::for(Guard::class)->strict();
 
         $this->auth->extend(__CLASS__, static fn (): Guard => $driver);
 
@@ -179,7 +179,7 @@ class AuthenticateMiddlewareTest extends TestCase
 
     public function testCustomInvokableDriver(): void
     {
-        $driver = Double::for(Guard::class);
+        $driver = Double::for(Guard::class)->strict();
         $creator = new AuthenticateMiddlewareTestCustomAuthDriver($driver);
 
         $this->auth->extend(__CLASS__, $creator(...));
@@ -265,8 +265,8 @@ class AuthenticateMiddlewareTest extends TestCase
     protected function createAuthDriver(string $name, bool $authenticated): RequestGuard
     {
         return new RequestGuard($name, function () use ($authenticated): ?Authenticatable {
-            return $authenticated ? Double::for(Authenticatable::class) : null;
-        }, Container::getInstance(), Double::for(EloquentUserProvider::class));
+            return $authenticated ? Double::for(Authenticatable::class)->strict() : null;
+        }, Container::getInstance(), Double::for(EloquentUserProvider::class)->strict());
     }
 
     /**

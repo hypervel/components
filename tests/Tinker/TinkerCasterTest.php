@@ -27,7 +27,8 @@ class TinkerCasterTest extends TestCase
 
     public function testApplicationPropertyErrorsDoNotSuppressLaterValues(): void
     {
-        $application = Double::for(Application::class, override: true)->strict();
+        // The caster also reads application properties unrelated to this failure.
+        $application = Double::for(Application::class, override: true);
         $application->expects('configurationIsCached')->throws(new Error('Unavailable'));
         $application->expects('version')->returns('1.0.0');
 

@@ -119,7 +119,7 @@ class ListFailedCommandTest extends TestCase
     protected function runCommandWithFailedJobs(array $failedJobs, array $arguments = [], bool $decorated = false): string
     {
         $container = new Application;
-        $failer = Double::for(FailedJobProviderInterface::class);
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
         $container->instance(FailedJobProviderInterface::class, $failer);
 
         $failer->expects('all')->returns($failedJobs);

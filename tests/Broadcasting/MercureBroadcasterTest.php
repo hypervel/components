@@ -48,7 +48,7 @@ class MercureBroadcasterTest extends TestCase
     {
         parent::setUp();
 
-        $this->hub = Double::for(HubInterface::class);
+        $this->hub = Double::for(HubInterface::class)->strict();
         $this->hub->allows('getPublicUrl')->returns('https://localhost/.well-known/mercure');
         $this->hub->allows('getCookieName')->returns('__Secure-mercure_access_token');
         $this->hub->allows('getFactory')->returns($this->tokenFactory());
@@ -87,7 +87,7 @@ class MercureBroadcasterTest extends TestCase
 
     public function testSettingAHubRegistersItsCookieNameAsNeverEncrypted(): void
     {
-        $hub = Double::for(HubInterface::class);
+        $hub = Double::for(HubInterface::class)->strict();
         $hub->expects('getCookieName')->returns('custom_mercure_cookie');
 
         $this->broadcaster->setHub($hub);
@@ -591,11 +591,7 @@ class MercureBroadcasterTest extends TestCase
         $broadcaster = $this->encryptedBroadcaster();
 
         $captured = null;
-        $this->hub->expects('publish')->with(Argument::satisfies(function (Update $update) use (&$captured): bool {
-            $captured = $update;
-
-            return true;
-        }));
+        $this->hub->expects('publish')->with(Argument::capture($captured));
 
         $broadcaster->broadcast(['private-encrypted-room.1'], 'MessageSent', ['text' => 'hi', 'socket' => 'abcd.1234']);
 
@@ -615,11 +611,7 @@ class MercureBroadcasterTest extends TestCase
         $broadcaster = $this->encryptedBroadcaster();
 
         $captured = null;
-        $this->hub->expects('publish')->with(Argument::satisfies(function (Update $update) use (&$captured): bool {
-            $captured = $update;
-
-            return true;
-        }));
+        $this->hub->expects('publish')->with(Argument::capture($captured));
 
         $broadcaster->broadcast(['private-encrypted-a'], 'Tick');
 
@@ -745,7 +737,7 @@ class MercureBroadcasterTest extends TestCase
      */
     protected function broadcasterForHub(string $publicUrl, string $cookieName = '__Secure-mercure_access_token'): MercureBroadcaster
     {
-        $hub = Double::for(HubInterface::class);
+        $hub = Double::for(HubInterface::class)->strict();
         $hub->allows('getPublicUrl')->returns($publicUrl);
         $hub->allows('getCookieName')->returns($cookieName);
         $hub->allows('getFactory')->returns($this->tokenFactory());

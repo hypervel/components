@@ -124,7 +124,7 @@ class CacheManagerTest extends TestCase
         $app = $this->getApp($userConfig);
         $cacheManager = new CacheManager($app);
 
-        $repository = Double::for(CacheRepository::class);
+        $repository = Double::for(CacheRepository::class)->strict();
         $repository->allows('get')->with('foo')->returns('bar');
 
         $cacheManager->extend('array', fn (): CacheRepository => $repository);
@@ -179,12 +179,12 @@ class CacheManagerTest extends TestCase
             ],
         ]);
         $failure = new RuntimeException('primary unavailable');
-        $primary = Double::for(Store::class);
+        $primary = Double::for(Store::class)->strict();
         $primary->expects('get')->with('key')->throws($failure);
-        $secondary = Double::for(Store::class);
+        $secondary = Double::for(Store::class)->strict();
         $secondary->expects('get')->with('key')->returns('value');
         $captured = null;
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('hasListeners')->with(CacheFailedOver::class)->returns(true);
         $events->expects('dispatch')->resolves(function (CacheFailedOver $event) use (&$captured): void {
             $captured = $event;
@@ -326,9 +326,9 @@ class CacheManagerTest extends TestCase
                 ],
             ],
         ]);
-        $app->instance('db', Double::for(ConnectionResolverInterface::class));
+        $app->instance('db', Double::for(ConnectionResolverInterface::class)->strict());
         $app->instance('files', new Filesystem);
-        $filesystem = Double::for(FilesystemFactory::class);
+        $filesystem = Double::for(FilesystemFactory::class)->strict();
         $filesystem->expects('disk')->with('test')->returns(new ArrayFilesystem);
         $app->instance('filesystem', $filesystem);
         $app->instance(SwooleTableManager::class, new SwooleTableManager($app));
@@ -407,7 +407,7 @@ class CacheManagerTest extends TestCase
     {
         $disk = new ArrayFilesystem;
 
-        $filesystem = Double::for(FilesystemFactory::class);
+        $filesystem = Double::for(FilesystemFactory::class)->strict();
         $filesystem->expects('disk')->with('s3')->returns($disk);
 
         $app = $this->getApp([
@@ -505,7 +505,7 @@ class CacheManagerTest extends TestCase
         ];
 
         $cacheManager = new CacheManager($this->getApp($userConfig));
-        $repository = Double::for(CacheRepository::class);
+        $repository = Double::for(CacheRepository::class)->strict();
 
         $cacheManager->extend('worker-array', fn (): CacheRepository => $repository);
 
@@ -535,7 +535,7 @@ class CacheManagerTest extends TestCase
         $this->assertSame($theStore, $repo->getStore());
 
         // binding dispatcher after the repo's birth will have no effect.
-        $eventDispatcher = Double::for(Dispatcher::class);
+        $eventDispatcher = Double::for(Dispatcher::class)->strict();
         $app->instance(Dispatcher::class, $eventDispatcher);
 
         $this->assertNull($repo->getEventDispatcher());
@@ -566,7 +566,7 @@ class CacheManagerTest extends TestCase
 
         $app = $this->getApp($userConfig);
 
-        $originalDispatcher = Double::for(Dispatcher::class);
+        $originalDispatcher = Double::for(Dispatcher::class)->strict();
         $app->instance(Dispatcher::class, $originalDispatcher);
 
         $cacheManager = new CacheManager($app);
@@ -576,7 +576,7 @@ class CacheManagerTest extends TestCase
         $this->assertSame($originalDispatcher, $repo1->getEventDispatcher());
         $this->assertSame($originalDispatcher, $repo2->getEventDispatcher());
 
-        $replacementDispatcher = Double::for(Dispatcher::class);
+        $replacementDispatcher = Double::for(Dispatcher::class)->strict();
         $app->instance(Dispatcher::class, $replacementDispatcher);
 
         $cacheManager->refreshEventDispatcher();
@@ -595,10 +595,10 @@ class CacheManagerTest extends TestCase
                 ],
             ],
         ]);
-        $app->instance(Dispatcher::class, Double::for(Dispatcher::class));
+        $app->instance(Dispatcher::class, Double::for(Dispatcher::class)->strict());
 
         $cacheManager = new CacheManager($app);
-        $repository = Double::for(CacheRepository::class);
+        $repository = Double::for(CacheRepository::class)->strict();
         $cacheManager->extend('custom', fn (): CacheRepository => $repository);
 
         $this->assertSame($repository, $cacheManager->store('custom'));
@@ -682,7 +682,7 @@ class CacheManagerTest extends TestCase
         $cacheManager->expects('resolve')
             ->with('array')
             ->times(4)
-            ->returns(Double::for(CacheRepository::class));
+            ->returns(Double::for(CacheRepository::class)->strict());
 
         $cacheManager->expects('getDefaultDriver')
             ->returns('array');
@@ -928,7 +928,7 @@ class CacheManagerTest extends TestCase
 
         $app = $this->getApp($userConfig);
 
-        $session = Double::for(Session::class);
+        $session = Double::for(Session::class)->strict();
         $app->instance('session.store', $session);
 
         $cacheManager = new CacheManager($app);
@@ -1156,7 +1156,7 @@ class CacheManagerTest extends TestCase
         $app = $this->getApp($userConfig);
 
         // Mock Redis client
-        $redisClient = Double::for(Redis::class);
+        $redisClient = Double::for(Redis::class)->strict();
         $redisClient->allows('getOption')
             ->with(Redis::OPT_COMPRESSION)
             ->returns(Redis::COMPRESSION_NONE);
@@ -1165,20 +1165,20 @@ class CacheManagerTest extends TestCase
             ->returns('');
 
         // Mock RedisConnection
-        $connection = Double::for(PhpRedisConnection::class);
+        $connection = Double::for(PhpRedisConnection::class)->strict();
         $connection->allows('release');
         $connection->allows('serialized')->returns(false);
         $connection->allows('client')->returns($redisClient);
 
         // Mock RedisPool
-        $pool = Double::for(RedisPool::class);
+        $pool = Double::for(RedisPool::class)->strict();
         $pool->allows('borrow')->returns($connection);
 
-        $poolManager = Double::for(PoolManager::class);
+        $poolManager = Double::for(PoolManager::class)->strict();
         $poolManager->allows('pool')->with('default')->returns($pool);
 
         // Mock RedisFactory
-        $redisFactory = Double::for(RedisFactory::class);
+        $redisFactory = Double::for(RedisFactory::class)->strict();
 
         $app->instance('redis', $redisFactory);
         $app->instance(PoolManager::class, $poolManager);

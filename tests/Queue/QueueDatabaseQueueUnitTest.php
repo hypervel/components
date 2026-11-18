@@ -66,7 +66,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->expectException(TypeError::class);
 
         new DatabaseQueue(
-            resolver: Double::for(ConnectionResolverInterface::class),
+            resolver: Double::for(ConnectionResolverInterface::class)->strict(),
             connection: null,
             table: 'table',
             retryAfter: null,
@@ -76,7 +76,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testQueueNamesPreserveZeroAndDefaultEmptyString(): void
     {
         $queue = new TestDatabaseQueue(
-            resolver: Double::for(ConnectionResolverInterface::class),
+            resolver: Double::for(ConnectionResolverInterface::class)->strict(),
             connection: null,
             table: 'table',
             default: 'default',
@@ -94,8 +94,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
     #[TestWith([false, true])]
     public function testLockForPoppingUsesTheConnectionCapability(bool $supportsSkipLocked, bool|string $lock): void
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
-        $connection = Double::for(Connection::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
 
         $resolver->expects('connection')->with(null)->returns($connection);
         $connection->expects('supportsSkipLocked')->returns($supportsSkipLocked);
@@ -183,7 +183,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         Str::createUuidsUsing(fn (): Uuid => $uuid);
 
         $queue = new TestDatabaseQueue(
-            resolver: $resolver = Double::for(ConnectionResolverInterface::class),
+            resolver: $resolver = Double::for(ConnectionResolverInterface::class)->strict(),
             connection: null,
             table: 'table',
             default: 'default',
@@ -191,8 +191,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
         );
         $container = Double::for(Container::class, override: true)->passthru(new Container);
         $queue->setContainer($container->instance());
-        $connection = Double::for(Connection::class);
-        $query = Double::for(Builder::class);
+        $connection = Double::for(Connection::class)->strict();
+        $query = Double::for(Builder::class)->strict();
         $connection->expects('table')->with('table')->returns($query);
         $resolver->expects('connection')->returns($connection);
 
@@ -230,7 +230,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $job = new stdClass;
         $job->invalid = "\xc3\x28";
 
-        $queue = new DatabaseQueue(Double::for(ConnectionResolverInterface::class), null, 'table', 'default');
+        $queue = new DatabaseQueue(Double::for(ConnectionResolverInterface::class)->strict(), null, 'table', 'default');
         $class = new ReflectionClass(Queue::class);
 
         $createPayload = $class->getMethod('createPayload');
@@ -244,7 +244,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
 
-        $queue = new DatabaseQueue(Double::for(ConnectionResolverInterface::class), null, 'table', 'default');
+        $queue = new DatabaseQueue(Double::for(ConnectionResolverInterface::class)->strict(), null, 'table', 'default');
         $class = new ReflectionClass(Queue::class);
 
         $createPayload = $class->getMethod('createPayload');
@@ -257,7 +257,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testBulkUsesOneInsertWithoutATransactionAtTheBindingLimit(): void
     {
         $queue = new TestDatabaseQueue(
-            resolver: $resolver = Double::for(ConnectionResolverInterface::class),
+            resolver: $resolver = Double::for(ConnectionResolverInterface::class)->strict(),
             connection: null,
             table: 'table',
             default: 'default',
@@ -265,10 +265,10 @@ class QueueDatabaseQueueUnitTest extends TestCase
         );
         $queue->setContainer(new Container);
 
-        $resolver->expects('connection')->with(null)->returns($connection = Double::for(PdoConnection::class));
+        $resolver->expects('connection')->with(null)->returns($connection = Double::for(PdoConnection::class)->strict());
         $connection->expects('maxBindings')->returns(12);
         $connection->expects('transaction')->never();
-        $connection->expects('table')->with('table')->returns($query = Double::for(Builder::class));
+        $connection->expects('table')->with('table')->returns($query = Double::for(Builder::class)->strict());
         $query->expects('insert')->with(Argument::satisfies(static fn (array $rows): bool => count($rows) === 2))->returns(true);
 
         $this->assertTrue($queue->bulk(['first', 'second']));
@@ -277,7 +277,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testBulkUsesTheMinimumChunksInsideOneTransactionAboveTheBindingLimit(): void
     {
         $queue = new TestDatabaseQueue(
-            resolver: $resolver = Double::for(ConnectionResolverInterface::class),
+            resolver: $resolver = Double::for(ConnectionResolverInterface::class)->strict(),
             connection: null,
             table: 'table',
             default: 'default',
@@ -285,12 +285,12 @@ class QueueDatabaseQueueUnitTest extends TestCase
         );
         $queue->setContainer(new Container);
 
-        $resolver->expects('connection')->with(null)->returns($connection = Double::for(PdoConnection::class));
+        $resolver->expects('connection')->with(null)->returns($connection = Double::for(PdoConnection::class)->strict());
         $connection->expects('maxBindings')->returns(12);
         $connection->expects('transaction')->resolves(
             static fn (Closure $callback): mixed => $callback()
         );
-        $connection->expects('table')->times(2)->with('table')->returns($query = Double::for(Builder::class));
+        $connection->expects('table')->times(2)->with('table')->returns($query = Double::for(Builder::class)->strict());
         $chunkSizes = [];
         $query->expects('insert')->times(2)->resolves(static function (array $rows) use (&$chunkSizes): bool {
             $chunkSizes[] = count($rows);
@@ -305,7 +305,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testBulkTreatsAnExplicitFalseInsertAsFailure(): void
     {
         $queue = new TestDatabaseQueue(
-            resolver: $resolver = Double::for(ConnectionResolverInterface::class),
+            resolver: $resolver = Double::for(ConnectionResolverInterface::class)->strict(),
             connection: null,
             table: 'table',
             default: 'default',
@@ -313,8 +313,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
         );
         $queue->setContainer(new Container);
 
-        $resolver->expects('connection')->with(null)->returns($connection = Double::for(Connection::class));
-        $connection->expects('table')->with('table')->returns($query = Double::for(Builder::class));
+        $resolver->expects('connection')->with(null)->returns($connection = Double::for(Connection::class)->strict());
+        $connection->expects('table')->with('table')->returns($query = Double::for(Builder::class)->strict());
         $query->expects('insert')->returns(false);
 
         $this->expectExceptionObject(new RuntimeException('Unable to insert queued jobs into the database.'));
@@ -325,7 +325,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testBulkRetainsDispatchOwnershipUntilTheTransactionCommits(): void
     {
         $queue = new TestDatabaseQueue(
-            resolver: $resolver = Double::for(ConnectionResolverInterface::class),
+            resolver: $resolver = Double::for(ConnectionResolverInterface::class)->strict(),
             connection: null,
             table: 'table',
             default: 'default',
@@ -334,11 +334,11 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $queue->setContainer(new Container);
         $first = new DatabaseBulkOwnedJob;
         $second = new DatabaseBulkOwnedJob;
-        $cache = Double::for(CacheRepository::class);
+        $cache = Double::for(CacheRepository::class)->strict();
         DispatchLockContext::registerDebounce($first, $cache, 'first', 'owner-1');
         DispatchLockContext::registerDebounce($second, $cache, 'second', 'owner-2');
 
-        $resolver->expects('connection')->with(null)->returns($connection = Double::for(PdoConnection::class));
+        $resolver->expects('connection')->with(null)->returns($connection = Double::for(PdoConnection::class)->strict());
         $connection->expects('maxBindings')->returns(6);
         $connection->expects('transactionLevel')->times(2)->returns(0);
         $connection->expects('transaction')->resolves(function (Closure $callback) use ($first, $second): mixed {
@@ -352,7 +352,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
             return $result;
         });
-        $connection->expects('table')->times(2)->with('table')->returns($query = Double::for(Builder::class));
+        $connection->expects('table')->times(2)->with('table')->returns($query = Double::for(Builder::class)->strict());
         $query->expects('insert')->times(2)->returns(true);
 
         $this->assertTrue($queue->bulk([$first, $second]));
@@ -363,7 +363,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testBulkAcceptsEveryDispatchBeforeRaisingSuccessEvents(): void
     {
         $queue = new TestDatabaseQueue(
-            resolver: $resolver = Double::for(ConnectionResolverInterface::class),
+            resolver: $resolver = Double::for(ConnectionResolverInterface::class)->strict(),
             connection: null,
             table: 'table',
             default: 'default',
@@ -375,15 +375,15 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $queue->setConnectionName('database');
         $first = new DatabaseBulkOwnedJob;
         $second = new DatabaseBulkOwnedJob;
-        $cache = Double::for(CacheRepository::class);
+        $cache = Double::for(CacheRepository::class)->strict();
         DispatchLockContext::registerDebounce($first, $cache, 'first', 'owner-1');
         DispatchLockContext::registerDebounce($second, $cache, 'second', 'owner-2');
         $exception = new RuntimeException('Listener failed.');
         $notified = [];
 
-        $resolver->expects('connection')->with(null)->returns($connection = Double::for(Connection::class));
+        $resolver->expects('connection')->with(null)->returns($connection = Double::for(Connection::class)->strict());
         $connection->expects('transactionLevel')->times(2)->returns(0);
-        $connection->expects('table')->with('table')->returns($query = Double::for(Builder::class));
+        $connection->expects('table')->with('table')->returns($query = Double::for(Builder::class)->strict());
         $query->expects('insert')->returns(true);
         $dispatcher->listen(JobQueued::class, static function (JobQueued $event) use (&$notified): void {
             $notified[] = $event->job;
@@ -407,7 +407,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testBulkRaisesExactSuccessEventsAroundOneInsert(): void
     {
         $queue = new TestDatabaseQueue(
-            resolver: $resolver = Double::for(ConnectionResolverInterface::class),
+            resolver: $resolver = Double::for(ConnectionResolverInterface::class)->strict(),
             connection: null,
             table: 'table',
             default: 'default',
@@ -418,8 +418,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $queue->setContainer($container);
         $queue->setConnectionName('database');
 
-        $connection = Double::for(Connection::class);
-        $connection->allows('table')->with('table')->returns($query = Double::for(Builder::class));
+        $connection = Double::for(Connection::class)->strict();
+        $connection->allows('table')->with('table')->returns($query = Double::for(Builder::class)->strict());
         $resolver->expects('connection')->with(null)->returns($connection);
         $query->expects('insert')->resolves(function (array $records): bool {
             $this->assertSame('first-final', json_decode($records[0]['payload'], true)['telemetry']);
@@ -461,7 +461,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testBulkRaisesExactFailureEventsWhenInsertThrows(): void
     {
         $queue = new TestDatabaseQueue(
-            resolver: $resolver = Double::for(ConnectionResolverInterface::class),
+            resolver: $resolver = Double::for(ConnectionResolverInterface::class)->strict(),
             connection: null,
             table: 'table',
             default: 'default',
@@ -473,8 +473,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $queue->setConnectionName('database');
 
         $exception = new RuntimeException('Insert failed.');
-        $connection = Double::for(Connection::class);
-        $connection->allows('table')->with('table')->returns($query = Double::for(Builder::class));
+        $connection = Double::for(Connection::class)->strict();
+        $connection->allows('table')->with('table')->returns($query = Double::for(Builder::class)->strict());
         $resolver->expects('connection')->with(null)->returns($connection);
         $query->expects('insert')->throws($exception);
 
@@ -513,7 +513,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testBulkInsertFailureListenerErrorReporting(string $reporting): void
     {
         $queue = new TestDatabaseQueue(
-            resolver: $resolver = Double::for(ConnectionResolverInterface::class),
+            resolver: $resolver = Double::for(ConnectionResolverInterface::class)->strict(),
             connection: null,
             table: 'table',
             default: 'default',
@@ -526,8 +526,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $queue->setConnectionName('database');
 
         $exception = new RuntimeException('Insert failed.');
-        $connection = Double::for(Connection::class);
-        $connection->allows('table')->with('table')->returns($query = Double::for(Builder::class));
+        $connection = Double::for(Connection::class)->strict();
+        $connection->allows('table')->with('table')->returns($query = Double::for(Builder::class)->strict());
         $resolver->expects('connection')->with(null)->returns($connection);
         $query->expects('insert')->throws($exception);
 
@@ -537,8 +537,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
             $failed[] = $event->job;
         });
         $dispatcher->listen(JobQueueingFailed::class, static fn () => throw $listener);
-        $handler = Double::for(ExceptionHandler::class);
-        $report = $handler->expects('report')->with($listener);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $report = $handler->expects('report')->with(Argument::same($listener));
         $reportingFailure = match ($reporting) {
             'ordinary' => new RuntimeException('Reporting failed.'),
             'cancellation' => new CanceledException,
@@ -585,7 +585,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     #[TestWith([true])]
     public function testOutboxSelectionCancellationRaisesACanceledEventInsteadOfAFailureEvent(bool $cleanupThrows): void
     {
-        $queue = new DatabaseQueue(Double::for(ConnectionResolverInterface::class), null, 'jobs', 'default');
+        $queue = new DatabaseQueue(Double::for(ConnectionResolverInterface::class)->strict(), null, 'jobs', 'default');
         $queue->setConnectionName('database');
         $container = new Container;
         $events = new Dispatcher($container);
@@ -638,7 +638,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testBulkCancellationRaisesCanceledEventsInsteadOfFailureEvents(bool $cleanupThrows): void
     {
         $queue = new TestDatabaseQueue(
-            resolver: $resolver = Double::for(ConnectionResolverInterface::class),
+            resolver: $resolver = Double::for(ConnectionResolverInterface::class)->strict(),
             connection: null,
             table: 'table',
             default: 'default',
@@ -649,8 +649,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $queue->setContainer($container);
         $queue->setConnectionName('database');
 
-        $connection = Double::for(Connection::class);
-        $connection->allows('table')->with('table')->returns($query = Double::for(Builder::class));
+        $connection = Double::for(Connection::class)->strict();
+        $connection->allows('table')->with('table')->returns($query = Double::for(Builder::class)->strict());
         $resolver->expects('connection')->with(null)->returns($connection);
         $gate = $this->armCurrentCoroutineCancellation();
         $cleanup = new RuntimeException('Insert cleanup failed.');
@@ -711,14 +711,14 @@ class QueueDatabaseQueueUnitTest extends TestCase
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(1732502704));
 
         $queue = new TestDatabaseQueue(
-            resolver: $immediateResolver = Double::for(ConnectionResolverInterface::class),
+            resolver: $immediateResolver = Double::for(ConnectionResolverInterface::class)->strict(),
             connection: null,
             table: 'table',
             default: 'default',
             currentTime: 1732502704,
         );
         $deferredQueue = new TestDatabaseQueue(
-            resolver: $deferredResolver = Double::for(ConnectionResolverInterface::class),
+            resolver: $deferredResolver = Double::for(ConnectionResolverInterface::class)->strict(),
             connection: null,
             table: 'table',
             default: 'default',
@@ -732,8 +732,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $queue->setContainer($container);
         $deferredQueue->setContainer(new Container);
 
-        $immediateConnection = Double::for(Connection::class);
-        $immediateConnection->allows('table')->with('table')->returns($immediateQuery = Double::for(Builder::class));
+        $immediateConnection = Double::for(Connection::class)->strict();
+        $immediateConnection->allows('table')->with('table')->returns($immediateQuery = Double::for(Builder::class)->strict());
         $immediateResolver->expects('connection')->with(null)->returns($immediateConnection);
         $immediateRecords = [];
         $immediateQuery->expects('insert')->resolves(static function (array $records) use (&$immediateRecords): bool {
@@ -742,8 +742,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
             return true;
         });
 
-        $deferredConnection = Double::for(Connection::class);
-        $deferredConnection->allows('table')->with('table')->returns($deferredQuery = Double::for(Builder::class));
+        $deferredConnection = Double::for(Connection::class)->strict();
+        $deferredConnection->allows('table')->with('table')->returns($deferredQuery = Double::for(Builder::class)->strict());
         $deferredResolver->expects('connection')->with(null)->returns($deferredConnection);
         $deferredRecords = [];
         $deferredQuery->expects('insert')->resolves(static function (array $records) use (&$deferredRecords): bool {
@@ -780,7 +780,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public function testBulkRollbackDoesNotBeginAnEnqueueAttempt(): void
     {
         $queue = new TestDatabaseQueue(
-            resolver: $resolver = Double::for(ConnectionResolverInterface::class),
+            resolver: $resolver = Double::for(ConnectionResolverInterface::class)->strict(),
             connection: null,
             table: 'table',
             default: 'default',
@@ -815,7 +815,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
     public function testBuildDatabaseRecordWithPayloadAtTheEnd(): void
     {
-        $queue = new DatabaseQueue(Double::for(ConnectionResolverInterface::class), null, 'table', 'default');
+        $queue = new DatabaseQueue(Double::for(ConnectionResolverInterface::class)->strict(), null, 'table', 'default');
         $class = new ReflectionClass(DatabaseQueue::class);
         $record = $class->getMethod('buildDatabaseRecord')->invoke($queue, 'queue', 'any_payload', 0);
         $this->assertArrayHasKey('payload', $record);
@@ -834,11 +834,11 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
     public function testGetLockForPoppingIsCached(): void
     {
-        $pdo = Double::for(PDO::class);
+        $pdo = Double::for(PDO::class)->strict();
         // Initial resolution reads the version and identifies MariaDB; later calls reuse the lock.
         $pdo->expects('getAttribute')->times(2)->with(PDO::ATTR_SERVER_VERSION)->returns('8.0.36');
         $database = new MySqlConnection($pdo, 'test');
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->expects('connection')->times(2)->with(null)->returns($database);
         $queue = new TestDatabaseQueue($resolver, null, 'table', 'default', 1732502704);
 
@@ -878,14 +878,14 @@ class QueueDatabaseQueueUnitTest extends TestCase
      */
     private function createFailingReservationQueue(Throwable $failure): array
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
-        $connection = Double::for(Connection::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
         $resolver->allows('connection')->with(null)->returns($connection);
         $connection->allows('transactionLevel')->returns(0);
         $connection->expects('transaction')->resolves(static fn (Closure $callback): mixed => $callback());
 
         $container = new Container;
-        $events = Double::for(DispatcherContract::class);
+        $events = Double::for(DispatcherContract::class)->strict();
         $container->instance(DispatcherContract::class, $events);
         $queue = Double::for(DatabaseQueue::class)->passthru(new DatabaseQueue($resolver, null, 'jobs'));
         $queue->setContainer($container);
@@ -896,7 +896,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             'attempts' => 255,
         ]);
         $queue->expects('getNextAvailableJob')->with('default')->returns($record);
-        $queue->expects('marshalJob')->with('default', $record)->throws($failure);
+        $queue->expects('marshalJob')->with('default', Argument::same($record))->throws($failure);
 
         return [$queue, $events];
     }
@@ -906,9 +906,9 @@ class QueueDatabaseQueueUnitTest extends TestCase
      */
     private function createInspectionQueue(): array
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
-        $connection = Double::for(Connection::class);
-        $query = Double::for(Builder::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
+        $query = Double::for(Builder::class)->strict();
         $resolver->expects('connection')->with(null)->returns($connection);
         $connection->expects('table')->with('table')->returns($query);
 

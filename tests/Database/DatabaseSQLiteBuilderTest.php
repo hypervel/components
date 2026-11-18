@@ -79,7 +79,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
     #[DataProvider('nonFileDatabaseNames')]
     public function testCreateDatabaseRejectsNonFileDatabaseNames(string $name): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
 
         File::shouldReceive('put')->never();
@@ -95,7 +95,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
     #[DataProvider('nonFileDatabaseNames')]
     public function testDropDatabaseRejectsNonFileDatabaseNames(string $name): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
 
         File::shouldReceive('exists')->never();
@@ -120,7 +120,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testExecuteBlueprintWrapsAKnownRebuildAndMaintainsForeignKeyStateOutsideTheTransaction(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['pragma foreign_keys = 0', 'first statement', 'second statement', 'pragma foreign_keys = 1'],
@@ -142,7 +142,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testExecuteBlueprintPreservesDisabledForeignKeysOutsideTheTransaction(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['first statement', 'second statement'],
@@ -163,7 +163,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testExecuteBlueprintDoesNotWrapASingleStatement(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['statement'],
@@ -181,7 +181,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testExecuteBlueprintDoesNotWrapCommandsAddedByAnExtensionGrammar(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteBuilderExtensionGrammar($connection);
 
         $connection->expects('getSchemaGrammar')->times(2)->returns($grammar);
@@ -203,7 +203,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testExecuteBlueprintWrapsFrameworkCommandsOverriddenByAnExtensionGrammar(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteBuilderExtensionGrammar($connection);
 
         $connection->expects('getSchemaGrammar')->times(2)->returns($grammar);
@@ -226,7 +226,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testExecuteBlueprintRestoresForeignKeysWhenTheTransactionFails(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['pragma foreign_keys = 0', 'failing statement', 'pragma foreign_keys = 1'],
@@ -298,7 +298,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testExecuteBlueprintRejectsAPopulatedRebuildInsideATransactionWithForeignKeysEnabled(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['pragma foreign_keys = 0', 'first statement', 'second statement', 'pragma foreign_keys = 1'],
@@ -326,7 +326,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testExecuteBlueprintUsesASavepointForAnEmptyRebuildInsideATransaction(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['pragma foreign_keys = 0', 'first statement', 'second statement', 'pragma foreign_keys = 1'],
@@ -351,7 +351,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testExecuteBlueprintUsesASavepointInsideATransactionWhenForeignKeysAreDisabled(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['first statement', 'second statement'],
@@ -372,7 +372,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testExecuteBlueprintDoesNotMutateSessionOrTransactionStateWhilePretending(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['pragma foreign_keys = 0', 'first statement', 'second statement', 'pragma foreign_keys = 1'],
@@ -394,7 +394,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testChangingForeignKeyConstraintsInsideATransactionFailsBeforeExecutingThePragma(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteGrammar($connection);
 
         $connection->expects('getSchemaGrammar')->returns($grammar);
@@ -536,7 +536,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testDropAllTablesUsesGuardedCatalogCleanup(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteGrammar($connection);
 
         $connection->expects('getSchemaGrammar')->returns($grammar);
@@ -559,7 +559,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testDropAllViewsRestoresAnEnabledWritableSchema(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteGrammar($connection);
 
         $connection->expects('getSchemaGrammar')->returns($grammar);
@@ -582,7 +582,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testDropAllTablesReloadsTheSchemaAfterADeleteFailure(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteGrammar($connection);
 
         $connection->expects('getSchemaGrammar')->returns($grammar);
@@ -607,7 +607,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testDropAllTablesMarksALegacySessionUnknownWhenVacuumFails(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteGrammar($connection);
 
         $connection->expects('getSchemaGrammar')->returns($grammar);
@@ -634,7 +634,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testDropAllTablesKeepsAModernSessionKnownWhenVacuumFailsAfterReset(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteGrammar($connection);
 
         $connection->expects('getSchemaGrammar')->returns($grammar);
@@ -661,7 +661,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testDropAllTablesStopsBeforeSchemaReloadWhenWritableSchemaResetFails(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteGrammar($connection);
         $failure = new PDOException('Failed to reset writable_schema.');
 
@@ -690,7 +690,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testDropAllViewsPropagatesWritableModeRestorationFailure(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteGrammar($connection);
         $failure = new PDOException('Failed to restore writable_schema.');
 
@@ -722,7 +722,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testDropAllTablesRejectsAnActiveTransactionBeforeInspectingTheSchema(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
         $connection->expects('transactionLevel')->returns(1);
         $connection->expects('scalar')->never();
@@ -736,7 +736,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testDropAllViewsRejectsAnActiveTransactionBeforeInspectingTheSchema(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
         $connection->expects('transactionLevel')->returns(1);
         $connection->expects('scalar')->never();
@@ -750,7 +750,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testRefreshDatabaseFileUsesTheCanonicalMainDatabasePath(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
         $connection->expects('transactionLevel')->returns(0);
         $connection->expects('getDatabaseName')->returns('file:database.sqlite?mode=rwc');
@@ -768,7 +768,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testRefreshDatabaseFileRejectsWalForTheConnectedDatabase(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
         $connection->expects('transactionLevel')->returns(0);
         $connection->expects('getDatabaseName')->returns('/database.sqlite');
@@ -786,7 +786,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testRefreshDatabaseFileRejectsAnActiveTransactionBeforeInspectingTheDatabase(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
         $connection->expects('transactionLevel')->returns(1);
         $connection->expects('getDatabaseName')->never();
@@ -801,7 +801,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testRefreshDatabaseFileWithAnExplicitPathDoesNotInspectTheConnection(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
         $connection->expects('transactionLevel')->never();
         $connection->expects('getDatabaseName')->never();
@@ -815,7 +815,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
     #[DataProvider('inMemoryDatabaseNames')]
     public function testRefreshDatabaseFileRejectsInMemoryDatabasesWithoutWritingAFile(string $database): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
         $connection->expects('transactionLevel')->returns(0);
         $connection->expects('getDatabaseName')->returns($database);
@@ -844,7 +844,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
     public function testRefreshDatabaseFileThrowsWhenTheFileCannotBeWritten(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getSchemaGrammar')->returns(new SQLiteGrammar($connection));
 
         File::shouldReceive('put')
@@ -866,7 +866,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
      */
     protected function executionBlueprint(array $statements, array $commands): Blueprint
     {
-        $blueprint = Double::for(Blueprint::class);
+        $blueprint = Double::for(Blueprint::class)->strict();
         $blueprint->expects('toSql')->returns($statements);
         $blueprint->allows('getCommands')->returns($commands);
 

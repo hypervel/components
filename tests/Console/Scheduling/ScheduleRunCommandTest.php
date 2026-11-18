@@ -74,7 +74,7 @@ class ScheduleRunCommandTest extends TestCase
 
         $this->dispatched = [];
 
-        $this->dispatcher = Double::for(Dispatcher::class);
+        $this->dispatcher = Double::for(Dispatcher::class)->strict();
         $this->dispatcher->allows('hasListeners')
             ->returns(true);
         $this->dispatcher->allows('dispatch')
@@ -87,7 +87,7 @@ class ScheduleRunCommandTest extends TestCase
 
     public function testForegroundCallbackDispatchesStartingAndFinishedEvents(): void
     {
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
         $eventMutex->allows('create')->returns(true);
         $eventMutex->allows('forget');
 
@@ -127,7 +127,7 @@ class ScheduleRunCommandTest extends TestCase
             $this->call('test:deferred-child');
             $calls[] = 'parent finished';
         });
-        $event = new Event(Double::for(EventMutex::class), 'test:deferred-parent');
+        $event = new Event(Double::for(EventMutex::class)->strict(), 'test:deferred-parent');
         $event->after(function () use (&$calls): void {
             $calls[] = 'after';
         });
@@ -150,7 +150,7 @@ class ScheduleRunCommandTest extends TestCase
     {
         $calls = [];
         $exception = new RuntimeException('Task failed');
-        $event = new CallbackEvent(Double::for(EventMutex::class), function () use (&$calls, $outcome, $exception): bool {
+        $event = new CallbackEvent(Double::for(EventMutex::class)->strict(), function () use (&$calls, $outcome, $exception): bool {
             defer(function () use (&$calls): void {
                 $calls[] = 'ordinary';
             });
@@ -172,7 +172,7 @@ class ScheduleRunCommandTest extends TestCase
         if ($outcome !== 'success') {
             $this->handler->expects('report');
         }
-        $nextEvent = new CallbackEvent(Double::for(EventMutex::class), function () use (&$calls): void {
+        $nextEvent = new CallbackEvent(Double::for(EventMutex::class)->strict(), function () use (&$calls): void {
             defer(function () use (&$calls): void {
                 $calls[] = 'next task';
             });
@@ -203,7 +203,7 @@ class ScheduleRunCommandTest extends TestCase
         $calls = [];
         $cancellation = new CanceledException('Task canceled');
         $cleanup = $cleanupThrows ? new RuntimeException('Task cleanup failed.') : null;
-        $mutex = Double::for(EventMutex::class);
+        $mutex = Double::for(EventMutex::class)->strict();
         $mutex->expects('exists')->returns(false);
         $mutex->expects('create')->returns(true);
         $mutex->expects('forget');
@@ -260,7 +260,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->dispatcher->listen(ScheduledTaskFailed::class, function (ScheduledTaskFailed $event) use (&$failed): void {
             $failed[] = $event;
         });
-        $event = new CallbackEvent(Double::for(EventMutex::class), static fn (): bool => true);
+        $event = new CallbackEvent(Double::for(EventMutex::class)->strict(), static fn (): bool => true);
         $caught = null;
 
         try {
@@ -282,7 +282,7 @@ class ScheduleRunCommandTest extends TestCase
     {
         $cancellation = new CanceledException;
         $failure = $afterFailure ? new RuntimeException('Starting listener failed') : null;
-        $this->dispatcher = Double::for(Dispatcher::class);
+        $this->dispatcher = Double::for(Dispatcher::class)->strict();
         $this->dispatcher->allows('hasListeners')->returns(true);
         $this->dispatcher->allows('dispatch')->resolves(function (object $event) use ($cancellation, $failure): void {
             $this->dispatched[] = $event;
@@ -298,7 +298,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->handler->expects('report')->never();
 
         try {
-            $this->invokeRunEvents($this->makeCommand(), [new CallbackEvent(Double::for(EventMutex::class), static fn (): bool => true)]);
+            $this->invokeRunEvents($this->makeCommand(), [new CallbackEvent(Double::for(EventMutex::class)->strict(), static fn (): bool => true)]);
             $this->fail('Expected the owned task to report cancellation.');
         } catch (ChildCancellationException $exception) {
             $this->assertSame($cancellation, $exception->getPrevious());
@@ -317,16 +317,16 @@ class ScheduleRunCommandTest extends TestCase
     {
         $cancellation = new CanceledException;
         $listenerFailure = new RuntimeException('Canceled listener failed');
-        $this->dispatcher = Double::for(Dispatcher::class);
+        $this->dispatcher = Double::for(Dispatcher::class)->strict();
         $this->dispatcher->allows('hasListeners')->returns(true);
         $this->dispatcher->allows('dispatch')->resolves(function (object $event) use ($cancellation, $listenerFailure): void {
             throw $event instanceof ScheduledTaskStarting ? $cancellation : $listenerFailure;
         });
         $this->app->instance(ExceptionHandler::class, $this->handler);
-        $this->handler->expects('report')->with($listenerFailure);
+        $this->handler->expects('report')->with(Argument::same($listenerFailure));
 
         try {
-            $this->invokeRunEvents($this->makeCommand(), [new CallbackEvent(Double::for(EventMutex::class), static fn (): bool => true)]);
+            $this->invokeRunEvents($this->makeCommand(), [new CallbackEvent(Double::for(EventMutex::class)->strict(), static fn (): bool => true)]);
             $this->fail('Expected the owned task to report cancellation.');
         } catch (ChildCancellationException $exception) {
             $this->assertSame($cancellation, $exception->getPrevious());
@@ -340,7 +340,7 @@ class ScheduleRunCommandTest extends TestCase
         $calls = [];
         $cancellation = new CanceledException('Deferred work canceled');
         $cleanup = $cleanupThrows ? new RuntimeException('Deferred cleanup failed.') : null;
-        $event = new CallbackEvent(Double::for(EventMutex::class), function () use (&$calls, $cancellation, $cleanup): void {
+        $event = new CallbackEvent(Double::for(EventMutex::class)->strict(), function () use (&$calls, $cancellation, $cleanup): void {
             defer(function () use ($cancellation, $cleanup): void {
                 try {
                     throw $cancellation;
@@ -389,7 +389,7 @@ class ScheduleRunCommandTest extends TestCase
 
             throw new RuntimeException('Starting listener failed.');
         });
-        $event = new CallbackEvent(Double::for(EventMutex::class), static fn (): bool => true);
+        $event = new CallbackEvent(Double::for(EventMutex::class)->strict(), static fn (): bool => true);
 
         try {
             $this->invokeRunEvents($this->makeCommand(), [$event]);
@@ -417,7 +417,7 @@ class ScheduleRunCommandTest extends TestCase
                 $calls[] = 'deferred listener';
             });
         });
-        $event = new Event(Double::for(EventMutex::class), 'test:background-defer');
+        $event = new Event(Double::for(EventMutex::class)->strict(), 'test:background-defer');
         $event->runInBackground();
         $command = $this->makeCommand();
         $concurrent = new Concurrent(1);
@@ -435,15 +435,15 @@ class ScheduleRunCommandTest extends TestCase
     #[DataProvider('skippedBackgroundTasks')]
     public function testSkippedBackgroundTaskDoesNotDispatchCompletion(bool $onAnotherServer): void
     {
-        $mutex = Double::for(EventMutex::class);
+        $mutex = Double::for(EventMutex::class)->strict();
         $event = new Event($mutex, 'test:skipped-background');
         $event->runInBackground();
         $command = $this->makeCommand();
         $output = $this->captureOutput($command);
         if ($onAnotherServer) {
             $event->onOneServer();
-            $schedule = Double::for(Schedule::class);
-            $schedule->expects('serverShouldRun')->with($event, Argument::type(CarbonInterface::class))->returns(false);
+            $schedule = Double::for(Schedule::class)->strict();
+            $schedule->expects('serverShouldRun')->with(Argument::same($event), Argument::type(CarbonInterface::class))->returns(false);
             (new ReflectionProperty($command, 'schedule'))->setValue($command, $schedule);
         } else {
             $event->withoutOverlapping();
@@ -482,7 +482,7 @@ class ScheduleRunCommandTest extends TestCase
 
     public function testFinishedOutputUsesTheSharedRuntimeFormatterWithoutAppendingUnits(): void
     {
-        $event = new ScheduleRunExitCodeEvent(Double::for(EventMutex::class), 0, 'test:duration');
+        $event = new ScheduleRunExitCodeEvent(Double::for(EventMutex::class)->strict(), 0, 'test:duration');
         $command = $this->makeCommand(command: new ScheduleRunCommandWithFixedRuntime);
         $output = $this->captureOutput($command);
 
@@ -505,7 +505,7 @@ class ScheduleRunCommandTest extends TestCase
         $events = [];
 
         foreach (['first', 'second'] as $name) {
-            $event = new CallbackEvent(Double::for(EventMutex::class), function () use (&$observations, &$deferred, $name): int {
+            $event = new CallbackEvent(Double::for(EventMutex::class)->strict(), function () use (&$observations, &$deferred, $name): int {
                 $observations[$name]['run'] = [Coroutine::getCid(), count($deferred)];
 
                 return 0;
@@ -552,7 +552,7 @@ class ScheduleRunCommandTest extends TestCase
     {
         ContextRepository::getInstance()->add('trace_id', 'parent-trace');
         $observedTraceId = null;
-        $event = new CallbackEvent(Double::for(EventMutex::class), function () use (&$observedTraceId): int {
+        $event = new CallbackEvent(Double::for(EventMutex::class)->strict(), function () use (&$observedTraceId): int {
             $context = CoroutineContext::get(ContextRepository::CONTEXT_KEY);
             $observedTraceId = $context instanceof ContextRepository
                 ? $context->get('trace_id')
@@ -561,9 +561,9 @@ class ScheduleRunCommandTest extends TestCase
             return 0;
         });
 
-        $schedule = Double::for(Schedule::class);
+        $schedule = Double::for(Schedule::class)->strict();
         $schedule->expects('dueEventsAt')
-            ->with($this->app, Argument::type(CarbonInterface::class))
+            ->with(Argument::same($this->app), Argument::type(CarbonInterface::class))
             ->returns(new Collection([$event]));
 
         $command = $this->makeCommand();
@@ -582,7 +582,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->dispatcher = Double::for(Dispatcher::class)->strict();
         $this->dispatcher->expects('dispatch')->never();
 
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
         $eventMutex->allows('create')->returns(true);
         $eventMutex->allows('forget');
 
@@ -608,7 +608,7 @@ class ScheduleRunCommandTest extends TestCase
             ScheduledTaskFinished::class,
         ]);
 
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
         $eventMutex->allows('create')->returns(true);
         $eventMutex->allows('forget');
 
@@ -625,7 +625,7 @@ class ScheduleRunCommandTest extends TestCase
 
     public function testBackgroundTaskDispatchesAllThreeEvents(): void
     {
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
         $eventMutex->allows('create')->returns(true);
         $eventMutex->allows('forget');
 
@@ -653,7 +653,7 @@ class ScheduleRunCommandTest extends TestCase
 
     public function testBackgroundTaskStillDispatchesBackgroundFinishedOnFailure(): void
     {
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
         $eventMutex->allows('create')->returns(true);
 
         $exception = new RuntimeException('Task exploded');
@@ -662,7 +662,7 @@ class ScheduleRunCommandTest extends TestCase
         $event->expects('run')->throws($exception);
         $event->runInBackground();
 
-        $this->handler->expects('report')->with($exception);
+        $this->handler->expects('report')->with(Argument::same($exception));
 
         $command = $this->makeCommand();
         $concurrent = new Concurrent(10);
@@ -683,11 +683,11 @@ class ScheduleRunCommandTest extends TestCase
     public function testThrownRunIsRenderedAsFailedWhenTheEventRetainsAZeroExitCode(): void
     {
         $exception = new RuntimeException('Task exploded after an earlier successful run.');
-        $event = Double::for(new Event(Double::for(EventMutex::class), 'test:stale-exit', null, false))->passthru();
+        $event = Double::for(new Event(Double::for(EventMutex::class)->strict(), 'test:stale-exit', null, false))->passthru();
         $event->finish($this->app, 0);
         $event->expects('run')->throws($exception);
 
-        $this->handler->expects('report')->with($exception);
+        $this->handler->expects('report')->with(Argument::same($exception));
 
         $command = $this->makeCommand();
         $output = $this->captureOutput($command);
@@ -711,9 +711,9 @@ class ScheduleRunCommandTest extends TestCase
         });
         $this->dispatcher = $dispatcher;
 
-        $this->handler->expects('report')->with($exception);
+        $this->handler->expects('report')->with(Argument::same($exception));
 
-        $event = new ScheduleRunExitCodeEvent(Double::for(EventMutex::class), 0, 'test:listener-failure');
+        $event = new ScheduleRunExitCodeEvent(Double::for(EventMutex::class)->strict(), 0, 'test:listener-failure');
         $command = $this->makeCommand();
         $output = $this->captureOutput($command);
 
@@ -733,7 +733,7 @@ class ScheduleRunCommandTest extends TestCase
             ->with(Argument::satisfies(fn (Throwable $throwable): bool => $throwable instanceof RuntimeException
                 && $throwable->getMessage() === 'Scheduled command [test:non-zero] failed with exit code [1].'));
 
-        $event = new ScheduleRunExitCodeEvent(Double::for(EventMutex::class), 1, 'test:non-zero');
+        $event = new ScheduleRunExitCodeEvent(Double::for(EventMutex::class)->strict(), 1, 'test:non-zero');
         $command = $this->makeCommand();
         $output = $this->captureOutput($command);
 
@@ -771,7 +771,7 @@ class ScheduleRunCommandTest extends TestCase
         $command = $this->makeCommand();
         $this->captureOutput($command);
 
-        $this->invokeRunEvent($command, new ScheduleRunExitCodeEvent(Double::for(EventMutex::class), 1, 'test:slow-listener'));
+        $this->invokeRunEvent($command, new ScheduleRunExitCodeEvent(Double::for(EventMutex::class)->strict(), 1, 'test:slow-listener'));
 
         $this->assertInstanceOf(ScheduledTaskFinished::class, $finishedEvent);
         $this->assertInstanceOf(ScheduledTaskFailed::class, $failedEvent);
@@ -793,7 +793,7 @@ class ScheduleRunCommandTest extends TestCase
         $command = $this->makeCommand();
         $this->captureOutput($command);
 
-        $this->invokeRunEvent($command, new ScheduleRunExitCodeEvent(Double::for(EventMutex::class), 1, 'test:slow-failure'));
+        $this->invokeRunEvent($command, new ScheduleRunExitCodeEvent(Double::for(EventMutex::class)->strict(), 1, 'test:slow-failure'));
 
         $this->assertCount(1, $runtimes);
     }
@@ -802,7 +802,7 @@ class ScheduleRunCommandTest extends TestCase
     {
         $exception = new RuntimeException('Alert transport failed.');
         $this->dispatcher = $this->app->make(Dispatcher::class);
-        $this->handler->expects('report')->with($exception);
+        $this->handler->expects('report')->with(Argument::same($exception));
 
         $schedule = new Schedule;
         $throwingCalls = 0;
@@ -821,7 +821,7 @@ class ScheduleRunCommandTest extends TestCase
         $command = $this->makeCommand();
         $this->captureOutput($command);
 
-        $this->invokeRunEvent($command, new ScheduleRunExitCodeEvent(Double::for(EventMutex::class), 0, 'test:throwing-handler'));
+        $this->invokeRunEvent($command, new ScheduleRunExitCodeEvent(Double::for(EventMutex::class)->strict(), 0, 'test:throwing-handler'));
 
         $this->assertSame(1, $throwingCalls);
 
@@ -835,7 +835,7 @@ class ScheduleRunCommandTest extends TestCase
             ->with(Argument::satisfies(fn (Throwable $throwable): bool => $throwable instanceof RuntimeException
                 && $throwable->getMessage() === 'Scheduled command [test:background-non-zero] failed with exit code [1].'));
 
-        $event = new ScheduleRunExitCodeEvent(Double::for(EventMutex::class), 1, 'test:background-non-zero');
+        $event = new ScheduleRunExitCodeEvent(Double::for(EventMutex::class)->strict(), 1, 'test:background-non-zero');
         $event->runInBackground();
 
         $command = $this->makeCommand();
@@ -856,7 +856,7 @@ class ScheduleRunCommandTest extends TestCase
 
     public function testOverlapSkipDoesNotReportThePreviousNonZeroExitAgain(): void
     {
-        $mutex = Double::for(EventMutex::class);
+        $mutex = Double::for(EventMutex::class)->strict();
         $mutex->expects('create')->returns(false);
 
         $event = new ScheduleRunExitCodeEvent($mutex, 1, 'test:overlap-skip');
@@ -937,7 +937,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->dispatcher = Double::for(Dispatcher::class)->strict();
         $this->dispatcher->expects('dispatch')->never();
 
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
 
         $event = Double::for(new Event($eventMutex, 'test:background', null, false))->passthru();
         $event->expects('run');
@@ -967,7 +967,7 @@ class ScheduleRunCommandTest extends TestCase
     public function testSkippedNonRepeatableTaskIsOnlyEvaluatedOncePerMinute(): void
     {
         $deferred = [];
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
 
         $callbackEvent = new CallbackEvent($eventMutex, function () {
             return 0;
@@ -997,7 +997,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->dispatcher = Double::for(Dispatcher::class)->strict();
         $this->dispatcher->expects('dispatch')->never();
 
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
 
         $callbackEvent = new CallbackEvent($eventMutex, function () {
             return 0;
@@ -1016,14 +1016,14 @@ class ScheduleRunCommandTest extends TestCase
 
     public function testPausedTaskIsSkippedWithoutRunningFilters(): void
     {
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
 
         $callbackEvent = Double::for(new CallbackEvent($eventMutex, function () {
             return 0;
         }))->passthru();
         $callbackEvent->expects('filtersPass')->never();
 
-        $cache = Double::for(Cache::class);
+        $cache = Double::for(Cache::class)->strict();
         $cache->expects('get')
             ->with('hypervel:schedule:paused', false)
             ->returns(true);
@@ -1048,9 +1048,9 @@ class ScheduleRunCommandTest extends TestCase
                 $calls[] = 'deferred';
             });
         });
-        $cache = Double::for(Cache::class);
+        $cache = Double::for(Cache::class)->strict();
         $cache->expects('get')->with('hypervel:schedule:paused', false)->returns(true);
-        $event = new CallbackEvent(Double::for(EventMutex::class), static fn (): bool => true);
+        $event = new CallbackEvent(Double::for(EventMutex::class)->strict(), static fn (): bool => true);
 
         $this->invokeRunEvents($this->makeCommand($cache), [$event]);
 
@@ -1063,7 +1063,7 @@ class ScheduleRunCommandTest extends TestCase
     {
         $runCount = 0;
 
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
         $eventMutex->allows('create')->returns(true);
         $eventMutex->allows('forget');
 
@@ -1074,7 +1074,7 @@ class ScheduleRunCommandTest extends TestCase
         });
         $callbackEvent->evenWhenPaused();
 
-        $cache = Double::for(Cache::class);
+        $cache = Double::for(Cache::class)->strict();
         $cache->expects('get')
             ->with('hypervel:schedule:paused', false)
             ->returns(true);
@@ -1090,13 +1090,13 @@ class ScheduleRunCommandTest extends TestCase
 
     public function testPausedNonRepeatableTaskIsOnlyEvaluatedOncePerMinute(): void
     {
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
 
         $callbackEvent = new CallbackEvent($eventMutex, function () {
             return 0;
         });
 
-        $cache = Double::for(Cache::class);
+        $cache = Double::for(Cache::class)->strict();
         $cache->expects('get')
             ->with('hypervel:schedule:paused', false)
             ->returns(true);
@@ -1118,7 +1118,7 @@ class ScheduleRunCommandTest extends TestCase
 
         $runCount = 0;
 
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
         $eventMutex->allows('create')->returns(true);
         $eventMutex->allows('forget');
 
@@ -1128,7 +1128,7 @@ class ScheduleRunCommandTest extends TestCase
             return 0;
         });
 
-        $cache = Double::for(Cache::class);
+        $cache = Double::for(Cache::class)->strict();
         $cache->expects('get')->never();
 
         $command = $this->makeCommand($cache);
@@ -1145,7 +1145,7 @@ class ScheduleRunCommandTest extends TestCase
     {
         $runCount = 0;
 
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
         $eventMutex->allows('create')->returns(true);
         $eventMutex->allows('forget');
 
@@ -1172,7 +1172,7 @@ class ScheduleRunCommandTest extends TestCase
     {
         $runCount = 0;
 
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
         $eventMutex->allows('create')->returns(true);
         $eventMutex->allows('forget');
 
@@ -1197,15 +1197,15 @@ class ScheduleRunCommandTest extends TestCase
 
     public function testSingleServerEventClaimedElsewhereDoesNotReportThatNoCommandsWereReady(): void
     {
-        $event = new Event(Double::for(EventMutex::class), 'test:single-server');
+        $event = new Event(Double::for(EventMutex::class)->strict(), 'test:single-server');
         $event->onOneServer();
 
-        $schedule = Double::for(Schedule::class);
+        $schedule = Double::for(Schedule::class)->strict();
         $schedule->expects('dueEventsAt')
-            ->with($this->app, Argument::type(CarbonInterface::class))
+            ->with(Argument::same($this->app), Argument::type(CarbonInterface::class))
             ->returns(new Collection([$event]));
         $schedule->expects('serverShouldRun')
-            ->with($event, Argument::type(CarbonInterface::class))
+            ->with(Argument::same($event), Argument::type(CarbonInterface::class))
             ->returns(false);
 
         $command = $this->makeCommand();
@@ -1234,7 +1234,7 @@ class ScheduleRunCommandTest extends TestCase
 
         $startedAt = Date::now()->startOfMinute();
         $expectedStartedAt = $startedAt->format('Y-m-d H:i:s');
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
         $callbackEvent = new CallbackEvent($eventMutex, function () use ($startedAt): int {
             Date::setTestNow($startedAt->copy()->addMinute());
 
@@ -1244,14 +1244,12 @@ class ScheduleRunCommandTest extends TestCase
         $callbackEvent->repeatSeconds = 1;
         $callbackEvent->lastChecked = $startedAt->copy()->subSecond();
 
-        $schedule = Double::for(Schedule::class);
+        $schedule = Double::for(Schedule::class)->strict();
         $schedule->expects('serverShouldRun')
-            ->with(Argument::all(function (Event $event, CarbonInterface $time) use ($callbackEvent, $expectedStartedAt): bool {
-                $this->assertSame($callbackEvent, $event);
-                $this->assertSame($expectedStartedAt, $time->format('Y-m-d H:i:s'));
-
-                return true;
-            }))
+            ->with(
+                Argument::same($callbackEvent),
+                Argument::satisfies(static fn (CarbonInterface $time): bool => $time->format('Y-m-d H:i:s') === $expectedStartedAt),
+            )
             ->returns(true);
 
         $command = $this->makeCommand();
@@ -1281,7 +1279,7 @@ class ScheduleRunCommandTest extends TestCase
         Date::setTestNow('2026-05-28 12:34:00');
 
         $startedAt = Date::now()->startOfMinute();
-        $event = Double::for(new Event(Double::for(EventMutex::class), 'test:repeating-background', null, false))->passthru();
+        $event = Double::for(new Event(Double::for(EventMutex::class)->strict(), 'test:repeating-background', null, false))->passthru();
         $event->expects('run')
             ->resolves(function () use ($startedAt): void {
                 Date::setTestNow($startedAt->addMinute());
@@ -1309,7 +1307,7 @@ class ScheduleRunCommandTest extends TestCase
 
     public function testConcurrentFinishesUseRunLocalExitCodeForSuccessAndFailureCallbacks(): void
     {
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
         $event = new Event($eventMutex, 'test:overlap');
         $channel = new Channel(2);
 
@@ -1380,9 +1378,9 @@ class ScheduleRunCommandTest extends TestCase
             $finished = true;
         });
         $event = (new Event($mutex, 'test:shutdown-drain'))->withoutOverlapping()->runInBackground();
-        $schedule = Double::for(Schedule::class);
+        $schedule = Double::for(Schedule::class)->strict();
         $schedule->expects('dueEventsAt')->returns(new Collection([$event]));
-        $cache = Double::for(Cache::class);
+        $cache = Double::for(Cache::class)->strict();
         $cache->expects('get')->never();
         $command = $this->makeCommand($cache);
         $command->setInput(new ArrayInput([], $command->getDefinition()));
@@ -1419,7 +1417,7 @@ class ScheduleRunCommandTest extends TestCase
         $command = $this->makeCommand();
         (new ReflectionMethod($command, 'listenForSignals'))->invoke($command);
         $calls = [];
-        $event = new CallbackEvent(Double::for(EventMutex::class), function () use (&$calls, $phase, $signal): void {
+        $event = new CallbackEvent(Double::for(EventMutex::class)->strict(), function () use (&$calls, $phase, $signal): void {
             $calls[] = 'first';
             if ($phase === 'foreground task') {
                 $signal(SIGTERM);
@@ -1432,7 +1430,7 @@ class ScheduleRunCommandTest extends TestCase
 
             return true;
         });
-        $schedule = Double::for(Schedule::class);
+        $schedule = Double::for(Schedule::class)->strict();
         $schedule->expects('serverShouldRun')->times($phase === 'filter' ? 0 : 1)->resolves(function () use ($phase, $signal): bool {
             if ($phase === 'server claim') {
                 $signal(SIGTERM);
@@ -1441,7 +1439,7 @@ class ScheduleRunCommandTest extends TestCase
             return true;
         });
         (new ReflectionProperty($command, 'schedule'))->setValue($command, $schedule);
-        $next = new CallbackEvent(Double::for(EventMutex::class), function () use (&$calls): void {
+        $next = new CallbackEvent(Double::for(EventMutex::class)->strict(), function () use (&$calls): void {
             $calls[] = 'second';
         });
         $next->when(function () use (&$calls): bool {
@@ -1483,14 +1481,14 @@ class ScheduleRunCommandTest extends TestCase
                 throw new RuntimeException('The running task was not released.');
             }
         });
-        $first = (new Event(Double::for(EventMutex::class), 'test:occupy-slot'))->runInBackground();
-        $second = (new Event(Double::for(EventMutex::class), 'test:must-not-run'))->runInBackground()->onOneServer();
+        $first = (new Event(Double::for(EventMutex::class)->strict(), 'test:occupy-slot'))->runInBackground();
+        $second = (new Event(Double::for(EventMutex::class)->strict(), 'test:must-not-run'))->runInBackground()->onOneServer();
         $second->when(function () use ($waiting): bool {
             $waiting->push(true, 5.0);
 
             return true;
         });
-        $schedule = Double::for(Schedule::class);
+        $schedule = Double::for(Schedule::class)->strict();
         $schedule->expects('serverShouldRun')->never();
         (new ReflectionProperty($command, 'schedule'))->setValue($command, $schedule);
 
@@ -1553,7 +1551,7 @@ class ScheduleRunCommandTest extends TestCase
 
     public function testSignalCleanupReleasesMutexesForRunningOwnedEvents(): void
     {
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
         $eventMutex->expects('create')->returns(true);
         $eventMutex->expects('forget');
 
@@ -1573,7 +1571,7 @@ class ScheduleRunCommandTest extends TestCase
 
     public function testSignalCleanupDoesNotReleaseMutexesForEventsWithoutOwnedMutexes(): void
     {
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
         $eventMutex->expects('forget')->never();
 
         $event = new Event($eventMutex, 'test:overlap');
@@ -1590,7 +1588,7 @@ class ScheduleRunCommandTest extends TestCase
 
     public function testSignalCleanupHonorsReleaseOnTerminationSignalsFlag(): void
     {
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
         $eventMutex->expects('create')->returns(true);
         $eventMutex->expects('forget')->never();
 
@@ -1610,7 +1608,7 @@ class ScheduleRunCommandTest extends TestCase
 
     public function testRunningEventIsRetainedUntilEveryOverlappingInvocationFinishes(): void
     {
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
         $eventMutex->expects('create')->returns(true);
         $eventMutex->expects('forget');
 
@@ -1640,7 +1638,7 @@ class ScheduleRunCommandTest extends TestCase
 
     public function testRunningEventIsForgottenWhenEventThrows(): void
     {
-        $eventMutex = Double::for(EventMutex::class);
+        $eventMutex = Double::for(EventMutex::class)->strict();
         $eventMutex->allows('create')->returns(true);
 
         $exception = new RuntimeException('Task exploded');
@@ -1648,7 +1646,7 @@ class ScheduleRunCommandTest extends TestCase
         $event = Double::for(new Event($eventMutex, 'test:failing', null, false))->passthru();
         $event->expects('run')->throws($exception);
 
-        $this->handler->expects('report')->with($exception);
+        $this->handler->expects('report')->with(Argument::same($exception));
 
         $command = $this->makeCommand();
         $this->invokeRunEvent($command, $event);
@@ -1663,7 +1661,7 @@ class ScheduleRunCommandTest extends TestCase
      */
     protected function captureTerminationSignal(?Closure &$callback): void
     {
-        $registry = Double::for(SignalRegistry::class);
+        $registry = Double::for(SignalRegistry::class)->strict();
         $registry->expects('register')
             ->with(Argument::type(ScheduleRunCommand::class), [SIGTERM, SIGINT, SIGQUIT], Argument::capture($callback));
         $registry->allows('unregister');
@@ -1688,7 +1686,7 @@ class ScheduleRunCommandTest extends TestCase
         }
 
         // Set dependencies that are normally injected via handle().
-        (new ReflectionProperty($command, 'schedule'))->setValue($command, Double::for(Schedule::class));
+        (new ReflectionProperty($command, 'schedule'))->setValue($command, Double::for(Schedule::class)->strict());
         (new ReflectionProperty($command, 'dispatcher'))->setValue($command, $this->dispatcher);
         (new ReflectionProperty($command, 'cache'))->setValue($command, $cache);
         (new ReflectionProperty($command, 'handler'))->setValue($command, $this->handler);

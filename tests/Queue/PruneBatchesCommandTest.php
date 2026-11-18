@@ -19,8 +19,10 @@ class PruneBatchesCommandTest extends TestCase
 
     public function testAllowPruningAllUnfinishedBatches(): void
     {
-        $repo = Double::for(DatabaseBatchRepository::class);
+        $now = $this->freezeSecond();
+        $repo = Double::for(DatabaseBatchRepository::class)->strict();
         $repo->expects('prune');
+        $repo->expects('pruneUnfinished')->with($now);
 
         $this->app->instance(BatchRepository::class, $repo);
 
@@ -28,14 +30,14 @@ class PruneBatchesCommandTest extends TestCase
         $command->setHypervel($this->app);
 
         $command->run(new ArrayInput(['--unfinished' => 0]), new NullOutput);
-
-        $repo->received('pruneUnfinished')->times(1);
     }
 
     public function testAllowPruningAllCancelledBatches(): void
     {
-        $repo = Double::for(DatabaseBatchRepository::class);
+        $now = $this->freezeSecond();
+        $repo = Double::for(DatabaseBatchRepository::class)->strict();
         $repo->expects('prune');
+        $repo->expects('pruneCancelled')->with($now);
 
         $this->app->instance(BatchRepository::class, $repo);
 
@@ -43,7 +45,5 @@ class PruneBatchesCommandTest extends TestCase
         $command->setHypervel($this->app);
 
         $command->run(new ArrayInput(['--cancelled' => 0]), new NullOutput);
-
-        $repo->received('pruneCancelled')->times(1);
     }
 }

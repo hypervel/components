@@ -9,6 +9,7 @@ use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 
 class ProcessPendingUpdatesTest extends FeatureTestCase
 {
@@ -26,7 +27,7 @@ class ProcessPendingUpdatesTest extends FeatureTestCase
 
         $repository
             ->expects('update')
-            ->with($pendingUpdates)
+            ->with(Argument::same($pendingUpdates))
             ->returns($failedUpdates);
 
         (new ProcessPendingUpdates($pendingUpdates))->handle($repository);
@@ -50,7 +51,7 @@ class ProcessPendingUpdatesTest extends FeatureTestCase
 
         $repository
             ->expects('update')
-            ->with($pendingUpdates)
+            ->with(Argument::same($pendingUpdates))
             ->returns($failedUpdates);
 
         (new ProcessPendingUpdates($pendingUpdates))->handle($repository);
@@ -76,7 +77,7 @@ class ProcessPendingUpdatesTest extends FeatureTestCase
 
         $repository
             ->expects('update')
-            ->with($pendingUpdates)
+            ->with(Argument::same($pendingUpdates))
             ->returns($failedUpdates);
 
         (new ProcessPendingUpdates($pendingUpdates, 2))->handle($repository);
@@ -94,7 +95,7 @@ class ProcessPendingUpdatesTest extends FeatureTestCase
 
         $repository = Double::for(EntriesRepository::class)->strict();
         $repository->expects('update')
-            ->with($pendingUpdates)
+            ->with(Argument::same($pendingUpdates))
             ->returns(null);
 
         (new ProcessPendingUpdates($pendingUpdates))->handle($repository);

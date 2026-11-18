@@ -236,7 +236,7 @@ class ImageManagerTest extends TestCase
     public function testFromPathIsLazy(): void
     {
         $app = $this->makeApp([]);
-        $filesystem = Double::for(Filesystem::class);
+        $filesystem = Double::for(Filesystem::class)->strict();
         $filesystem->expects('get')->never();
         $app->bind(Filesystem::class, fn (): Filesystem => $filesystem);
 
@@ -251,12 +251,12 @@ class ImageManagerTest extends TestCase
     {
         $contents = $this->fakeImageContents();
 
-        $disk = Double::for(FilesystemContract::class);
+        $disk = Double::for(FilesystemContract::class)->strict();
         $disk->expects('get')
             ->with('images/avatar.jpg')
             ->returns($contents);
 
-        $filesystem = Double::for(FilesystemFactory::class);
+        $filesystem = Double::for(FilesystemFactory::class)->strict();
         $filesystem->expects('disk')
             ->with('public')
             ->returns($disk);
@@ -275,12 +275,12 @@ class ImageManagerTest extends TestCase
     {
         $contents = $this->fakeImageContents();
 
-        $disk = Double::for(FilesystemContract::class);
+        $disk = Double::for(FilesystemContract::class)->strict();
         $disk->expects('get')
             ->with('images/avatar.jpg')
             ->returns($contents);
 
-        $filesystem = Double::for(FilesystemFactory::class);
+        $filesystem = Double::for(FilesystemFactory::class)->strict();
         $filesystem->expects('disk')
             ->with(ImageDiskStub::Public)
             ->returns($disk);
@@ -299,12 +299,12 @@ class ImageManagerTest extends TestCase
     {
         $contents = $this->fakeImageContents();
 
-        $disk = Double::for(FilesystemContract::class);
+        $disk = Double::for(FilesystemContract::class)->strict();
         $disk->expects('get')
             ->with('images/avatar.jpg')
             ->returns($contents);
 
-        $filesystem = Double::for(FilesystemFactory::class);
+        $filesystem = Double::for(FilesystemFactory::class)->strict();
         $filesystem->expects('disk')
             ->with(ImageUnitDiskStub::public)
             ->returns($disk);
@@ -321,10 +321,10 @@ class ImageManagerTest extends TestCase
 
     public function testFromStorageReportsAMissingPath(): void
     {
-        $disk = Double::for(FilesystemContract::class);
+        $disk = Double::for(FilesystemContract::class)->strict();
         $disk->expects('get')->with('images/missing.jpg')->returns(null);
 
-        $filesystem = Double::for(FilesystemFactory::class);
+        $filesystem = Double::for(FilesystemFactory::class)->strict();
         $filesystem->expects('disk')->with('public')->returns($disk);
 
         $app = $this->makeApp([]);
@@ -342,7 +342,7 @@ class ImageManagerTest extends TestCase
     public function testFromStorageIsLazy(): void
     {
         $app = $this->makeApp([]);
-        $filesystem = Double::for(FilesystemFactory::class);
+        $filesystem = Double::for(FilesystemFactory::class)->strict();
         $filesystem->expects('disk')->never();
         $app->bind(FilesystemFactory::class, fn (): FilesystemFactory => $filesystem);
 
@@ -675,7 +675,7 @@ class ImageManagerTest extends TestCase
     {
         $container = new Container;
         $container->instance('config', new Repository(['images.default' => 'custom']));
-        $driver = Double::for(Driver::class);
+        $driver = Double::for(Driver::class)->strict();
         $driver->expects('process')
             ->with(
                 'source image',

@@ -221,7 +221,7 @@ class DataCollectTest extends TestCase
 
     public function testContractOnlyPaginatorCanTargetANonPaginatorWithoutCollectMethodDispatch(): void
     {
-        $paginator = Double::for(PaginatorContract::class);
+        $paginator = Double::for(PaginatorContract::class)->strict();
         $paginator->expects('items')->returns([
             ['id' => '1'],
         ]);

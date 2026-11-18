@@ -108,8 +108,8 @@ class InteractsWithBroadcastingTest extends TestCase
         $event->broadcastVia(InteractsWithBroadcastingTestConnectionIntEnum::Connection1);
 
         $broadcastEvent = new BroadcastEvent($event);
-        $manager = Double::for(BroadcastingFactory::class);
-        $broadcaster = Double::for(Broadcaster::class);
+        $manager = Double::for(BroadcastingFactory::class)->strict();
+        $broadcaster = Double::for(Broadcaster::class)->strict();
 
         $manager->expects('connection')->with('1')->returns($broadcaster);
         $broadcaster->expects('broadcast');

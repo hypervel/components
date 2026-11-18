@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Support;
 
 use Carbon\CarbonInterval;
 use DateInterval;
-use Exception;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
@@ -641,13 +640,14 @@ class SleepTest extends TestCase
 
     public function testItDoesntRunCallbacksWhenNotFaking(): void
     {
-        Sleep::whenFakingSleep(function (): never {
-            throw new Exception('Should not run without faking.');
+        $called = false;
+        Sleep::whenFakingSleep(function () use (&$called): void {
+            $called = true;
         });
 
         Sleep::for(1)->millisecond();
 
-        $this->assertTrue(true);
+        $this->assertFalse($called);
     }
 
     public function testItDoesNotSyncCarbon(): void

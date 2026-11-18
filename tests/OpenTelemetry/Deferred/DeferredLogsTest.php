@@ -9,6 +9,7 @@ use Hypervel\OpenTelemetry\Deferred\Logs\DeferredLoggerProvider;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use OpenTelemetry\API\Logs\LoggerInterface;
 use OpenTelemetry\API\Logs\LoggerProviderInterface;
 use OpenTelemetry\API\Logs\LogRecord;
@@ -37,10 +38,10 @@ class DeferredLogsTest extends TestCase
         $workerBuilder = Double::for(LogRecordBuilderInterface::class)->strict();
         $workerLogger = Double::for(LoggerInterface::class)->strict();
         $workerLogger->expects('isEnabled')
-            ->with(Context::getRoot(), 17, 'exception')
+            ->with(Argument::same(Context::getRoot()), 17, 'exception')
             ->returns(true);
         $workerLogger->expects('logRecordBuilder')->returns($workerBuilder);
-        $workerLogger->expects('emit')->with($record);
+        $workerLogger->expects('emit')->with(Argument::same($record));
         $workerProvider = Double::for(LoggerProviderInterface::class)->strict();
         $workerProvider->expects('getLogger')
             ->with('billing', '1.0', 'https://schema.test', ['scope.kind' => 'test'])

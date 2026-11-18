@@ -59,7 +59,7 @@ class ListenerTest extends TestCase
     {
         $listener = new Listener;
 
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getName')->times(150)->returns('testing');
         $connection->expects('prepareBindings')->times(100)->resolves(fn (array $bindings): array => $bindings);
 
@@ -176,7 +176,7 @@ class ListenerTest extends TestCase
 
     public function testLongQueriesAndBindingsAreBounded(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('getName')->returns('testing');
         $connection->expects('prepareBindings')
             ->with(['first', 'second', 'third'])

@@ -131,7 +131,7 @@ class InstalledPackagesTest extends TestCase
      */
     private function snapshot(array $root): array
     {
-        $composer = Double::for(ComposerJson::class);
+        $composer = Double::for(ComposerJson::class)->strict();
         $composer->allows('contents')->returns($root);
 
         return $this->packages->platformRequirements($composer);

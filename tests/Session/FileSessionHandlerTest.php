@@ -30,7 +30,7 @@ class FileSessionHandlerTest extends TestCase
     {
         parent::setUp();
 
-        $this->files = Double::for(Filesystem::class);
+        $this->files = Double::for(Filesystem::class)->strict();
         $this->sessionHandler = new FileSessionHandler($this->files, '/path/to/sessions', 30);
     }
 
@@ -140,7 +140,7 @@ class FileSessionHandlerTest extends TestCase
         $data = 'session_data';
 
         foreach ([false, strlen($data) - 1] as $written) {
-            $files = Double::for(Filesystem::class);
+            $files = Double::for(Filesystem::class)->strict();
             $files->expects('put')
                 ->with('/path/to/sessions/session_id', $data, true)
                 ->returns($written);

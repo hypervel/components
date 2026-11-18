@@ -214,7 +214,7 @@ class ConnectionPoolTest extends TestCase
 
     public function testCloseContinuesAfterMonitorCleanupFails(): void
     {
-        $logger = Double::for(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
         $logger->expects('error')
             ->with(Argument::satisfies(static fn (string $message): bool => str_contains($message, 'monitor cleanup failed')));
         $container = $this->createContainer();
@@ -224,7 +224,7 @@ class ConnectionPoolTest extends TestCase
         $pool->replaceChannel($channel);
         $connection = $pool->borrow();
         $pool->release($connection);
-        $timer = Double::for(Timer::class);
+        $timer = Double::for(Timer::class)->strict();
         $timer->expects('tick')->with(1.0, Argument::type('callable'))->returns(1);
         $timer->expects('clear')->with(1)->throws(new RuntimeException('monitor cleanup failed'));
         $monitor = new IdleConnectionMonitor($pool, 1.0, $timer);
@@ -687,7 +687,7 @@ class ConnectionPoolTest extends TestCase
 
     public function testThrowingIdleCheckIsReportedDestroyedAndFreesCapacity(): void
     {
-        $logger = Double::for(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
         $logger->expects('error')
             ->with(Argument::satisfies(static fn (string $message): bool => str_contains($message, 'check failed')));
         $container = $this->createContainer();
@@ -742,7 +742,7 @@ class ConnectionPoolTest extends TestCase
             default => null,
         };
         $container = $this->createContainer();
-        $logger = Double::for(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
 
         if ($cleanupFailure === 'failed') {
             $logger->expects('error')->with((string) $secondary);
@@ -823,13 +823,13 @@ class ConnectionPoolTest extends TestCase
 
     public function testUsageTrackerFailureIsReportedWithoutLosingBorrow(): void
     {
-        $logger = Double::for(StdoutLoggerInterface::class);
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
         $logger->expects('error')
             ->with(Argument::satisfies(static fn (string $message): bool => str_contains($message, 'recording failed')));
         $container = $this->createContainer();
         $container->instance(StdoutLoggerInterface::class, $logger);
         $pool = new CallbackPool($container, 'test');
-        $tracker = Double::for(UsageTracker::class);
+        $tracker = Double::for(UsageTracker::class)->strict();
         $tracker->expects('recordBorrow')->throws(new RuntimeException('recording failed'));
         $pool->useUsageTracker($tracker);
 
@@ -889,7 +889,7 @@ class ConnectionPoolTest extends TestCase
 
     public function testUsageTrackerFactoryRunsOnceAfterSubclassConstruction(): void
     {
-        $tracker = Double::for(UsageTracker::class);
+        $tracker = Double::for(UsageTracker::class)->strict();
         $tracker->expects('recordBorrow')->times(2);
         $tracker->expects('shouldTrimExcessIdle')->times(2)->returns(false);
         $pool = new UsageTrackerPool($this->createContainer(), static fn () => $tracker);
@@ -1014,7 +1014,7 @@ class ConnectionPoolTest extends TestCase
                 $this->close();
             }
         };
-        $tracker = Double::for(UsageTracker::class);
+        $tracker = Double::for(UsageTracker::class)->strict();
         $tracker->expects('recordBorrow');
         $tracker->expects('shouldTrimExcessIdle')->returns(true);
         $pool->useUsageTracker($tracker);

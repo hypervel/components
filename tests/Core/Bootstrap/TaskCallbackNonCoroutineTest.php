@@ -28,7 +28,7 @@ class TaskCallbackNonCoroutineTest extends TestCase
     {
         CoroutineContext::set('worker', 'outer');
         $seen = [];
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->allows('hasListeners')->returns(true);
         $dispatcher->expects('dispatch')->times(2)
             ->with(Argument::type(OnTask::class))
@@ -43,8 +43,8 @@ class TaskCallbackNonCoroutineTest extends TestCase
             });
 
         $callback = $this->makeCallback($dispatcher);
-        $callback->onTask(Double::for(Server::class), 1, 0, 'first');
-        $callback->onTask(Double::for(Server::class), 2, 0, 'second');
+        $callback->onTask(Double::for(Server::class)->strict(), 1, 0, 'first');
+        $callback->onTask(Double::for(Server::class)->strict(), 2, 0, 'second');
 
         $this->assertSame([[null, null], 'first', [null, null], 'second'], $seen);
         $this->assertSame('outer', CoroutineContext::get('worker'));
@@ -56,7 +56,7 @@ class TaskCallbackNonCoroutineTest extends TestCase
         CoroutineContext::set('worker', 'outer');
         $exception = new RuntimeException('Task failed.');
         $terminatedWith = null;
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->allows('hasListeners')->returns(true);
         $dispatcher->expects('dispatch')
             ->with(Argument::type(OnTask::class))
@@ -72,7 +72,7 @@ class TaskCallbackNonCoroutineTest extends TestCase
             });
 
         try {
-            $this->makeCallback($dispatcher)->onTask(Double::for(Server::class), 1, 0, 'payload');
+            $this->makeCallback($dispatcher)->onTask(Double::for(Server::class)->strict(), 1, 0, 'payload');
             $this->fail('Expected the task failure to propagate.');
         } catch (RuntimeException $throwable) {
             $this->assertSame($exception, $throwable);

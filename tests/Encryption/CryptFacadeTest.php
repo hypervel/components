@@ -25,7 +25,7 @@ class CryptFacadeTest extends TestCase
 
     public function testDynamicCallsForwardTheirMethodArgumentsAndReturnValue(): void
     {
-        $root = Double::for(CryptFacadeRoot::class);
+        $root = Double::for(CryptFacadeRoot::class)->strict();
         $root->expects('probe')
             ->with('value', 42)
             ->returns('result');

@@ -13,6 +13,7 @@ use Hypervel\Prompts\Support\PromptAnimation;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
 use Swoole\Coroutine as SwooleCoroutine;
@@ -35,7 +36,7 @@ class PromptAnimationTest extends TestCase
             $childCoroutineId = null;
             $exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
             $exceptionHandler->expects('report')
-                ->with($hookFailure)
+                ->with(Argument::same($hookFailure))
                 ->resolves(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
                     $childCoroutineId = EngineCoroutine::id();
                     $reportStarted->push(true);

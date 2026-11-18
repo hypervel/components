@@ -55,7 +55,7 @@ class SkipIfBatchCancelledTest extends TestCase
         $class::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $job = Double::for(Job::class);
+        $job = Double::for(Job::class)->strict();
 
         $job->expects('uuid')->returns('simple-test-uuid');
         $job->expects('hasFailed')->returns(false);

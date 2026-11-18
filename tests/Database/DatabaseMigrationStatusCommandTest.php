@@ -22,9 +22,9 @@ class DatabaseMigrationStatusCommandTest extends TestCase
     {
         $app = new ApplicationDatabaseStatusStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
-        $command = new StatusCommand($migrator = Double::for(Migrator::class));
+        $command = new StatusCommand($migrator = Double::for(Migrator::class)->strict());
         $command->setHypervel($app);
-        $repository = Double::for(MigrationRepositoryInterface::class);
+        $repository = Double::for(MigrationRepositoryInterface::class)->strict();
         $migrator->expects('usingConnection')->resolves(function ($name, $callback) {
             return $callback();
         });

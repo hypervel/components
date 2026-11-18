@@ -21,9 +21,9 @@ class CacheTokenRepositoryTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
-        $cache = Double::for(Repository::class);
-        $hasher = Double::for(Hasher::class);
-        $user = Double::for(CanResetPassword::class);
+        $cache = Double::for(Repository::class)->strict();
+        $hasher = Double::for(Hasher::class)->strict();
+        $user = Double::for(CanResetPassword::class)->strict();
         $user->allows('getEmailForPasswordReset')->returns('foo@bar.com');
 
         $hasher->expects('make')->resolves(fn ($token) => 'hashed_' . $token);
@@ -50,9 +50,9 @@ class CacheTokenRepositoryTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
-        $cache = Double::for(Repository::class);
-        $hasher = Double::for(Hasher::class);
-        $user = Double::for(CanResetPassword::class);
+        $cache = Double::for(Repository::class)->strict();
+        $hasher = Double::for(Hasher::class)->strict();
+        $user = Double::for(CanResetPassword::class)->strict();
         $user->allows('getEmailForPasswordReset')->returns('foo@bar.com');
 
         $cache->expects('get')->returns([
@@ -70,10 +70,10 @@ class CacheTokenRepositoryTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
-        $cache = Double::for(Repository::class);
-        $hasher = Double::for(Hasher::class);
+        $cache = Double::for(Repository::class)->strict();
+        $hasher = Double::for(Hasher::class)->strict();
         $hasher->expects('check')->never();
-        $user = Double::for(CanResetPassword::class);
+        $user = Double::for(CanResetPassword::class)->strict();
         $user->allows('getEmailForPasswordReset')->returns('foo@bar.com');
 
         $cache->expects('get')->returns([
@@ -90,9 +90,9 @@ class CacheTokenRepositoryTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
-        $cache = Double::for(Repository::class);
-        $hasher = Double::for(Hasher::class);
-        $user = Double::for(CanResetPassword::class);
+        $cache = Double::for(Repository::class)->strict();
+        $hasher = Double::for(Hasher::class)->strict();
+        $user = Double::for(CanResetPassword::class)->strict();
         $user->allows('getEmailForPasswordReset')->returns('foo@bar.com');
 
         $cache->expects('get')->returns([
@@ -110,9 +110,9 @@ class CacheTokenRepositoryTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
-        $cache = Double::for(Repository::class);
-        $hasher = Double::for(Hasher::class);
-        $user = Double::for(CanResetPassword::class);
+        $cache = Double::for(Repository::class)->strict();
+        $hasher = Double::for(Hasher::class)->strict();
+        $user = Double::for(CanResetPassword::class)->strict();
         $user->allows('getEmailForPasswordReset')->returns('foo@bar.com');
 
         $cache->expects('get')->returns([
@@ -130,9 +130,9 @@ class CacheTokenRepositoryTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
-        $cache = Double::for(Repository::class);
-        $hasher = Double::for(Hasher::class);
-        $user = Double::for(CanResetPassword::class);
+        $cache = Double::for(Repository::class)->strict();
+        $hasher = Double::for(Hasher::class)->strict();
+        $user = Double::for(CanResetPassword::class)->strict();
         $user->allows('getEmailForPasswordReset')->returns('foo@bar.com');
 
         $cache->expects('get')->returns([
@@ -150,9 +150,9 @@ class CacheTokenRepositoryTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
-        $cache = Double::for(Repository::class);
-        $hasher = Double::for(Hasher::class);
-        $user = Double::for(CanResetPassword::class);
+        $cache = Double::for(Repository::class)->strict();
+        $hasher = Double::for(Hasher::class)->strict();
+        $user = Double::for(CanResetPassword::class)->strict();
         $user->allows('getEmailForPasswordReset')->returns('foo@bar.com');
 
         $cache->expects('get')->returns([
@@ -168,9 +168,9 @@ class CacheTokenRepositoryTest extends TestCase
 
     public function testDeleteRemovesFromCache(): void
     {
-        $cache = Double::for(Repository::class);
-        $hasher = Double::for(Hasher::class);
-        $user = Double::for(CanResetPassword::class);
+        $cache = Double::for(Repository::class)->strict();
+        $hasher = Double::for(Hasher::class)->strict();
+        $user = Double::for(CanResetPassword::class)->strict();
         $user->allows('getEmailForPasswordReset')->returns('foo@bar.com');
 
         $expectedKey = hash('sha256', 'foo@bar.com');
@@ -182,9 +182,9 @@ class CacheTokenRepositoryTest extends TestCase
 
     public function testCacheKeyHashesEmail(): void
     {
-        $cache = Double::for(Repository::class);
-        $hasher = Double::for(Hasher::class);
-        $user = Double::for(CanResetPassword::class);
+        $cache = Double::for(Repository::class)->strict();
+        $hasher = Double::for(Hasher::class)->strict();
+        $user = Double::for(CanResetPassword::class)->strict();
         $user->allows('getEmailForPasswordReset')->returns('foo@bar.com');
 
         $repository = new CacheTokenRepository($cache, $hasher, 'test-hash-key');
@@ -194,8 +194,8 @@ class CacheTokenRepositoryTest extends TestCase
 
     public function testDeleteExpiredIsNoOp(): void
     {
-        $cache = Double::for(Repository::class);
-        $hasher = Double::for(Hasher::class);
+        $cache = Double::for(Repository::class)->strict();
+        $hasher = Double::for(Hasher::class)->strict();
 
         // No cache interaction expected — TTL handles expiry
         $repository = new CacheTokenRepository($cache, $hasher, 'test-hash-key');

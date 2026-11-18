@@ -329,20 +329,20 @@ class DoctorCommandTest extends RedisCacheTestCase
         config()->set('cache.default', 'redis');
         $displayException = new Error('system information failed');
         $connection = $this->mockConnection()->shouldTransform(false);
-        $storeContext = Double::for(StoreContext::class);
+        $storeContext = Double::for(StoreContext::class)->strict();
         $storeContext->expects('withConnection')
             ->resolves(fn (callable $callback): mixed => $callback($connection));
 
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->expects('getContext')->returns($storeContext);
         $store->expects('getTagMode')->returns(TagMode::Any);
         $store->expects('getPrefix')->returns('cache:');
 
-        $repository = Double::for(Repository::class);
+        $repository = Double::for(Repository::class)->strict();
         $repository->expects('getStore')->returns($store);
 
         $storeCalls = 0;
-        $cacheManager = Double::for(CacheContract::class);
+        $cacheManager = Double::for(CacheContract::class)->strict();
         $cacheManager->expects('store')
             ->times(2)
             ->with('redis')
@@ -373,13 +373,13 @@ class DoctorCommandTest extends RedisCacheTestCase
 
     public function testDoctorFailsForNonRedisStore(): void
     {
-        $nonRedisStore = Double::for(Store::class);
+        $nonRedisStore = Double::for(Store::class)->strict();
 
-        $repository = Double::for(Repository::class);
+        $repository = Double::for(Repository::class)->strict();
         $repository->allows('getStore')
             ->returns($nonRedisStore);
 
-        $cacheManager = Double::for(CacheManager::class);
+        $cacheManager = Double::for(CacheManager::class)->strict();
         $cacheManager->allows('store')
             ->with('file')
             ->returns($repository);
@@ -396,7 +396,7 @@ class DoctorCommandTest extends RedisCacheTestCase
     public function testDoctorDetectsRedisStoreFromConfig(): void
     {
         // Set up config with a redis store
-        $config = Double::for(ConfigRepository::class);
+        $config = Double::for(ConfigRepository::class)->strict();
         $config->allows('array')
             ->with('cache.stores')
             ->returns([
@@ -413,7 +413,7 @@ class DoctorCommandTest extends RedisCacheTestCase
         $this->app->instance('config', $config);
 
         // Mock Redis store
-        $context = Double::for(StoreContext::class);
+        $context = Double::for(StoreContext::class)->strict();
         $context->allows('withConnection')
             ->resolves(function (callable $callback): mixed {
                 $connection = $this->mockConnection()->shouldTransform(false);
@@ -421,15 +421,15 @@ class DoctorCommandTest extends RedisCacheTestCase
                 return $callback($connection);
             });
 
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->allows('getTagMode')->returns(TagMode::Any);
         $store->allows('getContext')->returns($context);
         $store->allows('getPrefix')->returns('cache:');
 
-        $repository = Double::for(Repository::class);
+        $repository = Double::for(Repository::class)->strict();
         $repository->allows('getStore')->returns($store);
 
-        $cacheManager = Double::for(CacheManager::class);
+        $cacheManager = Double::for(CacheManager::class)->strict();
         $cacheManager->allows('store')
             ->with('redis')
             ->returns($repository);
@@ -459,7 +459,7 @@ class DoctorCommandTest extends RedisCacheTestCase
             return;
         }
 
-        $config = Double::for(ConfigRepository::class);
+        $config = Double::for(ConfigRepository::class)->strict();
         $config->allows('string')
             ->with('cache.default')
             ->returns('file');
@@ -470,7 +470,7 @@ class DoctorCommandTest extends RedisCacheTestCase
         $this->app->instance('config', $config);
 
         // Mock Redis store
-        $context = Double::for(StoreContext::class);
+        $context = Double::for(StoreContext::class)->strict();
         $context->allows('withConnection')
             ->resolves(function (callable $callback): mixed {
                 $connection = $this->mockConnection()->shouldTransform(false);
@@ -478,15 +478,15 @@ class DoctorCommandTest extends RedisCacheTestCase
                 return $callback($connection);
             });
 
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->allows('getTagMode')->returns(TagMode::All);
         $store->allows('getContext')->returns($context);
         $store->allows('getPrefix')->returns('cache:');
 
-        $repository = Double::for(Repository::class);
+        $repository = Double::for(Repository::class)->strict();
         $repository->allows('getStore')->returns($store);
 
-        $cacheManager = Double::for(CacheManager::class);
+        $cacheManager = Double::for(CacheManager::class)->strict();
         $cacheManager->allows('store')
             ->with('0')
             ->returns($repository);
@@ -518,7 +518,7 @@ class DoctorCommandTest extends RedisCacheTestCase
 
     public function testDoctorRunsChecksWhileRedisConnectionIsBorrowed(): void
     {
-        $config = Double::for(ConfigRepository::class);
+        $config = Double::for(ConfigRepository::class)->strict();
         $config->allows('string')
             ->with('cache.default')
             ->returns('redis');
@@ -535,7 +535,7 @@ class DoctorCommandTest extends RedisCacheTestCase
             ->with('server')
             ->returns(['redis_version' => '7.0.0']);
 
-        $context = Double::for(StoreContext::class);
+        $context = Double::for(StoreContext::class)->strict();
         $context->expects('withConnection')
             ->times(2)
             ->resolves(function (callable $callback) use (&$borrowedConnection, $connection): mixed {
@@ -548,15 +548,15 @@ class DoctorCommandTest extends RedisCacheTestCase
                 }
             });
 
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->allows('getTagMode')->returns(TagMode::Any);
         $store->allows('getContext')->returns($context);
         $store->allows('getPrefix')->returns('cache:');
 
-        $repository = Double::for(Repository::class);
+        $repository = Double::for(Repository::class)->strict();
         $repository->allows('getStore')->returns($store);
 
-        $cacheManager = Double::for(CacheManager::class);
+        $cacheManager = Double::for(CacheManager::class)->strict();
         $cacheManager->allows('store')
             ->with('redis')
             ->returns($repository);
@@ -604,7 +604,7 @@ class DoctorCommandTest extends RedisCacheTestCase
 
     public function testDoctorDisplaysTagMode(): void
     {
-        $config = Double::for(ConfigRepository::class);
+        $config = Double::for(ConfigRepository::class)->strict();
         $config->allows('string')
             ->with('cache.default')
             ->returns('redis');
@@ -615,7 +615,7 @@ class DoctorCommandTest extends RedisCacheTestCase
         $this->app->instance('config', $config);
 
         // Mock Redis store with 'all' mode
-        $context = Double::for(StoreContext::class);
+        $context = Double::for(StoreContext::class)->strict();
         $context->allows('withConnection')
             ->resolves(function (callable $callback): mixed {
                 $connection = $this->mockConnection()->shouldTransform(false);
@@ -623,15 +623,15 @@ class DoctorCommandTest extends RedisCacheTestCase
                 return $callback($connection);
             });
 
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->allows('getTagMode')->returns(TagMode::All);
         $store->allows('getContext')->returns($context);
         $store->allows('getPrefix')->returns('cache:');
 
-        $repository = Double::for(Repository::class);
+        $repository = Double::for(Repository::class)->strict();
         $repository->allows('getStore')->returns($store);
 
-        $cacheManager = Double::for(CacheManager::class);
+        $cacheManager = Double::for(CacheManager::class)->strict();
         $cacheManager->allows('store')
             ->with('redis')
             ->returns($repository);
@@ -665,7 +665,7 @@ class DoctorCommandTest extends RedisCacheTestCase
     public function testDoctorFailsWhenNoRedisStoreDetected(): void
     {
         // Set up config with NO redis stores
-        $config = Double::for(ConfigRepository::class);
+        $config = Double::for(ConfigRepository::class)->strict();
         $config->allows('array')
             ->with('cache.stores')
             ->returns([
@@ -690,7 +690,7 @@ class DoctorCommandTest extends RedisCacheTestCase
 
     public function testDoctorDisplaysSystemInformation(): void
     {
-        $config = Double::for(ConfigRepository::class);
+        $config = Double::for(ConfigRepository::class)->strict();
         $config->allows('array')
             ->with('cache.stores')
             ->returns([
@@ -705,7 +705,7 @@ class DoctorCommandTest extends RedisCacheTestCase
 
         $this->app->instance('config', $config);
 
-        $context = Double::for(StoreContext::class);
+        $context = Double::for(StoreContext::class)->strict();
         $context->allows('withConnection')
             ->resolves(function (callable $callback): mixed {
                 $connection = $this->mockConnection()->shouldTransform(false);
@@ -713,15 +713,15 @@ class DoctorCommandTest extends RedisCacheTestCase
                 return $callback($connection);
             });
 
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->allows('getTagMode')->returns(TagMode::Any);
         $store->allows('getContext')->returns($context);
         $store->allows('getPrefix')->returns('cache:');
 
-        $repository = Double::for(Repository::class);
+        $repository = Double::for(Repository::class)->strict();
         $repository->allows('getStore')->returns($store);
 
-        $cacheManager = Double::for(CacheManager::class);
+        $cacheManager = Double::for(CacheManager::class)->strict();
         $cacheManager->allows('store')
             ->with('redis')
             ->returns($repository);
@@ -753,7 +753,7 @@ class DoctorCommandTest extends RedisCacheTestCase
         ?Throwable $registryException = null,
         int $cleanupInvocations = 1,
     ): DoctorContext {
-        $taggedCache = Double::for(TaggedCache::class);
+        $taggedCache = Double::for(TaggedCache::class)->strict();
         $tagFlushCalls = 0;
         $taggedCache->expects('flush')
             ->times(self::CLEANUP_TEST_TAG_COUNT * $cleanupInvocations)
@@ -767,7 +767,7 @@ class DoctorCommandTest extends RedisCacheTestCase
                 return true;
             });
 
-        $repository = Double::for(Repository::class);
+        $repository = Double::for(Repository::class)->strict();
         $repository->expects('tags')
             ->times(self::CLEANUP_TEST_TAG_COUNT * $cleanupInvocations)
             ->returns($taggedCache);
@@ -796,12 +796,12 @@ class DoctorCommandTest extends RedisCacheTestCase
             $connection->client()->expects('del')->never();
         }
 
-        $storeContext = Double::for(StoreContext::class);
+        $storeContext = Double::for(StoreContext::class)->strict();
         $storeContext->allows('registryKey')->returns('cache:_any:tag_registry');
         $storeContext->allows('withConnection')
             ->resolves(fn (callable $callback): mixed => $callback($connection));
 
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->allows('getContext')->returns($storeContext);
         $store->allows('getTagMode')->returns(TagMode::Any);
         $store->allows('getPrefix')->returns('cache:');
@@ -822,7 +822,7 @@ class DoctorCommandTest extends RedisCacheTestCase
     {
         $context->cache->expects('getStore')->returns($context->store);
 
-        $cacheManager = Double::for(CacheContract::class);
+        $cacheManager = Double::for(CacheContract::class)->strict();
         $cacheManager->expects('store')->with('redis')->returns($context->cache);
         $this->app->instance(CacheContract::class, $cacheManager);
     }

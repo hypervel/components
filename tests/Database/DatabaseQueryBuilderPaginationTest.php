@@ -345,7 +345,7 @@ class DatabaseQueryBuilderPaginationTest extends TestCase
         $model = new class extends Model {
             protected ?string $table = 'posts';
         };
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->allows('connection')->returns($connection);
         $model::setConnectionResolver($resolver);
         $query = (new EloquentBuilder($connection->query()))->setModel($model)
@@ -630,7 +630,7 @@ class DatabaseQueryBuilderPaginationTest extends TestCase
 
     public function testGroupedCountTransfersCallbackTimeoutAndRoutingToTheOuterStatement(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getTablePrefix')->returns('');
         $query = new Builder($connection, new MySqlGrammar($connection), new Processor);
         $query->from('events')->groupBy('tenant_id')->beforeQuery(function (Builder $query): void {
@@ -651,7 +651,7 @@ class DatabaseQueryBuilderPaginationTest extends TestCase
 
     public function testCallbackFailurePreservesIdentityAndRestoresTheOriginalFetchMode(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getTablePrefix')->returns('');
         $query = new Builder($connection, new Grammar($connection), new Processor);
         $exception = new RuntimeException('Cannot prepare the query.');
@@ -682,9 +682,9 @@ class DatabaseQueryBuilderPaginationTest extends TestCase
     #[DataProvider('tablePrefixes')]
     public function testRetainedInnerBindingsBelongToTheDerivedTable(string $prefix): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getTablePrefix')->returns($prefix);
-        $processor = Double::for(Processor::class);
+        $processor = Double::for(Processor::class)->strict();
         $query = new PaginationWithOrderingBuilder($connection, new Grammar($connection), $processor);
         $query->from('events')->selectRaw('tenant_id + ? as bucket', [11])
             ->where('tenant_id', '>', 12)->groupBy('tenant_id')

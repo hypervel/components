@@ -98,7 +98,7 @@ class DatabaseQueryBuilderEmbeddingTest extends TestCase
      */
     protected function builder(): EmbeddingAwareQueryBuilder
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getTablePrefix')->returns('');
         $connection->allows('getDatabaseName')->returns('database');
 

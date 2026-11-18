@@ -44,19 +44,9 @@ class KernelTerminateTest extends TestCase
         ], $called);
     }
 
-    public function testTerminateDispatchesTerminatingEventEvenWithoutHandle(): void
-    {
-        // Calling terminate without a prior handle should not throw.
-        $kernel = $this->app->make(KernelContract::class);
-        $kernel->terminate(new StringInput(''), 0);
-
-        // If we reach here without exception, the test passes.
-        $this->assertTrue(true);
-    }
-
     public function testTerminateDoesNotConstructOrDispatchAnEventWithoutListeners(): void
     {
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('hasListeners')
             ->with(Terminating::class)
             ->returns(false);

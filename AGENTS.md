@@ -596,7 +596,11 @@ A per-package base class is only justified when there is shared setUp logic — 
 
 Use Double for test doubles in new tests. When porting, convert direct Mockery mocks and spies to Double regardless of the upstream library; keep upstream PHPUnit doubles. Retain Mockery where required to use or test framework APIs backed by it, such as `$this->mock()`, facade expectations and `Sanctum::actingAs()`. Add `JMac\Testing\Integrations\PHPUnit\VerifiesDoubles` to each test class using Double; it owns verification and cleanup.
 
-Double is lenient by default. Use `expects('method')->never()` to forbid a call, or `unused()` after exercising the code to assert no calls occurred. `allows()->with(...)` neither requires a matching call nor rejects other arguments. `expects()->with(...)` requires the call and rejects unmatched arguments for that method. Use `strict()` when calls to unconfigured methods must fail.
+Double is lenient by default. Use `expects('method')->never()` to forbid a call, or `unused()` after exercising the code to assert no calls occurred. `allows()->with(...)` neither requires a matching call nor rejects other arguments. `expects()->with(...)` requires the call and rejects unmatched arguments for that method. Use `strict()` unless the test deliberately ignores unrelated calls; this applies equally to tests ported from upstream.
+
+`with()` compares objects, including doubles, using `==`. Use `Argument::same($object)` when the exact instance matters or to preserve Mockery’s default identity check.
+
+Keep matcher predicates free of side effects, including assertions. Use `Argument::capture()` to save an argument or `resolves()` to record a matched call.
 
 Do not overlap `allows()` stubs with `expects()` constraints when enforcing maximum call counts or `never()`; a matching stub can absorb those calls regardless of registration order.
 

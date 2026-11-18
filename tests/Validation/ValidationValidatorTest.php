@@ -1581,14 +1581,14 @@ class ValidationValidatorTest extends TestCase
     public function testValidateCurrentPassword(): void
     {
         // Fails when user is not logged in.
-        $guard = Double::for(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
         $guard->expects('guest')->returns(true);
-        $auth = Double::for(AuthFactory::class);
+        $auth = Double::for(AuthFactory::class)->strict();
         $auth->expects('guard')->returns($guard);
 
-        $hasher = Double::for(Hasher::class);
+        $hasher = Double::for(Hasher::class)->strict();
 
-        $container = Double::for(ContainerContract::class, override: true);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
         $container->expects('make')->with('auth')->returns($auth);
         $container->expects('make')->with('hash')->returns($hasher);
 
@@ -1602,19 +1602,19 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
 
         // Fails when password is incorrect.
-        $user = Double::for(Authenticatable::class);
+        $user = Double::for(Authenticatable::class)->strict();
         $user->expects('getAuthPassword');
 
-        $guard = Double::for(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
         $guard->expects('guest')->returns(false);
         $guard->expects('user')->returns($user);
-        $auth = Double::for(AuthFactory::class);
+        $auth = Double::for(AuthFactory::class)->strict();
         $auth->expects('guard')->returns($guard);
 
-        $hasher = Double::for(Hasher::class);
+        $hasher = Double::for(Hasher::class)->strict();
         $hasher->expects('check')->returns(false);
 
-        $container = Double::for(ContainerContract::class, override: true);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
         $container->expects('make')->with('auth')->returns($auth);
         $container->expects('make')->with('hash')->returns($hasher);
 
@@ -1628,19 +1628,19 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
 
         // Succeeds when password is correct.
-        $user = Double::for(Authenticatable::class);
+        $user = Double::for(Authenticatable::class)->strict();
         $user->expects('getAuthPassword');
 
-        $guard = Double::for(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
         $guard->expects('guest')->returns(false);
         $guard->expects('user')->returns($user);
-        $auth = Double::for(AuthFactory::class);
+        $auth = Double::for(AuthFactory::class)->strict();
         $auth->expects('guard')->returns($guard);
 
-        $hasher = Double::for(Hasher::class);
+        $hasher = Double::for(Hasher::class)->strict();
         $hasher->expects('check')->returns(true);
 
-        $container = Double::for(ContainerContract::class, override: true);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
         $container->expects('make')->with('auth')->returns($auth);
         $container->expects('make')->with('hash')->returns($hasher);
 
@@ -1653,19 +1653,19 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
 
         // We can use a specific guard.
-        $user = Double::for(Authenticatable::class);
+        $user = Double::for(Authenticatable::class)->strict();
         $user->expects('getAuthPassword');
 
-        $guard = Double::for(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
         $guard->expects('guest')->returns(false);
         $guard->expects('user')->returns($user);
-        $auth = Double::for(AuthFactory::class);
+        $auth = Double::for(AuthFactory::class)->strict();
         $auth->expects('guard')->with('custom')->returns($guard);
 
-        $hasher = Double::for(Hasher::class);
+        $hasher = Double::for(Hasher::class)->strict();
         $hasher->expects('check')->returns(true);
 
-        $container = Double::for(ContainerContract::class, override: true);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
         $container->expects('make')->with('auth')->returns($auth);
         $container->expects('make')->with('hash')->returns($hasher);
 
@@ -2575,7 +2575,7 @@ class ValidationValidatorTest extends TestCase
 
         // If file is not successfully uploaded validation should fail with a
         // 'uploaded' error message instead of the original rule.
-        $file = Double::for($fileClass);
+        $file = Double::for($fileClass)->strict();
         $file->expects('isValid')->returns(false);
         $file->expects('getSize')->never();
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'Max:10']);
@@ -2583,7 +2583,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertEquals(['validation.uploaded'], $v->errors()->get('photo'));
 
         // Even "required" will not run if the file failed to upload.
-        $file = Double::for($fileClass);
+        $file = Double::for($fileClass)->strict();
         $file->expects('isValid')->returns(false);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'required']);
         $this->assertTrue($v->fails());
@@ -2591,14 +2591,14 @@ class ValidationValidatorTest extends TestCase
 
         // It should only fail with that rule if a validation rule implies it's
         // a file. Otherwise it should fail with the regular rule.
-        $file = Double::for($fileClass);
+        $file = Double::for($fileClass)->strict();
         $file->expects('isValid')->returns(false);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'string']);
         $this->assertTrue($v->fails());
         $this->assertEquals(['validation.string'], $v->errors()->get('photo'));
 
         // Validation shouldn't continue if a file failed to upload.
-        $file = Double::for($fileClass);
+        $file = Double::for($fileClass)->strict();
         $file->expects('isValid')->returns(false);
         $v = new Validator($trans, ['photo' => $file], ['photo' => 'file|mimes:pdf|min:10']);
         $this->assertTrue($v->fails());
@@ -2609,7 +2609,7 @@ class ValidationValidatorTest extends TestCase
     #[TestWith([SymfonyUploadedFile::class])]
     public function testDirectFileRulesRejectFailedUploads(string $fileClass): void
     {
-        $file = Double::for($fileClass);
+        $file = Double::for($fileClass)->strict();
         $file->expects('isValid')->times(2)->returns(false);
         $file->expects('getSize')->never();
         $validator = new Validator($this->getArrayTranslator(), [], []);
@@ -5082,37 +5082,37 @@ class ValidationValidatorTest extends TestCase
     {
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['email' => 'foo'], ['email' => 'Unique:users']);
-        $mock = Double::for(PresenceVerifierInterface::class);
+        $mock = Double::for(PresenceVerifierInterface::class)->strict();
         $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email', new DatabaseConditions)), 'foo')->returns(0);
         $v->setPresenceVerifier($mock);
         $this->assertTrue($v->passes());
 
         $v = new Validator($trans, ['email' => 'foo'], ['email' => 'Unique:connection.users']);
-        $mock = Double::for(PresenceVerifierInterface::class);
+        $mock = Double::for(PresenceVerifierInterface::class)->strict();
         $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery('connection', 'users', 'email', new DatabaseConditions)), 'foo')->returns(0);
         $v->setPresenceVerifier($mock);
         $this->assertTrue($v->passes());
 
         $v = new Validator($trans, ['email' => 'foo'], ['email' => 'Unique:users,email_addr,1']);
-        $mock = Double::for(PresenceVerifierInterface::class);
+        $mock = Double::for(PresenceVerifierInterface::class)->strict();
         $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email_addr', new DatabaseConditions, '1', 'id')), 'foo')->returns(1);
         $v->setPresenceVerifier($mock);
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, ['email' => 'foo'], ['email' => 'Unique:users,email_addr,1,id_col']);
-        $mock = Double::for(PresenceVerifierInterface::class);
+        $mock = Double::for(PresenceVerifierInterface::class)->strict();
         $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email_addr', new DatabaseConditions, '1', 'id_col')), 'foo')->returns(2);
         $v->setPresenceVerifier($mock);
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, ['users' => [['id' => 1, 'email' => 'foo']]], ['users.*.email' => 'Unique:users,email,[users.*.id]']);
-        $mock = Double::for(PresenceVerifierInterface::class);
+        $mock = Double::for(PresenceVerifierInterface::class)->strict();
         $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email', new DatabaseConditions, '1', 'id')), 'foo')->returns(1);
         $v->setPresenceVerifier($mock);
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, ['email' => 'foo'], ['email' => 'Unique:users,email_addr,NULL,id_col,foo,bar']);
-        $mock = Double::for(PresenceVerifierInterface::class);
+        $mock = Double::for(PresenceVerifierInterface::class)->strict();
         $mock->expects('getCount')->with(
             $this->matchingPresenceQuery(new PresenceQuery(
                 null,
@@ -5137,7 +5137,7 @@ class ValidationValidatorTest extends TestCase
                     ['email' => 'foo'],
                     ['email' => [$rule]],
                 );
-                $verifier = Double::for(PresenceVerifierInterface::class);
+                $verifier = Double::for(PresenceVerifierInterface::class)->strict();
                 $verifier->expects('getCount')
                     ->with($this->matchingPresenceQuery(new PresenceQuery(
                         null,
@@ -5161,7 +5161,7 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, [['email' => 'foo', 'type' => 'bar']], [
             '*.email' => 'unique:users', '*.type' => 'exists:user_types',
         ]);
-        $mock = Double::for(PresenceVerifierInterface::class);
+        $mock = Double::for(PresenceVerifierInterface::class)->strict();
         $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email', new DatabaseConditions)), 'foo')->returns(0);
         $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'user_types', 'type', new DatabaseConditions)), 'bar')->returns(1);
         $v->setPresenceVerifier($mock);
@@ -5174,7 +5174,7 @@ class ValidationValidatorTest extends TestCase
             '*.email' => (new Unique('users'))->where($closure),
             '*.type' => (new Exists('user_types'))->where($closure),
         ]);
-        $mock = Double::for(PresenceVerifierInterface::class);
+        $mock = Double::for(PresenceVerifierInterface::class)->strict();
         $mock->expects('getCount')->with($this->matchingPresenceQuery(
             new PresenceQuery(null, 'users', 'email', new DatabaseConditions($closure), null, 'id'),
         ), 'foo')->returns(0);
@@ -5189,38 +5189,38 @@ class ValidationValidatorTest extends TestCase
     {
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['email' => 'foo'], ['email' => 'Exists:users']);
-        $mock = Double::for(PresenceVerifierInterface::class);
+        $mock = Double::for(PresenceVerifierInterface::class)->strict();
         $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email', new DatabaseConditions)), 'foo')->returns(1);
         $v->setPresenceVerifier($mock);
         $this->assertTrue($v->passes());
 
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['email' => 'foo'], ['email' => 'Exists:users,email,account_id,1,name,taylor']);
-        $mock = Double::for(PresenceVerifierInterface::class);
+        $mock = Double::for(PresenceVerifierInterface::class)->strict();
         $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email', new DatabaseConditions(new DatabaseCondition('account_id', DatabaseConditionOperator::Equals, 1), new DatabaseCondition('name', DatabaseConditionOperator::Equals, 'taylor')))), 'foo')->returns(1);
         $v->setPresenceVerifier($mock);
         $this->assertTrue($v->passes());
 
         $v = new Validator($trans, ['email' => 'foo'], ['email' => 'Exists:users,email_addr']);
-        $mock = Double::for(PresenceVerifierInterface::class);
+        $mock = Double::for(PresenceVerifierInterface::class)->strict();
         $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email_addr', new DatabaseConditions)), 'foo')->returns(0);
         $v->setPresenceVerifier($mock);
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, ['email' => ['foo']], ['email' => 'Exists:users,email_addr']);
-        $mock = Double::for(PresenceVerifierInterface::class);
+        $mock = Double::for(PresenceVerifierInterface::class)->strict();
         $mock->expects('getMultiCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email_addr', new DatabaseConditions)), ['foo'])->returns(0);
         $v->setPresenceVerifier($mock);
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, ['email' => 'foo'], ['email' => 'Exists:connection.users']);
-        $mock = Double::for(PresenceVerifierInterface::class);
+        $mock = Double::for(PresenceVerifierInterface::class)->strict();
         $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery('connection', 'users', 'email', new DatabaseConditions)), 'foo')->returns(1);
         $v->setPresenceVerifier($mock);
         $this->assertTrue($v->passes());
 
         $v = new Validator($trans, ['email' => ['foo', 'foo']], ['email' => 'exists:users,email_addr']);
-        $mock = Double::for(PresenceVerifierInterface::class);
+        $mock = Double::for(PresenceVerifierInterface::class)->strict();
         $mock->expects('getMultiCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'email_addr', new DatabaseConditions)), ['foo', 'foo'])->returns(1);
         $v->setPresenceVerifier($mock);
         $this->assertTrue($v->passes());
@@ -5240,7 +5240,7 @@ class ValidationValidatorTest extends TestCase
             ['status', [PureEnum::one, 'one'], true],
         ] as [$column, $values, $passes]) {
             $validator = new Validator($trans, ['values' => $values], ['values' => [new Exists('records', $column)]]);
-            $verifier = Double::for(PresenceVerifierInterface::class);
+            $verifier = Double::for(PresenceVerifierInterface::class)->strict();
             $verifier->expects('getMultiCount')
                 ->with($this->matchingPresenceQuery(new PresenceQuery(null, 'records', $column, new DatabaseConditions)), $values)
                 ->returns(1);
@@ -5254,14 +5254,14 @@ class ValidationValidatorTest extends TestCase
     {
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['id' => 'foo'], ['id' => 'Integer|Exists:users,id']);
-        $mock = Double::for(PresenceVerifierInterface::class);
+        $mock = Double::for(PresenceVerifierInterface::class)->strict();
         $mock->expects('getCount')->never();
         $v->setPresenceVerifier($mock);
         $this->assertFalse($v->passes());
 
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['id' => '1'], ['id' => 'Integer|Exists:users,id']);
-        $mock = Double::for(PresenceVerifierInterface::class);
+        $mock = Double::for(PresenceVerifierInterface::class)->strict();
         $mock->expects('getCount')->with($this->matchingPresenceQuery(new PresenceQuery(null, 'users', 'id', new DatabaseConditions)), '1')->returns(1);
         $v->setPresenceVerifier($mock);
         $this->assertTrue($v->passes());
@@ -8691,9 +8691,9 @@ class ValidationValidatorTest extends TestCase
         };
 
         if ($classBased) {
-            $container = Double::for(ContainerContract::class, override: true);
+            $container = Double::for(ContainerContract::class, override: true)->strict();
             $validator->setContainer($container->instance());
-            $replacer = Double::for(ClassBasedValidatorStub::class);
+            $replacer = Double::for(ClassBasedValidatorStub::class)->strict();
             $container->expects('make')->with('LiteralFieldReplacer')->returns($replacer);
             $replacer->expects('replace')->resolves($callback);
             $validator->addReplacer('accepted_if', 'LiteralFieldReplacer');
@@ -11565,7 +11565,7 @@ class ValidationValidatorTest extends TestCase
      */
     protected function getTranslator(): TranslatorContract&DoubleInterface
     {
-        return Double::for(TranslatorContract::class);
+        return Double::for(TranslatorContract::class)->strict();
     }
 
     /**

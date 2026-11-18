@@ -134,7 +134,7 @@ class DatabaseQueryBuilderJoinTest extends TestCase
      */
     protected function builder(): Builder
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getTablePrefix')->returns('');
 
         return new Builder($connection, new Grammar($connection), new Processor);

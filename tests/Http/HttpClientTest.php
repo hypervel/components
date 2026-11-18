@@ -3151,8 +3151,8 @@ class HttpClientTest extends TestCase
             try {
                 $throw();
                 $this->fail('The custom request exception was not thrown.');
-            } catch (CustomRequestException) {
-                $this->addToAssertionCount(1);
+            } catch (CustomRequestException $exception) {
+                $this->assertSame($response, $exception->response);
             }
         }
     }
@@ -6664,8 +6664,8 @@ class HttpClientTest extends TestCase
         try {
             $this->factory->get('http://foo.com/api')->throwIfStatus(201);
             $this->fail('The request exception was not thrown.');
-        } catch (RequestException) {
-            $this->addToAssertionCount(1);
+        } catch (RequestException $exception) {
+            $this->assertSame(201, $exception->response->status());
         }
 
         $this->expectException(RequestException::class);

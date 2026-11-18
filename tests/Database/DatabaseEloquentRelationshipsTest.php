@@ -277,7 +277,7 @@ class MockedConnectionModel extends Model
      */
     public function getConnection(): Connection
     {
-        $mock = Double::for(Connection::class);
+        $mock = Double::for(Connection::class)->strict();
         $grammar = new Grammar($mock);
         $mock->allows('getQueryGrammar')->returns($grammar);
         $processor = new Processor;

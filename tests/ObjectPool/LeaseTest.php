@@ -14,6 +14,7 @@ use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
@@ -113,7 +114,7 @@ class LeaseTest extends TestCase
         $callbackFailure = new RuntimeException('reset failed');
         $discardFailure = new RuntimeException('discard failed');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($discardFailure);
+        $handler->expects('report')->with(Argument::same($discardFailure));
         $container->instance(ExceptionHandler::class, $handler);
 
         $pool = new ContractOnlyObjectPool;
@@ -156,7 +157,7 @@ class LeaseTest extends TestCase
             $discardCancellation = new RuntimeException('discard cleanup failed', previous: $discardCancellation);
         }
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($discardCancellation)
+        $handler->expects('report')->with(Argument::same($discardCancellation))
             ->times($expectCallbackFailure && $discardCleanupThrows ? 1 : 0);
         $this->container()->instance(ExceptionHandler::class, $handler);
 
@@ -226,7 +227,7 @@ class LeaseTest extends TestCase
         $container = $this->container();
         $expected = new RuntimeException('reset failed');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($expected);
+        $handler->expects('report')->with(Argument::same($expected));
         $container->instance(ExceptionHandler::class, $handler);
 
         $pool = $this->pool();
@@ -276,7 +277,7 @@ class LeaseTest extends TestCase
             $cleanup = new RuntimeException('finalizer cleanup failed', previous: $cleanup);
         }
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($cleanup)
+        $handler->expects('report')->with(Argument::same($cleanup))
             ->times($expectPrimary && ! $cleanup instanceof CanceledException ? 1 : 0);
         $container->instance(ExceptionHandler::class, $handler);
 

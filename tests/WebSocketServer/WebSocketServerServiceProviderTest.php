@@ -35,7 +35,7 @@ class WebSocketServerServiceProviderTest extends TestCase
 
         $message = new SenderPipeMessage('disconnect', [42]);
         $listener = Double::for(OnPipeMessageListener::class)->strict();
-        $listener->expects('handle')->with($message);
+        $listener->expects('handle')->with(Argument::same($message));
 
         $application = Double::for(Application::class, override: true)->strict();
         $application->expects('make')->with('events')->returns($events);

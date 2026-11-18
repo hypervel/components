@@ -30,11 +30,11 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
 
     public function testBasicCount(): void
     {
-        $db = Double::for(ConnectionResolverInterface::class);
+        $db = Double::for(ConnectionResolverInterface::class)->strict();
         $verifier = new DatabasePresenceVerifier($db);
-        $conn = Double::for(Connection::class);
+        $conn = Double::for(Connection::class)->strict();
         $db->expects('connection')->with('connection')->returns($conn);
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $conn->expects('table')->with('table')->returns($builder);
         $builder->expects('useWritePdo')->returns($builder);
         $builder->expects('where')->with('column', '=', 'value')->returns($builder);
@@ -61,11 +61,11 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
 
     public function testBasicCountWithClosures(): void
     {
-        $db = Double::for(ConnectionResolverInterface::class);
+        $db = Double::for(ConnectionResolverInterface::class)->strict();
         $verifier = new DatabasePresenceVerifier($db);
-        $conn = Double::for(Connection::class);
+        $conn = Double::for(Connection::class)->strict();
         $db->expects('connection')->with('connection')->returns($conn);
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $conn->expects('table')->with('table')->returns($builder);
         $builder->expects('useWritePdo')->returns($builder);
         $builder->expects('where')->with('column', '=', 'value')->returns($builder);
@@ -98,11 +98,11 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
 
     public function testGetCountWithValidExcludeId(): void
     {
-        $db = Double::for(ConnectionResolverInterface::class);
+        $db = Double::for(ConnectionResolverInterface::class)->strict();
         $verifier = new DatabasePresenceVerifier($db);
-        $conn = Double::for(Connection::class);
+        $conn = Double::for(Connection::class)->strict();
         $db->expects('connection')->with('connection')->returns($conn);
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $conn->expects('table')->with('table')->returns($builder);
         $builder->expects('useWritePdo')->returns($builder);
         $builder->expects('where')->with('column', '=', 'value')->returns($builder);
@@ -114,11 +114,11 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
 
     public function testIntegersAndBooleansAreComparedAsStrings(): void
     {
-        $db = Double::for(ConnectionResolverInterface::class);
-        $connection = Double::for(Connection::class);
+        $db = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
         $db->expects('connection')->with('connection')->times(3)->returns($connection);
         $verifier = new DatabasePresenceVerifier($db);
-        $builder = Double::for(Builder::class);
+        $builder = Double::for(Builder::class)->strict();
         $connection->expects('table')->with('table')->times(3)->returns($builder);
         $builder->expects('useWritePdo')->times(3)->returns($builder);
         $builder->expects('where')->with('column', '=', '0')->returns($builder);
@@ -140,9 +140,9 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
     #[DataProvider('connections')]
     public function testGetExistingValuesUsesRequestedConnectionAndReturnsDistinctValues(?string $connection): void
     {
-        $verifier = new DatabasePresenceVerifier($db = Double::for(ConnectionResolverInterface::class));
-        $db->expects('connection')->with($connection)->returns($database = Double::for(Connection::class));
-        $database->expects('table')->with('table')->returns($builder = Double::for(Builder::class));
+        $verifier = new DatabasePresenceVerifier($db = Double::for(ConnectionResolverInterface::class)->strict());
+        $db->expects('connection')->with($connection)->returns($database = Double::for(Connection::class)->strict());
+        $database->expects('table')->with('table')->returns($builder = Double::for(Builder::class)->strict());
         $builder->expects('useWritePdo')->returns($builder);
         $builder->expects('whereIn')->with('column', ['first', 'second'])->returns($builder);
         $builder->expects('where')->with('uuid', '<>', 'ignored')->returns($builder);
@@ -170,7 +170,7 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
 
     public function testNestedValidationCannotChangeTheOuterConnection(): void
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $verifier = new DatabasePresenceVerifier($resolver);
         $translator = new Translator(new ArrayLoader, 'en');
         $inner = new Validator($translator, ['email' => 'inner@example.com'], [
@@ -202,8 +202,8 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
         $outer->setPresenceVerifier($verifier);
 
         foreach (['inner' => 1, 'outer' => 0] as $name => $count) {
-            $connection = Double::for(Connection::class);
-            $builder = Double::for(Builder::class);
+            $connection = Double::for(Connection::class)->strict();
+            $builder = Double::for(Builder::class)->strict();
             $resolver->expects('connection')->with($name)->returns($connection);
             $connection->expects('table')->with('users')->returns($builder);
             $builder->expects('useWritePdo')->returns($builder);

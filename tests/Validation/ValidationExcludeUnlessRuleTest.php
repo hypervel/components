@@ -90,7 +90,7 @@ class ValidationExcludeUnlessRuleTest extends TestCase
                 Rule::excludeUnless($condition);
                 $this->fail('The ExcludeUnless constructor must not accept ' . gettype($condition));
             } catch (TypeError) {
-                $this->assertTrue(true);
+                $this->addToAssertionCount(1);
             }
         }
     }

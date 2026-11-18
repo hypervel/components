@@ -153,7 +153,7 @@ class MigrationsAreUpToDateTest extends TestCase
     #[DataProvider('migrationFailures')]
     public function testReportsWhenPendingMigrationsCannotBeApplied(?string $exceptionClass): void
     {
-        $kernel = Double::for(Kernel::class);
+        $kernel = Double::for(Kernel::class)->strict();
         Artisan::swap($kernel);
         $command = $kernel->expects('call')->with('migrate', ['--no-interaction' => true]);
 

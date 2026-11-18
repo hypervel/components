@@ -60,7 +60,7 @@ class SessionManagerTest extends TestCase
             ],
         ]));
 
-        $manager->extend('0', fn () => Double::for(SessionHandlerInterface::class));
+        $manager->extend('0', fn () => Double::for(SessionHandlerInterface::class)->strict());
         $manager->setDefaultDriver(SessionIntegerIdentifier::Zero);
 
         $this->assertSame('0', $manager->getDefaultDriver());
@@ -99,7 +99,7 @@ class SessionManagerTest extends TestCase
             'session.track_user_sessions' => false,
             'cache.prefix' => 'cache_prefix',
         ]);
-        $container->instance(RedisFactory::class, Double::for(RedisFactory::class));
+        $container->instance(RedisFactory::class, Double::for(RedisFactory::class)->strict());
 
         $sessionStore = (new SessionManager($container))->driver();
         $handler = $this->handlerFromStore($sessionStore);
@@ -145,7 +145,7 @@ class SessionManagerTest extends TestCase
             'session.prefix' => 'application_session:',
             'session.track_user_sessions' => true,
         ]);
-        $redis = Double::for(RedisFactory::class);
+        $redis = Double::for(RedisFactory::class)->strict();
         $container->instance(RedisFactory::class, $redis);
 
         $redisSessionStore = (new SessionManager($container))->driver();
@@ -182,7 +182,7 @@ class SessionManagerTest extends TestCase
                 'session.prefix' => 'application_session:',
                 'session.track_user_sessions' => $tracking,
             ]);
-            $container->instance(RedisFactory::class, Double::for(RedisFactory::class));
+            $container->instance(RedisFactory::class, Double::for(RedisFactory::class)->strict());
 
             $this->assertSame(
                 $tracking,
@@ -228,7 +228,7 @@ class SessionManagerTest extends TestCase
     {
         $handler = new SessionManagerCapableHandler;
         $manager = $this->customManager($handler);
-        $user = Double::for(Authenticatable::class);
+        $user = Double::for(Authenticatable::class)->strict();
         $user->expects('getAuthIdentifier')->returns('user-1');
 
         $manager->forUser($user)->all();
@@ -332,7 +332,7 @@ class SessionManagerTest extends TestCase
             $this->assertSame('The user identifier may not be empty.', $exception->getMessage());
         }
 
-        $user = Double::for(Authenticatable::class);
+        $user = Double::for(Authenticatable::class)->strict();
         $user->expects('getAuthIdentifier')->returns(null);
 
         $this->expectException(InvalidArgumentException::class);
@@ -360,7 +360,7 @@ class SessionManagerTest extends TestCase
             'session.prefix' => 'application_session:',
             'session.track_user_sessions' => false,
         ]);
-        $container->instance(RedisFactory::class, Double::for(RedisFactory::class));
+        $container->instance(RedisFactory::class, Double::for(RedisFactory::class)->strict());
         $disabled = new SessionManager($container);
 
         foreach ([$unsupported, $disabled] as $manager) {
@@ -438,8 +438,8 @@ class SessionManagerTest extends TestCase
         $container = new Container;
         $container->instance(ContainerContract::class, $container);
         $container->instance('config', new ConfigRepository($config));
-        $container->instance(Encrypter::class, Double::for(Encrypter::class));
-        $container->instance('db', Double::for(ConnectionResolverInterface::class));
+        $container->instance(Encrypter::class, Double::for(Encrypter::class)->strict());
+        $container->instance('db', Double::for(ConnectionResolverInterface::class)->strict());
 
         Container::setInstance($container);
 

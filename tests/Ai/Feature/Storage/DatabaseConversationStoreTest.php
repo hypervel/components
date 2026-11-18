@@ -418,7 +418,7 @@ class DatabaseConversationStoreTest extends TestCase
             new ToolUsingAgent,
             'Check my order status.',
             [],
-            Double::for(TextProvider::class),
+            Double::for(TextProvider::class)->strict(),
             'test-model',
         );
 
@@ -479,7 +479,7 @@ class DatabaseConversationStoreTest extends TestCase
             new ToolUsingAgent,
             'Where is Berlin?',
             [],
-            Double::for(TextProvider::class),
+            Double::for(TextProvider::class)->strict(),
             'test-model',
         );
 
@@ -509,7 +509,7 @@ class DatabaseConversationStoreTest extends TestCase
             new ToolUsingAgent,
             'Write the file',
             [],
-            Double::for(TextProvider::class),
+            Double::for(TextProvider::class)->strict(),
             'test-model',
         );
 
@@ -587,7 +587,7 @@ class DatabaseConversationStoreTest extends TestCase
             new ToolUsingAgent,
             '',
             [],
-            Double::for(TextProvider::class),
+            Double::for(TextProvider::class)->strict(),
             'test-model',
             approvalDecisions: Decisions::from(['call-1' => Decision::reject()]),
         );
@@ -622,7 +622,7 @@ class DatabaseConversationStoreTest extends TestCase
             new ToolUsingAgent,
             '',
             [],
-            Double::for(TextProvider::class),
+            Double::for(TextProvider::class)->strict(),
             'test-model',
             approvalDecisions: Decisions::from(['call-1' => true]),
         );
@@ -678,7 +678,7 @@ class DatabaseConversationStoreTest extends TestCase
             new ToolUsingAgent,
             '',
             [],
-            Double::for(TextProvider::class),
+            Double::for(TextProvider::class)->strict(),
             'test-model',
             approvalDecisions: Decisions::from([$callId => true]),
         );
@@ -718,7 +718,7 @@ class DatabaseConversationStoreTest extends TestCase
             new ToolUsingAgent,
             '',
             [],
-            Double::for(TextProvider::class),
+            Double::for(TextProvider::class)->strict(),
             'test-model',
             approvalDecisions: Decisions::from(['call-1' => true]),
         );
@@ -745,7 +745,7 @@ class DatabaseConversationStoreTest extends TestCase
             assistantStep([['id' => 'call-1', 'name' => 'DeleteFile', 'arguments' => []]]),
         ], ['call-1' => 'Deletes a file'], ['provider' => 'anthropic', 'model' => 'claude-sonnet-4-5', 'citations' => [(new UrlCitation('https://hypervel.org/docs/ai'))->toArray()]]);
 
-        $prompt = new AgentPrompt(new ToolUsingAgent, '', [], Double::for(TextProvider::class), 'test-model', approvalDecisions: Decisions::from(['call-1' => true]));
+        $prompt = new AgentPrompt(new ToolUsingAgent, '', [], Double::for(TextProvider::class)->strict(), 'test-model', approvalDecisions: Decisions::from(['call-1' => true]));
 
         $meta = new Meta('anthropic', 'claude-sonnet-4-6', collect([new UrlCitation('https://hypervel.org/docs/mcp')]));
 
@@ -771,7 +771,7 @@ class DatabaseConversationStoreTest extends TestCase
             assistantStep([['id' => 'call-1', 'name' => 'DeleteFile', 'arguments' => []]]),
         ], ['call-1' => 'Deletes a file']);
 
-        $prompt = new AgentPrompt(new ToolUsingAgent, '', [], Double::for(TextProvider::class), 'test-model', approvalDecisions: Decisions::from(['call-1' => true]));
+        $prompt = new AgentPrompt(new ToolUsingAgent, '', [], Double::for(TextProvider::class)->strict(), 'test-model', approvalDecisions: Decisions::from(['call-1' => true]));
 
         $response = (new AgentResponse('invocation-id', 'Done.', new TextUsage, new Meta))->withSteps(collect([
             new Step('Done.', [], [], FinishReason::Stop, new TextUsage, new Meta, '', []),
@@ -794,7 +794,7 @@ class DatabaseConversationStoreTest extends TestCase
             new ToolUsingAgent,
             '',
             [],
-            Double::for(TextProvider::class),
+            Double::for(TextProvider::class)->strict(),
             'test-model',
             approvalDecisions: Decisions::from(['call-1' => true]),
         );
@@ -920,7 +920,7 @@ class DatabaseConversationStoreTest extends TestCase
             ),
         ], [], ['provider' => 'anthropic']);
 
-        $prompt = new AgentPrompt(new ToolUsingAgent, '', [], Double::for(TextProvider::class), 'test-model', approvalDecisions: Decisions::from(['call-1' => true]));
+        $prompt = new AgentPrompt(new ToolUsingAgent, '', [], Double::for(TextProvider::class)->strict(), 'test-model', approvalDecisions: Decisions::from(['call-1' => true]));
 
         $response = (new AgentResponse('invocation-id', 'Deleted b.', new TextUsage, new Meta('anthropic')))->withSteps(collect([
             new Step('Deleted b.', [], [], FinishReason::Stop, new TextUsage, new Meta, '', [['type' => 'thinking', 'signature' => 'sig-2'], ['type' => 'text', 'text' => 'Deleted b.']]),
@@ -947,7 +947,7 @@ class DatabaseConversationStoreTest extends TestCase
             ),
         ], [], ['provider' => 'anthropic']);
 
-        $prompt = new AgentPrompt(new ToolUsingAgent, '', [], Double::for(TextProvider::class), 'test-model', approvalDecisions: Decisions::from(['call-1' => true]));
+        $prompt = new AgentPrompt(new ToolUsingAgent, '', [], Double::for(TextProvider::class)->strict(), 'test-model', approvalDecisions: Decisions::from(['call-1' => true]));
 
         $response = (new AgentResponse('invocation-id', '', new TextUsage, new Meta('anthropic')))
             ->withSteps(collect([
@@ -980,7 +980,7 @@ class DatabaseConversationStoreTest extends TestCase
             assistantStep([['id' => 'call-2', 'name' => 'delete_file', 'arguments' => ['path' => 'b']]]),
         ], ['call-2' => 'Deletes b file'], ['provider' => 'anthropic']);
 
-        $prompt = new AgentPrompt(new ToolUsingAgent, '', [], Double::for(TextProvider::class), 'test-model', approvalDecisions: Decisions::from(['call-1' => true]));
+        $prompt = new AgentPrompt(new ToolUsingAgent, '', [], Double::for(TextProvider::class)->strict(), 'test-model', approvalDecisions: Decisions::from(['call-1' => true]));
 
         $response = (new AgentResponse('invocation-id', 'Deleted a.', new TextUsage, new Meta('anthropic')))->withSteps(collect([
             new Step('Deleted a.', [], [], FinishReason::Stop, new TextUsage, new Meta, '', []),
@@ -1084,7 +1084,7 @@ class DatabaseConversationStoreTest extends TestCase
             new ToolUsingAgent,
             'Delete config/app.php.',
             [],
-            Double::for(TextProvider::class),
+            Double::for(TextProvider::class)->strict(),
             'test-model',
         );
 
@@ -1127,7 +1127,7 @@ class DatabaseConversationStoreTest extends TestCase
             new ToolUsingAgent,
             'Delete config/app.php.',
             [],
-            Double::for(TextProvider::class),
+            Double::for(TextProvider::class)->strict(),
             'test-model',
         );
 
@@ -1160,7 +1160,7 @@ class DatabaseConversationStoreTest extends TestCase
             new ToolUsingAgent,
             'Read config/app.php.',
             [],
-            Double::for(TextProvider::class),
+            Double::for(TextProvider::class)->strict(),
             'test-model',
         );
 
@@ -1652,7 +1652,7 @@ class DatabaseConversationStoreTest extends TestCase
             new ToolUsingAgent,
             'How cold is it?',
             [],
-            Double::for(TextProvider::class),
+            Double::for(TextProvider::class)->strict(),
             'test-model',
         );
 
@@ -1676,7 +1676,7 @@ class DatabaseConversationStoreTest extends TestCase
             new ToolUsingAgent,
             'What does Hypervel MCP do?',
             [],
-            Double::for(TextProvider::class),
+            Double::for(TextProvider::class)->strict(),
             'test-model',
         );
 
@@ -1706,7 +1706,7 @@ class DatabaseConversationStoreTest extends TestCase
             new ToolUsingAgent,
             'How cold is it?',
             [],
-            Double::for(TextProvider::class),
+            Double::for(TextProvider::class)->strict(),
             'test-model',
         );
 
@@ -1771,7 +1771,7 @@ class DatabaseConversationStoreTest extends TestCase
     {
         $store = new DatabaseConversationStore;
         $conversationId = $store->storeConversation('user', 1, 'Reasoning conversation');
-        $prompt = new AgentPrompt(new ToolUsingAgent, 'Look it up', [], Double::for(TextProvider::class), 'test-model');
+        $prompt = new AgentPrompt(new ToolUsingAgent, 'Look it up', [], Double::for(TextProvider::class)->strict(), 'test-model');
 
         $reasoningItem = ['type' => 'reasoning', 'id' => 'rs_1', 'summary' => [], 'encrypted_content' => 'enc-blob-1'];
 
@@ -1825,7 +1825,7 @@ class DatabaseConversationStoreTest extends TestCase
     {
         $store = new DatabaseConversationStore;
         $conversationId = $store->storeConversation('user', 1, 'Search conversation');
-        $prompt = new AgentPrompt(new ToolUsingAgent, 'Search', [], Double::for(TextProvider::class), 'test-model');
+        $prompt = new AgentPrompt(new ToolUsingAgent, 'Search', [], Double::for(TextProvider::class)->strict(), 'test-model');
 
         $search = new ProviderToolCall('ws-1', 'web_search_call', ['action' => ['query' => 'hypervel ai']]);
         $execution = new ProviderToolCall('ce-1', 'code_interpreter_call', ['code' => 'print(1)']);
@@ -2365,7 +2365,7 @@ class DatabaseConversationStoreTest extends TestCase
      */
     private function prompt(?Decisions $decisions = null): AgentPrompt
     {
-        return new AgentPrompt(new AnonymousAgent('', [], []), 'Hello', [], Double::for(TextProvider::class), 'model', approvalDecisions: $decisions);
+        return new AgentPrompt(new AnonymousAgent('', [], []), 'Hello', [], Double::for(TextProvider::class)->strict(), 'model', approvalDecisions: $decisions);
     }
 
     /**

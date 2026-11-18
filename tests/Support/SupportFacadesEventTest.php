@@ -38,7 +38,7 @@ class SupportFacadesEventTest extends TestCase
     {
         parent::setUp();
 
-        $this->events = Double::for(Dispatcher::class);
+        $this->events = Double::for(Dispatcher::class)->strict();
         $this->events->allows('hasListeners')->returns(true);
 
         $container = new Container;

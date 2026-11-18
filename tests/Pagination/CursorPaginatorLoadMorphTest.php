@@ -23,7 +23,7 @@ class CursorPaginatorLoadMorphTest extends TestCase
             'App\Company' => ['employees', 'calendars'],
         ];
 
-        $items = Double::for(Collection::class);
+        $items = Double::for(Collection::class)->strict();
         $items->expects('loadMorph')->with('parentable', $relations);
 
         $p = (new class extends AbstractCursorPaginator {

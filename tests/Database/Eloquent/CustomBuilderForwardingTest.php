@@ -73,7 +73,7 @@ class CustomBuilderForwardingTest extends TestCase
      */
     private function builder(Model $model): ForwardingTestBuilder
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $query = new ForwardingTestQuery($connection, new Grammar($connection), new Processor);
 
         return (new ForwardingTestBuilder($query))->setModel($model);

@@ -13,6 +13,7 @@ use Hypervel\Session\NullSessionHandler;
 use Hypervel\Session\Store;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Symfony\Component\HttpFoundation\HeaderBag;
 
 class RoutingRedirectorTest extends RoutingTestCase
@@ -39,7 +40,7 @@ class RoutingRedirectorTest extends RoutingTestCase
         $this->request->setRouteResolver(fn (): bool => true);
         $this->request->headers = $this->headers;
 
-        $this->url = Double::for(UrlGenerator::class);
+        $this->url = Double::for(UrlGenerator::class)->strict();
         $this->url->allows('getRequest')->returns($this->request);
         $this->url->allows('to')->with('bar', [], null)->returns('http://foo.com/bar');
         $this->url->allows('to')->with('bar', [], true)->returns('https://foo.com/bar');
@@ -159,9 +160,9 @@ class RoutingRedirectorTest extends RoutingTestCase
 
     public function testRouteAcceptsUrlRoutableParameters(): void
     {
-        $parameter = Double::for(UrlRoutable::class);
+        $parameter = Double::for(UrlRoutable::class)->strict();
 
-        $this->url->expects('route')->with('home', $parameter)->returns('http://foo.com/bar');
+        $this->url->expects('route')->with('home', Argument::same($parameter))->returns('http://foo.com/bar');
 
         $response = $this->redirect->route('home', $parameter);
 

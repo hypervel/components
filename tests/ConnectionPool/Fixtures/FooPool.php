@@ -12,6 +12,6 @@ class FooPool extends ConnectionPool
 {
     protected function createConnection(): Connection
     {
-        return Double::for(Connection::class);
+        return Double::for(Connection::class)->strict();
     }
 }

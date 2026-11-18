@@ -21,7 +21,7 @@ class InteractsWithContainerTest extends TestCase
 
         $this->assertSame('foo', $this->app->make(InstanceStub::class)->execute());
 
-        $stub = Double::for(InstanceStub::class);
+        $stub = Double::for(InstanceStub::class)->strict();
         $stub->expects('execute')->returns('bar');
 
         $this->swap(InstanceStub::class, $stub);

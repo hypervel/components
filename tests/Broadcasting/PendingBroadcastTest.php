@@ -35,7 +35,7 @@ class PendingBroadcastTest extends TestCase
 
     public function testViaAcceptsStringBackedEnum(): void
     {
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch');
 
         $event = new TestPendingBroadcastEvent;
@@ -49,7 +49,7 @@ class PendingBroadcastTest extends TestCase
 
     public function testViaAcceptsUnitEnum(): void
     {
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch');
 
         $event = new TestPendingBroadcastEvent;
@@ -62,7 +62,7 @@ class PendingBroadcastTest extends TestCase
 
     public function testViaNormalizesIntegerBackedEnumImmediately(): void
     {
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch');
 
         $event = new TestPendingBroadcastEvent;
@@ -75,7 +75,7 @@ class PendingBroadcastTest extends TestCase
 
     public function testViaAcceptsNull(): void
     {
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch');
 
         $event = new TestPendingBroadcastEvent;
@@ -88,7 +88,7 @@ class PendingBroadcastTest extends TestCase
 
     public function testViaAcceptsString(): void
     {
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch');
 
         $event = new TestPendingBroadcastEvent;

@@ -130,7 +130,7 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
         $presenceQuery = new PresenceQuery(null, 'users', 'id', new DatabaseConditions);
 
         $fallback->expects('getCount')
-            ->with($presenceQuery, Argument::same($stringable))
+            ->with(Argument::same($presenceQuery), Argument::same($stringable))
             ->returns(1);
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(
@@ -157,22 +157,22 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
         $activeQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions(new DatabaseCondition('status', DatabaseConditionOperator::Equals, 'active')));
 
         $fallback->expects('getCount')
-            ->with($activeQuery, 'shared')
+            ->with(Argument::same($activeQuery), 'shared')
             ->returns(1);
         $inactiveQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions(new DatabaseCondition('status', DatabaseConditionOperator::Equals, 'inactive')));
 
         $fallback->expects('getCount')
-            ->with($inactiveQuery, 'shared')
+            ->with(Argument::same($inactiveQuery), 'shared')
             ->returns(0);
         $adminQuery = new PresenceQuery(null, 'admins', 'email', new DatabaseConditions);
 
         $fallback->expects('getCount')
-            ->with($adminQuery, 'shared')
+            ->with(Argument::same($adminQuery), 'shared')
             ->returns(2);
         $unfilteredQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions);
 
         $fallback->expects('getCount')
-            ->with($unfilteredQuery, Argument::same('1'))
+            ->with(Argument::same($unfilteredQuery), Argument::same('1'))
             ->returns(1);
 
         $verifier = new PrecomputedPresenceVerifier($fallback);
@@ -197,13 +197,13 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
         $unregisteredQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions(new DatabaseCondition('status', DatabaseConditionOperator::Equals, 'active')));
 
         $fallback->expects('getCount')
-            ->with($unregisteredQuery, 'unregistered')
+            ->with(Argument::same($unregisteredQuery), 'unregistered')
             ->times(2)
             ->returns(1);
         $registeredQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions);
 
         $fallback->expects('getCount')
-            ->with($registeredQuery, $unsupported)
+            ->with(Argument::same($registeredQuery), $unsupported)
             ->times(2)
             ->returns(0);
 
@@ -221,7 +221,7 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
         $fallback = Double::for(PresenceVerifierInterface::class)->strict();
         $presenceQuery = new PresenceQuery('tenant', 'users', 'email', new DatabaseConditions);
 
-        $fallback->expects('getCount')->with($presenceQuery, 'unknown')->returns(1);
+        $fallback->expects('getCount')->with(Argument::same($presenceQuery), 'unknown')->returns(1);
 
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(
@@ -257,7 +257,7 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
         $fallback = Double::for(PresenceVerifierInterface::class)->strict();
         $presenceQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions);
 
-        $fallback->expects('getMultiCount')->with($presenceQuery, ['case', 'exact'])->returns(1);
+        $fallback->expects('getMultiCount')->with(Argument::same($presenceQuery), ['case', 'exact'])->returns(1);
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(
             self::lookupKey($presenceQuery),
@@ -289,12 +289,12 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
         $fallback = Double::for(PresenceVerifierInterface::class)->strict();
         $presenceQuery = new PresenceQuery(null, 'users', 'email', new DatabaseConditions);
 
-        $fallback->expects('getMultiCount')->with($presenceQuery, ['unknown'])->returns(1);
-        $fallback->expects('getMultiCount')->with($presenceQuery, [false])->returns(0);
+        $fallback->expects('getMultiCount')->with(Argument::same($presenceQuery), ['unknown'])->returns(1);
+        $fallback->expects('getMultiCount')->with(Argument::same($presenceQuery), [false])->returns(0);
         $fallback->expects('getMultiCount')
-            ->with($presenceQuery, Argument::same([$stringable]))
+            ->with(Argument::same($presenceQuery), Argument::same([$stringable]))
             ->returns(1);
-        $fallback->expects('getMultiCount')->with($presenceQuery, ['exact'])->returns(1);
+        $fallback->expects('getMultiCount')->with(Argument::same($presenceQuery), ['exact'])->returns(1);
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(
             self::lookupKey($presenceQuery),
@@ -323,7 +323,7 @@ class ValidationPrecomputedPresenceVerifierTest extends TestCase
         $presenceQuery = new PresenceQuery(null, 'users', 'created_at', new DatabaseConditions);
 
         $fallback->expects('getCount')
-            ->with($presenceQuery, $value)
+            ->with(Argument::same($presenceQuery), Argument::same($value))
             ->returns(1);
         $verifier = new PrecomputedPresenceVerifier($fallback);
         $verifier->addLookup(self::lookupKey($presenceQuery), [], [], [], true);

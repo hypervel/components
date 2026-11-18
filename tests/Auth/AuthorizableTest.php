@@ -123,7 +123,7 @@ class AuthorizableTest extends TestCase
      */
     private function mockGate(): OverriddenDouble
     {
-        $gate = Double::for(Gate::class, override: true);
+        $gate = Double::for(Gate::class, override: true)->strict();
 
         $container = new Container;
         $container->instance(Gate::class, $gate->instance());

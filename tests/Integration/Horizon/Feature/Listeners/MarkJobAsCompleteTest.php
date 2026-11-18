@@ -13,6 +13,7 @@ use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class MarkJobAsCompleteTest extends IntegrationTestCase
 {
@@ -31,7 +32,7 @@ class MarkJobAsCompleteTest extends IntegrationTestCase
         $event->payload = $payload;
 
         $jobs = Double::for(JobRepository::class)->strict();
-        $jobs->expects('completed')->with($payload, false, false);
+        $jobs->expects('completed')->with(Argument::same($payload), false, false);
 
         $tags = Double::for(TagRepository::class)->strict();
         $tags->expects('monitored')->with([])->returns([]);
@@ -56,8 +57,8 @@ class MarkJobAsCompleteTest extends IntegrationTestCase
         $event->queue = 'default';
 
         $jobs = Double::for(JobRepository::class)->strict();
-        $jobs->expects('completed')->with($payload, false, false);
-        $jobs->expects('remember')->with('redis', 'default', $payload);
+        $jobs->expects('completed')->with(Argument::same($payload), false, false);
+        $jobs->expects('remember')->with('redis', 'default', Argument::same($payload));
 
         $tags = Double::for(TagRepository::class)->strict();
         $tags->expects('monitored')->with(['tag'])->returns(['tag']);

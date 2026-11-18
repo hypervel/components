@@ -110,7 +110,7 @@ class ConnectionTest extends TestCase
         $resetCancellation = new CanceledException('Transaction reset was canceled.');
         $connection = new DisconnectFailureConnection(new PDO('sqlite::memory:'));
         $connection->disconnectFailure = $driverFailure;
-        $manager = Double::for(DatabaseTransactionsManager::class);
+        $manager = Double::for(DatabaseTransactionsManager::class)->strict();
         $manager->expects('rollback')->with('', 0)->throws($resetCancellation);
         $connection->setTransactionManager($manager);
 
@@ -130,7 +130,7 @@ class ConnectionTest extends TestCase
         $resetFailure = new RuntimeException('Transaction reset failed.');
         $connection = new DisconnectFailureConnection(new PDO('sqlite::memory:'));
         $connection->disconnectFailure = $driverCancellation;
-        $manager = Double::for(DatabaseTransactionsManager::class);
+        $manager = Double::for(DatabaseTransactionsManager::class)->strict();
         $manager->expects('rollback')->with('', 0)->throws($resetFailure);
         $connection->setTransactionManager($manager);
 
@@ -150,7 +150,7 @@ class ConnectionTest extends TestCase
         $resetCancellation = new CanceledException('Transaction reset was canceled.');
         $connection = new DisconnectFailureConnection(new PDO('sqlite::memory:'));
         $connection->disconnectFailure = $driverCancellation;
-        $manager = Double::for(DatabaseTransactionsManager::class);
+        $manager = Double::for(DatabaseTransactionsManager::class)->strict();
         $manager->expects('rollback')->with('', 0)->throws($resetCancellation);
         $connection->setTransactionManager($manager);
 
@@ -170,7 +170,7 @@ class ConnectionTest extends TestCase
         $resetFailure = new RuntimeException('Transaction reset failed.');
         $connection = new DisconnectFailureConnection(new PDO('sqlite::memory:'));
         $connection->disconnectFailure = $driverFailure;
-        $manager = Double::for(DatabaseTransactionsManager::class);
+        $manager = Double::for(DatabaseTransactionsManager::class)->strict();
         $manager->expects('rollback')->with('', 0)->throws($resetFailure);
         $connection->setTransactionManager($manager);
 

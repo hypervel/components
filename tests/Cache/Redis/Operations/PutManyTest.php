@@ -19,19 +19,11 @@ class PutManyTest extends RedisCacheTestCase
 
         // Standard mode (not cluster) uses Lua script via evalWithShaCache
         $connection->expects('evalWithShaCache')
-            ->with(Argument::all(function ($script, $keys, $args) {
-                // Verify Lua script structure
-                $this->assertStringContainsString('SETEX', $script);
-                // Keys: prefix:foo, prefix:baz, prefix:bar
-                $this->assertCount(3, $keys);
-                $this->assertSame('prefix:foo', $keys[0]);
-                $this->assertSame('prefix:baz', $keys[1]);
-                $this->assertSame('prefix:bar', $keys[2]);
-                // Args: [ttl, val1, val2, val3]
-                $this->assertSame([60, serialize('bar'), serialize('qux'), serialize('norf')], $args);
-
-                return true;
-            }))
+            ->with(
+                Argument::capture($script),
+                ['prefix:foo', 'prefix:baz', 'prefix:bar'],
+                [60, serialize('bar'), serialize('qux'), serialize('norf')],
+            )
             ->returns(true);
 
         $redis = $this->createStore($connection);
@@ -41,6 +33,7 @@ class PutManyTest extends RedisCacheTestCase
             'bar' => 'norf',
         ], 60);
         $this->assertTrue($result);
+        $this->assertStringContainsString('SETEX', $script);
     }
 
     public function testPutManyUsesSequentialCommandsInClusterMode(): void
@@ -103,15 +96,12 @@ class PutManyTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         $connection->expects('evalWithShaCache')
-            ->with(Argument::all(function ($script, $keys, $args) {
-                // TTL should be 1, not 0
-                $this->assertSame(1, $args[0]); // TTL is first arg
-                return true;
-            }))
+            ->with(Argument::any(), Argument::any(), Argument::capture($args))
             ->returns(true);
 
         $redis = $this->createStore($connection);
         $result = $redis->putMany(['foo' => 'bar'], 0);
         $this->assertTrue($result);
+        $this->assertSame(1, $args[0]);
     }
 }

@@ -30,7 +30,7 @@ class WorkerExitCallbackTest extends TestCase
         SwooleCoroutine::set(['max_coroutine' => 1]);
 
         SwooleCoroutine\run(function (): void {
-            $dispatcher = Double::for(Dispatcher::class);
+            $dispatcher = Double::for(Dispatcher::class)->strict();
             $dispatcher->expects('hasListeners')
                 ->with(OnWorkerExit::class)
                 ->returns(true);
@@ -38,7 +38,7 @@ class WorkerExitCallbackTest extends TestCase
                 ->with(Argument::type(OnWorkerExit::class));
             $coordinator = CoordinatorManager::until(Constants::WORKER_EXIT);
             $callback = new WorkerExitCallback($dispatcher);
-            $server = Double::for(Server::class);
+            $server = Double::for(Server::class)->strict();
 
             $callback->onWorkerExit($server, 3);
             $callback->onWorkerExit($server, 3);
@@ -52,7 +52,7 @@ class WorkerExitCallbackTest extends TestCase
     public function testWorkerExitResumesCoordinationWithoutListeners(): void
     {
         SwooleCoroutine\run(function (): void {
-            $dispatcher = Double::for(Dispatcher::class);
+            $dispatcher = Double::for(Dispatcher::class)->strict();
             $dispatcher->expects('hasListeners')
                 ->with(OnWorkerExit::class)
                 ->returns(false);
@@ -60,8 +60,8 @@ class WorkerExitCallbackTest extends TestCase
             $coordinator = CoordinatorManager::until(Constants::WORKER_EXIT);
             $callback = new WorkerExitCallback($dispatcher);
 
-            $callback->onWorkerExit(Double::for(Server::class), 3);
-            $callback->onWorkerExit(Double::for(Server::class), 3);
+            $callback->onWorkerExit(Double::for(Server::class)->strict(), 3);
+            $callback->onWorkerExit(Double::for(Server::class)->strict(), 3);
 
             $this->assertTrue($coordinator->isClosing());
         });
@@ -72,14 +72,14 @@ class WorkerExitCallbackTest extends TestCase
     {
         SwooleCoroutine\run(function (): void {
             $failure = new RuntimeException('worker exit listener failed');
-            $dispatcher = Double::for(Dispatcher::class);
+            $dispatcher = Double::for(Dispatcher::class)->strict();
             $dispatcher->expects('hasListeners')
                 ->with(OnWorkerExit::class)
                 ->returns(true);
             $dispatcher->expects('dispatch')->throws($failure);
             $coordinator = CoordinatorManager::until(Constants::WORKER_EXIT);
             $callback = new WorkerExitCallback($dispatcher);
-            $server = Double::for(Server::class);
+            $server = Double::for(Server::class)->strict();
 
             try {
                 $callback->onWorkerExit($server, 3);

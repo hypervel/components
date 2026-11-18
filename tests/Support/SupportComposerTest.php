@@ -258,10 +258,12 @@ class SupportComposerTest extends TestCase
     {
         $directory = __DIR__;
 
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $files->expects('exists')->with($directory . '/composer.phar')->returns($customComposerPhar);
 
-        $process = Double::for(Process::class);
+        $process = Double::for(Process::class)->strict();
+        // Symfony stops the process when the double is destroyed.
+        $process->allows('stop')->with(0.0)->returns(0);
         $process->expects('run');
 
         $composer = $this->getMockBuilder(Composer::class)

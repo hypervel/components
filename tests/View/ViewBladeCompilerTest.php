@@ -667,7 +667,7 @@ class ViewBladeCompilerTest extends TestCase
      */
     protected function getFiles(): Filesystem&DoubleInterface
     {
-        return Double::for(Filesystem::class);
+        return Double::for(Filesystem::class)->strict();
     }
 }
 

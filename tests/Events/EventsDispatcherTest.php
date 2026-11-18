@@ -204,20 +204,16 @@ class EventsDispatcherTest extends TestCase
     {
         unset($_SERVER['__event.test']);
         $d = new Dispatcher;
-        $d->listen('foo', function ($foo) {
-            $this->assertTrue(true);
-
-            return 'here';
-        });
+        $d->listen('foo', fn ($foo) => $foo);
         $d->listen('foo', function ($foo) {
             throw new Exception('should not be called');
         });
 
         $response = $d->dispatch('foo', ['bar'], true);
-        $this->assertSame('here', $response);
+        $this->assertSame('bar', $response);
 
         $response = $d->until('foo', ['bar']);
-        $this->assertSame('here', $response);
+        $this->assertSame('bar', $response);
     }
 
     public function testResponseWhenNoListenersAreSet(): void

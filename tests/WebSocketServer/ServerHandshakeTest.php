@@ -71,7 +71,7 @@ class ServerHandshakeTest extends TestCase
         $container = $this->container($events);
         $reporter = Double::for(ExceptionHandler::class)->strict();
         if ($outcome === 'failed' || $outcome === 'wrapped') {
-            $reporter->expects('report')->with($exception);
+            $reporter->expects('report')->with(Argument::same($exception));
         } else {
             $reporter->expects('report')->never();
         }
@@ -197,7 +197,7 @@ class ServerHandshakeTest extends TestCase
         $container = $this->container($events);
         $container->expects('make')->with(SafeCaller::class)->returns(new SafeCaller($container->instance()));
         $handler = Double::for(WebSocketExceptionHandler::class)->strict();
-        $handler->expects('handle')->with($exception, Argument::type(Response::class))->returns(new Response('', 302));
+        $handler->expects('handle')->with(Argument::same($exception), Argument::type(Response::class))->returns(new Response('', 302));
         $container->expects('make')->with(WebSocketExceptionHandler::class)->returns($handler);
         $server = new HandshakeLifecycleServer($container->instance(), Double::for(Router::class)->strict(), Double::for(SwooleWebSocketServer::class)->strict());
 
@@ -358,9 +358,9 @@ class ServerHandshakeTest extends TestCase
         $container = $this->container($events);
         $container->expects('make')->with(Security::class)->returns(new Security);
         $container->expects('make')->with(SafeCaller::class)->returns(new SafeCaller($container->instance()));
-        $container->expects('make')->with(WebSocketExceptionHandler::class)->returns(
-            new WebSocketExceptionHandler(Double::for(StdoutLoggerInterface::class)),
-        );
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->allows('warning');
+        $container->expects('make')->with(WebSocketExceptionHandler::class)->returns(new WebSocketExceptionHandler($logger));
         $router = Double::for(Router::class)->strict();
         $router->expects('dispatchToCallback')->never();
         $nativeServer = Double::for(SwooleWebSocketServer::class)->strict();
@@ -455,7 +455,7 @@ class ServerHandshakeTest extends TestCase
         $container = $this->container($events);
         $container->allows('make')->with(Security::class)->returns(new Security);
         $reporter = Double::for(ExceptionHandler::class)->strict();
-        $reporter->expects('report')->with($heldFailure);
+        $reporter->expects('report')->with(Argument::same($heldFailure));
         $reportingContainer = new BaseContainer;
         $reportingContainer->instance(ExceptionHandler::class, $reporter);
         BaseContainer::setInstance($reportingContainer);
@@ -540,8 +540,9 @@ class ServerHandshakeTest extends TestCase
     protected function container(?Dispatcher $events = null, bool $middlewareDisabled = false): OverriddenDouble
     {
         $container = Double::for(Container::class, override: true)->strict();
-        $container->expects('make')->with(StdoutLoggerInterface::class)
-            ->returns(Double::for(StdoutLoggerInterface::class));
+        $logger = Double::for(StdoutLoggerInterface::class)->strict();
+        $logger->allows('debug');
+        $container->expects('make')->with(StdoutLoggerInterface::class)->returns($logger);
         $container->expects('bound')->with('events')->returns($events !== null);
         $container->allows('bound')->with('middleware.disable')->returns($middlewareDisabled);
 
@@ -561,7 +562,7 @@ class ServerHandshakeTest extends TestCase
         $route->allows('getControllerClass')->returns(WebSocketStub::class);
 
         $router = Double::for(Router::class)->strict();
-        $router->allows('gatherRouteMiddleware')->with($route)->returns($middleware);
+        $router->allows('gatherRouteMiddleware')->with(Argument::same($route))->returns($middleware);
         $router->expects('dispatchToCallback')
             ->with(Argument::type(HttpRequest::class), Argument::type(Closure::class))
             ->resolves(function (HttpRequest $request) use ($route, $status): Response {

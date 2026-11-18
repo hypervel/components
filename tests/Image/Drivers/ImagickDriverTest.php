@@ -597,11 +597,11 @@ class ImagickDriverTest extends TestCase
 
     public function testEnsureRequirementsPasses(): void
     {
+        $this->expectNotToPerformAssertions();
+
         $driver = new ImagickDriver;
 
         $driver->ensureRequirementsAreMet();
-
-        $this->assertTrue(true);
     }
 
     protected function fakeImageContents(int $width = 100, int $height = 100): string

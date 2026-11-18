@@ -364,7 +364,7 @@ class DatabasePdoConnectionTest extends TestCase
         $statement->expects($this->once())->method('execute')->willReturn(true);
         $statement->expects($this->once())->method('fetchAll')->willReturn([]);
         $connection = $this->getMockConnection([], $pdo);
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('hasListeners')->with(StatementPrepared::class)->returns(true);
         $events->expects('hasListeners')->with(QueryExecuted::class)->returns(false);
         $events->expects('dispatch')
@@ -396,7 +396,7 @@ class DatabasePdoConnectionTest extends TestCase
                 parent::event($event);
             }
         };
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('hasListeners')->with(StatementPrepared::class)->returns(false);
         $events->expects('hasListeners')->with(QueryExecuted::class)->returns(false);
         $events->expects('dispatch')->never();
@@ -412,7 +412,7 @@ class DatabasePdoConnectionTest extends TestCase
         $connection = new SQLiteConnection($pdo);
         $failure = new ErrorException('fopen(missing): Failed to open stream: No such file or directory', 0, E_WARNING);
         $connection->setReconnector(static fn (): never => throw new LogicException('Unexpected reconnect.'));
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->with(StatementPrepared::class)->returns(true);
         $events->expects('dispatch')->with(Argument::type(StatementPrepared::class))->throws($failure);
         $events->allows('hasListeners')->returns(false);
@@ -814,9 +814,9 @@ class DatabasePdoConnectionTest extends TestCase
         $this->expectException(QueryException::class);
         $this->expectExceptionMessageIs('server has gone away (Connection: test, Host: , Port: , Database: , SQL: foo)');
 
-        $pdo = Double::for(PDO::class);
+        $pdo = Double::for(PDO::class)->strict();
         $pdo->expects('beginTransaction')->returns(true);
-        $statement = Double::for(PDOStatement::class);
+        $statement = Double::for(PDOStatement::class)->strict();
         $pdo->expects('prepare')->returns($statement);
         $statement->expects('execute')->throws(new PDOException('server has gone away'));
 
@@ -864,13 +864,13 @@ class DatabasePdoConnectionTest extends TestCase
      */
     protected function getFailingPdo(): PDO
     {
-        $statement = Double::for(PDOStatement::class);
+        $statement = Double::for(PDOStatement::class)->strict();
         $statement->expects('bindValue')->returns(true);
         $statement->expects('execute')->throws(
             new PDOException('SQLSTATE[42S02]: Base table or view not found')
         );
 
-        $pdo = Double::for(PDO::class);
+        $pdo = Double::for(PDO::class)->strict();
         $pdo->expects('prepare')->returns($statement);
 
         return $pdo;
@@ -878,9 +878,9 @@ class DatabasePdoConnectionTest extends TestCase
 
     public function testOnLostConnectionPDOIsSwappedOutsideTransaction(): void
     {
-        $pdo = Double::for(PDO::class);
+        $pdo = Double::for(PDO::class)->strict();
 
-        $statement = Double::for(PDOStatement::class);
+        $statement = Double::for(PDOStatement::class)->strict();
         $executions = 0;
         $statement->expects('execute')->times(2)->resolves(function () use (&$executions): bool {
             if ($executions++ === 0) {
@@ -907,12 +907,12 @@ class DatabasePdoConnectionTest extends TestCase
 
     public function testQueriesRunWhileReconnectingDoNotReconnectAgain(): void
     {
-        $statement = Double::for(PDOStatement::class);
+        $statement = Double::for(PDOStatement::class)->strict();
         $statement->expects('execute')->times(2)->throws(
             new PDOException('SQLSTATE[08006] [7] connection to server at "127.0.0.1", port 5432 failed: Connection refused')
         );
 
-        $pdo = Double::for(PDO::class);
+        $pdo = Double::for(PDO::class)->strict();
         $pdo->expects('prepare')->times(2)->returns($statement);
 
         $connection = new PdoConnection($pdo);
@@ -1068,7 +1068,7 @@ class DatabasePdoConnectionTest extends TestCase
     public function testLostTransactionCleanupPreservesAConnectionOpenedByARollbackCallback(string $operation): void
     {
         $failure = new PDOException('server has gone away');
-        $pdo = Double::for(PDO::class);
+        $pdo = Double::for(PDO::class)->strict();
         $pdo->expects('beginTransaction')->returns(true);
         $pdo->expects('prepare')->never();
 
@@ -1507,7 +1507,7 @@ class DatabasePdoConnectionTest extends TestCase
 
     public function testLostConnectionIsRetriedWhenReleasingADeadReadPdoRaisesAWarning(): void
     {
-        $statement = Double::for(PDOStatement::class);
+        $statement = Double::for(PDOStatement::class)->strict();
         $executions = 0;
         $statement->expects('execute')->times(2)->resolves(function () use (&$executions): bool {
             if ($executions++ === 0) {
@@ -1517,7 +1517,7 @@ class DatabasePdoConnectionTest extends TestCase
             return true;
         });
 
-        $pdo = Double::for(PDO::class);
+        $pdo = Double::for(PDO::class)->strict();
         $pdo->expects('prepare')->times(2)->returns($statement);
         $pdo->expects('inTransaction')->returns(false);
 
@@ -1849,7 +1849,7 @@ class DatabasePdoConnectionTest extends TestCase
 
         if ($methods === []) {
             $connection = new PdoConnection($pdo, 'test_db', '', ['name' => 'test', 'driver' => 'mysql']);
-            $connection->setSchemaGrammar(Double::for(SchemaGrammar::class));
+            $connection->setSchemaGrammar(Double::for(SchemaGrammar::class)->strict());
             $connection->enableQueryLog();
 
             return $connection;
@@ -1857,7 +1857,7 @@ class DatabasePdoConnectionTest extends TestCase
 
         $defaults = ['getDefaultQueryGrammar', 'getDefaultPostProcessor', 'getDefaultSchemaGrammar'];
         $connection = $this->getMockBuilder(PdoConnection::class)->onlyMethods(array_values(array_unique(array_merge($defaults, $methods))))->setConstructorArgs([$pdo, 'test_db', '', ['name' => 'test', 'driver' => 'mysql']])->getMock();
-        $connection->method('getDefaultSchemaGrammar')->willReturn(Double::for(SchemaGrammar::class));
+        $connection->method('getDefaultSchemaGrammar')->willReturn(Double::for(SchemaGrammar::class)->strict());
         $connection->enableQueryLog();
 
         return $connection;

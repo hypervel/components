@@ -25,7 +25,7 @@ class DatabasePostgresBuilderTest extends TestCase
 
     public function testCreateDatabase(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new PostgresGrammar($connection);
 
         $connection->expects('getConfig')->with('charset')->returns('utf8');
@@ -40,7 +40,7 @@ class DatabasePostgresBuilderTest extends TestCase
 
     public function testDropDatabaseIfExists(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new PostgresGrammar($connection);
 
         $connection->expects('getSchemaGrammar')->returns($grammar);
@@ -55,7 +55,7 @@ class DatabasePostgresBuilderTest extends TestCase
 
     public function testExecuteBlueprintWrapsKnownMultiStatementCommandsInATransaction(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new PostgresGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['first statement', 'second statement'],
@@ -74,7 +74,7 @@ class DatabasePostgresBuilderTest extends TestCase
 
     public function testExecuteBlueprintDoesNotNestAnExistingTransaction(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new PostgresGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['first statement', 'second statement'],
@@ -92,7 +92,7 @@ class DatabasePostgresBuilderTest extends TestCase
 
     public function testExecuteBlueprintDoesNotWrapASingleStatement(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new PostgresGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['statement'],
@@ -109,7 +109,7 @@ class DatabasePostgresBuilderTest extends TestCase
 
     public function testExecuteBlueprintDoesNotWrapOnlineCommands(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new PostgresGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['create index concurrently', 'attach constraint'],
@@ -127,7 +127,7 @@ class DatabasePostgresBuilderTest extends TestCase
 
     public function testExecuteBlueprintDoesNotWrapCommandsAddedByAnExtensionGrammar(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new PostgresGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['extension statement one', 'extension statement two'],
@@ -145,7 +145,7 @@ class DatabasePostgresBuilderTest extends TestCase
 
     public function testExecuteBlueprintWrapsFrameworkCommandsOverriddenByAnExtensionGrammar(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new PostgresBuilderExtensionGrammar($connection);
         $blueprint = $this->executionBlueprint(
             ['overridden create', 'second statement'],
@@ -164,7 +164,7 @@ class DatabasePostgresBuilderTest extends TestCase
 
     public function testExecuteBlueprintHonorsTheRuntimeGrammarTransactionFlag(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = Double::for(new PostgresGrammar($connection))->passthru();
         $blueprint = $this->executionBlueprint(
             ['first statement', 'second statement'],
@@ -184,7 +184,7 @@ class DatabasePostgresBuilderTest extends TestCase
     public function testHasTableWhenSchemaUnqualifiedAndSearchPathMissing(): void
     {
         $connection = $this->getConnection();
-        $grammar = Double::for(PostgresGrammar::class);
+        $grammar = Double::for(PostgresGrammar::class)->strict();
         $connection->expects('getSchemaGrammar')->returns($grammar);
         $grammar->expects('compileTableExists')->times(2)->returns('sql');
         $connection->expects('selectFromWriteConnection')->times(2)->with('sql')->returns([['exists' => 1]]);
@@ -198,7 +198,7 @@ class DatabasePostgresBuilderTest extends TestCase
     public function testHasTableWhenSchemaUnqualifiedAndSearchPathFilled(): void
     {
         $connection = $this->getConnection();
-        $grammar = Double::for(PostgresGrammar::class);
+        $grammar = Double::for(PostgresGrammar::class)->strict();
         $connection->expects('getSchemaGrammar')->returns($grammar);
         $grammar->expects('compileTableExists')->times(2)->returns('sql');
         $connection->expects('selectFromWriteConnection')->times(2)->with('sql')->returns([['exists' => 1]]);
@@ -212,7 +212,7 @@ class DatabasePostgresBuilderTest extends TestCase
     public function testHasTableWhenSchemaUnqualifiedAndSearchPathFallbackFilled(): void
     {
         $connection = $this->getConnection();
-        $grammar = Double::for(PostgresGrammar::class);
+        $grammar = Double::for(PostgresGrammar::class)->strict();
         $connection->expects('getSchemaGrammar')->returns($grammar);
         $grammar->expects('compileTableExists')->times(2)->returns('sql');
         $connection->expects('selectFromWriteConnection')->times(2)->with('sql')->returns([['exists' => 1]]);
@@ -226,7 +226,7 @@ class DatabasePostgresBuilderTest extends TestCase
     public function testHasTableWhenSchemaUnqualifiedAndSearchPathIsUserVariable(): void
     {
         $connection = $this->getConnection();
-        $grammar = Double::for(PostgresGrammar::class);
+        $grammar = Double::for(PostgresGrammar::class)->strict();
         $connection->expects('getSchemaGrammar')->returns($grammar);
         $grammar->expects('compileTableExists')->times(2)->returns('sql');
         $connection->expects('selectFromWriteConnection')->times(2)->with('sql')->returns([['exists' => 1]]);
@@ -269,7 +269,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $connection->expects('getSchemaGrammar')->returns($grammar);
         $connection->expects('selectFromWriteConnection')->with($grammar->compileColumns(null, 'foo'))->returns([['name' => 'some_column']]);
         $connection->expects('getTablePrefix');
-        $processor = Double::for(PostgresProcessor::class);
+        $processor = Double::for(PostgresProcessor::class)->strict();
         $connection->expects('getPostProcessor')->returns($processor);
         $processor->expects('processColumns')->returns([['name' => 'some_column']]);
         $builder = $this->getBuilder($connection);
@@ -285,7 +285,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $connection->expects('getSchemaGrammar')->returns($grammar);
         $connection->expects('selectFromWriteConnection')->with($grammar->compileColumns(null, 'foo'))->returns([['name' => 'some_column']]);
         $connection->expects('getTablePrefix');
-        $processor = Double::for(PostgresProcessor::class);
+        $processor = Double::for(PostgresProcessor::class)->strict();
         $connection->expects('getPostProcessor')->returns($processor);
         $processor->expects('processColumns')->returns([['name' => 'some_column']]);
         $builder = $this->getBuilder($connection);
@@ -301,7 +301,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $connection->expects('getSchemaGrammar')->returns($grammar);
         $connection->expects('selectFromWriteConnection')->with($grammar->compileColumns(null, 'foo'))->returns([['name' => 'some_column']]);
         $connection->expects('getTablePrefix');
-        $processor = Double::for(PostgresProcessor::class);
+        $processor = Double::for(PostgresProcessor::class)->strict();
         $connection->expects('getPostProcessor')->returns($processor);
         $processor->expects('processColumns')->returns([['name' => 'some_column']]);
         $builder = $this->getBuilder($connection);
@@ -317,7 +317,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $connection->expects('getSchemaGrammar')->returns($grammar);
         $connection->expects('selectFromWriteConnection')->with($grammar->compileColumns('myapp', 'foo'))->returns([['name' => 'some_column']]);
         $connection->expects('getTablePrefix');
-        $processor = Double::for(PostgresProcessor::class);
+        $processor = Double::for(PostgresProcessor::class)->strict();
         $connection->expects('getPostProcessor')->returns($processor);
         $processor->expects('processColumns')->returns([['name' => 'some_column']]);
         $builder = $this->getBuilder($connection);
@@ -342,7 +342,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $connection = $this->getConnection();
         $connection->expects('getConfig')->with('username')->returns('foouser');
         $connection->expects('getConfig')->with('search_path')->returns('"$user", public');
-        $connection->expects('getSchemaGrammar')->returns(Double::for(PostgresGrammar::class));
+        $connection->expects('getSchemaGrammar')->returns(Double::for(PostgresGrammar::class)->strict());
         $connection->expects('scalar')
             ->with('select current_schema()', [], false)
             ->returns('public');
@@ -357,7 +357,7 @@ class DatabasePostgresBuilderTest extends TestCase
     public function testCurrentSchemaListingFollowsTheConnectorSettingPrecedence(?string $searchPath, ?string $schema, array $expected): void
     {
         $connection = $this->getConnection();
-        $connection->expects('getSchemaGrammar')->returns(Double::for(PostgresGrammar::class));
+        $connection->expects('getSchemaGrammar')->returns(Double::for(PostgresGrammar::class)->strict());
         $connection->allows('getConfig')->with('search_path')->returns($searchPath);
         $connection->allows('getConfig')->with('schema')->returns($schema);
 
@@ -380,7 +380,7 @@ class DatabasePostgresBuilderTest extends TestCase
     public function testHasViewIsFalseWithoutACurrentSchema(): void
     {
         $connection = $this->getConnection();
-        $connection->expects('getSchemaGrammar')->returns(Double::for(PostgresGrammar::class));
+        $connection->expects('getSchemaGrammar')->returns(Double::for(PostgresGrammar::class)->strict());
         $connection->expects('scalar')
             ->with('select current_schema()', [], false)
             ->returns(null);
@@ -392,8 +392,8 @@ class DatabasePostgresBuilderTest extends TestCase
     public function testHasViewUsesTheActualCurrentSchema(): void
     {
         $connection = $this->getConnection();
-        $grammar = Double::for(PostgresGrammar::class);
-        $processor = Double::for(PostgresProcessor::class);
+        $grammar = Double::for(PostgresGrammar::class)->strict();
+        $processor = Double::for(PostgresProcessor::class)->strict();
 
         $connection->expects('getSchemaGrammar')->returns($grammar);
         $connection->expects('getTablePrefix')->returns('');
@@ -481,7 +481,7 @@ class DatabasePostgresBuilderTest extends TestCase
     public function testDropAllObjectsWithAnEmptySearchPathLeavesEverySchemaUntouched(): void
     {
         $connection = $this->getConnection();
-        $connection->expects('getSchemaGrammar')->returns(Double::for(PostgresGrammar::class));
+        $connection->expects('getSchemaGrammar')->returns(Double::for(PostgresGrammar::class)->strict());
         $connection->expects('getConfig')->times(3)->with('search_path')->returns('');
         $connection->expects('selectFromWriteConnection')->never();
         $connection->expects('statement')->never();
@@ -578,7 +578,7 @@ class DatabasePostgresBuilderTest extends TestCase
      */
     protected function getConnection(): Connection
     {
-        return Double::for(Connection::class);
+        return Double::for(Connection::class)->strict();
     }
 
     /**
@@ -589,7 +589,7 @@ class DatabasePostgresBuilderTest extends TestCase
      */
     protected function executionBlueprint(array $statements, array $commands): Blueprint
     {
-        $blueprint = Double::for(Blueprint::class);
+        $blueprint = Double::for(Blueprint::class)->strict();
         $blueprint->expects('toSql')->returns($statements);
         $blueprint->allows('getCommands')->returns($commands);
 

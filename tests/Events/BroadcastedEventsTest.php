@@ -53,9 +53,9 @@ class BroadcastedEventsTest extends TestCase
     public function testShouldBroadcastAsQueuedAndCallNormalListeners(): void
     {
         unset($_SERVER['__event.test']);
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $d = new Dispatcher($container->instance());
-        $broadcast = Double::for(BroadcastFactory::class);
+        $broadcast = Double::for(BroadcastFactory::class)->strict();
         $broadcast->expects('queue');
         $container->expects('make')->with(BroadcastFactory::class)->returns($broadcast);
 
@@ -90,9 +90,9 @@ class BroadcastedEventsTest extends TestCase
 
     public function testBroadcastWithMultipleChannels(): void
     {
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $d = new Dispatcher($container->instance());
-        $broadcast = Double::for(BroadcastFactory::class);
+        $broadcast = Double::for(BroadcastFactory::class)->strict();
         $broadcast->expects('queue');
         $container->expects('make')->with(BroadcastFactory::class)->returns($broadcast);
 
@@ -108,9 +108,9 @@ class BroadcastedEventsTest extends TestCase
 
     public function testBroadcastWithCustomConnectionName(): void
     {
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $d = new Dispatcher($container->instance());
-        $broadcast = Double::for(BroadcastFactory::class);
+        $broadcast = Double::for(BroadcastFactory::class)->strict();
         $broadcast->expects('queue');
         $container->expects('make')->with(BroadcastFactory::class)->returns($broadcast);
 
@@ -128,9 +128,9 @@ class BroadcastedEventsTest extends TestCase
 
     public function testBroadcastWithCustomEventName(): void
     {
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $d = new Dispatcher($container->instance());
-        $broadcast = Double::for(BroadcastFactory::class);
+        $broadcast = Double::for(BroadcastFactory::class)->strict();
         $broadcast->expects('queue');
         $container->expects('make')->with(BroadcastFactory::class)->returns($broadcast);
 
@@ -151,9 +151,9 @@ class BroadcastedEventsTest extends TestCase
 
     public function testBroadcastWithCustomPayload(): void
     {
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $d = new Dispatcher($container->instance());
-        $broadcast = Double::for(BroadcastFactory::class);
+        $broadcast = Double::for(BroadcastFactory::class)->strict();
         $broadcast->expects('queue');
         $container->expects('make')->with(BroadcastFactory::class)->returns($broadcast);
 
@@ -177,7 +177,7 @@ class BroadcastedEventsTest extends TestCase
     public function testEventBroadcastsUsingNamedArguments(): void
     {
         $container = new Container;
-        $broadcast = Double::for(BroadcastFactory::class);
+        $broadcast = Double::for(BroadcastFactory::class)->strict();
         $container->instance(BroadcastFactory::class, $broadcast);
 
         $originalContainer = Container::getInstance();
@@ -187,19 +187,16 @@ class BroadcastedEventsTest extends TestCase
             $pendingBroadcast = new PendingBroadcastWithoutDestructor(new Dispatcher, new stdClass);
 
             $broadcast->expects('event')
-                ->with(Argument::satisfies(function (mixed $event): bool {
-                    $this->assertInstanceOf(BroadcastableNamedArgumentsEvent::class, $event);
-                    $this->assertSame('first-value', $event->first);
-                    $this->assertSame('second-value', $event->second);
-
-                    return true;
-                }))
+                ->with(Argument::capture($event))
                 ->returns($pendingBroadcast);
 
             $this->assertSame(
                 $pendingBroadcast,
                 BroadcastableNamedArgumentsEvent::broadcast(second: 'second-value', first: 'first-value')
             );
+            $this->assertInstanceOf(BroadcastableNamedArgumentsEvent::class, $event);
+            $this->assertSame('first-value', $event->first);
+            $this->assertSame('second-value', $event->second);
         } finally {
             Container::setInstance($originalContainer);
         }

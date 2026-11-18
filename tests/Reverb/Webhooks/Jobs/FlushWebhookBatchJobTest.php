@@ -70,7 +70,7 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
         $sender->expects('send')->with(
             Argument::satisfies(static fn (Application $application): bool => $application->id() === '123456'),
             $config,
-            $batch['payload'],
+            Argument::same($batch['payload']),
         );
 
         $job = new FlushWebhookBatchJob('123456', $config);

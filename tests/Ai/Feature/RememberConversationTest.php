@@ -83,7 +83,7 @@ class RememberConversationTest extends TestCase
         };
         $agent->continue($conversationId);
         $agent->continuations = 0;
-        $provider = Double::for(TextProvider::class);
+        $provider = Double::for(TextProvider::class)->strict();
         $provider->allows('name')->returns('test');
         $prompt = new AgentPrompt($agent, 'Hello', [], $provider, 'model');
         $middleware = Double::for(new RememberConversation($store, $provider))->passthru();
@@ -105,7 +105,7 @@ class RememberConversationTest extends TestCase
         config(['ai.providers.openai.key' => 'test-key']);
         $participant = $originalParticipant = (object) ['id' => 1];
         $conversationId = null;
-        $agent = Double::for(Agent::class, RemembersConversations::class);
+        $agent = Double::for(Agent::class, RemembersConversations::class)->strict();
         $agent->allows('currentConversation')->resolves(function () use (&$conversationId): ?string {
             return $conversationId;
         });
@@ -327,7 +327,7 @@ class RememberConversationTest extends TestCase
     {
         config(['ai.conversations.generate_title' => true, 'ai.conversations.concurrent_title' => $concurrent]);
         $prompt = $this->prompt(Decisions::from(['call' => true]));
-        $loop = new TextGenerationLoop(Double::for(StepTextGateway::class));
+        $loop = new TextGenerationLoop(Double::for(StepTextGateway::class)->strict());
         $titleRequests = 0;
         $middleware = Double::for(new RememberConversation(new DatabaseConversationStore, $prompt->provider()))->passthru();
         $middleware->allows('generateTitle')->resolves(function () use (&$titleRequests): string {
@@ -357,7 +357,7 @@ class RememberConversationTest extends TestCase
 
     public function testASequentialStoreCanChooseItsOwnIdWhenContinuingAnEmptyId(): void
     {
-        $store = Double::for(ConversationStore::class);
+        $store = Double::for(ConversationStore::class)->strict();
         $store->expects('storeConversation')->returns('custom-conversation');
         $store->expects('storeUserMessage')->with('custom-conversation', null, null, RememberingAssistantAgent::class, Argument::type('object'))->returns('user-message');
         $store->expects('storeAssistantMessage')->with('custom-conversation', null, null, Argument::type(AgentPrompt::class), Argument::type(AgentResponse::class), null)->returns('assistant-message');
@@ -576,7 +576,7 @@ class RememberConversationTest extends TestCase
         $prompt = $this->prompt();
         $cancellation = new CanceledException;
         $storageFailure = new RuntimeException('Conversation storage failed.');
-        $store = Double::for(DatabaseConversationStore::class);
+        $store = Double::for(DatabaseConversationStore::class)->strict();
         $store->expects('storeTurn')->throws($storageFailure);
         $middleware = new RememberConversation($store, $prompt->provider());
         $generate = function () use ($prompt, $cancellation): never {
@@ -949,7 +949,7 @@ class RememberConversationTest extends TestCase
         $storageFailure = new RuntimeException('Conversation storage failed.');
         $prompt->provider()->expects('prompt')->throws($cancellation);
         $prompt->provider()->expects('cheapestTextModel')->returns('title-model');
-        $store = Double::for(DatabaseConversationStore::class);
+        $store = Double::for(DatabaseConversationStore::class)->strict();
         $store->expects('storeTurn')->throws($storageFailure);
         $caught = null;
 
@@ -970,7 +970,7 @@ class RememberConversationTest extends TestCase
      */
     private function prompt(?Decisions $decisions = null): AgentPrompt
     {
-        $provider = Double::for(TextProvider::class);
+        $provider = Double::for(TextProvider::class)->strict();
         $provider->allows('name')->returns('test');
 
         return new AgentPrompt((new RememberingAssistantAgent)->forUser((object) ['id' => 1]), 'Hello', [], $provider, 'model', approvalDecisions: $decisions);

@@ -110,7 +110,7 @@ class DatabaseDbCommandLaunchTest extends TestCase
      */
     private function prepareCommand(DbCommand $command, DatabaseCliManager $manager, array $connection): BufferedOutput
     {
-        $this->application = Double::for(Application::class, override: true);
+        $this->application = Double::for(Application::class, override: true)->strict();
         $this->application->expects('make')->with(DatabaseCliManager::class)->returns($manager);
         $this->application->expects('make')->with('config')->returns(new Repository([
             'database' => ['default' => 'testing', 'connections' => ['testing' => $connection]],
@@ -131,7 +131,8 @@ class DatabaseDbCommandLaunchTest extends TestCase
      */
     private function expectProcess(array $arguments, array $environment): void
     {
-        $process = Double::for(Process::class);
+        $process = Double::for(Process::class)->strict();
+        $process->allows('stop')->with(0.0)->returns(0); // Symfony stops the process in its destructor.
         $process->expects('setTimeout')->with(null);
         $process->expects('setTty')->with(true);
         $process->expects('mustRun')->with(Argument::type(Closure::class))

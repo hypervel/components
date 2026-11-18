@@ -18,7 +18,7 @@ class EnumTransformerTest extends TestCase
     public function testCanTransformEnums(): void
     {
         $transformer = new EnumTransformer;
-        $property = Double::for(DataProperty::class);
+        $property = Double::for(DataProperty::class)->strict();
         $context = new TransformationContext;
 
         $this->assertSame('ready', $transformer->transform($property, StringStatus::Ready, $context));

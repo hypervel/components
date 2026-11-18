@@ -114,7 +114,7 @@ class DeferredCallbacksTest extends TestCase
 
         $this->assertSame([], DeferredCallbacksTestState::$calls);
 
-        $job = Double::for(Job::class);
+        $job = Double::for(Job::class)->strict();
         $job->allows('hasFailed')->returns(false);
 
         $this->app->make(Dispatcher::class)->dispatch(
@@ -135,7 +135,7 @@ class DeferredCallbacksTest extends TestCase
         })->always();
 
         $this->app->make(Dispatcher::class)->dispatch(
-            new JobAttempted('database', Double::for(Job::class), new CanceledException, canceled: true)
+            new JobAttempted('database', Double::for(Job::class)->strict(), new CanceledException, canceled: true)
         );
 
         $this->assertSame([], DeferredCallbacksTestState::$calls);
@@ -143,7 +143,7 @@ class DeferredCallbacksTest extends TestCase
 
     public function testJobWithoutDeferredCallbacksDoesNotResolveTheCollection(): void
     {
-        $job = Double::for(Job::class);
+        $job = Double::for(Job::class)->strict();
         $job->expects('hasFailed')->never();
 
         $this->app->make(Dispatcher::class)->dispatch(
@@ -160,7 +160,7 @@ class DeferredCallbacksTest extends TestCase
             DeferredCallbacksTestState::record('job');
         });
 
-        $job = Double::for(Job::class);
+        $job = Double::for(Job::class)->strict();
         $job->allows('hasFailed')->returns(false);
 
         $this->app->make(Dispatcher::class)->dispatch(
@@ -193,7 +193,7 @@ class DeferredCallbacksTest extends TestCase
             DeferredCallbacksTestState::record('always');
         }, always: true);
 
-        $failedJob = Double::for(Job::class);
+        $failedJob = Double::for(Job::class)->strict();
         $failedJob->allows('hasFailed')->returns(true);
 
         $this->app->make(Dispatcher::class)->dispatch(
@@ -208,7 +208,7 @@ class DeferredCallbacksTest extends TestCase
             DeferredCallbacksTestState::record('sync');
         });
 
-        $syncJob = Double::for(Job::class);
+        $syncJob = Double::for(Job::class)->strict();
         $syncJob->expects('hasFailed')->never();
 
         $this->app->make(Dispatcher::class)->dispatch(

@@ -105,7 +105,7 @@ class AuthManagerTest extends TestCase
         $container->make('config')
             ->set('auth.guards.api', ['driver' => 'custom']);
 
-        $guard = Double::for(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
         $manager->extend('custom', function () use ($guard) {
             return $guard;
         });
@@ -144,7 +144,7 @@ class AuthManagerTest extends TestCase
         $manager = new AuthManager($container = $this->getContainer());
         $container->make('config')
             ->set('auth.guards.foo', ['driver' => 'bar']);
-        $guard = Double::for(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
 
         $manager->extend('bar', function () use ($guard) {
             return $guard;
@@ -163,7 +163,7 @@ class AuthManagerTest extends TestCase
         $container->make('config')
             ->set('auth.guards.foo', ['driver' => 'bar']);
 
-        $guard = Double::for(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
         $test = $this;
         $manager->extend('bar', function ($app, string $name) use ($guard, $test): Guard {
             $test->assertSame('0', $name);
@@ -182,7 +182,7 @@ class AuthManagerTest extends TestCase
         $container->make('config')
             ->set('auth.guards.foo', ['driver' => 'bar']);
 
-        $guard = Double::for(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
         $manager->extend('bar', fn () => $guard);
 
         $this->assertSame($guard, $manager->guard(''));
@@ -199,7 +199,7 @@ class AuthManagerTest extends TestCase
         $manager->extend('bar', function () use (&$boundTo) {
             $boundTo = $this;
 
-            return Double::for(Guard::class);
+            return Double::for(Guard::class)->strict();
         });
 
         $manager->guard('foo');
@@ -372,12 +372,12 @@ class AuthManagerTest extends TestCase
                 'table' => 'users',
             ]);
 
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $query->expects('find')->with(1)->returns(null);
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('table')->with('users')->returns($query);
         $resolutions = 0;
-        $database = Double::for(ConnectionResolverInterface::class);
+        $database = Double::for(ConnectionResolverInterface::class)->strict();
         $database->expects('connection')
             ->with('foo')
             ->resolves(function () use (&$resolutions, $connection) {
@@ -387,7 +387,7 @@ class AuthManagerTest extends TestCase
             });
 
         $container->instance('db', $database);
-        $container->instance('hash', Double::for(HashContract::class));
+        $container->instance('hash', Double::for(HashContract::class)->strict());
 
         $provider = $manager->createUserProvider('foo');
 
@@ -403,11 +403,11 @@ class AuthManagerTest extends TestCase
             'driver' => 'database',
             'table' => 'users',
         ]);
-        $query = Double::for(Builder::class);
+        $query = Double::for(Builder::class)->strict();
         $query->expects('find')->with(1)->returns(null);
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('table')->with('users')->returns($query);
-        $database = Double::for(ConnectionResolverInterface::class);
+        $database = Double::for(ConnectionResolverInterface::class)->strict();
         $database->expects('connection')
             ->with(null)
             ->returns($connection);
@@ -424,7 +424,7 @@ class AuthManagerTest extends TestCase
         $this->app->make('config')->set('auth.providers.incomplete', [
             'driver' => 'database',
         ]);
-        $database = Double::for(ConnectionResolverInterface::class);
+        $database = Double::for(ConnectionResolverInterface::class)->strict();
         $database->expects('connection')->never();
         $this->app->instance('db', $database);
 
@@ -443,7 +443,7 @@ class AuthManagerTest extends TestCase
                 'driver' => 'bar',
             ]);
 
-        $provider = Double::for(UserProvider::class);
+        $provider = Double::for(UserProvider::class)->strict();
         $manager->provider('bar', fn () => $provider);
 
         $this->assertSame($provider, $manager->createUserProvider('foo'));
@@ -504,11 +504,11 @@ class AuthManagerTest extends TestCase
                 'enabled' => true,
             ],
         ]);
-        $repository = Double::for(CacheRepository::class);
-        $cache = Double::for(CacheManager::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $cache = Double::for(CacheManager::class)->strict();
         $cache->expects('store')->with(null)->returns($repository);
         $this->app->instance('cache', $cache);
-        $validator = Double::for(ModelCacheStoreValidator::class);
+        $validator = Double::for(ModelCacheStoreValidator::class)->strict();
         $validator->expects('validate')
             ->with(Argument::same($repository), 'Auth user cache for model [' . AuthManagerCacheUserStub::class . ']');
         $this->app->instance(ModelCacheStoreValidator::class, $validator);
@@ -546,9 +546,9 @@ class AuthManagerTest extends TestCase
         ]));
 
         Container::setInstance($container);
-        $container->instance('hash', Double::for(HashContract::class));
+        $container->instance('hash', Double::for(HashContract::class)->strict());
 
-        $cacheManager = Double::for(CacheManager::class);
+        $cacheManager = Double::for(CacheManager::class)->strict();
         $cacheManager->expects('store')->never();
         $container->instance('cache', $cacheManager);
 
@@ -598,10 +598,10 @@ class AuthManagerTest extends TestCase
                 'provider' => 'foo',
             ]);
 
-        $provider = Double::for(UserProvider::class);
+        $provider = Double::for(UserProvider::class)->strict();
         $manager->provider('foo', fn () => $provider);
 
-        $user = Double::for(Authenticatable::class);
+        $user = Double::for(Authenticatable::class)->strict();
         $manager->viaRequest('custom', function (Request $request, ?UserProvider $requestProvider) use ($provider, $user) {
             $this->assertSame($provider, $requestProvider);
 
@@ -623,7 +623,7 @@ class AuthManagerTest extends TestCase
                 'driver' => 'custom',
             ]);
 
-        $user = Double::for(Authenticatable::class);
+        $user = Double::for(Authenticatable::class)->strict();
         $manager->viaRequest('custom', function (Request $request, ?UserProvider $requestProvider) use ($user) {
             $this->assertNull($requestProvider);
 
@@ -639,10 +639,10 @@ class AuthManagerTest extends TestCase
     {
         $manager = new AuthManager($this->getContainer());
 
-        $guard = Double::for(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
         $guard->allows('check')->returns(false);
 
-        $factory = Double::for(AuthFactory::class);
+        $factory = Double::for(AuthFactory::class)->strict();
         $factory->allows('guard')->with(null)->returns($guard);
 
         $manager->redirectGuestsTo('/login');
@@ -715,10 +715,10 @@ class AuthManagerTest extends TestCase
             ? '/admin'
             : '/dashboard');
 
-        $guard = Double::for(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
         $guard->allows('check')->returns(true);
 
-        $factory = Double::for(AuthFactory::class);
+        $factory = Double::for(AuthFactory::class)->strict();
         $factory->allows('guard')->returns($guard);
         AuthFacade::swap($factory);
 
@@ -738,10 +738,10 @@ class AuthManagerTest extends TestCase
 
         $this->assertSame('/login', (new AuthenticationException)->redirectTo(Request::create('/')));
 
-        $guard = Double::for(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
         $guard->allows('check')->returns(true);
 
-        $factory = Double::for(AuthFactory::class);
+        $factory = Double::for(AuthFactory::class)->strict();
         $factory->allows('guard')->returns($guard);
         AuthFacade::swap($factory);
 
@@ -772,10 +772,10 @@ class AuthManagerTest extends TestCase
         $manager->redirectUsersTo('/first-dashboard');
         $manager->redirectUsersTo('/second-dashboard');
 
-        $guard = Double::for(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
         $guard->allows('check')->returns(true);
 
-        $factory = Double::for(AuthFactory::class);
+        $factory = Double::for(AuthFactory::class)->strict();
         $factory->allows('guard')->returns($guard);
         AuthFacade::swap($factory);
 
@@ -790,7 +790,7 @@ class AuthManagerTest extends TestCase
         $container->make('config')
             ->set('auth.guards.foo', ['driver' => 'bar']);
 
-        $manager->extend('bar', fn () => Double::for(Guard::class));
+        $manager->extend('bar', fn () => Double::for(Guard::class)->strict());
 
         $guard1 = $manager->guard('foo');
         $guard2 = $manager->guard('foo');
@@ -811,7 +811,7 @@ class AuthManagerTest extends TestCase
         $container->make('config')
             ->set('auth.guards.foo', ['driver' => 'bar']);
 
-        $manager->extend('bar', fn () => Double::for(Guard::class));
+        $manager->extend('bar', fn () => Double::for(Guard::class)->strict());
         $manager->guard('foo');
 
         $this->assertTrue($manager->hasResolvedGuards());
@@ -823,7 +823,7 @@ class AuthManagerTest extends TestCase
         $container->make('config')
             ->set('auth.guards.foo', ['driver' => 'bar']);
 
-        $manager->extend('bar', fn () => Double::for(Guard::class));
+        $manager->extend('bar', fn () => Double::for(Guard::class)->strict());
         $manager->guard('foo');
 
         $this->assertTrue($manager->hasResolvedGuards());
@@ -842,7 +842,7 @@ class AuthManagerTest extends TestCase
         $container->make('config')
             ->set('auth.guards.baz', ['driver' => 'bar']);
 
-        $manager->extend('bar', fn () => Double::for(Guard::class));
+        $manager->extend('bar', fn () => Double::for(Guard::class)->strict());
         $manager->guard('foo');
         $manager->guard('baz');
 
@@ -893,7 +893,7 @@ class AuthManagerTest extends TestCase
         $container->make('config')
             ->set('auth.guards.foo', ['driver' => 'bar']);
 
-        $guard = Double::for(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
         $guard->expects('check')->returns(true);
 
         $manager->extend('bar', fn () => $guard);
@@ -909,12 +909,12 @@ class AuthManagerTest extends TestCase
             ],
         ]));
 
-        $guard = Double::for(Guard::class);
+        $guard = Double::for(Guard::class)->strict();
         $manager->extend('custom', fn () => $guard);
 
         $manager->clearUserCache(42, 'api');
 
-        $this->addToAssertionCount(1);
+        $guard->unused();
     }
 
     public function testClearUserCacheUsesSpecifiedGuardProvider(): void
@@ -942,11 +942,11 @@ class AuthManagerTest extends TestCase
         ]));
 
         Container::setInstance($container);
-        $container->instance('hash', Double::for(HashContract::class));
+        $container->instance('hash', Double::for(HashContract::class)->strict());
 
-        $cacheManager = Double::for(CacheManager::class);
-        $adminRepo = Double::for(CacheRepository::class);
-        $coordinator = Double::for(ModelCacheCoordinator::class);
+        $cacheManager = Double::for(CacheManager::class)->strict();
+        $adminRepo = Double::for(CacheRepository::class)->strict();
+        $coordinator = Double::for(ModelCacheCoordinator::class)->strict();
         $coordinator->expects('invalidate')
             ->with(Argument::same($adminRepo), 'admin_users:' . AuthManagerCacheAdminStub::class . ':42');
         $cacheManager->allows('store')->with('admin-store')->returns($adminRepo);
@@ -963,9 +963,9 @@ class AuthManagerTest extends TestCase
                 'admin' => ['driver' => 'custom'],
             ],
         ]));
-        $provider = Double::for(EloquentUserProvider::class);
+        $provider = Double::for(EloquentUserProvider::class)->strict();
         $provider->expects('clearUserCache')->with(42);
-        $guard = Double::for(TokenGuard::class);
+        $guard = Double::for(TokenGuard::class)->strict();
         $guard->expects('getProvider')->returns($provider);
         $manager->extend('custom', fn () => $guard);
 
@@ -991,11 +991,11 @@ class AuthManagerTest extends TestCase
         ]));
 
         Container::setInstance($container);
-        $container->instance('hash', Double::for(HashContract::class));
+        $container->instance('hash', Double::for(HashContract::class)->strict());
 
-        $cacheManager = Double::for(CacheManager::class);
-        $repo = Double::for(CacheRepository::class);
-        $coordinator = Double::for(ModelCacheCoordinator::class);
+        $cacheManager = Double::for(CacheManager::class)->strict();
+        $repo = Double::for(CacheRepository::class)->strict();
+        $coordinator = Double::for(ModelCacheCoordinator::class)->strict();
         $coordinator->expects('invalidate')
             ->with(Argument::same($repo), EloquentUserProvider::DEFAULT_CACHE_PREFIX . ':' . AuthManagerCacheUserStub::class . ':tenant:42');
         $cacheManager->allows('store')->with('web-store')->returns($repo);
@@ -1028,13 +1028,13 @@ class AuthManagerTest extends TestCase
         ]));
 
         Container::setInstance($container);
-        $container->instance('hash', Double::for(HashContract::class));
+        $container->instance('hash', Double::for(HashContract::class)->strict());
 
-        $cacheManager = Double::for(CacheManager::class);
-        $firstRepo = Double::for(CacheRepository::class);
-        $firstRepo->allows('getStore')->returns(Double::for(RedisStore::class));
-        $secondRepo = Double::for(CacheRepository::class);
-        $secondRepo->allows('getStore')->returns(Double::for(RedisStore::class));
+        $cacheManager = Double::for(CacheManager::class)->strict();
+        $firstRepo = Double::for(CacheRepository::class)->strict();
+        $firstRepo->allows('getStore')->returns(Double::for(RedisStore::class)->strict());
+        $secondRepo = Double::for(CacheRepository::class)->strict();
+        $secondRepo->allows('getStore')->returns(Double::for(RedisStore::class)->strict());
         $cacheManager->allows('store')->with('redis')->returns($firstRepo, $secondRepo);
         $container->instance('cache', $cacheManager);
         $container->instance(ModelCacheCoordinator::class, new ModelCacheCoordinator($container));
@@ -1063,7 +1063,7 @@ class AuthManagerTest extends TestCase
         $container->instance('config', new Repository([
             'auth' => $authConfig,
         ]));
-        $validator = Double::for(ModelCacheStoreValidator::class);
+        $validator = Double::for(ModelCacheStoreValidator::class)->strict();
         $validator->allows('validate');
         $container->instance(ModelCacheStoreValidator::class, $validator);
 

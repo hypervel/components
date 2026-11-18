@@ -55,7 +55,7 @@ class RegisterSwooleMaintenanceTimersTest extends TestCase
 
     public function testDoesNotRegisterTimersOnOtherWorkers(): void
     {
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $timer = new FakeCoordinatorTimer;
 
         (new RegisterSwooleMaintenanceTimers($container->instance(), $timer, $this->config([])))
@@ -67,7 +67,7 @@ class RegisterSwooleMaintenanceTimersTest extends TestCase
 
     public function testDoesNotRegisterTimersOnTaskWorkers(): void
     {
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $timer = new FakeCoordinatorTimer;
 
         (new RegisterSwooleMaintenanceTimers($container->instance(), $timer, $this->config([])))
@@ -87,17 +87,17 @@ class RegisterSwooleMaintenanceTimersTest extends TestCase
             ],
         ]);
 
-        $store = Double::for(SwooleStore::class);
+        $store = Double::for(SwooleStore::class)->strict();
         $store->expects('evictRecords');
         $store->expects('refreshIntervalCaches');
 
-        $repository = Double::for(CacheRepository::class);
+        $repository = Double::for(CacheRepository::class)->strict();
         $repository->expects('getStore')->returns($store);
 
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('fast')->returns($repository);
 
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->with('cache')->returns($cache);
 
         $timer = new FakeCoordinatorTimer;
@@ -123,15 +123,15 @@ class RegisterSwooleMaintenanceTimersTest extends TestCase
                 'interval_refresh_interval' => 1000,
             ],
         ]);
-        $firstRepository = Double::for(CacheRepository::class);
-        $firstRepository->expects('getStore')->returns(Double::for(SwooleStore::class));
+        $firstRepository = Double::for(CacheRepository::class)->strict();
+        $firstRepository->expects('getStore')->returns(Double::for(SwooleStore::class)->strict());
 
         $failure = new RuntimeException('Store resolution failed.');
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
         $cache->expects('store')->with('first')->returns($firstRepository);
         $cache->expects('store')->with('second')->throws($failure);
 
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->times(2)->with('cache')->returns($cache);
 
         $timer = new FakeCoordinatorTimer;
@@ -247,7 +247,7 @@ class RegisterSwooleMaintenanceTimersTest extends TestCase
                 ...$intervalConfig,
             ],
         ]);
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $timer = new FakeCoordinatorTimer;
 
         try {
@@ -319,7 +319,7 @@ class RegisterSwooleMaintenanceTimersTest extends TestCase
                 'interval_refresh_interval' => 0,
             ],
         ]);
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $timer = new FakeCoordinatorTimer;
 
         try {
@@ -355,15 +355,15 @@ class RegisterSwooleMaintenanceTimersTest extends TestCase
      */
     private function containerWithSwooleStores(string ...$names): Container
     {
-        $cache = Double::for(CacheFactory::class);
+        $cache = Double::for(CacheFactory::class)->strict();
 
         foreach ($names as $name) {
-            $repository = Double::for(CacheRepository::class);
-            $repository->expects('getStore')->returns(Double::for(SwooleStore::class));
+            $repository = Double::for(CacheRepository::class)->strict();
+            $repository->expects('getStore')->returns(Double::for(SwooleStore::class)->strict());
             $cache->expects('store')->with($name)->returns($repository);
         }
 
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->expects('make')->times(count($names))->with('cache')->returns($cache);
 
         return $container->instance();
@@ -371,7 +371,7 @@ class RegisterSwooleMaintenanceTimersTest extends TestCase
 
     private function workerEvent(int $workerId, bool $taskworker = false): AfterWorkerStart
     {
-        $server = Double::for(SwooleServer::class);
+        $server = Double::for(SwooleServer::class)->strict();
         $server->taskworker = $taskworker;
 
         return new AfterWorkerStart($server, $workerId);

@@ -46,20 +46,20 @@ class AuthDatabaseUserProviderTest extends TestCase
 
     public function testResolverBackedProviderResolvesTheConfiguredConnectionForEveryOperation(): void
     {
-        $firstConnection = Double::for(Connection::class);
-        $firstQuery = Double::for(Builder::class);
+        $firstConnection = Double::for(Connection::class)->strict();
+        $firstQuery = Double::for(Builder::class)->strict();
         $firstConnection->expects('table')->with('foo')->returns($firstQuery);
         $firstQuery->expects('find')->with(1)->returns(['id' => 1, 'name' => 'First']);
 
-        $secondConnection = Double::for(Connection::class);
-        $secondQuery = Double::for(Builder::class);
+        $secondConnection = Double::for(Connection::class)->strict();
+        $secondQuery = Double::for(Builder::class)->strict();
         $secondConnection->expects('table')->with('foo')->returns($secondQuery);
         $secondQuery->expects('find')->with(2)->returns(['id' => 2, 'name' => 'Second']);
 
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->expects('connection')->times(2)->with('auth')->returns($firstConnection, $secondConnection);
 
-        $provider = new DatabaseUserProvider($resolver, Double::for(Hasher::class), 'foo', 'auth');
+        $provider = new DatabaseUserProvider($resolver, Double::for(Hasher::class)->strict(), 'foo', 'auth');
 
         $this->assertSame('First', $provider->retrieveById(1)?->name);
         $this->assertSame('Second', $provider->retrieveById(2)?->name);
@@ -67,19 +67,19 @@ class AuthDatabaseUserProviderTest extends TestCase
 
     public function testResolverBackedProviderDoesNotRetainConnectionsAcrossExecutions(): void
     {
-        $firstConnection = Double::for(Connection::class);
-        $firstQuery = Double::for(Builder::class);
+        $firstConnection = Double::for(Connection::class)->strict();
+        $firstQuery = Double::for(Builder::class)->strict();
         $firstConnection->expects('table')->with('foo')->returns($firstQuery);
         $firstQuery->expects('find')->returns(['id' => 1, 'name' => 'First']);
 
-        $secondConnection = Double::for(Connection::class);
-        $secondQuery = Double::for(Builder::class);
+        $secondConnection = Double::for(Connection::class)->strict();
+        $secondQuery = Double::for(Builder::class)->strict();
         $secondConnection->expects('table')->with('foo')->returns($secondQuery);
         $secondQuery->expects('find')->returns(['id' => 2, 'name' => 'Second']);
 
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->expects('connection')->times(2)->with('auth')->returns($firstConnection, $secondConnection);
-        $provider = new DatabaseUserProvider($resolver, Double::for(Hasher::class), 'foo', 'auth');
+        $provider = new DatabaseUserProvider($resolver, Double::for(Hasher::class)->strict(), 'foo', 'auth');
 
         $names = parallel([
             fn () => $provider->retrieveById(1)?->name,
@@ -92,31 +92,31 @@ class AuthDatabaseUserProviderTest extends TestCase
 
     public function testResolverBackedProviderUsesTheDefaultConnectionWhenNoNameIsConfigured(): void
     {
-        $connection = Double::for(Connection::class);
-        $query = Double::for(Builder::class);
+        $connection = Double::for(Connection::class)->strict();
+        $query = Double::for(Builder::class)->strict();
         $connection->expects('table')->with('foo')->returns($query);
         $query->expects('find')->with(1)->returns(null);
 
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->expects('connection')->with(null)->returns($connection);
 
-        $provider = new DatabaseUserProvider($resolver, Double::for(Hasher::class), 'foo');
+        $provider = new DatabaseUserProvider($resolver, Double::for(Hasher::class)->strict(), 'foo');
 
         $this->assertNull($provider->retrieveById(1));
     }
 
     public function testResolverContractTakesPrecedenceForObjectsImplementingBothConnectionContracts(): void
     {
-        $resolvedConnection = Double::for(Connection::class);
-        $query = Double::for(Builder::class);
+        $resolvedConnection = Double::for(Connection::class)->strict();
+        $query = Double::for(Builder::class)->strict();
         $resolvedConnection->expects('table')->with('foo')->returns($query);
         $query->expects('find')->with(1)->returns(null);
 
-        $connectionResolver = Double::for(ConnectionInterface::class, ConnectionResolverInterface::class);
+        $connectionResolver = Double::for(ConnectionInterface::class, ConnectionResolverInterface::class)->strict();
         $connectionResolver->expects('connection')->with('auth')->returns($resolvedConnection);
         $connectionResolver->expects('table')->never();
 
-        $provider = new DatabaseUserProvider($connectionResolver, Double::for(Hasher::class), 'foo', 'auth');
+        $provider = new DatabaseUserProvider($connectionResolver, Double::for(Hasher::class)->strict(), 'foo', 'auth');
 
         $this->assertNull($provider->retrieveById(1));
     }
@@ -216,10 +216,10 @@ class AuthDatabaseUserProviderTest extends TestCase
     public function testCredentialValidationFailsGracefullyWithNullPassword(): void
     {
         $conn = new PdoConnection(new PDO('sqlite::memory:'));
-        $hasher = Double::for(Hasher::class);
+        $hasher = Double::for(Hasher::class)->strict();
         $hasher->expects('check')->never();
         $provider = new DatabaseUserProvider($conn, $hasher, 'foo');
-        $user = Double::for(Authenticatable::class);
+        $user = Double::for(Authenticatable::class)->strict();
         $user->expects('getAuthPassword')->returns(null);
         $result = $provider->validateCredentials($user, ['password' => 'plain']);
 

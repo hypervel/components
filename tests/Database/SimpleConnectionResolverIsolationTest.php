@@ -31,8 +31,8 @@ class SimpleConnectionResolverIsolationTest extends TestCase
 
     public function testTwoInstancesHaveIndependentDefaults(): void
     {
-        $resolverA = new SimpleConnectionResolver(Double::for(DatabaseManager::class));
-        $resolverB = new SimpleConnectionResolver(Double::for(DatabaseManager::class));
+        $resolverA = new SimpleConnectionResolver(Double::for(DatabaseManager::class)->strict());
+        $resolverB = new SimpleConnectionResolver(Double::for(DatabaseManager::class)->strict());
 
         $resolverA->setDefaultConnection('alpha');
         $resolverB->setDefaultConnection('beta');
@@ -43,7 +43,7 @@ class SimpleConnectionResolverIsolationTest extends TestCase
 
     public function testSetDefaultConnectionDoesNotWriteToSharedContext(): void
     {
-        $resolver = new SimpleConnectionResolver(Double::for(DatabaseManager::class));
+        $resolver = new SimpleConnectionResolver(Double::for(DatabaseManager::class)->strict());
 
         // Pre-set Context to a sentinel — SimpleConnectionResolver must NOT
         // touch this key, otherwise its setter is leaking into the pooled

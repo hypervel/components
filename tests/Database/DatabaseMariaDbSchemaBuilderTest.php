@@ -18,7 +18,7 @@ class DatabaseMariaDbSchemaBuilderTest extends TestCase
 
     public function testHasTable(): void
     {
-        $connection = Double::for(MariaDbConnection::class);
+        $connection = Double::for(MariaDbConnection::class)->strict();
         $connection->allows('usesBackslashEscapes')->returns(true);
         $grammar = new MariaDbGrammar($connection);
         $connection->expects('getSchemaGrammar')->returns($grammar);
@@ -31,7 +31,7 @@ class DatabaseMariaDbSchemaBuilderTest extends TestCase
 
     public function testGetColumnListing(): void
     {
-        $connection = Double::for(MariaDbConnection::class);
+        $connection = Double::for(MariaDbConnection::class)->strict();
         $connection->allows('usesBackslashEscapes')->returns(true);
         $grammar = new MariaDbGrammar($connection);
         $processor = new MariaDbProcessor;

@@ -26,7 +26,7 @@ class DatabaseMySqlQueryGrammarTest extends TestCase
     #[DataProvider('jsonPathEscapingProvider')]
     public function testJsonPathsEscapeKeysUsingTheConfiguredSqlMode(array $modes, string $path): void
     {
-        $connection = new MySqlConnection(Double::for(PDO::class), config: ['modes' => $modes]);
+        $connection = new MySqlConnection(Double::for(PDO::class)->strict(), config: ['modes' => $modes]);
         $builder = $connection->table('users')->select('options->App\Models\User->a"b[0]');
 
         $this->assertSame("select json_unquote(json_extract(`options`, {$path})) from `users`", $builder->toSql());
@@ -57,13 +57,13 @@ SQL],
     {
         $this->expectException(JsonException::class);
 
-        (new MySqlGrammar(Double::for(Connection::class)))
+        (new MySqlGrammar(Double::for(Connection::class)->strict()))
             ->prepareBindingsForUpdate([], ['payload' => [NAN]]);
     }
 
     public function testToRawSql(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->expects('escape')->with('foo', false)->returns("'foo'");
         $grammar = new MySqlGrammar($connection);
 
@@ -158,7 +158,7 @@ SQL],
     #[DataProvider('nestedUnionVersions')]
     public function testNestedUnionMembersUseTheSupportedServerSyntax(string $connectionClass, string $version, bool $wrapped): void
     {
-        $pdo = Double::for(PDO::class);
+        $pdo = Double::for(PDO::class)->strict();
         $pdo->allows('getAttribute')->with(PDO::ATTR_SERVER_VERSION)->returns($version);
         $connection = new $connectionClass($pdo, 'database');
         $member = $connection->table('posts')->select('id')->where('id', '<=', 3)
@@ -193,7 +193,7 @@ SQL],
 
     public function testOrdinaryUnionMembersDoNotInspectTheServerVersion(): void
     {
-        $connection = Double::for(MySqlConnection::class);
+        $connection = Double::for(MySqlConnection::class)->strict();
         $connection->allows('getTablePrefix')->returns('');
         $connection->expects('getServerVersion')->never();
         $connection->expects('isMaria')->never();

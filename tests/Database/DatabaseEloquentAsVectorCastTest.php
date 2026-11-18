@@ -196,11 +196,11 @@ class DatabaseEloquentAsVectorCastTest extends TestCase
      */
     protected function useGrammar(string $grammar): Grammar
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new $grammar($connection);
         $connection->allows('getQueryGrammar')->returns($grammar);
 
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->allows('connection')->returns($connection);
 
         Model::setConnectionResolver($resolver);

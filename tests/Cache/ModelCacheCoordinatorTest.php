@@ -104,9 +104,9 @@ class ModelCacheCoordinatorTest extends TestCase
         $coordinator->fill($seedRepository, $this->source, 'seed', 300, fn (): string => 'published');
         $envelope = $seedRepository->getStore()->get('seed');
 
-        $repository = Double::for(CacheRepository::class);
-        $store = Double::for(Store::class, LockProvider::class);
-        $lock = Double::for(RefreshableLock::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
+        $lock = Double::for(RefreshableLock::class)->strict();
 
         $repository->expects('get')->times(2)->with('key')->returns(null, $envelope);
         $repository->expects('getStore')->returns($store);
@@ -293,9 +293,9 @@ class ModelCacheCoordinatorTest extends TestCase
     public function testNonPublishingNullReadDoesNotRefreshTheLease(): void
     {
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = Double::for(CacheRepository::class);
-        $store = Double::for(Store::class, LockProvider::class);
-        $lock = Double::for(RefreshableLock::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
+        $lock = Double::for(RefreshableLock::class)->strict();
 
         $repository->expects('get')->times(2)->with('key')->returns(null);
         $repository->expects('getStore')->returns($store);
@@ -319,9 +319,9 @@ class ModelCacheCoordinatorTest extends TestCase
     public function testFailedLockAcquisitionReadsWithoutPublishingOrResolvingWriter(): void
     {
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = Double::for(CacheRepository::class);
-        $store = Double::for(Store::class, LockProvider::class);
-        $lock = Double::for(RefreshableLock::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
+        $lock = Double::for(RefreshableLock::class)->strict();
         $writerResolutions = 0;
 
         $repository->expects('get')->with('key')->returns(null);
@@ -348,9 +348,9 @@ class ModelCacheCoordinatorTest extends TestCase
     public function testColdFillRefreshesAfterReadingAndBeforeResolvingWriterOrPublishing(): void
     {
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = Double::for(CacheRepository::class);
-        $store = Double::for(Store::class, LockProvider::class);
-        $lock = Double::for(RefreshableLock::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
+        $lock = Double::for(RefreshableLock::class)->strict();
         $operations = [];
 
         $repository->expects('get')->times(2)->with('key')->returns(null);
@@ -398,9 +398,9 @@ class ModelCacheCoordinatorTest extends TestCase
     public function testColdFillThatLostItsLeaseReturnsTheReadValueWithoutPublishing(): void
     {
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = Double::for(CacheRepository::class);
-        $store = Double::for(Store::class, LockProvider::class);
-        $lock = Double::for(RefreshableLock::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
+        $lock = Double::for(RefreshableLock::class)->strict();
         $operations = [];
 
         $repository->expects('get')->times(2)->with('key')->returns(null);
@@ -440,9 +440,9 @@ class ModelCacheCoordinatorTest extends TestCase
     public function testFalseCallbackResultIsNotMistakenForFailedAcquisition(): void
     {
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = Double::for(CacheRepository::class);
-        $store = Double::for(Store::class, LockProvider::class);
-        $lock = Double::for(RefreshableLock::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
+        $lock = Double::for(RefreshableLock::class)->strict();
 
         $repository->expects('get')->times(2)->with('key')->returns(null);
         $repository->expects('getStore')->returns($store);
@@ -475,8 +475,8 @@ class ModelCacheCoordinatorTest extends TestCase
     public function testFillPropagatesSourceFailureAndReleasesTheLock(): void
     {
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = Double::for(CacheRepository::class);
-        $store = Double::for(Store::class, LockProvider::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
         $lock = new CoordinatorTestLock;
 
         $repository->expects('get')->times(2)->with('key')->returns(null);
@@ -504,10 +504,10 @@ class ModelCacheCoordinatorTest extends TestCase
     public function testInvalidationUsesTheSameBoundedLockAndForgetsInsideIt(): void
     {
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = Double::for(CacheRepository::class);
-        $store = Double::for(Store::class, LockProvider::class);
-        $fillLock = Double::for(RefreshableLock::class);
-        $invalidateLock = Double::for(RefreshableLock::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
+        $fillLock = Double::for(RefreshableLock::class)->strict();
+        $invalidateLock = Double::for(RefreshableLock::class)->strict();
         $lockNames = [];
 
         $repository->expects('get')->with('a-very-long-data-key')->returns(null);
@@ -587,8 +587,8 @@ class ModelCacheCoordinatorTest extends TestCase
         Sleep::fake();
 
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = Double::for(CacheRepository::class);
-        $store = Double::for(Store::class, LockProvider::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
         $lock = new CoordinatorTestLock(failFirstAcquisition: true);
 
         $repository->expects('getStore')->returns($store);
@@ -608,9 +608,9 @@ class ModelCacheCoordinatorTest extends TestCase
     public function testInvalidationPropagatesLockTimeoutWithoutForgetting(): void
     {
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = Double::for(CacheRepository::class);
-        $store = Double::for(Store::class, LockProvider::class);
-        $lock = Double::for(RefreshableLock::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
+        $lock = Double::for(RefreshableLock::class)->strict();
 
         $repository->expects('getStore')->returns($store);
         $repository->expects('forget')->never();
@@ -630,7 +630,7 @@ class ModelCacheCoordinatorTest extends TestCase
         $coordinator->fill($seedRepository, $this->source, 'seed', 300, fn (): string => 'cached');
         $envelope = $seedRepository->getStore()->get('seed');
 
-        $hitRepository = Double::for(CacheRepository::class);
+        $hitRepository = Double::for(CacheRepository::class)->strict();
         $hitRepository->expects('get')->with('key')->returns($envelope);
         $hitRepository->expects('getStore')->never();
 
@@ -642,8 +642,8 @@ class ModelCacheCoordinatorTest extends TestCase
             fn () => throw new RuntimeException('The source must not be read on a cache hit.'),
         ));
 
-        $missRepository = Double::for(CacheRepository::class);
-        $unsupportedStore = Double::for(Store::class);
+        $missRepository = Double::for(CacheRepository::class)->strict();
+        $unsupportedStore = Double::for(Store::class)->strict();
         $missRepository->expects('get')->with('key')->returns(null);
         $missRepository->expects('getStore')->returns($unsupportedStore);
 
@@ -654,7 +654,7 @@ class ModelCacheCoordinatorTest extends TestCase
 
     public function testStackAndFailoverTopologiesAreRejectedThroughDirectAndMemoizedStores(): void
     {
-        $failoverStore = Double::for(FailoverStore::class);
+        $failoverStore = Double::for(FailoverStore::class)->strict();
         $failoverStore->expects('getRaw')->times(2)->with('key')->returns(null);
         $failoverStore->expects('getPrefix')->returns('');
 
@@ -696,9 +696,9 @@ class ModelCacheCoordinatorTest extends TestCase
     public function testNonRefreshableLockIsRejectedOnlyAfterAMiss(): void
     {
         $coordinator = new ModelCacheCoordinator($this->container);
-        $repository = Double::for(CacheRepository::class);
-        $store = Double::for(Store::class, LockProvider::class);
-        $lock = Double::for(LockContract::class);
+        $repository = Double::for(CacheRepository::class)->strict();
+        $store = Double::for(Store::class, LockProvider::class)->strict();
+        $lock = Double::for(LockContract::class)->strict();
 
         $repository->expects('get')->with('key')->returns(null);
         $repository->expects('getStore')->returns($store);

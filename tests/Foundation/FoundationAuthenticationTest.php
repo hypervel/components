@@ -35,13 +35,13 @@ class FoundationAuthenticationTest extends TestCase
      */
     protected function mockGuard(): Guard
     {
-        $guard = Double::for(SessionGuard::class);
+        $guard = Double::for(SessionGuard::class)->strict();
 
-        $auth = Double::for(AuthManager::class);
+        $auth = Double::for(AuthManager::class)->strict();
         $auth->expects('guard')
             ->returns($guard);
 
-        $app = Double::for(Application::class, override: true);
+        $app = Double::for(Application::class, override: true)->strict();
         $app->expects('make')
             ->with('auth')
             ->returns($auth);
@@ -167,7 +167,7 @@ class FoundationAuthenticationTest extends TestCase
     {
         $user = new GenericUser([]);
 
-        $provider = Double::for(UserProvider::class);
+        $provider = Double::for(UserProvider::class)->strict();
 
         $provider->expects('retrieveByCredentials')
             ->with($credentials)

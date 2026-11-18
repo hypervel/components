@@ -172,7 +172,7 @@ class BroadcastAgentTest extends TestCase
     {
         AssistantAgent::fake(['Hello world']);
 
-        $pending = Double::for(AnonymousEvent::class);
+        $pending = Double::for(AnonymousEvent::class)->strict();
         $pending->allows('as');
         $pending->allows('with');
         $pending->expects('sendNow')->times(minimum: 1)->throws(new BroadcastException('Payload too large'));

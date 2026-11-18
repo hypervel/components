@@ -20,6 +20,7 @@ use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
@@ -171,7 +172,7 @@ class WaiterTest extends TestCase
     #[DataProvider('copyContexts')]
     public function testParentCancellationDuringStartupReportingCancelsThePublishedChild(bool $copyContext): void
     {
-        $handler = Double::for(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
         Container::getInstance()->instance(ExceptionHandlerContract::class, $handler);
         $waiter = new Waiter;
         $hookFailure = new RuntimeException('The startup hook failed.');
@@ -183,7 +184,7 @@ class WaiterTest extends TestCase
         $childBodyRan = false;
 
         $handler->expects('report')
-            ->with($hookFailure)
+            ->with(Argument::same($hookFailure))
             ->resolves(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
                 $childCoroutineId = EngineCoroutine::id();
                 $reportStarted->push(true);

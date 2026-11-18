@@ -58,7 +58,7 @@ class StdoutLoggerTest extends TestCase
 
     public function testLogThrowable(): void
     {
-        $output = Double::for(OutputInterface::class);
+        $output = Double::for(OutputInterface::class)->strict();
         $output->expects('writeln')->with(Argument::any())->resolves(function ($message) {
             $this->assertMatchesRegularExpression('/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\].*RuntimeException: Invalid Arguments\./', $message);
         });
@@ -71,7 +71,7 @@ class StdoutLoggerTest extends TestCase
 
     public function testLevelFiltering(): void
     {
-        $output = Double::for(OutputInterface::class);
+        $output = Double::for(OutputInterface::class)->strict();
         $output->expects('writeln')->never();
         $logger = new StdoutLogger(new Repository([
             'app' => ['stdout_log' => ['level' => [LogLevel::ERROR], 'format' => 'line']],
@@ -86,7 +86,7 @@ class StdoutLoggerTest extends TestCase
             'app' => ['stdout_log' => ['level' => [LogLevel::ERROR], 'format' => 'line']],
         ]);
 
-        $output = Double::for(OutputInterface::class);
+        $output = Double::for(OutputInterface::class)->strict();
         $output->expects('writeln')->with(Argument::any());
 
         $logger = new StdoutLogger($config, $output);
@@ -98,7 +98,7 @@ class StdoutLoggerTest extends TestCase
 
     public function testLineFormat(): void
     {
-        $output = Double::for(OutputInterface::class);
+        $output = Double::for(OutputInterface::class)->strict();
         $output->expects('writeln')->with(Argument::any())->resolves(function ($message) {
             // Line format has colored tags, not JSON
             $this->assertMatchesRegularExpression('/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] <info>\[INFO\]<\/>/', $message);
@@ -166,7 +166,7 @@ class StdoutLoggerTest extends TestCase
 
     public function testJsonFormatLevelFiltering(): void
     {
-        $output = Double::for(OutputInterface::class);
+        $output = Double::for(OutputInterface::class)->strict();
         $output->expects('writeln')->never();
         $logger = new StdoutLogger(new Repository([
             'app' => ['stdout_log' => ['level' => [LogLevel::ERROR], 'format' => 'json']],
@@ -248,7 +248,7 @@ class StdoutLoggerTest extends TestCase
                 throw $this->cancellation;
             }
         };
-        $output = Double::for(OutputInterface::class);
+        $output = Double::for(OutputInterface::class)->strict();
         $output->expects('writeln')->never();
         $logger = new StdoutLogger(new Repository([
             'app' => ['stdout_log' => ['level' => [LogLevel::INFO], 'format' => 'line']],
@@ -425,7 +425,7 @@ class StdoutLoggerTest extends TestCase
                 throw $this->cancellation;
             }
         };
-        $output = Double::for(OutputInterface::class);
+        $output = Double::for(OutputInterface::class)->strict();
         $output->expects('writeln')->never();
         $logger = new StdoutLogger(new Repository([
             'app' => ['stdout_log' => ['level' => [LogLevel::INFO], 'format' => 'json']],
@@ -445,7 +445,7 @@ class StdoutLoggerTest extends TestCase
      */
     protected function getLineLogger(string $expectedPattern): StdoutLogger
     {
-        $output = Double::for(OutputInterface::class);
+        $output = Double::for(OutputInterface::class)->strict();
         $output->expects('writeln')->with(Argument::any())->resolves(function ($message) use ($expectedPattern) {
             $this->assertMatchesRegularExpression($expectedPattern, $message);
         });
@@ -460,7 +460,7 @@ class StdoutLoggerTest extends TestCase
     protected function logJson(string $level, string|Stringable $message, array $context = []): array
     {
         $captured = null;
-        $output = Double::for(OutputInterface::class);
+        $output = Double::for(OutputInterface::class)->strict();
         $output->expects('writeln')
             ->with(Argument::capture($captured), OutputInterface::OUTPUT_RAW);
 

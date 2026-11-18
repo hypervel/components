@@ -31,6 +31,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
@@ -229,7 +230,7 @@ class GrpcRouterTest extends TestCase
         $mapper = Double::for(ExceptionMapper::class)->strict();
         $failure = new RuntimeException('service failed');
         $mapped = new RpcException(StatusCode::Unknown, 'mapped');
-        $mapper->expects('map')->with($failure)->returns($mapped);
+        $mapper->expects('map')->with(Argument::same($failure))->returns($mapped);
         $container->instance(ExceptionMapper::class, $mapper);
         $pipeline = new Pipeline($container);
 
@@ -252,7 +253,7 @@ class GrpcRouterTest extends TestCase
         $request = Request::create('/testing.Service/Call', 'POST');
         $expected = new GrpcHttpResponse('', ['grpc-status' => '0'], [], []);
         $value = new GPBEmpty;
-        $factory->expects('make')->with($request, $value)->returns($expected);
+        $factory->expects('make')->with(Argument::same($request), Argument::same($value))->returns($expected);
         $container->instance(ResponseFactory::class, $factory);
         $router = new GrpcRouter(new Dispatcher($container), $container);
 

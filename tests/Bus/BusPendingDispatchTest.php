@@ -184,7 +184,7 @@ class BusPendingDispatchTest extends TestCase
     {
         Container::setInstance($container = new Container);
 
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch')->never();
         $dispatcher->expects('dispatchAfterResponse')->never();
         $container->instance(Dispatcher::class, $dispatcher);
@@ -200,7 +200,7 @@ class BusPendingDispatchTest extends TestCase
     {
         Container::setInstance($container = new Container);
 
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch')->never();
         $dispatcher->expects('dispatchAfterResponse')->never();
         $container->instance(Dispatcher::class, $dispatcher);
@@ -213,7 +213,7 @@ class BusPendingDispatchTest extends TestCase
     {
         Container::setInstance($container = new Container);
 
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch')->with(Argument::type(PreparingPendingDispatchJob::class));
         $dispatcher->expects('dispatchAfterResponse')->never();
         $container->instance(Dispatcher::class, $dispatcher);
@@ -233,7 +233,7 @@ class BusPendingDispatchTest extends TestCase
         $deferredJob = null;
         $metadata = null;
 
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch')->never();
         $dispatcher->expects('dispatchAfterResponse')
             ->with(Argument::same($job))

@@ -19,7 +19,7 @@ class UseEloquentBuilderTest extends TestCase
     public function testNewModelBuilderReturnsDefaultBuilderWhenNoAttribute(): void
     {
         $model = new UseEloquentBuilderTestModel;
-        $query = Double::for(QueryBuilder::class);
+        $query = Double::for(QueryBuilder::class)->strict();
 
         $builder = $model->newEloquentBuilder($query);
 
@@ -30,7 +30,7 @@ class UseEloquentBuilderTest extends TestCase
     public function testNewModelBuilderReturnsCustomBuilderWhenAttributePresent(): void
     {
         $model = new UseEloquentBuilderTestModelWithAttribute;
-        $query = Double::for(QueryBuilder::class);
+        $query = Double::for(QueryBuilder::class)->strict();
 
         $builder = $model->newEloquentBuilder($query);
 
@@ -41,7 +41,7 @@ class UseEloquentBuilderTest extends TestCase
     {
         $model1 = new UseEloquentBuilderTestModelWithAttribute;
         $model2 = new UseEloquentBuilderTestModelWithAttribute;
-        $query = Double::for(QueryBuilder::class);
+        $query = Double::for(QueryBuilder::class)->strict();
 
         // First call should resolve and cache
         $builder1 = $model1->newEloquentBuilder($query);
@@ -76,7 +76,7 @@ class UseEloquentBuilderTest extends TestCase
     {
         $modelWithoutAttribute = new UseEloquentBuilderTestModel;
         $modelWithAttribute = new UseEloquentBuilderTestModelWithAttribute;
-        $query = Double::for(QueryBuilder::class);
+        $query = Double::for(QueryBuilder::class)->strict();
 
         $builder1 = $modelWithoutAttribute->newEloquentBuilder($query);
         $builder2 = $modelWithAttribute->newEloquentBuilder($query);

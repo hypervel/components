@@ -359,8 +359,8 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testLoadMethodEagerLoadsGivenRelationships(): void
     {
-        $model = Double::for(Model::class);
-        $builder = Double::for(Builder::class);
+        $model = Double::for(Model::class)->strict();
+        $builder = Double::for(Builder::class)->strict();
         $model->expects('newQueryWithoutRelationships')->returns($builder);
         $builder->expects('with')->with(['bar', 'baz'])->returns($builder);
         $builder->expects('eagerLoadRelations')->with([$model])->returns(['results']);
@@ -372,7 +372,7 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testLoadMissingWithoutRelationsDoesNotBuildAQuery(): void
     {
-        $model = Double::for(Model::class);
+        $model = Double::for(Model::class)->strict();
         $model->expects('newQueryWithoutRelationships')->never();
         $collection = new Collection([$model]);
 
@@ -1005,15 +1005,15 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testCanConvertCollectionOfModelsToEloquentQueryBuilder(): void
     {
-        $one = Double::for(Model::class);
+        $one = Double::for(Model::class)->strict();
         $one->allows('getKey')->returns(1);
 
-        $two = Double::for(Model::class);
+        $two = Double::for(Model::class)->strict();
         $two->allows('getKey')->returns(2);
 
         $c = new Collection([$one, $two]);
 
-        $mocBuilder = Double::for(Builder::class);
+        $mocBuilder = Double::for(Builder::class)->strict();
         $one->expects('newModelQuery')->returns($mocBuilder);
         $mocBuilder->expects('whereKey')->with($c->modelKeys())->returns($mocBuilder);
         $this->assertInstanceOf(Builder::class, $c->toQuery());

@@ -216,7 +216,7 @@ class AgentProviderSelectionTest extends TestCase
     #[DataProvider('generationMethods')]
     public function testContractOnlyProvidersCanFailOverAndDispatchTheirIdentity(string $method): void
     {
-        $primary = Double::for(TextProvider::class);
+        $primary = Double::for(TextProvider::class)->strict();
         $primary->expects($method)->throws(RateLimitedException::forProvider('contract'));
         Ai::extend('contract', static fn (): TextProvider => $primary);
 
@@ -260,7 +260,7 @@ class AgentProviderSelectionTest extends TestCase
     protected function provider(array $config): Provider&DoubleInterface
     {
         $provider = Double::for(ProviderSelectionTextProvider::class)->passthru();
-        $provider->__construct(Double::for(Gateway::class), $config, $this->app->make(Dispatcher::class));
+        $provider->__construct(Double::for(Gateway::class)->strict(), $config, $this->app->make(Dispatcher::class));
         $provider->allows('defaultTextModel')->returns('test-model');
 
         return $provider;

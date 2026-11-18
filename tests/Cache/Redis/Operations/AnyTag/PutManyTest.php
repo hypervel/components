@@ -97,18 +97,13 @@ class PutManyTest extends RedisCacheTestCase
             ->with('prefix:_any:tag:users:entries', ['foo' => '1'], ['EX' => 1])
             ->returns($connection->client());
         $connection->client()->expects('zadd')
-            ->with(Argument::all(function (string $key, array $options, int $expiresAt, string $tag) use ($startedAt): bool {
-                $this->assertSame('prefix:_any:tag:registry', $key);
-                $this->assertSame(['GT'], $options);
-                $this->assertGreaterThan($startedAt, $expiresAt);
-                $this->assertSame('users', $tag);
-
-                return true;
-            }))
+            ->with('prefix:_any:tag:registry', ['GT'], Argument::capture($expiresAt), 'users')
             ->returns($connection->client());
 
         $redis = $this->createStore($connection, tagMode: 'any');
 
         $this->assertTrue($redis->anyTagOps()->putMany()->execute(['foo' => 'bar'], -60, ['users']));
+        $this->assertIsInt($expiresAt);
+        $this->assertGreaterThan($startedAt, $expiresAt);
     }
 }

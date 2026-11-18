@@ -317,14 +317,14 @@ class DatabaseStoreTest extends TestCase
         });
         $update->expects('where')->with('key', 'physical-key');
         $update->expects('update')
-            ->with(Argument::satisfies(static function (array $state) use (&$operations): bool {
+            ->with(Argument::satisfies(static fn (array $state): bool => $state['value'] === 1
+                && $state['secondary_value'] === 0
+                && $state['expires_at'] > 60_000_000))
+            ->resolves(static function () use (&$operations): int {
                 $operations[] = 'update';
 
-                return $state['value'] === 1
-                    && $state['secondary_value'] === 0
-                    && $state['expires_at'] > 60_000_000;
-            }))
-            ->returns(1);
+                return 1;
+            });
 
         $result = (new DatabaseStore($connections, 'limiter', 'custom_rate_limits'))
             ->consume('physical-key', Limit::perMinute(10));

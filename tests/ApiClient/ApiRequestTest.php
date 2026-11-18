@@ -362,7 +362,7 @@ class ApiRequestTest extends TestCase
 
     public function testCreateFromPreservesDataAndAttributes(): void
     {
-        $body = Double::for(StreamInterface::class);
+        $body = Double::for(StreamInterface::class)->strict();
         $body->expects('__toString')->returns('[]');
         $request = (new HttpRequest(new Psr7Request(
             'POST',

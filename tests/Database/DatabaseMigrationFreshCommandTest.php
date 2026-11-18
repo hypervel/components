@@ -29,10 +29,10 @@ class DatabaseMigrationFreshCommandTest extends TestCase
     public function testFreshWipesEveryPreExistingTargetThenMigratesDispatchesAndSeeds(): void
     {
         $app = $this->makeApplication();
-        $dispatcher = $app->instance(Dispatcher::class, Double::for(Dispatcher::class));
+        $dispatcher = $app->instance(Dispatcher::class, Double::for(Dispatcher::class)->strict());
         $command = $this->getMockBuilder(FreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)->strict()])
             ->getMock();
         $command->setHypervel($app);
         $this->expectPreExistingMigrationTargets($migrator, ['sqlite', 'analytics'], registeredPaths: ['/registered']);
@@ -103,7 +103,7 @@ class DatabaseMigrationFreshCommandTest extends TestCase
         $app = $this->makeApplication();
         $command = $this->getMockBuilder(FreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)->strict()])
             ->getMock();
         $command->setHypervel($app);
         $this->expectPreExistingMigrationTargets($migrator, ['sqlite'], repositoryExists: false);
@@ -126,7 +126,7 @@ class DatabaseMigrationFreshCommandTest extends TestCase
         $app = $this->makeApplication();
         $command = $this->getMockBuilder(FreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)->strict()])
             ->getMock();
         $command->setHypervel($app);
         $paths = [__DIR__ . DIRECTORY_SEPARATOR . 'migrations'];
@@ -196,7 +196,7 @@ class DatabaseMigrationFreshCommandTest extends TestCase
         $app = $this->makeApplication('production');
         $command = $this->getMockBuilder(FreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)->strict()])
             ->getMock();
         $command->setHypervel($app);
         $paths = [__DIR__ . DIRECTORY_SEPARATOR . 'migrations'];
@@ -232,7 +232,7 @@ class DatabaseMigrationFreshCommandTest extends TestCase
         $app = $this->makeApplication();
         $command = $this->getMockBuilder(TestableFreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)->strict()])
             ->getMock();
         $command->creationFailure = $failure = new RuntimeException('create failed');
         $command->setHypervel($app);
@@ -270,7 +270,7 @@ class DatabaseMigrationFreshCommandTest extends TestCase
         $app = $this->makeApplication();
         $command = $this->getMockBuilder(FreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)->strict()])
             ->getMock();
         $command->setHypervel($app);
         $this->expectPreExistingMigrationTargets($migrator, ['analytics']);
@@ -290,10 +290,11 @@ class DatabaseMigrationFreshCommandTest extends TestCase
     public function testMigrationFailureAbortsBeforeEventAndSeeding(): void
     {
         $app = $this->makeApplication();
-        $dispatcher = $app->instance(Dispatcher::class, Double::for(Dispatcher::class));
+        $dispatcher = $app->instance(Dispatcher::class, Double::for(Dispatcher::class)->strict());
+        $dispatcher->allows('hasListeners')->resolves(static fn (string $event): bool => $event === DatabaseRefreshed::class);
         $command = $this->getMockBuilder(FreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)->strict()])
             ->getMock();
         $command->setHypervel($app);
         $this->expectPreExistingMigrationTargets($migrator, ['sqlite']);
@@ -317,10 +318,10 @@ class DatabaseMigrationFreshCommandTest extends TestCase
     public function testSeedFailureOccursAfterDatabaseRefreshedEventAndFailsTheCommand(): void
     {
         $app = $this->makeApplication();
-        $dispatcher = $app->instance(Dispatcher::class, Double::for(Dispatcher::class));
+        $dispatcher = $app->instance(Dispatcher::class, Double::for(Dispatcher::class)->strict());
         $command = $this->getMockBuilder(FreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)->strict()])
             ->getMock();
         $command->setHypervel($app);
         $this->expectPreExistingMigrationTargets($migrator, ['sqlite']);
@@ -355,7 +356,7 @@ class DatabaseMigrationFreshCommandTest extends TestCase
         $app = $this->makeApplication();
         $command = $this->getMockBuilder(FreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)->strict()])
             ->getMock();
         $command->setHypervel($app);
         $paths = [__DIR__ . DIRECTORY_SEPARATOR . 'migrations'];
@@ -388,7 +389,7 @@ class DatabaseMigrationFreshCommandTest extends TestCase
         $app = $this->makeApplication();
         $command = $this->getMockBuilder(FreshCommand::class)
             ->onlyMethods(['call', 'callSilent'])
-            ->setConstructorArgs([$migrator = Double::for(Migrator::class)])
+            ->setConstructorArgs([$migrator = Double::for(Migrator::class)->strict()])
             ->getMock();
         $command->setHypervel($app);
         $migrator->expects('paths')->never();
@@ -431,7 +432,7 @@ class DatabaseMigrationFreshCommandTest extends TestCase
     public function testProhibitedFreshReturnsBeforeDiscovery(): void
     {
         $app = $this->makeApplication();
-        $command = new FreshCommand($migrator = Double::for(Migrator::class));
+        $command = new FreshCommand($migrator = Double::for(Migrator::class)->strict());
         $command->setHypervel($app);
         $migrator->expects('getMigrationConnections')->never();
         FreshCommand::prohibit();

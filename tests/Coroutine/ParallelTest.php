@@ -21,6 +21,7 @@ use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine as SwooleCoroutine;
@@ -567,7 +568,7 @@ class ParallelTest extends TestCase
 
     public function testCreationCancellationWhileStartupReportingYieldsReleasesOwnership(): void
     {
-        $handler = Double::for(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
         Container::getInstance()->instance(ExceptionHandlerContract::class, $handler);
         $parallel = new Parallel(1);
         $hookFailure = new RuntimeException('The startup hook failed.');
@@ -582,7 +583,7 @@ class ParallelTest extends TestCase
         $failStartup = true;
 
         $handler->expects('report')
-            ->with($hookFailure)
+            ->with(Argument::same($hookFailure))
             ->resolves(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
                 $childCoroutineId = EngineCoroutine::id();
                 $reportStarted->push(true);

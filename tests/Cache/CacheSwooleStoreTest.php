@@ -53,12 +53,12 @@ class CacheSwooleStoreTest extends TestCase
 
     public function testMissingSwooleTableConfigThrowsTableNotDefinedException(): void
     {
-        $config = Double::for(ConfigRepository::class);
+        $config = Double::for(ConfigRepository::class)->strict();
         $config->expects('get')
             ->with('cache.swoole_tables.missing')
             ->returns(null);
 
-        $container = Double::for(ContainerContract::class, override: true);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
         $container->expects('make')->with('config')->returns($config);
 
         $this->expectException(InvalidArgumentException::class);
@@ -69,7 +69,7 @@ class CacheSwooleStoreTest extends TestCase
 
     public function testSealingRetainsExistingTablesAndRejectsLateCreation(): void
     {
-        $config = Double::for(ConfigRepository::class);
+        $config = Double::for(ConfigRepository::class)->strict();
         $config->expects('get')
             ->with('cache.swoole_tables.first')
             ->returns([
@@ -78,7 +78,7 @@ class CacheSwooleStoreTest extends TestCase
                 'conflict_proportion' => 0.2,
             ]);
 
-        $container = Double::for(ContainerContract::class, override: true);
+        $container = Double::for(ContainerContract::class, override: true)->strict();
         $container->expects('make')->with('config')->returns($config);
 
         $manager = new SwooleTableManager($container->instance());

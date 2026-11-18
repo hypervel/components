@@ -39,8 +39,8 @@ class ComponentTest extends TestCase
     {
         parent::setUp();
 
-        $this->viewFactory = Double::for(Factory::class);
-        $this->config = Double::for(Config::class);
+        $this->viewFactory = Double::for(Factory::class)->strict();
+        $this->config = Double::for(Config::class)->strict();
         $this->filesystem = new Filesystem;
         $this->compiledPath = ParallelTesting::tempDir('ViewComponentTest');
         $this->filesystem->deleteDirectory($this->compiledPath);
@@ -76,7 +76,7 @@ class ComponentTest extends TestCase
     {
         $contents = 'Atomically published';
         $viewFile = $this->compiledPath . '/' . hash('xxh128', $contents) . '.blade.php';
-        $filesystem = Double::for(Filesystem::class);
+        $filesystem = Double::for(Filesystem::class)->strict();
 
         $filesystem->expects('exists')->with($viewFile)->returns(false);
         $filesystem->expects('ensureDirectoryExists')->with($this->compiledPath);
@@ -97,7 +97,7 @@ class ComponentTest extends TestCase
     {
         $contents = 'Already published';
         $viewFile = $this->compiledPath . '/' . hash('xxh128', $contents) . '.blade.php';
-        $filesystem = Double::for(Filesystem::class);
+        $filesystem = Double::for(Filesystem::class)->strict();
 
         $filesystem->expects('exists')->with($viewFile)->returns(true);
         $filesystem->expects('size')->with($viewFile)->returns(strlen($contents));
@@ -147,7 +147,7 @@ class ComponentTest extends TestCase
 
     public function testRegularViewsGetReturnedUsingViewHelper(): void
     {
-        $view = Double::for(View::class);
+        $view = Double::for(View::class)->strict();
         $this->viewFactory->expects('make')->with('alert', [], [])->returns($view);
 
         $component = new TestRegularViewComponentUsingViewHelper;
@@ -193,7 +193,7 @@ class ComponentTest extends TestCase
 
     public function testRegularViewsGetReturnedUsingViewMethod(): void
     {
-        $view = Double::for(View::class);
+        $view = Double::for(View::class)->strict();
         $this->viewFactory->expects('make')->with('alert', [], [])->returns($view);
 
         $component = new TestRegularViewComponentUsingViewMethod;
@@ -440,7 +440,7 @@ class ComponentTest extends TestCase
 
         $this->assertSame($this->viewFactory, $getFactory($regular));
 
-        $replacement = Double::for(Factory::class);
+        $replacement = Double::for(Factory::class)->strict();
         Container::getInstance()->instance(FactoryContract::class, $replacement);
 
         $this->assertSame($this->viewFactory, $getFactory($inline));

@@ -13,6 +13,7 @@ use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
@@ -27,10 +28,10 @@ class WebSocketKernelTest extends TestCase
         $reportingFailure = new RuntimeException('Reporting failed');
         $app = new Application;
 
-        $app->instance(StdoutLoggerInterface::class, Double::for(StdoutLoggerInterface::class));
+        $app->instance(StdoutLoggerInterface::class, Double::for(StdoutLoggerInterface::class)->strict());
 
-        $handler = Double::for(ExceptionHandlerContract::class);
-        $handler->expects('report')->with($original)->throws($reportingFailure);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->with(Argument::same($original))->throws($reportingFailure);
         $handler->expects('render')->never();
         $app->instance(ExceptionHandlerContract::class, $handler);
 
@@ -53,7 +54,7 @@ class WebSocketKernelTest extends TestCase
         $resolutionFailure = new RuntimeException('Handler resolution failed');
         $app = new Application;
 
-        $app->instance(StdoutLoggerInterface::class, Double::for(StdoutLoggerInterface::class));
+        $app->instance(StdoutLoggerInterface::class, Double::for(StdoutLoggerInterface::class)->strict());
         $app->bind(ExceptionHandlerContract::class, static fn () => throw $resolutionFailure);
 
         $kernel = new ExposedWebSocketKernel($app);

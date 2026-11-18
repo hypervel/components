@@ -464,7 +464,7 @@ class SupportServiceProviderTest extends TestCase
 
     public function testMergeConfigFromSkipsWhenConfigIsCached(): void
     {
-        $app = Double::for(Application::class, override: true);
+        $app = Double::for(Application::class, override: true)->strict();
         $app->allows('configurationIsCached')->returns(true);
         $app->expects('make')->with('config')->never();
         $app->expects('make')->with(ConfigMutationTracker::class)->never();
@@ -489,7 +489,7 @@ class SupportServiceProviderTest extends TestCase
 
     public function testReplaceConfigRecursivelyFromSkipsWhenCached(): void
     {
-        $app = Double::for(Application::class, override: true);
+        $app = Double::for(Application::class, override: true)->strict();
         $app->allows('configurationIsCached')->returns(true);
         $app->expects('make')->with('config')->never();
         $app->expects('make')->with(ConfigMutationTracker::class)->never();
@@ -541,7 +541,7 @@ class SupportServiceProviderTest extends TestCase
 
     public function testConfigureUsingSkipsWhenConfigIsCached(): void
     {
-        $app = Double::for(Application::class, override: true);
+        $app = Double::for(Application::class, override: true)->strict();
         $app->allows('configurationIsCached')->returns(true);
         $app->expects('make')->with('config')->never();
         $app->expects('make')->with(ConfigMutationTracker::class)->never();
@@ -554,7 +554,7 @@ class SupportServiceProviderTest extends TestCase
     #[TestWith([true])]
     public function testLoadTranslationsFromWithoutNamespace(bool $alreadyResolved): void
     {
-        $translator = Double::for(Translator::class);
+        $translator = Double::for(Translator::class)->strict();
         $translator->expects('addPath')->with(__DIR__ . '/translations');
 
         $this->app->singleton('translator', fn (): Translator => $translator);
@@ -573,7 +573,7 @@ class SupportServiceProviderTest extends TestCase
     #[TestWith([true])]
     public function testLoadTranslationsFromWithNamespace(bool $alreadyResolved): void
     {
-        $translator = Double::for(Translator::class);
+        $translator = Double::for(Translator::class)->strict();
         $translator->expects('addNamespace')->with('namespace', __DIR__ . '/translations');
 
         $this->app->singleton('translator', fn (): Translator => $translator);

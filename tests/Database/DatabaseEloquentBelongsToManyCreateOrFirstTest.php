@@ -582,7 +582,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
         $grammarClass = 'Hypervel\Database\Query\Grammars\\' . $database . 'Grammar';
         $processorClass = 'Hypervel\Database\Query\Processors\\' . $database . 'Processor';
         $processor = new $processorClass;
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getPostProcessor')->returns($processor);
         $grammar = new $grammarClass($connection);
         $connection->allows('getQueryGrammar')->returns($grammar);
@@ -594,7 +594,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             fn ($table, $as = null) => $connection->query()->from($table, $as)
         );
         $connection->allows('getDatabaseName')->returns('database');
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->allows('connection')->returns($connection);
 
         foreach ($models as $model) {

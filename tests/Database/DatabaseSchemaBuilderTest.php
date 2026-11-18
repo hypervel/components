@@ -27,9 +27,9 @@ class DatabaseSchemaBuilderTest extends TestCase
     #[DataProvider('metadataMethods')]
     public function testMetadataReadsUseTheOverridableWriterHook(string $method, array $arguments, string $compile, array $compileArguments, string $process): void
     {
-        $connection = Double::for(Connection::class);
-        $grammar = Double::for(Grammar::class);
-        $processor = Double::for(Processor::class);
+        $connection = Double::for(Connection::class)->strict();
+        $grammar = Double::for(Grammar::class)->strict();
+        $processor = Double::for(Processor::class)->strict();
         $rows = [(object) ['name' => 'id']];
         $processed = [['name' => 'id']];
         $connection->allows('getSchemaGrammar')->returns($grammar);
@@ -62,8 +62,8 @@ class DatabaseSchemaBuilderTest extends TestCase
     #[DataProvider('tableExistenceResults')]
     public function testTableExistenceUsesTheMetadataHookAndPreservesScalarValidation(array $rows, ?bool $expected): void
     {
-        $connection = Double::for(Connection::class);
-        $grammar = Double::for(Grammar::class);
+        $connection = Double::for(Connection::class)->strict();
+        $grammar = Double::for(Grammar::class)->strict();
         $connection->allows('getSchemaGrammar')->returns($grammar);
         $connection->allows('getTablePrefix')->returns('prefix_');
         $grammar->expects('compileTableExists')->with('public', 'prefix_users')->returns('exists sql');
@@ -96,7 +96,7 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testCreateDatabase(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new class($connection) extends Grammar {
         };
         $connection->expects('getSchemaGrammar')->returns($grammar);
@@ -108,7 +108,7 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testDropDatabaseIfExists(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new class($connection) extends Grammar {
         };
         $connection->expects('getSchemaGrammar')->returns($grammar);
@@ -120,11 +120,11 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testTruncateTablesChecksWriteRowsAndSkipsEmptyTables(): void
     {
-        $connection = Double::for(Connection::class);
-        $connection->expects('getSchemaGrammar')->returns(Double::for(Grammar::class));
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getSchemaGrammar')->returns(Double::for(Grammar::class)->strict());
 
         foreach (['public.populated' => true, 'public.empty' => false] as $name => $hasRows) {
-            $query = Double::for(QueryBuilder::class);
+            $query = Double::for(QueryBuilder::class)->strict();
             $connection->expects('table')->with($name)->returns($query);
             $query->expects('useWritePdo')->returns($query);
             $query->expects('exists')->returns($hasRows);
@@ -142,8 +142,8 @@ class DatabaseSchemaBuilderTest extends TestCase
     #[DataProvider('partitionSelections')]
     public function testWithoutCoveredPartitionsKeepsOnlyPartitionsOfTablesOutsideTheSelection(array $tables, array $except, ?array $missingParents, array $links, array $expected): void
     {
-        $connection = Double::for(Connection::class);
-        $grammar = Double::for(Grammar::class);
+        $connection = Double::for(Connection::class)->strict();
+        $grammar = Double::for(Grammar::class)->strict();
         $connection->allows('getSchemaGrammar')->returns($grammar);
 
         if ($missingParents === null) {
@@ -190,9 +190,9 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testExecuteBlueprintCompilesOnceAndExecutesStatementsInOrder(): void
     {
-        $connection = Double::for(Connection::class);
-        $grammar = Double::for(Grammar::class);
-        $blueprint = Double::for(Blueprint::class);
+        $connection = Double::for(Connection::class)->strict();
+        $grammar = Double::for(Grammar::class)->strict();
+        $blueprint = Double::for(Blueprint::class)->strict();
 
         $connection->expects('getSchemaGrammar')->returns($grammar);
         $blueprint->expects('toSql')->returns(['first statement', 'second statement']);
@@ -204,9 +204,9 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testExecuteBlueprintThrowsWhenAStatementReturnsFalse(): void
     {
-        $connection = Double::for(Connection::class);
-        $grammar = Double::for(Grammar::class);
-        $blueprint = Double::for(Blueprint::class);
+        $connection = Double::for(Connection::class)->strict();
+        $grammar = Double::for(Grammar::class)->strict();
+        $blueprint = Double::for(Blueprint::class)->strict();
 
         $connection->expects('getSchemaGrammar')->returns($grammar);
         $blueprint->expects('toSql')->returns(['failed statement', 'unreached statement']);
@@ -221,9 +221,9 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testWithoutForeignKeyConstraintsNestsAcrossBuilderInstances(): void
     {
-        $pdo = Double::for(PDO::class);
+        $pdo = Double::for(PDO::class)->strict();
         $connection = new PdoConnection($pdo, 'test');
-        $grammar = Double::for(Grammar::class);
+        $grammar = Double::for(Grammar::class)->strict();
         $connection->setSchemaGrammar($grammar);
 
         $grammar->expects('compileDisableForeignKeyConstraints')->returns('disable constraints');
@@ -252,7 +252,7 @@ class DatabaseSchemaBuilderTest extends TestCase
             },
             'test'
         );
-        $grammar = Double::for(Grammar::class);
+        $grammar = Double::for(Grammar::class)->strict();
         $connection->setSchemaGrammar($grammar);
 
         $grammar->expects('compileDisableForeignKeyConstraints')->returns('disable constraints');
@@ -271,9 +271,9 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testWithoutForeignKeyConstraintsMarksTheSessionUnknownWhenRestorationFails(): void
     {
-        $pdo = Double::for(PDO::class);
+        $pdo = Double::for(PDO::class)->strict();
         $connection = new PdoConnection($pdo, 'test');
-        $grammar = Double::for(Grammar::class);
+        $grammar = Double::for(Grammar::class)->strict();
         $connection->setSchemaGrammar($grammar);
         $failure = new PDOException('Failed to restore foreign key constraints.');
 
@@ -297,9 +297,9 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testWithoutForeignKeyConstraintsPreservesNativeExceptionChainingWhenCallbackAndRestorationFail(): void
     {
-        $pdo = Double::for(PDO::class);
+        $pdo = Double::for(PDO::class)->strict();
         $connection = new PdoConnection($pdo, 'test');
-        $grammar = Double::for(Grammar::class);
+        $grammar = Double::for(Grammar::class)->strict();
         $connection->setSchemaGrammar($grammar);
         $callbackFailure = new RuntimeException('callback failed');
         $restorationFailure = new RuntimeException('restoration failed');
@@ -324,9 +324,9 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testHasTableCorrectlyCallsGrammar(): void
     {
-        $connection = Double::for(Connection::class);
-        $grammar = Double::for(Grammar::class);
-        $processor = Double::for(Processor::class);
+        $connection = Double::for(Connection::class)->strict();
+        $grammar = Double::for(Grammar::class)->strict();
+        $processor = Double::for(Processor::class)->strict();
         $connection->expects('getSchemaGrammar')->returns($grammar);
         $connection->expects('getPostProcessor')->returns($processor);
         $builder = new Builder($connection);
@@ -341,8 +341,8 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testTableHasColumns(): void
     {
-        $connection = Double::for(Connection::class);
-        $grammar = Double::for(Grammar::class);
+        $connection = Double::for(Connection::class)->strict();
+        $grammar = Double::for(Grammar::class)->strict();
         $connection->expects('getSchemaGrammar')->returns($grammar);
         $builder = Double::for(new Builder($connection))->passthru();
         $builder->expects('getColumnListing')->with('users')->times(2)->returns(['id', 'firstname']);
@@ -354,8 +354,8 @@ class DatabaseSchemaBuilderTest extends TestCase
     #[DataProvider('columnNames')]
     public function testColumnExistenceMatchesUnicodeWithoutCoercingNumericNames(string $column, bool $exists): void
     {
-        $connection = Double::for(Connection::class);
-        $connection->expects('getSchemaGrammar')->returns(Double::for(Grammar::class));
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getSchemaGrammar')->returns(Double::for(Grammar::class)->strict());
         $builder = Double::for(new Builder($connection))->passthru();
         $builder->expects('getColumnListing')->with('users')->times(2)->returns(['Émail', '01']);
 
@@ -383,8 +383,8 @@ class DatabaseSchemaBuilderTest extends TestCase
             ['name' => 'FOO', 'type_name' => 'varchar', 'type' => 'varchar(255)'],
             ['name' => 'Émail', 'type_name' => 'text', 'type' => 'text'],
         ];
-        $connection = Double::for(Connection::class);
-        $connection->expects('getSchemaGrammar')->returns(Double::for(Grammar::class));
+        $connection = Double::for(Connection::class)->strict();
+        $connection->expects('getSchemaGrammar')->returns(Double::for(Grammar::class)->strict());
         $builder = Double::for(new Builder($connection))->passthru();
         $builder->expects('getColumns')->with('users')->times(3)->returns($columns);
 
@@ -408,7 +408,7 @@ class DatabaseSchemaBuilderTest extends TestCase
 
     public function testGetColumnTypeAddsPrefix(): void
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new class($connection) extends Grammar {
             /**
              * Compile the query to determine the columns.

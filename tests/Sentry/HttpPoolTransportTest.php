@@ -61,7 +61,7 @@ class HttpPoolTransportTest extends TestCase
         $pool->expects('borrow')
             ->returns($httpTransport);
         $pool->expects('release')
-            ->with($httpTransport);
+            ->with(Argument::same($httpTransport));
 
         $transport = new HttpPoolTransport($pool, $this->optionsWithDsn());
 
@@ -117,7 +117,7 @@ class HttpPoolTransportTest extends TestCase
         );
         $pool = Double::for(HttpTransportPool::class)->strict();
         $pool->expects('borrow')->returns($httpTransport);
-        $pool->expects('release')->with($httpTransport);
+        $pool->expects('release')->with(Argument::same($httpTransport));
         $transport = new HttpPoolTransport($pool, new Options(['spotlight' => true]));
 
         $result = $transport->send(Event::createEvent());
@@ -165,7 +165,7 @@ class HttpPoolTransportTest extends TestCase
             ->returns(new Result(ResultStatus::success()));
         $pool = Double::for(HttpTransportPool::class)->strict();
         $pool->expects('borrow')->returns($httpTransport);
-        $pool->expects('release')->with($httpTransport);
+        $pool->expects('release')->with(Argument::same($httpTransport));
         $transport = new HttpPoolTransport($pool, $this->optionsWithDsn());
 
         $transport->send(Event::createEvent());
@@ -184,7 +184,7 @@ class HttpPoolTransportTest extends TestCase
         $pool->expects('borrow')
             ->returns($httpTransport);
         $pool->expects('discard')
-            ->with($httpTransport);
+            ->with(Argument::same($httpTransport));
 
         $transport = new HttpPoolTransport($pool, $this->optionsWithDsn());
 
@@ -299,7 +299,7 @@ class HttpPoolTransportTest extends TestCase
 
         $pool = Double::for(HttpTransportPool::class)->strict();
         $pool->expects('borrow')->returns($httpTransport);
-        $pool->expects('release')->with($httpTransport);
+        $pool->expects('release')->with(Argument::same($httpTransport));
 
         $transport = new FailingCoroutineHttpPoolTransport($pool, $this->optionsWithDsn());
         $result = $transport->send(Event::createEvent());
@@ -316,7 +316,7 @@ class HttpPoolTransportTest extends TestCase
         $httpTransport->expects('send')->never();
         $pool = Double::for(HttpTransportPool::class)->strict();
         $pool->expects('borrow')->returns($httpTransport);
-        $pool->expects('release')->with($httpTransport);
+        $pool->expects('release')->with(Argument::same($httpTransport));
         $pool->expects('discard')->never();
         $transport = new HttpPoolTransport($pool, $this->optionsWithDsn());
         $hookFailure = new RuntimeException('The startup hook failed.');
@@ -325,7 +325,7 @@ class HttpPoolTransportTest extends TestCase
         $childCoroutineId = null;
 
         $handler->expects('report')
-            ->with($hookFailure)
+            ->with(Argument::same($hookFailure))
             ->resolves(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
                 $childCoroutineId = EngineCoroutine::id();
                 $reportStarted->push(true);

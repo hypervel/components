@@ -62,14 +62,7 @@ class RedisSharedStateTest extends TestCase
     {
         [$redis, $connection] = $this->redisConnection();
         $connection->expects('evalWithShaCache')
-            ->with(Argument::all(function (string $script, array $keys, array $arguments): bool {
-                $this->assertStringContainsString("redis.call('INCR', KEYS[1])", $script);
-                $this->assertStringContainsString("redis.call('INCR', KEYS[2])", $script);
-                $this->assertCount(2, $keys);
-                $this->assertSame([], $arguments);
-
-                return true;
-            }))
+            ->with(Argument::capture($script), Argument::capture($keys), [])
             ->returns([1, 1]);
 
         $result = (new RedisSharedState($redis))->subscribe('app', 'presence-channel', 'user');
@@ -77,20 +70,16 @@ class RedisSharedStateTest extends TestCase
         $this->assertTrue($result->channelOccupied);
         $this->assertTrue($result->memberAdded);
         $this->assertSame(1, $result->subscriptionCount);
+        $this->assertStringContainsString("redis.call('INCR', KEYS[1])", $script);
+        $this->assertStringContainsString("redis.call('INCR', KEYS[2])", $script);
+        $this->assertCount(2, $keys);
     }
 
     public function testPresenceUnsubscribeUsesOneAtomicScript(): void
     {
         [$redis, $connection] = $this->redisConnection();
         $connection->expects('evalWithShaCache')
-            ->with(Argument::all(function (string $script, array $keys, array $arguments): bool {
-                $this->assertStringContainsString("redis.call('DECR', KEYS[1])", $script);
-                $this->assertStringContainsString("redis.call('DECR', KEYS[2])", $script);
-                $this->assertCount(2, $keys);
-                $this->assertSame([], $arguments);
-
-                return true;
-            }))
+            ->with(Argument::capture($script), Argument::capture($keys), [])
             ->returns([0, 0]);
 
         $result = (new RedisSharedState($redis))->unsubscribe('app', 'presence-channel', 'user');
@@ -98,6 +87,9 @@ class RedisSharedStateTest extends TestCase
         $this->assertTrue($result->channelVacated);
         $this->assertTrue($result->memberRemoved);
         $this->assertSame(0, $result->subscriptionCount);
+        $this->assertStringContainsString("redis.call('DECR', KEYS[1])", $script);
+        $this->assertStringContainsString("redis.call('DECR', KEYS[2])", $script);
+        $this->assertCount(2, $keys);
     }
 
     /**

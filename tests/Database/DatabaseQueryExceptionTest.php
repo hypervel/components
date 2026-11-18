@@ -185,7 +185,7 @@ class DatabaseQueryExceptionTest extends TestCase
      */
     protected function getMockConnection(): Connection
     {
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
 
         $grammar = new Grammar($connection);
 
@@ -202,7 +202,7 @@ class DatabaseQueryExceptionTest extends TestCase
      */
     protected function getConnectionResolver(Connection $connection): ConnectionResolverInterface
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->expects('connection')->with('default')->returns($connection);
 
         return $resolver;

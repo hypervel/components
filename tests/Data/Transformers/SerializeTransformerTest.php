@@ -22,7 +22,7 @@ class SerializeTransformerTest extends TestCase
 
         $this->assertSame(
             serialize(DummyBackedEnum::FOO),
-            $transformer->transform(Double::for(DataProperty::class), DummyBackedEnum::FOO, new TransformationContext)
+            $transformer->transform(Double::for(DataProperty::class)->strict(), DummyBackedEnum::FOO, new TransformationContext)
         );
     }
 }

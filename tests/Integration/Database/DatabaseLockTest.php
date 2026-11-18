@@ -277,10 +277,10 @@ class DatabaseLockTest extends DatabaseTestCase
     #[TestWith(['Table does not exist', 1146, false])]
     public function testIgnoresConcurrencyException(string $message, int $code, bool $hasConcurrencyError): void
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
-        $connection = Double::for(Connection::class);
-        $insertBuilder = Double::for(Builder::class);
-        $deleteBuilder = Double::for(Builder::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
+        $insertBuilder = Double::for(Builder::class)->strict();
+        $deleteBuilder = Double::for(Builder::class)->strict();
 
         $insertBuilder->expects('insert')->returns(true);
 
@@ -313,9 +313,9 @@ class DatabaseLockTest extends DatabaseTestCase
     {
         // REMOVED: upstream's case where a deadlock outside a transaction falls back to a takeover. Insert failures other
         // than an existing lock always propagate; see CacheDatabaseLockTest::testInsertFailureOtherThanAnExistingLockPropagatesWithoutTakingOver().
-        $resolver = Double::for(ConnectionResolverInterface::class);
-        $connection = Double::for(Connection::class);
-        $insertBuilder = Double::for(Builder::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
+        $insertBuilder = Double::for(Builder::class)->strict();
 
         $insertBuilder->expects('insert')->throws(
             new QueryException(
@@ -342,9 +342,9 @@ class DatabaseLockTest extends DatabaseTestCase
     #[TestWith(['Table does not exist', 1146, false])]
     public function testReleaseIgnoresConcurrencyException(string $message, int $code, bool $hasConcurrencyError): void
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
-        $connection = Double::for(Connection::class);
-        $deleteBuilder = Double::for(Builder::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
+        $deleteBuilder = Double::for(Builder::class)->strict();
 
         $owner = 'owner-123';
 
@@ -376,9 +376,9 @@ class DatabaseLockTest extends DatabaseTestCase
 
     public function testPruneThrowsConcurrencyExceptionInsideTransaction(): void
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
-        $connection = Double::for(Connection::class);
-        $deleteBuilder = Double::for(Builder::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
+        $deleteBuilder = Double::for(Builder::class)->strict();
 
         $deleteBuilder->expects('where')->with('expiration', '<=', Argument::any())->returns($deleteBuilder);
         $deleteBuilder->expects('delete')->throws(
@@ -403,9 +403,9 @@ class DatabaseLockTest extends DatabaseTestCase
 
     public function testReleaseThrowsConcurrencyExceptionInsideTransaction(): void
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
-        $connection = Double::for(Connection::class);
-        $deleteBuilder = Double::for(Builder::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
+        $deleteBuilder = Double::for(Builder::class)->strict();
 
         $owner = 'owner-123';
 

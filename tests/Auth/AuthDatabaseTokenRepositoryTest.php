@@ -131,24 +131,24 @@ class AuthDatabaseTokenRepositoryTest extends TestCase
 
     public function testResolverBackedRepositoryResolvesTheConfiguredConnectionForEveryOperation(): void
     {
-        $firstConnection = Double::for(Connection::class);
-        $firstQuery = Double::for(Builder::class);
+        $firstConnection = Double::for(Connection::class)->strict();
+        $firstQuery = Double::for(Builder::class)->strict();
         $firstConnection->expects('table')->with('table')->returns($firstQuery);
         $firstQuery->expects('where')->with('created_at', '<', Argument::any());
         $firstQuery->expects('delete');
 
-        $secondConnection = Double::for(Connection::class);
-        $secondQuery = Double::for(Builder::class);
+        $secondConnection = Double::for(Connection::class)->strict();
+        $secondQuery = Double::for(Builder::class)->strict();
         $secondConnection->expects('table')->with('table')->returns($secondQuery);
         $secondQuery->expects('where')->with('created_at', '<', Argument::any());
         $secondQuery->expects('delete');
 
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->expects('connection')->times(2)->with('passwords')->returns($firstConnection, $secondConnection);
 
         $repository = new DatabaseTokenRepository(
             $resolver,
-            Double::for(Hasher::class),
+            Double::for(Hasher::class)->strict(),
             'table',
             'key',
             connectionName: 'passwords'
@@ -160,24 +160,24 @@ class AuthDatabaseTokenRepositoryTest extends TestCase
 
     public function testResolverBackedRepositoryUsesTheDefaultConnectionWhenNoNameIsConfigured(): void
     {
-        $connection = Double::for(Connection::class);
-        $resolver = Double::for(ConnectionResolverInterface::class);
+        $connection = Double::for(Connection::class)->strict();
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
         $resolver->expects('connection')->with(null)->returns($connection);
 
-        $repository = new DatabaseTokenRepository($resolver, Double::for(Hasher::class), 'table', 'key');
+        $repository = new DatabaseTokenRepository($resolver, Double::for(Hasher::class)->strict(), 'table', 'key');
 
         $this->assertSame($connection, $repository->getConnection());
     }
 
     public function testResolverContractTakesPrecedenceForObjectsImplementingBothConnectionContracts(): void
     {
-        $resolvedConnection = Double::for(Connection::class);
-        $connectionResolver = Double::for(ConnectionInterface::class, ConnectionResolverInterface::class);
+        $resolvedConnection = Double::for(Connection::class)->strict();
+        $connectionResolver = Double::for(ConnectionInterface::class, ConnectionResolverInterface::class)->strict();
         $connectionResolver->expects('connection')->with('passwords')->returns($resolvedConnection);
 
         $repository = new DatabaseTokenRepository(
             $connectionResolver,
-            Double::for(Hasher::class),
+            Double::for(Hasher::class)->strict(),
             'table',
             'key',
             connectionName: 'passwords'
