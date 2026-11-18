@@ -129,7 +129,7 @@ class CallQueuedHandlerTest extends TestCase
 
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $job = Double::for(Job::class);
+        $job = Double::for(Job::class)->strict();
         $job->expects('payload')->returns(['deleteWhenMissingModels' => true]);
         $job->expects('resolveQueuedJobClass')->returns(CallQueuedHandlerExceptionThrower::class);
         $job->expects('markAsFailed')->never();
@@ -149,7 +149,7 @@ class CallQueuedHandlerTest extends TestCase
 
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $job = Double::for(Job::class);
+        $job = Double::for(Job::class)->strict();
         $job->expects('payload')->returns(['deleteWhenMissingModels' => true]);
         $job->expects('resolveQueuedJobClass')->returns(CallQueuedHandlerAttributeExceptionThrower::class);
         $job->expects('markAsFailed')->never();
@@ -169,16 +169,16 @@ class CallQueuedHandlerTest extends TestCase
 
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $batch = Double::for(Batch::class);
+        $batch = Double::for(Batch::class)->strict();
         $batch->expects('recordSuccessfulJob')->with('job-uuid');
 
-        $repository = Double::for(BatchRepository::class);
+        $repository = Double::for(BatchRepository::class)->strict();
         $repository->expects('find')->with('test-batch-id')->returns($batch);
         $this->app->instance(BatchRepository::class, $repository);
 
         $serialized = serialize((new CallQueuedHandlerBatchableExceptionThrower)->withBatchId('test-batch-id'));
 
-        $job = Double::for(Job::class);
+        $job = Double::for(Job::class)->strict();
         $job->expects('resolveQueuedJobClass')->returns(CallQueuedHandlerBatchableExceptionThrower::class);
         $job->expects('markAsFailed')->never();
         $job->expects('delete');
@@ -205,10 +205,10 @@ class CallQueuedHandlerTest extends TestCase
 
         $exception = new ModelNotFoundException('Foo');
 
-        $batch = Double::for(Batch::class);
+        $batch = Double::for(Batch::class)->strict();
         $batch->expects('recordFailedJob')->with('job-uuid', Argument::same($exception));
 
-        $repository = Double::for(BatchRepository::class);
+        $repository = Double::for(BatchRepository::class)->strict();
         $repository->expects('find')->with('test-batch-id')->returns($batch);
         $this->app->instance(BatchRepository::class, $repository);
 
@@ -222,19 +222,19 @@ class CallQueuedHandlerTest extends TestCase
 
     public function testUniqueJobLockIsReleasedFromPayloadWhenDeletedForMissingModel(): void
     {
-        $lock = Double::for(Lock::class);
+        $lock = Double::for(Lock::class)->strict();
         $lock->expects('forceRelease');
 
-        $cache = Double::for(Cache::class, LockProvider::class);
+        $cache = Double::for(Cache::class, LockProvider::class)->strict();
         $cache->allows('lock')->with('laravel_unique_job:TestJob:42')->returns($lock);
 
-        $cacheFactory = Double::for(CacheFactory::class);
+        $cacheFactory = Double::for(CacheFactory::class)->strict();
         $cacheFactory->allows('store')->with('array')->returns($cache);
         $this->app->instance(CacheFactory::class, $cacheFactory);
 
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $job = Double::for(Job::class);
+        $job = Double::for(Job::class)->strict();
         $job->allows('payload')->returns([
             'deleteWhenMissingModels' => true,
             'illuminate:log:context' => ['hidden' => $this->uniqueLockMetadata()],
@@ -250,23 +250,23 @@ class CallQueuedHandlerTest extends TestCase
 
     public function testUniqueJobLockOwnerIsRestoredFromPayloadWhenDeletedForMissingModel(): void
     {
-        $lock = Double::for(Lock::class);
+        $lock = Double::for(Lock::class)->strict();
         $lock->expects('release');
 
-        $cache = Double::for(Cache::class, LockProvider::class);
+        $cache = Double::for(Cache::class, LockProvider::class)->strict();
         $cache->expects('getStore')->returns(new WorkerArrayStore);
         $cache->expects('restoreLock')
             ->with('laravel_unique_job:TestJob:42', 'owner-token')
             ->returns($lock);
         $cache->expects('lock')->never();
 
-        $cacheFactory = Double::for(CacheFactory::class);
+        $cacheFactory = Double::for(CacheFactory::class)->strict();
         $cacheFactory->allows('store')->with('array')->returns($cache);
         $this->app->instance(CacheFactory::class, $cacheFactory);
 
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
-        $job = Double::for(Job::class);
+        $job = Double::for(Job::class)->strict();
         $job->allows('payload')->returns([
             'deleteWhenMissingModels' => true,
             'illuminate:log:context' => ['hidden' => $this->uniqueLockMetadata('owner-token')],
@@ -352,13 +352,13 @@ class CallQueuedHandlerTest extends TestCase
     #[TestWith([2, 0])]
     public function testMissingModelFailureReleasesAnOwnerlessUniqueUntilProcessingLockOnceBeforeProcessing(int $attempts, int $releases): void
     {
-        $lock = Double::for(Lock::class);
+        $lock = Double::for(Lock::class)->strict();
         $lock->expects('forceRelease')->times($releases);
 
-        $cache = Double::for(Cache::class, LockProvider::class);
+        $cache = Double::for(Cache::class, LockProvider::class)->strict();
         $cache->allows('lock')->with('laravel_unique_job:TestJob:42')->returns($lock);
 
-        $cacheFactory = Double::for(CacheFactory::class);
+        $cacheFactory = Double::for(CacheFactory::class)->strict();
         $cacheFactory->allows('store')->with('array')->returns($cache);
         $this->app->instance(CacheFactory::class, $cacheFactory);
 
@@ -404,12 +404,12 @@ class CallQueuedHandlerTest extends TestCase
 
     public function testDebouncedJobEventIsSkippedWithoutListeners(): void
     {
-        $events = Double::for(EventDispatcher::class);
+        $events = Double::for(EventDispatcher::class)->strict();
         $events->expects('hasListeners')->with(JobDebounced::class)->returns(false);
         $events->expects('dispatch')->never();
         $this->app->instance('events', $events);
 
-        $job = Double::for(Job::class);
+        $job = Double::for(Job::class)->strict();
         $job->expects('getConnectionName')->never();
         $job->expects('delete');
 
@@ -431,7 +431,7 @@ class CallQueuedHandlerTest extends TestCase
             }
         };
 
-        $cache = Double::for(Cache::class);
+        $cache = Double::for(Cache::class)->strict();
         $cache->expects('get')->with(DebounceLock::getKey($command))->returns('new-owner');
         $this->app->instance(Cache::class, $cache);
 
@@ -444,7 +444,7 @@ class CallQueuedHandlerTest extends TestCase
     {
         Event::fake([JobDebounced::class]);
 
-        $job = Double::for(Job::class);
+        $job = Double::for(Job::class)->strict();
         $job->expects('getConnectionName')->returns('database');
         $job->expects('delete');
 

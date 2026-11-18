@@ -510,9 +510,10 @@ class ModelSerializationTest extends TestCase
 
         $serialized = serialize($class);
 
-        unserialize($serialized);
+        $restored = unserialize($serialized);
 
-        $this->assertTrue(true);
+        $this->assertInstanceOf(ModelSerializationTestCustomUserCollection::class, $restored->collection);
+        $this->assertCount(0, $restored->collection);
     }
 
     #[WithConfig('database.default', 'testing')]

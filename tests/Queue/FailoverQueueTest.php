@@ -59,11 +59,11 @@ class FailoverQueueTest extends TestCase
         $routes = new QueueRoutes;
         $routes->forward(['default' => 'processing', 'reports' => 'processing', '0' => 'processing', 'processing' => 'archive'], connection: 'failover');
         Container::getInstance()->instance('queue.routes', $routes);
-        $manager = Double::for(QueueManager::class);
-        $redis = Double::for(RedisQueue::class);
+        $manager = Double::for(QueueManager::class)->strict();
+        $redis = Double::for(RedisQueue::class)->strict();
         $manager->expects('connection')->with('redis')->returns($redis);
         $redis->expects($method)->with(...$expectedArguments)->returns($result);
-        $queue = new FailoverQueue($manager, Double::for(DispatcherContract::class), ['redis']);
+        $queue = new FailoverQueue($manager, Double::for(DispatcherContract::class)->strict(), ['redis']);
         $queue->setConnectionName('failover');
 
         $this->assertSame($result, $queue->{$method}(...$arguments));
@@ -96,7 +96,7 @@ class FailoverQueueTest extends TestCase
     #[DataProvider('failedConnectionNames')]
     public function testPushFailsOverOnException(UnitEnum|string|null $connection, ?string $expectedName): void
     {
-        $queue = Double::for(QueueManager::class);
+        $queue = Double::for(QueueManager::class)->strict();
         $events = new EventDispatcher;
         $failedOver = [];
         $events->listen(QueueFailedOver::class, function (QueueFailedOver $event) use (&$failedOver): void {
@@ -107,10 +107,10 @@ class FailoverQueueTest extends TestCase
             'sync',
         ]);
 
-        $redis = Double::for(RedisQueue::class);
+        $redis = Double::for(RedisQueue::class)->strict();
         $queue->expects('connection')->with($connection)->returns($redis);
 
-        $sync = Double::for(SyncQueue::class);
+        $sync = Double::for(SyncQueue::class)->strict();
         $queue->expects('connection')->with('sync')->returns($sync);
 
         $redis->expects('push')->resolves(
@@ -141,10 +141,10 @@ class FailoverQueueTest extends TestCase
 
     public function testReplacementQueueReportsItsOwnFirstFailure(): void
     {
-        $manager = Double::for(QueueManager::class);
-        $events = Double::for(DispatcherContract::class);
-        $primary = Double::for(Queue::class);
-        $secondary = Double::for(Queue::class);
+        $manager = Double::for(QueueManager::class)->strict();
+        $events = Double::for(DispatcherContract::class)->strict();
+        $primary = Double::for(Queue::class)->strict();
+        $secondary = Double::for(Queue::class)->strict();
         $primary->allows('push')->throws(new RuntimeException('Primary unavailable.'));
         $secondary->allows('push')->returns('job-id');
         $manager->allows('connection')->with('primary')->returns($primary);
@@ -164,9 +164,9 @@ class FailoverQueueTest extends TestCase
     #[TestWith([true])]
     public function testCancellationDoesNotFailOverOrEmitAnEvent(bool $cleanupThrows): void
     {
-        $manager = Double::for(QueueManager::class);
-        $events = Double::for(DispatcherContract::class);
-        $primary = Double::for(Queue::class);
+        $manager = Double::for(QueueManager::class)->strict();
+        $events = Double::for(DispatcherContract::class)->strict();
+        $primary = Double::for(Queue::class)->strict();
         $cancellation = new CanceledException;
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Queue cleanup failed.', previous: $cancellation);
@@ -192,9 +192,9 @@ class FailoverQueueTest extends TestCase
     public function testCancellationAfterAnOrdinaryFailureRetainsFailureSuppressionState(bool $cleanupThrows): void
     {
         $events = new FailoverQueueFakeDispatcher;
-        $manager = Double::for(QueueManager::class);
-        $primary = Double::for(Queue::class);
-        $secondary = Double::for(Queue::class);
+        $manager = Double::for(QueueManager::class)->strict();
+        $primary = Double::for(Queue::class)->strict();
+        $secondary = Double::for(Queue::class)->strict();
         $cancellation = new CanceledException;
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Queue cleanup failed.', previous: $cancellation);
@@ -230,9 +230,9 @@ class FailoverQueueTest extends TestCase
 
     public function testCancellationFromAFailoverListenerStopsFallback(): void
     {
-        $manager = Double::for(QueueManager::class);
-        $events = Double::for(DispatcherContract::class);
-        $primary = Double::for(Queue::class);
+        $manager = Double::for(QueueManager::class)->strict();
+        $events = Double::for(DispatcherContract::class)->strict();
+        $primary = Double::for(Queue::class)->strict();
         $cancellation = new CanceledException;
         $failover = new FailoverQueue($manager, $events, ['primary', 'secondary']);
 
@@ -254,9 +254,9 @@ class FailoverQueueTest extends TestCase
 
     public function testBulkRespectsJobDelays(): void
     {
-        $manager = Double::for(QueueManager::class);
-        $failover = new FailoverQueue($manager, Double::for(DispatcherContract::class), ['sync']);
-        $sync = Double::for(SyncQueue::class);
+        $manager = Double::for(QueueManager::class)->strict();
+        $failover = new FailoverQueue($manager, Double::for(DispatcherContract::class)->strict(), ['sync']);
+        $sync = Double::for(SyncQueue::class)->strict();
 
         $manager->expects('connection')->times(3)->with('sync')->returns($sync);
         $sync->expects('later')->with(15, Argument::type(FailoverJobWithDelayAttribute::class), '', null);
@@ -361,11 +361,11 @@ class FailoverQueueTest extends TestCase
             }
         };
         $first->setContainer($container)->setConnectionName('first');
-        $second = Double::for(Queue::class);
+        $second = Double::for(Queue::class)->strict();
         $job = new FailoverQueueUniqueDebouncedJob;
         $lock = new UniqueLock(new CacheRepository(new ArrayStore));
         $this->assertTrue($lock->acquireForDispatch($job));
-        $second->expects('push')->with($job)->resolves(function ($job) use ($lock): string {
+        $second->expects('push')->with(Argument::same($job))->resolves(function ($job) use ($lock): string {
             $this->assertTrue(DispatchLockContext::has($job));
             $this->assertFalse($lock->acquire($job));
             DispatchLockContext::accept($job);
@@ -519,8 +519,8 @@ class FailoverQueueTest extends TestCase
             true,
         );
         $transactions = new DatabaseTransactionsManager;
-        $cache = Double::for(CacheContract::class, LockProvider::class);
-        $lock = Double::for(LockContract::class);
+        $cache = Double::for(CacheContract::class, LockProvider::class)->strict();
+        $lock = Double::for(LockContract::class)->strict();
         $container = new Container;
         $container->instance('db.transactions', $transactions);
         $container->instance(CacheContract::class, $cache);
@@ -683,9 +683,9 @@ class FailoverQueueTest extends TestCase
 
     public function testInspectionDelegatesToTheFirstConnection(): void
     {
-        $manager = Double::for(QueueManager::class);
-        $events = Double::for(DispatcherContract::class);
-        $redis = Double::for(RedisQueue::class);
+        $manager = Double::for(QueueManager::class)->strict();
+        $events = Double::for(DispatcherContract::class)->strict();
+        $redis = Double::for(RedisQueue::class)->strict();
         $queue = new FailoverQueue($manager, $events, ['redis', 'sync']);
 
         $manager->expects('connection')->times(10)->with('redis')->returns($redis);
@@ -714,9 +714,9 @@ class FailoverQueueTest extends TestCase
 
     public function testPopForwardsTheQueueIndexToTheFirstConnection(): void
     {
-        $manager = Double::for(QueueManager::class);
-        $events = Double::for(DispatcherContract::class);
-        $redis = Double::for(RedisQueue::class);
+        $manager = Double::for(QueueManager::class)->strict();
+        $events = Double::for(DispatcherContract::class)->strict();
+        $redis = Double::for(RedisQueue::class)->strict();
         $queue = new FailoverQueue($manager, $events, ['redis', 'sync']);
 
         $manager->expects('connection')->with('redis')->returns($redis);
@@ -727,9 +727,9 @@ class FailoverQueueTest extends TestCase
 
     public function testPopDoesNotForwardTheQueueIndexToAnOrdinaryConnection(): void
     {
-        $manager = Double::for(QueueManager::class);
-        $events = Double::for(DispatcherContract::class);
-        $sync = Double::for(SyncQueue::class);
+        $manager = Double::for(QueueManager::class)->strict();
+        $events = Double::for(DispatcherContract::class)->strict();
+        $sync = Double::for(SyncQueue::class)->strict();
         $queue = new FailoverQueue($manager, $events, ['sync']);
 
         $manager->expects('connection')->with('sync')->returns($sync);

@@ -29,6 +29,7 @@ use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
 use Pheanstalk\Contract\PheanstalkPublisherInterface;
@@ -227,7 +228,7 @@ class QueuePoolProxyTest extends TestCase
         $operationException = new Exception('pop failed');
         $finalizationException = new Exception('reset failed');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($finalizationException);
+        $handler->expects('report')->with(Argument::same($finalizationException));
         [$proxy, $pools] = $this->proxy(
             fn () => new QueuePoolProxyTestQueue(popException: $operationException),
             function () use ($finalizationException): never {
@@ -437,7 +438,7 @@ class QueuePoolProxyTest extends TestCase
         $handler = Double::for(ExceptionHandler::class)->strict();
 
         if ($recoveryFails) {
-            $handler->expects('report')->with($recoveryException);
+            $handler->expects('report')->with(Argument::same($recoveryException));
         }
 
         [$proxy, $pools] = $this->proxy(

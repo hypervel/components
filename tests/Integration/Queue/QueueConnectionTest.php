@@ -61,7 +61,7 @@ class QueueConnectionTest extends TestCase
     public function testJobWontGetDispatchedInsideATransaction(): void
     {
         $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
-            $transactionManager = Double::for(DatabaseTransactionsManager::class);
+            $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
             $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
             $transactionManager->expects('callbackApplicableTransactions')
                 ->returns(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));
@@ -79,7 +79,7 @@ class QueueConnectionTest extends TestCase
     public function testJobWillGetDispatchedInsideATransactionWhenExplicitlyIndicated(): void
     {
         $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
-            $transactionManager = Double::for(DatabaseTransactionsManager::class);
+            $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
             $transactionManager->expects('addCallback')->never();
             $transactionManager->expects('addCallbackForRollback')->never();
 
@@ -96,7 +96,7 @@ class QueueConnectionTest extends TestCase
         $this->app->make('config')->set('queue.connections.sqs.after_commit', false);
 
         $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
-            $transactionManager = Double::for(DatabaseTransactionsManager::class);
+            $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
             $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
             $transactionManager->expects('callbackApplicableTransactions')
                 ->returns(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));
@@ -114,7 +114,7 @@ class QueueConnectionTest extends TestCase
     public function testUniqueJobWontGetDispatchedInsideATransaction(): void
     {
         $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
-            $transactionManager = Double::for(DatabaseTransactionsManager::class);
+            $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
             $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
             $transactionManager->expects('callbackApplicableTransactions')
                 ->returns(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));
@@ -132,7 +132,7 @@ class QueueConnectionTest extends TestCase
     public function testUniqueJobWillGetDispatchedInsideATransactionWhenExplicitlyIndicated(): void
     {
         $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
-            $transactionManager = Double::for(DatabaseTransactionsManager::class);
+            $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
             $transactionManager->expects('addCallback')->never();
             $transactionManager->expects('addCallbackForRollback')->never();
 
@@ -149,7 +149,7 @@ class QueueConnectionTest extends TestCase
         $this->app->make('config')->set('queue.connections.sqs.after_commit', false);
 
         $this->app->singleton('db.transactions', function (): DatabaseTransactionsManager {
-            $transactionManager = Double::for(DatabaseTransactionsManager::class);
+            $transactionManager = Double::for(DatabaseTransactionsManager::class)->strict();
             $transactionManager->expects('hasApplicableTransaction')->with(null)->returns(true);
             $transactionManager->expects('callbackApplicableTransactions')
                 ->returns(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));

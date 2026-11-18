@@ -65,7 +65,7 @@ class QueuePauseResumeTest extends TestCase
                 ],
             ],
         ]));
-        $cacheManager = Double::for(CacheFactory::class);
+        $cacheManager = Double::for(CacheFactory::class)->strict();
         $cacheManager->allows('store')->returns($cache);
         $container->instance('cache', $cacheManager);
         $container->instance('events', $this->events);
@@ -265,7 +265,7 @@ class QueuePauseResumeTest extends TestCase
 
     public function testGetPausedQueuesUsesTheCacheRepositoryContract(): void
     {
-        $cache = Double::for(CacheContract::class);
+        $cache = Double::for(CacheContract::class)->strict();
         $cache->expects('get')->with('illuminate:queues:paused', false)->returns(false);
         $cache->expects('get')->with([
             'illuminate:queue:paused:redis:default',
