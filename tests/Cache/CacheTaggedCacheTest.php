@@ -110,7 +110,7 @@ class CacheTaggedCacheTest extends TestCase
 
     public function testVersionedTagResetAttemptsEveryTagAndAggregatesFalseResults(): void
     {
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('forever')
             ->with('tag:users:key', Argument::type('string'))
             ->returns(false);
@@ -123,7 +123,7 @@ class CacheTaggedCacheTest extends TestCase
 
     public function testVersionedTagFlushAttemptsEveryTagAndTreatsMissingTagKeysAsSuccess(): void
     {
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('forget')->with('tag:users:key')->returns(false);
         $store->expects('forget')->with('tag:posts:key')->returns(true);
 
@@ -132,7 +132,7 @@ class CacheTaggedCacheTest extends TestCase
 
     public function testVersionedTagFlushUsesThePerTagExtensionPoint(): void
     {
-        $tagSet = new class(Double::for(Store::class), ['users', 'posts']) extends VersionedTagSet {
+        $tagSet = new class(Double::for(Store::class)->strict(), ['users', 'posts']) extends VersionedTagSet {
             public array $flushed = [];
 
             public function flushTag(string $name): string
@@ -149,7 +149,7 @@ class CacheTaggedCacheTest extends TestCase
 
     public function testVersionedFlushTagReturnsItsKeyWhenTheTagDoesNotExist(): void
     {
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('forget')->with('tag:users:key')->returns(false);
 
         $this->assertSame('tag:users:key', (new VersionedTagSet($store))->flushTag('users'));
@@ -157,7 +157,7 @@ class CacheTaggedCacheTest extends TestCase
 
     public function testVersionedTagResetUsesTheWriteExtensionPoint(): void
     {
-        $tagSet = new class(Double::for(Store::class), ['users', 'posts']) extends VersionedTagSet {
+        $tagSet = new class(Double::for(Store::class)->strict(), ['users', 'posts']) extends VersionedTagSet {
             public array $written = [];
 
             protected function writeTagId(string $name, string $id): bool
@@ -175,7 +175,7 @@ class CacheTaggedCacheTest extends TestCase
     public function testVersionedTagResetAttemptsLaterTagsAndRethrowsTheFirstException(): void
     {
         $firstException = new RuntimeException('users failed');
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('forever')
             ->with('tag:users:key', Argument::type('string'))
             ->throws($firstException);
@@ -197,7 +197,7 @@ class CacheTaggedCacheTest extends TestCase
     public function testVersionedTagFlushAttemptsLaterTagsAndRethrowsTheFirstException(): void
     {
         $firstException = new RuntimeException('users failed');
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('forget')->with('tag:users:key')->throws($firstException);
         $store->expects('forget')
             ->with('tag:posts:key')
@@ -220,7 +220,7 @@ class CacheTaggedCacheTest extends TestCase
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
         }
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('forever')
             ->with('tag:users:key', Argument::type('string'))
             ->throws($cancellation);
@@ -242,7 +242,7 @@ class CacheTaggedCacheTest extends TestCase
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
         }
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('forget')->with('tag:earlier:key')->throws(new RuntimeException('Earlier tag failed.'));
         $store->expects('forget')->with('tag:users:key')->throws($cancellation);
         $store->expects('forget')->never()->with('tag:posts:key');

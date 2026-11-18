@@ -38,13 +38,12 @@ class ModelCacheStoreValidatorTest extends TestCase
         $validator = $this->validator();
 
         foreach ([
-            Double::for(DatabaseStore::class),
-            Double::for(FileStore::class),
-            Double::for(SwooleStore::class),
+            Double::for(DatabaseStore::class)->strict(),
+            Double::for(FileStore::class)->strict(),
+            Double::for(SwooleStore::class)->strict(),
             $this->redisStore(),
         ] as $store) {
             $validator->validate($this->repository($store), 'Auth user cache');
-            $this->assertTrue(true);
         }
     }
 
@@ -56,14 +55,12 @@ class ModelCacheStoreValidatorTest extends TestCase
             $this->repository($store),
             'Auth user cache',
         );
-
-        $this->assertTrue(true);
     }
 
     public function testAcceptsAnyModeTagsThroughAValidStack(): void
     {
         $store = new StackStore([
-            Double::for(FileStore::class),
+            Double::for(FileStore::class)->strict(),
             $this->redisStore()->setTagMode(TagMode::Any),
         ]);
 
@@ -71,8 +68,6 @@ class ModelCacheStoreValidatorTest extends TestCase
             $this->repository($store),
             'Auth user cache',
         );
-
-        $this->assertTrue(true);
     }
 
     public function testRejectsAllModeTags(): void
@@ -90,7 +85,7 @@ class ModelCacheStoreValidatorTest extends TestCase
 
     public function testRejectsStoresWithoutTagSupportBeforeReadingTheMode(): void
     {
-        $store = Double::for(StackStore::class);
+        $store = Double::for(StackStore::class)->strict();
         $store->expects('supportsTags')->returns(false);
         $store->expects('getTagMode')->never();
 
@@ -111,9 +106,9 @@ class ModelCacheStoreValidatorTest extends TestCase
             new ArrayStore,
             new WorkerArrayStore,
             new NullStore,
-            Double::for(SessionStore::class),
-            Double::for(FailoverStore::class),
-            Double::for(StorageStore::class),
+            Double::for(SessionStore::class)->strict(),
+            Double::for(FailoverStore::class)->strict(),
+            Double::for(StorageStore::class)->strict(),
         ] as $store) {
             try {
                 $validator->validate($this->repository($store), 'Sanctum token cache');
@@ -128,7 +123,7 @@ class ModelCacheStoreValidatorTest extends TestCase
     public function testRejectsStacksBecauseOtherWorkersAndNodesCanRetainUpperLayerCopies(): void
     {
         $stack = new StackStore([
-            Double::for(FileStore::class),
+            Double::for(FileStore::class)->strict(),
             $this->redisStore(),
         ]);
 
@@ -146,7 +141,7 @@ class ModelCacheStoreValidatorTest extends TestCase
             ['SeRiAlIzEr' => Redis::SERIALIZER_NONE, 'compression' => 1],
             [Redis::OPT_SERIALIZER => Redis::SERIALIZER_NONE],
         ] as $options) {
-            $redis = Double::for(RedisFactory::class);
+            $redis = Double::for(RedisFactory::class)->strict();
             $redis->expects('connection')->never();
             $store = new RedisStore($redis, connection: 'cache');
 
@@ -154,8 +149,6 @@ class ModelCacheStoreValidatorTest extends TestCase
                 $this->repository($store),
                 'Auth user cache',
             );
-
-            $this->assertTrue(true);
         }
     }
 
@@ -164,8 +157,6 @@ class ModelCacheStoreValidatorTest extends TestCase
         $this->validator(
             connectionOptions: ['serializer' => Redis::SERIALIZER_PHP],
         )->validate($this->repository($this->redisStore()), 'Auth user cache');
-
-        $this->assertTrue(true);
     }
 
     public function testAcceptsIgbinaryWhenTheRedisBuildSupportsIt(): void
@@ -179,8 +170,6 @@ class ModelCacheStoreValidatorTest extends TestCase
                 'serializer' => (int) constant(Redis::class . '::SERIALIZER_IGBINARY'),
             ],
         )->validate($this->repository($this->redisStore()), 'Auth user cache');
-
-        $this->assertTrue(true);
     }
 
     public function testAcceptsMsgpackOnlyInPhpOnlyMode(): void
@@ -201,8 +190,6 @@ class ModelCacheStoreValidatorTest extends TestCase
                     'serializer' => (int) constant(Redis::class . '::SERIALIZER_MSGPACK'),
                 ],
             )->validate($this->repository($this->redisStore()), 'Sanctum token cache');
-
-            $this->assertTrue(true);
         } finally {
             if (is_string($previous)) {
                 ini_set('msgpack.php_only', $previous);
@@ -271,8 +258,6 @@ class ModelCacheStoreValidatorTest extends TestCase
             sharedOptions: ['serializer' => Redis::SERIALIZER_JSON],
             connectionOptions: ['serializer' => Redis::SERIALIZER_PHP],
         )->validate($this->repository($this->redisStore()), 'Auth user cache');
-
-        $this->assertTrue(true);
     }
 
     public function testLastNumericRedisSerializerOptionWinsOverStringOption(): void
@@ -281,8 +266,6 @@ class ModelCacheStoreValidatorTest extends TestCase
             'serializer' => Redis::SERIALIZER_JSON,
             Redis::OPT_SERIALIZER => Redis::SERIALIZER_PHP,
         ])->validate($this->repository($this->redisStore()), 'Auth user cache');
-
-        $this->assertTrue(true);
     }
 
     public function testLastStringRedisSerializerOptionWinsOverNumericOption(): void
@@ -327,7 +310,7 @@ class ModelCacheStoreValidatorTest extends TestCase
      */
     private function redisStore(): RedisStore
     {
-        $redis = Double::for(RedisFactory::class);
+        $redis = Double::for(RedisFactory::class)->strict();
         $redis->expects('connection')->never();
 
         return new RedisStore($redis, connection: 'cache');

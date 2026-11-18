@@ -369,7 +369,7 @@ class CacheFileStoreTest extends TestCase
 
     public function testLockStoreRetainsBothSerializationPolicies(): void
     {
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $files->allows('exists')->returns(true);
         $serializableClasses = [stdClass::class];
         $policy = new SerializableClassPolicy(static fn (): false => false);
@@ -567,7 +567,7 @@ class CacheFileStoreTest extends TestCase
 
     public function testStoreItemProperlySetsPermissions(): void
     {
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $store = new FileStore($files, __DIR__, 0644);
         $files->allows('exists')->returns(true);
         $hash = hash('xxh128', 'foo');
@@ -587,7 +587,7 @@ class CacheFileStoreTest extends TestCase
 
     public function testStoreItemDirectoryProperlySetsPermissions(): void
     {
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $store = new FileStore($files, __DIR__, 0606);
         $hash = hash('xxh128', 'foo');
         $cache_parent_dir = substr($hash, 0, 2);

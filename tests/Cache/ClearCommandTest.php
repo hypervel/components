@@ -44,8 +44,8 @@ class ClearCommandTest extends TestCase
         $app = new Application;
         $app->instance('path.storage', __DIR__);
 
-        $this->cacheManager = Double::for(CacheManager::class);
-        $this->files = Double::for(Filesystem::class);
+        $this->cacheManager = Double::for(CacheManager::class)->strict();
+        $this->files = Double::for(Filesystem::class)->strict();
         $this->cacheRepository = new Repository(new ArrayStore);
         $this->command = new ClearCommand($this->cacheManager, $this->files);
         $this->command->setHypervel($app);
@@ -65,7 +65,7 @@ class ClearCommandTest extends TestCase
 
     public function testClearWillFailWhenFlushFails(): void
     {
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('flush')->returns(false);
         $this->cacheManager->expects('store')->with(null)->returns(new Repository($store));
         $this->files->expects('deleteDirectory');
@@ -182,7 +182,7 @@ class ClearCommandTest extends TestCase
 
     public function testClearLocksWillFailWhenNotSupportedByStore(): void
     {
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('flush')->never();
         $this->cacheManager->expects('store')->with(null)->returns(new Repository($store));
 
@@ -204,7 +204,7 @@ class ClearCommandTest extends TestCase
      */
     protected function lockFlushingStore(): Store&CanFlushLocks&DoubleInterface
     {
-        $store = Double::for(Store::class, CanFlushLocks::class);
+        $store = Double::for(Store::class, CanFlushLocks::class)->strict();
         $store->allows('supportsFlushingLocks')->returns(true);
 
         return $store;

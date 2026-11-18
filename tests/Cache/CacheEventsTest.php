@@ -60,7 +60,7 @@ class CacheEventsTest extends TestCase
                 parent::event($event);
             }
         };
-        $dispatcher = Double::for(DispatcherContract::class);
+        $dispatcher = Double::for(DispatcherContract::class)->strict();
         $dispatcher->allows('hasListeners')->returns(false);
         $dispatcher->expects('dispatch')->never();
         $repository->setEventDispatcher($dispatcher);
@@ -97,7 +97,7 @@ class CacheEventsTest extends TestCase
                 parent::event($event);
             }
         };
-        $dispatcher = Double::for(DispatcherContract::class);
+        $dispatcher = Double::for(DispatcherContract::class)->strict();
         $dispatcher->allows('hasListeners')->returns(false);
         $dispatcher->expects('dispatch')->never();
         $repository->setEventDispatcher($dispatcher);
@@ -190,7 +190,7 @@ class CacheEventsTest extends TestCase
     public function testGetDispatchesFailureEventWhenTheStoreThrows(): void
     {
         $exception = new RuntimeException('The cache read failed.');
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('get')->with('foo')->throws($exception);
         $events = [];
         $repository = new Repository($store, ['store' => 'array']);
@@ -215,7 +215,7 @@ class CacheEventsTest extends TestCase
     public function testManyDispatchesFailureEventWhenTheStoreThrows(): void
     {
         $exception = new RuntimeException('The cache batch read failed.');
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('many')->with(['foo', 'bar'])->throws($exception);
         $events = [];
         $repository = new Repository($store, ['store' => 'array']);
@@ -240,7 +240,7 @@ class CacheEventsTest extends TestCase
     public function testPutDispatchesFailureEventWhenTheStoreThrows(): void
     {
         $exception = new RuntimeException('The cache write failed.');
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('put')->with('foo', 'bar', 60)->throws($exception);
         $events = [];
         $repository = new Repository($store, ['store' => 'array']);
@@ -270,7 +270,7 @@ class CacheEventsTest extends TestCase
         array $eventClasses,
         array $keys,
     ): void {
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects($method)->with(...$arguments)->returns(false);
         $events = [];
         $repository = new Repository($store, ['store' => 'array']);
@@ -303,7 +303,7 @@ class CacheEventsTest extends TestCase
     {
         $exception = new RuntimeException('The cache batch write failed.');
         $values = ['foo' => 'bar', 'baz' => 'qux'];
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('putMany')->with($values, 60)->throws($exception);
         $events = [];
         $repository = new Repository($store, ['store' => 'array']);
@@ -328,7 +328,7 @@ class CacheEventsTest extends TestCase
     public function testForeverDispatchesFailureEventWhenTheStoreThrows(): void
     {
         $exception = new RuntimeException('The cache forever write failed.');
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('forever')->with('foo', 'bar')->throws($exception);
         $events = [];
         $repository = new Repository($store, ['store' => 'array']);
@@ -353,7 +353,7 @@ class CacheEventsTest extends TestCase
     public function testForgetDispatchesFailureEventWhenTheStoreThrows(): void
     {
         $exception = new RuntimeException('The cache forget failed.');
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('forget')->with('foo')->throws($exception);
         $events = [];
         $repository = new Repository($store, ['store' => 'array']);
@@ -387,7 +387,7 @@ class CacheEventsTest extends TestCase
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Cleanup failed.', previous: $cancellation);
         }
-        $store = Double::for(Store::class, CanFlushLocks::class, AuthoritativeRawReadable::class);
+        $store = Double::for(Store::class, CanFlushLocks::class, AuthoritativeRawReadable::class)->strict();
         $store->allows('supportsFlushingLocks')->returns(true);
         $store->expects($storeMethod)
             ->with(...$storeArguments)
@@ -582,7 +582,7 @@ class CacheEventsTest extends TestCase
     public function testForgetDoesTriggerFailedEventOnFailure(): void
     {
         $dispatcher = $this->getDispatcher();
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('forget')->returns(false);
         $repository = new Repository($store);
         $repository->setEventDispatcher($dispatcher);
@@ -629,7 +629,7 @@ class CacheEventsTest extends TestCase
     public function testFlushDispatchesFailureEventWithExactException(string $method): void
     {
         $exception = new RuntimeException('The cache flush failed.');
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('flush')->throws($exception);
         $events = [];
         $repository = new Repository($store, ['store' => 'array']);
@@ -661,7 +661,7 @@ class CacheEventsTest extends TestCase
     public function testFlushLocksDispatchesFailureEventWithExactException(): void
     {
         $exception = new RuntimeException('The cache lock flush failed.');
-        $store = Double::for(Store::class, CanFlushLocks::class);
+        $store = Double::for(Store::class, CanFlushLocks::class)->strict();
         $store->expects('supportsFlushingLocks')->returns(true);
         $store->expects('flushLocks')->throws($exception);
         $events = [];
@@ -689,7 +689,7 @@ class CacheEventsTest extends TestCase
         $dispatcher = $this->getDispatcher();
 
         // Create a store that fails to flush
-        $failingStore = Double::for(Store::class);
+        $failingStore = Double::for(Store::class)->strict();
         $failingStore->expects('flush')->returns(false);
 
         $repository = new Repository($failingStore, ['store' => 'array']);
@@ -707,7 +707,7 @@ class CacheEventsTest extends TestCase
         $dispatcher = $this->getDispatcher();
 
         // Create a store that fails to flush locks
-        $failingStore = Double::for(ArrayStore::class);
+        $failingStore = Double::for(ArrayStore::class)->strict();
         $failingStore->allows('supportsFlushingLocks')->returns(true);
         $failingStore->expects('flushLocks')->returns(false);
 

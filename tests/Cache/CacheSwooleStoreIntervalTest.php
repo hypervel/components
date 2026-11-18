@@ -594,7 +594,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
     public function testThrowingTimerResolverIsReportedAndCanRetry(): void
     {
         $container = new Container;
-        $handler = Double::for(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $container->instance(ExceptionHandler::class, $handler);
         Container::setInstance($container);
 
@@ -602,6 +602,10 @@ class CacheSwooleStoreIntervalTest extends TestCase
         $store = $this->createStore($state);
         $readerStore = $this->createStore($state);
         $exception = new RuntimeException('refresh failed');
+        $handler->expects('report')->with(Argument::satisfies(
+            static fn (Throwable $e): bool => $e::class === $exception::class
+                && $e->getMessage() === $exception->getMessage()
+        ));
         IntervalResolverState::$attempts = 0;
 
         $store->interval('foo', function () use ($exception) {
@@ -618,10 +622,6 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
         $store->refreshIntervalCaches();
 
-        $handler->received('report')->with(Argument::satisfies(
-            fn (Throwable $e): bool => $e::class === $exception::class
-                && $e->getMessage() === $exception->getMessage()
-        ))->times(1);
         $this->assertFalse($this->userRow($state, $readerStore, 'foo'));
         $this->assertNull($this->metadata($state, $metadataKey)['lastRefreshedAt']);
         $this->assertNull($this->metadata($state, $metadataKey)['refreshingAt']);
@@ -656,7 +656,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
     public function testCanceledSameInstanceFallbackClearsClaimAndCanRetry(): void
     {
         $container = new Container;
-        $handler = Double::for(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $container->instance(ExceptionHandler::class, $handler);
         Container::setInstance($container);
 
@@ -683,7 +683,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
     public function testTimerRefreshCleanupCancellationSupersedesOrdinaryFailureWithoutReporting(): void
     {
         $container = new Container;
-        $handler = Double::for(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $container->instance(ExceptionHandler::class, $handler);
         Container::setInstance($container);
 
@@ -710,7 +710,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
     public function testRefreshCancellationRemainsPrimaryWhenClaimCleanupFails(): void
     {
         $container = new Container;
-        $handler = Double::for(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $container->instance(ExceptionHandler::class, $handler);
         Container::setInstance($container);
 
@@ -836,7 +836,7 @@ PHP);
     public function testFailedPublicValueWriteClearsClaimAndReportsFailure(): void
     {
         $container = new Container;
-        $handler = Double::for(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $container->instance(ExceptionHandler::class, $handler);
         Container::setInstance($container);
 
@@ -844,13 +844,12 @@ PHP);
         $workerStore = $this->createStore($state);
         $refresherStore = new FailingIntervalValueSwooleStore($state);
 
+        $handler->expects('report')->with(Argument::satisfies(
+            static fn (RuntimeException $e): bool => $e->getMessage() === 'Unable to refresh Swoole interval cache [foo].'
+        ));
         $workerStore->interval('foo', fn () => 'bar', 5);
 
         $refresherStore->refreshIntervalCaches();
-
-        $handler->received('report')->with(Argument::satisfies(
-            fn (RuntimeException $e): bool => $e->getMessage() === 'Unable to refresh Swoole interval cache [foo].'
-        ))->times(1);
 
         $metadata = $this->metadata($state, $this->metadataKey($workerStore, 'foo'));
 

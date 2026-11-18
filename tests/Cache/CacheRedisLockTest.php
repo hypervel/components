@@ -74,7 +74,7 @@ class CacheRedisLockTest extends TestCase
     {
         [$lock, $redis] = $this->getLock();
 
-        $connection = Double::for(CacheLockRedisConnection::class);
+        $connection = Double::for(CacheLockRedisConnection::class)->strict();
         $connection->expects('pack')
             ->with([$lock->owner()])
             ->returns(['packed-owner']);
@@ -91,7 +91,7 @@ class CacheRedisLockTest extends TestCase
     public function testReleaseReturnsFalseWhenNotOwner(): void
     {
         [$lock, $redis] = $this->getLock(seconds: 60);
-        $connection = Double::for(CacheLockRedisConnection::class);
+        $connection = Double::for(CacheLockRedisConnection::class)->strict();
         $connection->expects('pack')
             ->with([$lock->owner()])
             ->returns(['packed-owner']);
@@ -117,7 +117,7 @@ class CacheRedisLockTest extends TestCase
 
     public function testOwnerReturnsTheOwnerIdentifier(): void
     {
-        $redis = Double::for(CacheLockRedisProxy::class);
+        $redis = Double::for(CacheLockRedisProxy::class)->strict();
 
         $lock = new RedisLock($redis, 'lock:foo', 60, 'my-owner-id');
 
@@ -134,7 +134,7 @@ class CacheRedisLockTest extends TestCase
     public function testGetCallsAcquireAndExecutesCallbackOnSuccess(): void
     {
         [$lock, $redis] = $this->getLock(seconds: 60);
-        $connection = Double::for(CacheLockRedisConnection::class);
+        $connection = Double::for(CacheLockRedisConnection::class)->strict();
         $connection->expects('pack')
             ->with([$lock->owner()])
             ->returns(['packed-owner']);
@@ -169,7 +169,7 @@ class CacheRedisLockTest extends TestCase
     public function testGetReleasesLockAfterCallbackEvenOnException(): void
     {
         [$lock, $redis] = $this->getLock(seconds: 60);
-        $connection = Double::for(CacheLockRedisConnection::class);
+        $connection = Double::for(CacheLockRedisConnection::class)->strict();
         $connection->expects('pack')
             ->with([$lock->owner()])
             ->returns(['packed-owner']);
@@ -195,7 +195,7 @@ class CacheRedisLockTest extends TestCase
     {
         [$lock, $redis] = $this->getLock();
 
-        $connection = Double::for(CacheLockRedisConnection::class);
+        $connection = Double::for(CacheLockRedisConnection::class)->strict();
         $connection->expects('pack')
             ->with([$lock->owner()])
             ->returns(['packed-owner']);
@@ -213,7 +213,7 @@ class CacheRedisLockTest extends TestCase
     {
         [$lock, $redis] = $this->getLock();
 
-        $connection = Double::for(CacheLockRedisConnection::class);
+        $connection = Double::for(CacheLockRedisConnection::class)->strict();
         $connection->expects('pack')
             ->with([$lock->owner()])
             ->returns(['packed-owner']);
@@ -231,7 +231,7 @@ class CacheRedisLockTest extends TestCase
     {
         [$lock, $redis] = $this->getLock();
 
-        $connection = Double::for(CacheLockRedisConnection::class);
+        $connection = Double::for(CacheLockRedisConnection::class)->strict();
         $connection->expects('pack')
             ->with([$lock->owner()])
             ->returns(['packed-owner']);
@@ -366,7 +366,7 @@ class CacheRedisLockTest extends TestCase
      */
     protected function getLock(int $seconds = 10): array
     {
-        $redis = Double::for(CacheLockRedisProxy::class);
+        $redis = Double::for(CacheLockRedisProxy::class)->strict();
 
         $lock = new RedisLock($redis, 'foo', $seconds);
 

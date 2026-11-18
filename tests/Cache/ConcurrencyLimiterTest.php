@@ -647,7 +647,7 @@ class ConcurrencyLimiterTest extends TestCase
         ?LimiterFailingReleaseLock &$lock = null,
         ?Throwable $releaseFailure = null,
     ): Store&LockProvider {
-        $store = Double::for(Store::class, LockProvider::class);
+        $store = Double::for(Store::class, LockProvider::class)->strict();
         $store->allows('lock')
             ->resolves(function (string $name, int $seconds, ?string $owner) use (&$lock, $releaseFailure): LockContract {
                 return $lock = new LimiterFailingReleaseLock($name, $seconds, $owner, $releaseFailure);

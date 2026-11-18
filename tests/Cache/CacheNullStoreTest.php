@@ -71,7 +71,7 @@ class CacheNullStoreTest extends TestCase
     public function testTaggedFlushReportsRejectedTagIdentifierWrites(): void
     {
         $captured = [];
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(true);
         $events->allows('dispatch')->resolves(function (object $event) use (&$captured): void {
             $captured[] = $event;

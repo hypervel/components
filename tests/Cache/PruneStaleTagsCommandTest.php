@@ -22,7 +22,7 @@ class PruneStaleTagsCommandTest extends TestCase
 
     public function testPruneCallsFlushStaleTagsOnStore(): void
     {
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->expects('flushStaleTags')
             ->returns([
                 'tags_scanned' => 10,
@@ -30,11 +30,11 @@ class PruneStaleTagsCommandTest extends TestCase
                 'empty_sets_deleted' => 2,
             ]);
 
-        $repository = Double::for(Repository::class);
+        $repository = Double::for(Repository::class)->strict();
         $repository->expects('getStore')
             ->returns($store);
 
-        $cacheManager = Double::for(CacheManager::class);
+        $cacheManager = Double::for(CacheManager::class)->strict();
         $cacheManager->expects('store')
             ->with(null)
             ->returns($repository);
@@ -50,7 +50,7 @@ class PruneStaleTagsCommandTest extends TestCase
 
     public function testPruneUsesSpecifiedStore(): void
     {
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->expects('flushStaleTags')
             ->returns([
                 'tags_scanned' => 0,
@@ -58,11 +58,11 @@ class PruneStaleTagsCommandTest extends TestCase
                 'empty_sets_deleted' => 0,
             ]);
 
-        $repository = Double::for(Repository::class);
+        $repository = Double::for(Repository::class)->strict();
         $repository->expects('getStore')
             ->returns($store);
 
-        $cacheManager = Double::for(CacheManager::class);
+        $cacheManager = Double::for(CacheManager::class)->strict();
         $cacheManager->expects('store')
             ->with('custom-redis')
             ->returns($repository);
@@ -78,13 +78,13 @@ class PruneStaleTagsCommandTest extends TestCase
 
     public function testPruneHandlesNonSupportedStoreGracefully(): void
     {
-        $nonRedisStore = Double::for(Store::class);
+        $nonRedisStore = Double::for(Store::class)->strict();
 
-        $repository = Double::for(Repository::class);
+        $repository = Double::for(Repository::class)->strict();
         $repository->expects('getStore')
             ->returns($nonRedisStore);
 
-        $cacheManager = Double::for(CacheManager::class);
+        $cacheManager = Double::for(CacheManager::class)->strict();
         $cacheManager->expects('store')
             ->with('file')
             ->returns($repository);

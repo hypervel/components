@@ -442,10 +442,10 @@ class CacheRepositoryEnumTest extends TestCase
 
     public function testTagsWithBackedEnumVariadicArgs(): void
     {
-        $store = Double::for(ArrayStore::class);
+        $store = Double::for(ArrayStore::class)->strict();
         $repo = new Repository($store);
 
-        $taggedCache = Double::for(TaggedCache::class);
+        $taggedCache = Double::for(TaggedCache::class)->strict();
         $taggedCache->allows('setDefaultCacheTime');
         $store->expects('tags')->with(['users', 'posts'])->returns($taggedCache);
 
@@ -454,10 +454,10 @@ class CacheRepositoryEnumTest extends TestCase
 
     public function testTagsWithUnitEnumVariadicArgs(): void
     {
-        $store = Double::for(ArrayStore::class);
+        $store = Double::for(ArrayStore::class)->strict();
         $repo = new Repository($store);
 
-        $taggedCache = Double::for(TaggedCache::class);
+        $taggedCache = Double::for(TaggedCache::class)->strict();
         $taggedCache->allows('setDefaultCacheTime');
         $store->expects('tags')->with(['Reports', 'Exports'])->returns($taggedCache);
 
@@ -510,10 +510,10 @@ class CacheRepositoryEnumTest extends TestCase
 
     protected function getRepository(): Repository
     {
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->allows('hasListeners')->returns(true);
         $dispatcher->allows('dispatch')->with(Argument::any())->returns(null);
-        $repository = new Repository(Double::for(Store::class));
+        $repository = new Repository(Double::for(Store::class)->strict());
 
         $repository->setEventDispatcher($dispatcher);
 

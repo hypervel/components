@@ -335,8 +335,8 @@ class CacheDatabaseStoreTest extends TestCase
     public function testLocksMayBeFlushedFromCache(): void
     {
         [$store, , , $resolver] = $this->getStore();
-        $lockConnection = Double::for(Connection::class);
-        $lockTable = Double::for(Builder::class);
+        $lockConnection = Double::for(Connection::class)->strict();
+        $lockTable = Double::for(Builder::class)->strict();
         $resolver->allows('connection')->with('locks')->returns($lockConnection);
         $lockConnection->expects('table')->with('cache_locks')->returns($lockTable);
         $lockTable->expects('delete')->returns(2);
@@ -443,7 +443,7 @@ class CacheDatabaseStoreTest extends TestCase
 
         $this->assertTrue($store->supportsFlushingLocks());
 
-        $store = new DatabaseStore(Double::for(ConnectionResolverInterface::class), 'default', 'cache', '', 'cache');
+        $store = new DatabaseStore(Double::for(ConnectionResolverInterface::class)->strict(), 'default', 'cache', '', 'cache');
 
         $this->assertFalse($store->supportsFlushingLocks());
     }
@@ -472,9 +472,9 @@ class CacheDatabaseStoreTest extends TestCase
         array|bool|null $serializableClasses = null,
         ?SerializableClassPolicy $serializableClassPolicy = null,
     ): array {
-        $resolver = Double::for(ConnectionResolverInterface::class);
-        $connection = Double::for(Connection::class);
-        $table = Double::for(Builder::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(Connection::class)->strict();
+        $table = Double::for(Builder::class)->strict();
 
         $resolver->allows('connection')->with('default')->returns($connection);
         $connection->allows('table')->with('table')->returns($table);
@@ -496,9 +496,9 @@ class CacheDatabaseStoreTest extends TestCase
      */
     protected function getPostgresStore(): array
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
-        $connection = Double::for(PostgresConnection::class);
-        $table = Double::for(Builder::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(PostgresConnection::class)->strict();
+        $table = Double::for(Builder::class)->strict();
 
         $resolver->allows('connection')->with('default')->returns($connection);
         $connection->allows('table')->with('table')->returns($table);
@@ -513,9 +513,9 @@ class CacheDatabaseStoreTest extends TestCase
      */
     protected function getSqliteStore(): array
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
-        $connection = Double::for(SQLiteConnection::class);
-        $table = Double::for(Builder::class);
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $connection = Double::for(SQLiteConnection::class)->strict();
+        $table = Double::for(Builder::class)->strict();
 
         $resolver->allows('connection')->with('default')->returns($connection);
         $connection->allows('table')->with('table')->returns($table);
@@ -530,8 +530,8 @@ class CacheDatabaseStoreTest extends TestCase
      */
     protected function getMocks(): array
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
-        $resolver->allows('connection')->with('default')->returns(Double::for(Connection::class));
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->allows('connection')->with('default')->returns(Double::for(Connection::class)->strict());
 
         return [$resolver, 'default', 'table', 'prefix'];
     }
@@ -541,8 +541,8 @@ class CacheDatabaseStoreTest extends TestCase
      */
     protected function getPostgresMocks(): array
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
-        $resolver->allows('connection')->with('default')->returns(Double::for(PostgresConnection::class));
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->allows('connection')->with('default')->returns(Double::for(PostgresConnection::class)->strict());
 
         return [$resolver, 'default', 'table', 'prefix'];
     }
@@ -552,8 +552,8 @@ class CacheDatabaseStoreTest extends TestCase
      */
     protected function getSqliteMocks(): array
     {
-        $resolver = Double::for(ConnectionResolverInterface::class);
-        $resolver->allows('connection')->with('default')->returns(Double::for(SQLiteConnection::class));
+        $resolver = Double::for(ConnectionResolverInterface::class)->strict();
+        $resolver->allows('connection')->with('default')->returns(Double::for(SQLiteConnection::class)->strict());
 
         return [$resolver, 'default', 'table', 'prefix'];
     }
@@ -568,7 +568,7 @@ class CacheDatabaseStoreTest extends TestCase
      */
     protected function mockTable(DatabaseStore $store): array
     {
-        $table = Double::for(Builder::class);
+        $table = Double::for(Builder::class)->strict();
         $connection = $store->getConnection();
         $connection->allows('table')->with('table')->returns($table);
 

@@ -21,8 +21,8 @@ class CacheStackStoreLocksTest extends TestCase
 
     public function testLockDelegatesToBottomLayer(): void
     {
-        $bottom = Double::for(Store::class, LockProvider::class);
-        $lock = Double::for(Lock::class);
+        $bottom = Double::for(Store::class, LockProvider::class)->strict();
+        $lock = Double::for(Lock::class)->strict();
 
         $bottom->expects('lock')->with('name', 30, 'owner')->returns($lock);
 
@@ -33,8 +33,8 @@ class CacheStackStoreLocksTest extends TestCase
 
     public function testRestoreLockDelegatesToBottomLayer(): void
     {
-        $bottom = Double::for(Store::class, LockProvider::class);
-        $lock = Double::for(Lock::class);
+        $bottom = Double::for(Store::class, LockProvider::class)->strict();
+        $lock = Double::for(Lock::class)->strict();
 
         $bottom->expects('restoreLock')->with('name', 'owner')->returns($lock);
 
@@ -55,7 +55,7 @@ class CacheStackStoreLocksTest extends TestCase
 
     public function testSupportsFlushingLocksReflectsBottomLayerProbe(): void
     {
-        $bottom = Double::for(Store::class, CanFlushLocks::class);
+        $bottom = Double::for(Store::class, CanFlushLocks::class)->strict();
         $bottom->expects('supportsFlushingLocks')->returns(true);
 
         $this->assertTrue((new StackStore([$this->plainStore(), $bottom]))->supportsFlushingLocks());
@@ -63,7 +63,7 @@ class CacheStackStoreLocksTest extends TestCase
 
     public function testSupportsFlushingLocksReturnsFalseWhenBottomLayerProbeIsFalse(): void
     {
-        $bottom = Double::for(Store::class, CanFlushLocks::class);
+        $bottom = Double::for(Store::class, CanFlushLocks::class)->strict();
         $bottom->expects('supportsFlushingLocks')->returns(false);
 
         $this->assertFalse((new StackStore([$this->plainStore(), $bottom]))->supportsFlushingLocks());
@@ -76,7 +76,7 @@ class CacheStackStoreLocksTest extends TestCase
 
     public function testFlushLocksDelegatesToBottomLayer(): void
     {
-        $bottom = Double::for(Store::class, CanFlushLocks::class);
+        $bottom = Double::for(Store::class, CanFlushLocks::class)->strict();
         $bottom->expects('supportsFlushingLocks')->returns(true);
         $bottom->expects('flushLocks')->returns(true);
 
@@ -85,7 +85,7 @@ class CacheStackStoreLocksTest extends TestCase
 
     public function testFlushLocksThrowsWhenBottomLayerCannotFlushLocks(): void
     {
-        $bottom = Double::for(Store::class, CanFlushLocks::class);
+        $bottom = Double::for(Store::class, CanFlushLocks::class)->strict();
         $bottom->expects('supportsFlushingLocks')->returns(false);
         $bottom->expects('flushLocks')->never();
 
@@ -99,7 +99,7 @@ class CacheStackStoreLocksTest extends TestCase
 
     public function testHasSeparateLockStoreDelegatesToBottomLayer(): void
     {
-        $bottom = Double::for(Store::class, CanFlushLocks::class);
+        $bottom = Double::for(Store::class, CanFlushLocks::class)->strict();
         $bottom->expects('hasSeparateLockStore')->returns(true);
 
         $this->assertTrue((new StackStore([$this->plainStore(), $bottom]))->hasSeparateLockStore());
@@ -110,6 +110,6 @@ class CacheStackStoreLocksTest extends TestCase
      */
     private function plainStore(): Store&DoubleInterface
     {
-        return Double::for(Store::class);
+        return Double::for(Store::class)->strict();
     }
 }

@@ -157,9 +157,9 @@ class CacheStackStoreTest extends TestCase
         $bottom->expects('get')->with('key')->returns(['value' => 'fresh']);
         $top->expects('get')->never();
 
-        $cache = Double::for(CacheManager::class);
+        $cache = Double::for(CacheManager::class)->strict();
         $cache->expects('store')->with('bottom')->returns(new Repository($bottom));
-        $failover = new FailoverStore($cache, Double::for(Dispatcher::class), ['bottom']);
+        $failover = new FailoverStore($cache, Double::for(Dispatcher::class)->strict(), ['bottom']);
 
         $this->assertSame('fresh', (new StackStore([$top, $failover]))->getAuthoritativeRaw('key'));
     }

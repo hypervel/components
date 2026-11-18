@@ -74,7 +74,7 @@ class CacheRepositoryTest extends TestCase
 
     public function testAuthoritativeRawReadUsesItemKeyAndPreservesSentinelEvents(): void
     {
-        $store = Double::for(Store::class, AuthoritativeRawReadable::class);
+        $store = Double::for(Store::class, AuthoritativeRawReadable::class)->strict();
         $store->expects('getAuthoritativeRaw')->with('prefix:foo')->returns(NullSentinel::VALUE);
 
         $repository = new class($store) extends Repository {
@@ -85,7 +85,7 @@ class CacheRepositoryTest extends TestCase
         };
 
         $events = [];
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->allows('hasListeners')->returns(true);
         $dispatcher->allows('dispatch')->resolves(function ($event) use (&$events): void {
             $events[] = $event;
@@ -103,12 +103,12 @@ class CacheRepositoryTest extends TestCase
     public function testAuthoritativeRawReadDispatchesRetrievalFailure(): void
     {
         $failure = new RuntimeException('read failed');
-        $store = Double::for(Store::class, AuthoritativeRawReadable::class);
+        $store = Double::for(Store::class, AuthoritativeRawReadable::class)->strict();
         $store->expects('getAuthoritativeRaw')->with('foo')->throws($failure);
 
         $repository = new Repository($store);
         $events = [];
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->allows('hasListeners')->returns(true);
         $dispatcher->allows('dispatch')->resolves(function ($event) use (&$events): void {
             $events[] = $event;
@@ -131,7 +131,7 @@ class CacheRepositoryTest extends TestCase
     public function testAuthoritativeRawReadPreservesCancellation(): void
     {
         $cancellation = new CanceledException('read canceled');
-        $store = Double::for(Store::class, AuthoritativeRawReadable::class);
+        $store = Double::for(Store::class, AuthoritativeRawReadable::class)->strict();
         $store->expects('getAuthoritativeRaw')->with('foo')->throws($cancellation);
 
         $repository = new Repository($store);
@@ -339,7 +339,7 @@ class CacheRepositoryTest extends TestCase
             $handled[] = [$key, $class];
         });
 
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('get')->with('prefix:foo')->returns($incomplete);
 
         $repository = new class($store) extends Repository {
@@ -417,7 +417,7 @@ class CacheRepositoryTest extends TestCase
         ]);
 
         $captured = [];
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(true);
         $events->allows('dispatch')->resolves(function ($event) use (&$captured): void {
             $captured[] = $event;
@@ -605,8 +605,8 @@ class CacheRepositoryTest extends TestCase
     {
         $created = CarbonImmutable::now()->subSeconds(11)->getTimestamp();
         $markerKey = Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo';
-        $store = Double::for(Store::class, LockProvider::class, AuthoritativeRawReadable::class);
-        $lock = Double::for(Lock::class);
+        $store = Double::for(Store::class, LockProvider::class, AuthoritativeRawReadable::class)->strict();
+        $lock = Double::for(Lock::class)->strict();
 
         $store->expects('many')->with(['foo', $markerKey])->returns([
             'foo' => 'stale',
@@ -811,7 +811,7 @@ class CacheRepositoryTest extends TestCase
     {
         $repo = $this->getRepository();
         $repo->getStore()->expects('putMany')->never();
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('hasListeners')->never();
         $events->expects('dispatch')->never();
         $repo->setEventDispatcher($events);
@@ -871,7 +871,7 @@ class CacheRepositoryTest extends TestCase
 
     public function testCacheAddCallsRedisStoreAdd(): void
     {
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->expects('add')->with('k', 'v', 60)->returns(true);
         $repository = new Repository($store);
         $this->assertTrue($repository->add('k', 'v', 60));
@@ -879,12 +879,12 @@ class CacheRepositoryTest extends TestCase
 
     public function testAddMethodCanAcceptDateIntervals(): void
     {
-        $storeWithAdd = Double::for(RedisStore::class);
+        $storeWithAdd = Double::for(RedisStore::class)->strict();
         $storeWithAdd->expects('add')->with('k', 'v', 61)->returns(true);
         $repository = new Repository($storeWithAdd);
         $this->assertTrue($repository->add('k', 'v', DateInterval::createFromDateString('61 seconds')));
 
-        $storeWithoutAdd = Double::for(ArrayStore::class);
+        $storeWithoutAdd = Double::for(ArrayStore::class)->strict();
         $this->assertFalse(method_exists(ArrayStore::class, 'add'), 'This store should not have add method on it.');
         $storeWithoutAdd->expects('get')->with('k')->returns(null);
         $storeWithoutAdd->expects('put')->with('k', 'v', 60)->returns(true);
@@ -894,12 +894,12 @@ class CacheRepositoryTest extends TestCase
 
     public function testAddMethodCanAcceptDateTimeInterface(): void
     {
-        $withAddStore = Double::for(RedisStore::class);
+        $withAddStore = Double::for(RedisStore::class)->strict();
         $withAddStore->expects('add')->with('k', 'v', 61)->returns(true);
         $repository = new Repository($withAddStore);
         $this->assertTrue($repository->add('k', 'v', CarbonImmutable::now()->addSeconds(61)));
 
-        $noAddStore = Double::for(ArrayStore::class);
+        $noAddStore = Double::for(ArrayStore::class)->strict();
         $this->assertFalse(method_exists(ArrayStore::class, 'add'), 'This store should not have add method on it.');
         $noAddStore->expects('get')->with('k')->returns(null);
         $noAddStore->expects('put')->with('k', 'v', 62)->returns(true);
@@ -940,7 +940,7 @@ class CacheRepositoryTest extends TestCase
 
     public function testCounterFailuresAreReturnedWithoutCoercion(): void
     {
-        $store = Double::for(Store::class);
+        $store = Double::for(Store::class)->strict();
         $store->expects('increment')->with('increment', 2)->returns(false);
         $store->expects('decrement')->with('decrement', 3)->returns(false);
         $repository = new Repository($store);
@@ -1056,10 +1056,10 @@ class CacheRepositoryTest extends TestCase
 
     public function testAllTagsArePassedToTaggableStore(): void
     {
-        $store = Double::for(ArrayStore::class);
+        $store = Double::for(ArrayStore::class)->strict();
         $repo = new Repository($store);
 
-        $taggedCache = Double::for(TaggedCache::class);
+        $taggedCache = Double::for(TaggedCache::class)->strict();
         $taggedCache->expects('setDefaultCacheTime')->returns($taggedCache);
         $store->expects('tags')->with(['foo', 'bar', 'baz'])->returns($taggedCache);
         $repo->tags('foo', 'bar', 'baz');
@@ -1079,7 +1079,7 @@ class CacheRepositoryTest extends TestCase
         $this->expectException(NotSupportedException::class);
         $this->expectExceptionMessageIsOrContains('Detailed tag support failure.');
 
-        $store = Double::for(TaggableStore::class);
+        $store = Double::for(TaggableStore::class)->strict();
         $store->expects('supportsTags')->never();
         $store->expects('tags')->with(['foo'])->throws(
             new NotSupportedException('Detailed tag support failure.')
@@ -1150,7 +1150,7 @@ class CacheRepositoryTest extends TestCase
 
     public function testFlushLocksDelegatesToStore(): void
     {
-        $flushable = Double::for(RedisStore::class);
+        $flushable = Double::for(RedisStore::class)->strict();
         $flushable->expects('supportsFlushingLocks')->returns(true);
         $flushable->expects('flushLocks')->returns(true);
 
@@ -1169,7 +1169,7 @@ class CacheRepositoryTest extends TestCase
 
     public function testTaggableRepositoriesCanReportUnsupportedTags(): void
     {
-        $taggable = Double::for(TaggableStore::class);
+        $taggable = Double::for(TaggableStore::class)->strict();
         $taggable->expects('supportsTags')->returns(false);
         $taggableRepo = new Repository($taggable);
 
@@ -1186,7 +1186,7 @@ class CacheRepositoryTest extends TestCase
 
     public function testFlushableLockRepositorySupportsFlushingLocks(): void
     {
-        $flushable = Double::for(RedisStore::class);
+        $flushable = Double::for(RedisStore::class)->strict();
         $flushable->expects('supportsFlushingLocks')->returns(true);
         $flushableRepo = new Repository($flushable);
 
@@ -1195,7 +1195,7 @@ class CacheRepositoryTest extends TestCase
 
     public function testFlushableLockRepositoryCanReportUnsupportedFlushingLocks(): void
     {
-        $flushable = Double::for(RedisStore::class);
+        $flushable = Double::for(RedisStore::class)->strict();
         $flushable->expects('supportsFlushingLocks')->returns(false);
         $flushableRepo = new Repository($flushable);
 
@@ -1204,7 +1204,7 @@ class CacheRepositoryTest extends TestCase
 
     public function testNonFlushableLockRepositoryDoesNotSupportFlushingLocks(): void
     {
-        $nonFlushable = Double::for(Store::class);
+        $nonFlushable = Double::for(Store::class)->strict();
         $nonFlushableRepo = new Repository($nonFlushable);
 
         $this->assertFalse($nonFlushableRepo->supportsFlushingLocks());
@@ -1214,7 +1214,7 @@ class CacheRepositoryTest extends TestCase
     {
         $this->expectException(BadMethodCallException::class);
 
-        $nonFlushable = Double::for(Store::class);
+        $nonFlushable = Double::for(Store::class)->strict();
         $nonFlushableRepo = new Repository($nonFlushable);
 
         $nonFlushableRepo->flushLocks();
@@ -1284,9 +1284,9 @@ class CacheRepositoryTest extends TestCase
 
     public function testAtomicPassesLockAndWaitSecondsToLock(): void
     {
-        $store = Double::for(Store::class, LockProvider::class);
+        $store = Double::for(Store::class, LockProvider::class)->strict();
         $repo = new Repository($store);
-        $lock = Double::for(Lock::class);
+        $lock = Double::for(Lock::class)->strict();
 
         $store->expects('lock')->with('foo', 30, null)->returns($lock);
         $lock->expects('block')->with(15, Argument::type('callable'))->resolves(function ($seconds, $callback) {
@@ -1302,9 +1302,9 @@ class CacheRepositoryTest extends TestCase
 
     public function testAtomicPassesOwnerToLock(): void
     {
-        $store = Double::for(Store::class, LockProvider::class);
+        $store = Double::for(Store::class, LockProvider::class)->strict();
         $repo = new Repository($store);
-        $lock = Double::for(Lock::class);
+        $lock = Double::for(Lock::class)->strict();
 
         $store->expects('lock')->with('foo', 10, 'my-owner')->returns($lock);
         $lock->expects('block')->with(10, Argument::type('callable'))->resolves(function ($seconds, $callback) {
@@ -1379,7 +1379,7 @@ class CacheRepositoryTest extends TestCase
         $repo->put('1', 'cached', 60);
 
         $captured = [];
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->allows('hasListeners')->resolves(
             static fn (string $event): bool => in_array($event, [CacheHit::class, CacheMissed::class], true)
         );
@@ -1643,12 +1643,12 @@ class CacheRepositoryTest extends TestCase
 
     public function testRememberFiresEventsWithRedisStore(): void
     {
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->expects('withPinnedConnection')->never();
         $store->expects('get')->with('foo')->returns(null);
         $store->expects('put')->with('foo', 'bar', 10)->returns(true);
 
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(true);
         $events->expects('dispatch')->times(4); // RetrievingKey, CacheMissed, WritingKey, KeyWritten
 
@@ -1662,12 +1662,12 @@ class CacheRepositoryTest extends TestCase
 
     public function testRememberForeverFiresEventsWithRedisStore(): void
     {
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->expects('withPinnedConnection')->never();
         $store->expects('get')->with('foo')->returns(null);
         $store->expects('forever')->with('foo', 'bar')->returns(true);
 
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(true);
         $events->expects('dispatch')->times(4); // RetrievingKey, CacheMissed, WritingKey, KeyWritten
 
@@ -1681,11 +1681,11 @@ class CacheRepositoryTest extends TestCase
 
     public function testRememberHitFiresEventsWithRedisStore(): void
     {
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->expects('withPinnedConnection')->never();
         $store->expects('get')->with('foo')->returns('cached');
 
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(true);
         $events->expects('dispatch')->times(2); // RetrievingKey, CacheHit
 
@@ -1699,12 +1699,12 @@ class CacheRepositoryTest extends TestCase
 
     public function testRememberSkipsDispatchWhenCacheEventsHaveNoListeners(): void
     {
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->expects('withPinnedConnection')->never();
         $store->expects('get')->with('foo')->returns(null);
         $store->expects('put')->with('foo', 'bar', 10);
 
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('hasListeners')->times(4)->returns(false);
         $events->expects('dispatch')->never();
 
@@ -1718,13 +1718,13 @@ class CacheRepositoryTest extends TestCase
 
     public function testRememberNullableFiresEventsWithNullPayloadOnCacheMiss(): void
     {
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->expects('withPinnedConnection')->never();
         $store->expects('get')->with('foo')->returns(null);
         $store->expects('put')->with('foo', NullSentinel::VALUE, 10)->returns(true);
 
         $captured = [];
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(true);
         $events->allows('dispatch')
             ->resolves(function ($event) use (&$captured) {
@@ -1753,13 +1753,13 @@ class CacheRepositoryTest extends TestCase
 
     public function testRememberForeverNullableFiresEventsWithNullPayloadOnCacheMiss(): void
     {
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->expects('withPinnedConnection')->never();
         $store->expects('get')->with('foo')->returns(null);
         $store->expects('forever')->with('foo', NullSentinel::VALUE)->returns(true);
 
         $captured = [];
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(true);
         $events->allows('dispatch')
             ->resolves(function ($event) use (&$captured) {
@@ -1798,7 +1798,7 @@ class CacheRepositoryTest extends TestCase
             ->returns(true);
 
         $captured = [];
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(true);
         $events->allows('dispatch')
             ->resolves(function ($event) use (&$captured) {
@@ -1832,12 +1832,12 @@ class CacheRepositoryTest extends TestCase
 
     public function testRememberNullableFiresHitEventWithNullPayloadOnSentinelRetrieval(): void
     {
-        $store = Double::for(RedisStore::class);
+        $store = Double::for(RedisStore::class)->strict();
         $store->expects('withPinnedConnection')->never();
         $store->expects('get')->with('foo')->returns(NullSentinel::VALUE);
 
         $captured = [];
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(true);
         $events->allows('dispatch')
             ->resolves(function ($event) use (&$captured) {
@@ -1869,7 +1869,7 @@ class CacheRepositoryTest extends TestCase
         // Capture only the many() read-path events by attaching the dispatcher
         // after the write.
         $captured = [];
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(true);
         $events->allows('dispatch')
             ->resolves(function ($event) use (&$captured) {
@@ -1890,11 +1890,11 @@ class CacheRepositoryTest extends TestCase
 
     public function testRememberWorksWithoutPinnableStore(): void
     {
-        $store = Double::for(ArrayStore::class);
+        $store = Double::for(ArrayStore::class)->strict();
         $store->expects('get')->with('foo')->returns(null);
         $store->expects('put')->with('foo', 'bar', 10);
 
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(true);
         $events->allows('dispatch')->with(Argument::any())->returns(null);
 
@@ -1913,7 +1913,7 @@ class CacheRepositoryTest extends TestCase
     {
         // A plain dispatcher reports no listeners, so the repository would skip building events.
         $dispatcher = new EventFake(new EventDispatcher(new Container));
-        $repository = new Repository(Double::for(Store::class));
+        $repository = new Repository(Double::for(Store::class)->strict());
 
         $repository->setEventDispatcher($dispatcher);
 
