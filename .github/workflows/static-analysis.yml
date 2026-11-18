@@ -22,6 +22,8 @@ jobs:
             config: phpstan.neon.dist
           - name: Types
             config: phpstan.types.neon.dist
+          - name: Test Rules
+            config: phpstan.tests.neon.dist
 
     name: ${{ matrix.name }}
 
