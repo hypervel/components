@@ -225,7 +225,7 @@ class CollectionEngineTest extends ScoutTestCase
         $engine->delete($model->newCollection([$model]));
         $engine->flush($model);
 
-        $this->assertTrue(true);
+        $this->assertTrue(SearchableModel::query()->whereKey($model->getKey())->exists());
     }
 
     public function testCreateAndDeleteIndexAreNoOps(): void

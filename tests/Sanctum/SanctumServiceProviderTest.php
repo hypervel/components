@@ -107,7 +107,7 @@ class SanctumServiceProviderTest extends TestCase
         $manager->expects('store')->with(null)->returns($repository);
         $validator = Double::for(ModelCacheStoreValidator::class)->strict();
         $validator->expects('validate')
-            ->with($repository, 'Sanctum token cache');
+            ->with(Argument::same($repository), 'Sanctum token cache');
         $bootedCallback = null;
         $application = $this->consoleApplication($manager, $config);
         $application->expects('make')
@@ -191,7 +191,7 @@ class SanctumServiceProviderTest extends TestCase
         $workerManager->expects('store')->with('worker')->returns($workerRepository);
         $validator = Double::for(ModelCacheStoreValidator::class)->strict();
         $validator->expects('validate')
-            ->with($workerRepository, 'Sanctum token cache');
+            ->with(Argument::same($workerRepository), 'Sanctum token cache');
         $listener = null;
         $events = Double::for(Dispatcher::class)->strict();
         $events->expects('listen')

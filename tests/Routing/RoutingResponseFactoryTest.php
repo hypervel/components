@@ -177,7 +177,7 @@ class RoutingResponseFactoryTest extends TestCase
     {
         $failure = new CanceledException('response canceled');
         $cleanup = new RuntimeException('cleanup failed');
-        $handler = Double::for(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $handler->expects('report')->never();
         Container::getInstance()->instance(ExceptionHandler::class, $handler);
         $operation = static function () use ($failure, $cleanup, $cleanupThrows): never {
@@ -228,8 +228,8 @@ class RoutingResponseFactoryTest extends TestCase
     private function factory(): ResponseFactory
     {
         return new ResponseFactory(
-            Double::for(ViewFactory::class),
-            Double::for(Redirector::class),
+            Double::for(ViewFactory::class)->strict(),
+            Double::for(Redirector::class)->strict(),
         );
     }
 }

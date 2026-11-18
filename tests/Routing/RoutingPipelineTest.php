@@ -27,7 +27,7 @@ class RoutingPipelineTest extends TestCase
         $original = new RuntimeException('original');
         $failure = new LogicException('reporting failed');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($original)->throws($failure);
+        $handler->expects('report')->with(Argument::same($original))->throws($failure);
         $handler->expects('render')->never();
 
         $caught = $this->handleAndCatch($handler, $original);
@@ -41,8 +41,8 @@ class RoutingPipelineTest extends TestCase
         $original = new RuntimeException('original');
         $failure = new LogicException('rendering failed');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($original);
-        $handler->expects('render')->with(Argument::type(Request::class), $original)->throws($failure);
+        $handler->expects('report')->with(Argument::same($original));
+        $handler->expects('render')->with(Argument::type(Request::class), Argument::same($original))->throws($failure);
 
         $caught = $this->handleAndCatch($handler, $original);
 
@@ -56,7 +56,7 @@ class RoutingPipelineTest extends TestCase
         $existing = new DomainException('existing');
         $failure = new LogicException('reporting failed', previous: $existing);
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($original)->throws($failure);
+        $handler->expects('report')->with(Argument::same($original))->throws($failure);
 
         $caught = $this->handleAndCatch($handler, $original);
 
@@ -69,7 +69,7 @@ class RoutingPipelineTest extends TestCase
     {
         $original = new RuntimeException('original');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($original)->throws($original);
+        $handler->expects('report')->with(Argument::same($original))->throws($original);
 
         $caught = $this->handleAndCatch($handler, $original);
 
@@ -82,8 +82,8 @@ class RoutingPipelineTest extends TestCase
         $original = new RuntimeException('original');
         $response = new Response('handled', 500);
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($original);
-        $handler->expects('render')->with(Argument::type(Request::class), $original)->returns($response);
+        $handler->expects('report')->with(Argument::same($original));
+        $handler->expects('render')->with(Argument::type(Request::class), Argument::same($original))->returns($response);
 
         $this->assertSame($response, $this->pipeline($handler)->handleThrowable(new Request, $original));
     }
