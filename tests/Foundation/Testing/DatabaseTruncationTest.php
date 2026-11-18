@@ -273,14 +273,14 @@ class DatabaseTruncationTest extends TestCase
 
     public function testCachesAndRestoresConfiguredInMemoryConnections(): void
     {
-        $defaultPdo = Double::for(PDO::class);
-        $namedPdo = Double::for(PDO::class);
-        $sourceDefault = Double::for(PdoConnection::class);
-        $sourceNamed = Double::for(PdoConnection::class);
+        $defaultPdo = Double::for(PDO::class)->strict();
+        $namedPdo = Double::for(PDO::class)->strict();
+        $sourceDefault = Double::for(PdoConnection::class)->strict();
+        $sourceNamed = Double::for(PdoConnection::class)->strict();
         $sourceDefault->expects('getPdo')->returns($defaultPdo);
         $sourceNamed->expects('getPdo')->returns($namedPdo);
 
-        $sourceDatabase = Double::for(DatabaseManager::class);
+        $sourceDatabase = Double::for(DatabaseManager::class)->strict();
         $sourceDatabase->expects('connection')->with(null)->returns($sourceDefault);
         $sourceDatabase->expects('connection')->with('named')->returns($sourceNamed);
         $sourceDatabase->expects('connection')->never()->with('file');
@@ -300,15 +300,15 @@ class DatabaseTruncationTest extends TestCase
 
         $this->cacheInMemoryDatabases();
 
-        $dispatcher = Double::for(DispatcherContract::class);
-        $restoredDefault = Double::for(PdoConnection::class);
-        $restoredNamed = Double::for(PdoConnection::class);
+        $dispatcher = Double::for(DispatcherContract::class)->strict();
+        $restoredDefault = Double::for(PdoConnection::class)->strict();
+        $restoredNamed = Double::for(PdoConnection::class)->strict();
         $restoredDefault->expects('setPdo')->with(Argument::same($defaultPdo))->returns($restoredDefault);
         $restoredDefault->expects('setEventDispatcher')->with(Argument::same($dispatcher))->returns($restoredDefault);
         $restoredNamed->expects('setPdo')->with(Argument::same($namedPdo))->returns($restoredNamed);
         $restoredNamed->expects('setEventDispatcher')->with(Argument::same($dispatcher))->returns($restoredNamed);
 
-        $restoredDatabase = Double::for(DatabaseManager::class);
+        $restoredDatabase = Double::for(DatabaseManager::class)->strict();
         $restoredDatabase->expects('connection')->with(null)->returns($restoredDefault);
         $restoredDatabase->expects('connection')->with('named')->returns($restoredNamed);
         $restoredDatabase->expects('connection')->never()->with('file');
@@ -342,8 +342,8 @@ class DatabaseTruncationTest extends TestCase
             ],
         ]));
 
-        $database = Double::for(DatabaseManager::class);
-        $database->expects('connection')->with(null)->returns(Double::for(Connection::class));
+        $database = Double::for(DatabaseManager::class)->strict();
+        $database->expects('connection')->with(null)->returns(Double::for(Connection::class)->strict());
         $this->app->instance('db', $database);
 
         $this->expectException(LogicException::class);
@@ -362,10 +362,10 @@ class DatabaseTruncationTest extends TestCase
                 ],
             ],
         ]));
-        RefreshDatabaseState::$inMemoryConnections = ['default' => Double::for(PDO::class)];
+        RefreshDatabaseState::$inMemoryConnections = ['default' => Double::for(PDO::class)->strict()];
 
-        $database = Double::for(DatabaseManager::class);
-        $database->expects('connection')->with(null)->returns(Double::for(Connection::class));
+        $database = Double::for(DatabaseManager::class)->strict();
+        $database->expects('connection')->with(null)->returns(Double::for(Connection::class)->strict());
         $this->app->instance('db', $database);
 
         $this->expectException(LogicException::class);
@@ -456,12 +456,12 @@ class DatabaseTruncationTest extends TestCase
 
     public function testMigratesWhenRetainedStateHasNoSelectedInMemoryPdo(): void
     {
-        $pdo = Double::for(PDO::class);
-        $connection = Double::for(PdoConnection::class);
+        $pdo = Double::for(PDO::class)->strict();
+        $connection = Double::for(PdoConnection::class)->strict();
         $connection->expects('getPdo')->returns($pdo);
-        $database = Double::for(DatabaseManager::class);
+        $database = Double::for(DatabaseManager::class)->strict();
         $database->expects('connection')->with(null)->returns($connection);
-        $kernel = Double::for(KernelContract::class);
+        $kernel = Double::for(KernelContract::class)->strict();
         $kernel->expects('call')->with('migrate:fresh', [
             '--drop-views' => false,
             '--drop-types' => false,
@@ -488,11 +488,11 @@ class DatabaseTruncationTest extends TestCase
 
     public function testAdoptsAMissingInMemoryPdoBeforeTheTruncationHook(): void
     {
-        $pdo = Double::for(PDO::class);
-        $connection = Double::for(PdoConnection::class);
+        $pdo = Double::for(PDO::class)->strict();
+        $connection = Double::for(PdoConnection::class)->strict();
         $connection->expects('getPdo')->returns($pdo);
 
-        $database = Double::for(DatabaseManager::class);
+        $database = Double::for(DatabaseManager::class)->strict();
         $database->expects('connection')->with(null)->returns($connection);
 
         $app = new Container;
@@ -586,7 +586,7 @@ class DatabaseTruncationTest extends TestCase
             }
         );
 
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getTablePrefix')->returns($prefix);
         $dispatcher = new Dispatcher;
         $connection->expects('getEventDispatcher')->returns($dispatcher);

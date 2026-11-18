@@ -70,7 +70,7 @@ class LazilyRefreshDatabaseTest extends TestCase
 
     public function testDatabaseIsNotRefreshedWithoutInteraction(): void
     {
-        $kernel = Double::for(KernelContract::class);
+        $kernel = Double::for(KernelContract::class)->strict();
         $this->app->instance(KernelContract::class, $kernel);
         $kernel->expects('call')->never();
 

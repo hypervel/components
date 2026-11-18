@@ -53,7 +53,7 @@ class InteractsWithTestCaseLifecycleTest extends TestCase
         $parallelTesting = $this->app->make(ParallelTestingService::class);
 
         try {
-            $pooledConnection = Double::for(PoolConnection::class);
+            $pooledConnection = Double::for(PoolConnection::class)->strict();
             $pooledConnection->expects('discard')->resolves(
                 function () use (&$steps, $databaseException): never {
                     $steps[] = 'database';
@@ -65,7 +65,7 @@ class InteractsWithTestCaseLifecycleTest extends TestCase
             (new ReflectionProperty(DatabaseConnectionResolver::class, 'pooledConnections'))
                 ->setValue(null, ['default' => $pooledConnection]);
 
-            $poolManager = Double::for(PoolManager::class);
+            $poolManager = Double::for(PoolManager::class)->strict();
             $poolManager->expects('purgeAll')->resolves(
                 function () use (&$steps, $poolException): never {
                     $steps[] = 'pool';
@@ -74,7 +74,7 @@ class InteractsWithTestCaseLifecycleTest extends TestCase
                 }
             );
 
-            $app = Double::for(ApplicationContract::class, override: true);
+            $app = Double::for(ApplicationContract::class, override: true)->strict();
             $app->expects('resolved')->with(PoolManager::class)->returns(true);
             $app->expects('make')->with(PoolManager::class)->returns($poolManager);
             $app->expects('flush')->resolves(
@@ -85,7 +85,7 @@ class InteractsWithTestCaseLifecycleTest extends TestCase
                 }
             );
 
-            $parallelTestingMock = Double::for(ParallelTestingService::class);
+            $parallelTestingMock = Double::for(ParallelTestingService::class)->strict();
             $parallelTestingMock->expects('callTearDownTestCaseCallbacks')->resolves(
                 function () use (&$steps, $parallelException): never {
                     $steps[] = 'parallel';

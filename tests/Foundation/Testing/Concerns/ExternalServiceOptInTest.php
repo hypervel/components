@@ -181,7 +181,7 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testMeilisearchWaitAcceptsSuccessfulTasks(): void
     {
-        $client = Double::for(MeilisearchClient::class);
+        $client = Double::for(MeilisearchClient::class)->strict();
         $client->expects('getTasks')
             ->returns(new TasksResults([
                 'results' => [['uid' => 17, 'indexUid' => 'test_users', 'status' => 'enqueued']],
@@ -198,7 +198,7 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testMeilisearchWaitRejectsFailedTasks(): void
     {
-        $client = Double::for(MeilisearchClient::class);
+        $client = Double::for(MeilisearchClient::class)->strict();
         $client->expects('getTasks')
             ->returns(new TasksResults([
                 'results' => [['uid' => 17, 'indexUid' => 'test_users', 'status' => 'processing']],
@@ -224,7 +224,7 @@ class ExternalServiceOptInTest extends TestCase
     public function testMeilisearchWaitPropagatesTimeouts(): void
     {
         $timeout = new TimeOutException;
-        $client = Double::for(MeilisearchClient::class);
+        $client = Double::for(MeilisearchClient::class)->strict();
         $client->expects('getTasks')
             ->returns(new TasksResults([
                 'results' => [['uid' => 17, 'indexUid' => 'test_users', 'status' => 'enqueued']],
@@ -244,7 +244,7 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testMeilisearchWaitIgnoresPendingTasksForOtherPrefixes(): void
     {
-        $client = Double::for(MeilisearchClient::class);
+        $client = Double::for(MeilisearchClient::class)->strict();
         $client->expects('getTasks')
             ->returns(new TasksResults([
                 'results' => [['uid' => 17, 'indexUid' => 'other_users', 'status' => 'enqueued']],
@@ -259,10 +259,10 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testMeilisearchCleanupWaitsForExactDeletionTasks(): void
     {
-        $index = Double::for(Indexes::class);
+        $index = Double::for(Indexes::class)->strict();
         $index->allows('getUid')->returns('test_users');
 
-        $client = Double::for(MeilisearchClient::class);
+        $client = Double::for(MeilisearchClient::class)->strict();
         $client->expects('getIndexes')
             ->returns(new IndexesResults([
                 'results' => [$index],
@@ -285,10 +285,10 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testMeilisearchCleanupPropagatesDeletionTaskFailures(): void
     {
-        $index = Double::for(Indexes::class);
+        $index = Double::for(Indexes::class)->strict();
         $index->allows('getUid')->returns('test_users');
 
-        $client = Double::for(MeilisearchClient::class);
+        $client = Double::for(MeilisearchClient::class)->strict();
         $client->expects('getIndexes')
             ->returns(new IndexesResults([
                 'results' => [$index],
@@ -408,8 +408,8 @@ class ExternalServiceOptInTest extends TestCase
         $expectedPrefix = $testToken === '' ? 'test_' : "test_{$testToken}_";
 
         $originalClient = Algolia::getHttpClient();
-        $previousClient = Double::for(HttpClientInterface::class);
-        $testClient = Double::for(HttpClientInterface::class);
+        $previousClient = Double::for(HttpClientInterface::class)->strict();
+        $testClient = Double::for(HttpClientInterface::class)->strict();
         $testClient->expects('sendRequest')->times(3)->returns(
             new Response(200, ['content-type' => 'application/json'], '{"items":[]}')
         );
@@ -439,7 +439,7 @@ class ExternalServiceOptInTest extends TestCase
         $this->setExternalServiceEnvironmentValue('ALGOLIA_SECRET', 'secret');
 
         $originalClient = Algolia::getHttpClient();
-        $testClient = Double::for(HttpClientInterface::class);
+        $testClient = Double::for(HttpClientInterface::class)->strict();
         $testClient->expects('sendRequest')->times(3)->returns(
             new Response(200, ['content-type' => 'application/json'], '{"items":[]}')
         );
@@ -460,7 +460,7 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testAlgoliaCleanupWaitsForExactDeletionTasks(): void
     {
-        $client = Double::for(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
         $client->expects('listIndices')
             ->returns(['items' => [
                 ['name' => 'test_users'],
@@ -482,7 +482,7 @@ class ExternalServiceOptInTest extends TestCase
     #[DataProvider('incompleteAlgoliaDeletionTasks')]
     public function testAlgoliaCleanupRejectsIncompleteDeletionTasks(?array $task): void
     {
-        $client = Double::for(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
         $client->expects('listIndices')
             ->returns(['items' => [['name' => 'test_users']]]);
         $client->expects('deleteIndex')
@@ -517,7 +517,7 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testAlgoliaCleanupWaitsForRemainingTasksBeforeRejectingAnIncompleteResult(): void
     {
-        $client = Double::for(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
         $client->expects('listIndices')
             ->returns(['items' => [
                 ['name' => 'test_users'],
@@ -549,7 +549,7 @@ class ExternalServiceOptInTest extends TestCase
     public function testAlgoliaCleanupPropagatesDeletionTaskFailures(): void
     {
         $failure = new RuntimeException('Index deletion failed.');
-        $client = Double::for(AlgoliaSearchClient::class);
+        $client = Double::for(AlgoliaSearchClient::class)->strict();
         $client->expects('listIndices')
             ->returns(['items' => [
                 ['name' => 'test_users'],
@@ -582,9 +582,9 @@ class ExternalServiceOptInTest extends TestCase
         $this->setExternalServiceEnvironmentValue('ALGOLIA_SECRET', 'secret');
 
         $originalClient = Algolia::getHttpClient();
-        $previousClient = Double::for(HttpClientInterface::class);
+        $previousClient = Double::for(HttpClientInterface::class)->strict();
         $failure = new RuntimeException('Algolia probe failed');
-        $testClient = Double::for(HttpClientInterface::class);
+        $testClient = Double::for(HttpClientInterface::class)->strict();
         $testClient->allows('sendRequest')->throws($failure);
 
         Algolia::setHttpClient($previousClient);

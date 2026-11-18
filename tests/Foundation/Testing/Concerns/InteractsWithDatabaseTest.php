@@ -74,7 +74,7 @@ class InteractsWithDatabaseTest extends TestCase
     public function testCastAsJsonUsesSpecifiedConnection(): void
     {
         $database = DB::getFacadeRoot();
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammar = new SQLiteGrammar($connection);
 
         $connection->expects('getQueryGrammar')->returns($grammar);
@@ -206,7 +206,7 @@ class InteractsWithDatabaseTest extends TestCase
     protected function castAsJsonUsingGrammar(array|object|string $value, string $grammar): string
     {
         $database = DB::getFacadeRoot();
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $grammarClass = 'Hypervel\Database\Query\Grammars\\' . $grammar . 'Grammar';
         $grammar = new $grammarClass($connection);
 
