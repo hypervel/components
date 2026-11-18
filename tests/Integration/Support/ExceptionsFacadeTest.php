@@ -236,9 +236,9 @@ class ExceptionsFacadeTest extends TestCase
 
     public function testReportedExceptionsAreNotThrownByDefault(): void
     {
-        report(new Exception('Test exception'));
+        $this->expectNotToPerformAssertions();
 
-        $this->assertTrue(true);
+        report(new Exception('Test exception'));
     }
 
     public function testReportedExceptionsAreNotThrownByDefaultWithExceptionHandling(): void

@@ -13,6 +13,7 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -37,7 +38,7 @@ class SafeCallerTest extends TestCase
         $exception = new RuntimeException('test error');
 
         $handler = Double::for(ExceptionHandlerContract::class)->strict();
-        $handler->expects('report')->with($exception);
+        $handler->expects('report')->with(Argument::same($exception));
 
         $container = new Container;
         $container->instance(ExceptionHandlerContract::class, $handler);
@@ -75,7 +76,7 @@ class SafeCallerTest extends TestCase
         $exception = new RuntimeException('protected operation failed');
         $reportingFailure = new RuntimeException('exception reporting failed');
         $handler = Double::for(ExceptionHandlerContract::class)->strict();
-        $handler->expects('report')->with($exception)->throws($reportingFailure);
+        $handler->expects('report')->with(Argument::same($exception))->throws($reportingFailure);
         $container = Double::for(ContainerContract::class, override: true)->strict();
         $container->expects('has')->with(ExceptionHandlerContract::class)->returns(true);
         $container->expects('make')->with(ExceptionHandlerContract::class)->returns($handler);
@@ -135,7 +136,7 @@ class SafeCallerTest extends TestCase
 
         $defaultCalled = false;
         $handler = Double::for(ExceptionHandlerContract::class)->strict();
-        $handler->expects('report')->with($failure)->throws($cancellation);
+        $handler->expects('report')->with(Argument::same($failure))->throws($cancellation);
         $container = Double::for(ContainerContract::class, override: true)->strict();
         $container->expects('has')->with(ExceptionHandlerContract::class)->returns(true);
         $container->expects('make')->with(ExceptionHandlerContract::class)->returns($handler);

@@ -13,6 +13,7 @@ use Hypervel\Support\Facades\Grpc;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class GrpcTest extends TestCase
 {
@@ -25,7 +26,7 @@ class GrpcTest extends TestCase
         $route = Double::for(Route::class)->strict();
         $action = static fn (GPBEmpty $request): GPBEmpty => $request;
         $registrar->expects('unary')
-            ->with('testing.Service/Call', $action)
+            ->with('testing.Service/Call', Argument::same($action))
             ->returns($route);
         $container->instance(GrpcRouteRegistrar::class, $registrar);
         Facade::setFacadeApplication($container);

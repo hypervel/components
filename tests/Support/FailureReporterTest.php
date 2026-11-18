@@ -13,6 +13,7 @@ use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\DoubleInterface;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
@@ -67,7 +68,7 @@ class FailureReporterTest extends TestCase
         Container::setInstance($container);
         $exception = new RuntimeException('reported through handler');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($exception);
+        $handler->expects('report')->with(Argument::same($exception));
         $container->instance(ExceptionHandler::class, $handler);
 
         FailureReporter::report($exception);
@@ -91,7 +92,7 @@ class FailureReporterTest extends TestCase
         Container::setInstance($container);
         $exception = new RuntimeException('original cleanup failure');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($exception)->throws(new RuntimeException('handler failed'));
+        $handler->expects('report')->with(Argument::same($exception))->throws(new RuntimeException('handler failed'));
         $container->instance(ExceptionHandler::class, $handler);
         $this->routeErrorsToTempFile();
 
@@ -122,7 +123,7 @@ class FailureReporterTest extends TestCase
         Container::setInstance($container);
         $exception = new RuntimeException('original cleanup failure');
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($exception)->throws(
+        $handler->expects('report')->with(Argument::same($exception))->throws(
             new CanceledException('reporting canceled')
         );
         $container->instance(ExceptionHandler::class, $handler);
@@ -137,7 +138,7 @@ class FailureReporterTest extends TestCase
     {
         $failure = new RuntimeException('displaced failure');
         $cancellation = new CanceledException('canceled');
-        $this->bindReportingHandler()->expects('report')->with($failure);
+        $this->bindReportingHandler()->expects('report')->with(Argument::same($failure));
 
         $this->assertSame($cancellation, FailureReporter::preferCancellation($failure, $cancellation));
     }
@@ -146,7 +147,7 @@ class FailureReporterTest extends TestCase
     {
         $first = new RuntimeException('first failure');
         $later = new RuntimeException('later failure');
-        $this->bindReportingHandler()->expects('report')->with($later);
+        $this->bindReportingHandler()->expects('report')->with(Argument::same($later));
 
         $this->assertSame($first, FailureReporter::preferCancellation($first, $later));
     }

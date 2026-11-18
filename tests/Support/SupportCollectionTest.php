@@ -741,9 +741,9 @@ class SupportCollectionTest extends TestCase
     #[DataProvider('collectionClassProvider')]
     public function testToArrayCallsToArrayOnEachItemInCollection(string $collection): void
     {
-        $item1 = Double::for(Arrayable::class);
+        $item1 = Double::for(Arrayable::class)->strict();
         $item1->expects('toArray')->returns(['foo.array']);
-        $item2 = Double::for(Arrayable::class);
+        $item2 = Double::for(Arrayable::class)->strict();
         $item2->expects('toArray')->returns(['bar.array']);
         $c = new $collection([$item1, $item2]);
         $results = $c->toArray();
@@ -766,9 +766,9 @@ class SupportCollectionTest extends TestCase
     #[DataProvider('collectionClassProvider')]
     public function testJsonSerializeCallsToArrayOrJsonSerializeOnEachItemInCollection(string $collection): void
     {
-        $item1 = Double::for(JsonSerializable::class);
+        $item1 = Double::for(JsonSerializable::class)->strict();
         $item1->expects('jsonSerialize')->returns('foo.json');
-        $item2 = Double::for(Arrayable::class);
+        $item2 = Double::for(Arrayable::class)->strict();
         $item2->expects('toArray')->returns(['bar.array']);
         $c = new $collection([$item1, $item2]);
         $results = $c->jsonSerialize();
