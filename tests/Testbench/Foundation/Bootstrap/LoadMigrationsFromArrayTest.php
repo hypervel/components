@@ -12,6 +12,7 @@ use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 use Workbench\Database\Seeders\TestbenchDatabaseSeeder;
@@ -55,7 +56,7 @@ class LoadMigrationsFromArrayTest extends TestCase
 
         $this->instance(TestbenchDatabaseSeeder::class, $seeder = Double::for(TestbenchDatabaseSeeder::class)->strict());
 
-        $seeder->expects('setContainer')->with($this->app)->returns($seeder);
+        $seeder->expects('setContainer')->with(Argument::same($this->app))->returns($seeder);
         $seeder->expects('setCommand')->returns($seeder);
         $seeder->expects('__invoke');
 

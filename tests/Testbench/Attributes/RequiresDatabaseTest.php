@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Attributes;
 
-use Exception;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
@@ -16,49 +15,42 @@ class RequiresDatabaseTest extends TestCase
     #[Test]
     public function itCanValidateMatchingDatabase(): void
     {
-        $stub = new RequiresDatabase('sqlite');
+        $actions = [];
+        foreach (['sqlite', ['pgsql', 'sqlite']] as $driver) {
+            (new RequiresDatabase($driver))->handle($this->app, function (string $method) use (&$actions): void {
+                $actions[] = $method;
+            });
+        }
 
-        $stub->handle($this->app, function (): void {
-            throw new Exception;
-        });
-
-        $this->addToAssertionCount(1);
-
-        $stub = new RequiresDatabase(['pgsql', 'sqlite']);
-
-        $stub->handle($this->app, function (): void {
-            throw new Exception;
-        });
-
-        $this->addToAssertionCount(1);
+        $this->assertSame([], $actions);
     }
 
     #[Test]
     public function itCanInvalidateUnmatchedDatabase(): void
     {
-        $stub = new RequiresDatabase('mysql');
+        $actions = [];
+        foreach (['mysql', ['mysql', 'mariadb']] as $driver) {
+            (new RequiresDatabase($driver))->handle($this->app, function (string $method, array $parameters) use (&$actions): void {
+                $actions[] = [$method, $parameters];
+            });
+        }
 
-        $stub->handle($this->app, function ($method, $parameters): void {
-            $this->assertSame('markTestSkipped', $method);
-            $this->assertSame(['Requires mysql to be configured for "testing" database connection'], $parameters);
-        });
-
-        $stub = new RequiresDatabase(['mysql', 'mariadb']);
-
-        $stub->handle($this->app, function ($method, $parameters): void {
-            $this->assertSame('markTestSkipped', $method);
-            $this->assertSame(['Requires [mysql/mariadb] to be configured for "testing" database connection'], $parameters);
-        });
+        $this->assertSame([
+            ['markTestSkipped', ['Requires mysql to be configured for "testing" database connection']],
+            ['markTestSkipped', ['Requires [mysql/mariadb] to be configured for "testing" database connection']],
+        ], $actions);
     }
 
     #[Test]
     public function itCanInvalidateUnmatchedDatabaseVersion(): void
     {
+        $actions = [];
         $stub = new RequiresDatabase('sqlite', '<2.0.0');
 
-        $stub->handle($this->app, function ($method, $parameters): void {
-            $this->assertSame('markTestSkipped', $method);
-            $this->assertSame(['Requires sqlite:<2.0.0 to be configured for "testing" database connection'], $parameters);
+        $stub->handle($this->app, function (string $method, array $parameters) use (&$actions): void {
+            $actions[] = [$method, $parameters];
         });
+
+        $this->assertSame([['markTestSkipped', ['Requires sqlite:<2.0.0 to be configured for "testing" database connection']]], $actions);
     }
 }

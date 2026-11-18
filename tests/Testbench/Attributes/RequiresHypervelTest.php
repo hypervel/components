@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Attributes;
 
-use Exception;
 use Hypervel\Testbench\Attributes\RequiresHypervel;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -16,13 +15,14 @@ class RequiresHypervelTest extends TestCase
     #[DataProvider('compatibleVersionDataProvider')]
     public function itCanValidateMatchingHypervelVersions(string $version): void
     {
+        $actions = [];
         $stub = new RequiresHypervel($version);
 
-        $stub->handle($this->app, function (): void {
-            throw new Exception;
+        $stub->handle($this->app, function (string $method, array $parameters) use (&$actions): void {
+            $actions[] = [$method, $parameters];
         });
 
-        $this->addToAssertionCount(1);
+        $this->assertSame([], $actions);
     }
 
     /**
@@ -38,11 +38,13 @@ class RequiresHypervelTest extends TestCase
     #[Test]
     public function itCanInvalidateUnmatchedHypervelVersions(): void
     {
+        $actions = [];
         $stub = new RequiresHypervel('<0.4.0');
 
-        $stub->handle($this->app, function ($method, $parameters): void {
-            $this->assertSame('markTestSkipped', $method);
-            $this->assertSame(['Requires Hypervel Framework:<0.4.0'], $parameters);
+        $stub->handle($this->app, function (string $method, array $parameters) use (&$actions): void {
+            $actions[] = [$method, $parameters];
         });
+
+        $this->assertSame([['markTestSkipped', ['Requires Hypervel Framework:<0.4.0']]], $actions);
     }
 }

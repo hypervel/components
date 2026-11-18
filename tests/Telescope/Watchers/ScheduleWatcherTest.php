@@ -23,6 +23,7 @@ use Hypervel\Telescope\Watchers\ScheduleWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 
 #[WithConfig('telescope.watchers', [
@@ -288,7 +289,7 @@ class ScheduleWatcherTest extends FeatureTestCase
         $task->allows('wasSkippedDueToOverlapping')->returns($skippedBecauseOverlapping);
         $task->expects('getOutput')
             ->times($outputCalls)
-            ->with($this->app)
+            ->with(Argument::same($this->app))
             ->returns($output ?? $command . ' output');
 
         return $task;
