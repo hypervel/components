@@ -57,8 +57,8 @@ class DataServiceProviderTest extends TestCase
             $application->instance('config', new Repository);
             $application->setRunningInConsole(false);
 
-            $creator = Double::for(DataCreator::class);
-            $transformer = Double::for(DataTransformer::class);
+            $creator = Double::for(DataCreator::class)->strict();
+            $transformer = Double::for(DataTransformer::class)->strict();
 
             $application->singleton(DataCreator::class, static fn (): DataCreator => $creator);
             $application->singleton(DataTransformer::class, static fn (): DataTransformer => $transformer);

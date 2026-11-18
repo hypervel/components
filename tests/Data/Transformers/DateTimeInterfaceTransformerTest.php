@@ -77,7 +77,7 @@ class DateTimeInterfaceTransformerTest extends TestCase
         DateTimeInterface $date,
     ): string {
         return $transformer->transform(
-            Double::for(DataProperty::class),
+            Double::for(DataProperty::class)->strict(),
             $date,
             new TransformationContext,
         );
