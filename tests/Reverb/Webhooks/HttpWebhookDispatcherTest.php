@@ -402,7 +402,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         $dispatcher = new HttpWebhookDispatcher;
 
         $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
-        $exceptionHandler->expects('report')->with($failure);
+        $exceptionHandler->expects('report')->with(Argument::same($failure));
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
         $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
@@ -423,7 +423,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
             $exceptionHandler->expects('report')->never();
             $this->expectExceptionObject($failure);
         } else {
-            $exceptionHandler->expects('report')->with($failure);
+            $exceptionHandler->expects('report')->with(Argument::same($failure));
         }
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
@@ -487,7 +487,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         ]));
         $sender = Double::for(WebhookSender::class)->strict();
         $sender->expects('send')->with(
-            $app,
+            Argument::same($app),
             $app->webhooks(),
             Argument::satisfies(static fn (WebhookPayload $payload): bool => $payload->events === [
                 ['name' => 'channel_occupied', 'channel' => 'test-channel'],

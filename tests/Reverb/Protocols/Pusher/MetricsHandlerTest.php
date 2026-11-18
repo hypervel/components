@@ -538,7 +538,7 @@ class MetricsHandlerTest extends ReverbTestCase
         $failure = new RuntimeException('Unable to read local channels.');
         $serverManager = new ServerProviderManager($this->app);
         $channels = Double::for(ChannelManager::class)->strict();
-        $channels->expects('for')->with($app)->throws($failure);
+        $channels->expects('for')->with(Argument::same($app))->throws($failure);
         $server = Double::for(Server::class)->strict();
         $server->setting = ['worker_num' => 2];
         $server->worker_id = 0;

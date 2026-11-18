@@ -131,9 +131,9 @@ class GracefulShutdownTest extends ReverbTestCase
             ->with(OnWorkerExit::class, Argument::capture($listener));
         $this->app->instance('events', $events);
         $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
-        $exceptionHandler->expects('report')->with($failures['drain']);
-        $exceptionHandler->expects('report')->with($failures['subscriber']);
-        $exceptionHandler->expects('report')->with($failures['webhooks']);
+        $exceptionHandler->expects('report')->with(Argument::same($failures['drain']));
+        $exceptionHandler->expects('report')->with(Argument::same($failures['subscriber']));
+        $exceptionHandler->expects('report')->with(Argument::same($failures['webhooks']));
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
         $provider = new GracefulShutdownServiceProviderProbe($this->app);
         $provider->failures = $failures;
@@ -155,7 +155,7 @@ class GracefulShutdownTest extends ReverbTestCase
         $failure = new RuntimeException('Connection drain failed.');
         $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
         $exceptionHandler->expects('report')
-            ->with($failure)
+            ->with(Argument::same($failure))
             ->throws(new RuntimeException('Reporting failed.'));
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
         $provider = new GracefulShutdownServiceProviderProbe($this->app);
@@ -244,7 +244,7 @@ class GracefulShutdownTest extends ReverbTestCase
         $buffer->expects('clearFlushLock')->never();
         $this->app->instance(WebhookBatchBuffer::class, $buffer);
         $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
-        $exceptionHandler->expects('report')->with($failure);
+        $exceptionHandler->expects('report')->with(Argument::same($failure));
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
         $provider = $this->app->getProvider(ReverbServiceProvider::class);
@@ -321,6 +321,7 @@ class GracefulShutdownTest extends ReverbTestCase
         $sharedState->allows('getSubscriptionCount')
             ->with('test-app', 'test-channel')
             ->returns(0);
+        $sharedState->expects('clearSmoothingPending')->with('test-app', 'test-channel', 5000);
         $this->app->instance(SharedState::class, $sharedState);
 
         $webhooks = array_replace($this->webhookConfig(), [

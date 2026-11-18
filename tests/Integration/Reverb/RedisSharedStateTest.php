@@ -137,8 +137,8 @@ class RedisSharedStateTest extends TestCase
     {
         $this->state->releaseConnectionSlot('app1');
 
-        // No exception — just a no-op
-        $this->assertTrue(true);
+        $this->assertTrue($this->state->acquireConnectionSlot('app1', 1));
+        $this->assertFalse($this->state->acquireConnectionSlot('app1', 1));
     }
 
     // ── Key cleanup ────────────────────────────────────────────────────

@@ -26,6 +26,7 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use JMac\Testing\Double;
+use JMac\Testing\Matching\Argument;
 use RuntimeException;
 use Swoole\Coroutine\Channel as CoroutineChannel;
 
@@ -82,7 +83,7 @@ class ChannelTest extends ReverbTestCase
         $channel->unsubscribe($this->connection);
 
         $scopedManager->received('remove')->times(1)
-            ->with($channel);
+            ->with(Argument::same($channel));
     }
 
     public function testDuplicateSubscribeAndNonmemberUnsubscribeDoNotPublishSharedState(): void
@@ -287,7 +288,7 @@ class ChannelTest extends ReverbTestCase
         $second = $failingConnection($secondFailure);
         $last = new FakeConnection;
         $handler = Double::for(ExceptionHandler::class)->strict();
-        $handler->expects('report')->with($firstFailure);
+        $handler->expects('report')->with(Argument::same($firstFailure));
         $this->app->instance(ExceptionHandler::class, $handler);
 
         foreach ([$first, $middle, $second, $last] as $connection) {

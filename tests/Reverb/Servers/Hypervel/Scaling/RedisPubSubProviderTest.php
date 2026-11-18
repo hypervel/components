@@ -26,6 +26,7 @@ use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use JMac\Testing\Double;
 use JMac\Testing\DoubleInterface;
+use JMac\Testing\Matching\Argument;
 use JsonException;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Redis;
@@ -85,7 +86,7 @@ class RedisPubSubProviderTest extends ReverbTestCase
         $provider = $this->provider($redis);
 
         $handler->expects('report')
-            ->with($hookFailure)
+            ->with(Argument::same($hookFailure))
             ->resolves(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
                 $childCoroutineId = EngineCoroutine::id();
                 $reportStarted->push(true);
@@ -251,7 +252,7 @@ class RedisPubSubProviderTest extends ReverbTestCase
                 throw $handlerFailure;
             });
         $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
-        $exceptionHandler->expects('report')->with($handlerFailure);
+        $exceptionHandler->expects('report')->with(Argument::same($handlerFailure));
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
         $provider->connect();
