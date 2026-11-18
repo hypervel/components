@@ -345,7 +345,7 @@ class VerifyPasskeyTest extends TestCase
             'credential' => ['id' => 'credential-connection'],
         ]);
 
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(false);
         $this->instance('events', $events);
 

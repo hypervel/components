@@ -16,6 +16,7 @@ use Hypervel\Passport\Passport;
 use Hypervel\Testbench\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\TestWith;
 
 class SimpleViewResponseTest extends TestCase
@@ -60,7 +61,7 @@ class SimpleViewResponseTest extends TestCase
         $request = Request::create('/oauth/authorize');
         $expected = new Response('Consent', 202, ['X-Consent' => 'pending']);
         $responsable = Double::for(Responsable::class)->strict();
-        $responsable->expects('toResponse')->with($request)->returns($expected);
+        $responsable->expects('toResponse')->with(Argument::same($request))->returns($expected);
         $response = new SimpleViewResponse(function (array $parameters) use ($responsable): Responsable {
             $this->assertSame(['client' => 'example'], $parameters);
 

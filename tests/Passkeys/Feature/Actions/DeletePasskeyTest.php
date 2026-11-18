@@ -93,7 +93,7 @@ class DeletePasskeyTest extends TestCase
         ]);
         $passkey = $this->createPasskeyForUser($user, 'credential-quiet-delete');
 
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->allows('hasListeners')->returns(false);
 
         $this->instance('events', $events);

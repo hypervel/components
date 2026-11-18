@@ -342,7 +342,7 @@ class JwtGuardEventTest extends TestCase
         $listener = static fn (): null => null;
 
         $events = Double::for(Dispatcher::class)->strict();
-        $events->expects('listen')->with(Attempting::class, $listener);
+        $events->expects('listen')->with(Attempting::class, Argument::same($listener));
 
         $guard = $this->createGuard();
         $guard->setDispatcher($events);

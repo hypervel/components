@@ -28,6 +28,7 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Passport\Fixtures\User;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -397,9 +398,9 @@ class PassportCacheTest extends TestCase
         $realCoordinator = new ModelCacheCoordinator($this->app);
         $coordinator = Double::for($realCoordinator)->passthru();
         $coordinator->expects('invalidate')
-            ->with($cache, 'passport:tokens:token')->throws($failure);
+            ->with(Argument::same($cache), 'passport:tokens:token')->throws($failure);
         $coordinator->expects('invalidate')
-            ->with($cache, 'passport:tokens:token-second')->resolves($realCoordinator->invalidate(...));
+            ->with(Argument::same($cache), 'passport:tokens:token-second')->resolves($realCoordinator->invalidate(...));
         $this->app->instance(ModelCacheCoordinator::class, $coordinator);
 
         $first = $this->createToken();
@@ -438,11 +439,11 @@ class PassportCacheTest extends TestCase
         $cache = $this->app->make('cache')->store('passport-file');
         $coordinator = Double::for(new ModelCacheCoordinator($this->app))->passthru();
         $coordinator->expects('invalidate')
-            ->with($cache, 'passport:tokens:token')->throws(new LockTimeoutException);
+            ->with(Argument::same($cache), 'passport:tokens:token')->throws(new LockTimeoutException);
         $coordinator->expects('invalidate')
-            ->with($cache, 'passport:tokens:token-second')->throws($failure);
+            ->with(Argument::same($cache), 'passport:tokens:token-second')->throws($failure);
         $coordinator->expects('invalidate')->never()
-            ->with($cache, 'passport:tokens:token-third');
+            ->with(Argument::same($cache), 'passport:tokens:token-third');
         $this->app->instance(ModelCacheCoordinator::class, $coordinator);
 
         $first = $this->createToken();

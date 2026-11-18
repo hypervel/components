@@ -31,6 +31,7 @@ use Hypervel\Testbench\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\DoubleInterface;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 
@@ -233,8 +234,8 @@ class JwtGuardTest extends TestCase
 
         $provider = Double::for(UserProvider::class)->strict();
         $provider->allows('retrieveByCredentials')->with($credentials)->returns($user);
-        $provider->allows('validateCredentials')->with($user, $credentials)->returns(true);
-        $provider->expects('rehashPasswordIfRequired')->with($user, $credentials);
+        $provider->allows('validateCredentials')->with(Argument::same($user), $credentials)->returns(true);
+        $provider->expects('rehashPasswordIfRequired')->with(Argument::same($user), $credentials);
 
         $jwtManager = Double::for(ManagerContract::class)->strict();
         $jwtManager->expects('encode')->returns('new-token');
@@ -1092,7 +1093,7 @@ class JwtGuardTest extends TestCase
         $provider = Double::for(UserProvider::class)->strict();
         $provider->expects('retrieveByCredentials')->returns($user);
         $provider->expects('validateCredentials')->returns(true);
-        $provider->expects('rehashPasswordIfRequired')->with($user, $credentials);
+        $provider->expects('rehashPasswordIfRequired')->with(Argument::same($user), $credentials);
 
         $jwtManager = Double::for(ManagerContract::class)->strict();
         $jwtManager->expects('encode')->never();
