@@ -21,7 +21,7 @@ jobs:
     name: Code Style and Skeleton Config
 
     container:
-      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc2
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole-nightly
 
     steps:
       - name: Checkout code
@@ -51,10 +51,10 @@ jobs:
       matrix: &runtime_matrix
         php: ["8.4", "8.5"]
 
-    name: Framework Tests (PHP ${{ matrix.php }}, Swoole 6.3.0 RC2)
+    name: Framework Tests (PHP ${{ matrix.php }}, Swoole nightly)
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
 
     steps:
       - name: Checkout code
@@ -83,10 +83,10 @@ jobs:
       fail-fast: false
       matrix: *runtime_matrix
 
-    name: PHPStan and Package Tests (PHP ${{ matrix.php }}, Swoole 6.3.0 RC2)
+    name: PHPStan and Package Tests (PHP ${{ matrix.php }}, Swoole nightly)
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
 
     steps:
       - name: Checkout code
@@ -132,7 +132,7 @@ jobs:
     name: JavaScript
 
     container:
-      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc2
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole-nightly
 
     steps:
       - name: Checkout code

@@ -30,7 +30,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc2
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole-nightly
 
     name: MySQL Innovation
 
@@ -76,7 +76,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.3.0-rc2
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole-nightly
       volumes:
         - database-socket:/var/run/mysqld
 

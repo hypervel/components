@@ -30,7 +30,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
       volumes:
         - database-socket:/var/run/mysqld
 
@@ -87,7 +87,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
       volumes:
         - schema-tls:/tmp/hypervel-schema-tls
 
@@ -155,7 +155,7 @@ jobs:
   #         --health-retries 5
 
   #   container:
-  #     image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
+  #     image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
   #     volumes:
   #       - database-socket:/var/run/mysqld
 
@@ -210,7 +210,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
       volumes:
         - database-socket:/var/run/mysqld
 
@@ -263,7 +263,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
       volumes:
         - database-socket:/var/run/mysqld
 
@@ -316,7 +316,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
       volumes:
         - database-socket:/var/run/mysqld
 
@@ -368,7 +368,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
       volumes:
         - database-socket:/var/run/postgresql
 
@@ -418,7 +418,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
 
     strategy:
       fail-fast: false
@@ -453,7 +453,7 @@ jobs:
     timeout-minutes: 10
 
     container:
-      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc2
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole-nightly
 
     strategy:
       fail-fast: false
