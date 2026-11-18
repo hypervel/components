@@ -118,7 +118,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
 
       - name: Create release notes
-        uses: softprops/action-gh-release@v3.0.3
+        uses: softprops/action-gh-release@v3.0.4
         with:
           generate_release_notes: true
           name: v${{ steps.version.outputs.version }}
