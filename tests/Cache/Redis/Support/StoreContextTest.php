@@ -81,7 +81,7 @@ class StoreContextTest extends TestCase
 
     public function testWithConnectionExecutesCallbackAndReturnsResult(): void
     {
-        $connection = Double::for(PhpRedisConnection::class);
+        $connection = Double::for(PhpRedisConnection::class)->strict();
         $context = $this->createContextWithRedisFactory('default', function ($callback) use ($connection) {
             return $callback($connection);
         });
@@ -97,7 +97,7 @@ class StoreContextTest extends TestCase
 
     public function testWithConnectionCanEnableLaravelStyleTransforms(): void
     {
-        $connection = Double::for(PhpRedisConnection::class);
+        $connection = Double::for(PhpRedisConnection::class)->strict();
         $transform = null;
         $context = $this->createContextWithRedisFactory(
             'default',
@@ -117,7 +117,7 @@ class StoreContextTest extends TestCase
     public function testWithConnectionPropagatesExceptions(): void
     {
         $context = $this->createContextWithRedisFactory('default', function ($callback) {
-            return $callback(Double::for(PhpRedisConnection::class));
+            return $callback(Double::for(PhpRedisConnection::class)->strict());
         });
 
         $this->expectException(RuntimeException::class);
@@ -131,7 +131,7 @@ class StoreContextTest extends TestCase
     public function testIsClusterReturnsTrueForRedisCluster(): void
     {
         $context = $this->createContextWithRedisFactory('default', function ($callback) {
-            return $callback(Double::for(PhpRedisConnection::class));
+            return $callback(Double::for(PhpRedisConnection::class)->strict());
         }, isCluster: true);
 
         $this->assertTrue($context->isCluster());
@@ -140,7 +140,7 @@ class StoreContextTest extends TestCase
     public function testIsClusterReturnsFalseForRegularRedis(): void
     {
         $context = $this->createContextWithRedisFactory('default', function ($callback) {
-            return $callback(Double::for(PhpRedisConnection::class));
+            return $callback(Double::for(PhpRedisConnection::class)->strict());
         }, isCluster: false);
 
         $this->assertFalse($context->isCluster());

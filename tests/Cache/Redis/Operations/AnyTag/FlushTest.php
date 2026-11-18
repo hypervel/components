@@ -23,7 +23,7 @@ class FlushTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         // Mock GetTaggedKeys to return cache keys
-        $getTaggedKeys = Double::for(GetTaggedKeys::class);
+        $getTaggedKeys = Double::for(GetTaggedKeys::class)->strict();
         $getTaggedKeys->expects('execute')
             ->with('users')
             ->returns($this->arrayToGenerator(['key1', 'key2']));
@@ -50,7 +50,7 @@ class FlushTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $getTaggedKeys = Double::for(GetTaggedKeys::class);
+        $getTaggedKeys = Double::for(GetTaggedKeys::class)->strict();
         $getTaggedKeys->expects('execute')
             ->with('users')
             ->returns($this->arrayToGenerator(['shared_key', 'user_only']));
@@ -87,7 +87,7 @@ class FlushTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         // Mock GetTaggedKeys to return empty
-        $getTaggedKeys = Double::for(GetTaggedKeys::class);
+        $getTaggedKeys = Double::for(GetTaggedKeys::class)->strict();
         $getTaggedKeys->expects('execute')
             ->with('users')
             ->returns($this->arrayToGenerator([]));
@@ -109,7 +109,7 @@ class FlushTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
         $connection->expects('evalWithShaCache')->never();
-        $getTaggedKeys = Double::for(GetTaggedKeys::class);
+        $getTaggedKeys = Double::for(GetTaggedKeys::class)->strict();
         $getTaggedKeys->expects('execute')->never();
         $store = $this->createStore($connection);
         $operation = new Flush($store->getContext(), $getTaggedKeys, new RemoveEmptyTags($store->getContext()));
@@ -121,7 +121,7 @@ class FlushTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $getTaggedKeys = Double::for(GetTaggedKeys::class);
+        $getTaggedKeys = Double::for(GetTaggedKeys::class)->strict();
         $getTaggedKeys->expects('execute')
             ->with('users')
             ->returns($this->arrayToGenerator(['mykey']));
@@ -145,7 +145,7 @@ class FlushTest extends RedisCacheTestCase
     {
         [$store, $client] = $this->createClusterStore(tagMode: 'any');
 
-        $getTaggedKeys = Double::for(GetTaggedKeys::class);
+        $getTaggedKeys = Double::for(GetTaggedKeys::class)->strict();
         $getTaggedKeys->expects('execute')
             ->with('users')
             ->returns($this->arrayToGenerator(['key1', 'key2']));
@@ -204,7 +204,7 @@ class FlushTest extends RedisCacheTestCase
     {
         [$store, $client] = $this->createClusterStore(tagMode: 'any');
 
-        $getTaggedKeys = Double::for(GetTaggedKeys::class);
+        $getTaggedKeys = Double::for(GetTaggedKeys::class)->strict();
         $getTaggedKeys->expects('execute')
             ->with('users')
             ->returns($this->arrayToGenerator(['user_key', 'shared_key']));
@@ -257,7 +257,7 @@ class FlushTest extends RedisCacheTestCase
     public function testClusterFlushPreservesRegistrationWhenTheHashWasRepopulated(): void
     {
         [$store, $client] = $this->createClusterStore(tagMode: 'any');
-        $getTaggedKeys = Double::for(GetTaggedKeys::class);
+        $getTaggedKeys = Double::for(GetTaggedKeys::class)->strict();
         $getTaggedKeys->expects('execute')->with('users')->returns($this->arrayToGenerator([]));
 
         $client->expects('hlen')->with('prefix:_any:tag:users:entries')->returns(1);
@@ -271,7 +271,7 @@ class FlushTest extends RedisCacheTestCase
     public function testClusterFlushRestoresRegistrationWhenAWriterRacesWithDeregistration(): void
     {
         [$store, $client] = $this->createClusterStore(tagMode: 'any');
-        $getTaggedKeys = Double::for(GetTaggedKeys::class);
+        $getTaggedKeys = Double::for(GetTaggedKeys::class)->strict();
         $getTaggedKeys->expects('execute')->with('users')->returns($this->arrayToGenerator([]));
 
         $cleanup = [];

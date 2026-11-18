@@ -29,7 +29,7 @@ class FlushTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
         $connection->client()->expects('flushdb')->returns(false);
-        $context = Double::for(StoreContext::class);
+        $context = Double::for(StoreContext::class)->strict();
         $context->expects('withConnection')
             ->with(Argument::type('callable'), true)
             ->resolves(fn (callable $callback) => $callback($connection->shouldTransform(true)));

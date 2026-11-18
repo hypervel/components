@@ -26,7 +26,7 @@ class FlushTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         // Mock GetEntries to return cache keys
-        $getEntries = Double::for(GetEntries::class);
+        $getEntries = Double::for(GetEntries::class)->strict();
         $getEntries->expects('execute')
             ->with(['_all:tag:users:entries'])
             ->returns(new LazyCollection(['key1', 'key2']));
@@ -45,7 +45,7 @@ class FlushTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $getEntries = Double::for(GetEntries::class);
+        $getEntries = Double::for(GetEntries::class)->strict();
         $getEntries->expects('execute')
             ->with(['_all:tag:people:entries'])
             ->returns(new LazyCollection(['person-1', 'person-2']));
@@ -76,7 +76,7 @@ class FlushTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         // Mock GetEntries to return empty collection
-        $getEntries = Double::for(GetEntries::class);
+        $getEntries = Double::for(GetEntries::class)->strict();
         $getEntries->expects('execute')
             ->with(['_all:tag:users:entries'])
             ->returns(new LazyCollection([]));
@@ -101,7 +101,7 @@ class FlushTest extends RedisCacheTestCase
         }
 
         // Mock GetEntries to return many cache keys
-        $getEntries = Double::for(GetEntries::class);
+        $getEntries = Double::for(GetEntries::class)->strict();
         $getEntries->expects('execute')
             ->with(['_all:tag:users:entries'])
             ->returns(new LazyCollection($entries));
@@ -152,7 +152,7 @@ class FlushTest extends RedisCacheTestCase
         }
 
         $active = false;
-        $proxy = Double::for(RedisProxy::class);
+        $proxy = Double::for(RedisProxy::class)->strict();
         $proxy->expects('isCluster')->returns(false);
         $proxy->expects('withConnection')
             ->times(3)
@@ -168,7 +168,7 @@ class FlushTest extends RedisCacheTestCase
                 }
             });
 
-        $redis = Double::for(RedisFactory::class);
+        $redis = Double::for(RedisFactory::class)->strict();
         $redis->expects('connection')
             ->times(4)
             ->with('default')
@@ -199,7 +199,7 @@ class FlushTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         // Mock GetEntries to return cache keys
-        $getEntries = Double::for(GetEntries::class);
+        $getEntries = Double::for(GetEntries::class)->strict();
         $getEntries->expects('execute')
             ->with(['_all:tag:users:entries'])
             ->returns(new LazyCollection(['mykey']));
@@ -218,7 +218,7 @@ class FlushTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $getEntries = Double::for(GetEntries::class);
+        $getEntries = Double::for(GetEntries::class)->strict();
         $getEntries->expects('execute')->never();
 
         $connection->client()->expects('del')->never();
@@ -235,7 +235,7 @@ class FlushTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         // Mock GetEntries
-        $getEntries = Double::for(GetEntries::class);
+        $getEntries = Double::for(GetEntries::class)->strict();
         $getEntries->expects('execute')
             ->returns(new LazyCollection(['key']));
 
@@ -254,7 +254,7 @@ class FlushTest extends RedisCacheTestCase
         [$store, $client] = $this->createClusterStore();
 
         // Mock GetEntries to return cache keys
-        $getEntries = Double::for(GetEntries::class);
+        $getEntries = Double::for(GetEntries::class)->strict();
         $getEntries->expects('execute')
             ->with(['_all:tag:users:entries'])
             ->returns(new LazyCollection(['key1', 'key2']));
@@ -282,7 +282,7 @@ class FlushTest extends RedisCacheTestCase
         }
 
         // Mock GetEntries to return many cache keys
-        $getEntries = Double::for(GetEntries::class);
+        $getEntries = Double::for(GetEntries::class)->strict();
         $getEntries->expects('execute')
             ->with(['_all:tag:users:entries'])
             ->returns(new LazyCollection($entries));
@@ -319,7 +319,7 @@ class FlushTest extends RedisCacheTestCase
     {
         [$store, $client] = $this->createClusterStore();
 
-        $getEntries = Double::for(GetEntries::class);
+        $getEntries = Double::for(GetEntries::class)->strict();
         $getEntries->expects('execute')
             ->with(['_all:tag:users:entries'])
             ->returns(new LazyCollection(['user_key1', 'shared_key']));
@@ -349,7 +349,7 @@ class FlushTest extends RedisCacheTestCase
         [$store, $client] = $this->createClusterStore();
 
         // Mock GetEntries to return empty collection
-        $getEntries = Double::for(GetEntries::class);
+        $getEntries = Double::for(GetEntries::class)->strict();
         $getEntries->expects('execute')
             ->with(['_all:tag:users:entries'])
             ->returns(new LazyCollection([]));
