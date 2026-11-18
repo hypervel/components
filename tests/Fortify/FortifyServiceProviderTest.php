@@ -71,7 +71,7 @@ class FortifyServiceProviderTest extends TestCase
 
     public function testNamedViewsReceiveTheRequest(): void
     {
-        $factory = Double::for(ResponseFactory::class);
+        $factory = Double::for(ResponseFactory::class)->strict();
         $factory->expects('view')->with('auth.login', Argument::satisfies(
             static fn (array $parameters): bool => $parameters['request'] instanceof Request,
         ))->returns(new HttpResponse('Login'));
@@ -263,7 +263,7 @@ class FortifyServiceProviderTest extends TestCase
 
     public function testActionsCanBeRegisteredWithNonClosureCallables(): void
     {
-        $creator = Double::for(CreatesNewUsers::class);
+        $creator = Double::for(CreatesNewUsers::class)->strict();
 
         Fortify::createUsersUsing(new class($creator) {
             public function __construct(

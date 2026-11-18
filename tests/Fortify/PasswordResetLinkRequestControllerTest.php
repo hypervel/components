@@ -78,7 +78,7 @@ class PasswordResetLinkRequestControllerTest extends TestCase
     public function testResetLinkCanBeSuccessfullyRequestedWithCustomizedEmailField(): void
     {
         $this->app->make('config')->set('fortify.email', 'emailAddress');
-        Password::shouldReceive('broker')->andReturn($broker = Double::for(PasswordBroker::class));
+        Password::shouldReceive('broker')->andReturn($broker = Double::for(PasswordBroker::class)->strict());
 
         $broker->expects('sendResetLink')->returns(Password::RESET_LINK_SENT);
 
