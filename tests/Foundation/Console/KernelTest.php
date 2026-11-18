@@ -49,7 +49,7 @@ class KernelTest extends TestCase
 
     public function testHandleCatchesExceptionsAndReturnsOne(): void
     {
-        $handler = Double::for(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
         $handler->expects('report');
         $handler->expects('renderForConsole');
         $this->app->instance(ExceptionHandlerContract::class, $handler);
@@ -77,8 +77,8 @@ class KernelTest extends TestCase
         $original = new RuntimeException('Bootstrap failed');
         $reportingFailure = new RuntimeException('Reporting failed');
 
-        $handler = Double::for(ExceptionHandlerContract::class);
-        $handler->expects('report')->with($original, [])->throws($reportingFailure);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->with(Argument::same($original), [])->throws($reportingFailure);
         $handler->expects('renderForConsole')->never();
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
@@ -111,7 +111,7 @@ class KernelTest extends TestCase
     public function testHandlePreservesCancellationWithoutReportingOrRenderingIt(): void
     {
         $cancellation = new CanceledException('canceled');
-        $handler = Double::for(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
         $handler->expects('report')->never();
         $handler->expects('renderForConsole')->never();
         $this->app->instance(ExceptionHandlerContract::class, $handler);
@@ -367,8 +367,8 @@ PHP);
     {
         $exception = new RuntimeException('Test exception');
 
-        $handler = Double::for(ExceptionHandlerContract::class);
-        $handler->expects('report')->with($exception, []);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('report')->with(Argument::same($exception), []);
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
         $kernel = new Kernel($this->app, $this->app->make('events'));
@@ -382,8 +382,8 @@ PHP);
         $exception = new RuntimeException('Test exception');
         $output = new BufferedOutput;
 
-        $handler = Double::for(ExceptionHandlerContract::class);
-        $handler->expects('renderForConsole')->with($output, $exception);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('renderForConsole')->with(Argument::same($output), Argument::same($exception));
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
         $kernel = new Kernel($this->app, $this->app->make('events'));
@@ -399,8 +399,8 @@ PHP);
         $errorOutput = new BufferedOutput;
         $output->setErrorOutput($errorOutput);
 
-        $handler = Double::for(ExceptionHandlerContract::class);
-        $handler->expects('renderForConsole')->with($errorOutput, $exception);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
+        $handler->expects('renderForConsole')->with(Argument::same($errorOutput), Argument::same($exception));
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
         $kernel = new Kernel($this->app, $this->app->make('events'));
@@ -413,7 +413,7 @@ PHP);
     {
         $reportedException = null;
 
-        $handler = Double::for(ExceptionHandlerContract::class);
+        $handler = Double::for(ExceptionHandlerContract::class)->strict();
         $handler->expects('report')->resolves(function (RuntimeException $exception) use (&$reportedException): void {
             $reportedException = $exception;
         });

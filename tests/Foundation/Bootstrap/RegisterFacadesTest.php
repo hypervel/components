@@ -20,14 +20,14 @@ class RegisterFacadesTest extends TestCase
     // only explicit facade aliases.
     public function testRegisterAliases(): void
     {
-        $config = Double::for(Repository::class);
+        $config = Double::for(Repository::class)->strict();
         $config->expects('array')
             ->with('app.aliases')
             ->returns([
                 'FooAlias' => 'FooClass',
             ]);
 
-        $manifest = Double::for(PackageManifest::class);
+        $manifest = Double::for(PackageManifest::class)->strict();
         $manifest->expects('aliases')
             ->returns([
                 'TestAlias' => 'TestClass',

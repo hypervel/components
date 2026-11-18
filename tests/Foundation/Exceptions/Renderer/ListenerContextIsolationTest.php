@@ -39,7 +39,7 @@ class ListenerContextIsolationTest extends TestCase
     private function recordQueries(string $connectionName, array $queries): array
     {
         $listener = new Listener;
-        $connection = Double::for(Connection::class);
+        $connection = Double::for(Connection::class)->strict();
         $connection->allows('getName')->returns($connectionName);
         $connection->allows('prepareBindings')->returns([]);
 

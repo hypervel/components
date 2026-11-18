@@ -231,7 +231,7 @@ class HandleExceptionsTest extends TestCase
 
     public function testMissingDeprecationOptionsUseTheNullChannelWithoutATrace(): void
     {
-        $logger = Double::for(LogManager::class);
+        $logger = Double::for(LogManager::class)->strict();
         $this->app->instance(LogManager::class, $logger);
         $this->config->set('logging.deprecations', []);
 
@@ -261,7 +261,7 @@ class HandleExceptionsTest extends TestCase
     #[DataProvider('invalidDeprecationConfigurationProvider')]
     public function testInvalidDeprecationConfigurationFailsLoudly(mixed $configuration, string $key): void
     {
-        $this->app->instance(LogManager::class, Double::for(LogManager::class));
+        $this->app->instance(LogManager::class, Double::for(LogManager::class)->strict());
         $this->config->set('logging.deprecations', $configuration);
 
         $this->expectException(InvalidArgumentException::class);
@@ -391,7 +391,7 @@ class HandleExceptionsTest extends TestCase
 
     public function testDeprecationsDriverIsDerivedAgainFromTheRebuiltConfiguration(): void
     {
-        $logger = Double::for(LogManager::class);
+        $logger = Double::for(LogManager::class)->strict();
         $this->app->instance(LogManager::class, $logger);
 
         $logger->expects('channel')->with('deprecations')->returns($logger);
@@ -430,7 +430,7 @@ class HandleExceptionsTest extends TestCase
 
     public function testErrors(): void
     {
-        $logger = Double::for(LogManager::class);
+        $logger = Double::for(LogManager::class)->strict();
         $this->app->instance(LogManager::class, $logger);
 
         $logger->expects('channel')->never();
@@ -466,7 +466,7 @@ class HandleExceptionsTest extends TestCase
     {
         $exception = new RuntimeException('Test exception');
 
-        $handler = Double::for(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $handler->expects('renderForConsole')->with(
             Argument::satisfies(function (mixed $output): bool {
                 if (! $output instanceof StreamOutput) {
@@ -486,7 +486,7 @@ class HandleExceptionsTest extends TestCase
     public function testNonConsoleExceptionIsReportedWithoutRenderingAResponse(): void
     {
         $exception = new RuntimeException('uncaught coroutine failure');
-        $handler = Double::for(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $handler->expects('report')->with(Argument::same($exception));
         $handler->expects('render')->never();
         $handler->expects('renderForConsole')->never();
@@ -506,7 +506,7 @@ class HandleExceptionsTest extends TestCase
         $errorLog = $directory . '/php-error.log';
         $previousErrorLog = ini_set('error_log', $errorLog);
         $exception = new RuntimeException('uncaught coroutine failure');
-        $handler = Double::for(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $handler->expects('report')->with(Argument::same($exception))->throws(new Error('reporting failed'));
         $handler->expects('render')->never();
         $handler->expects('renderForConsole')->never();
@@ -533,7 +533,7 @@ class HandleExceptionsTest extends TestCase
 
     public function testIgnoresDeprecationsUntilConfigurationIsBound(): void
     {
-        $app = Double::for(Application::class, override: true);
+        $app = Double::for(Application::class, override: true)->strict();
         $this->app = $app->instance();
         $app->expects('hasBeenBootstrapped')->returns(true);
         $app->expects('runningUnitTests')->returns(false);
@@ -551,7 +551,12 @@ class HandleExceptionsTest extends TestCase
     #[TestWith([Error::class])]
     public function testIgnoreDeprecationIfLoggerUnresolvable(string $exceptionClass): void
     {
-        $this->app->bind(LogManager::class, static fn (): never => throw new $exceptionClass);
+        $attempted = false;
+        $this->app->bind(LogManager::class, static function () use ($exceptionClass, &$attempted): never {
+            $attempted = true;
+
+            throw new $exceptionClass;
+        });
 
         $this->handleExceptions()->handleError(
             E_DEPRECATED,
@@ -560,14 +565,14 @@ class HandleExceptionsTest extends TestCase
             17
         );
 
-        $this->assertTrue(true);
+        $this->assertTrue($attempted);
     }
 
     public function testIgnoreDeprecationIfLoggingFails(): void
     {
         // The real LogManager turns channel creation failures into its emergency
         // logger, so the mock is what reaches the handler's own failure guard.
-        $logger = Double::for(LogManager::class);
+        $logger = Double::for(LogManager::class)->strict();
         $this->app->instance(LogManager::class, $logger);
 
         $logger->expects('channel')->with('deprecations')->throws(new Error('Class "Monolog\Logger" not found'));
@@ -806,7 +811,7 @@ class HandleExceptionsTest extends TestCase
      */
     protected function bootstrappableApplication(bool $testing = true): Application
     {
-        $app = Double::for(Application::class, override: true);
+        $app = Double::for(Application::class, override: true)->strict();
         $app->allows('environment')->with('testing')->returns($testing);
 
         return $app->instance();

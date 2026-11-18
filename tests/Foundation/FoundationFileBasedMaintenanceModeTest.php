@@ -76,7 +76,7 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
     public function testCachedActivityReturnsFalseWhenFileDisappearsDuringRead(): void
     {
         $path = storage_path('framework/down');
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $files->allows('exists')->with($path)->returns(true, false);
         $files->expects('get')->with($path)
             ->throws(new FileNotFoundException('removed'));
@@ -91,7 +91,7 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
     {
         $path = storage_path('framework/down');
         $exception = new FileNotFoundException('unreadable');
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $files->expects('exists')->with($path)->returns(true);
         $files->expects('get')->with($path)->throws($exception);
 
@@ -209,7 +209,7 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
     public function testDeactivateFailsWhenDeleteReturnsFalseAndFileRemains(): void
     {
         $path = storage_path('framework/down');
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $files->expects('exists')->times(2)->with($path)->returns(true);
         $files->expects('delete')->with($path)->returns(false);
 
@@ -222,12 +222,10 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
     public function testDeactivateSucceedsWhenAnotherOwnerRemovesTheFile(): void
     {
         $path = storage_path('framework/down');
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $files->expects('exists')->times(2)->with($path)->returns(true, false);
         $files->expects('delete')->with($path)->returns(false);
 
         (new FileBasedMaintenanceMode($files))->deactivate();
-
-        $this->assertTrue(true);
     }
 }

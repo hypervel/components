@@ -10,8 +10,10 @@ use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Cookie\Middleware\EncryptCookies;
 use Hypervel\Encryption\Encrypter;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Application as FoundationApplication;
 use Hypervel\Foundation\Configuration\Middleware;
+use Hypervel\Foundation\Http\Kernel;
 use Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
@@ -598,14 +600,9 @@ class MiddlewareTest extends TestCase
 
     public function testDefaultMiddlewarePriority(): void
     {
-        $kernel = new \Hypervel\Foundation\Http\Kernel(
-            Double::for(Application::class, override: true)->instance(),
-            Double::for(Router::class)
-        );
+        $kernel = $this->makeKernel();
 
-        $reflection = new ReflectionClass($kernel);
-        $property = $reflection->getProperty('middlewarePriority');
-        $priority = $property->getValue($kernel);
+        $priority = $kernel->getMiddlewarePriority();
 
         $this->assertSame([
             \Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
@@ -624,10 +621,7 @@ class MiddlewareTest extends TestCase
 
     public function testWithMiddlewareAppliesPriorityToKernel(): void
     {
-        $kernel = new \Hypervel\Foundation\Http\Kernel(
-            Double::for(Application::class, override: true)->instance(),
-            Double::for(Router::class)
-        );
+        $kernel = $this->makeKernel();
 
         $middleware = new Middleware;
         $middleware->priority([
@@ -638,22 +632,16 @@ class MiddlewareTest extends TestCase
 
         $kernel->setMiddlewarePriority($middleware->getMiddlewarePriority());
 
-        $reflection = new ReflectionClass($kernel);
-        $property = $reflection->getProperty('middlewarePriority');
-
         $this->assertSame([
             'FirstMiddleware',
             'SecondMiddleware',
             'ThirdMiddleware',
-        ], $property->getValue($kernel));
+        ], $kernel->getMiddlewarePriority());
     }
 
     public function testWithMiddlewareAppliesAppendsToPriority(): void
     {
-        $kernel = new \Hypervel\Foundation\Http\Kernel(
-            Double::for(Application::class, override: true)->instance(),
-            Double::for(Router::class)
-        );
+        $kernel = $this->makeKernel();
 
         $middleware = new Middleware;
         $middleware->appendToPriorityList(
@@ -665,8 +653,7 @@ class MiddlewareTest extends TestCase
             $kernel->addToMiddlewarePriorityAfter($after, $newMiddleware);
         }
 
-        $reflection = new ReflectionClass($kernel);
-        $priority = $reflection->getProperty('middlewarePriority')->getValue($kernel);
+        $priority = $kernel->getMiddlewarePriority();
 
         $bindingsIndex = array_search(\Hypervel\Routing\Middleware\SubstituteBindings::class, $priority);
         $appendedIndex = array_search('AppendedMiddleware', $priority);
@@ -677,10 +664,7 @@ class MiddlewareTest extends TestCase
 
     public function testWithMiddlewareAppliesPrependsToPriority(): void
     {
-        $kernel = new \Hypervel\Foundation\Http\Kernel(
-            Double::for(Application::class, override: true)->instance(),
-            Double::for(Router::class)
-        );
+        $kernel = $this->makeKernel();
 
         $middleware = new Middleware;
         $middleware->prependToPriorityList(
@@ -692,8 +676,7 @@ class MiddlewareTest extends TestCase
             $kernel->addToMiddlewarePriorityBefore($before, $newMiddleware);
         }
 
-        $reflection = new ReflectionClass($kernel);
-        $priority = $reflection->getProperty('middlewarePriority')->getValue($kernel);
+        $priority = $kernel->getMiddlewarePriority();
 
         $bindingsIndex = array_search(\Hypervel\Routing\Middleware\SubstituteBindings::class, $priority);
         $prependedIndex = array_search('PrependedMiddleware', $priority);
@@ -704,10 +687,7 @@ class MiddlewareTest extends TestCase
 
     public function testWithMiddlewareAppliesGlobalGroupsAndAliasesToKernel(): void
     {
-        $kernel = new \Hypervel\Foundation\Http\Kernel(
-            Double::for(Application::class, override: true)->instance(),
-            Double::for(Router::class)
-        );
+        $kernel = $this->makeKernel();
 
         $middleware = new Middleware;
         $middleware->use(['CustomGlobalMiddleware']);
@@ -718,18 +698,13 @@ class MiddlewareTest extends TestCase
         $kernel->setMiddlewareGroups($middleware->getMiddlewareGroups());
         $kernel->setMiddlewareAliases($middleware->getMiddlewareAliases());
 
-        $reflection = new ReflectionClass($kernel);
+        $this->assertSame(['CustomGlobalMiddleware'], $kernel->getGlobalMiddleware());
 
-        $this->assertSame(
-            ['CustomGlobalMiddleware'],
-            $reflection->getProperty('middleware')->getValue($kernel)
-        );
-
-        $groups = $reflection->getProperty('middlewareGroups')->getValue($kernel);
+        $groups = $kernel->getMiddlewareGroups();
         $this->assertArrayHasKey('custom', $groups);
         $this->assertSame(['CustomGroupMiddleware'], $groups['custom']);
 
-        $aliases = $reflection->getProperty('middlewareAliases')->getValue($kernel);
+        $aliases = $kernel->getMiddlewareAliases();
         $this->assertSame('CustomAliasMiddleware', $aliases['custom-alias']);
     }
 
@@ -752,8 +727,7 @@ class MiddlewareTest extends TestCase
 
         $kernel = $app->make(\Hypervel\Contracts\Http\Kernel::class);
 
-        $reflection = new ReflectionClass($kernel);
-        $priority = $reflection->getProperty('middlewarePriority')->getValue($kernel);
+        $priority = $kernel->getMiddlewarePriority();
 
         // Verify appended middleware is after SubstituteBindings
         $bindingsIndex = array_search(\Hypervel\Routing\Middleware\SubstituteBindings::class, $priority);
@@ -768,12 +742,23 @@ class MiddlewareTest extends TestCase
         $this->assertSame($encryptIndex - 1, $prependedIndex);
 
         // Verify custom group was applied
-        $groups = $reflection->getProperty('middlewareGroups')->getValue($kernel);
+        $groups = $kernel->getMiddlewareGroups();
         $this->assertArrayHasKey('custom', $groups);
         $this->assertSame(['CustomGroupMiddleware'], $groups['custom']);
 
         // Verify custom alias was applied
-        $aliases = $reflection->getProperty('middlewareAliases')->getValue($kernel);
+        $aliases = $kernel->getMiddlewareAliases();
         $this->assertSame('CustomAliasMiddleware', $aliases['custom-alias']);
+    }
+
+    /**
+     * Create a kernel with a router to receive its middleware configuration.
+     */
+    private function makeKernel(): Kernel
+    {
+        return new Kernel(
+            Double::for(Application::class, override: true)->strict()->instance(),
+            new Router(new Dispatcher),
+        );
     }
 }

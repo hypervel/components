@@ -21,7 +21,7 @@ class RegisterProvidersTest extends TestCase
     public function testRegisterProviders(): void
     {
         $mergedProviders = null;
-        $config = Double::for(Repository::class);
+        $config = Double::for(Repository::class)->strict();
         $config->expects('array')
             ->times(2)
             ->with('app.providers')
@@ -33,7 +33,7 @@ class RegisterProvidersTest extends TestCase
             ->resolves(function (string $key, array $value) use (&$mergedProviders) {
                 $mergedProviders = $value;
             });
-        $manifest = Double::for(PackageManifest::class);
+        $manifest = Double::for(PackageManifest::class)->strict();
         $manifest->expects('providers')
             ->returns([
                 TestOneServiceProvider::class,

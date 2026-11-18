@@ -83,7 +83,7 @@ class MaintenanceModeTest extends TestCase
 
     public function testCacheMaintenanceModeAllowsRequestWhenDeactivatedWhileReadingPayload(): void
     {
-        $cache = Double::for(Factory::class, Repository::class);
+        $cache = Double::for(Factory::class, Repository::class)->strict();
         $cache->allows('store')->with('maintenance')->returns($cache);
         $cache->allows('has')->with('framework:down')->returns(true, false);
         $cache->expects('get')->with('framework:down')->returns(null);
@@ -103,7 +103,7 @@ class MaintenanceModeTest extends TestCase
 
     public function testActiveCacheMaintenanceModeWithAnEmptyPayloadBlocksRequests(): void
     {
-        $cache = Double::for(Factory::class, Repository::class);
+        $cache = Double::for(Factory::class, Repository::class)->strict();
         $cache->allows('store')->with('maintenance')->returns($cache);
         $cache->allows('has')->with('framework:down')->returns(true);
         $cache->expects('get')->with('framework:down')->returns([]);
@@ -122,7 +122,7 @@ class MaintenanceModeTest extends TestCase
     public function testConcurrentMaintenanceFileRemovalAllowsTheRequestToProceed(): void
     {
         $path = storage_path('framework/down');
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $files->allows('exists')->with($path)->returns(true, false);
         $files->expects('get')->with($path)
             ->throws(new FileNotFoundException('removed'));
@@ -142,7 +142,7 @@ class MaintenanceModeTest extends TestCase
 
         $path = storage_path('framework/down');
         $exception = new FileNotFoundException('unreadable');
-        $files = Double::for(Filesystem::class);
+        $files = Double::for(Filesystem::class)->strict();
         $files->allows('exists')->with($path)->returns(true);
         $files->expects('get')->with($path)->throws($exception);
         $this->app->instance(MaintenanceModeContract::class, new FileBasedMaintenanceMode($files));
@@ -428,7 +428,7 @@ class MaintenanceModeTest extends TestCase
             static fn (): never => throw $eventException,
         );
 
-        $handler = Double::for(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $handler->expects('report')->with(Argument::same($eventException), [])->throws($reportException);
         $this->app->instance(ExceptionHandler::class, $handler);
 
@@ -480,7 +480,7 @@ class MaintenanceModeTest extends TestCase
 
     public function testDownReportsDriverFailureBeforeMaintenanceStateIsCommitted(): void
     {
-        $mode = Double::for(MaintenanceModeContract::class);
+        $mode = Double::for(MaintenanceModeContract::class)->strict();
         $mode->expects('active')->returns(false);
         $mode->expects('activate')->throws(new RuntimeException('activation failed'));
         $this->app->instance(MaintenanceModeContract::class, $mode);
@@ -498,12 +498,12 @@ class MaintenanceModeTest extends TestCase
         file_put_contents(storage_path('framework/down'), json_encode(['status' => 503]));
 
         $exception = new RuntimeException('deactivation failed');
-        $mode = Double::for(MaintenanceModeContract::class);
+        $mode = Double::for(MaintenanceModeContract::class)->strict();
         $mode->expects('active')->returns(true);
         $mode->expects('deactivate')->throws($exception);
         $this->app->instance(MaintenanceModeContract::class, $mode);
 
-        $handler = Double::for(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $handler->expects('report')->with(Argument::same($exception), []);
         $this->app->instance(ExceptionHandler::class, $handler);
 

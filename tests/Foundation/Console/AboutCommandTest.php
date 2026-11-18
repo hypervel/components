@@ -48,7 +48,7 @@ class AboutCommandTest extends TestCase
 
     public function testItReportsNoPhpFilesWhenGlobCannotEnumerateThePath(): void
     {
-        $command = new TestableAboutCommand(Double::for(Composer::class));
+        $command = new TestableAboutCommand(Double::for(Composer::class)->strict());
 
         $this->assertFalse($command->hasPhpFiles(str_repeat('a', PHP_MAXPATHLEN + 1)));
     }

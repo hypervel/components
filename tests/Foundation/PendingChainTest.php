@@ -33,7 +33,7 @@ class PendingChainTest extends TestCase
 
     public function testDispatchPreservesZeroIdentifiersOnTheChainAndFirstJob(): void
     {
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch')->times(2)->resolves(fn (object $job): object => $job);
         Container::getInstance()->instance(Dispatcher::class, $dispatcher);
 
@@ -56,7 +56,7 @@ class PendingChainTest extends TestCase
 
     public function testDispatchUsesChainIdentifiersForEmptyFirstJobIdentifiers(): void
     {
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch')->resolves(fn (object $job): object => $job);
         Container::getInstance()->instance(Dispatcher::class, $dispatcher);
 
@@ -73,7 +73,7 @@ class PendingChainTest extends TestCase
 
     public function testDispatchIgnoresEmptyChainIdentifiers(): void
     {
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch')->resolves(fn (object $job): object => $job);
         Container::getInstance()->instance(Dispatcher::class, $dispatcher);
 
@@ -94,7 +94,7 @@ class PendingChainTest extends TestCase
 
     public function testDispatchKeepsFirstJobAttributesOverChainDefaults(): void
     {
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch')->resolves(fn (object $job): object => $job);
         Container::getInstance()->instance(Dispatcher::class, $dispatcher);
 
@@ -113,7 +113,7 @@ class PendingChainTest extends TestCase
 
     public function testDispatchAppliesChainDelayOnlyWithoutAFirstJobDelay(): void
     {
-        $dispatcher = Double::for(Dispatcher::class);
+        $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('dispatch')->times(2)->resolves(fn (object $job): object => $job);
         Container::getInstance()->instance(Dispatcher::class, $dispatcher);
 

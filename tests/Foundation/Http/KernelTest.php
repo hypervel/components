@@ -20,6 +20,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -420,11 +421,11 @@ class KernelTest extends TestCase
         $failure = new RuntimeException('stream failed');
         $request = Request::create('/');
         $replacement = new Response('replacement', 500);
-        $handler = Double::for(ExceptionHandler::class);
-        $handler->expects('report')->with($failure, []);
-        $handler->expects('render')->with($request, $failure)->returns($replacement);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($failure), []);
+        $handler->expects('render')->with(Argument::same($request), Argument::same($failure))->returns($replacement);
         $app->instance(ExceptionHandler::class, $handler);
-        $router = Double::for(Router::class);
+        $router = Double::for(Router::class)->strict();
         $router->expects('dispatch')->throws($failure);
         $kernel = new Kernel($app, $router);
 
@@ -439,11 +440,11 @@ class KernelTest extends TestCase
         $app->bootstrapWith([]);
         $original = new RuntimeException('router failed');
         $reportingFailure = new RuntimeException('reporting failed');
-        $handler = Double::for(ExceptionHandler::class);
-        $handler->expects('report')->with($original, [])->throws($reportingFailure);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($original), [])->throws($reportingFailure);
         $handler->expects('render')->never();
         $app->instance(ExceptionHandler::class, $handler);
-        $router = Double::for(Router::class);
+        $router = Double::for(Router::class)->strict();
         $router->expects('dispatch')->throws($original);
         $kernel = new Kernel($app, $router);
 
@@ -467,11 +468,11 @@ class KernelTest extends TestCase
         $events->listen(RequestHandled::class, function () use (&$handled): void {
             $handled = true;
         });
-        $handler = Double::for(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $handler->expects('report')->never();
         $handler->expects('render')->never();
         $app->instance(ExceptionHandler::class, $handler);
-        $router = Double::for(Router::class);
+        $router = Double::for(Router::class)->strict();
         $router->expects('dispatch')->throws($cancellation);
         $kernel = new Kernel($app, $router);
 
@@ -493,11 +494,11 @@ class KernelTest extends TestCase
         $app->bootstrapWith([]);
         $cancellation = new CanceledException('canceled');
         $events->listen(RequestHandled::class, fn () => throw $cancellation);
-        $handler = Double::for(ExceptionHandler::class);
+        $handler = Double::for(ExceptionHandler::class)->strict();
         $handler->expects('report')->never();
         $handler->expects('render')->never();
         $app->instance(ExceptionHandler::class, $handler);
-        $router = Double::for(Router::class);
+        $router = Double::for(Router::class)->strict();
         $router->expects('dispatch')->returns(new Response);
         $kernel = new Kernel($app, $router);
 
@@ -517,7 +518,7 @@ class KernelTest extends TestCase
         $app->instance('events', $events);
         $app->instance('config', new Repository(['app' => ['timezone' => 'UTC']]));
         $app->bootstrapWith([]);
-        $router = Double::for(Router::class);
+        $router = Double::for(Router::class)->strict();
         $router->expects('dispatch')->returns(new Response);
         $kernel = new Kernel($app, $router);
         $request = Request::create('/');
@@ -601,7 +602,7 @@ class KernelTest extends TestCase
         $app->instance('events', $events);
         $app->instance('config', new Repository(['app' => ['timezone' => 'UTC']]));
         $app->bootstrapWith([]);
-        $router = Double::for(Router::class);
+        $router = Double::for(Router::class)->strict();
         $router->expects('dispatch')->returns(new Response);
         $kernel = new Kernel($app, $router);
         $request = Request::create('/');
@@ -653,7 +654,7 @@ class KernelTest extends TestCase
         $app->instance('events', $events);
         $app->instance('config', new Repository(['app' => ['timezone' => 'UTC']]));
         $app->bootstrapWith([]);
-        $router = Double::for(Router::class);
+        $router = Double::for(Router::class)->strict();
         $router->expects('dispatch')->returns(new Response);
         $kernel = new Kernel($app, $router);
         $request = Request::create('/');
@@ -714,7 +715,7 @@ class KernelTest extends TestCase
         $app->instance('events', $events);
         $app->instance('config', new Repository(['app' => ['timezone' => 'UTC']]));
         $app->bootstrapWith([]);
-        $router = Double::for(Router::class);
+        $router = Double::for(Router::class)->strict();
         $router->expects('dispatch')->returns(new Response);
         $kernel = new Kernel($app, $router);
         $request = Request::create('/');
@@ -755,7 +756,7 @@ class KernelTest extends TestCase
         $app->instance('config', new Repository(['app' => ['timezone' => 'America/New_York']]));
         $app->bootstrapWith([]);
 
-        $router = Double::for(Router::class);
+        $router = Double::for(Router::class)->strict();
         $router->expects('dispatch')->returns(new Response);
 
         $kernel = new Kernel($app, $router);
@@ -790,7 +791,7 @@ class KernelTest extends TestCase
         $app->instance('config', new Repository(['app' => ['timezone' => 'UTC']]));
         $app->bootstrapWith([]);
 
-        $router = Double::for(Router::class);
+        $router = Double::for(Router::class)->strict();
         $router->expects('dispatch')->returns(new Response);
 
         $kernel = new class($app, $router) extends Kernel {
@@ -832,7 +833,7 @@ class KernelTest extends TestCase
                 }
             };
         });
-        $router = Double::for(Router::class);
+        $router = Double::for(Router::class)->strict();
         $router->expects('dispatch')->times(2)->returns(new Response);
         $kernel = new class($app, $router) extends Kernel {
             public function reusablePipeline(): ?Closure
@@ -855,7 +856,7 @@ class KernelTest extends TestCase
 
     public function testSetApplicationClearsApplicationSpecificMiddlewareCaches(): void
     {
-        $kernel = new class(new Application, Double::for(Router::class)) extends Kernel {
+        $kernel = new class(new Application, Double::for(Router::class)->strict()) extends Kernel {
             public function primeMiddlewareCaches(): void
             {
                 $this->terminableMiddleware = ['test-middleware' => false];
@@ -888,7 +889,7 @@ class KernelTest extends TestCase
         $app->instance('config', new Repository(['app' => ['timezone' => 'UTC']]));
         $app->bootstrapWith([]);
 
-        $router = Double::for(Router::class);
+        $router = Double::for(Router::class)->strict();
         $router->allows('dispatch')->returns(new Response);
 
         $kernel = new Kernel($app, $router);
@@ -933,7 +934,7 @@ class KernelTest extends TestCase
     {
         return new Kernel(
             new Application,
-            Double::for(Router::class),
+            Double::for(Router::class)->strict(),
         );
     }
 }

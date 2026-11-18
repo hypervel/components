@@ -76,14 +76,14 @@ class ViewCacheCommandTest extends TestCase
      */
     protected function commandWithPaths(array $paths, array $hints = []): TestViewCacheCommand
     {
-        $finder = Double::for(ViewFinderInterface::class);
+        $finder = Double::for(ViewFinderInterface::class)->strict();
         $finder->expects('getPaths')->returns($paths);
         $finder->expects('getHints')->returns($hints);
 
-        $factory = Double::for(Factory::class);
+        $factory = Double::for(Factory::class)->strict();
         $factory->expects('getFinder')->returns($finder);
 
-        $application = Double::for(Application::class, override: true);
+        $application = Double::for(Application::class, override: true)->strict();
         $application->expects('make')->with('view')->returns($factory);
 
         $command = new TestViewCacheCommand;
