@@ -11,6 +11,7 @@ use Hypervel\Queue\RedisQueue;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
+use JMac\Testing\Matching\Argument;
 
 class QueueRedisJobTest extends TestCase
 {
@@ -31,7 +32,7 @@ class QueueRedisJobTest extends TestCase
     {
         $job = $this->getJob();
         $job->getRedisQueue()->expects('deleteReserved')
-            ->with('default', $job);
+            ->with('default', Argument::same($job));
 
         $job->delete();
     }
@@ -40,7 +41,7 @@ class QueueRedisJobTest extends TestCase
     {
         $job = $this->getJob();
         $job->getRedisQueue()->expects('deleteAndRelease')
-            ->with('default', $job, 1);
+            ->with('default', Argument::same($job), 1);
 
         $job->release(1);
     }
@@ -106,7 +107,7 @@ class QueueRedisJobTest extends TestCase
     {
         return new RedisJob(
             new Container,
-            Double::for(RedisQueue::class),
+            Double::for(RedisQueue::class)->strict(),
             $payload ?? json_encode(['job' => 'foo', 'data' => ['data'], 'attempts' => 1], JSON_THROW_ON_ERROR),
             json_encode(['job' => 'foo', 'data' => ['data'], 'attempts' => 2], JSON_THROW_ON_ERROR),
             'connection-name',

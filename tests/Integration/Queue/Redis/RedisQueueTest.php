@@ -526,14 +526,14 @@ class RedisQueueTest extends TestCase
 
     public function testBulkJobQueuedEvent(): void
     {
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('hasListeners')->with(JobPayloadFinalizing::class)->returns(false)->times(3);
         $events->expects('hasListeners')->with(JobQueueing::class)->returns(true)->times(3);
         $events->expects('hasListeners')->with(JobQueued::class)->returns(true)->times(3);
         $events->expects('dispatch')->with(Argument::type(JobQueueing::class))->returns(null)->times(3);
         $events->expects('dispatch')->with(Argument::type(JobQueued::class))->returns(null)->times(3);
 
-        $container = Double::for(Container::class, override: true);
+        $container = Double::for(Container::class, override: true)->strict();
         $container->allows('bound')->with('queue.routes')->returns(false);
         $container->allows('make')->with(QueueRoutes::class)->returns(new QueueRoutes);
         $container->expects('has')->with('db.transactions')->returns(false);

@@ -53,7 +53,7 @@ class QueueRedisQueueTest extends TestCase
         $routes->forward('emails', 'reports:high');
         Container::getInstance()->instance('queue.routes', $routes);
         $pinned = false;
-        $connection = Double::for(QueueRedisProxy::class);
+        $connection = Double::for(QueueRedisProxy::class)->strict();
         $connection->expects('withPinnedConnection')->resolves(function (callable $callback) use (&$pinned): int {
             $pinned = true;
 
@@ -74,7 +74,7 @@ class QueueRedisQueueTest extends TestCase
 
             return 7;
         });
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $redis->allows('connection')->with(null)->returns($connection);
         $queue = Double::for(RedisQueue::class)->passthru(new RedisQueue($redis, 'default'));
         $queue->expects('allQueueNames')->resolves(function () use (&$pinned): Collection {
@@ -106,31 +106,16 @@ class QueueRedisQueueTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
 
-        $connection = Double::for(QueueRedisProxy::class);
+        $connection = Double::for(QueueRedisProxy::class)->strict();
         $connection->expects('isCluster')->returns(false);
         $connection->expects('evalWithShaCache')
-            ->with(Argument::all(function (string $script, array $keys, array $arguments): bool {
-                $this->assertSame(LuaScripts::bulk(), $script);
-                $this->assertSame([
-                    'queues:critical',
-                    'queues:critical:notify',
-                    'queues:critical:delayed',
-                ], $keys);
-                $this->assertSame([1005, 1010, 'i'], [$arguments[0], $arguments[2], $arguments[4]]);
-                $this->assertSame([
-                    RedisBulkPropertyDelayJob::class,
-                    RedisBulkAttributeDelayJob::class,
-                    'plain',
-                ], [
-                    json_decode($arguments[1], true)['displayName'],
-                    json_decode($arguments[3], true)['displayName'],
-                    json_decode($arguments[5], true)['displayName'],
-                ]);
-
-                return true;
-            }))
+            ->with(LuaScripts::bulk(), [
+                'queues:critical',
+                'queues:critical:notify',
+                'queues:critical:delayed',
+            ], Argument::capture($arguments))
             ->returns(3);
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $redis->expects('connection')->with('default')->returns($connection);
 
         $queue = new RedisQueue($redis, 'default', 'default');
@@ -141,11 +126,21 @@ class QueueRedisQueueTest extends TestCase
             new RedisBulkAttributeDelayJob,
             'plain',
         ], ['data'], 'critical'));
+        $this->assertSame([1005, 1010, 'i'], [$arguments[0], $arguments[2], $arguments[4]]);
+        $this->assertSame([
+            RedisBulkPropertyDelayJob::class,
+            RedisBulkAttributeDelayJob::class,
+            'plain',
+        ], [
+            json_decode($arguments[1], true)['displayName'],
+            json_decode($arguments[3], true)['displayName'],
+            json_decode($arguments[5], true)['displayName'],
+        ]);
     }
 
     public function testBulkUsesOneClusterSafeLuaCall(): void
     {
-        $connection = Double::for(QueueRedisProxy::class);
+        $connection = Double::for(QueueRedisProxy::class)->strict();
         $connection->expects('isCluster')->returns(true);
         $connection->expects('evalWithShaCache')
             ->with(
@@ -157,7 +152,7 @@ class QueueRedisQueueTest extends TestCase
                     && json_decode($arguments[3], true)['job'] === 'second'),
             )
             ->returns(2);
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $redis->expects('connection')->with('default')->returns($connection);
 
         $queue = new RedisQueue($redis, 'default', 'default');
@@ -169,10 +164,10 @@ class QueueRedisQueueTest extends TestCase
     public function testBulkRedisFailureIsNotReplacedByAFailingFailureListener(): void
     {
         $exception = new RuntimeException('Redis unavailable.');
-        $connection = Double::for(QueueRedisProxy::class);
+        $connection = Double::for(QueueRedisProxy::class)->strict();
         $connection->expects('isCluster')->returns(false);
         $connection->expects('evalWithShaCache')->throws($exception);
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $redis->expects('connection')->with('default')->returns($connection);
 
         Container::setInstance($container = new Container);
@@ -188,8 +183,8 @@ class QueueRedisQueueTest extends TestCase
             $failed[] = $event;
         });
         $events->listen(JobQueueingFailed::class, static fn () => throw $listener);
-        $handler = Double::for(ExceptionHandler::class);
-        $handler->expects('report')->with($listener);
+        $handler = Double::for(ExceptionHandler::class)->strict();
+        $handler->expects('report')->with(Argument::same($listener));
         $container->instance(ExceptionHandler::class, $handler);
 
         try {
@@ -213,10 +208,10 @@ class QueueRedisQueueTest extends TestCase
         if ($cleanupThrows) {
             $cancellation = new RuntimeException('Redis cleanup failed.', previous: $cancellation);
         }
-        $connection = Double::for(QueueRedisProxy::class);
+        $connection = Double::for(QueueRedisProxy::class)->strict();
         $connection->expects('isCluster')->returns(false);
         $connection->expects('evalWithShaCache')->throws($cancellation);
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $redis->allows('connection')->with('default')->returns($connection);
 
         Container::setInstance($container = new Container);
@@ -253,7 +248,7 @@ class QueueRedisQueueTest extends TestCase
 
     public function testEmptyBulkDoesNotResolveRedis(): void
     {
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $redis->expects('connection')->never();
 
         $this->assertNull((new RedisQueue($redis, 'default', 'default'))->bulk([]));
@@ -261,16 +256,16 @@ class QueueRedisQueueTest extends TestCase
 
     public function testBulkAcceptsDispatchOwnershipOnlyAfterRedisConfirmsEveryJob(): void
     {
-        $connection = Double::for(QueueRedisProxy::class);
+        $connection = Double::for(QueueRedisProxy::class)->strict();
         $connection->expects('isCluster')->returns(false);
         $connection->expects('evalWithShaCache')->returns(2);
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $redis->expects('connection')->with('default')->returns($connection);
         $queue = new RedisQueue($redis, 'default', 'default');
         $queue->setContainer(new Container);
         $first = new RedisBulkOwnedJob;
         $second = new RedisBulkOwnedJob;
-        $cache = Double::for(CacheRepository::class);
+        $cache = Double::for(CacheRepository::class)->strict();
         DispatchLockContext::registerDebounce($first, $cache, 'first', 'owner-1');
         DispatchLockContext::registerDebounce($second, $cache, 'second', 'owner-2');
 
@@ -282,10 +277,10 @@ class QueueRedisQueueTest extends TestCase
 
     public function testBulkAcceptsEveryDispatchBeforeRaisingSuccessEvents(): void
     {
-        $connection = Double::for(QueueRedisProxy::class);
+        $connection = Double::for(QueueRedisProxy::class)->strict();
         $connection->expects('isCluster')->returns(false);
         $connection->expects('evalWithShaCache')->returns(2);
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $redis->expects('connection')->with('default')->returns($connection);
         $queue = new RedisQueue($redis, 'default', 'default');
         $dispatcher = new EventDispatcher($container = new Container);
@@ -294,7 +289,7 @@ class QueueRedisQueueTest extends TestCase
         $queue->setConnectionName('redis');
         $first = new RedisBulkOwnedJob;
         $second = new RedisBulkOwnedJob;
-        $cache = Double::for(CacheRepository::class);
+        $cache = Double::for(CacheRepository::class)->strict();
         DispatchLockContext::registerDebounce($first, $cache, 'first', 'owner-1');
         DispatchLockContext::registerDebounce($second, $cache, 'second', 'owner-2');
         $exception = new RuntimeException('Listener failed.');
@@ -321,16 +316,16 @@ class QueueRedisQueueTest extends TestCase
 
     public function testBulkRetainsDispatchOwnershipWhenRedisDoesNotConfirmEveryJob(): void
     {
-        $connection = Double::for(QueueRedisProxy::class);
+        $connection = Double::for(QueueRedisProxy::class)->strict();
         $connection->expects('isCluster')->returns(false);
         $connection->expects('evalWithShaCache')->returns(1);
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $redis->expects('connection')->with('default')->returns($connection);
         $queue = new RedisQueue($redis, 'default', 'default');
         $queue->setContainer(new Container);
         $first = new RedisBulkOwnedJob;
         $second = new RedisBulkOwnedJob;
-        $cache = Double::for(CacheRepository::class);
+        $cache = Double::for(CacheRepository::class)->strict();
         DispatchLockContext::registerDebounce($first, $cache, 'first', 'owner-1');
         DispatchLockContext::registerDebounce($second, $cache, 'second', 'owner-2');
         $caught = null;
@@ -348,7 +343,7 @@ class QueueRedisQueueTest extends TestCase
 
     public function testBulkDefersAfterCommitMembersWithoutLosingOwnership(): void
     {
-        $connection = Double::for(QueueRedisProxy::class);
+        $connection = Double::for(QueueRedisProxy::class)->strict();
         $connection->expects('isCluster')->returns(false);
         $storedJobs = [];
         $connection->expects('evalWithShaCache')->times(2)->resolves(
@@ -358,7 +353,7 @@ class QueueRedisQueueTest extends TestCase
                 return 1;
             }
         );
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $redis->expects('connection')->times(2)->with('default')->returns($connection);
         $transactions = new DatabaseTransactionsManager;
         $transactions->begin('default', 1);
@@ -367,7 +362,7 @@ class QueueRedisQueueTest extends TestCase
         $queue = new RedisQueue($redis, 'default', 'default');
         $queue->setContainer($container);
         $deferred = new RedisBulkAfterCommitJob;
-        DispatchLockContext::registerDebounce($deferred, Double::for(CacheRepository::class), 'deferred', 'owner');
+        DispatchLockContext::registerDebounce($deferred, Double::for(CacheRepository::class)->strict(), 'deferred', 'owner');
 
         $queue->bulk(['immediate', $deferred]);
 
@@ -386,18 +381,18 @@ class QueueRedisQueueTest extends TestCase
         CarbonImmutable::setTestNow($now);
         $uuid = $this->mockUuid();
 
-        $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = Double::for(Redis::class), 'default', 'default'])->getMock();
+        $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = Double::for(Redis::class)->strict(), 'default', 'default'])->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
         $container = Double::for(Container::class, override: true)->passthru(new Container);
         $queue->setContainer($container->instance());
         $queue->setConnectionName('default');
 
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(false);
         $redisProxy->expects('evalWithShaCache')->with(LuaScripts::push(), ['queues:default', 'queues:default:notify'], [json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'stringJob' => true, 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => null])]);
         $redis->expects('connection')->times(2)->returns($redisProxy);
 
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('hasListeners')->with(JobPayloadFinalizing::class)->returns(false);
         $events->expects('hasListeners')->with(JobQueueing::class)->returns(false);
         $events->expects('hasListeners')->with(JobQueued::class)->returns(false);
@@ -419,7 +414,7 @@ class QueueRedisQueueTest extends TestCase
         $uuid = $this->mockUuid();
         $queue = $this->getMockBuilder(RedisQueue::class)
             ->onlyMethods(['getRandomId'])
-            ->setConstructorArgs([$redis = Double::for(Redis::class), 'default', 'default'])
+            ->setConstructorArgs([$redis = Double::for(Redis::class)->strict(), 'default', 'default'])
             ->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('job-id');
         $dispatcher = new EventDispatcher($container = new Container);
@@ -441,7 +436,7 @@ class QueueRedisQueueTest extends TestCase
             $events[] = $event;
         });
 
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(false);
         $redisProxy->expects('evalWithShaCache')->with(Argument::all(
             static fn (string $script, array $keys, array $arguments): bool => $script === LuaScripts::push()
@@ -466,7 +461,7 @@ class QueueRedisQueueTest extends TestCase
         $exception = new RuntimeException('Unable to finalize payload.');
         $queue = $this->getMockBuilder(RedisQueue::class)
             ->onlyMethods(['getRandomId'])
-            ->setConstructorArgs([$redis = Double::for(Redis::class), 'default', 'default'])
+            ->setConstructorArgs([$redis = Double::for(Redis::class)->strict(), 'default', 'default'])
             ->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('job-id');
         $dispatcher = new EventDispatcher($container = new Container);
@@ -506,18 +501,18 @@ class QueueRedisQueueTest extends TestCase
         $uuid = $this->mockUuid();
         $exception = new RuntimeException('Redis unavailable.');
 
-        $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = Double::for(Redis::class), 'default', 'default'])->getMock();
+        $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = Double::for(Redis::class)->strict(), 'default', 'default'])->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
         $container = Double::for(Container::class, override: true)->passthru(new Container);
         $queue->setContainer($container->instance());
         $queue->setConnectionName('default');
 
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(false);
         $redisProxy->expects('evalWithShaCache')->throws($exception);
         $redis->expects('connection')->times(2)->returns($redisProxy);
 
-        $events = Double::for(Dispatcher::class);
+        $events = Double::for(Dispatcher::class)->strict();
         $events->expects('hasListeners')->with(JobPayloadFinalizing::class)->returns(false);
         $events->expects('hasListeners')->with(JobQueueing::class)->returns(true);
         $events->expects('hasListeners')->with(JobQueueingFailed::class)->returns(true);
@@ -558,14 +553,14 @@ class QueueRedisQueueTest extends TestCase
         $now = CarbonImmutable::now();
         $uuid = $this->mockUuid();
 
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis, 'default', 'default'])->getMock();
         $container = Double::for(Container::class, override: true)->passthru(new Container);
         $queue->setContainer($container->instance());
         $queue->setConnectionName('default');
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
 
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(false);
         $redisProxy->expects('evalWithShaCache')->with(
             LuaScripts::later(),
@@ -586,14 +581,14 @@ class QueueRedisQueueTest extends TestCase
         $uuid = $this->mockUuid();
 
         $date = CarbonImmutable::createFromTimestampUTC('1001.100000');
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis, 'default', 'default'])->getMock();
         $container = Double::for(Container::class, override: true)->passthru(new Container);
         $queue->setContainer($container->instance());
         $queue->setConnectionName('default');
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
 
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(false);
         $redisProxy->expects('evalWithShaCache')->with(
             LuaScripts::later(),
@@ -613,13 +608,13 @@ class QueueRedisQueueTest extends TestCase
         $uuid = $this->mockUuid();
         $delay = new DateInterval('PT1S');
 
-        $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = Double::for(Redis::class), 'default', 'default'])->getMock();
+        $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = Double::for(Redis::class)->strict(), 'default', 'default'])->getMock();
         $container = Double::for(Container::class, override: true)->passthru(new Container);
         $queue->setContainer($container->instance());
         $queue->setConnectionName('default');
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
 
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(false);
         $redisProxy->expects('evalWithShaCache')->with(
             LuaScripts::later(),
@@ -634,7 +629,7 @@ class QueueRedisQueueTest extends TestCase
 
     public function testGetQueueRemainsUnchangedForNonCluster(): void
     {
-        $queue = new RedisQueue(Double::for(Redis::class), 'default', 'default');
+        $queue = new RedisQueue(Double::for(Redis::class)->strict(), 'default', 'default');
 
         $this->assertSame('queues:default', $queue->getQueue(null));
         $this->assertSame('queues:default', $queue->getQueue(''));
@@ -647,7 +642,7 @@ class QueueRedisQueueTest extends TestCase
 
     public function testGetQueueRemainsUnchangedForCluster(): void
     {
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $queue = new RedisQueue($redis, 'default', 'default');
         $redis->expects('connection')->never();
 
@@ -660,9 +655,9 @@ class QueueRedisQueueTest extends TestCase
 
     public function testGetRedisKeyReturnsPlainKeyForNonCluster(): void
     {
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $queue = new TestableRedisQueue($redis, 'default', 'default');
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(false);
         $redis->expects('connection')->returns($redisProxy);
 
@@ -674,9 +669,9 @@ class QueueRedisQueueTest extends TestCase
 
     public function testGetRedisKeyWrapsWithHashTagsForPhpRedisCluster(): void
     {
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $queue = new TestableRedisQueue($redis, 'default', 'default');
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(true);
         $redis->expects('connection')->returns($redisProxy);
 
@@ -690,9 +685,9 @@ class QueueRedisQueueTest extends TestCase
 
     public function testGetRedisKeyDoesNotDoubleWrapExistingHashTags(): void
     {
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $queue = new TestableRedisQueue($redis, '{default}', 'default');
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(true);
         $redis->expects('connection')->returns($redisProxy);
 
@@ -702,9 +697,9 @@ class QueueRedisQueueTest extends TestCase
 
     public function testGetRedisKeySkipsWrappingWhenQueueNameContainsBraces(): void
     {
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $queue = new TestableRedisQueue($redis, 'default', 'default');
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(true);
         $redis->expects('connection')->returns($redisProxy);
 
@@ -714,9 +709,9 @@ class QueueRedisQueueTest extends TestCase
 
     public function testGetRedisKeyWrapsEmptyHashTagOnCluster(): void
     {
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $queue = new TestableRedisQueue($redis, 'default', 'default');
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(true);
         $redis->expects('connection')->returns($redisProxy);
 
@@ -726,9 +721,9 @@ class QueueRedisQueueTest extends TestCase
 
     public function testGetRedisKeyWrapsUnmatchedOpeningBrace(): void
     {
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $queue = new TestableRedisQueue($redis, 'default', 'default');
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(true);
         $redis->expects('connection')->returns($redisProxy);
 
@@ -738,9 +733,9 @@ class QueueRedisQueueTest extends TestCase
 
     public function testGetRedisKeyWrapsUnmatchedClosingBrace(): void
     {
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $queue = new TestableRedisQueue($redis, 'default', 'default');
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(true);
         $redis->expects('connection')->returns($redisProxy);
 
@@ -750,9 +745,9 @@ class QueueRedisQueueTest extends TestCase
 
     public function testGetRedisKeyWrapsEmptyFirstHashTagFollowedByValidPair(): void
     {
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $queue = new TestableRedisQueue($redis, 'default', 'default');
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(true);
         $redis->expects('connection')->returns($redisProxy);
 
@@ -767,7 +762,7 @@ class QueueRedisQueueTest extends TestCase
         CarbonImmutable::setTestNow($now);
         $uuid = $this->mockUuid();
 
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $queue = $this->getMockBuilder(RedisQueue::class)
             ->onlyMethods(['getRandomId'])
             ->setConstructorArgs([$redis, 'default', 'default'])
@@ -777,7 +772,7 @@ class QueueRedisQueueTest extends TestCase
         $queue->setContainer($container->instance());
         $queue->setConnectionName('default');
 
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(true);
         $redisProxy->expects('evalWithShaCache')->with(
             LuaScripts::push(),
@@ -796,7 +791,7 @@ class QueueRedisQueueTest extends TestCase
         CarbonImmutable::setTestNow($now);
         $this->mockUuid();
 
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $queue = $this->getMockBuilder(RedisQueue::class)
             ->onlyMethods(['getRandomId'])
             ->setConstructorArgs([$redis, 'default', 'default'])
@@ -805,7 +800,7 @@ class QueueRedisQueueTest extends TestCase
         $queue->setContainer(new Container);
         $queue->setConnectionName('default');
 
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(true);
         $redisProxy->expects('evalWithShaCache')->returns(null);
         $redis->expects('connection')->times(2)->returns($redisProxy);
@@ -835,7 +830,7 @@ class QueueRedisQueueTest extends TestCase
 
         $queue = $this->getMockBuilder(RedisQueue::class)
             ->onlyMethods(['availableAt', 'getRandomId'])
-            ->setConstructorArgs([$redis = Double::for(Redis::class), 'default', 'default'])
+            ->setConstructorArgs([$redis = Double::for(Redis::class)->strict(), 'default', 'default'])
             ->getMock();
         $container = Double::for(Container::class, override: true)->passthru(new Container);
         $queue->setContainer($container->instance());
@@ -843,7 +838,7 @@ class QueueRedisQueueTest extends TestCase
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
         $queue->expects($this->once())->method('availableAt')->with(1)->willReturn(2);
 
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(true);
         $redisProxy->expects('evalWithShaCache')->with(
             LuaScripts::later(),
@@ -858,9 +853,9 @@ class QueueRedisQueueTest extends TestCase
 
     public function testSizeUsesGetRedisKeyOnCluster(): void
     {
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $queue = new RedisQueue($redis, 'default', 'default');
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(true);
         $redisProxy->expects('eval')->with(
             LuaScripts::size(),
@@ -878,9 +873,9 @@ class QueueRedisQueueTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
 
-        $queue = new RedisQueue($redis = Double::for(Redis::class), 'default', 'default');
+        $queue = new RedisQueue($redis = Double::for(Redis::class)->strict(), 'default', 'default');
 
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(true);
         $redisProxy->expects('eval')->with(
             LuaScripts::migrateExpiredJobs(),
@@ -925,7 +920,7 @@ class QueueRedisQueueTest extends TestCase
         foreach ([['0', '0'], ['', 'default']] as [$requested, $expected]) {
             $queue = $this->getMockBuilder(RedisQueue::class)
                 ->onlyMethods(['getQueueRedisKey', 'migrate', 'retrieveNextJob'])
-                ->setConstructorArgs([Double::for(Redis::class), 'default', 'default'])
+                ->setConstructorArgs([Double::for(Redis::class)->strict(), 'default', 'default'])
                 ->getMock();
             $queue->setContainer(new Container);
             $queue->setConnectionName('redis');
@@ -944,7 +939,7 @@ class QueueRedisQueueTest extends TestCase
     {
         $queue = $this->getMockBuilder(RedisQueue::class)
             ->onlyMethods(['getQueueRedisKey', 'migrate', 'retrieveNextJob'])
-            ->setConstructorArgs([Double::for(Redis::class), 'default', 'default'])
+            ->setConstructorArgs([Double::for(Redis::class)->strict(), 'default', 'default'])
             ->getMock();
         $queue->setContainer(new Container);
         $queue->setConnectionName('redis');
@@ -961,11 +956,11 @@ class QueueRedisQueueTest extends TestCase
 
     public function testDeleteReservedUsesClusterSafeRedisKey(): void
     {
-        $queue = new RedisQueue($redis = Double::for(Redis::class), 'default', 'default');
-        $job = Double::for(RedisJob::class);
+        $queue = new RedisQueue($redis = Double::for(Redis::class)->strict(), 'default', 'default');
+        $job = Double::for(RedisJob::class)->strict();
         $job->expects('getReservedJob')->returns('reserved-payload');
 
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(true);
         $redisProxy->expects('zrem')->with('queues:{emails}:reserved', 'reserved-payload')->returns(1);
         $redis->expects('connection')->times(2)->returns($redisProxy);
@@ -977,12 +972,12 @@ class QueueRedisQueueTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
 
-        $queue = new RedisQueue($redis = Double::for(Redis::class), 'default', 'default');
+        $queue = new RedisQueue($redis = Double::for(Redis::class)->strict(), 'default', 'default');
 
-        $job = Double::for(RedisJob::class);
+        $job = Double::for(RedisJob::class)->strict();
         $job->expects('getReservedJob')->returns('reserved-payload');
 
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(true);
         $redisProxy->expects('eval')->with(
             LuaScripts::release(),
@@ -999,9 +994,9 @@ class QueueRedisQueueTest extends TestCase
 
     public function testClearUsesGetRedisKeyOnCluster(): void
     {
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $queue = new RedisQueue($redis, 'default', 'default');
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(true);
         $redisProxy->expects('eval')->with(
             LuaScripts::clear(),
@@ -1018,9 +1013,9 @@ class QueueRedisQueueTest extends TestCase
 
     public function testIsClusterConnectionCachesResult(): void
     {
-        $redis = Double::for(Redis::class);
+        $redis = Double::for(Redis::class)->strict();
         $queue = new TestableRedisQueue($redis, 'default', 'default');
-        $redisProxy = Double::for(QueueRedisProxy::class);
+        $redisProxy = Double::for(QueueRedisProxy::class)->strict();
         $redisProxy->expects('isCluster')->returns(true);
         $redis->expects('connection')->returns($redisProxy);
 
@@ -1031,8 +1026,8 @@ class QueueRedisQueueTest extends TestCase
 
     public function testSizeResolvesTheQueueNameFromAnEnum(): void
     {
-        $redis = Double::for(Redis::class);
-        $connection = Double::for(QueueRedisProxy::class);
+        $redis = Double::for(Redis::class)->strict();
+        $connection = Double::for(QueueRedisProxy::class)->strict();
         $redis->expects('connection')->times(2)->with(null)->returns($connection);
         $connection->expects('isCluster')->returns(false);
         $connection->expects('eval')->with(

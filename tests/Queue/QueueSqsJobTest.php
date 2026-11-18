@@ -472,11 +472,8 @@ class QueueSqsJobTest extends TestCase
         );
         $pointer = 'laravel:sqs-payloads:cleanup';
         $pointerBody = json_encode(['@pointer' => $pointer], JSON_THROW_ON_ERROR);
-        $store = Double::for(CacheRepository::class);
-        $cache = Double::for(CacheFactory::class)->strict();
-        $cache->allows('store')->returns($store);
         $container = Double::for(Container::class, override: true)->strict();
-        $container->allows('make')->returns($cache);
+        $container->expects('make')->with('cache')->never();
         $this->handler->append(new Result([]));
         $job = new SqsJob(
             $container->instance(),
@@ -493,8 +490,6 @@ class QueueSqsJobTest extends TestCase
         } catch (Throwable $exception) {
             $this->assertSame($releaseCancellation, $exception);
         }
-
-        $store->received('forget')->never();
     }
 
     public function testDeleteSurfacesOverflowCleanupFailureAfterSuccessfulDeletion(): void
