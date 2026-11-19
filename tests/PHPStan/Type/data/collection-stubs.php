@@ -37,6 +37,10 @@ function test(
     assertType('App\User|false', $collection->find(1, false));
 
     assertType('Hypervel\Support\Collection<(int|string), mixed>', $collection->pluck('id'));
+    assertType('Hypervel\Support\Collection<(int|string), non-falsy-string>', User::get()->pluck(fn (User $user) => "$user->id - $user->email", 'id'));
+    assertType('Hypervel\Support\Collection<string, mixed>', User::get()->pluck('id', fn (User $user) => "$user->id - $user->email"));
+    // Unlike upstream, the value is the name column: User::email() is an accessor Eloquent applies, so email reads as its untyped callback.
+    assertType('Hypervel\Support\Collection<string, string>', User::get()->pluck(fn (User $user) => $user->name, fn (User $user) => "$user->id - $user->email"));
 
     // Hypervel: Eloquent map() returns a base collection unless every result is a model, so mapInto() declares
     // either. flatMap() always returns a base collection, because the Eloquent collapse() calls toBase().

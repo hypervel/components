@@ -23,7 +23,6 @@ class MethodsClassReflectionExtensionTest extends TypeInferenceTestCase
     {
         yield from self::gatherAssertTypes(__DIR__ . '/data/macros.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/redirect-response.php');
-        yield from self::gatherAssertTypes(__DIR__ . '/data/macros-php-81.php');
     }
 
     /** @return string[] */

@@ -155,6 +155,13 @@ class IntegrationTest extends PHPStanTestCase
             ],
         ];
 
+        yield 'arrayable' => [
+            __DIR__ . '/data/arrayable.php',
+            [
+                15 => ['Parameter #1 $value of function ArrayableIntegration\integers expects Hypervel\Contracts\Support\Arrayable<array<string, int>>, Hypervel\Contracts\Support\Arrayable<array<string, string>> given.'],
+            ],
+        ];
+
         // Hypervel: a where column may also be a builder or relation subquery, as the query builder runs it.
         yield 'eloquent-where' => [
             __DIR__ . '/data/eloquent-where.php',
@@ -340,8 +347,6 @@ class IntegrationTest extends PHPStanTestCase
             ],
         ];
 
-        // REMOVED: model-property-increment-or-create-relation.php; it asserts Laravel releases before 13.35.
-
         // Hypervel: a single row may also bind resources.
         yield 'upsert' => [
             __DIR__ . '/data/model-property-upsert.php',
@@ -371,7 +376,7 @@ class IntegrationTest extends PHPStanTestCase
         ];
 
         yield 'with-attributes-as-conditions' => [
-            __DIR__ . '/data/model-property-with-attributes-l12-4.php',
+            __DIR__ . '/data/model-property-with-attributes-as-conditions.php',
             [
                 5 => ['Parameter #1 $attributes of method Hypervel\Database\Eloquent\Builder<App\User>::withAttributes() expects array<model property of App\User, mixed>|Hypervel\Contracts\Database\Query\Expression|model property of App\User, array<string, string> given.'],
                 6 => ['Parameter #1 $attributes of method Hypervel\Database\Eloquent\Builder<App\User>::withAttributes() expects array<model property of App\User, mixed>|Hypervel\Contracts\Database\Query\Expression|model property of App\User, string given.'],
@@ -379,7 +384,7 @@ class IntegrationTest extends PHPStanTestCase
         ];
 
         yield 'fill-and-insert' => [
-            __DIR__ . '/data/model-property-fill-and-insert-l12-6.php',
+            __DIR__ . '/data/model-property-fill-and-insert.php',
             [
                 5 => ['Parameter #1 $values of method Hypervel\Database\Eloquent\Builder<App\User>::fillAndInsert() expects array<int, array<model property of App\User, mixed>>, array<int, array<string, string>> given.'],
                 6 => ['Parameter #1 $values of method Hypervel\Database\Eloquent\Builder<App\User>::fillAndInsertOrIgnore() expects array<int, array<model property of App\User, mixed>>, array<int, array<string, string>> given.'],
@@ -392,7 +397,7 @@ class IntegrationTest extends PHPStanTestCase
         ];
 
         yield 'increment-each' => [
-            __DIR__ . '/data/model-property-increment-each-l13-3.php',
+            __DIR__ . '/data/model-property-increment-each.php',
             [
                 5 => ['Parameter #1 $columns of method Hypervel\Database\Eloquent\Builder<App\User>::incrementEach() expects array<model property of App\User, float|int|numeric-string>, array{foo: 1} given.'],
                 7 => ['Parameter #2 $extra of method Hypervel\Database\Eloquent\Builder<App\User>::incrementEach() expects array<model property of App\User, mixed>, array<string, string> given.'],
@@ -404,7 +409,7 @@ class IntegrationTest extends PHPStanTestCase
         ];
 
         yield 'relation-increment-or-create' => [
-            __DIR__ . '/data/model-property-relation-increment-or-create-l13-35.php',
+            __DIR__ . '/data/model-property-relation-increment-or-create.php',
             [
                 5 => ['Parameter #1 $attributes of method Hypervel\Database\Eloquent\Relations\HasOneOrMany<App\Account,App\User,Hypervel\Database\Eloquent\Collection<int, App\Account>>::incrementOrCreate() expects array<model property of App\Account, mixed>, array<string, string> given.'],
                 7 => ['Parameter #2 $column of method Hypervel\Database\Eloquent\Relations\HasOneOrMany<App\Account,App\User,Hypervel\Database\Eloquent\Collection<int, App\Account>>::incrementOrCreate() expects model property of App\Account, string given.'],
@@ -418,7 +423,7 @@ class IntegrationTest extends PHPStanTestCase
         ];
 
         yield 'relation-increment-or-create-through' => [
-            __DIR__ . '/data/model-property-relation-increment-or-create-l13-37.php',
+            __DIR__ . '/data/model-property-relation-increment-or-create-through.php',
             [
                 5 => ['Parameter #1 $attributes of method Hypervel\Database\Eloquent\Relations\HasOneOrManyThrough<App\Transaction,App\Account,App\User,Hypervel\Database\Eloquent\Collection<int, App\Transaction>>::incrementOrCreate() expects array<model property of App\Transaction, mixed>, array<string, string> given.'],
                 7 => ['Parameter #2 $column of method Hypervel\Database\Eloquent\Relations\HasOneOrManyThrough<App\Car,App\Mechanic,App\User,App\Car|null>::incrementOrCreate() expects model property of App\Car, string given.'],
@@ -494,7 +499,7 @@ class IntegrationTest extends PHPStanTestCase
         ];
 
         yield 'relation-force-create-many' => [
-            __DIR__ . '/data/model-property-force-create-many-l12-8.php',
+            __DIR__ . '/data/model-property-force-create-many.php',
             [
                 6 => ['Parameter #1 $records of method Hypervel\Database\Eloquent\Relations\HasOneOrMany<App\Account,App\User,Hypervel\Database\Eloquent\Collection<int, App\Account>>::forceCreateMany() expects iterable<array<model property of App\Account, mixed>>, array<int, array<string, string>> given.'],
                 7 => ['Parameter #1 $records of method Hypervel\Database\Eloquent\Relations\HasOneOrMany<App\Account,App\User,Hypervel\Database\Eloquent\Collection<int, App\Account>>::forceCreateManyQuietly() expects iterable<array<model property of App\Account, mixed>>, array<int, array<string, string>> given.'],

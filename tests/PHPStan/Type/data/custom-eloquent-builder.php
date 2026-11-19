@@ -376,6 +376,65 @@ class ModelWithCustomQueryBuilder extends Model
     }
 }
 
+#[UseEloquentBuilder(AttributeBuilder::class)]
+class ModelWithBuilderAttribute extends Model {}
+
+#[UseEloquentBuilder(AttributeBuilder::class)]
+class ModelWithOverriddenBuilderAttribute extends Model
+{
+    public function newEloquentBuilder($query): OverriddenAttributeBuilder
+    {
+        return new OverriddenAttributeBuilder($query);
+    }
+}
+
+#[UseEloquentBuilder('CustomEloquentBuilder\AttributeBuilder')]
+class ModelWithStringBuilderAttribute extends Model {}
+
+#[UseEloquentBuilder('\CustomEloquentBuilder\AttributeBuilder')]
+class ModelWithLeadingBackslashBuilderAttribute extends Model {}
+
+#[UseEloquentBuilder(builderClass: AttributeBuilder::class)]
+class ModelWithNamedBuilderAttribute extends Model {}
+
+#[UseEloquentBuilder('CustomEloquentBuilder\MissingBuilder')]
+class ModelWithMissingBuilderAttribute extends Model {}
+
+#[UseEloquentBuilder(BuilderNames::ATTRIBUTE)]
+class ModelWithConstantBuilderAttribute extends Model {}
+
+#[UseEloquentBuilder(self::BUILDER)]
+class ModelWithOwnConstantBuilderAttribute extends Model
+{
+    public const string BUILDER = AttributeBuilder::class;
+}
+
+class BuilderNames
+{
+    public const string ATTRIBUTE = AttributeBuilder::class;
+}
+
+/** @extends Builder<ModelWithBuilderAttribute> */
+class AttributeBuilder extends Builder {}
+
+/** @extends Builder<ModelWithOverriddenBuilderAttribute> */
+class OverriddenAttributeBuilder extends Builder {}
+
+function testBuilderAttribute(): void
+{
+    assertType('CustomEloquentBuilder\AttributeBuilder', ModelWithBuilderAttribute::query());
+    assertType('CustomEloquentBuilder\OverriddenAttributeBuilder', ModelWithOverriddenBuilderAttribute::query());
+    assertType('CustomEloquentBuilder\AttributeBuilder', ModelWithStringBuilderAttribute::query());
+    assertType('CustomEloquentBuilder\AttributeBuilder', ModelWithLeadingBackslashBuilderAttribute::query());
+    assertType('CustomEloquentBuilder\AttributeBuilder', ModelWithNamedBuilderAttribute::query());
+    assertType('Hypervel\Database\Eloquent\Builder<CustomEloquentBuilder\ModelWithMissingBuilderAttribute>', ModelWithMissingBuilderAttribute::query());
+
+    // Unlike upstream, which reads a class constant's class as the builder, the constant's value names it, as
+    // instantiating the attribute reads it.
+    assertType('CustomEloquentBuilder\AttributeBuilder', ModelWithConstantBuilderAttribute::query());
+    assertType('CustomEloquentBuilder\AttributeBuilder', ModelWithOwnConstantBuilderAttribute::query());
+}
+
 class ModelWithOwnModelQuery extends Model
 {
     /**

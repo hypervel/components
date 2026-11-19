@@ -74,3 +74,43 @@ interface WithAttributedScope
     #[Scope]
     public function archived(Builder $query): void;
 }
+
+/** @param Builder<Activity> $query */
+function attributeScopes(Builder $query): void
+{
+    assertType('Hypervel\Database\Eloquent\Builder<ModelScope\Activity>', Activity::completed());
+    assertType('Hypervel\Database\Eloquent\Builder<ModelScope\Activity>', $query->completed());
+    assertType('ModelScope\Activity', $query->completed(false)->firstOrFail());
+    assertType('Hypervel\Database\Eloquent\Builder<ModelScope\Activity>', Activity::withVoidReturn());
+    assertType('Hypervel\Database\Eloquent\Builder<ModelScope\Activity>', $query->withVoidReturn());
+    assertType('ModelScope\Activity', $query->withVoidReturn()->firstOrFail());
+    // Unlike upstream, a public attributed scope runs as a scope through the builder, as Eloquent permits.
+    assertType('Hypervel\Database\Eloquent\Builder<ModelScope\Activity>', $query->notAScope());
+}
+
+class Activity extends Model
+{
+    /**
+     * @param Builder<static> $query
+     * @return Builder<static>
+     */
+    #[Scope]
+    protected function completed(Builder $query, bool $completed = true): Builder
+    {
+        return $query->where('completed', $completed);
+    }
+
+    /** @param Builder<static> $query */
+    #[Scope]
+    protected function withVoidReturn(Builder $query): void
+    {
+        $query->where('whyuse', 'void');
+    }
+
+    /** @param Builder<static> $query */
+    #[Scope]
+    public function notAScope(Builder $query): void
+    {
+        $query->where('whyuse', 'void');
+    }
+}

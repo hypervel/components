@@ -174,6 +174,9 @@ function test(
     assertType('Hypervel\Support\Collection<int, Hypervel\Support\Collection<int, int|string>>', $items->zip(['foo', 'bar']));
 
     assertType('Hypervel\Support\Collection<int<0, 1>, Hypervel\Support\Collection<string, int>>', $items->partition('foo'));
+    assertType('Hypervel\Support\Collection<int<0, 1>, Hypervel\Database\Eloquent\Collection<int, App\User>>', $collection->partition('foo'));
+    assertType('Hypervel\Support\Collection<int<0, 1>, App\TransactionCollection<int, App\Transaction>>', $customEloquentCollection->partition('foo'));
+    assertType('Hypervel\Support\Collection<int<0, 1>, App\UserCollection>', $secondCustomEloquentCollection->partition('foo'));
     [$passed, $failed] = $items->partition('foo');
     assertType('Hypervel\Support\Collection<string, int>', $passed);
     assertType('Hypervel\Support\Collection<string, int>', $failed);

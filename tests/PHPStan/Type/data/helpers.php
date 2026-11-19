@@ -42,7 +42,7 @@ function test(?int $value = 0, int|\Closure $intOrClosure = 0, int|\Closure $int
     assertType('Hypervel\Contracts\Auth\Authenticatable|false', auth()->loginUsingId(1));
     assertType('null', auth()->login(new User()));
 
-    // REMOVED: now() and today() assertions; their CarbonInterface return types come from source, and date-extension-l1{1,2}.php covers the omitted extension.
+    // REMOVED: now() and today() assertions; their CarbonInterface return types come from source, and date-extension.php covers the omitted extension.
 
     assertType('Hypervel\Http\RedirectResponse', redirect('/'));
     assertType('Hypervel\Routing\Redirector', redirect());
