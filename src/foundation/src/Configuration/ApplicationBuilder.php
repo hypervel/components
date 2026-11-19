@@ -321,24 +321,6 @@ class ApplicationBuilder
     }
 
     /**
-     * Register additional Artisan route paths.
-     *
-     * The route paths register on the shared console kernel for the worker
-     * lifetime.
-     *
-     * @return $this
-     */
-    #[BootOnly]
-    protected function withCommandRouting(array $paths): static
-    {
-        $this->app->afterResolving(ConsoleKernel::class, function ($kernel) use ($paths) {
-            $this->app->booted(fn () => $kernel->addCommandRoutePaths($paths));
-        });
-
-        return $this;
-    }
-
-    /**
      * Register the scheduled tasks for the application.
      *
      * The callback persists for the worker lifetime and configures the shared

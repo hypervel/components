@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Exceptions\Renderer\Mappers;
 
-use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -102,23 +101,6 @@ class BladeMapper
         }
 
         return is_file($matches[1]) ? $matches[1] : null;
-    }
-
-    /**
-     * Filter out the view data that should not be shown in the exception report.
-     *
-     * @param array<string, mixed> $data
-     * @return array<string, mixed>
-     */
-    protected function filterViewData(array $data): array
-    {
-        return array_filter($data, function ($value, $key) {
-            if ($key === 'app') {
-                return ! $value instanceof Application;
-            }
-
-            return $key !== '__env';
-        }, ARRAY_FILTER_USE_BOTH);
     }
 
     /**

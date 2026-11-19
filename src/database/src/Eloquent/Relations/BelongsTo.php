@@ -253,15 +253,6 @@ class BelongsTo extends Relation
     }
 
     /**
-     * Determine if the related model has an auto-incrementing ID.
-     */
-    protected function relationHasIncrementingId(): bool
-    {
-        return $this->related->getIncrementing()
-            && in_array($this->related->getKeyType(), ['int', 'integer']);
-    }
-
-    /**
      * Make a new related instance for the given model.
      *
      * @param TDeclaringModel $parent
