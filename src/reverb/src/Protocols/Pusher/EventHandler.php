@@ -98,17 +98,22 @@ class EventHandler
         $channelExisted = $channels->exists($channel);
         $channel = $channels->findOrCreate($channel);
 
-        // Unlike upstream, a client may name a user only in data that its private or presence channel
-        // auth signs, since pruning and user termination identify connections by user_id.
-        if (isset($decodedData['user_id'])
-            && ! ($channel instanceof PrivateChannel || $channel instanceof PrivateCacheChannel || $channel instanceof PresenceCacheChannel)) {
-            unset($decodedData['user_id']);
-            $data = json_encode($decodedData, JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR);
-        }
-
         try {
+            // Unlike upstream, a client may name a user only in data that its private or presence channel
+            // auth signs, since pruning and user termination identify connections by user_id.
+            if (isset($decodedData['user_id'])
+                && ! ($channel instanceof PrivateChannel || $channel instanceof PrivateCacheChannel || $channel instanceof PresenceCacheChannel)) {
+                unset($decodedData['user_id']);
+                $data = json_encode($decodedData, JSON_PRESERVE_ZERO_FRACTION);
+
+                // Decoding turns an out-of-range number such as 1e999 into INF, which JSON can't encode again.
+                if ($data === false) {
+                    throw new InvalidMessageFormat('Invalid subscription data');
+                }
+            }
+
             $channel->subscribe($connection, $auth, $data);
-        } catch (ConnectionUnauthorized $exception) {
+        } catch (ConnectionUnauthorized|InvalidMessageFormat $exception) {
             if (! $channelExisted && $channel->connections() === []) {
                 $channels->remove($channel);
             }

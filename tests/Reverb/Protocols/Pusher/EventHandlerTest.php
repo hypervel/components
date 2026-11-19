@@ -8,6 +8,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\EventHandler;
 use Hypervel\Reverb\Protocols\Pusher\Exceptions\ConnectionUnauthorized;
+use Hypervel\Reverb\Protocols\Pusher\Exceptions\InvalidMessageFormat;
 use Hypervel\Reverb\Protocols\Pusher\MetricsHandler;
 use Hypervel\Reverb\ServerProviderManager;
 use Hypervel\Reverb\Servers\Hypervel\ChannelBroadcastPipeMessage;
@@ -284,6 +285,18 @@ class EventHandlerTest extends ReverbTestCase
             $this->fail('Expected authorization to fail.');
         } catch (ConnectionUnauthorized) {
             $this->assertSame($existing, $channels->find('private-existing-channel'));
+        }
+    }
+
+    public function testUnencodableUnsignedSubscriptionDataRemovesTheNewChannel(): void
+    {
+        $channels = $this->app->make(ChannelManager::class)->for($this->connection->app());
+
+        try {
+            $this->pusher->subscribe($this->connection, 'test-channel', data: '{"user_id":"1","rating":1e999}');
+            $this->fail('Expected the subscription data to be rejected.');
+        } catch (InvalidMessageFormat) {
+            $this->assertFalse($channels->exists('test-channel'));
         }
     }
 
