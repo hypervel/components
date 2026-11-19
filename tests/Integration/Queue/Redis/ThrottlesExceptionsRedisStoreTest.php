@@ -7,15 +7,14 @@ namespace Hypervel\Tests\Integration\Queue\Redis\ThrottlesExceptionsRedisStoreTe
 use Exception;
 use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;
-use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\FakeJob;
 use Hypervel\Queue\Middleware\ThrottlesExceptions;
+use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use RuntimeException;
 
@@ -116,10 +115,7 @@ class ThrottlesExceptionsRedisStoreTest extends TestCase
 
     public function testReportingExceptions(): void
     {
-        $this->spy(ExceptionHandler::class)
-            ->expects('report')
-            ->times(2)
-            ->with(m::type(RuntimeException::class), []);
+        Exceptions::fake();
 
         $job = new class {
             /**
@@ -144,6 +140,9 @@ class ThrottlesExceptionsRedisStoreTest extends TestCase
 
         $middleware->report(fn (): bool => false);
         $middleware->handle($job, $next);
+
+        Exceptions::assertReported(RuntimeException::class);
+        Exceptions::assertReportedCount(2);
     }
 
     public function testItCanBackoffUsingException(): void

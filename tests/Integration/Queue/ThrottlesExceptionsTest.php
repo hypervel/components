@@ -21,11 +21,11 @@ use Hypervel\RateLimiter\Limiter;
 use Hypervel\RateLimiter\LimitResult;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Testbench\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JMac\Testing\Matching\Argument;
-use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -538,10 +538,7 @@ class ThrottlesExceptionsTest extends TestCase
 
     public function testReportingExceptions(): void
     {
-        $this->spy(ExceptionHandler::class)
-            ->expects('report')
-            ->times(2)
-            ->with(m::type(RuntimeException::class), []);
+        Exceptions::fake();
 
         $job = new class {
             /**
@@ -566,6 +563,9 @@ class ThrottlesExceptionsTest extends TestCase
 
         $middleware->report(fn (): bool => false);
         $middleware->handle($job, $next);
+
+        Exceptions::assertReported(RuntimeException::class);
+        Exceptions::assertReportedCount(2);
     }
 
     public function testCallbacksReceiveTheSelectedPackageLimiter(): void
