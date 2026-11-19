@@ -572,7 +572,8 @@ class Builder implements BuilderContract
     public function from(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $table, ?string $as = null): static
     {
         if ($this->isQueryable($table)) {
-            return $this->fromSub($table, $as);
+            // Laravel uses an empty alias here, which PostgreSQL rejects; every supported database accepts a name.
+            return $this->fromSub($table, $as ?? 'hypervel_table');
         }
 
         if ($table instanceof ExpressionContract && $as !== null && $as !== '') {

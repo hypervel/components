@@ -9,6 +9,7 @@ use Closure;
 use DateInterval;
 use DatePeriod;
 use DateTime;
+use ErrorException;
 use Hypervel\Contracts\Database\Query\ConditionExpression;
 use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Database\Connection;
@@ -8870,6 +8871,31 @@ SQL, ['"John"'])->returns(1);
         $eloquentBuilder = new EloquentBuilder($this->getBuilder());
         $builder->from($eloquentBuilder->from('users'), 'u');
         $this->assertSame('select * from (select * from "users") as "u"', $builder->toSql());
+    }
+
+    public function testFromSubWithoutAlias(): void
+    {
+        $errorReporting = error_reporting(E_ALL);
+
+        set_error_handler(function (int $level, string $message, string $file = '', int $line = 0): never {
+            throw new ErrorException($message, 0, $level, $file, $line);
+        });
+
+        try {
+            $builder = $this->getBuilder();
+            $builder->selectRaw('1')->from(function ($query) {
+                $query->selectRaw('1 as a');
+            });
+            $this->assertSame('select 1 from (select 1 as a) as "hypervel_table"', $builder->toSql());
+
+            $builder = $this->getMySqlBuilder();
+            $builder->selectRaw('1')->from($this->getMySqlBuilder()->selectRaw('1 as a'));
+            $this->assertSame('select 1 from (select 1 as a) as `hypervel_table`', $builder->toSql());
+        } finally {
+            restore_error_handler();
+
+            error_reporting($errorReporting);
+        }
     }
 
     public function testFromSub(): void
