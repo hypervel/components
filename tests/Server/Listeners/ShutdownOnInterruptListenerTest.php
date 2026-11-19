@@ -55,10 +55,6 @@ class ShutdownOnInterruptListenerTest extends TestCase
     #[DataProvider('coordinatorModes')]
     public function testReplacementWorkersKeepTheirSignalHandlers(string $mode, int $workerNum, array $readyLines): void
     {
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Swoole 6.3.0 RC1 and earlier leave workers forked after a manager signal registration unable to wait for signals.');
-        }
-
         $process = $this->startServer($mode, $workerNum, 'coroutine');
         $pid = $process->getPid();
 

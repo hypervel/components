@@ -15,11 +15,6 @@ class UnixSocketAuthenticationTest extends TestCase
 {
     public function testCachingSha2PasswordAuthenticatesOverUnixSocketWithAnEmptyCache(): void
     {
-        // @TODO: Remove this skip once Swoole preserves mysqlnd's Unix-socket secure-transport detection.
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Swoole misclassifies Unix sockets during caching_sha2_password full authentication.');
-        }
-
         $configuration = DB::connection()->getConfig();
 
         if (empty($configuration['unix_socket'])) {

@@ -431,10 +431,6 @@ class CurlStreamingHandlerTest extends TestCase
 
     public function testNativeWaitReportsDataArrivingBetweenPerformAndSelect(): void
     {
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Swoole 6.3.0 RC1 and earlier can consume ready cURL data and then wait for another event.');
-        }
-
         $server = new Socket(AF_INET, SOCK_STREAM, 0);
         $this->assertTrue($server->bind('127.0.0.1', 0));
         $this->assertTrue($server->listen());

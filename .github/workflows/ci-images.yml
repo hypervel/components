@@ -30,8 +30,15 @@ jobs:
       max-parallel: 1
       matrix:
         php: ["8.4", "8.5"]
+        swoole:
+          - tag: swoole6.3.0-rc2
+            base_prefix: 6.3.0-rc2-
+          - tag: swoole-nightly
+            base_prefix: ""
 
-    name: PHP ${{ matrix.php }} (Swoole 6.3.0 RC1)
+    name: Build php${{ matrix.php }}-${{ matrix.swoole.tag }}
+    env:
+      IMAGE: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-${{ matrix.swoole.tag }}
 
     steps:
       - name: Checkout code
@@ -50,19 +57,18 @@ jobs:
       # including the required children of an image index.
       - name: Build image
         env:
-          IMAGE: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
+          SWOOLE_BASE_TAG: ${{ matrix.swoole.base_prefix }}php${{ matrix.php }}
         run: |
           docker build \
             --pull \
             --provenance=false \
             --build-arg PHP_VERSION=${{ matrix.php }} \
+            --build-arg SWOOLE_BASE_TAG="$SWOOLE_BASE_TAG" \
             --tag "$IMAGE" \
             --file .github/docker/ci/Dockerfile \
             .github/docker/ci
 
       - name: Publish image
-        env:
-          IMAGE: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.3.0-rc1
         run: docker push "$IMAGE"
 
   cleanup:

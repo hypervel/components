@@ -28,7 +28,7 @@
         "php": "^8.4",
         "ext-filter": "*",
         "ext-pdo": "*",
-        "ext-swoole": "^6.3.0RC1",
+        "ext-swoole": "^6.3.0RC2",
         "brick/math": "^1.0",
         "hypervel/attributes": "^0.4",
         "hypervel/broadcasting": "^0.4",

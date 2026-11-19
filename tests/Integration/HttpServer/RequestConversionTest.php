@@ -93,10 +93,6 @@ class RequestConversionTest extends HttpServerIntegrationTestCase
 
     public function testQueryRequestsAreParsedByTheHttpServer(): void
     {
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Requires HTTP/1 QUERY support from https://github.com/swoole/swoole-src/pull/6256.');
-        }
-
         $client = new EngineClient($this->getServerHost(), $this->getServerPort());
         $body = 'term=runtime&page=2';
 
@@ -121,10 +117,6 @@ class RequestConversionTest extends HttpServerIntegrationTestCase
 
     public function testLargeUploadsRejectClientProvidedInternalMarkers(): void
     {
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Requires https://github.com/swoole/swoole-src/pull/6161');
-        }
-
         $directory = ParallelTesting::tempDir('large-upload-marker');
         $filesystem = new Filesystem;
         $filesystem->ensureDirectoryExists($directory);

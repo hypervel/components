@@ -37,7 +37,7 @@
         "ext-pdo": "*",
         "ext-posix": "*",
         "ext-session": "*",
-        "ext-swoole": "^6.3.0RC1",
+        "ext-swoole": "^6.3.0RC2",
         "ext-tokenizer": "*",
         "composer-runtime-api": "^2.2",
         "hypervel/api-client": "^0.4",

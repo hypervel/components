@@ -12,10 +12,6 @@ class RequestFramingTest extends HttpServerIntegrationTestCase
 {
     public function testChunkedRequestsKeepTheirExactBoundary(): void
     {
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Requires https://github.com/swoole/swoole-src/pull/6205');
-        }
-
         $socket = $this->openSocket();
         $headers = "POST /inspect HTTP/1.1\r\n"
             . "Host: 127.0.0.1\r\n"
@@ -45,7 +41,7 @@ class RequestFramingTest extends HttpServerIntegrationTestCase
 
     public function testPipelinedResponsesStayInRequestOrder(): void
     {
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC2', '<=')) {
             $this->markTestSkipped('Requires https://github.com/swoole/swoole-src/pull/6220');
         }
 
@@ -67,7 +63,7 @@ class RequestFramingTest extends HttpServerIntegrationTestCase
     public function testOversizedHttpTwoRequestBodyLeavesOtherStreamsUsable(): void
     {
         // @TODO: Remove this skip once https://github.com/swoole/swoole-src/pull/6389 is released.
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC2', '<=')) {
             $this->markTestSkipped('Swoole closes the whole HTTP/2 connection when one request body exceeds package_max_length.');
         }
 

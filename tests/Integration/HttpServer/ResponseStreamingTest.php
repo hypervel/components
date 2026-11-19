@@ -106,11 +106,6 @@ class ResponseStreamingTest extends HttpServerIntegrationTestCase
 
     public function testHttpTwoPingWhileALargeResponseWaitsForTheClientDoesNotKillTheWorker(): void
     {
-        // @TODO: Remove this skip once https://github.com/swoole/swoole-src/pull/6398 is released.
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped("Swoole's HTTP/2 server kills the worker when a PING arrives while a response waits for the client.");
-        }
-
         $pid = (string) $this->request('GET', '/pid')->getBody();
 
         // A small receive buffer, so the 16 MB response fills the server's output buffer while the client isn't reading.
@@ -138,7 +133,7 @@ class ResponseStreamingTest extends HttpServerIntegrationTestCase
             $socket->close();
         }
 
-        $this->assertSame('', $data);
+        $this->assertSame('', $data, "The connection ended with socket error {$socket->errCode}.");
         $this->assertSame($pid, (string) $this->request('GET', '/pid')->getBody());
     }
 

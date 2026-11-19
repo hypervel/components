@@ -29,7 +29,7 @@
         "ext-mbstring": "*",
         "ext-pcntl": "*",
         "ext-posix": "*",
-        "ext-swoole": "^6.3.0RC1",
+        "ext-swoole": "^6.3.0RC2",
         "dragonmantank/cron-expression": "^3.4",
         "hypervel/attributes": "^0.4",
         "hypervel/bus": "^0.4",

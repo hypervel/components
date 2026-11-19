@@ -25,7 +25,7 @@
     },
     "require": {
         "php": "^8.4",
-        "ext-swoole": "^6.3.0RC1",
+        "ext-swoole": "^6.3.0RC2",
         "guzzlehttp/psr7": "^3.1",
         "hypervel/attributes": "^0.4",
         "hypervel/auth": "^0.4",

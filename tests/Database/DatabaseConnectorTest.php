@@ -98,14 +98,11 @@ class DatabaseConnectorTest extends TestCase
     #[TestWith([false])]
     public function testPostgresConnectionTimeoutStopsAnUnresponsiveHandshake(bool $hooked): void
     {
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Swoole 6.3.0 RC1 and earlier do not enforce the PostgreSQL connection deadline.');
-        }
-
         $result = $this->runUnresponsiveConnection('pgsql', 'timeout', $hooked);
 
         $this->assertSame(PDOException::class, $result['exception']);
-        $this->assertStringContainsString('timeout', strtolower($result['message']));
+        // Swoole's hooked connect reports libpq's partial message, without the native "timeout expired".
+        $this->assertStringStartsWith('SQLSTATE[08006]', $result['message']);
         $this->assertGreaterThanOrEqual(0.8, $result['elapsed']);
         $this->assertLessThan(4.0, $result['elapsed']);
     }
