@@ -31,7 +31,7 @@
         "hypervel/conditionable": "^0.4",
         "hypervel/container": "^0.4",
         "hypervel/contracts": "^0.4",
-        "hypervel/guzzle": "^8.3",
+        "hypervel/guzzle": "^8.5.0.2",
         "hypervel/guzzle-promises": "^3.1",
         "hypervel/http": "^0.4",
         "hypervel/pipeline": "^0.4",
