@@ -21,8 +21,8 @@ class DatabasePdoReconnectTest extends TestCase
     #[TestWith([true], 'hooked streams')]
     public function testStatementRetriesAfterTheServerResetsItsSocket(bool $hooked): void
     {
-        // @TODO: Remove this skip once https://github.com/swoole/swoole-src/pull/6365 is released.
-        if ($hooked && version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+        // @TODO: Remove this skip once a Swoole release honors PHP_STREAM_FLAG_SUPPRESS_ERRORS in hooked socket writes.
+        if ($hooked && version_compare(SWOOLE_VERSION, '6.3.0RC2', '<=')) {
             $this->markTestSkipped('Swoole emits a transport notice before PDO can report the lost connection.');
         }
 

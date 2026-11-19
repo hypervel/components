@@ -39,11 +39,6 @@ class NativeRequestParsingTest extends TestCase
 
     public function testBearerTokenExcludesHeaderWhitespace(): void
     {
-        // TODO: Remove this skip once Swoole strips trailing HTTP header whitespace upstream.
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Swoole retains trailing spaces and tabs in HTTP header values.');
-        }
-
         $requestData = $this->requestData('GET', '/account', [
             'Authorization' => " \tBearer example-token \t",
         ], '');
@@ -56,10 +51,6 @@ class NativeRequestParsingTest extends TestCase
 
     public function testMultipartHeadersCanBeSplitAcrossParseCalls(): void
     {
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Requires https://github.com/swoole/swoole-src/pull/6154');
-        }
-
         $boundary = '------------------------hypervel-split';
         $body = implode("\r\n", [
             '--' . $boundary,
@@ -87,10 +78,6 @@ class NativeRequestParsingTest extends TestCase
 
     public function testClientUploadMarkersAreNotTrusted(): void
     {
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Requires https://github.com/swoole/swoole-src/pull/6162');
-        }
-
         $probe = $this->temporaryDirectory . '/probe.txt';
         file_put_contents($probe, 'probe');
         $boundary = '------------------------hypervel-marker';
@@ -120,10 +107,6 @@ class NativeRequestParsingTest extends TestCase
 
     public function testRequestFieldsSurviveIncrementalParseCalls(): void
     {
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Requires https://github.com/swoole/swoole-src/pull/6224');
-        }
-
         $body = 'first=one&second=two';
         $requestData = $this->requestData('POST', '/search?term=hypervel', [
             'X-Request-Header' => 'header-value',
