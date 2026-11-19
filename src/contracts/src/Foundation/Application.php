@@ -40,41 +40,57 @@ interface Application extends Container
 
     /**
      * Get the base path of the Hypervel installation.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function basePath(string $path = ''): string;
 
     /**
      * Get the path to the bootstrap directory.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function bootstrapPath(string $path = ''): string;
 
     /**
      * Get the path to the application "app" directory.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function path(string $path = ''): string;
 
     /**
      * Get the path to the application configuration files.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function configPath(string $path = ''): string;
 
     /**
      * Get the path to the database directory.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function databasePath(string $path = ''): string;
 
     /**
      * Get the path to the language files.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function langPath(string $path = ''): string;
 
     /**
      * Get the path to the public directory.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function publicPath(string $path = ''): string;
 
     /**
      * Get the path to the resources directory.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function resourcePath(string $path = ''): string;
 
@@ -82,11 +98,15 @@ interface Application extends Container
      * Get the path to the views directory.
      *
      * This method returns the first configured path in the array of view paths.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function viewPath(string $path = ''): string;
 
     /**
      * Get the path to the storage directory.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function storagePath(string $path = ''): string;
 
@@ -102,6 +122,8 @@ interface Application extends Container
 
     /**
      * Join the given paths together.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     public function joinPaths(?string $basePath, string $path = ''): string;
 

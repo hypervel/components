@@ -141,6 +141,19 @@ function test(?int $value = 0, int|\Closure $intOrClosure = 0, int|\Closure $int
     // Hypervel: the booted binding, as for response().
     assertType('Hypervel\Routing\UrlGenerator', url());
 
+    assertType('non-empty-string', base_path('composer.json'));
+    assertType('string', base_path());
+    assertType('string', base_path(''));
+
+    // Hypervel: the other path helpers join a non-empty path the same way.
+    assertType('non-empty-string', app_path('Models'));
+    assertType('non-empty-string', config_path('app.php'));
+    assertType('non-empty-string', database_path('migrations'));
+    assertType('non-empty-string', lang_path('en'));
+    assertType('non-empty-string', public_path('index.php'));
+    assertType('non-empty-string', resource_path('views'));
+    assertType('non-empty-string', storage_path('logs'));
+
     // Hypervel: the booted binding, as for response().
     assertType('Hypervel\Validation\Factory', validator());
     assertType('Hypervel\Contracts\Validation\Validator', validator(['foo' => 'bar'], ['foo' => 'required']));
