@@ -21,6 +21,7 @@ use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JMac\Testing\Matching\Argument;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -117,6 +118,21 @@ class WorkCommandTest extends TestCase
         $command->setInput(new ArrayInput(['--memory' => '50%'], $command->getDefinition()));
 
         $this->assertSame('50%', $command->workerOptions()->memory);
+    }
+
+    #[TestWith(['3', 3])]
+    #[TestWith(['1,5,10', [1, 5, 10]])]
+    public function testBackoffOptionIsConvertedToDelays(string $option, array|int $backoff): void
+    {
+        $command = new WorkCommandOutputStub(
+            $this->app,
+            $this->app->make('config'),
+            Double::for(Worker::class)->strict(),
+            $this->app->make('cache'),
+        );
+        $command->setInput(new ArrayInput(['--backoff' => $option], $command->getDefinition()));
+
+        $this->assertSame($backoff, $command->workerOptions()->backoff);
     }
 
     #[DataProvider('queueStatusOutputProvider')]

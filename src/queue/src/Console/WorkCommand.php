@@ -154,7 +154,7 @@ class WorkCommand extends Command
 
         return new WorkerOptions(
             name: (string) $this->option('name'),
-            backoff: (int) max($this->option('backoff'), $this->option('delay')),
+            backoff: (string) max($this->option('backoff'), $this->option('delay')),
             memory: (string) $this->option('memory'),
             timeout: (int) $this->option('timeout'),
             sleep: (float) $this->option('sleep'),

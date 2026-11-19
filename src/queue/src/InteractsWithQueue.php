@@ -83,7 +83,7 @@ trait InteractsWithQueue
             return;
         }
 
-        $backoff = explode(',', (string) $backoff);
+        $backoff = is_array($backoff) ? $backoff : explode(',', (string) $backoff);
 
         $this->release((int) ($backoff[$this->attempts() - 1] ?? end($backoff)));
     }

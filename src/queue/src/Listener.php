@@ -125,7 +125,7 @@ class Listener
             '--once',
             "--name={$options->name}",
             "--queue={$queue}",
-            "--backoff={$options->backoff}",
+            '--backoff=' . (is_array($options->backoff) ? implode(',', $options->backoff) : $options->backoff),
             "--memory={$options->memory}",
             "--sleep={$options->sleep}",
             "--tries={$options->maxTries}",

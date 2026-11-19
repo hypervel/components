@@ -14,6 +14,7 @@ use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use JMac\Testing\Matching\Argument;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class InteractsWithQueueTest extends TestCase
 {
@@ -80,18 +81,22 @@ class InteractsWithQueueTest extends TestCase
         $job->assertReleased(60);
     }
 
-    public function testReleaseUsingBackoffUsesTheDelayForTheCurrentAttempt(): void
+    #[TestWith(['10,30,60'])]
+    #[TestWith([[10, 30, 60]])]
+    public function testReleaseUsingBackoffUsesTheDelayForTheCurrentAttempt(array|string $backoff): void
     {
-        $job = $this->jobWithBackoff('10,30,60', attempts: 2);
+        $job = $this->jobWithBackoff($backoff, attempts: 2);
 
         $job->releaseUsingBackoff();
 
         $this->assertSame(30, $job->job->releaseDelay);
     }
 
-    public function testReleaseUsingBackoffUsesTheLastDelayWhenAttemptsExceedTheSchedule(): void
+    #[TestWith(['10,30,60'])]
+    #[TestWith([[10, 30, 60]])]
+    public function testReleaseUsingBackoffUsesTheLastDelayWhenAttemptsExceedTheSchedule(array|string $backoff): void
     {
-        $job = $this->jobWithBackoff('10,30,60', attempts: 5);
+        $job = $this->jobWithBackoff($backoff, attempts: 5);
 
         $job->releaseUsingBackoff();
 
@@ -120,7 +125,7 @@ class InteractsWithQueueTest extends TestCase
     /**
      * Create a job whose fake queue job reports the given backoff and attempt count.
      */
-    protected function jobWithBackoff(int|string|null $backoff, int $attempts): object
+    protected function jobWithBackoff(array|int|string|null $backoff, int $attempts): object
     {
         $job = new class {
             use InteractsWithQueue;
@@ -130,7 +135,7 @@ class InteractsWithQueueTest extends TestCase
             /**
              * Create a fake job with the given backoff and attempt count.
              */
-            public function __construct(protected int|string|null $backoff, protected int $attemptCount)
+            public function __construct(protected array|int|string|null $backoff, protected int $attemptCount)
             {
                 parent::__construct();
             }
@@ -138,7 +143,7 @@ class InteractsWithQueueTest extends TestCase
             /**
              * Get the backoff for the job.
              */
-            public function backoff(): int|string|null
+            public function backoff(): array|int|string|null
             {
                 return $this->backoff;
             }

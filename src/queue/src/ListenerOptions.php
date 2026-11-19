@@ -14,12 +14,12 @@ class ListenerOptions extends WorkerOptions
     /**
      * Create a new listener options instance.
      *
-     * @param int|int[] $backoff
+     * @param int|int[]|string $backoff the seconds to wait before retrying a failed job, or a schedule as a list or comma-separated string
      */
     public function __construct(
         string $name = 'default',
         ?string $environment = null,
-        array|int $backoff = 0,
+        array|int|string $backoff = 0,
         float|string $memory = 128,
         int $timeout = 60,
         float $sleep = 3,

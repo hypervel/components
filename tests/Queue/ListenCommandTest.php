@@ -37,4 +37,14 @@ class ListenCommandTest extends TestCase
 
         $this->artisan('queue:listen', ['--sleep' => '0.5', '--rest' => '0.25'])->assertSuccessful();
     }
+
+    public function testBackoffScheduleIsKept(): void
+    {
+        $listener = Double::for(Listener::class)->strict();
+        $listener->allows('setOutputHandler');
+        $listener->expects('listen')->with(Argument::any(), Argument::any(), Argument::satisfies(static fn (ListenerOptions $options): bool => $options->backoff === [1, 5, 10]));
+        $this->app->instance(Listener::class, $listener);
+
+        $this->artisan('queue:listen', ['--backoff' => '1,5,10'])->assertSuccessful();
+    }
 }
