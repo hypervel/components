@@ -163,8 +163,9 @@ class MigrationCacheTest extends TestCase
     {
         $cache = new MigrationCache($this->resolver, $this->cacheDirectory, false);
         $cache->remember([], [], [], static fn (): array => self::schema(['users' => new SchemaConnection('users', 'mysql')]));
+        $schema = self::schema(['posts' => new SchemaConnection('posts', 'mysql')]);
 
-        $this->assertSame(self::schema([]), $cache->remember([], [], [], static fn (): array => self::schema([])));
+        $this->assertSame($schema, $cache->remember([], [], [], static fn (): array => $schema));
     }
 
     public function testUnavailableCacheDirectoryAlwaysExecutesCallback(): void

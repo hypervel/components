@@ -158,7 +158,7 @@ class IntegrationTest extends PHPStanTestCase
         yield 'arrayable' => [
             __DIR__ . '/data/arrayable.php',
             [
-                15 => ['Parameter #1 $value of function ArrayableIntegration\integers expects Hypervel\Contracts\Support\Arrayable<array<string, int>>, Hypervel\Contracts\Support\Arrayable<array<string, string>> given.'],
+                17 => ['Parameter #1 $value of function ArrayableIntegration\integers expects Hypervel\Contracts\Support\Arrayable<array<string, int>>, Hypervel\Contracts\Support\Arrayable<array<string, string>> given.'],
             ],
         ];
 
