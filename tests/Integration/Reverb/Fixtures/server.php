@@ -23,8 +23,12 @@ declare(strict_types=1);
 
 use Hypervel\Engine\Coroutine;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
+use Hypervel\Reverb\Jobs\PingInactiveConnections;
+use Hypervel\Reverb\Jobs\PruneStaleConnections;
+use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\ReverbServiceProvider;
 use Hypervel\Reverb\Servers\Hypervel\ReverbRouter;
+use Hypervel\Reverb\Servers\Hypervel\WebSocketHandler;
 use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Server\ServerFactory;
 use Hypervel\Support\Env;
@@ -159,48 +163,27 @@ $app->instance(
     ),
 );
 
-// Test-only route: age connections for a specific app and ping inactive ones.
-// Scoped by app ID so parallel workers don't interfere. Runs the ping
-// logic directly for this app rather than delegating to the job (which
-// iterates all() apps and wouldn't find dynamically-resolved parallel apps).
+// Test-only route: age one app's open connections, with or without subscriptions,
+// then run the ping job. Only aged connections are inactive, so the job leaves
+// other parallel test apps alone.
 $app->make(ReverbRouter::class)->post('/_test/ping-inactive/{appId}', function (\Hypervel\Http\Request $request, string $appId) use ($app) {
-    $channelManager = $app->make(\Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager::class);
-    $application = $app->make(ApplicationProvider::class)->findById($appId);
-    $pusher = new \Hypervel\Reverb\Protocols\Pusher\EventHandler($channelManager);
+    foreach (WebSocketHandler::connections() as $lifecycle) {
+        $connection = $lifecycle->connection();
 
-    foreach ($channelManager->for($application)->connections() as $connection) {
-        $connection->connection()->setLastSeenAt(time() - 600);
-    }
-
-    foreach ($channelManager->for($application)->connections() as $connection) {
-        if (! $connection->isActive()) {
-            $pusher->ping($connection->connection());
+        if ($connection?->app()->id() === $appId) {
+            $connection->setLastSeenAt(time() - 600);
         }
     }
+
+    (new PingInactiveConnections)->handle($app->make(ChannelManager::class));
 
     return new \Hypervel\Http\JsonResponse(['ok' => true]);
 });
 
-// Test-only route: prune stale connections for a specific app.
-// Mirrors PruneStaleConnections — only disconnect, don't unsubscribeFromAll.
-// The onClose → Server::close() path handles channel cleanup and slot release.
-$app->make(ReverbRouter::class)->post('/_test/prune-stale/{appId}', function (\Hypervel\Http\Request $request, string $appId) use ($app) {
-    $channelManager = $app->make(\Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager::class);
-    $application = $app->make(ApplicationProvider::class)->findById($appId);
-
-    foreach ($channelManager->for($application)->connections() as $connection) {
-        if ($connection->connection()->isStale()) {
-            $connection->connection()->send(json_encode([
-                'event' => 'pusher:error',
-                'data' => json_encode([
-                    'code' => 4201,
-                    'message' => 'Pong reply not received in time',
-                ]),
-            ]));
-
-            $connection->connection()->disconnect();
-        }
-    }
+// Test-only route: run the prune job. Only connections left stale by an
+// unanswered ping are pruned.
+$app->make(ReverbRouter::class)->post('/_test/prune-stale', function () use ($app) {
+    (new PruneStaleConnections)->handle($app->make(ChannelManager::class));
 
     return new \Hypervel\Http\JsonResponse(['ok' => true]);
 });

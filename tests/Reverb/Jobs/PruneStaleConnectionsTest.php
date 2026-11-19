@@ -26,7 +26,7 @@ class PruneStaleConnectionsTest extends ReverbTestCase
             $this->addToWebSocketHandler($index + 1, $connection->connection());
         });
 
-        (new PruneStaleConnections)->handle();
+        (new PruneStaleConnections)->handle($this->app->make(ChannelManager::class));
 
         // Verify all stale connections were disconnected
         collect($connections)->each(function ($connection): void {
@@ -48,7 +48,7 @@ class PruneStaleConnectionsTest extends ReverbTestCase
             $this->addToWebSocketHandler(1, $connection->connection());
         });
 
-        (new PruneStaleConnections)->handle();
+        (new PruneStaleConnections)->handle($channelManager);
 
         // PruneStaleConnections should NOT call unsubscribeFromAll directly.
         // It should only disconnect the connection, and the onClose → Server::close()
@@ -59,21 +59,35 @@ class PruneStaleConnectionsTest extends ReverbTestCase
 
     public function testDispatchesConnectionPrunedWithTheStaleConnection(): void
     {
-        [$connection] = static::factory();
-        $connection->setLastSeenAt(time() - 60 * 10);
-        $connection->setHasBeenPinged();
-        $connection->connection()->markEstablished();
-        $this->addToWebSocketHandler(1, $connection->connection());
+        $connections = [];
+
+        foreach (range(1, 5) as $fd) {
+            // The presence subscription comes second, so the event must prefer it over the first match.
+            $connection = $this->subscribeConnection('test-channel');
+            $this->subscribeConnection('presence-test-channel', ['user_id' => 1, 'user_info' => ['name' => 'Taylor']], $connection);
+            $connection->setLastSeenAt(time() - 60 * 10);
+            $connection->setHasBeenPinged();
+            $connection->markEstablished();
+            $this->addToWebSocketHandler($fd, $connection);
+            $connections[] = $connection;
+        }
 
         $events = [];
         $this->app->make('events')->listen(ConnectionPruned::class, function (ConnectionPruned $event) use (&$events): void {
             $events[] = $event;
         });
 
-        (new PruneStaleConnections)->handle();
+        (new PruneStaleConnections)->handle($this->app->make(ChannelManager::class));
 
-        $this->assertCount(1, $events);
-        $this->assertSame($connection->connection(), $events[0]->connection->connection());
+        $this->assertCount(5, $events);
+
+        foreach ($events as $index => $event) {
+            $this->assertSame($connections[$index], $event->connection->connection());
+            $this->assertSame(1, $event->connection->data('user_id'));
+        }
+
+        // The onClose path owns unsubscribing, even when listeners need the subscriptions.
+        $this->assertCount(5, $this->channels()->find('presence-test-channel')->connections());
     }
 
     /**
