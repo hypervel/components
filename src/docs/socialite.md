@@ -57,7 +57,7 @@ These credentials should be placed in your application's `config/services.php` c
 ```
 
 > [!NOTE]
-> If the `redirect` option contains a relative path, it will automatically be resolved to a fully qualified URL.
+> If the `redirect` option contains a relative path, it will automatically be resolved to a fully qualified URL using your application's `app.url` configuration value, which must then be an absolute HTTP or HTTPS URL.
 
 The X OAuth 2 driver reads its credentials from the `x` key:
 
