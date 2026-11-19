@@ -79,12 +79,27 @@ class PasskeyAuthenticatableTest extends TestCase
         $handle = $user->getPasskeyUserHandle();
 
         $this->assertSame(
-            hash_hmac('sha256', User::class . '|users|' . $user->getKey(), 'test-secret', binary: true),
+            hash_hmac('sha256', User::class . '|users|' . $user->getKey(), 'test-secret'),
             $handle,
         );
         $this->assertNotSame((string) $user->getKey(), $handle);
         $this->assertSame($handle, User::find($user->id)->getPasskeyUserHandle());
-        $this->assertSame(32, strlen($handle));
+        $this->assertSame(64, strlen($handle));
+    }
+
+    public function testItDerivesAnAsciiSafeUserHandle(): void
+    {
+        config(['passkeys.user_handle_secret' => 'test-secret']);
+
+        $user = User::create([
+            'name' => 'Alex Müller',
+            'email' => 'alex@example.com',
+        ]);
+
+        // Some platforms treat the user handle as UTF-8 text, so raw binary
+        // bytes get corrupted between registration and login. The handle must
+        // stay ASCII while remaining within WebAuthn's 64 byte limit.
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $user->getPasskeyUserHandle());
     }
 
     public function testItDoesNotChangeWhenNonIdentifyingAttributesChange(): void

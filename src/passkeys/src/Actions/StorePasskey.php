@@ -61,7 +61,7 @@ class StorePasskey
     protected function getResponse(PublicKeyCredential $credential): AuthenticatorAttestationResponse
     {
         if (! $credential->response instanceof AuthenticatorAttestationResponse) {
-            throw InvalidPasskeyException::make('Unable to register passkey. Please try again.');
+            throw InvalidPasskeyException::make(__('Unable to register passkey. Please try again.'));
         }
 
         return $credential->response;
@@ -83,7 +83,7 @@ class StorePasskey
                 host: $this->hostFromOptions($options),
             );
         } catch (WebauthnException) {
-            throw InvalidPasskeyException::make('Unable to register passkey. Please try again.');
+            throw InvalidPasskeyException::make(__('Unable to register passkey. Please try again.'));
         }
     }
 
@@ -114,7 +114,7 @@ class StorePasskey
     ): Passkey {
         if (! hash_equals($user->getPasskeyUserHandle(), $source->userHandle)) {
             throw InvalidPasskeyException::make(
-                'Passkey registration options no longer match this account. Please try again.',
+                __('Passkey registration options no longer match this account. Please try again.'),
             );
         }
 
@@ -128,7 +128,7 @@ class StorePasskey
                 'credential' => json_decode(WebAuthn::toJson($source), true, flags: JSON_THROW_ON_ERROR),
             ]);
         } catch (UniqueConstraintViolationException) {
-            throw InvalidPasskeyException::make('Unable to register this passkey.');
+            throw InvalidPasskeyException::make(__('Unable to register this passkey.'));
         }
 
         return $passkey;

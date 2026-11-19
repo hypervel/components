@@ -50,6 +50,55 @@ class PasskeyTest extends TestCase
         $this->assertNotNull($passkey->user);
         $this->assertTrue($passkey->user->is($user));
     }
+
+    public function testItOnlyAppendsTheAuthenticatorLabelByDefault(): void
+    {
+        $passkey = new Passkey;
+
+        $this->assertSame(['authenticator'], $passkey->getAppends());
+    }
+
+    public function testItOmitsAuthenticatorIconsFromSerializationByDefault(): void
+    {
+        $passkey = new Passkey([
+            'name' => 'Test',
+            'credential_id' => 'cred',
+            'credential' => ['aaguid' => 'a11a5faa-9f32-4b8c-8c5d-2f7d13e8c942'],
+        ]);
+
+        $array = $passkey->toArray();
+
+        $this->assertSame('AliasVault', $array['authenticator']);
+        $this->assertArrayNotHasKey('authenticator_icon_light', $array);
+        $this->assertArrayNotHasKey('authenticator_icon_dark', $array);
+    }
+
+    public function testItExposesAuthenticatorIconsViaDirectAccessorWithoutSerialization(): void
+    {
+        $passkey = new Passkey([
+            'name' => 'Test',
+            'credential_id' => 'cred',
+            'credential' => ['aaguid' => 'a11a5faa-9f32-4b8c-8c5d-2f7d13e8c942'],
+        ]);
+
+        $this->assertStringStartsWith('data:image/svg+xml;base64,', $passkey->authenticator_icon_light);
+        $this->assertStringStartsWith('data:image/svg+xml;base64,', $passkey->authenticator_icon_dark);
+        $this->assertArrayNotHasKey('authenticator_icon_light', $passkey->toArray());
+    }
+
+    public function testItIncludesAuthenticatorIconsInSerializationWhenExplicitlyAppended(): void
+    {
+        $passkey = new Passkey([
+            'name' => 'Test',
+            'credential_id' => 'cred',
+            'credential' => ['aaguid' => 'a11a5faa-9f32-4b8c-8c5d-2f7d13e8c942'],
+        ]);
+
+        $array = $passkey->append(['authenticator_icon_light', 'authenticator_icon_dark'])->toArray();
+
+        $this->assertStringStartsWith('data:image/svg+xml;base64,', $array['authenticator_icon_light']);
+        $this->assertStringStartsWith('data:image/svg+xml;base64,', $array['authenticator_icon_dark']);
+    }
 }
 
 class UserWithCustomPrimaryKey extends Authenticatable implements PasskeyUser

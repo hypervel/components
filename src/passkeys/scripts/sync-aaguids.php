@@ -43,7 +43,8 @@ if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') !== __FILE__) {
  * @see https://github.com/passkeydeveloper/passkey-authenticator-aaguids
  */
 $source = 'https://raw.githubusercontent.com/passkeydeveloper/passkey-authenticator-aaguids/main/aaguid.json';
-$destination = __DIR__ . '/../resources/aaguids.php';
+$namesDestination = __DIR__ . '/../resources/aaguids.php';
+$iconsDestination = __DIR__ . '/../resources/aaguid-icons.php';
 
 $json = @file_get_contents($source);
 
@@ -59,7 +60,8 @@ if (! is_array($data)) {
     exit(1);
 }
 
-$aaguids = [];
+$names = [];
+$icons = [];
 
 foreach ($data as $aaguid => $entry) {
     if (! is_string($aaguid) || $aaguid === ''
@@ -70,14 +72,58 @@ foreach ($data as $aaguid => $entry) {
         exit(1);
     }
 
-    $aaguids[$aaguid] = $entry['name'];
+    $names[$aaguid] = $entry['name'];
+
+    foreach (['light' => 'icon_light', 'dark' => 'icon_dark'] as $theme => $key) {
+        if (! array_key_exists($key, $entry)) {
+            continue;
+        }
+
+        // Applications render icons as image sources, so keep the list's documented SVG data URI form.
+        if (! is_string($entry[$key]) || ! str_starts_with($entry[$key], 'data:image/svg+xml;base64,')) {
+            fwrite(STDERR, "AAGUID list contains an invalid entry.\n");
+            exit(1);
+        }
+
+        $icons[$aaguid][$theme] = $entry[$key];
+    }
 }
 
-$exported = var_export($aaguids, true);
-$exported = str_replace("\n  ", "\n    ", $exported);
-$exported = substr_replace($exported, '[', 0, strlen('array ('));
-$exported = substr_replace($exported, ']', -1);
+/**
+ * Render a flat `key => scalar` array as a PHP file.
+ *
+ * @param array<string, string> $values
+ */
+$renderNames = function (array $values): string {
+    $lines = ['<?php', '', 'declare(strict_types=1);', '', 'return ['];
 
-publishAaguids($destination, "<?php\n\ndeclare(strict_types=1);\n\nreturn {$exported};\n");
+    foreach ($values as $aaguid => $name) {
+        $lines[] = sprintf('    %s => %s,', var_export($aaguid, true), var_export($name, true));
+    }
 
-echo 'Synced ' . count($aaguids) . " AAGUIDs.\n";
+    return implode("\n", [...$lines, '];', '']);
+};
+
+/**
+ * Render a nested `key => [theme => icon]` array as a PHP file.
+ *
+ * @param array<string, array<string, string>> $values
+ */
+$renderIcons = function (array $values): string {
+    $lines = ['<?php', '', 'declare(strict_types=1);', '', 'return ['];
+
+    foreach ($values as $aaguid => $themes) {
+        $lines[] = sprintf('    %s => [', var_export($aaguid, true));
+        foreach ($themes as $theme => $icon) {
+            $lines[] = sprintf('        %s => %s,', var_export($theme, true), var_export($icon, true));
+        }
+        $lines[] = '    ],';
+    }
+
+    return implode("\n", [...$lines, '];', '']);
+};
+
+publishAaguids($namesDestination, $renderNames($names));
+publishAaguids($iconsDestination, $renderIcons($icons));
+
+echo 'Synced ' . count($names) . ' AAGUIDs and ' . count($icons) . " icon sets.\n";
