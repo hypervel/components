@@ -13,6 +13,8 @@ use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\View\Component;
+use Hypervel\View\ComponentAttributeBag;
+use Hypervel\View\DynamicComponent;
 use Hypervel\View\RawTemplate;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
@@ -307,6 +309,30 @@ class BladeTest extends TestCase
         $this->assertSame(trim($static), trim($dynamic));
     }
 
+    public function testDynamicComponentRendersBoundAttributesLikeClassComponentTag(): void
+    {
+        Blade::component('attributes-hello', AttributesHelloComponent::class);
+        DynamicComponent::flushState();
+
+        $data = [
+            'name' => 'Taylor & Co',
+            'title' => '"Quotes" & <tags>',
+            'bag' => new ComponentAttributeBag(['class' => 'a&amp;b']),
+        ];
+
+        foreach ([':title="$title"', 'title="{{ $title }}"', ':class="$title" :attributes="$bag"'] as $attributes) {
+            $static = Blade::render('<x-attributes-hello :name="$name" ' . $attributes . ' />', $data);
+            $dynamic = Blade::render('<x-dynamic-component component="attributes-hello" :name="$name" ' . $attributes . ' />', $data);
+
+            $this->assertSame(trim($static), trim($dynamic));
+        }
+
+        $this->assertSame(
+            '<div title="&quot;Quotes&quot; &amp; &lt;tags&gt;">Hello Taylor &amp; Co</div>',
+            trim(Blade::render('<x-dynamic-component component="attributes-hello" :name="$name" :title="$title" />', $data))
+        );
+    }
+
     public function testNoNamePassedToSlotUsesDefaultName(): void
     {
         $content = Blade::render('<x-link href="#"><x-slot>default slot</x-slot></x-link>');
@@ -412,6 +438,24 @@ class HelloComponent extends Component
     public function render(): string
     {
         return 'Hello {{ $name }}';
+    }
+}
+
+class AttributesHelloComponent extends Component
+{
+    /**
+     * Create a greeting component.
+     */
+    public function __construct(public string $name)
+    {
+    }
+
+    /**
+     * Get the greeting template with the component attributes.
+     */
+    public function render(): string
+    {
+        return '<div {{ $attributes }}>Hello {{ $name }}</div>';
     }
 }
 

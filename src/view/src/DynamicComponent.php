@@ -9,6 +9,7 @@ use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Compilers\ComponentTagCompiler;
 
 use function Hypervel\Support\enum_value;
@@ -29,6 +30,16 @@ class DynamicComponent extends Component
      * The cached component classes.
      */
     protected static array $componentClasses = [];
+
+    /**
+     * The names of the attributes that were bound on the component tag.
+     */
+    protected array $boundAttributes = [];
+
+    /**
+     * The methods that should be ignored.
+     */
+    protected array $except = ['withBoundAttributes'];
 
     /**
      * Create a new component instance.
@@ -75,6 +86,38 @@ EOF;
                 $template
             );
         };
+    }
+
+    /**
+     * Set the names of the attributes that were bound on the component tag.
+     *
+     * @return $this
+     */
+    public function withBoundAttributes(array $attributes): static
+    {
+        $this->boundAttributes = $attributes;
+
+        return $this;
+    }
+
+    /**
+     * Set the extra attributes that the component should make available.
+     *
+     * @return $this
+     */
+    public function withAttributes(array $attributes): static
+    {
+        if ($this->boundAttributes && class_exists($class = $this->classForComponent())) {
+            [$data] = $this->compiler()->partitionDataAndAttributes($class, $attributes);
+
+            foreach ($this->boundAttributes as $key) {
+                if (array_key_exists($key, $attributes) && ! $data->has($key)) {
+                    $attributes[$key] = BladeCompiler::sanitizeComponentAttribute($attributes[$key]);
+                }
+            }
+        }
+
+        return parent::withAttributes($attributes);
     }
 
     /**
