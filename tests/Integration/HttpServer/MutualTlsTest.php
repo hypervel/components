@@ -26,10 +26,6 @@ class MutualTlsTest extends TestCase
 
     public function testMutualTlsRequiresAClientCertificate(): void
     {
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Requires https://github.com/swoole/swoole-src/pull/6188');
-        }
-
         $this->assertStringNotContainsString('HTTP/1.1 200 OK', $this->request());
 
         $response = $this->request(withClientCertificate: true);

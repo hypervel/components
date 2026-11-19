@@ -27,6 +27,8 @@ function swoole_get_flags_from_frame(FrameInterface $frame): int
         $flags |= SWOOLE_WEBSOCKET_FLAG_RSV3;
     }
     if ($frame->getMask()) {
+        // Swoole 6.3.0 RC2 uses a fixed key for masked frames.
+        // Upstream declined per-frame randomization in https://github.com/swoole/swoole-src/pull/6165.
         $flags |= SWOOLE_WEBSOCKET_FLAG_MASK;
     }
 

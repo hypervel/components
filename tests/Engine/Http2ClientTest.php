@@ -204,11 +204,6 @@ class Http2ClientTest extends TestCase
 
     public function testFailedSendDisconnectsTheClient(): void
     {
-        // @TODO: Remove this skip once https://github.com/swoole/swoole-src/pull/6391 is released.
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Swoole keeps the HTTP/2 client connected after a failed write leaves part of a frame unsent.');
-        }
-
         // Nothing accepts or reads the connection, so the request body fills both socket buffers.
         $server = new Socket(AF_INET, SOCK_STREAM, 0);
         $this->assertTrue($server->setOption(SOL_SOCKET, SO_RCVBUF, 64 * 1024));
@@ -233,11 +228,6 @@ class Http2ClientTest extends TestCase
 
     public function testReceiveAcknowledgesServerPingsWithTheirPayload(): void
     {
-        // @TODO: Remove this skip once https://github.com/swoole/swoole-src/pull/6394 is released.
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped("Swoole's HTTP/2 client answers server PINGs with the wrong payload.");
-        }
-
         $server = new Socket(AF_INET, SOCK_STREAM, 0);
         $this->assertTrue($server->bind('127.0.0.1', 0));
         $this->assertTrue($server->listen());
@@ -262,7 +252,7 @@ class Http2ClientTest extends TestCase
     public function testReceiveParsesHeaderBlocksSplitAcrossContinuationFrames(): void
     {
         // @TODO: Remove this skip once https://github.com/swoole/swoole-src/pull/6399 is released.
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
+        if (version_compare(SWOOLE_VERSION, '6.3.0RC2', '<=')) {
             $this->markTestSkipped("Swoole's HTTP/2 client ignores CONTINUATION frames, so a split header block fails to parse.");
         }
 

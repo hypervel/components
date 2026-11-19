@@ -26,10 +26,6 @@ class SniTlsTest extends TestCase
 
     public function testSniOnlyServersCompleteTlsHandshakes(): void
     {
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Requires https://github.com/swoole/swoole-src/pull/6214');
-        }
-
         $tlsDirectory = __DIR__ . '/Fixtures/Tls';
         $socket = stream_socket_client(
             sprintf('tls://%s:%d', $this->getServerHost(), $this->getServerPort()),

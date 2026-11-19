@@ -35,10 +35,6 @@ class HttpClientTest extends TestCase
 
     public function testClosingAnUnconnectedClientReportsNoConnection(): void
     {
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Requires initialized coroutine HTTP client socket state from https://github.com/swoole/swoole-src/pull/6186.');
-        }
-
         $client = new Client('127.0.0.1', 80);
 
         $this->assertFalse($client->close());
@@ -47,8 +43,6 @@ class HttpClientTest extends TestCase
 
     public function testDisabledKeepAliveSendsValidCloseToken(): void
     {
-        $this->skipWhenCoroutineHttpClientFixesAreUnavailable();
-
         $server = LoopbackHttpServer::start();
         $client = new Client('127.0.0.1', $server->port);
         $client->set(['keep_alive' => false]);
@@ -67,8 +61,6 @@ class HttpClientTest extends TestCase
 
     public function testResponseConnectionCloseDoesNotAffectTheNextRequest(): void
     {
-        $this->skipWhenCoroutineHttpClientFixesAreUnavailable();
-
         $responses = [
             static function (Socket $socket): void {
                 $socket->sendAll("HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\nclosed");
@@ -92,8 +84,6 @@ class HttpClientTest extends TestCase
 
     public function testRequestConnectionCloseDoesNotAffectTheNextRequest(): void
     {
-        $this->skipWhenCoroutineHttpClientFixesAreUnavailable();
-
         $responses = [
             static function (Socket $socket): void {
                 $socket->sendAll("HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nfirst");
@@ -123,8 +113,6 @@ class HttpClientTest extends TestCase
 
     public function testResponseConnectionTokenListClosesTheClient(): void
     {
-        $this->skipWhenCoroutineHttpClientFixesAreUnavailable();
-
         $server = LoopbackHttpServer::start([
             static function (Socket $socket): void {
                 $socket->sendAll(
@@ -148,8 +136,6 @@ class HttpClientTest extends TestCase
 
     public function testEofCompletesOnlyCloseDelimitedResponses(): void
     {
-        $this->skipWhenCoroutineHttpClientFixesAreUnavailable();
-
         $server = LoopbackHttpServer::start([
             static function (Socket $socket): void {
                 $socket->sendAll("HTTP/1.1 200 OK\r\nConnection: close\r\n\r\ncomplete");
@@ -181,8 +167,6 @@ class HttpClientTest extends TestCase
 
     public function testRequestAfterEmptyDownloadReturnsItsOwnBody(): void
     {
-        $this->skipWhenCoroutineHttpClientFixesAreUnavailable();
-
         $download = $this->temporaryDirectory . '/download';
         file_put_contents($download, 'unchanged');
 
@@ -199,17 +183,6 @@ class HttpClientTest extends TestCase
             $this->assertSame('unchanged', file_get_contents($download));
         } finally {
             $client->close();
-        }
-    }
-
-    /**
-     * Skip the test until a Swoole release includes the coroutine HTTP client fixes.
-     */
-    private function skipWhenCoroutineHttpClientFixesAreUnavailable(): void
-    {
-        // @TODO: Remove this skip once the fixes from https://github.com/swoole/swoole-src/pull/6356, https://github.com/swoole/swoole-src/pull/6357 and https://github.com/swoole/swoole-src/pull/6358 are in a Swoole release.
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Requires the coroutine HTTP client fixes from https://github.com/swoole/swoole-src/pull/6356, https://github.com/swoole/swoole-src/pull/6357 and https://github.com/swoole/swoole-src/pull/6358.');
         }
     }
 }

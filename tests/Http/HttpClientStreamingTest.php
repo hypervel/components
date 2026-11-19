@@ -107,9 +107,9 @@ class HttpClientStreamingTest extends TestCase
 
     public function testConcurrentPhpStreamsReleaseTheirResponseHeaders(): void
     {
-        // @TODO: Update the version gate when https://github.com/swoole/swoole-src/issues/6307 is fixed and released.
-        if (version_compare(SWOOLE_VERSION, '6.3.0RC1', '<=')) {
-            $this->markTestSkipped('Swoole 6.3.0 RC1 and earlier do not isolate PHP response-header ownership between coroutines.');
+        // Fixed in PHP by https://github.com/php/php-src/pull/24201, including its 8.4.28 and 8.5.13 release candidates.
+        if (PHP_VERSION_ID < (PHP_MINOR_VERSION === 4 ? 80428 : 80513)) {
+            $this->markTestSkipped('PHP before 8.4.28 and 8.5.13 retains response headers overwritten by concurrent HTTP streams.');
         }
 
         $process = new Process([PHP_BINARY, __DIR__ . '/Fixtures/concurrent-stream-headers.php']);
