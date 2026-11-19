@@ -174,8 +174,12 @@ class CallQueuedHandler
      */
     protected function setJobInstanceIfNecessary(Job $job, mixed $instance): mixed
     {
-        if (isset(class_uses_recursive($instance)[InteractsWithQueue::class])) {
+        $uses = class_uses_recursive($instance);
+
+        if (isset($uses[InteractsWithQueue::class])) {
             $instance->setJob($job);
+        } elseif (isset($uses[Batchable::class]) && ($instance->batchId ?? '') !== '') {
+            Batch::rememberJobIdForCommand($instance, $job);
         }
 
         return $instance;
@@ -196,14 +200,13 @@ class CallQueuedHandler
      */
     protected function ensureSuccessfulBatchJobIsRecorded(mixed $command): void
     {
-        $uses = class_uses_recursive($command);
-
-        if (! isset($uses[Batchable::class], $uses[InteractsWithQueue::class])) {
+        // Unlike Laravel, a batched command without InteractsWithQueue is counted too, so its batch can finish.
+        if (! isset(class_uses_recursive($command)[Batchable::class])) {
             return;
         }
 
-        if ($batch = $command->batch()) {
-            $batch->recordSuccessfulJob(Batch::jobIdFor($command->job));
+        if (($batch = $command->batch()) && ($jobId = Batch::jobIdForCommand($command)) !== null) {
+            $batch->recordSuccessfulJob($jobId);
         }
     }
 

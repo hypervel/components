@@ -16,6 +16,7 @@ use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Queue\CallQueuedClosure;
+use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
@@ -23,9 +24,17 @@ use Hypervel\Support\Enumerable;
 use JsonSerializable;
 use LogicException;
 use Throwable;
+use WeakMap;
 
 class Batch implements Arrayable, JsonSerializable
 {
+    /**
+     * The batch job IDs of commands being processed that cannot reach their queued job.
+     *
+     * @var null|WeakMap<object, string>
+     */
+    protected static ?WeakMap $commandJobIds = null;
+
     /**
      * Create a new batch instance.
      */
@@ -170,6 +179,39 @@ class Batch implements Arrayable, JsonSerializable
     public static function jobIdFor(Job $job): ?string
     {
         return $job->payload()['batchJobId'] ?? $job->uuid();
+    }
+
+    /**
+     * Get the ID the batch records for the given command while it is processed.
+     *
+     * @internal
+     */
+    public static function jobIdForCommand(object $command): ?string
+    {
+        if (isset(static::$commandJobIds[$command])) {
+            return static::$commandJobIds[$command];
+        }
+
+        // Only InteractsWithQueue makes $job the queued job; another job property belongs to the application.
+        return isset(class_uses_recursive($command)[InteractsWithQueue::class]) && $command->job instanceof Job
+            ? static::jobIdFor($command->job)
+            : null;
+    }
+
+    /**
+     * Remember the batch job ID of a command that cannot reach its queued job.
+     *
+     * Commands without InteractsWithQueue have no queued job, and the IDs are held weakly so they never travel
+     * with the command or outlive it.
+     *
+     * @internal
+     */
+    public static function rememberJobIdForCommand(object $command, Job $job): void
+    {
+        if (($jobId = static::jobIdFor($job)) !== null) {
+            static::$commandJobIds ??= new WeakMap;
+            static::$commandJobIds[$command] = $jobId;
+        }
     }
 
     /**

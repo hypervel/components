@@ -21,6 +21,7 @@ use Hypervel\Bus\UpdatedBatchJobCounts;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\Factory;
+use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Coroutine\Coroutine;
@@ -83,6 +84,7 @@ class BusBatchTest extends TestCase
         $_SERVER['__catch.count'] = 0;
 
         RetriedBatchJob::$handled = false;
+        RetriedBatchableOnlyJob::$handled = false;
     }
 
     /**
@@ -584,7 +586,12 @@ class BusBatchTest extends TestCase
         $this->assertEquals(1, $_SERVER['__finally.count']);
     }
 
-    public function testRetriedJobDoesItsWorkAfterItsBatchFinishedWithFailures(): void
+    /**
+     * @param class-string<RetriedBatchableOnlyJob|RetriedBatchJob> $job
+     */
+    #[TestWith([RetriedBatchJob::class])]
+    #[TestWith([RetriedBatchableOnlyJob::class])]
+    public function testRetriedJobDoesItsWorkAfterItsBatchFinishedWithFailures(string $job): void
     {
         $queue = Double::for(Factory::class)->strict();
 
@@ -595,7 +602,7 @@ class BusBatchTest extends TestCase
 
         $connection->expects('bulk');
 
-        $batch = $batch->add([new RetriedBatchJob, new RetriedBatchJob]);
+        $batch = $batch->add([new $job, new $job]);
 
         $batch->recordFailedJob('first-id', new RuntimeException('Something went wrong.'));
         $batch->recordSuccessfulJob('second-id');
@@ -603,7 +610,7 @@ class BusBatchTest extends TestCase
         $this->assertTrue($batch->fresh()->finished());
 
         $handler = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
-        $command = serialize((new RetriedBatchJob)->withBatchId($batch->id));
+        $command = serialize((new $job)->withBatchId($batch->id));
 
         // Horizon gives each retry a new UUID and carries the original batch job ID.
         $handler->failed(['command' => $command], new RuntimeException('The retry failed.'), 'first-retry-uuid', new FakeJob([
@@ -616,7 +623,7 @@ class BusBatchTest extends TestCase
 
         $handler->call(new FakeJob(['uuid' => 'second-retry-uuid', 'batchJobId' => 'first-id']), ['command' => $command]);
 
-        $this->assertTrue(RetriedBatchJob::$handled);
+        $this->assertTrue($job::$handled);
         $this->assertSame([], $batch->fresh()->failedJobIds);
         $this->assertEquals(1, $_SERVER['__then.count']);
     }
@@ -1228,6 +1235,29 @@ class RetriedBatchJob implements ShouldQueue
      */
     public function handle(): void
     {
+        if ($this->batching()) {
+            static::$handled = true;
+        }
+    }
+}
+
+class RetriedBatchableOnlyJob implements ShouldQueue
+{
+    use Batchable;
+    use Queueable;
+
+    public static bool $handled = false;
+
+    public ?Job $job = null;
+
+    /**
+     * Do the job's work while its batch still includes it.
+     */
+    public function handle(): void
+    {
+        // The application's own job property does not identify this job to its batch.
+        $this->job = new FakeJob(['uuid' => 'referenced-job']);
+
         if ($this->batching()) {
             static::$handled = true;
         }
