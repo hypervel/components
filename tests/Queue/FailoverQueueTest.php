@@ -838,21 +838,33 @@ trait FailoverQueueFakeQueue
         return 0;
     }
 
+    /**
+     * Get the number of jobs across every queue.
+     */
     public function totalSize(): int
     {
         return 0;
     }
 
+    /**
+     * Get the number of pending jobs across every queue.
+     */
     public function totalPendingSize(): int
     {
         return 0;
     }
 
+    /**
+     * Get the number of delayed jobs across every queue.
+     */
     public function totalDelayedSize(): int
     {
         return 0;
     }
 
+    /**
+     * Get the number of reserved jobs across every queue.
+     */
     public function totalReservedSize(): int
     {
         return 0;
@@ -863,31 +875,49 @@ trait FailoverQueueFakeQueue
         return null;
     }
 
+    /**
+     * Get the pending jobs for the given queue.
+     */
     public function pendingJobs(UnitEnum|string|null $queue = null): Collection
     {
         return new Collection;
     }
 
+    /**
+     * Get the delayed jobs for the given queue.
+     */
     public function delayedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return new Collection;
     }
 
+    /**
+     * Get the reserved jobs for the given queue.
+     */
     public function reservedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return new Collection;
     }
 
+    /**
+     * Get all pending jobs across every queue.
+     */
     public function allPendingJobs(): Collection
     {
         return new Collection;
     }
 
+    /**
+     * Get all delayed jobs across every queue.
+     */
     public function allDelayedJobs(): Collection
     {
         return new Collection;
     }
 
+    /**
+     * Get all reserved jobs across every queue.
+     */
     public function allReservedJobs(): Collection
     {
         return new Collection;
