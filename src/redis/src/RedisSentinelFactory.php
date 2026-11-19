@@ -57,6 +57,8 @@ class RedisSentinelFactory
             }
 
             try {
+                swoole_clear_error();
+
                 $options = [
                     'host' => $hasScheme
                         ? "{$resolved['scheme']}://{$resolved['host']}"

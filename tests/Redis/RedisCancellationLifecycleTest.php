@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
+use Closure;
 use Hypervel\ConnectionPool\Exceptions\ConnectionException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
@@ -11,16 +12,22 @@ use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Facades\Redis as RedisFacade;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Redis\Fixtures\RespServer;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use Redis;
 use RedisException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class RedisCancellationLifecycleTest extends TestCase
 {
-    public function testBlockedCommandCancellationInvalidatesAndReturnsTheLeaseWithoutEvents(): void
+    #[TestWith([true], 'throwing cancellation')]
+    #[TestWith([false], 'non-throwing cancellation')]
+    public function testBlockedCommandCancellationInvalidatesAndReturnsTheLeaseWithoutEvents(bool $throwException): void
     {
         $server = new RespServer;
         $commandReceived = new Channel(1);
@@ -62,6 +69,7 @@ class RedisCancellationLifecycleTest extends TestCase
             $exception = $this->cancelAfter(
                 static fn () => $connection->blpop('blocked', 0),
                 $commandReceived,
+                $throwException,
             );
 
             $this->assertInstanceOf(CanceledException::class, $exception);
@@ -151,6 +159,127 @@ class RedisCancellationLifecycleTest extends TestCase
         }
     }
 
+    #[DataProvider('nativeClientOperations')]
+    public function testNativeClientCancellationIsClassifiedAtItsBoundary(
+        string $stallOn,
+        Closure $operation,
+        string $message,
+        bool $throwException,
+    ): void {
+        $server = new RespServer;
+        $entered = new Channel(1);
+        $releaseServer = new Channel(1);
+        $server->start(function ($client) use ($stallOn, $entered, $releaseServer): void {
+            while (is_string($command = fread($client, 4096)) && $command !== '') {
+                if (str_contains($command, $stallOn)) {
+                    $entered->push(true);
+                    $releaseServer->pop(2.0);
+
+                    return;
+                }
+
+                fwrite($client, str_contains($command, 'MULTI') ? "+OK\r\n" : "+QUEUED\r\n");
+            }
+        });
+
+        [$host, $port] = $server->hostAndPort();
+        $connectionName = 'canceled_native_client';
+        $this->configureConnection($connectionName, $host, $port);
+        $redis = RedisFacade::connection($connectionName);
+
+        try {
+            $exception = $this->cancelAfter(static fn () => $operation($redis), $entered, $throwException);
+
+            $this->assertInstanceOf(CanceledException::class, $exception);
+            $this->assertSame($message, $exception->getMessage());
+            $this->assertInstanceOf(RedisException::class, $exception->getPrevious());
+        } finally {
+            $releaseServer->push(true);
+
+            try {
+                $server->wait();
+            } finally {
+                $this->app->make(PoolManager::class)->purge($connectionName);
+            }
+        }
+    }
+
+    /**
+     * Provide native-client operations that wait outside command dispatch, in both cancellation modes.
+     */
+    public static function nativeClientOperations(): iterable
+    {
+        $operations = [
+            'transaction exec' => [
+                'EXEC',
+                static fn (RedisProxy $redis) => $redis->transaction(static fn (Redis $client) => $client->set('key', 'value')),
+                'Executing the Redis transaction was canceled.',
+            ],
+            'held pipeline exec' => [
+                'SET',
+                static fn (RedisProxy $redis) => $redis->withConnection(
+                    static fn (RedisConnection $connection) => $connection->pipeline()->set('key', 'value')->exec(),
+                ),
+                'Using a Redis connection was canceled.',
+            ],
+            'held discard' => [
+                'DISCARD',
+                static fn (RedisProxy $redis) => $redis->withConnection(static function (RedisConnection $connection): void {
+                    $connection->multi();
+                    $connection->discardTransaction();
+                }),
+                'Discarding the Redis transaction was canceled.',
+            ],
+        ];
+
+        foreach ($operations as $name => $operation) {
+            yield "{$name}, throwing" => [...$operation, true];
+            yield "{$name}, non-throwing" => [...$operation, false];
+        }
+    }
+
+    public function testFailureAfterAHandledCancellationKeepsItsRedisException(): void
+    {
+        $server = new RespServer;
+        $releaseServer = new Channel(1);
+        $server->start(static function () use ($releaseServer): void {
+            $releaseServer->pop(2.0);
+        });
+
+        [$host, $port] = $server->hostAndPort();
+        $connectionName = 'stale_cancellation';
+        $this->configureConnection($connectionName, $host, $port, [
+            'options' => ['prefix' => '', 'serializer' => Redis::SERIALIZER_PHP],
+        ]);
+        $redis = RedisFacade::connection($connectionName);
+
+        try {
+            // Connect first, because connecting waits and would reset the cancellation state.
+            $this->assertIsString($redis->_serialize('value'));
+            $coroutine = Coroutine::id();
+            Coroutine::create(static function () use ($coroutine): void {
+                usleep(10000);
+                Coroutine::cancelById($coroutine);
+            });
+
+            $this->assertFalse((new Channel(1))->pop(1.0));
+            $this->assertTrue(Coroutine::isCanceled());
+
+            // The unserialize failure doesn't wait, so the earlier cancellation must not claim it.
+            $this->expectException(RedisException::class);
+
+            $redis->_unserialize('corrupt');
+        } finally {
+            $releaseServer->push(true);
+
+            try {
+                $server->wait();
+            } finally {
+                $this->app->make(PoolManager::class)->purge($connectionName);
+            }
+        }
+    }
+
     /**
      * Configure shared Redis options and one connection for a local test server.
      *
@@ -190,7 +319,7 @@ class RedisCancellationLifecycleTest extends TestCase
     /**
      * Cancel an operation after its native I/O boundary has been reached.
      */
-    private function cancelAfter(callable $operation, Channel $entered): Throwable
+    private function cancelAfter(callable $operation, Channel $entered, bool $throwException = true): Throwable
     {
         $result = new Channel(1);
         $coroutine = Coroutine::create(static function () use ($operation, $result): void {
@@ -208,7 +337,7 @@ class RedisCancellationLifecycleTest extends TestCase
             $enteredOperation = $entered->pop(2.0);
 
             if ($enteredOperation) {
-                $cancellationRequested = Coroutine::cancelById($coroutine->getId(), throwException: true);
+                $cancellationRequested = Coroutine::cancelById($coroutine->getId(), $throwException);
             }
         } finally {
             try {

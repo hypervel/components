@@ -371,6 +371,7 @@ class PhpRedisClusterConnection extends PhpRedisConnection
                 );
             }
 
+            swoole_clear_error();
             $redis = new RedisCluster(...$parameters);
         } catch (Throwable $exception) {
             if ($cancellation = RedisCancellation::cancellationFrom(

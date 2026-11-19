@@ -224,7 +224,11 @@ class RedisProxy implements ConnectionContract
         $cleanupFailure = null;
 
         try {
-            $result = tap($instance, $callback)->exec();
+            // The callback drives the native client, so classify its escaping failures and EXEC's separately.
+            swoole_clear_error();
+            $callback($instance);
+            swoole_clear_error();
+            $result = $instance->exec();
 
             if ($command === 'multi' && $hasExistingConnection) {
                 $connection = CoroutineContext::get($this->getContextKey());
@@ -294,10 +298,8 @@ class RedisProxy implements ConnectionContract
                 ? $connection->discardTransaction()
                 : $connection->{$name}(...$arguments);
         } catch (Throwable $throwable) {
-            $commandException = RedisCancellation::cancellationFrom(
-                $throwable,
-                "Executing Redis command [{$name}] was canceled.",
-            ) ?? $throwable;
+            $commandException = $throwable;
+
             if (! Coroutine::causedByCancellation($commandException)) {
                 try {
                     $dispatcher = $connection->getEventDispatcher();
@@ -585,6 +587,8 @@ class RedisProxy implements ConnectionContract
         try {
             $connection->getConnection();
 
+            // The callback can drive the native client directly, such as a pipeline it executes.
+            swoole_clear_error();
             $result = $callback($connection);
         } catch (Throwable $exception) {
             $operationFailure = RedisCancellation::cancellationFrom(
@@ -633,6 +637,7 @@ class RedisProxy implements ConnectionContract
         try {
             $connection->getConnection();
 
+            swoole_clear_error();
             $result = $callback();
         } catch (Throwable $exception) {
             $operationFailure = RedisCancellation::cancellationFrom(
@@ -736,10 +741,8 @@ class RedisProxy implements ConnectionContract
             $connection->getConnection();
             $masters = $connection->masters();
         } catch (Throwable $exception) {
-            $discoveryException = RedisCancellation::cancellationFrom(
-                $exception,
-                'Discovering Redis Cluster masters was canceled.',
-            ) ?? $exception;
+            // Master discovery reads the client's cached topology; only reconnecting waits, and it classifies itself.
+            $discoveryException = $exception;
         }
 
         if ($contextConnection === null) {

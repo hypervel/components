@@ -20,6 +20,9 @@ class RedisCancellation
 {
     /**
      * Resolve an exact or native phpredis cancellation.
+     *
+     * Call swoole_clear_error() immediately before the native operation, so an earlier
+     * cancellation the coroutine already handled cannot be mistaken for this one.
      */
     public static function cancellationFrom(Throwable $exception, string $message): ?CanceledException
     {
@@ -28,8 +31,10 @@ class RedisCancellation
             return $exception;
         }
 
+        // phpredis keeps a thrown cancellation as the cause; a non-throwing one leaves only the socket error.
         if (($exception instanceof RedisException || $exception instanceof RedisClusterException)
-            && EngineCoroutine::isCanceled()
+            && (Coroutine::causedByCancellation($exception)
+                || (EngineCoroutine::isCanceled() && swoole_last_error() === SOCKET_ECANCELED))
         ) {
             return new CanceledException($message, previous: $exception);
         }

@@ -39,6 +39,8 @@ class PhpRedisConnection extends RedisConnection
     public function reconnect(): bool
     {
         try {
+            swoole_clear_error();
+
             $database = ! $this->invalid
                 && $this->connection instanceof Redis
                 && $this->connection->isConnected()

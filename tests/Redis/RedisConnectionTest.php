@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Redis;
 
 use BadMethodCallException;
-use Closure;
 use ErrorException;
 use Hypervel\ConnectionPool\Events\ConnectionReleasing;
 use Hypervel\ConnectionPool\Exceptions\ConnectionException;
@@ -14,8 +13,6 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\ConnectionPool\ConnectionPool;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
-use Hypervel\Coroutine\Coroutine;
-use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Redis\Exceptions\InvalidRedisOptionException;
 use Hypervel\Redis\Exceptions\LuaScriptException;
@@ -43,7 +40,6 @@ use RedisException;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
-use Swoole\Coroutine\Channel as SwooleChannel;
 use Symfony\Component\Process\Process;
 use Throwable;
 use TypeError;
@@ -433,43 +429,13 @@ class RedisConnectionTest extends TestCase
         $this->assertTrue($connection->isInvalidForTest());
     }
 
-    public function testReleasePreservesExactCancellationWithoutDispatchingReleaseObservers(): void
+    #[TestWith([false], 'direct cancellation')]
+    #[TestWith([true], 'phpredis failure carrying a cancellation')]
+    public function testReleasePreservesCancellationWithoutDispatchingReleaseObservers(bool $carried): void
     {
-        $cancellation = new CanceledException('mode canceled');
-        $releaseObserved = false;
-        $container = $this->getContainer();
-        $dispatcher = new Dispatcher($container);
-        $dispatcher->listen(ConnectionReleasing::class, function () use (&$releaseObserved): void {
-            $releaseObserved = true;
-        });
-        $container->instance('events', $dispatcher);
-        $pool = Double::for(ConnectionPool::class)->strict();
-        $pool->allows('getOptions')->returns(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
-        $pool->expects('release')->with(Argument::type(RedisConnection::class));
-        $pool->expects('discard')->never();
-        $redis = Double::for(Redis::class)->strict();
-        $redis->expects('getMode')->throws($cancellation);
-        $redis->expects('close')->never();
-        $connection = $this->mockRedisConnection(container: $container, pool: $pool);
-        $connection->setActiveConnection($redis);
-
-        try {
-            $connection->release();
-            $this->fail('Expected the cancellation to escape.');
-        } catch (CanceledException $exception) {
-            $this->assertSame($cancellation, $exception);
-        }
-
-        $this->assertFalse($releaseObserved);
-        $this->assertTrue($connection->isInvalidForTest());
-        $this->assertNull(
-            (new ReflectionProperty(RedisConnection::class, 'database'))->getValue($connection),
-        );
-    }
-
-    public function testReleaseNormalizesWrappedPhpRedisCancellation(): void
-    {
-        $nativeFailure = new RedisException('mode canceled');
+        $cancellation = $carried
+            ? new RedisException('mode canceled', previous: new CanceledException)
+            : new CanceledException('mode canceled');
         $releaseObserved = false;
         $container = $this->getContainer();
         $dispatcher = new Dispatcher($container);
@@ -485,19 +451,23 @@ class RedisConnectionTest extends TestCase
         $pool->expects('release')->with(Argument::type(RedisConnection::class));
         $pool->expects('discard')->never();
         $redis = Double::for(Redis::class)->strict();
-        $redis->expects('getMode')->throws($nativeFailure);
+        $redis->expects('getMode')->throws($cancellation);
         $redis->expects('close')->never();
         $connection = $this->mockRedisConnection(container: $container, pool: $pool);
         $connection->setActiveConnection($redis);
 
-        $exception = $this->captureCancellationAtBoundary(function () use ($connection): void {
+        try {
             $connection->release();
-        });
+            $this->fail('Expected the cancellation to escape.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
 
-        $this->assertInstanceOf(CanceledException::class, $exception);
-        $this->assertSame($nativeFailure, $exception->getPrevious());
         $this->assertFalse($releaseObserved);
         $this->assertTrue($connection->isInvalidForTest());
+        $this->assertNull(
+            (new ReflectionProperty(RedisConnection::class, 'database'))->getValue($connection),
+        );
     }
 
     public function testReleasePreservesOperationCancellationOverPoolCleanupCancellation(): void
@@ -557,7 +527,7 @@ class RedisConnectionTest extends TestCase
 
     public function testReleaseNormalizesWrappedCancellationFromNativeClose(): void
     {
-        $nativeFailure = new RedisException('close canceled');
+        $nativeFailure = new RedisException('close canceled', previous: new CanceledException);
         $logger = Double::for(StdoutLoggerInterface::class)->strict();
         $logger->expects('log')->never();
         $container = $this->getContainer();
@@ -571,12 +541,16 @@ class RedisConnectionTest extends TestCase
         $redis->expects('close')->throws($nativeFailure);
         $connection = $this->mockRedisConnection(container: $container, pool: $pool);
         $connection->setActiveConnection($redis);
+        $exception = null;
 
-        $exception = $this->captureCancellationAtBoundary(function () use ($connection): void {
+        try {
             $connection->release();
-        });
+        } catch (Throwable $caught) {
+            $exception = $caught;
+        }
 
         $this->assertInstanceOf(CanceledException::class, $exception);
+        $this->assertSame('Closing the Redis connection was canceled.', $exception->getMessage());
         $this->assertSame($nativeFailure, $exception->getPrevious());
         $this->assertNull($connection->client());
     }
@@ -3859,31 +3833,6 @@ class RedisConnectionTest extends TestCase
             ->returns(PoolOptions::fromArray([]));
 
         return $pool;
-    }
-
-    /**
-     * Capture cancellation raised while the current coroutine is canceled.
-     */
-    protected function captureCancellationAtBoundary(Closure $callback): Throwable
-    {
-        $blocker = new SwooleChannel(1);
-        $captured = null;
-        $coroutineId = Coroutine::create(function () use ($blocker, $callback, &$captured): void {
-            try {
-                $blocker->pop();
-            } catch (CanceledException) {
-                try {
-                    $callback();
-                } catch (Throwable $exception) {
-                    $captured = $exception;
-                }
-            }
-        });
-
-        $this->assertTrue(EngineCoroutine::cancelById($coroutineId, throwException: true));
-        $this->assertInstanceOf(Throwable::class, $captured);
-
-        return $captured;
     }
 
     protected function getContainer(array $definitions = []): Container
