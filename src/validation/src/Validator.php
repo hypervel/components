@@ -1207,6 +1207,7 @@ class Validator implements ValidatorContract
      */
     protected function getPrimaryAttribute(string $attribute): string
     {
+        // One reverse map answers in a single lookup; Laravel's per-pattern sets still scan every wildcard.
         return $this->getImplicitAttributeMap()[$attribute] ?? $attribute;
     }
 
