@@ -750,7 +750,7 @@ The following sections explain the diagnostics and their remedies. Use this tabl
 | [Starting Queries](#starting-queries) | `hypervel.noImplicitQueryBuilderCall` |
 | [Schema Dumps](#schema-dumps) | `hypervel.schemaDump` |
 | [Migration Column Types](#migration-column-types) | `hypervel.migrationColumnType` |
-| [Dispatching Jobs and Events](#dispatching-jobs-and-events) | `hypervel.jobs.noConstructor`, `hypervel.events.noConstructor`, `argument.type` and the other argument identifiers |
+| [Dispatching Jobs and Events](#dispatching-jobs-and-events) | `new.noConstructor`, `argument.type` and the other argument identifiers |
 | [Dispatching Jobs in Transactions](#dispatching-jobs-in-transactions) | `hypervel.dispatchInTransactionAfterCommit` |
 | [Models in Queued Jobs](#models-in-queued-jobs) | `hypervel.jobSerializesModels` |
 | [Batched Jobs](#batched-jobs) | `hypervel.batchedJobIsBatchable`, `hypervel.noBatchedUniqueJob`, `hypervel.batchableJobChecksCancellation` |
@@ -1510,11 +1510,11 @@ The `checkMigrationColumnTypes` parameter enables reports for `json`, `enum` and
 A job's `dispatch`, `dispatchIf`, `dispatchUnless`, `dispatchSync` and `dispatchAfterResponse` methods, and an event's `dispatch`, `dispatchIf`, `dispatchUnless` and `broadcast` methods, pass their arguments to the class's constructor, so the arguments are checked against it:
 
 ```php
-// Parameter #1 $podcast of job class App\Jobs\ProcessPodcast constructor expects App\Models\Podcast...
+// Parameter #1 $podcast of class App\Jobs\ProcessPodcast constructor expects App\Models\Podcast...
 ProcessPodcast::dispatch($podcast->id);
 ```
 
-The first argument of `dispatchIf` and `dispatchUnless` is the condition, so only the arguments after it are checked. A class that defines its own dispatch method is checked against that method instead.
+The first argument of `dispatchIf` and `dispatchUnless` is the condition, so only the arguments after it are checked. A class that defines its own dispatch method is checked against that method instead. Since `dispatchAfterResponse` passes its arguments to `dispatch`, a class's own `dispatch` method is also used for its `dispatchAfterResponse` calls.
 
 <a name="dispatching-jobs-in-transactions"></a>
 ### Dispatching Jobs in Transactions

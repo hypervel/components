@@ -29,6 +29,15 @@ class HypervelJobWithoutConstructor
     use Dispatchable;
 }
 
+class HypervelJobWithPrivateConstructor
+{
+    use Dispatchable;
+
+    private function __construct(string $foo)
+    {
+    }
+}
+
 class HypervelJobWithOwnDispatch
 {
     use Dispatchable;

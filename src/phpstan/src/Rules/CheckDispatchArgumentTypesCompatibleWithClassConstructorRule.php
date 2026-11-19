@@ -6,26 +6,27 @@ namespace Hypervel\PHPStan\Rules;
 
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Events\Dispatchable as EventDispatchable;
-use Hypervel\PHPStan\Reflection\ProxiedMethodReflection;
+use Hypervel\PHPStan\Reflection\ProxiedParameterReflection;
 use PhpParser\Node;
+use PhpParser\Node\Expr\FuncCall;
+use PhpParser\Node\Expr\New_;
 use PhpParser\Node\Expr\StaticCall;
+use PhpParser\Node\Name\FullyQualified;
+use PHPStan\Analyser\NodeCallbackInvoker;
 use PHPStan\Analyser\Scope;
+use PHPStan\Node\Expr\TypeExpr;
+use PHPStan\Reflection\ParameterReflection;
 use PHPStan\Reflection\ParametersAcceptorSelector;
 use PHPStan\Reflection\ReflectionProvider;
-use PHPStan\Rules\FunctionCallParametersCheck;
 use PHPStan\Rules\Rule;
-use PHPStan\Rules\RuleErrorBuilder;
-use PHPStan\TrinaryLogic;
+use PHPStan\Type\ClosureType;
 
+use function array_all;
 use function array_filter;
 use function array_find;
 use function array_values;
-use function count;
 use function in_array;
-use function sprintf;
-use function str_replace;
 use function strcasecmp;
-use function ucfirst;
 
 /** @implements Rule<StaticCall> */
 class CheckDispatchArgumentTypesCompatibleWithClassConstructorRule implements Rule
@@ -35,7 +36,6 @@ class CheckDispatchArgumentTypesCompatibleWithClassConstructorRule implements Ru
      */
     public function __construct(
         private ReflectionProvider $reflectionProvider,
-        private FunctionCallParametersCheck $check,
         private string $dispatchableClass,
     ) {
     }
@@ -50,6 +50,9 @@ class CheckDispatchArgumentTypesCompatibleWithClassConstructorRule implements Ru
 
     /**
      * Check the dispatch arguments against the dispatched class's constructor.
+     *
+     * @param NodeCallbackInvoker&Scope $scope
+     * @return array{}
      */
     public function processNode(Node $node, Scope $scope): array
     {
@@ -129,60 +132,43 @@ class CheckDispatchArgumentTypesCompatibleWithClassConstructorRule implements Ru
             );
         }
 
-        $jobOrEvent = $this->dispatchableClass === Dispatchable::class ? 'job' : 'event';
+        $args = $node->getArgs();
+        $class = new FullyQualified($jobClassReflection->getName());
 
-        if (! $jobClassReflection->hasConstructor()) {
-            if (count($node->getArgs()) > 0) {
-                return [
-                    RuleErrorBuilder::message(sprintf(
-                        ucfirst($jobOrEvent) . ' class %s does not have a constructor and must be dispatched without any parameters.',
-                        $jobClassReflection->getDisplayName(),
-                    ))
-                        ->identifier(sprintf('hypervel.%s.noConstructor', $jobOrEvent . 's'))
-                        ->build(),
-                ];
-            }
+        // dispatchAfterResponse() forwards to dispatch(), so the class's dispatch() decides the arguments: an
+        // override keeps its own signature, and the trait's method brings the call back here.
+        if ($methodName === 'dispatchAfterResponse') {
+            $scope->invokeNodeCallback(new StaticCall($class, 'dispatch', $args, $node->getAttributes()));
 
             return [];
         }
 
-        $constructorReflection = $jobClassReflection->getConstructor();
+        if (! $jobClassReflection->hasConstructor()) {
+            $scope->invokeNodeCallback(new New_($class, $args, $node->getAttributes()));
 
-        $classDisplayName = str_replace('%', '%%', $jobClassReflection->getDisplayName());
+            return [];
+        }
 
-        $variant = ParametersAcceptorSelector::selectFromArgs($scope, $node->getArgs(), $constructorReflection->getVariants());
+        $constructor = $jobClassReflection->getConstructor();
+        $variant = ParametersAcceptorSelector::selectFromArgs($scope, $args, $constructor->getVariants(), $constructor->getNamedArgumentsVariants());
 
-        // @phpstan-ignore phpstanApi.method (PHPStan's own argument check, which new and static calls use.)
-        return $this->check->check(
-            // Unlike upstream, a reference parameter takes any expression: the dispatch method passes its
-            // variadic arguments' values to the constructor, never the caller's variables.
-            ProxiedMethodReflection::proxyVariant($variant, $variant->getReturnType()),
-            $scope,
-            $constructorReflection->getDeclaringClass()->isBuiltin(),
-            $node,
-            'staticMethod',
-            TrinaryLogic::createYes(),
-            ucfirst($jobOrEvent) . ' class ' . $classDisplayName . ' constructor invoked with %d parameter in ' . $classDisplayName . '::' . $methodName . '(), %d required.',
-            ucfirst($jobOrEvent) . ' class ' . $classDisplayName . ' constructor invoked with %d parameters in ' . $classDisplayName . '::' . $methodName . '(), %d required.',
-            ucfirst($jobOrEvent) . ' class ' . $classDisplayName . ' constructor invoked with %d parameter in ' . $classDisplayName . '::' . $methodName . '(), at least %d required.',
-            ucfirst($jobOrEvent) . ' class ' . $classDisplayName . ' constructor invoked with %d parameters in ' . $classDisplayName . '::' . $methodName . '(), at least %d required.',
-            ucfirst($jobOrEvent) . ' class ' . $classDisplayName . ' constructor invoked with %d parameter in ' . $classDisplayName . '::' . $methodName . '(), %d-%d required.',
-            ucfirst($jobOrEvent) . ' class ' . $classDisplayName . ' constructor invoked with %d parameters in ' . $classDisplayName . '::' . $methodName . '(), %d-%d required.',
-            '%s of ' . $jobOrEvent . ' class ' . $classDisplayName . ' constructor expects %s in ' . $classDisplayName . '::' . $methodName . '(), %s given.',
-            '', // constructor does not have a return type
-            '%s of ' . $jobOrEvent . ' class ' . $classDisplayName . ' constructor is passed by reference, so it expects variables only',
-            'Unable to resolve the template type %s in instantiation of ' . $jobOrEvent . ' class ' . $classDisplayName,
-            'Missing parameter $%s in call to ' . $classDisplayName . ' constructor.',
-            'Unknown parameter $%s in call to ' . $classDisplayName . ' constructor.',
-            'Return type of call to ' . $classDisplayName . ' constructor contains unresolvable type.',
-            '',
-            '', // no named arguments
-            '',
-            '',
-            '',
-            null,
-            null, // no callee reflection for parameter closure type extensions
-        );
+        if ($constructor->isPublic() && array_all($variant->getParameters(), static fn (ParameterReflection $parameter): bool => $parameter->passedByReference()->no())) {
+            $scope->invokeNodeCallback(new New_($class, $args, $node->getAttributes()));
+
+            return [];
+        }
+
+        // The trait calls the constructor from inside the class, so a non-public one is callable. It passes on
+        // the dispatch arguments' values, so, unlike upstream, a reference parameter takes any expression.
+        $scope->invokeNodeCallback(new FuncCall(new TypeExpr(new ClosureType(
+            parameters: ProxiedParameterReflection::fromTargetParameters($variant->getParameters()),
+            variadic: $variant->isVariadic(),
+            templateTypeMap: $variant->getTemplateTypeMap(),
+            resolvedTemplateTypeMap: $variant->getResolvedTemplateTypeMap(),
+            acceptsNamedArguments: $constructor->acceptsNamedArguments(),
+        )), $args, $node->getAttributes()));
+
+        return [];
     }
 
     /**
