@@ -775,6 +775,39 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         $this->assertEquals(2, current($result->items())->rank);
     }
 
+    public function testPaginationWithUnionAndAliasedExpressions(): void
+    {
+        TestUser::fillAndInsert([['name' => 'alpha'], ['name' => 'bravo']]);
+        TestPost::fillAndInsert([['title' => 'bravo'], ['title' => 'charlie']]);
+
+        $union = fn (): QueryBuilder => TestPost::select('test_posts.id')->selectRaw('UPPER(test_posts.title) as label')->toBase()
+            ->unionAll(TestUser::select('test_users.id')->selectRaw('UPPER(test_users.name) as label')->toBase());
+
+        // Hypervel rejects computed union paging columns rather than guessing a raw selection's width.
+        try {
+            $union()->orderBy('label')->orderBy('id')->cursorPaginate(2, ['*'], 'cursor', new Cursor(['label' => 'BRAVO', 'id' => 1]));
+            $this->fail('The computed union paging column must be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertStringContainsString('fromSub()', $exception->getMessage());
+        }
+
+        $query = fn (string $direction): QueryBuilder => DB::query()->fromSub($union(), 'entries')
+            ->orderBy('label', $direction)
+            ->orderBy('id', $direction);
+
+        $first = $query('asc')->cursorPaginate(2);
+        $second = $query('asc')->cursorPaginate(2, ['*'], 'cursor', $first->nextCursor());
+
+        $this->assertSame(['BRAVO', 'CHARLIE'], collect($second->items())->pluck('label')->all());
+        $this->assertEquals([2, 2], collect($second->items())->pluck('id')->all());
+
+        $first = $query('desc')->cursorPaginate(2);
+        $second = $query('desc')->cursorPaginate(2, ['*'], 'cursor', $first->nextCursor());
+
+        $this->assertSame(['BRAVO', 'ALPHA'], collect($second->items())->pluck('label')->all());
+        $this->assertEquals([1, 1], collect($second->items())->pluck('id')->all());
+    }
+
     public function testPaginationWithAliasedOrderBy(): void
     {
         TestUser::fillAndInsert([[], [], [], [], [], []]);
