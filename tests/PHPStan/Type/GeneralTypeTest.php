@@ -110,10 +110,11 @@ class GeneralTypeTest extends TypeInferenceTestCase
         yield from self::gatherAssertTypes(__DIR__ . '/data/paginator-extension.php');
         // REMOVED: passthru.php; it asserts Laravel releases before 12.15.
         yield from self::gatherAssertTypes(__DIR__ . '/data/passthru-l12-15.php');
+        // REMOVED: PivotTypesInCollectionsTest.php; Hypervel always keeps pivot types, so the cases need no separate configuration.
         yield from self::gatherAssertTypes(__DIR__ . '/data/query-builder.php');
         // Upstream runs this per redisDriver setting; Hypervel only has phpredis, so it runs once here.
         yield from self::gatherAssertTypes(__DIR__ . '/data/redis-driver-phpredis.php');
-        // REMOVED: RedisDriverNullTypeTest.php and RedisDriverPredisTypeTest.php; the redisDriver setting is omitted.
+        // REMOVED: RedisDriverNullTypeTest.php and RedisDriverPredisTypeTest.php; Hypervel only uses phpredis.
         yield from self::gatherAssertTypes(__DIR__ . '/data/relationship-query-callbacks.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/relation-of-type.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/request-header.php');
