@@ -94,6 +94,8 @@ Remove older ways of doing things once a modern equivalent fully replaces them, 
 
 ## Testing
 
+- Remove Pest integration from Artisan’s test runners and generators, Testbench, and the user documentation. Update the affected tests to cover PHPUnit behavior.
+
 - Finish switching the regular and nightly database jobs to Unix sockets, matching [laravel/framework#62323](https://github.com/laravel/framework/pull/62323). Swoole 6.3.0 RC2 fixes cold `caching_sha2_password` authentication over Unix sockets, and the MySQL 9.7 job and `UnixSocketAuthenticationTest` already run on a socket. Convert the remaining MySQL 8.4, MySQL Innovation and PostgreSQL 18 jobs. Keep the dedicated schema TLS check on TCP, and keep TCP coverage of MySQL Innovation's native dump path.
 
 - Investigate a method attribute such as `#[ResetAfterTest]` to replace the manual static-reset list in `AfterEachTestSubscriber`. Discover methods once per test process and reuse the list after each test, covering classes loaded later without eagerly loading optional packages. Preserve required cleanup ordering, avoid duplicate inherited calls, and keep special lifecycle cleanup explicit. Reuse existing test-state registration where appropriate; avoid per-test scanning or a complex discovery system.
