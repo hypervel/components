@@ -128,6 +128,7 @@ use Hypervel\Support\Attributes\BootOnly;
  * @method static void useDefaultSchemaGrammar()
  * @method static \Hypervel\Database\Connection useWriteConnectionWhenReading(bool $value = true)
  * @method static mixed usingWritePdo(\Closure $callback)
+ * @method static mixed withoutAffectingStickiness(\Closure $callback)
  * @method static mixed withoutPretending(\Closure $callback)
  * @method static mixed withoutTablePrefix(\Closure $callback)
  * @method static mixed withPinnedSession(\Closure $callback)
