@@ -45,4 +45,12 @@ function test(?string $key, array $keys, array $someKeys, array $named, array $t
 
     // Hypervel: known PHPStan limitation. String keys name parameters, so this may omit the key too.
     assertType('array|string', trans(...$named));
+
+    // An empty leading unpack supplies nothing, so the next one supplies the key.
+    assertType('null', __(...[]));
+    assertType('(array|string)', __(...[], ...['title']));
+
+    if ($keys === []) {
+        assertType('(array|string)', trans(...$keys, ...['title']));
+    }
 }

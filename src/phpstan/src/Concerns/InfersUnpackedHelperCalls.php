@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\Concerns;
 
+use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\FuncCall;
 use PHPStan\Analyser\Scope;
 use PHPStan\Reflection\FunctionReflection;
@@ -37,6 +38,12 @@ trait InfersUnpackedHelperCalls
         if ($arguments === [] || ! $arguments[0]->unpack) {
             return null;
         }
+
+        // An unpack that is always empty supplies nothing, but PHPStan's selector still gives it a position.
+        $arguments = array_values(array_filter(
+            $arguments,
+            static fn (Arg $argument): bool => ! $argument->unpack || ! $scope->getType($argument->value)->isIterableAtLeastOnce()->no(),
+        ));
 
         // PHP forbids positional arguments after an unpack, so the leading unpacks supply the first
         // parameter unless all of them are empty.
