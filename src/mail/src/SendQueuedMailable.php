@@ -19,9 +19,11 @@ use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Queue\Attributes\MaxExceptions;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Queue\Attributes\RetryFor;
 use Hypervel\Queue\Attributes\Timeout;
 use Hypervel\Queue\Attributes\Tries;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Support\CarbonImmutable;
 use Throwable;
 
 class SendQueuedMailable
@@ -128,7 +130,9 @@ class SendQueuedMailable
     public function retryUntil(): ?DateTimeInterface
     {
         if (! method_exists($this->mailable, 'retryUntil') && ! isset($this->mailable->retryUntil)) {
-            return null;
+            $retryFor = $this->getAttributeValue($this->mailable, RetryFor::class);
+
+            return is_null($retryFor) ? null : CarbonImmutable::now()->addSeconds($retryFor);
         }
 
         return $this->mailable->retryUntil ?? $this->mailable->retryUntil();

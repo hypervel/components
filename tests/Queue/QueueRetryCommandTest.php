@@ -8,10 +8,15 @@ use Aws\MockHandler;
 use Aws\Result;
 use Aws\Sqs\SqsClient;
 use Generator;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Events\CallQueuedListener;
+use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Foundation\Application;
+use Hypervel\Queue\Attributes\RetryFor;
 use Hypervel\Queue\Console\RetryCommand;
 use Hypervel\Queue\Events\JobRetryRequested;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
@@ -19,8 +24,10 @@ use Hypervel\Queue\Failed\NullFailedJobProvider;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\SqsQueue;
 use Hypervel\Queue\SyncQueue;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
+use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Tests\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
@@ -199,6 +206,88 @@ class QueueRetryCommandTest extends TestCase
         $failer->expects('find')->with('1')->returns($job);
         $queue->expects('pushRaw')->with(Argument::satisfies(function (string $payload): bool {
             return json_decode($payload, true)['retryUntil'] === 1234567890;
+        }), 'default', []);
+        $failer->expects('forget')->with('1');
+
+        $this->runRetryCommand(['id' => ['1']], $failer, ['database' => $queue]);
+    }
+
+    public function testRefreshesTheRetryUntilTimestampWhenTheJobDefinesRetryForAttribute(): void
+    {
+        CarbonImmutable::setTestNow('2026-01-01 00:00:00');
+
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
+
+        $job = $this->failedJob(
+            id: '1',
+            connection: 'database',
+            queue: 'default',
+            payload: ['retryUntil' => 0],
+            job: new QueueRetryCommandTestJobWithRetryForAttribute
+        );
+
+        $failer->expects('find')->with('1')->returns($job);
+        $queue->expects('pushRaw')->with(Argument::satisfies(function (string $payload): bool {
+            return json_decode($payload, true)['retryUntil'] === CarbonImmutable::now()->addSeconds(90)->getTimestamp();
+        }), 'default', []);
+        $failer->expects('forget')->with('1');
+
+        $this->runRetryCommand(['id' => ['1']], $failer, ['database' => $queue]);
+    }
+
+    public function testKeepsTheRetryUntilPropertyOfAJobWithTheRetryForAttribute(): void
+    {
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
+
+        $job = $this->failedJob(
+            id: '1',
+            connection: 'database',
+            queue: 'default',
+            payload: ['retryUntil' => 1234567890],
+            job: new QueueRetryCommandTestJobWithRetryForAttributeAndRetryUntilProperty
+        );
+
+        $failer->expects('find')->with('1')->returns($job);
+        $queue->expects('pushRaw')->with(Argument::satisfies(function (string $payload): bool {
+            return json_decode($payload, true)['retryUntil'] === 1234567890;
+        }), 'default', []);
+        $failer->expects('forget')->with('1');
+
+        $this->runRetryCommand(['id' => ['1']], $failer, ['database' => $queue]);
+    }
+
+    #[TestWith([QueueRetryCommandTestListenerWithRetryForAttribute::class, 1767312090])]
+    #[TestWith([QueueRetryCommandTestListenerWithRelativeRetryUntil::class, 1767312600])]
+    #[TestWith([QueueRetryCommandTestListenerWithRetryUntil::class, 111])]
+    #[TestWith([QueueRetryCommandTestListener::class, 111])]
+    public function testRecalculatesTheRetryUntilTimestampOfAQueuedListener(string $listener, int $retryUntil): void
+    {
+        CarbonImmutable::setTestNow('2026-01-01 00:00:00');
+
+        $listenerQueue = new QueueFake(new Container);
+        $events = new EventDispatcher;
+        $events->setQueueResolver(fn (): QueueFake => $listenerQueue);
+        $events->listen('some.event', $listener . '@handle');
+        $events->dispatch('some.event', [111]);
+
+        CarbonImmutable::setTestNow('2026-01-02 00:00:00');
+
+        $failer = Double::for(FailedJobProviderInterface::class)->strict();
+        $queue = Double::for(QueueContract::class)->strict();
+
+        $job = $this->failedJob(
+            id: '1',
+            connection: 'database',
+            queue: 'default',
+            payload: ['retryUntil' => 111],
+            job: $listenerQueue->pushed(CallQueuedListener::class)->sole()
+        );
+
+        $failer->expects('find')->with('1')->returns($job);
+        $queue->expects('pushRaw')->with(Argument::satisfies(function (string $payload) use ($retryUntil): bool {
+            return json_decode($payload, true)['retryUntil'] === $retryUntil;
         }), 'default', []);
         $failer->expects('forget')->with('1');
 
@@ -893,6 +982,55 @@ class QueueRetryCommandTestJobWithRetryUntil
     public function retryUntil(): int
     {
         return $this->retryUntil;
+    }
+}
+
+#[RetryFor(90)]
+class QueueRetryCommandTestJobWithRetryForAttribute
+{
+}
+
+#[RetryFor(90)]
+class QueueRetryCommandTestJobWithRetryForAttributeAndRetryUntilProperty
+{
+    public int $retryUntil = 1234567890;
+}
+
+class QueueRetryCommandTestListener implements ShouldQueue
+{
+    /**
+     * Handle the event.
+     */
+    public function handle(): void
+    {
+    }
+}
+
+#[RetryFor(90)]
+class QueueRetryCommandTestListenerWithRetryForAttribute extends QueueRetryCommandTestListener
+{
+}
+
+#[RetryFor(90)]
+class QueueRetryCommandTestListenerWithRetryUntil extends QueueRetryCommandTestListener
+{
+    /**
+     * Return the retry deadline carried by the event.
+     */
+    public function retryUntil(int $retryUntil): int
+    {
+        return $retryUntil;
+    }
+}
+
+class QueueRetryCommandTestListenerWithRelativeRetryUntil extends QueueRetryCommandTestListener
+{
+    /**
+     * Return a retry deadline relative to now.
+     */
+    public function retryUntil(): CarbonImmutable
+    {
+        return CarbonImmutable::now()->addMinutes(10);
     }
 }
 

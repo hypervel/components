@@ -37,12 +37,14 @@ use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Queue\Attributes\MaxExceptions;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
+use Hypervel\Queue\Attributes\RetryFor;
 use Hypervel\Queue\Attributes\Timeout;
 use Hypervel\Queue\Attributes\Tries;
 use Hypervel\Queue\Attributes\UniqueFor;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Attributes\BootOrTestsOnly;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use Hypervel\Support\Str;
@@ -1068,7 +1070,11 @@ class Dispatcher implements DispatcherContract
 
             $job->backoff = method_exists($listener, 'backoff') ? $listener->backoff(...$data) : $this->getAttributeValue($listener, Backoff::class, 'backoff');
             $job->maxExceptions = $this->getAttributeValue($listener, MaxExceptions::class, 'maxExceptions');
-            $job->retryUntil = method_exists($listener, 'retryUntil') ? $listener->retryUntil(...$data) : null;
+            $job->retryUntil = match (true) {
+                method_exists($listener, 'retryUntil') => $listener->retryUntil(...$data),
+                ! is_null($job->retryFor = $this->getAttributeValue($listener, RetryFor::class)) => CarbonImmutable::now()->addSeconds($job->retryFor),
+                default => null,
+            };
             $job->shouldBeEncrypted = $listener instanceof ShouldBeEncrypted;
             $job->timeout = $this->getAttributeValue($listener, Timeout::class, 'timeout');
             $job->failOnTimeout = $this->getAttributeValue($listener, FailOnTimeout::class, 'failOnTimeout') ?? false;

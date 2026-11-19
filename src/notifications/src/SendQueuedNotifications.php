@@ -18,10 +18,12 @@ use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Queue\Attributes\MaxExceptions;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Queue\Attributes\RetryFor;
 use Hypervel\Queue\Attributes\Timeout;
 use Hypervel\Queue\Attributes\Tries;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\SerializesModels;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Throwable;
 
@@ -177,7 +179,9 @@ class SendQueuedNotifications implements ShouldQueue
     public function retryUntil(): ?DateTimeInterface
     {
         if (! method_exists($this->notification, 'retryUntil') && ! isset($this->notification->retryUntil)) {
-            return null;
+            $retryFor = $this->getAttributeValue($this->notification, RetryFor::class);
+
+            return is_null($retryFor) ? null : CarbonImmutable::now()->addSeconds($retryFor);
         }
 
         return $this->notification->retryUntil ?? $this->notification->retryUntil();

@@ -1921,10 +1921,27 @@ public function retryUntil(): DateTimeInterface
 }
 ```
 
-If both `retryUntil` and `tries` are defined, Hypervel gives precedence to the `retryUntil` method.
+When the window is a fixed length of time from when the job is queued, you may use the `RetryFor` attribute instead. Its first argument is in seconds, and `minutes` and `hours` may be passed by name. A `retryUntil` method or property takes precedence over the attribute:
+
+```php
+<?php
+
+namespace App\Jobs;
+
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\Attributes\RetryFor;
+
+#[RetryFor(minutes: 10)]
+class ProcessPodcast implements ShouldQueue
+{
+    // ...
+}
+```
+
+If both a retry window and `tries` are defined, Hypervel gives precedence to the retry window.
 
 > [!NOTE]
-> You may also define a `Tries` attribute or `retryUntil` method on your [queued event listeners](/docs/{{version}}/events#queued-event-listeners) and [queued notifications](/docs/{{version}}/notifications#queueing-notifications).
+> You may also define a `Tries` or `RetryFor` attribute or a `retryUntil` method on your [queued event listeners](/docs/{{version}}/events#queued-event-listeners), [queued notifications](/docs/{{version}}/notifications#queueing-notifications) and queued mailables.
 
 <a name="max-exceptions"></a>
 #### Max Exceptions

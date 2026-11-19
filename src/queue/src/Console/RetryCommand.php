@@ -12,13 +12,18 @@ use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Events\CallQueuedListener;
+use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Queue\Attributes\RetryFor;
 use Hypervel\Queue\Events\JobRetryRequested;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Queue\Jobs\JobName;
 use Hypervel\Queue\QueuePoolProxy;
 use Hypervel\Queue\SqsQueue;
 use Hypervel\Support\Enumerable;
+use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\LazyCollection;
+use ReflectionClass;
 use RuntimeException;
 use stdClass;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -26,6 +31,9 @@ use Symfony\Component\Console\Attribute\AsCommand;
 #[AsCommand(name: 'queue:retry')]
 class RetryCommand extends Command
 {
+    use InteractsWithTime;
+    use ReadsQueueAttributes;
+
     /**
      * The console command signature.
      */
@@ -204,13 +212,30 @@ class RetryCommand extends Command
             return json_encode($payload, JSON_THROW_ON_ERROR);
         }
 
-        if (is_object($instance) && ! $instance instanceof __PHP_Incomplete_Class && method_exists($instance, 'retryUntil')) {
-            $retryUntil = $instance->retryUntil();
-
-            $payload['retryUntil'] = $retryUntil instanceof DateTimeInterface
-                ? $retryUntil->getTimestamp()
-                : $retryUntil;
+        if (! is_object($instance) || $instance instanceof __PHP_Incomplete_Class) {
+            return json_encode($payload, JSON_THROW_ON_ERROR);
         }
+
+        if (method_exists($instance, 'retryUntil')) {
+            $retryUntil = $instance->retryUntil();
+        } elseif ($instance instanceof CallQueuedListener && method_exists($instance->class, 'retryUntil')) {
+            // Unlike Laravel, a queued listener's deadline is recalculated too, from its method as dispatch does.
+            $retryUntil = (new ReflectionClass($instance->class))
+                ->newInstanceWithoutConstructor()
+                ->retryUntil(...array_values($instance->data));
+        } elseif ($instance instanceof CallQueuedListener && ! is_null($instance->retryFor)) {
+            // Dispatch keeps the listener's RetryFor window on the job so it can be refreshed here.
+            $retryUntil = $this->availableAt($instance->retryFor);
+        } elseif (! isset($instance->retryUntil) && ! is_null($retryFor = $this->getAttributeValue($instance, RetryFor::class))) {
+            // Unlike Laravel, a retryUntil property keeps its absolute deadline, as it does at dispatch.
+            $retryUntil = $this->availableAt($retryFor);
+        } else {
+            return json_encode($payload, JSON_THROW_ON_ERROR);
+        }
+
+        $payload['retryUntil'] = $retryUntil instanceof DateTimeInterface
+            ? $retryUntil->getTimestamp()
+            : $retryUntil;
 
         return json_encode($payload, JSON_THROW_ON_ERROR);
     }
