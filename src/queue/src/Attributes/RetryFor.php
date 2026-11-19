@@ -10,7 +10,7 @@ use Attribute;
 readonly class RetryFor
 {
     /**
-     * The number of seconds after being queued during which the queueable may be retried.
+     * The duration of the retry window in seconds.
      */
     public int $retryFor;
 
