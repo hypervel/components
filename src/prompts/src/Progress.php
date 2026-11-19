@@ -21,6 +21,11 @@ class Progress extends Prompt
     use Concerns\RendersAnimations;
 
     /**
+     * The minimum time between automatic redraws, matching Symfony's 25 frames per second.
+     */
+    protected const int REDRAW_INTERVAL_NANOSECONDS = 40_000_000;
+
+    /**
      * The current progress bar item count.
      */
     public int $progress = 0;
@@ -34,6 +39,11 @@ class Progress extends Prompt
      * Whether the progress bar is only rendered when it finishes.
      */
     protected bool $static = false;
+
+    /**
+     * When the progress bar was last rendered, in nanoseconds.
+     */
+    protected int $renderedAt = 0;
 
     /**
      * The original value of pcntl_async_signals.
@@ -180,7 +190,8 @@ class Progress extends Prompt
             $this->progress = $this->total;
         }
 
-        if (! $this->static) {
+        // Unlike Laravel, automatic redraws are limited, because each one reads the terminal size through a subprocess.
+        if (! $this->static && ($this->progress === $this->total || hrtime(true) - $this->renderedAt >= self::REDRAW_INTERVAL_NANOSECONDS)) {
             $this->render();
         }
     }
@@ -230,6 +241,8 @@ class Progress extends Prompt
     public function render(): void
     {
         parent::render();
+
+        $this->renderedAt = hrtime(true);
     }
 
     /**
