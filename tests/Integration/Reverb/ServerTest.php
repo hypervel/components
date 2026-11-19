@@ -1388,9 +1388,10 @@ class ServerTest extends ReverbIntegrationTestCase
 
         $this->pruneStaleConnections();
 
+        // The server's scheduled ping job may ping the inactive connection again before the error.
         $this->assertSame(
-            '{"event":"pusher:error","data":"{\"code\":4201,\"message\":\"Pong reply not received in time\"}"}',
-            $this->recv($client, 2),
+            ['event' => 'pusher:error', 'data' => '{"code":4201,"message":"Pong reply not received in time"}'],
+            $this->receiveEvent($client, 'pusher:error', 2),
         );
 
         $client->recv(1);
