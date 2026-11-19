@@ -8,6 +8,7 @@ use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Events\Dispatchable as EventDispatchable;
 use Hypervel\PHPStan\Reflection\ProxiedParameterReflection;
 use PhpParser\Node;
+use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\New_;
 use PhpParser\Node\Expr\StaticCall;
@@ -15,6 +16,7 @@ use PhpParser\Node\Name\FullyQualified;
 use PHPStan\Analyser\NodeCallbackInvoker;
 use PHPStan\Analyser\Scope;
 use PHPStan\Node\Expr\TypeExpr;
+use PHPStan\Reflection\ExtendedMethodReflection;
 use PHPStan\Reflection\ParameterReflection;
 use PHPStan\Reflection\ParametersAcceptorSelector;
 use PHPStan\Reflection\ReflectionProvider;
@@ -79,11 +81,12 @@ class CheckDispatchArgumentTypesCompatibleWithClassConstructorRule implements Ru
         }
 
         $calledClass = $this->reflectionProvider->getClass($className);
+        $dispatchableFile = $this->reflectionProvider->getClass($this->dispatchableClass)->getFileName();
 
         // Unlike upstream, a class's own dispatch method decides its arguments itself.
         if (
             ! $calledClass->hasNativeMethod($methodName)
-            || $calledClass->getNativeReflection()->getMethod($methodName)->getFileName() !== $this->reflectionProvider->getClass($this->dispatchableClass)->getFileName()
+            || $calledClass->getNativeReflection()->getMethod($methodName)->getFileName() !== $dispatchableFile
         ) {
             return [];
         }
@@ -135,10 +138,10 @@ class CheckDispatchArgumentTypesCompatibleWithClassConstructorRule implements Ru
         $args = $node->getArgs();
         $class = new FullyQualified($jobClassReflection->getName());
 
-        // dispatchAfterResponse() forwards to dispatch(), so the class's dispatch() decides the arguments: an
-        // override keeps its own signature, and the trait's method brings the call back here.
-        if ($methodName === 'dispatchAfterResponse') {
-            $scope->invokeNodeCallback(new StaticCall($class, 'dispatch', $args, $node->getAttributes()));
+        // dispatchAfterResponse() calls dispatch() from inside the class, so an override decides the arguments.
+        // The trait's own dispatch(), whatever its visibility, constructs the class from them.
+        if ($methodName === 'dispatchAfterResponse' && $jobClassReflection->getNativeReflection()->getMethod('dispatch')->getFileName() !== $dispatchableFile) {
+            $this->checkForwardedCall($scope, $jobClassReflection->getNativeMethod('dispatch'), new StaticCall($class, 'dispatch', $args, $node->getAttributes()), $args);
 
             return [];
         }
@@ -149,26 +152,36 @@ class CheckDispatchArgumentTypesCompatibleWithClassConstructorRule implements Ru
             return [];
         }
 
-        $constructor = $jobClassReflection->getConstructor();
-        $variant = ParametersAcceptorSelector::selectFromArgs($scope, $args, $constructor->getVariants(), $constructor->getNamedArgumentsVariants());
+        $this->checkForwardedCall($scope, $jobClassReflection->getConstructor(), new New_($class, $args, $node->getAttributes()), $args);
 
-        if ($constructor->isPublic() && array_all($variant->getParameters(), static fn (ParameterReflection $parameter): bool => $parameter->passedByReference()->no())) {
-            $scope->invokeNodeCallback(new New_($class, $args, $node->getAttributes()));
+        return [];
+    }
 
-            return [];
+    /**
+     * Check the arguments the trait passes to a method from inside the class.
+     *
+     * @param NodeCallbackInvoker&Scope $scope
+     * @param Node\Arg[] $args
+     */
+    private function checkForwardedCall(Scope $scope, ExtendedMethodReflection $method, Expr $directCall, array $args): void
+    {
+        $variant = ParametersAcceptorSelector::selectFromArgs($scope, $args, $method->getVariants(), $method->getNamedArgumentsVariants());
+
+        if ($method->isPublic() && array_all($variant->getParameters(), static fn (ParameterReflection $parameter): bool => $parameter->passedByReference()->no())) {
+            $scope->invokeNodeCallback($directCall);
+
+            return;
         }
 
-        // The trait calls the constructor from inside the class, so a non-public one is callable. It passes on
+        // The trait calls the method from inside the class, so a non-public one is callable. It passes on
         // the dispatch arguments' values, so, unlike upstream, a reference parameter takes any expression.
         $scope->invokeNodeCallback(new FuncCall(new TypeExpr(new ClosureType(
             parameters: ProxiedParameterReflection::fromTargetParameters($variant->getParameters()),
             variadic: $variant->isVariadic(),
             templateTypeMap: $variant->getTemplateTypeMap(),
             resolvedTemplateTypeMap: $variant->getResolvedTemplateTypeMap(),
-            acceptsNamedArguments: $constructor->acceptsNamedArguments(),
-        )), $args, $node->getAttributes()));
-
-        return [];
+            acceptsNamedArguments: $method->acceptsNamedArguments(),
+        )), $args, $directCall->getAttributes()));
     }
 
     /**

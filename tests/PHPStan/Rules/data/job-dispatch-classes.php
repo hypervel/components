@@ -51,3 +51,28 @@ class HypervelJobWithOwnDispatch
         return static::newPendingDispatch(new static((string) $id));
     }
 }
+
+class HypervelJobWithProtectedDispatch
+{
+    use Dispatchable {
+        dispatch as protected;
+    }
+
+    public function __construct(public string $id)
+    {
+    }
+}
+
+class HypervelJobWithReferenceDispatch
+{
+    use Dispatchable;
+
+    public function __construct(public int $id)
+    {
+    }
+
+    public static function dispatch(int &$id): PendingDispatch
+    {
+        return static::newPendingDispatch(new static($id));
+    }
+}

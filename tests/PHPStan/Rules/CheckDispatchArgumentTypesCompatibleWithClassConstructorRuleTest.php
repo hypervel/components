@@ -98,9 +98,11 @@ class CheckDispatchArgumentTypesCompatibleWithClassConstructorRuleTest extends R
             ['Parameter #2 $bar of class Hypervel\Tests\PHPStan\Rules\Data\HypervelJob constructor expects int, string given.', 49],
             ['Missing parameter $bar (int) in call to Hypervel\Tests\PHPStan\Rules\Data\HypervelJob constructor.', 50],
             ['Parameter #1 $id of static method Hypervel\Tests\PHPStan\Rules\Data\HypervelJobWithOwnDispatch::dispatch() expects int, string given.', 56],
-            ['Parameter #1 $foo of class Hypervel\Tests\PHPStan\Rules\Data\HypervelJob constructor expects string, int given.', 59],
-            ['Parameter #2 $bar of class Hypervel\Tests\PHPStan\Rules\Data\HypervelJob constructor expects int, string given.', 59],
-            ['Parameter #1 $bar of class Hypervel\Tests\PHPStan\Rules\Data\HypervelChildJob constructor expects int, string given.', 87],
+            ['Parameter #1 $id of class Hypervel\Tests\PHPStan\Rules\Data\HypervelJobWithProtectedDispatch constructor expects string, int given.', 58],
+            ['Parameter #1 $id of closure expects int, string given.', 60],
+            ['Parameter #1 $foo of class Hypervel\Tests\PHPStan\Rules\Data\HypervelJob constructor expects string, int given.', 63],
+            ['Parameter #2 $bar of class Hypervel\Tests\PHPStan\Rules\Data\HypervelJob constructor expects int, string given.', 63],
+            ['Parameter #1 $bar of class Hypervel\Tests\PHPStan\Rules\Data\HypervelChildJob constructor expects int, string given.', 91],
         ]);
     }
 

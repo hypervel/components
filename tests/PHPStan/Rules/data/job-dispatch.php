@@ -54,6 +54,10 @@ HypervelJobWithOwnDispatch::dispatch(1);
 // Hypervel: dispatchAfterResponse() forwards to dispatch(), so a class's own dispatch() decides its arguments.
 HypervelJobWithOwnDispatch::dispatchAfterResponse(1);
 HypervelJobWithOwnDispatch::dispatchAfterResponse('foo');
+HypervelJobWithProtectedDispatch::dispatchAfterResponse('foo');
+HypervelJobWithProtectedDispatch::dispatchAfterResponse(1);
+HypervelJobWithReferenceDispatch::dispatchAfterResponse(1);
+HypervelJobWithReferenceDispatch::dispatchAfterResponse('foo');
 
 // Hypervel: the method name matches in any case.
 HypervelJob::DISPATCH(1, 'foo');
