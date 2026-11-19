@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest;
 
+use Generator;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Casts\Attribute;
@@ -180,6 +181,29 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
 
         $this->assertCount(2, $country->posts()->findMany([1, 2]));
         $this->assertCount(2, $country->posts()->findMany(new Collection([1, 2])));
+
+        // Post 2's user_id is post 1's ID, so querying its attributes would also find post 1.
+        $posts = Post::whereKey(2)->get();
+
+        $this->assertSame([2], $country->posts()->findMany($posts)->modelKeys());
+        $this->assertSame([2], $country->posts()->findOrFail($posts)->modelKeys());
+        $this->assertSame([2], $country->posts()->findOr($posts, fn (): string => 'missing')->modelKeys());
+
+        // Like a stream, each source produces its IDs only once.
+        $ids = function (): LazyCollection {
+            $read = false;
+
+            return new LazyCollection(function () use (&$read): Generator {
+                if (! $read) {
+                    $read = true;
+
+                    yield from [1, 2];
+                }
+            });
+        };
+
+        $this->assertSame([1, 2], $country->posts()->findOrFail($ids())->modelKeys());
+        $this->assertSame([1, 2], $country->posts()->findOr($ids(), fn (): string => 'missing')->modelKeys());
     }
 
     public function testFirstOrFailThrowsAnException(): void

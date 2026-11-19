@@ -7,6 +7,7 @@ namespace Hypervel\Database\Eloquent\Relations;
 use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Database\Eloquent\Builder as BuilderContract;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -17,6 +18,7 @@ use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection as BaseCollection;
+use Hypervel\Support\Enumerable;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\Macroable;
 
@@ -384,6 +386,25 @@ abstract class Relation implements BuilderContract
         return (new BaseCollection($models))->map(function ($value) use ($key) {
             return $key ? $value->getAttribute($key) : $value->getKey();
         })->values()->unique(null, true)->sort()->all();
+    }
+
+    /**
+     * Normalize primary keys for related-model lookups.
+     */
+    protected function parseFindIds(mixed $ids): mixed
+    {
+        if ($ids instanceof Model) {
+            return $ids->getKey();
+        }
+
+        if ($ids instanceof Arrayable) {
+            // Preserve model objects instead of converting their attributes into candidate IDs.
+            $ids = $ids instanceof Enumerable ? $ids->all() : $ids->toArray();
+        }
+
+        return is_array($ids)
+            ? array_map(fn (mixed $id): mixed => $id instanceof Model ? $id->getKey() : $id, $ids)
+            : $ids;
     }
 
     /**

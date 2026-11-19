@@ -452,7 +452,7 @@ abstract class HasOneOrManyThrough extends Relation
      */
     public function findMany(Arrayable|array $ids, array $columns = ['*']): EloquentCollection
     {
-        $ids = $ids instanceof Arrayable ? $ids->toArray() : $ids;
+        $ids = $this->parseFindIds($ids);
 
         if (empty($ids)) {
             return $this->getRelated()->newCollection();
@@ -475,11 +475,14 @@ abstract class HasOneOrManyThrough extends Relation
     {
         if ($id instanceof Model) {
             $id = $id->getKey();
+        } elseif ($id instanceof LazyCollection) {
+            // find() and the comparison below both read the IDs, which a lazy source may only produce once.
+            $id = $id->eager();
         }
 
         $result = $this->find($id, $columns);
 
-        $id = $id instanceof Arrayable ? $id->toArray() : $id;
+        $id = $this->parseFindIds($id);
 
         if (is_array($id)) {
             $id = array_map(enum_value(...), $id);
@@ -519,11 +522,14 @@ abstract class HasOneOrManyThrough extends Relation
 
         if ($id instanceof Model) {
             $id = $id->getKey();
+        } elseif ($id instanceof LazyCollection) {
+            // find() and the comparison below both read the IDs, which a lazy source may only produce once.
+            $id = $id->eager();
         }
 
         $result = $this->find($id, $columns);
 
-        $id = $id instanceof Arrayable ? $id->toArray() : $id;
+        $id = $this->parseFindIds($id);
 
         if (is_array($id)) {
             $id = array_map(enum_value(...), $id);
