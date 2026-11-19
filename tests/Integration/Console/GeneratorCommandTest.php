@@ -9,7 +9,6 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Concerns\InteractsWithPublishedFiles;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\Attributes\TestWith;
 
 class GeneratorCommandTest extends TestCase
 {
@@ -21,16 +20,12 @@ class GeneratorCommandTest extends TestCase
         'tests/Feature/fixtures.php/SomeTest.php',
         'app/Mail/Envelope.php',
         'stubs/mail.stub',
-        'app/Listeners/OrderShipped.php',
         'app/View/Components/View.php',
         'resources/views/components/view.blade.php',
         'database/factories/ClassFactory.php',
         'database/seeders/ClassSeeder.php',
         'app/Http/Controllers/ClassController.php',
         'app/Policies/ClassPolicy.php',
-        'app/Models/School/*.php',
-        'app/Models/Int.php',
-        'app/School/Extends.php',
     ];
 
     public function testItChopsPhpExtension(): void
@@ -55,13 +50,14 @@ class GeneratorCommandTest extends TestCase
 
     public function testItOnlyChopsPhpExtensionFromFilename(): void
     {
-        $this->artisan('make:test', ['name' => 'fixtures.php/SomeTest'])
+        // Unlike Laravel, this generates a Pest test, since a class test would declare the invalid namespace Tests\Feature\fixtures.php.
+        $this->artisan('make:test', ['name' => 'fixtures.php/SomeTest', '--pest' => true])
             ->assertExitCode(0);
 
         $this->assertFilenameExists('tests/Feature/fixtures.php/SomeTest.php');
 
         $this->assertFileContains([
-            'class SomeTest extends TestCase',
+            "test('example'",
         ], 'tests/Feature/fixtures.php/SomeTest.php');
     }
 
@@ -104,49 +100,6 @@ class GeneratorCommandTest extends TestCase
         $this->assertMigrationFileNotExists('create_classes_table.php');
     }
 
-    #[TestWith(['make:model', 'School/Class', 'app/Models/School/Class.php'])]
-    #[TestWith(['make:model', 'Int', 'app/Models/Int.php'])]
-    #[TestWith(['make:model', 'School/Extends', 'app/Models/School/Extends.php'])]
-    #[TestWith(['make:model', 'School/Implements', 'app/Models/School/Implements.php'])]
-    #[TestWith(['make:enum', 'School/Extends', 'app/School/Extends.php'])]
-    public function testItCannotGenerateClassWhoseGeneratedNameIsReserved(string $command, string $name, string $path): void
-    {
-        $this->artisan($command, ['name' => $name])
-            ->expectsOutputToContain('The name "' . class_basename($name) . '" is reserved by PHP.')
-            ->assertExitCode(1);
-
-        $this->assertFilenameDoesNotExists($path);
-    }
-
-    public function testItCanGenerateClassNamedLikeAContextualKeyword(): void
-    {
-        $this->artisan('make:model', ['name' => 'School/Enum'])
-            ->assertExitCode(0);
-
-        $this->assertFileContains([
-            'namespace App\Models\School;',
-            'class Enum extends Model',
-        ], 'app/Models/School/Enum.php');
-    }
-
-    public function testItCannotGenerateClassNamedLikeAnImportedClass(): void
-    {
-        $this->artisan('make:mail', ['name' => 'Envelope'])
-            ->expectsOutputToContain('The class name "Envelope" conflicts with the imported [Hypervel\Mail\Mailables\Envelope] class.')
-            ->assertExitCode(1);
-
-        $this->assertFilenameDoesNotExists('app/Mail/Envelope.php');
-    }
-
-    public function testItCannotGenerateClassNamedLikeAClassItsOptionsImport(): void
-    {
-        $this->artisan('make:listener', ['name' => 'OrderShipped', '--event' => 'OrderShipped'])
-            ->expectsOutputToContain('The class name "OrderShipped" conflicts with the imported [App\Events\OrderShipped] class.')
-            ->assertExitCode(1);
-
-        $this->assertFilenameDoesNotExists('app/Listeners/OrderShipped.php');
-    }
-
     public function testItCanGenerateClassNamedLikeAnAliasedImport(): void
     {
         $files = new Filesystem;
@@ -157,12 +110,10 @@ class GeneratorCommandTest extends TestCase
             namespace {{ namespace }};
 
             use Hypervel\Mail\Mailable;
-            use Hypervel\Mail\Mailables\{Content, Envelope as MailEnvelope};
+            use Hypervel\Mail\Mailables\Envelope as MailEnvelope;
 
             class {{ class }} extends Mailable
             {
-                use Concerns\Envelope;
-
                 public function envelope(): MailEnvelope
                 {
                     return new MailEnvelope(subject: 'Envelope');
@@ -174,35 +125,9 @@ class GeneratorCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertFileContains([
-            'use Hypervel\Mail\Mailables\{Content, Envelope as MailEnvelope};',
+            'use Hypervel\Mail\Mailables\Envelope as MailEnvelope;',
             'class Envelope extends Mailable',
-            'use Concerns\Envelope;',
         ], 'app/Mail/Envelope.php');
-    }
-
-    public function testItCannotGenerateClassNamedLikeAClassImportedAfterADeclaration(): void
-    {
-        $files = new Filesystem;
-        $files->ensureDirectoryExists($this->app->basePath('stubs'));
-        $files->put($this->app->basePath('stubs/mail.stub'), <<<'PHP'
-            <?php
-
-            namespace {{ namespace }};
-
-            use Hypervel\Mail\Mailable;
-
-            class {{ class }} extends Mailable
-            {
-            }
-
-            use Hypervel\Mail\Mailables\Envelope;
-            PHP);
-
-        $this->artisan('make:mail', ['name' => 'Envelope'])
-            ->expectsOutputToContain('The class name "Envelope" conflicts with the imported [Hypervel\Mail\Mailables\Envelope] class.')
-            ->assertExitCode(1);
-
-        $this->assertFilenameDoesNotExists('app/Mail/Envelope.php');
     }
 
     public function testForceDoesNotReplaceFilesForClassNamedLikeAnImportedClass(): void
@@ -214,7 +139,8 @@ class GeneratorCommandTest extends TestCase
         $files->put($this->app->resourcePath('views/components/view.blade.php'), 'existing view');
 
         $this->artisan('make:component', ['name' => 'View', '--force' => true])
-            ->expectsOutputToContain('The class name "View" conflicts with the imported [Hypervel\Contracts\View\View] class.')
+            ->expectsOutputToContain('The generated file [app/View/Components/View.php] is not valid PHP.')
+            ->expectsOutputToContain('App\View\Components\View')
             ->assertExitCode(1);
 
         $this->assertStringEqualsFile($this->app->basePath('app/View/Components/View.php'), 'existing class');

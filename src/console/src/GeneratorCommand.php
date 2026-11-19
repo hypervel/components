@@ -12,23 +12,17 @@ use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
-use ParseError;
-use PhpToken;
 use RuntimeException;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Finder\Finder;
+use Symfony\Component\Process\Process;
+
+use function Hypervel\Support\php_binary;
 
 abstract class GeneratorCommand extends Command implements PromptsForMissingInput
 {
     use FindsAvailableModels;
-
-    /**
-     * Type names that PHP reserves without making them keywords.
-     */
-    protected const array RESERVED_TYPE_NAMES = [
-        'bool', 'false', 'float', 'int', 'iterable', 'mixed', 'never', 'null', 'object', 'parent', 'self', 'string', 'true', 'void',
-    ];
 
     /**
      * The filesystem instance.
@@ -217,7 +211,7 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
         // stub files so that it gets the correctly formatted namespace and class name.
         $contents = $this->sortImports($this->buildClass($name));
 
-        $this->ensureClassNamesAreValid($contents);
+        $this->ensureGeneratedCodeCompiles($path, $contents);
 
         $this->makeDirectory($path);
 
@@ -498,107 +492,23 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
     }
 
     /**
-     * Ensure the classes declared in the generated code have names PHP accepts.
+     * Ensure the generated PHP compiles before it is written.
      *
-     * Unlike Laravel, this rejects reserved names that only appear in the generated class, such as a nested
-     * School/Class, and names imported into the class's namespace. The command fails before writing the file,
-     * even with --force, instead of creating one that PHP refuses to load.
+     * Unlike Laravel, the command fails before writing the file, even with --force, instead of creating one that PHP
+     * refuses to load, such as a class named like a class it imports.
      */
-    protected function ensureClassNamesAreValid(string $contents): void
+    protected function ensureGeneratedCodeCompiles(string $path, string $contents): void
     {
-        $tokens = array_values(array_filter(
-            PhpToken::tokenize($contents),
-            fn (PhpToken $token): bool => ! $token->isIgnorable(),
-        ));
-
-        $namespaces = [['name' => '', 'imports' => [], 'classes' => []]];
-        $depth = 0;
-        $importDepth = 0;
-
-        foreach ($tokens as $index => $token) {
-            $next = $tokens[$index + 1] ?? null;
-
-            if ($token->is(['{', T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES])) {
-                ++$depth;
-            } elseif ($token->is('}')) {
-                --$depth;
-            } elseif ($token->is(T_NAMESPACE)) {
-                $name = $next?->is([T_STRING, T_NAME_QUALIFIED]) ? $next->text : '';
-                $namespaces[] = ['name' => $name, 'imports' => [], 'classes' => []];
-                // Imports sit directly inside a braced namespace; deeper use statements import traits.
-                $importDepth = ($tokens[$index + ($name === '' ? 1 : 2)] ?? null)?->is('{') ? $depth + 1 : $depth;
-            } elseif ($token->is(T_USE) && $depth === $importDepth && ! $next?->is(['(', T_FUNCTION, T_CONST])) {
-                $namespaces[array_key_last($namespaces)]['imports'] += $this->importedClasses($tokens, $index + 1);
-            } elseif ($token->is([T_CLASS, T_INTERFACE, T_TRAIT, T_ENUM]) && $next?->is(T_STRING)) {
-                if (in_array(strtolower($next->text), self::RESERVED_TYPE_NAMES, true)) {
-                    $this->fail('The name "' . $next->text . '" is reserved by PHP.');
-                }
-
-                $namespaces[array_key_last($namespaces)]['classes'][strtolower($next->text)] = $next->text;
-            } elseif (
-                // PHP tokenizes enum as a name when extends or implements follows it.
-                ($token->is([T_CLASS, T_INTERFACE, T_TRAIT]) || strcasecmp($token->text, 'enum') === 0)
-                && $next !== null
-                && ! $next->is(T_STRING)
-                && preg_match('/^[a-z_\x80-\xff]/i', $next->text) === 1
-            ) {
-                // A keyword here either continues an anonymous class, such as extends, or is a name PHP's grammar rejects.
-                try {
-                    PhpToken::tokenize($contents, TOKEN_PARSE);
-                } catch (ParseError $exception) {
-                    if ($exception->getLine() === $next->line) {
-                        $this->fail('The name "' . $next->text . '" is reserved by PHP.');
-                    }
-                }
-            }
+        // Blade views are compiled by Blade before PHP reads them.
+        if (! str_ends_with($path, '.php') || str_ends_with($path, '.blade.php')) {
+            return;
         }
 
-        foreach ($namespaces as ['name' => $namespace, 'imports' => $imports, 'classes' => $classes]) {
-            foreach (array_intersect_key($imports, $classes) as $key => $import) {
-                if (strcasecmp($import, ltrim("{$namespace}\\{$classes[$key]}", '\\')) !== 0) {
-                    $this->fail(sprintf('The class name "%s" conflicts with the imported [%s] class.', $classes[$key], $import));
-                }
-            }
+        $process = new Process([php_binary(), '-d', 'display_errors=stderr', '-d', 'log_errors=0', '-l'], input: $contents);
+
+        if ($process->run() !== 0) {
+            $this->fail(sprintf('The generated file [%s] is not valid PHP. %s', $path, trim($process->getErrorOutput())));
         }
-    }
-
-    /**
-     * Get the classes imported by the use statement starting at the given token, keyed by their lowercase alias.
-     *
-     * @param list<PhpToken> $tokens
-     * @return array<string, string>
-     */
-    protected function importedClasses(array $tokens, int $index): array
-    {
-        $imports = [];
-        $prefix = '';
-        $name = '';
-        $alias = null;
-        $isClass = true;
-
-        for (; ($token = $tokens[$index] ?? null) !== null; ++$index) {
-            if ($token->is('{')) {
-                [$prefix, $name] = [$name, ''];
-            } elseif ($token->is(T_AS)) {
-                $alias = $tokens[++$index]->text;
-            } elseif ($token->is([T_FUNCTION, T_CONST])) {
-                $isClass = false;
-            } elseif (! $token->is([',', '}', ';'])) {
-                $name .= $token->text;
-            } else {
-                if ($isClass && $name !== '') {
-                    $imports[strtolower($alias ?? class_basename($name))] = ltrim($prefix . $name, '\\');
-                }
-
-                if ($token->is(';')) {
-                    return $imports;
-                }
-
-                [$name, $alias, $isClass] = ['', null, true];
-            }
-        }
-
-        return $imports;
     }
 
     /**
