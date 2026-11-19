@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\View;
 
+use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\Blade;
@@ -12,6 +13,7 @@ use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\View\Component;
+use Hypervel\View\RawTemplate;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use Override;
@@ -77,6 +79,30 @@ class BladeTest extends TestCase
         $this->assertSame('Hello Taylor', Blade::render('Hello {{ $name }}', ['name' => 'Taylor'], true));
     }
 
+    #[DefineEnvironment('withViewCacheDisabled')]
+    public function testDeletingARenderedBladeStringDoesNotBreakOtherRendersOfTheSameTemplate(): void
+    {
+        $component = new HelloComponent('Taylor');
+        $compiledFiles = fn (): array => scandir(config('view.compiled'));
+
+        $this->assertSame('Hello Taylor', Blade::renderComponent($component));
+        $files = $compiledFiles();
+        $this->assertSame('Hello Ana', Blade::render('Hello {{ $name }}', ['name' => 'Ana'], true));
+        $this->assertSame('Hello Taylor', Blade::renderComponent($component));
+
+        $overlapped = false;
+        View::composer('__components::*', function () use (&$overlapped): void {
+            if (! $overlapped) {
+                $overlapped = true;
+                $this->assertSame('Hello Ben', Blade::render('Hello {{ $name }}', ['name' => 'Ben'], true));
+            }
+        });
+
+        $this->assertSame('Hello Ana', Blade::render('Hello {{ $name }}', ['name' => 'Ana'], true));
+        $this->assertTrue($overlapped);
+        $this->assertSame($files, $compiledFiles());
+    }
+
     public function testRenderingBladeLongMaxpathlenString(): void
     {
         $longString = str_repeat('a', PHP_MAXPATHLEN);
@@ -103,6 +129,29 @@ class BladeTest extends TestCase
         $component = new HelloComponent('Taylor');
 
         $this->assertSame('Hello Taylor', Blade::renderComponent($component));
+    }
+
+    public function testRenderingRawTemplateComponentInstance(): void
+    {
+        $component = new RawTemplateHelloComponent('Taylor');
+
+        $this->assertSame('Hello Taylor', Blade::renderComponent($component));
+    }
+
+    public function testRenderingRawTemplateClosureComponentInstance(): void
+    {
+        $component = new RawTemplateClosureComponent('Taylor');
+
+        $this->assertSame('Hello Taylor', Blade::renderComponent($component));
+    }
+
+    public function testRawTemplateIsNeverResolvedAsAViewName(): void
+    {
+        $this->assertTrue(View::exists('hello'));
+
+        $component = new RawTemplateViewNameComponent;
+
+        $this->assertSame('hello', Blade::renderComponent($component));
     }
 
     public function testBasicBladeRendering(): void
@@ -363,5 +412,54 @@ class HelloComponent extends Component
     public function render(): string
     {
         return 'Hello {{ $name }}';
+    }
+}
+
+class RawTemplateHelloComponent extends Component
+{
+    /**
+     * Create a greeting component.
+     */
+    public function __construct(public string $name)
+    {
+    }
+
+    /**
+     * Get the greeting template.
+     */
+    public function render(): RawTemplate
+    {
+        return new RawTemplate('Hello {{ $name }}');
+    }
+}
+
+class RawTemplateClosureComponent extends Component
+{
+    /**
+     * Create a greeting component.
+     */
+    public function __construct(public string $name)
+    {
+    }
+
+    /**
+     * Get a closure that returns the greeting template.
+     */
+    public function render(): Closure
+    {
+        return function (array $data): RawTemplate {
+            return new RawTemplate('Hello {{ $name }}');
+        };
+    }
+}
+
+class RawTemplateViewNameComponent extends Component
+{
+    /**
+     * Get a template that matches an application view name.
+     */
+    public function render(): RawTemplate
+    {
+        return new RawTemplate('hello');
     }
 }

@@ -131,6 +131,25 @@ class Factory implements FactoryContract
     }
 
     /**
+     * Create a view for a source file that will be deleted after rendering.
+     *
+     * The view name must already be normalized. The path is unique to one render,
+     * so it is not kept in the engine cache.
+     *
+     * @internal
+     */
+    public function makeFromTemporaryFile(string $view, string $path, Arrayable|array $data = []): ViewContract
+    {
+        try {
+            return tap($this->viewInstance($view, $path, $this->parseData($data)), function ($view) {
+                $this->callCreator($view);
+            });
+        } finally {
+            unset($this->pathEngineCache[$path]);
+        }
+    }
+
+    /**
      * Get the evaluated view contents for the given view.
      */
     public function make(string $view, Arrayable|array $data = [], array $mergeData = []): ViewContract

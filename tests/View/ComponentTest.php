@@ -18,6 +18,7 @@ use Hypervel\Tests\TestCase;
 use Hypervel\View\Component;
 use Hypervel\View\ComponentSlot;
 use Hypervel\View\Factory;
+use Hypervel\View\RawTemplate;
 use Hypervel\View\View;
 use JMac\Testing\Double;
 use JMac\Testing\DoubleInterface;
@@ -143,6 +144,110 @@ class ComponentTest extends TestCase
 
         $this->assertSame('__components::' . hash('xxh128', $contents), $component->resolveView());
         $this->assertSame($contents, file_get_contents($viewFile));
+    }
+
+    public function testRawTemplatesGetCreated(): void
+    {
+        $this->config->expects('string')->with('view.compiled')->returns($this->compiledPath);
+        $this->viewFactory->expects('exists')->never();
+        $this->viewFactory->expects('replaceNamespace')->with('__components', $this->compiledPath)->returns($this->viewFactory);
+
+        $component = new TestRawTemplateComponent;
+
+        $this->assertSame('__components::' . hash('xxh128', 'Hello {{ $title }}'), $component->resolveView());
+    }
+
+    public function testRawTemplatesAreNeverResolvedAsViewNames(): void
+    {
+        $this->config->expects('string')->with('view.compiled')->returns($this->compiledPath);
+        $this->viewFactory->expects('exists')->never();
+        $this->viewFactory->expects('replaceNamespace')->with('__components', $this->compiledPath)->returns($this->viewFactory);
+
+        $component = new class extends Component {
+            /**
+             * Get the view that represents the component.
+             */
+            public function render(): RawTemplate
+            {
+                return new RawTemplate('alert');
+            }
+        };
+
+        $viewPath = $component->resolveView();
+
+        $this->assertSame('__components::' . hash('xxh128', 'alert'), $viewPath);
+        $this->assertSame('alert', file_get_contents($this->compiledPath . '/' . hash('xxh128', 'alert') . '.blade.php'));
+    }
+
+    public function testRenderingRawTemplateClosureFromComponent(): void
+    {
+        $this->config->expects('string')->with('view.compiled')->returns($this->compiledPath);
+        $this->viewFactory->expects('exists')->never();
+        $this->viewFactory->expects('replaceNamespace')->with('__components', $this->compiledPath)->returns($this->viewFactory);
+
+        $component = new class extends Component {
+            /**
+             * Get the view that represents the component.
+             */
+            public function render(): Closure
+            {
+                return function (array $data): RawTemplate {
+                    return new RawTemplate('<p>Hello {{ $title }}</p>');
+                };
+            }
+        };
+
+        $closure = $component->resolveView();
+
+        $this->assertInstanceOf(Closure::class, $closure);
+
+        $viewPath = $closure([]);
+
+        $hash = hash('xxh128', '<p>Hello {{ $title }}</p>');
+        $this->assertSame("__components::{$hash}", $viewPath);
+        $this->assertSame('<p>Hello {{ $title }}</p>', file_get_contents("{$this->compiledPath}/{$hash}.blade.php"));
+    }
+
+    public function testBladeViewCacheWithRawTemplateComponent(): void
+    {
+        $component = new TestRawTemplateComponent;
+
+        $this->viewFactory->expects('exists')->never();
+        $this->config->expects('string')->times(2)->with('view.compiled')->returns($this->compiledPath);
+        $this->viewFactory->expects('replaceNamespace')
+            ->with('__components', $this->compiledPath)
+            ->times(2)
+            ->returns($this->viewFactory);
+
+        $compiledViewName = '__components::' . hash('xxh128', 'Hello {{ $title }}');
+
+        $this->assertSame($compiledViewName, $component->resolveView());
+        $this->assertSame($compiledViewName, $component->resolveView());
+
+        $cache = (fn () => $component::$rawTemplateViewCache)->call($component);
+        $this->assertSame([hash('xxh128', $component::class . '::Hello {{ $title }}') => $compiledViewName], $cache);
+
+        $component::flushCache();
+
+        $cache = (fn () => $component::$rawTemplateViewCache)->call($component);
+        $this->assertSame([], $cache);
+
+        $this->assertSame($compiledViewName, $component->resolveView());
+        $this->assertSame($compiledViewName, $component->resolveView());
+    }
+
+    public function testRawTemplatesDoNotShareCacheWithViewNames(): void
+    {
+        $this->viewFactory->expects('exists')->times(1)->with('alert')->returns(true);
+        $this->config->expects('string')->with('view.compiled')->returns($this->compiledPath);
+        $this->viewFactory->expects('replaceNamespace')->with('__components', $this->compiledPath)->returns($this->viewFactory);
+
+        $this->assertSame('alert', (new TestViewNameOrRawTemplateComponent('alert'))->resolveView());
+
+        $this->assertSame(
+            '__components::' . hash('xxh128', 'alert'),
+            (new TestViewNameOrRawTemplateComponent(new RawTemplate('alert')))->resolveView()
+        );
     }
 
     public function testRegularViewsGetReturnedUsingViewHelper(): void
@@ -572,6 +677,42 @@ class TestEmptyInlineViewComponent extends Component
     public function render(): ViewContract|Htmlable|Closure|string
     {
         return '';
+    }
+}
+
+class TestRawTemplateComponent extends Component
+{
+    /**
+     * Create a new component instance.
+     */
+    public function __construct(public string $title = 'foo')
+    {
+    }
+
+    /**
+     * Get the view that represents the component.
+     */
+    public function render(): RawTemplate
+    {
+        return new RawTemplate('Hello {{ $title }}');
+    }
+}
+
+class TestViewNameOrRawTemplateComponent extends Component
+{
+    /**
+     * Create a new component instance.
+     */
+    public function __construct(protected RawTemplate|string $view)
+    {
+    }
+
+    /**
+     * Get the view that represents the component.
+     */
+    public function render(): RawTemplate|string
+    {
+        return $this->view;
     }
 }
 
