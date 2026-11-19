@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Support;
 
 use Carbon\CarbonInterval;
 use DateInterval;
+use Hypervel\Engine\Coroutine;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
@@ -81,6 +82,20 @@ class SleepTest extends TestCase
         $elapsed = microtime(true) - $start;
 
         $this->assertGreaterThanOrEqual(2.9, $elapsed);
+    }
+
+    public function testCancelingTheCoroutineEndsTheSleepWithoutSleepingTheRemainder(): void
+    {
+        $coroutine = Coroutine::id();
+        Coroutine::create(static function () use ($coroutine): void {
+            usleep(50000);
+            Coroutine::cancelById($coroutine);
+        });
+
+        Sleep::for(1.5)->seconds();
+
+        // Sleeping the remainder would have reset the coroutine's cancellation state.
+        $this->assertTrue(Coroutine::isCanceled());
     }
 
     #[TestWith([0])]
