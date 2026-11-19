@@ -25,4 +25,9 @@ class UselessWithFunctionCall
     {
         return new UselessWithFunctionCall();
     }
+
+    public function namedArguments(): string
+    {
+        return 'baz';
+    }
 }

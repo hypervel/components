@@ -77,8 +77,7 @@ class UsedEmailViewCollector implements Collector
             return null;
         }
 
-        // Upstream reads the first argument by position, which misses reordered named arguments. The
-        // mailable and mail message text() methods name it textView; the others name it view.
+        // The mailable and mail message text() methods name the view parameter textView; the others name it view.
         $parameter = $method === 'text' && ! $isContent ? 'textView' : 'view';
 
         return $this->getMailViews($node->getArg($parameter, 0)?->value, $scope);

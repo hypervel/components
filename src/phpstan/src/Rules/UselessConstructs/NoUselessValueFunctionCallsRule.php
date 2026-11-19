@@ -8,6 +8,8 @@ use PhpParser\Node;
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\ConstFetch;
 use PhpParser\Node\Expr\FuncCall;
+use PhpParser\Node\Scalar;
+use PhpParser\Node\Scalar\InterpolatedString;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\ReflectionProvider;
@@ -21,10 +23,9 @@ use function in_array;
 use function strtolower;
 
 /**
- * Upstream matches the written name and takes the first argument as the value, so an
- * unpacked list or a reordered named argument was misread. Its fix dropped the evaluation
- * of the other arguments, and took the value from the analyzed tree instead of the fixer's
- * copy of the call, which broke the fixed file for values such as `new Foo()`.
+ * Upstream matches the written name and misreads an unpacked list as the value. Its fix
+ * dropped the evaluation of the other arguments, and took the value from the analyzed tree
+ * instead of the fixer's copy of the call, which broke the fixed file for values such as `new Foo()`.
  *
  * @implements Rule<FuncCall>
  */
@@ -79,9 +80,13 @@ class NoUselessValueFunctionCallsRule implements Rule
             ->line($node->getStartLine())
             ->identifier('hypervel.uselessConstructs.value');
 
-        // value() still evaluates its other arguments, so the call is replaced only when they are null, true or false.
+        // value() still evaluates its other arguments, so the call is replaced only when they are
+        // literals without interpolation, or null, true or false.
         foreach ($args as $arg) {
-            if ($arg !== $valueArg && ! ($arg->value instanceof ConstFetch && in_array($arg->value->name->toLowerString(), ['null', 'true', 'false'], true))) {
+            if ($arg !== $valueArg
+                && ! ($arg->value instanceof Scalar && ! $arg->value instanceof InterpolatedString)
+                && ! ($arg->value instanceof ConstFetch && in_array($arg->value->name->toLowerString(), ['null', 'true', 'false'], true))
+            ) {
                 return [$error->build()];
             }
         }

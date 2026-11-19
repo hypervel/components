@@ -163,6 +163,34 @@ class NoMissingTranslationsRuleTest extends RuleTestCase
                 'Translation "messages.test" has not been found.',
                 50,
             ],
+            [
+                'Translation "messages.named" has not been found.',
+                55,
+            ],
+            [
+                'Translation "messages.named" has not been found.',
+                56,
+            ],
+            [
+                'Translation "messages.named" has not been found.',
+                57,
+            ],
+            [
+                'Translation "messages.named" has not been found.',
+                59,
+            ],
+            [
+                'Translation "messages.named" has not been found.',
+                60,
+            ],
+            [
+                'Translation "messages.named" has not been found.',
+                62,
+            ],
+            [
+                'Translation "messages.named" has not been found.',
+                63,
+            ],
         ]);
     }
 

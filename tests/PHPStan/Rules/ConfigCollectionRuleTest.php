@@ -35,6 +35,10 @@ class ConfigCollectionRuleTest extends RuleTestCase
                 "Config key 'test.missing' is not an array, so collection() throws. Correct the config value or use the getter that matches its type.",
                 25,
             ],
+            [
+                "Config key 'test.foo' is not an array, so collection() throws. Correct the config value or use the getter that matches its type.",
+                35,
+            ],
         ]);
     }
 

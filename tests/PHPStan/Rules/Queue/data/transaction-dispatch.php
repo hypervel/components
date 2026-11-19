@@ -116,6 +116,10 @@ DB::transaction(static function (): void {
     QueueableNotifyOwnerAfterCommit::dispatch();
 });
 
+DB::transaction(attempts: 2, callback: static function (): void {
+    NotifyOwner::dispatch(1);
+});
+
 // Hypervel: the connection and driver decide whether the queue waits for the commit.
 #[Connection('transaction-database')]
 class DatabaseQueuedJob implements ShouldQueue

@@ -29,3 +29,9 @@ class Foo
         Config::collection('logging.channels.undeclared');
     }
 }
+
+function namedArguments(): void
+{
+    Config::collection(default: null, key: 'test.foo');
+    Config::collection(default: null, key: 'test.bar');
+}

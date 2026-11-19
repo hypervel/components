@@ -24,8 +24,8 @@ class CorrectWithFunctionCall
         return with(...$arguments);
     }
 
-    public function reorderedNamed(): string
+    public function namedArguments(): string
     {
-        return with(callback: static fn (string $bar) => strtoupper($bar), value: 'foo');
+        return with(callback: 'strtoupper', value: 'foo');
     }
 }

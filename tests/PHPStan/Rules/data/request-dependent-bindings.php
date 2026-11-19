@@ -56,6 +56,11 @@ interface ResolvesRequestByName
 {
 }
 
+#[BindWhen(Implementation::class, static function (): bool { return ContainerImplementation::getInstance()->makeWith(parameters: [], abstract: 'request')->is('api/*'); })]
+interface ResolvesRequestWithMakeWith
+{
+}
+
 #[BindWhen(Implementation::class, Conditions::onApi(...))]
 interface UsesConditionMethod
 {
