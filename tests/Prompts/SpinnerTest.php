@@ -10,6 +10,7 @@ use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\Spinner;
+use Hypervel\Prompts\Support\Utils;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -47,6 +48,38 @@ class SpinnerTest extends TestCase
         $this->assertSame('done', $result);
         $this->assertStringContainsString('⠶ Running...', $output->content());
         $this->assertStringNotContainsString("\e", $output->content());
+    }
+
+    public function testRendersStaticallyWhenOutputIsNotATerminalEvenIfItIsDecorated(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('isOutputTty')->andReturn(false);
+
+        $output = new BufferedConsoleOutput(decorated: true);
+        Prompt::setOutput($output);
+
+        $spinner = new Spinner('Running...');
+
+        $result = $spinner->spin(fn () => 'done');
+
+        $this->assertSame('done', $result);
+        $this->assertTrue($spinner->static);
+        $this->assertStringContainsString('Running...', $output->content());
+        $this->assertSame(Utils::sanitizeTerminalFormatting($output->content()), $output->content());
+    }
+
+    public function testAnimatesWhenOutputIsADecoratedTerminal(): void
+    {
+        Prompt::fake();
+
+        $output = new BufferedConsoleOutput(decorated: true);
+        Prompt::setOutput($output);
+
+        $spinner = new Spinner('Running...');
+
+        $spinner->spin(fn () => 'done');
+
+        $this->assertFalse($spinner->static);
     }
 
     public function testRestoresThePreviousSignalHandler(): void

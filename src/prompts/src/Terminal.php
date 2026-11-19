@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Prompts;
 
+use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use ReflectionClass;
 use RuntimeException;
+use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Output\StreamOutput;
 use Symfony\Component\Console\Terminal as SymfonyTerminal;
 
 class Terminal
@@ -162,6 +166,20 @@ class Terminal
         }
 
         return $stdout;
+    }
+
+    /**
+     * Determine if the output is written to a terminal.
+     */
+    public function isOutputTty(?OutputInterface $output = null): bool
+    {
+        // Unlike Laravel, Artisan's output style and buffered outputs are checked at their real destination rather than at STDOUT.
+        return match (true) {
+            $output instanceof BufferedOutput, $output instanceof BufferedConsoleOutput => false,
+            $output instanceof StreamOutput => stream_isatty($output->getStream()),
+            $output !== null && method_exists($output, 'getOutput') => $this->isOutputTty($output->getOutput()),
+            default => stream_isatty(STDOUT),
+        };
     }
 
     /**

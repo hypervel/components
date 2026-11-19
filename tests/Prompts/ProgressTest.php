@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Prompts;
 use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Progress;
 use Hypervel\Prompts\Prompt;
+use Hypervel\Prompts\Support\Utils;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
@@ -86,6 +87,24 @@ class ProgressTest extends TestCase
         $this->assertSame(1, substr_count(Prompt::content(), 'Adding States'));
         $this->assertStringContainsString('2 / 2', Prompt::content());
         $this->assertStringNotContainsString("\e", Prompt::content());
+    }
+
+    public function testDecoratedProgressOutsideATerminalEmitsOnlyOneFrame(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('isOutputTty')->andReturn(false);
+        $progress = new Progress('Adding States', 2);
+
+        $progress->start();
+        $progress->advance();
+        $progress->advance();
+        $this->assertStringNotContainsString('Adding States', Prompt::content());
+
+        $progress->finish();
+
+        $this->assertSame(1, substr_count(Prompt::content(), 'Adding States'));
+        $this->assertStringContainsString('2 / 2', Prompt::strippedContent());
+        $this->assertSame(Utils::sanitizeTerminalFormatting(Prompt::content()), Prompt::content());
     }
 
     public function testAbandonedUndecoratedProgressEmitsNothing(): void

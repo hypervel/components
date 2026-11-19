@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Prompts\Terminal;
 use Hypervel\Tests\TestCase;
+use Symfony\Component\Console\Output\StreamOutput;
+use Symfony\Component\Process\Process;
 
 class TerminalTest extends TestCase
 {
@@ -65,6 +67,30 @@ class TerminalTest extends TestCase
         $this->assertSame([204, 204, 204], $terminal->foregroundColor());
         $this->assertSame([0, 0, 0], $terminal->backgroundColor());
         $this->assertSame([], $terminal->commands);
+    }
+
+    public function testStreamOutputThatIsNotATerminalIsNotATty(): void
+    {
+        $output = new StreamOutput(fopen('php://memory', 'w'));
+
+        $this->assertFalse((new Terminal)->isOutputTty($output));
+    }
+
+    public function testOutputIsCheckedAtItsDestination(): void
+    {
+        // STDOUT is a terminal here, so outputs written elsewhere must not report it.
+        $process = new Process([PHP_BINARY, __DIR__ . '/Fixtures/output-tty.php'], timeout: 10);
+        $process->setPty(true);
+        $process->mustRun();
+
+        $this->assertSame([
+            'console' => true,
+            'artisan' => true,
+            'memory' => false,
+            'captured artisan' => false,
+            'buffered' => false,
+            'prompts buffer' => false,
+        ], json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR));
     }
 }
 
