@@ -19,11 +19,10 @@ use function in_array;
 use function strtolower;
 
 /**
- * Upstream matches the written name and takes the first two arguments by position, so an
- * unpacked list or reordered named arguments were misread. It also reported callbacks that
- * are not callable, which throw instead of returning the value. Its fix dropped the
- * evaluation of the other arguments, and took the value from the analyzed tree instead of
- * the fixer's copy of the call, which broke the fixed file for values such as `new Foo()`.
+ * Upstream matches the written name and misreads an unpacked list as the arguments. It also
+ * reported callbacks that are not callable, which throw instead of returning the value. Its
+ * fix dropped the evaluation of the other arguments, and took the value from the analyzed tree
+ * instead of the fixer's copy of the call, which broke the fixed file for values such as `new Foo()`.
  *
  * @implements Rule<FuncCall>
  */

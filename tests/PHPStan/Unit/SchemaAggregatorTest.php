@@ -321,6 +321,44 @@ class SchemaAggregatorTest extends PHPStanTestCase
         ], $this->columns($aggregator, 'attachments'));
     }
 
+    #[Test]
+    public function itReadsColumnsFromForeignIdForMethods(): void
+    {
+        $aggregator = $this->aggregate(<<<'PHP'
+            Schema::create('countries', function (Blueprint $table) {
+                $table->string('code', 2)->primary();
+            });
+
+            Schema::create('cities', function (Blueprint $table) {
+                $table->foreignIdFor(Country::class);
+                $table->foreignUuidFor(\App\UuidModel::class);
+                $table->foreignUlidFor(\App\UlidModel::class, 'custom_foreign_ulid_for_name')->nullable();
+            });
+        PHP);
+
+        $this->assertSame([
+            'country_code' => ['string', false],
+            'uuid_model_id' => ['string', false],
+            'custom_foreign_ulid_for_name' => ['string', true],
+        ], $this->columns($aggregator, 'cities'));
+    }
+
+    /**
+     * Unlike upstream, which guessed an integer column named after the class, the model's key name and type are unknown.
+     */
+    #[Test]
+    public function itReadsForeignIdForColumnsOfUnknownModels(): void
+    {
+        $aggregator = $this->aggregate(<<<'PHP'
+            Schema::create('cities', function (Blueprint $table) {
+                $table->foreignIdFor(MissingModel::class);
+            });
+        PHP);
+
+        $this->assertSame([], $this->columns($aggregator, 'cities'));
+        $this->assertFalse($this->table($aggregator, 'cities')->complete);
+    }
+
     /**
      * Unlike upstream, which skipped the calls, names that are not strings make what they change unknown.
      */

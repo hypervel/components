@@ -32,6 +32,7 @@ class GeneralTypeTest extends TypeInferenceTestCase
         yield from self::gatherAssertTypes(__DIR__ . '/data/artisan.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/auth.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/benchmark.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/belongs-to-many-pivot-accessor.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/builder-of-type.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/bug-1346.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/bug-1565.php');
@@ -110,10 +111,13 @@ class GeneralTypeTest extends TypeInferenceTestCase
         yield from self::gatherAssertTypes(__DIR__ . '/data/paginator-extension.php');
         // REMOVED: passthru.php; it asserts Laravel releases before 12.15.
         yield from self::gatherAssertTypes(__DIR__ . '/data/passthru-l12-15.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/passthru-l13-30-1.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/pivot-types-in-collections.php');
+        // REMOVED: PivotTypesInCollectionsTest.php; Hypervel always keeps pivot types, so the cases need no separate configuration.
         yield from self::gatherAssertTypes(__DIR__ . '/data/query-builder.php');
         // Upstream runs this per redisDriver setting; Hypervel only has phpredis, so it runs once here.
         yield from self::gatherAssertTypes(__DIR__ . '/data/redis-driver-phpredis.php');
-        // REMOVED: RedisDriverNullTypeTest.php and RedisDriverPredisTypeTest.php; the redisDriver setting is omitted.
+        // REMOVED: RedisDriverNullTypeTest.php and RedisDriverPredisTypeTest.php; Hypervel only uses phpredis.
         yield from self::gatherAssertTypes(__DIR__ . '/data/relationship-query-callbacks.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/relation-of-type.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/request-header.php');
@@ -121,6 +125,7 @@ class GeneralTypeTest extends TypeInferenceTestCase
         // Upstream never registers request-user.php, which shares request-object.php's namespace.
         yield from self::gatherAssertTypes(__DIR__ . '/data/request-user.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/route.php');
+        yield from self::gatherAssertTypes(__DIR__ . '/data/soft-deletes-static-builder.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/storage-disks.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/tappable.php');
         yield from self::gatherAssertTypes(__DIR__ . '/data/throw.php');

@@ -97,7 +97,7 @@ class WorkerStateHelper
     /**
      * The resolving container methods, each with its abstract's parameter name and whether parameters follow.
      */
-    private const array RESOLVING_METHODS = ['make' => ['abstract', true], 'get' => ['id', false], 'factory' => ['abstract', false]];
+    private const array RESOLVING_METHODS = ['make' => ['abstract', true], 'makewith' => ['abstract', true], 'get' => ['id', false], 'factory' => ['abstract', false]];
 
     /**
      * The attributes that restrict a method to boot time or tests.

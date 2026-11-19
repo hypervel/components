@@ -148,6 +148,15 @@ class InteractsWithExceptionHandlingTest extends TestCase
         $this->assertFalse($handler->shouldReport(new RuntimeException));
     }
 
+    public function testWithoutExceptionHandlingKeepsTheRetryPolicy(): void
+    {
+        $this->app->make(ExceptionHandler::class)->dontRetry(RuntimeException::class);
+
+        $this->withoutExceptionHandling();
+
+        $this->assertTrue($this->app->make(ExceptionHandler::class)->shouldStopRetries(new RuntimeException));
+    }
+
     public function testThrowOnReportWithoutExceptionHandling(): void
     {
         Exceptions::fake()->throwOnReport();

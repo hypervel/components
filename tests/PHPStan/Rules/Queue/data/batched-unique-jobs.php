@@ -43,6 +43,11 @@ $jobs = [];
 
 Bus::batch($jobs);
 
+// Named arguments in a different order than the parameters.
+Queue::bulk(queue: 'default', jobs: [
+    new UniqueJobWithUniqueForProperty(),
+]);
+
 // Hypervel: a single job is wrapped into a batch, and adding to a batch bypasses the lock too.
 Bus::batch(new UniqueJobWithUniqueForProperty());
 
@@ -51,14 +56,13 @@ function addUniqueJobToBatch(Batch $batch): void
     $batch->add([new UniqueJobWithUniqueForMethod()]);
 }
 
-// Hypervel: a chain held in a variable is inspected too, and the jobs argument binds by name.
+// Hypervel: a chain held in a variable is inspected too. A unique job passed as bulk() data is not dispatched.
 function batchAndBulkUniqueJobs(): void
 {
     $chain = [new UniqueJobWithUniqueForProperty()];
 
     Bus::batch([$chain]);
     Queue::bulk(data: new UniqueJobWithUniqueForProperty(), jobs: [new RegularJob(1)]);
-    Queue::bulk(data: '', jobs: [new UniqueJobWithUniqueForProperty()]);
 }
 
 // Hypervel: an entry that may be a job or a chain is reported when any job it may hold is unique.

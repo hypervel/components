@@ -76,6 +76,7 @@ use Hypervel\RateLimiter\Limiter;
 use Hypervel\RateLimiter\LimitResult;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Support\Testing\Fakes\ExceptionHandlerFake;
 use Hypervel\Testing\ParallelTesting;
@@ -849,6 +850,7 @@ class QueueWorkerTest extends TestCase
         if ($reportingMode !== 'normal') {
             $errorLog = $this->captureErrorLog();
             $this->exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
+            $this->exceptionHandler->allows('shouldStopRetries')->returns(false);
             $report = $this->exceptionHandler->expects('report')->with(Argument::same($cleanupException));
             if ($reportingMode === 'cancellation') {
                 $report->resolves(function () use ($reportingFailure): never {
@@ -2129,6 +2131,21 @@ class QueueWorkerTest extends TestCase
         $this->events->assertNotDispatched(JobReleasedAfterException::class);
     }
 
+    public function testExceptionFakeKeepsTheHandlersRetryPolicy(): void
+    {
+        $exception = new RuntimeException;
+        $job = new WorkerFakeJob(static function () use ($exception): never {
+            throw $exception;
+        });
+        $this->exceptionHandler = new ExceptionHandlerFake(new ShouldntRetryExceptionHandler);
+
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+        $worker->runNextJob('default', 'queue', $this->workerOptions(['backoff' => 10]));
+
+        $this->assertNull($job->releaseAfter);
+        $this->assertSame($exception, $job->failedWith);
+    }
+
     public function testExceptionIsNotReportedIfReportJobExceptionsIsDisabled(): void
     {
         $exception = new RuntimeException;
@@ -3019,6 +3036,7 @@ class QueueWorkerTest extends TestCase
         if ($reportingThrows) {
             $this->captureErrorLog();
             $this->exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
+            $this->exceptionHandler->allows('shouldStopRetries')->returns(false);
             $this->exceptionHandler->expects('report')->with(Argument::same($failure))->throws(new RuntimeException('Reporting failed.'));
         }
         $workerOptions = new WorkerOptions(stopWhenEmpty: true);
@@ -3958,9 +3976,89 @@ trait HasQueue
         return 0;
     }
 
+    /**
+     * Get the number of jobs across every queue.
+     */
+    public function totalSize(): int
+    {
+        return 0;
+    }
+
+    /**
+     * Get the number of pending jobs across every queue.
+     */
+    public function totalPendingSize(): int
+    {
+        return 0;
+    }
+
+    /**
+     * Get the number of delayed jobs across every queue.
+     */
+    public function totalDelayedSize(): int
+    {
+        return 0;
+    }
+
+    /**
+     * Get the number of reserved jobs across every queue.
+     */
+    public function totalReservedSize(): int
+    {
+        return 0;
+    }
+
     public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int
     {
         return null;
+    }
+
+    /**
+     * Get the pending jobs for the given queue.
+     */
+    public function pendingJobs(UnitEnum|string|null $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get the delayed jobs for the given queue.
+     */
+    public function delayedJobs(UnitEnum|string|null $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get the reserved jobs for the given queue.
+     */
+    public function reservedJobs(UnitEnum|string|null $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get all pending jobs across every queue.
+     */
+    public function allPendingJobs(): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get all delayed jobs across every queue.
+     */
+    public function allDelayedJobs(): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get all reserved jobs across every queue.
+     */
+    public function allReservedJobs(): Collection
+    {
+        return new Collection;
     }
 
     public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed

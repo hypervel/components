@@ -33,6 +33,11 @@ class UselessValueFunctionCall
         return value('foo', $this->count());
     }
 
+    public function interpolatedArgument(): string
+    {
+        return value('foo', "{$this->count()}");
+    }
+
     public function undefinedConstantArgument(): string
     {
         return value('foo', UNDEFINED_CONSTANT);
@@ -41,6 +46,11 @@ class UselessValueFunctionCall
     public function created(): ArrayObject
     {
         return new ArrayObject();
+    }
+
+    public function namedArguments(): string
+    {
+        return 'bar';
     }
 
     private function count(): int

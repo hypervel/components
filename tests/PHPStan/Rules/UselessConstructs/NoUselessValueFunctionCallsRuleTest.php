@@ -38,6 +38,8 @@ class NoUselessValueFunctionCallsRuleTest extends RuleTestCase
                 [$message, 33],
                 [$message, 38],
                 [$message, 43],
+                [$message, 48],
+                [$message, 53],
             ],
         );
     }

@@ -14,6 +14,7 @@ use Throwable;
 
 class Stream extends Prompt
 {
+    use Concerns\RendersAnimations;
     use InteractsWithStrings;
 
     protected int $minWidth = 0;
@@ -38,7 +39,7 @@ class Stream extends Prompt
      */
     public function __construct()
     {
-        $this->direct = ! static::output()->isDecorated();
+        $this->direct = $this->shouldRenderStatically();
 
         if ($this->direct) {
             return;

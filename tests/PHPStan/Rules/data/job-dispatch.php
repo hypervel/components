@@ -31,6 +31,8 @@ HypervelJobWithoutConstructor::dispatchAfterResponse('foo');
 HypervelJobWithoutConstructor::dispatchIf(true);
 HypervelJobWithoutConstructor::dispatchUnless(true, 'foo');
 
+HypervelJob::dispatchIf(foo: 1, bar: 'foo', boolean: true);
+
 // Hypervel: the constructor also runs before a closure condition, and a named or unpacked argument
 // is bound as PHP binds it. A class's own dispatch method keeps its signature.
 HypervelJob::dispatchIf(static fn (HypervelJob $job): bool => true, 1, 'foo');

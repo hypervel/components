@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Prompts;
 use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Progress;
 use Hypervel\Prompts\Prompt;
+use Hypervel\Prompts\Support\Utils;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
@@ -22,6 +23,11 @@ use function Hypervel\Prompts\progress;
 
 class ProgressTest extends TestCase
 {
+    /**
+     * A step duration longer than the redraw interval, so every step is drawn.
+     */
+    private const int STEP_MICROSECONDS = 41_000;
+
     public function testMaterializesGeneratorOnceAndPreservesValueOrder(): void
     {
         Prompt::fake();
@@ -86,6 +92,40 @@ class ProgressTest extends TestCase
         $this->assertSame(1, substr_count(Prompt::content(), 'Adding States'));
         $this->assertStringContainsString('2 / 2', Prompt::content());
         $this->assertStringNotContainsString("\e", Prompt::content());
+    }
+
+    public function testDecoratedProgressOutsideATerminalEmitsOnlyOneFrame(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('isOutputTty')->andReturn(false);
+        $progress = new Progress('Adding States', 2);
+
+        $progress->start();
+        $progress->advance();
+        $progress->advance();
+        $this->assertStringNotContainsString('Adding States', Prompt::content());
+
+        $progress->finish();
+
+        $this->assertSame(1, substr_count(Prompt::content(), 'Adding States'));
+        $this->assertStringContainsString('2 / 2', Prompt::strippedContent());
+        $this->assertSame(Utils::sanitizeTerminalFormatting(Prompt::content()), Prompt::content());
+    }
+
+    public function testFastAdvancesSkipIntermediateRedrawsButDrawTheFinalStep(): void
+    {
+        Prompt::fake();
+        $progress = new Progress('Working', 100);
+
+        $progress->start();
+
+        for ($i = 0; $i < 100; ++$i) {
+            $progress->advance();
+        }
+
+        $this->assertSame(100, $progress->progress);
+        $this->assertLessThan(100, substr_count(Prompt::strippedContent(), ' / 100'));
+        $this->assertStringContainsString('100 / 100', Prompt::strippedContent());
     }
 
     public function testAbandonedUndecoratedProgressEmitsNothing(): void
@@ -336,7 +376,7 @@ class ProgressTest extends TestCase
         progress(
             label: 'Adding States',
             steps: $steps,
-            callback: fn () => null,
+            callback: fn () => usleep(self::STEP_MICROSECONDS),
         );
 
         Prompt::assertStrippedOutputContains(<<<'OUTPUT'
@@ -427,6 +467,7 @@ class ProgressTest extends TestCase
             label: 'Adding States',
             steps: $states,
             callback: function ($item, $progress) {
+                usleep(self::STEP_MICROSECONDS);
                 $progress->label(strtoupper($item));
                 $progress->hint(strtolower($item));
             }
@@ -491,6 +532,7 @@ class ProgressTest extends TestCase
         $progress->start();
 
         foreach ($states as $state) {
+            usleep(self::STEP_MICROSECONDS);
             $progress
                 ->label(strtoupper($state))
                 ->hint(strtolower($state))

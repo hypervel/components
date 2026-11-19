@@ -1631,8 +1631,7 @@ class Worker
      */
     protected function markJobAsFailedIfItShouldntBeRetried(string $connectionName, JobContract $job, Throwable $e): void
     {
-        if (method_exists($this->exceptions, 'shouldStopRetries')
-            && $this->exceptions->shouldStopRetries($e)) {
+        if ($this->exceptions->shouldStopRetries($e)) {
             $this->failJob($job, $e);
         }
     }

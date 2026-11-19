@@ -59,7 +59,6 @@ class UsedRouteFacadeViewCollector implements Collector
             return null;
         }
 
-        // Upstream reads the second argument by position, which misses reordered named arguments.
         return $this->getViewNames($node->getArg('view', 1)?->value, $scope);
     }
 }

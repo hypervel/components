@@ -120,16 +120,32 @@ class SomeClass {
     }
 }
 
-// Hypervel: views passed as reordered named arguments.
-function namedArguments(Factory $factory): void
+class NamedArgumentsMailable extends Mailable
 {
-    view(data: [], view: 'named-arguments.helper');
-    $factory->make(data: [], view: 'named-arguments.factory-make');
-    \Hypervel\Support\Facades\View::make(data: [], view: 'named-arguments.facade-make');
-    Route::view(view: 'named-arguments.route-view', uri: '/named-arguments');
+    public function build(): self
+    {
+        return $this->view(data: [], view: 'named-arguments.mailable-view');
+    }
 }
 
-class NamedArgumentsMailable extends Mailable
+class NamedArgumentsMailMessage extends MailMessage
+{
+    public function build(): self
+    {
+        return $this->markdown(data: [], view: 'named-arguments.mail-message-markdown');
+    }
+}
+
+function namedArguments(Factory $factory): void
+{
+    view(data: [], view: 'named-arguments.view-function');
+    $factory->make(data: [], view: 'named-arguments.view-factory-make');
+    \Hypervel\Support\Facades\View::make(data: [], view: 'named-arguments.view-static-make');
+    Route::view(view: 'named-arguments.route-view', uri: '/named');
+}
+
+// Hypervel: a mailable's text view and a mail message's HTML view are found by name too.
+class NamedArgumentsTextMailable extends Mailable
 {
     public function build(): self
     {
@@ -137,7 +153,7 @@ class NamedArgumentsMailable extends Mailable
     }
 }
 
-class NamedArgumentsMailMessage extends MailMessage
+class NamedArgumentsViewMailMessage extends MailMessage
 {
     public function build(): self
     {

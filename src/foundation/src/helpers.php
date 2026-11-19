@@ -185,6 +185,8 @@ if (! function_exists('app_id')) {
 if (! function_exists('app_path')) {
     /**
      * Get the path to the application folder.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     function app_path(string $path = ''): string
     {
@@ -237,6 +239,8 @@ if (! function_exists('back')) {
 if (! function_exists('base_path')) {
     /**
      * Get the path to the base of the install.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     function base_path(string $path = ''): string
     {
@@ -358,6 +362,8 @@ if (! function_exists('config')) {
 if (! function_exists('config_path')) {
     /**
      * Get the configuration path.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     function config_path(string $path = ''): string
     {
@@ -441,6 +447,8 @@ if (! function_exists('csrf_token')) {
 if (! function_exists('database_path')) {
     /**
      * Get the path to the database folder.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     function database_path(string $path = ''): string
     {
@@ -555,6 +563,8 @@ if (! function_exists('info')) {
 if (! function_exists('lang_path')) {
     /**
      * Get the path to the language folder.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     function lang_path(string $path = ''): string
     {
@@ -672,6 +682,8 @@ if (! function_exists('precognitive')) {
 if (! function_exists('public_path')) {
     /**
      * Get the path to the public folder.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     function public_path(string $path = ''): string
     {
@@ -827,6 +839,8 @@ if (! function_exists('resolve')) {
 if (! function_exists('resource_path')) {
     /**
      * Get the path to the resources folder.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     function resource_path(string $path = ''): string
     {
@@ -921,6 +935,8 @@ if (! function_exists('session')) {
 if (! function_exists('storage_path')) {
     /**
      * Get the path to the storage folder.
+     *
+     * @return ($path is non-empty-string ? non-empty-string : string)
      */
     function storage_path(string $path = ''): string
     {

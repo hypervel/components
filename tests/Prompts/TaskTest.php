@@ -271,6 +271,29 @@ class TaskTest extends TestCase
         Prompt::assertOutputContains('Running...');
     }
 
+    public function testRendersTaskStaticallyWhenOutputIsNotATerminalEvenIfItIsDecorated(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('isOutputTty')->andReturn(false);
+
+        $output = new BufferedConsoleOutput(decorated: true);
+        Prompt::setOutput($output);
+
+        $task = new Task(label: 'Running...', keepSummary: true);
+
+        $result = $task->run(function (Logger $logger): string {
+            $logger->success('Built');
+
+            return 'done';
+        });
+
+        $this->assertSame('done', $result);
+        $this->assertTrue($task->static);
+        $this->assertStringContainsString('Running...', $output->content());
+        $this->assertStringContainsString('Built', $output->content());
+        $this->assertSame(Utils::sanitizeTerminalFormatting($output->content()), $output->content());
+    }
+
     public function testReturnsNullWhenCallbackDoesNotReturnValue(): void
     {
         Prompt::fake();

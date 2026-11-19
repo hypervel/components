@@ -58,12 +58,14 @@ class CheckDispatchArgumentTypesCompatibleWithClassConstructorRuleTest extends R
             ['Job class Hypervel\Tests\PHPStan\Rules\Data\HypervelJobWithoutConstructor does not have a constructor and must be dispatched without any parameters.', 27],
             ['Job class Hypervel\Tests\PHPStan\Rules\Data\HypervelJobWithoutConstructor does not have a constructor and must be dispatched without any parameters.', 29],
             ['Job class Hypervel\Tests\PHPStan\Rules\Data\HypervelJobWithoutConstructor does not have a constructor and must be dispatched without any parameters.', 32],
-            ['Parameter #1 $foo of job class Hypervel\Tests\PHPStan\Rules\Data\HypervelJob constructor expects string in Hypervel\Tests\PHPStan\Rules\Data\HypervelJob::dispatchIf(), int given.', 36],
-            ['Parameter #2 $bar of job class Hypervel\Tests\PHPStan\Rules\Data\HypervelJob constructor expects int in Hypervel\Tests\PHPStan\Rules\Data\HypervelJob::dispatchIf(), string given.', 36],
-            ['Missing parameter $bar (int) in call to Hypervel\Tests\PHPStan\Rules\Data\HypervelJob constructor.', 37],
-            ['Parameter #1 $foo of job class Hypervel\Tests\PHPStan\Rules\Data\HypervelJob constructor expects string in Hypervel\Tests\PHPStan\Rules\Data\HypervelJob::dispatch(), int given.', 42],
-            ['Parameter #2 $bar of job class Hypervel\Tests\PHPStan\Rules\Data\HypervelJob constructor expects int in Hypervel\Tests\PHPStan\Rules\Data\HypervelJob::dispatch(), string given.', 42],
-            ['Parameter #1 $bar of job class Hypervel\Tests\PHPStan\Rules\Data\HypervelChildJob constructor expects int in Hypervel\Tests\PHPStan\Rules\Data\HypervelChildJob::dispatch(), string given.', 70],
+            ['Parameter $foo of job class Hypervel\Tests\PHPStan\Rules\Data\HypervelJob constructor expects string in Hypervel\Tests\PHPStan\Rules\Data\HypervelJob::dispatchIf(), int given.', 34],
+            ['Parameter $bar of job class Hypervel\Tests\PHPStan\Rules\Data\HypervelJob constructor expects int in Hypervel\Tests\PHPStan\Rules\Data\HypervelJob::dispatchIf(), string given.', 34],
+            ['Parameter #1 $foo of job class Hypervel\Tests\PHPStan\Rules\Data\HypervelJob constructor expects string in Hypervel\Tests\PHPStan\Rules\Data\HypervelJob::dispatchIf(), int given.', 38],
+            ['Parameter #2 $bar of job class Hypervel\Tests\PHPStan\Rules\Data\HypervelJob constructor expects int in Hypervel\Tests\PHPStan\Rules\Data\HypervelJob::dispatchIf(), string given.', 38],
+            ['Missing parameter $bar (int) in call to Hypervel\Tests\PHPStan\Rules\Data\HypervelJob constructor.', 39],
+            ['Parameter #1 $foo of job class Hypervel\Tests\PHPStan\Rules\Data\HypervelJob constructor expects string in Hypervel\Tests\PHPStan\Rules\Data\HypervelJob::dispatch(), int given.', 44],
+            ['Parameter #2 $bar of job class Hypervel\Tests\PHPStan\Rules\Data\HypervelJob constructor expects int in Hypervel\Tests\PHPStan\Rules\Data\HypervelJob::dispatch(), string given.', 44],
+            ['Parameter #1 $bar of job class Hypervel\Tests\PHPStan\Rules\Data\HypervelChildJob constructor expects int in Hypervel\Tests\PHPStan\Rules\Data\HypervelChildJob::dispatch(), string given.', 72],
         ]);
     }
 

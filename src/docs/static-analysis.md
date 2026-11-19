@@ -301,6 +301,18 @@ Declare the type the collection is meant to hold when you create it:
 $ids = collect([1, 2, 3]);
 ```
 
+Models loaded through a `BelongsToMany` or `MorphToMany` relation keep their pivot in collections too, including a custom accessor name set with `as()`:
+
+```php
+/** @return BelongsToMany<Podcast, $this, Subscription, 'subscription'> */
+public function podcasts(): BelongsToMany
+{
+    return $this->belongsToMany(Podcast::class)->as('subscription')->using(Subscription::class);
+}
+
+$user->podcasts->first()?->subscription; // Subscription|null
+```
+
 A custom collection class that fixes its item type, such as a `UserCollection` that extends `Collection<int, User>`, keeps that type when methods such as `map()`, `mapWithKeys()`, `groupBy()` and `chunk()` return the same class holding other items. This is a PHPStan limitation. For example, `$users->groupBy('team_id')` is typed as a `UserCollection` of users, although it holds user collections. Declare the result's type where your code relies on it:
 
 ```php

@@ -320,6 +320,19 @@ abstract class Prompt
     }
 
     /**
+     * Determine whether cursor and screen controls can be written to the output.
+     *
+     * Unlike Laravel, this requires a terminal as well as decorated output, so
+     * `--ansi` output in CI and build logs keeps its colors without cursor
+     * movement or erasing.
+     */
+    protected static function canControlTerminal(): bool
+    {
+        return static::output()->isDecorated()
+            && static::terminal()->isOutputTty(static::output());
+    }
+
+    /**
      * Get the terminal instance.
      */
     public static function terminal(): Terminal

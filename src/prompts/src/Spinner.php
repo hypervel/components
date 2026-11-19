@@ -13,6 +13,8 @@ use Throwable;
 
 class Spinner extends Prompt
 {
+    use Concerns\RendersAnimations;
+
     /**
      * How long to wait between rendering each frame.
      */
@@ -51,7 +53,7 @@ class Spinner extends Prompt
         $this->prevFrame = '';
         $this->capturePreviousNewLines();
 
-        if (! static::output()->isDecorated() || ! Coroutine::inCoroutine()) {
+        if ($this->shouldRenderStatically() || ! Coroutine::inCoroutine()) {
             return $this->renderStatically($callback);
         }
 

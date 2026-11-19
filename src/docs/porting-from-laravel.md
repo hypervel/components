@@ -182,6 +182,8 @@ Some packages also define package-local contracts, such as `Hypervel\Permission\
 
 Custom `Hypervel\Contracts\View\View` implementations must provide `gatherData(): array`, returning the data used to render the view, including any shared values. Extending `Hypervel\View\View` supplies it.
 
+Custom `Hypervel\Contracts\Debug\ExceptionHandler` implementations must provide `shouldStopRetries(Throwable $e): bool`, which tells queue workers whether a job should stop retrying after the exception. Extending `Hypervel\Foundation\Exceptions\Handler` supplies it.
+
 Custom `Hypervel\View\ViewFinderInterface` implementations must provide `prependLocation()`, `getPaths()` and `getHints()`; extending `Hypervel\View\FileViewFinder` supplies them.
 
 <a name="missing-equivalents"></a>
@@ -522,11 +524,9 @@ Replace `laravel/doctor` with `hypervel/doctor` and the `Laravel\Doctor` namespa
 <a name="static-analysis"></a>
 ### Static Analysis
 
-Replace `larastan/larastan` with `hypervel/phpstan`. For manual configuration, replace Larastan's include with `vendor/hypervel/phpstan/extension.neon` and `vendor/phpstan/phpstan-deprecation-rules/rules.neon`.
+Use `hypervel/phpstan` and start with the configuration in the [Static Analysis guide](/docs/{{version}}/static-analysis).
 
-Rename ignored identifiers from `larastan.*` to `hypervel.*`, and `rules.modelAppends` to `hypervel.modelAppends`. PHPStan's own identifiers are unchanged. Remove ignores for Octane and deferred provider diagnostics, and remove the unsupported `checkOctaneCompatibility`, `generalizeEnvReturnType` and `redisDriver` parameters.
-
-Supported parameters retain their names, but several defaults are stricter. The extension also reports ignores without reasons and uses of deprecated APIs. See [Static Analysis](/docs/{{version}}/static-analysis) for setup and configuration.
+Review inline `@phpstan-ignore` comments in ported code. Remove ignores for Octane and deferred providers. Replace the `larastan.` prefix with `hypervel.` on remaining ignores, and replace `rules.modelAppends` with `hypervel.modelAppends`. Hypervel also reports ignores without reasons and uses of deprecated APIs.
 
 <a name="scheduling"></a>
 ### Scheduling

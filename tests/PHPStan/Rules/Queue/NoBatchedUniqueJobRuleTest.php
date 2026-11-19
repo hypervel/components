@@ -40,36 +40,36 @@ class NoBatchedUniqueJobRuleTest extends RuleTestCase
                 44,
             ],
             [
+                "Unique job Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForProperty is dispatched via bulk().\n    💡 Dispatch unique jobs individually.",
+                48,
+            ],
+            [
                 "Unique job Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForProperty is dispatched via batch().\n    💡 Dispatch unique jobs individually.",
-                47,
+                52,
             ],
             [
                 "Unique job Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForMethod is dispatched via add().\n    💡 Dispatch unique jobs individually.",
-                51,
+                56,
             ],
             [
                 "Unique job Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForProperty is dispatched via batch().\n    💡 Dispatch unique jobs individually.",
-                59,
-            ],
-            [
-                "Unique job Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForProperty is dispatched via bulk().\n    💡 Dispatch unique jobs individually.",
-                61,
+                64,
             ],
             [
                 "Unique job Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForProperty is dispatched via batch().\n    💡 Dispatch unique jobs individually.",
-                68,
+                72,
             ],
             [
                 "Unique job Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForMethod|Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForProperty is dispatched via batch().\n    💡 Dispatch unique jobs individually.",
-                75,
+                79,
             ],
             [
                 "Unique job Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForMethod|Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForProperty is dispatched via batch().\n    💡 Dispatch unique jobs individually.",
-                76,
+                80,
             ],
             [
                 "Unique job Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForMethod|Hypervel\\Tests\\PHPStan\\Rules\\Queue\\Data\\UniqueJobWithUniqueForProperty is dispatched via batch().\n    💡 Dispatch unique jobs individually.",
-                77,
+                81,
             ],
         ]);
     }

@@ -31,6 +31,7 @@ class NoUselessWithFunctionCallsRuleTest extends RuleTestCase
                 ["Calling the helper function 'with()' with only one argument simply returns the value itself. If you want to chain methods on a construct, use '(new ClassName())->foo()' instead", 11],
                 ["Calling the helper function 'with()' without a callable as the second argument simply returns the value without doing anything", 16],
                 ["Calling the helper function 'with()' with only one argument simply returns the value itself. If you want to chain methods on a construct, use '(new ClassName())->foo()' instead", 26],
+                ["Calling the helper function 'with()' without a callable as the second argument simply returns the value without doing anything", 31],
             ],
         );
     }

@@ -8,6 +8,8 @@ use DateInterval;
 use DateTimeInterface;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Queue\Jobs\InspectedJob;
+use Hypervel\Support\Collection;
 use UnitEnum;
 
 /**
@@ -59,11 +61,103 @@ class QueueConnectionFake implements Queue
     }
 
     /**
+     * Get the number of jobs across every queue.
+     */
+    public function totalSize(): int
+    {
+        return $this->fake->totalSize();
+    }
+
+    /**
+     * Get the number of pending jobs across every queue.
+     */
+    public function totalPendingSize(): int
+    {
+        return $this->fake->totalPendingSize();
+    }
+
+    /**
+     * Get the number of delayed jobs across every queue.
+     */
+    public function totalDelayedSize(): int
+    {
+        return $this->fake->totalDelayedSize();
+    }
+
+    /**
+     * Get the number of reserved jobs across every queue.
+     */
+    public function totalReservedSize(): int
+    {
+        return $this->fake->totalReservedSize();
+    }
+
+    /**
      * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
      */
     public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int
     {
         return $this->fake->creationTimeOfOldestPendingJob($queue);
+    }
+
+    /**
+     * Get the pending jobs for the given queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function pendingJobs(UnitEnum|string|null $queue = null): Collection
+    {
+        return $this->fake->pendingJobs($queue);
+    }
+
+    /**
+     * Get the delayed jobs for the given queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function delayedJobs(UnitEnum|string|null $queue = null): Collection
+    {
+        return $this->fake->delayedJobs($queue);
+    }
+
+    /**
+     * Get the reserved jobs for the given queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function reservedJobs(UnitEnum|string|null $queue = null): Collection
+    {
+        return $this->fake->reservedJobs($queue);
+    }
+
+    /**
+     * Get all pending jobs across every queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function allPendingJobs(): Collection
+    {
+        return $this->fake->allPendingJobs();
+    }
+
+    /**
+     * Get all delayed jobs across every queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function allDelayedJobs(): Collection
+    {
+        return $this->fake->allDelayedJobs();
+    }
+
+    /**
+     * Get all reserved jobs across every queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function allReservedJobs(): Collection
+    {
+        return $this->fake->allReservedJobs();
     }
 
     /**

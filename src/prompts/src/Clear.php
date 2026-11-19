@@ -18,7 +18,7 @@ class Clear extends Prompt
 
         $frame = $this->renderTheme();
 
-        $this->writeDirectly(static::output()->isDecorated() ? $frame : Utils::stripTerminalControls($frame));
+        $this->writeDirectly(static::canControlTerminal() ? $frame : Utils::stripTerminalControls($frame));
 
         return true;
     }

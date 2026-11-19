@@ -18,6 +18,13 @@ use WeakReference;
  */
 class Progress extends Prompt
 {
+    use Concerns\RendersAnimations;
+
+    /**
+     * The minimum time between automatic redraws, matching Symfony's 25 frames per second.
+     */
+    protected const int REDRAW_INTERVAL_NANOSECONDS = 40_000_000;
+
     /**
      * The current progress bar item count.
      */
@@ -27,6 +34,16 @@ class Progress extends Prompt
      * The total number of steps.
      */
     public int $total = 0;
+
+    /**
+     * Whether the progress bar is only rendered when it finishes.
+     */
+    protected bool $static = false;
+
+    /**
+     * When the progress bar was last rendered, in nanoseconds.
+     */
+    protected int $renderedAt = 0;
 
     /**
      * The original value of pcntl_async_signals.
@@ -121,6 +138,7 @@ class Progress extends Prompt
         $this->progress = 0;
         $this->state = 'initial';
         $this->prevFrame = '';
+        $this->static = $this->shouldRenderStatically();
         $this->capturePreviousNewLines();
 
         if (function_exists('pcntl_signal') && ! Coroutine::inCoroutine()) {
@@ -151,7 +169,7 @@ class Progress extends Prompt
         try {
             $this->hideCursor();
 
-            if (static::output()->isDecorated()) {
+            if (! $this->static) {
                 $this->render();
             }
 
@@ -172,7 +190,8 @@ class Progress extends Prompt
             $this->progress = $this->total;
         }
 
-        if (static::output()->isDecorated()) {
+        // Unlike Laravel, automatic redraws are limited, because each one reads the terminal size through a subprocess.
+        if (! $this->static && ($this->progress === $this->total || hrtime(true) - $this->renderedAt >= self::REDRAW_INTERVAL_NANOSECONDS)) {
             $this->render();
         }
     }
@@ -222,6 +241,8 @@ class Progress extends Prompt
     public function render(): void
     {
         parent::render();
+
+        $this->renderedAt = hrtime(true);
     }
 
     /**
@@ -229,7 +250,7 @@ class Progress extends Prompt
      */
     protected function renderTerminalFrame(): void
     {
-        if (static::output()->isDecorated()) {
+        if (! $this->static) {
             $this->render();
 
             return;

@@ -19,4 +19,14 @@ class ClearPromptTest extends TestCase
 
         Prompt::assertOutputContains("\033[H\033[J");
     }
+
+    public function testDoesNotClearOutputThatIsNotATerminal(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('isOutputTty')->andReturn(false);
+
+        clear();
+
+        Prompt::assertOutputDoesntContain("\033[H\033[J");
+    }
 }

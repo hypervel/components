@@ -87,7 +87,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function totalSize(): int
     {
-        return $this->manager->connection($this->connections[0])->totalSize(); // @phpstan-ignore method.notFound (optional driver capability outside the Queue contract)
+        return $this->manager->connection($this->connections[0])->totalSize();
     }
 
     /**
@@ -95,7 +95,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function totalPendingSize(): int
     {
-        return $this->manager->connection($this->connections[0])->totalPendingSize(); // @phpstan-ignore method.notFound (optional driver capability outside the Queue contract)
+        return $this->manager->connection($this->connections[0])->totalPendingSize();
     }
 
     /**
@@ -103,7 +103,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function totalDelayedSize(): int
     {
-        return $this->manager->connection($this->connections[0])->totalDelayedSize(); // @phpstan-ignore method.notFound (optional driver capability outside the Queue contract)
+        return $this->manager->connection($this->connections[0])->totalDelayedSize();
     }
 
     /**
@@ -111,7 +111,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function totalReservedSize(): int
     {
-        return $this->manager->connection($this->connections[0])->totalReservedSize(); // @phpstan-ignore method.notFound (optional driver capability outside the Queue contract)
+        return $this->manager->connection($this->connections[0])->totalReservedSize();
     }
 
     /**
@@ -119,7 +119,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function pendingJobs(UnitEnum|string|null $queue = null): Collection
     {
-        return $this->manager->connection($this->connections[0])->pendingJobs($this->resolveForwardedQueue($queue)); // @phpstan-ignore method.notFound (optional driver capability outside the Queue contract)
+        return $this->manager->connection($this->connections[0])->pendingJobs($this->resolveForwardedQueue($queue));
     }
 
     /**
@@ -127,7 +127,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function delayedJobs(UnitEnum|string|null $queue = null): Collection
     {
-        return $this->manager->connection($this->connections[0])->delayedJobs($this->resolveForwardedQueue($queue)); // @phpstan-ignore method.notFound (optional driver capability outside the Queue contract)
+        return $this->manager->connection($this->connections[0])->delayedJobs($this->resolveForwardedQueue($queue));
     }
 
     /**
@@ -135,7 +135,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function reservedJobs(UnitEnum|string|null $queue = null): Collection
     {
-        return $this->manager->connection($this->connections[0])->reservedJobs($this->resolveForwardedQueue($queue)); // @phpstan-ignore method.notFound (optional driver capability outside the Queue contract)
+        return $this->manager->connection($this->connections[0])->reservedJobs($this->resolveForwardedQueue($queue));
     }
 
     /**
@@ -143,7 +143,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function allPendingJobs(): Collection
     {
-        return $this->manager->connection($this->connections[0])->allPendingJobs(); // @phpstan-ignore method.notFound (optional driver capability outside the Queue contract)
+        return $this->manager->connection($this->connections[0])->allPendingJobs();
     }
 
     /**
@@ -151,7 +151,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function allDelayedJobs(): Collection
     {
-        return $this->manager->connection($this->connections[0])->allDelayedJobs(); // @phpstan-ignore method.notFound (optional driver capability outside the Queue contract)
+        return $this->manager->connection($this->connections[0])->allDelayedJobs();
     }
 
     /**
@@ -159,7 +159,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function allReservedJobs(): Collection
     {
-        return $this->manager->connection($this->connections[0])->allReservedJobs(); // @phpstan-ignore method.notFound (optional driver capability outside the Queue contract)
+        return $this->manager->connection($this->connections[0])->allReservedJobs();
     }
 
     /**

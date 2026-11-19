@@ -52,7 +52,6 @@ class UsedViewMakeCollector implements Collector
             return null;
         }
 
-        // Upstream reads the first argument by position, which misses reordered named arguments.
         return $this->getViewNames($node->getArg('view', 0)?->value, $scope);
     }
 }

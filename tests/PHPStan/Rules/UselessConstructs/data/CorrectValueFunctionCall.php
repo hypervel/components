@@ -19,8 +19,10 @@ class CorrectValueFunctionCall
         return value(...$arguments);
     }
 
-    public function reorderedNamed(): string
+    public function namedArguments(): string
     {
-        return value(foo: 1, value: static fn (int $foo) => 'foo');
+        return value(foo: 1, value: static function (int $foo) {
+            return 'foo';
+        });
     }
 }

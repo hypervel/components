@@ -54,7 +54,7 @@ class NoUnnecessaryCollectionCallRuleTest extends RuleTestCase
         // Hypervel: App\User uses SoftDeletes, whose global scope the rule cannot show leaves the result unchanged,
         // so lines 18, 23, 29, 34, 39, 62, 72 and 92 are not reported. Line 45 calls a relation and line 57 a variable,
         // whose queries are not in view.
-        // REMOVED: contains() (line 67), where() (78), diff() (84), containsStrict() (97) and sum() (103), whose query
+        // REMOVED: contains() (lines 67 and 108), where() (78), diff() (84), containsStrict() (97) and sum() (103), whose query
         // forms compare or aggregate values differently.
         $this->analyse([__DIR__ . '/data/UnnecessaryCollectionCallsEloquent.php'], [
             ['Called \'count\' on Hypervel collection, but could have been retrieved as a query with \'count()\'.', 50],

@@ -131,7 +131,9 @@ class PooledJobWorkerTest extends TestCase
         $events->expects('hasListeners')->with(JobReleasedAfterException::class)->returns(true);
         $events->expects('hasListeners')->with(JobAttempted::class)->returns(true);
         $events->expects('dispatch')->times(4)->returns([]);
-        $worker = new Worker(Double::for(Factory::class)->strict(), $events, Double::for(ExceptionHandler::class)->strict(), fn () => false);
+        $exceptions = Double::for(ExceptionHandler::class)->strict();
+        $exceptions->allows('shouldStopRetries')->returns(false);
+        $worker = new Worker(Double::for(Factory::class)->strict(), $events, $exceptions, fn () => false);
 
         try {
             $worker->process('connection', $job, new WorkerOptions(maxTries: 0, backoff: 3));
@@ -171,7 +173,9 @@ class PooledJobWorkerTest extends TestCase
         $events->expects('hasListeners')->with(JobAttempted::class)->returns(true);
         $events->expects('dispatch')->times(4)->returns([]);
         $container->instance(Dispatcher::class, $events);
-        $worker = new Worker(Double::for(Factory::class)->strict(), $events, Double::for(ExceptionHandler::class)->strict(), fn () => false);
+        $exceptions = Double::for(ExceptionHandler::class)->strict();
+        $exceptions->allows('shouldStopRetries')->returns(false);
+        $worker = new Worker(Double::for(Factory::class)->strict(), $events, $exceptions, fn () => false);
 
         try {
             $worker->process('connection', $job, new WorkerOptions(maxTries: 1));

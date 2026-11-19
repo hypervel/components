@@ -18,6 +18,7 @@ use Throwable;
 
 class Task extends Prompt
 {
+    use Concerns\RendersAnimations;
     use Concerns\TracksTaskOutput;
 
     /**
@@ -154,7 +155,7 @@ class Task extends Prompt
 
             $this->capturePreviousNewLines();
 
-            if (! static::output()->isDecorated()) {
+            if ($this->shouldRenderStatically()) {
                 return $this->renderStatically($callback);
             }
 
