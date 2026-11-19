@@ -129,5 +129,44 @@ class RetryJobTest extends IntegrationTestCase
         $this->assertSame(['stored-tag'], $payload['tags']);
         $this->assertTrue($payload['silenced']);
         $this->assertIsNumeric($payload['pushedAt']);
+        $this->assertArrayNotHasKey('batchJobId', $payload);
+    }
+
+    public function testRetriesOfABatchedJobCarryTheOriginalBatchJobId(): void
+    {
+        $repository = $this->app->make(JobRepository::class);
+
+        $repository->failed(new Exception('Failed Job'), 'redis', 'default', new JobPayload(json_encode([
+            'id' => 'original-id',
+            'uuid' => 'original-id',
+            'displayName' => 'foo',
+            'job' => 'Illuminate\Queue\CallQueuedHandler@call',
+            'data' => [
+                'commandName' => FailingJob::class,
+                'command' => serialize(new FailingJob),
+                'batchId' => 'batch-id',
+            ],
+        ])));
+
+        dispatch(new RetryFailedJob('original-id'));
+        $this->work();
+
+        $firstRetryId = json_decode(Redis::connection('horizon')->hGet('original-id', 'retried_by'), true)[0]['id'];
+        $firstRetry = Redis::connection('horizon')->hGet($firstRetryId, 'payload');
+
+        $this->assertSame('original-id', json_decode($firstRetry, true)['batchJobId']);
+
+        // Retrying the failed retry keeps the original ID rather than the retry's UUID.
+        $repository->failed(new Exception('Failed Job'), 'redis', 'default', new JobPayload($firstRetry));
+
+        dispatch(new RetryFailedJob($firstRetryId));
+        $this->work();
+
+        $secondRetryId = json_decode(Redis::connection('horizon')->hGet($firstRetryId, 'retried_by'), true)[0]['id'];
+        $secondRetry = json_decode(Redis::connection('horizon')->hGet($secondRetryId, 'payload'), true);
+
+        $this->assertNotSame($firstRetryId, $secondRetry['uuid']);
+        $this->assertSame($firstRetryId, $secondRetry['retry_of']);
+        $this->assertSame('original-id', $secondRetry['batchJobId']);
     }
 }

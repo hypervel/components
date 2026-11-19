@@ -11,6 +11,7 @@ use Hypervel\Bus\Events\BatchStarted;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
+use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolverInterface;
@@ -160,6 +161,18 @@ class Batch implements Arrayable, JsonSerializable
     }
 
     /**
+     * Get the ID the batch records for the given queued job.
+     *
+     * Horizon gives each retry a new UUID, so a retried batch job carries its original ID in the payload.
+     *
+     * @internal
+     */
+    public static function jobIdFor(Job $job): ?string
+    {
+        return $job->payload()['batchJobId'] ?? $job->uuid();
+    }
+
+    /**
      * Record that a job within the batch finished successfully, executing any callbacks if necessary.
      */
     public function recordSuccessfulJob(string $jobId): void
@@ -203,6 +216,8 @@ class Batch implements Arrayable, JsonSerializable
         if ($counts->pendingJobs === 0 && $this->hasThenCallbacks()) {
             $this->invokeCallbacks('then');
         }
+
+        $this->markAsFinishedIfOnlyFailuresRemain($counts);
 
         if ($counts->allJobsHaveRanExactlyOnce() && $this->hasFinallyCallbacks()) {
             $this->invokeCallbacks('finally');
@@ -314,6 +329,8 @@ class Batch implements Arrayable, JsonSerializable
             $this->invokeCallbacks('catch', $e);
         }
 
+        $this->markAsFinishedIfOnlyFailuresRemain($counts);
+
         if ($counts->allJobsHaveRanExactlyOnce() && $this->hasFinallyCallbacks()) {
             $this->invokeCallbacks('finally');
         }
@@ -325,6 +342,21 @@ class Batch implements Arrayable, JsonSerializable
     public function incrementFailedJobs(string $jobId): ?UpdatedBatchJobCounts
     {
         return $this->repository->incrementFailedJobs($this->id, $jobId);
+    }
+
+    /**
+     * Mark a batch that allows failures as finished once every remaining job has failed.
+     */
+    protected function markAsFinishedIfOnlyFailuresRemain(UpdatedBatchJobCounts $counts): void
+    {
+        // Repositories that report completedFirstPass already finished the batch in their locked update.
+        if ($counts->completedFirstPass !== null) {
+            return;
+        }
+
+        if ($this->allowsFailures() && $counts->pendingJobs > 0 && $counts->allJobsHaveRanExactlyOnce()) {
+            $this->repository->markAsFinished($this->id);
+        }
     }
 
     /**

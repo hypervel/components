@@ -11,6 +11,7 @@ use Hypervel\Bus\BatchFactory;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\ChainedBatch;
 use Hypervel\Bus\DatabaseBatchRepository;
+use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Events\BatchCanceled;
 use Hypervel\Bus\Events\BatchFinished;
 use Hypervel\Bus\Events\BatchStarted;
@@ -30,6 +31,9 @@ use Hypervel\Events\Dispatcher as EventsDispatcher;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\CallQueuedClosure;
+use Hypervel\Queue\CallQueuedHandler;
+use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\Jobs\FakeJob;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Bus;
@@ -77,6 +81,8 @@ class BusBatchTest extends TestCase
         $_SERVER['__progress.count'] = 0;
         $_SERVER['__then.count'] = 0;
         $_SERVER['__catch.count'] = 0;
+
+        RetriedBatchJob::$handled = false;
     }
 
     /**
@@ -451,8 +457,9 @@ class BusBatchTest extends TestCase
         $batch = $batch->add([$job, $secondJob]);
         $this->assertEquals(2, $batch->pendingJobs);
 
-        $batch->recordFailedJob('test-id', new RuntimeException('Something went wrong.'));
-        $batch->recordFailedJob('test-id', new RuntimeException('Something else went wrong.'));
+        // Distinct IDs: Laravel records 'test-id' twice, which is one job failing twice, not every job running.
+        $batch->recordFailedJob('first-id', new RuntimeException('Something went wrong.'));
+        $batch->recordFailedJob('second-id', new RuntimeException('Something else went wrong.'));
 
         $this->assertInstanceOf(Batch::class, $_SERVER['__finally.batch']);
         $this->assertFalse(isset($_SERVER['__then.batch']));
@@ -492,20 +499,207 @@ class BusBatchTest extends TestCase
         $batch = $batch->add([$job, $secondJob]);
         $this->assertEquals(2, $batch->pendingJobs);
 
-        $batch->recordFailedJob('test-id', new RuntimeException('Something went wrong.'));
-        $batch->recordFailedJob('test-id', new RuntimeException('Something else went wrong.'));
+        // Distinct IDs: Laravel records 'test-id' twice, which is one job failing twice, not every job running.
+        $batch->recordFailedJob('first-id', new RuntimeException('Something went wrong.'));
+        $batch->recordFailedJob('second-id', new RuntimeException('Something else went wrong.'));
 
-        // While allowing failures this batch never actually completes...
         $this->assertFalse(isset($_SERVER['__then.batch']));
 
         $batch = $batch->fresh();
         $this->assertEquals(2, $batch->pendingJobs);
         $this->assertEquals(2, $batch->failedJobs);
-        $this->assertFalse($batch->finished());
+        $this->assertTrue($batch->finished());
+        $this->assertTrue($_SERVER['__finally.batch']->finished());
         $this->assertFalse($batch->cancelled());
         $this->assertEquals(1, $_SERVER['__catch.count']);
         $this->assertEquals(2, $_SERVER['__progress.count']);
         $this->assertSame('Something went wrong.', $_SERVER['__catch.exception']->getMessage());
+    }
+
+    public function testBatchAllowingFailuresIsFinishedWhenTheLastJobSucceedsAfterAFailure(): void
+    {
+        $queue = Double::for(Factory::class)->strict();
+
+        $batch = $this->createTestBatch($queue, $allowFailures = true);
+
+        $connection = Double::for(QueueContract::class)->strict();
+        $queue->expects('connection')->with('test-connection')->returns($connection);
+
+        $connection->expects('bulk');
+
+        $batch = $batch->add([new class {
+            use Batchable;
+        }, new class {
+            use Batchable;
+        }]);
+
+        $batch->recordFailedJob('first-id', new RuntimeException('Something went wrong.'));
+
+        $this->assertFalse($batch->fresh()->finished());
+
+        $batch->recordSuccessfulJob('second-id');
+
+        $batch = $batch->fresh();
+        $this->assertTrue($batch->finished());
+        $this->assertEquals(1, $batch->pendingJobs);
+        $this->assertSame(['first-id'], $batch->failedJobIds);
+        $this->assertEquals(0, $_SERVER['__then.count']);
+        $this->assertEquals(1, $_SERVER['__finally.count']);
+        $this->assertTrue($_SERVER['__finally.batch']->finished());
+
+        $batch->recordSuccessfulJob('first-id');
+
+        $this->assertSame([], $batch->fresh()->failedJobIds);
+        $this->assertEquals(1, $_SERVER['__then.count']);
+    }
+
+    public function testRetriedJobsDoNotCompleteTheBatchUntilEveryJobHasRun(): void
+    {
+        $queue = Double::for(Factory::class)->strict();
+
+        $batch = $this->createTestBatch($queue, $allowFailures = true);
+
+        $connection = Double::for(QueueContract::class)->strict();
+        $queue->expects('connection')->with('test-connection')->returns($connection);
+
+        $connection->expects('bulk');
+
+        $batch = $batch->add([new class {
+            use Batchable;
+        }, new class {
+            use Batchable;
+        }]);
+
+        $batch->recordFailedJob('first-id', new RuntimeException('Something went wrong.'));
+        $batch->recordFailedJob('first-id', new RuntimeException('The retry failed too.'));
+        $batch->recordSuccessfulJob('first-id');
+
+        $this->assertFalse($batch->fresh()->finished());
+        $this->assertEquals(0, $_SERVER['__finally.count']);
+
+        $batch->recordSuccessfulJob('second-id');
+
+        $this->assertTrue($batch->fresh()->finished());
+        $this->assertEquals(1, $_SERVER['__then.count']);
+        $this->assertEquals(1, $_SERVER['__finally.count']);
+    }
+
+    public function testRetriedJobDoesItsWorkAfterItsBatchFinishedWithFailures(): void
+    {
+        $queue = Double::for(Factory::class)->strict();
+
+        $batch = $this->createTestBatch($queue, $allowFailures = true);
+
+        $connection = Double::for(QueueContract::class)->strict();
+        $queue->expects('connection')->with('test-connection')->returns($connection);
+
+        $connection->expects('bulk');
+
+        $batch = $batch->add([new RetriedBatchJob, new RetriedBatchJob]);
+
+        $batch->recordFailedJob('first-id', new RuntimeException('Something went wrong.'));
+        $batch->recordSuccessfulJob('second-id');
+
+        $this->assertTrue($batch->fresh()->finished());
+
+        $handler = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
+        $command = serialize((new RetriedBatchJob)->withBatchId($batch->id));
+
+        // Horizon gives each retry a new UUID and carries the original batch job ID.
+        $handler->failed(['command' => $command], new RuntimeException('The retry failed.'), 'first-retry-uuid', new FakeJob([
+            'uuid' => 'first-retry-uuid',
+            'batchJobId' => 'first-id',
+        ]));
+
+        $this->assertSame(['first-id'], $batch->fresh()->failedJobIds);
+        $this->assertEquals(1, $_SERVER['__finally.count']);
+
+        $handler->call(new FakeJob(['uuid' => 'second-retry-uuid', 'batchJobId' => 'first-id']), ['command' => $command]);
+
+        $this->assertTrue(RetriedBatchJob::$handled);
+        $this->assertSame([], $batch->fresh()->failedJobIds);
+        $this->assertEquals(1, $_SERVER['__then.count']);
+    }
+
+    public function testWorkAddedWhileOnlyFailuresRemainReopensTheBatch(): void
+    {
+        $queue = Double::for(Factory::class)->strict();
+        $connection = Double::for(QueueContract::class)->strict();
+        $queue->expects('connection')->times(2)->returns($connection);
+        $connection->expects('bulk')->times(2);
+
+        $repository = new DatabaseBatchRepository(new BatchFactory($queue), $this->app->make('db'), 'job_batches');
+
+        // The failure callback stands in for a retried job adding work just as the batch finishes.
+        $batch = $repository->store((new PendingBatch($this->app, Collection::make()))->allowFailures(
+            fn (Batch $batch) => $batch->add([new TestBatchJob]),
+        ));
+
+        $batch = $batch->add([new TestBatchJob]);
+        $batch->recordFailedJob('first-id', new RuntimeException('Something went wrong.'));
+
+        $batch = $batch->fresh();
+        $this->assertFalse($batch->finished());
+        $this->assertSame(2, $batch->pendingJobs);
+    }
+
+    public function testFinishingWithFailuresKeepsAnEarlierCancellationTime(): void
+    {
+        $queue = Double::for(Factory::class)->strict();
+
+        $batch = $this->createTestBatch($queue, $allowFailures = true);
+
+        $connection = Double::for(QueueContract::class)->strict();
+        $queue->expects('connection')->with('test-connection')->returns($connection);
+
+        $connection->expects('bulk');
+
+        $batch = $batch->add([new TestBatchJob]);
+
+        $this->app->make('db')->table('job_batches')->where('id', $batch->id)->update([
+            'cancelled_at' => 100,
+            'finished_at' => 100,
+        ]);
+
+        $batch->recordFailedJob('first-id', new RuntimeException('Something went wrong.'));
+
+        $this->assertSame(100, $batch->fresh()->finishedAt->getTimestamp());
+    }
+
+    public function testBatchesNotAllowingFailuresAreOnlyFinishedByCancellation(): void
+    {
+        $queue = Double::for(Factory::class)->strict();
+
+        $batch = $this->createTestBatch($queue);
+
+        $connection = Double::for(QueueContract::class)->strict();
+        $queue->expects('connection')->with('test-connection')->returns($connection);
+
+        $connection->expects('bulk');
+
+        $batch = $batch->add([new TestBatchJob]);
+
+        $finishedWhenStarted = null;
+        $this->app->make(EventDispatcher::class)->listen(BatchStarted::class, function (BatchStarted $event) use (&$finishedWhenStarted): void {
+            $finishedWhenStarted = $event->batch->fresh()->finished();
+        });
+
+        $batch->recordFailedJob('first-id', new RuntimeException('Something went wrong.'));
+
+        $this->assertFalse($finishedWhenStarted);
+        $this->assertTrue($batch->fresh()->cancelled());
+    }
+
+    public function testRepositoriesWithoutFirstPassReportingFinishBatchesAfterTheCallbacks(): void
+    {
+        $repository = Double::for(BatchRepository::class)->strict();
+        $batch = new Batch(Double::for(Factory::class)->strict(), $repository, 'batch', 'batch', 1, 1, 0, [], [
+            'allowFailures' => true,
+        ], CarbonImmutable::now());
+        $repository->expects('incrementFailedJobs')->with('batch', 'job')->returns(new UpdatedBatchJobCounts(1, 1));
+        $repository->expects('markAsFinished')->with('batch');
+
+        $batch->recordFailedJob('job', new RuntimeException('Something went wrong.'));
     }
 
     public function testPendingBatchFiltersOutFalsyJobs(): void
@@ -1018,6 +1212,25 @@ class TestBatchJob implements ShouldQueue
      */
     public function handle(): void
     {
+    }
+}
+
+class RetriedBatchJob implements ShouldQueue
+{
+    use Batchable;
+    use InteractsWithQueue;
+    use Queueable;
+
+    public static bool $handled = false;
+
+    /**
+     * Do the job's work while its batch still includes it.
+     */
+    public function handle(): void
+    {
+        if ($this->batching()) {
+            static::$handled = true;
+        }
     }
 }
 

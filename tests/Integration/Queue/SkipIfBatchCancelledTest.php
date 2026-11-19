@@ -57,6 +57,7 @@ class SkipIfBatchCancelledTest extends TestCase
 
         $job = Double::for(Job::class)->strict();
 
+        $job->expects('payload')->returns([]);
         $job->expects('uuid')->returns('simple-test-uuid');
         $job->expects('hasFailed')->returns(false);
         $job->allows('isReleased')->returns(false);

@@ -106,17 +106,29 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     public function decrementPendingJobs(string $batchId, string $jobId): ?UpdatedBatchJobCounts
     {
-        $values = $this->updateAtomicValues($batchId, function ($batch) use ($jobId) {
+        $completedFirstPass = false;
+
+        $values = $this->updateAtomicValues($batchId, function ($batch) use ($jobId, &$completedFirstPass) {
+            $failedJobIds = (array) json_decode($batch->failed_job_ids, true);
+            $remainingFailedJobIds = array_values(array_diff($failedJobIds, [$jobId]));
+            $pendingJobs = $batch->pending_jobs - 1;
+
+            $completedFirstPass = $this->completesFirstPass(
+                $batch->pending_jobs - count($failedJobIds),
+                $pendingJobs - count($remainingFailedJobIds),
+            );
+
             return [
-                'pending_jobs' => $batch->pending_jobs - 1,
+                'pending_jobs' => $pendingJobs,
                 'failed_jobs' => $batch->failed_jobs,
-                'failed_job_ids' => json_encode(array_values(array_diff((array) json_decode($batch->failed_job_ids, true), [$jobId]))),
-            ];
+                'failed_job_ids' => json_encode($remainingFailedJobIds),
+            ] + $this->finishWhenOnlyFailuresRemain($batch, $pendingJobs, $completedFirstPass);
         });
 
         return $values === null ? null : new UpdatedBatchJobCounts(
             $values['pending_jobs'],
-            $values['failed_jobs']
+            $values['failed_jobs'],
+            $completedFirstPass,
         );
     }
 
@@ -125,18 +137,60 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     public function incrementFailedJobs(string $batchId, string $jobId): ?UpdatedBatchJobCounts
     {
-        $values = $this->updateAtomicValues($batchId, function ($batch) use ($jobId) {
+        $completedFirstPass = false;
+
+        $values = $this->updateAtomicValues($batchId, function ($batch) use ($jobId, &$completedFirstPass) {
+            $failedJobIds = (array) json_decode($batch->failed_job_ids, true);
+            $updatedFailedJobIds = array_values(array_unique(array_merge($failedJobIds, [$jobId])));
+
+            $completedFirstPass = $this->completesFirstPass(
+                $batch->pending_jobs - count($failedJobIds),
+                $batch->pending_jobs - count($updatedFailedJobIds),
+            );
+
             return [
                 'pending_jobs' => $batch->pending_jobs,
                 'failed_jobs' => $batch->failed_jobs + 1,
-                'failed_job_ids' => json_encode(array_values(array_unique(array_merge((array) json_decode($batch->failed_job_ids, true), [$jobId])))),
-            ];
+                'failed_job_ids' => json_encode($updatedFailedJobIds),
+            ] + $this->finishWhenOnlyFailuresRemain($batch, $batch->pending_jobs, $completedFirstPass);
         });
 
         return $values === null ? null : new UpdatedBatchJobCounts(
             $values['pending_jobs'],
-            $values['failed_jobs']
+            $values['failed_jobs'],
+            $completedFirstPass,
         );
+    }
+
+    /**
+     * Determine if an update ran the batch's last job that had not yet run.
+     *
+     * Failed jobs stay pending until they succeed, so the jobs that have not yet run are the pending
+     * jobs minus the distinct failed jobs. A job that fails again on retry is only counted once.
+     */
+    protected function completesFirstPass(int $notYetRunBefore, int $notYetRunAfter): bool
+    {
+        return $notYetRunBefore > 0 && $notYetRunAfter <= 0;
+    }
+
+    /**
+     * Get the finish time to store when only failed jobs remain in a batch that allows failures.
+     *
+     * Unlike Laravel, the batch is finished in the same locked update instead of after the job's callbacks, so a job
+     * added to the batch at the same moment reopens it instead of being stranded in a finished batch. An existing
+     * finish time, such as a cancellation's, is kept.
+     *
+     * @return array{finished_at?: int}
+     */
+    protected function finishWhenOnlyFailuresRemain(object $batch, int $pendingJobs, bool $completedFirstPass): array
+    {
+        if (! $completedFirstPass || $pendingJobs <= 0 || $batch->finished_at !== null) {
+            return [];
+        }
+
+        return ($this->unserialize($batch->options)['allowFailures'] ?? false) === true
+            ? ['finished_at' => time()]
+            : [];
     }
 
     /**

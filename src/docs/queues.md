@@ -2758,6 +2758,8 @@ $batch = Bus::batch([
 })->dispatch();
 ```
 
+A batch that allows failures is marked as finished once each of its jobs has run, even if some of them failed. Its failed jobs may still be retried, and the batch's `then` callbacks will run once every job has completed successfully.
+
 <a name="retrying-failed-batch-jobs"></a>
 #### Retrying Failed Batch Jobs
 
@@ -2786,7 +2788,7 @@ use Hypervel\Support\Facades\Schedule;
 Schedule::command('queue:prune-batches --hours=48')->daily();
 ```
 
-Sometimes, your `job_batches` table may accumulate batch records for batches that never completed successfully, such as batches where a job failed and that job was never retried successfully. You may instruct the `queue:prune-batches` command to prune these unfinished batch records using the `unfinished` option:
+Sometimes, your `job_batches` table may accumulate batch records for batches that never finished, such as batches whose jobs were cleared from the queue before they could run. Batches that [allow failures](#allowing-failures) finish once every job has run, so they are pruned along with other finished batches. You may instruct the `queue:prune-batches` command to prune these unfinished batch records using the `unfinished` option:
 
 ```php
 use Hypervel\Support\Facades\Schedule;

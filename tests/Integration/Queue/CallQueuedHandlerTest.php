@@ -183,8 +183,8 @@ class CallQueuedHandlerTest extends TestCase
         $job->expects('markAsFailed')->never();
         $job->expects('delete');
         $job->expects('fail')->never();
-        $job->expects('uuid')->times(3)->returns('job-uuid');
-        $job->expects('payload')->times(2)->returns([
+        $job->expects('uuid')->times(1)->returns('job-uuid');
+        $job->expects('payload')->times(3)->returns([
             'deleteWhenMissingModels' => true,
             'data' => [
                 'batchId' => 'test-batch-id',

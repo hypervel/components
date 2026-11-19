@@ -6,6 +6,7 @@ namespace Hypervel\Queue;
 
 use __PHP_Incomplete_Class;
 use Exception;
+use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\DebounceLock;
@@ -202,7 +203,7 @@ class CallQueuedHandler
         }
 
         if ($batch = $command->batch()) {
-            $batch->recordSuccessfulJob($command->job->uuid());
+            $batch->recordSuccessfulJob(Batch::jobIdFor($command->job));
         }
     }
 
@@ -461,15 +462,16 @@ class CallQueuedHandler
         }
 
         $batchId = $job->payload()['data']['batchId'] ?? null;
+        $jobId = Batch::jobIdFor($job);
 
         if ((! is_string($batchId) || $batchId === '')
-            || ! is_string($job->uuid()) || $job->uuid() === ''
+            || ! is_string($jobId) || $jobId === ''
         ) {
             return;
         }
 
         if ($batch = $this->container->make(BatchRepository::class)->find($batchId)) {
-            $batch->recordSuccessfulJob($job->uuid());
+            $batch->recordSuccessfulJob($jobId);
         }
     }
 
@@ -480,6 +482,8 @@ class CallQueuedHandler
      */
     public function failed(array $data, ?Throwable $e, string $uuid, ?Job $job = null): void
     {
+        $batchJobId = $job === null ? $uuid : (Batch::jobIdFor($job) ?? $uuid);
+
         try {
             $command = $this->getCommand($data);
         } catch (ModelNotFoundException $exception) {
@@ -489,7 +493,7 @@ class CallQueuedHandler
                 beforeProcessing: $job !== null && CoroutineContext::get(self::MISSING_MODEL_FAILURE_CONTEXT_KEY) === $job,
             );
 
-            $this->ensureFailedBatchJobIsRecordedForMissingModel($uuid, $data, $e);
+            $this->ensureFailedBatchJobIsRecordedForMissingModel($batchJobId, $data, $e);
 
             throw $exception;
         }
@@ -508,7 +512,7 @@ class CallQueuedHandler
             return;
         }
 
-        $this->ensureFailedBatchJobIsRecorded($uuid, $command, $e);
+        $this->ensureFailedBatchJobIsRecorded($batchJobId, $command, $e);
         $this->ensureChainCatchCallbacksAreInvoked($uuid, $command, $e);
 
         if (method_exists($command, 'failed')) {

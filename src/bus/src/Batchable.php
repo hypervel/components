@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Queue\Job;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Support\Testing\Fakes\BatchFake;
@@ -46,7 +47,13 @@ trait Batchable
     {
         $batch = $this->batch();
 
-        return $batch && ! $batch->finished() && ! $batch->cancelled();
+        if (! $batch || $batch->cancelled()) {
+            return false;
+        }
+
+        // Unlike Laravel, a failed job retried after its batch finished still belongs to the batch, so it does its work.
+        return ! $batch->finished()
+            || (($this->job ?? null) instanceof Job && in_array(Batch::jobIdFor($this->job), $batch->failedJobIds, true));
     }
 
     /**
