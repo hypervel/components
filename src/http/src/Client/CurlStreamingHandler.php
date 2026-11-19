@@ -18,11 +18,13 @@ use GuzzleHttp\Psr7\FnStream;
 use GuzzleHttp\Psr7\HttpFactory;
 use GuzzleHttp\TransportSharing;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Support\Sleep;
 use InvalidArgumentException;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Runtime;
 use Throwable;
 
@@ -97,7 +99,13 @@ class CurlStreamingHandler
             HostValidator::assertRequestHost($request);
 
             if (isset($options['delay'])) {
+                // An earlier, handled cancellation must not make this delay look canceled.
+                swoole_clear_error();
                 Sleep::usleep((int) ($options['delay'] * 1000));
+
+                if (EngineCoroutine::isCanceled() && swoole_last_error() === SWOOLE_ERROR_CO_CANCELED) {
+                    throw new CanceledException('The streaming request was canceled.');
+                }
             }
 
             $timeout = $this->timeout($options['timeout'] ?? 0, 'timeout');

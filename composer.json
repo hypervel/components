@@ -59,7 +59,7 @@
         "google/protobuf": "^5.35",
         "guzzlehttp/psr7": "^3.1",
         "guzzlehttp/uri-template": "^1.0 || ^2.0",
-        "hypervel/guzzle": "^8.3",
+        "hypervel/guzzle": "^8.5.0.2",
         "hypervel/guzzle-promises": "^3.1",
         "laravel/agent-detector": "^2.0.5",
         "laravel/serializable-closure": "^2.0.11",
