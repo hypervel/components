@@ -987,6 +987,15 @@ class DatabasePdoConnectionTest extends TestCase
         $this->assertSame($writePdo, $connection->getReadPdo());
     }
 
+    public function testWithoutAffectingStickiness(): void
+    {
+        $connection = new MySqlConnection(new PDOStub);
+
+        $connection->withoutAffectingStickiness(fn (MySqlConnection $connection) => $connection->recordsHaveBeenModified());
+
+        $this->assertFalse($connection->hasModifiedRecords());
+    }
+
     public function testExplicitPhysicalCommitFailureLeavesTheTransactionCallerOwned(): void
     {
         $failure = new RuntimeException('commit failure');

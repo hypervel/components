@@ -286,25 +286,31 @@ class FoundationExceptionsHandlerTest extends TestCase
 
     public function testHandlerMergesInlineContextIntoLogContext(): void
     {
-        $logger = Double::for(LoggerInterface::class)->strict();
-        $this->container->instance(LoggerInterface::class, $logger);
-        $logger->expects('error')->with('Exception message', Argument::satisfies(fn (array $context): bool => ($context['from'] ?? null) === 'user@example.com' && ($context['subject'] ?? null) === 'Hello'));
+        $logger = $this->getRealLogger();
 
         $this->handler->report(new RuntimeException('Exception message'), [
             'from' => 'user@example.com',
             'subject' => 'Hello',
         ]);
+
+        $this->assertCount(1, $logger->logs);
+        $this->assertSame('error', $logger->logs[0]['level']);
+        $this->assertSame('Exception message', $logger->logs[0]['message']);
+        $this->assertSame('user@example.com', $logger->logs[0]['context']['from']);
+        $this->assertSame('Hello', $logger->logs[0]['context']['subject']);
     }
 
     public function testHandlerInlineContextOverridesExceptionContext(): void
     {
-        $logger = Double::for(LoggerInterface::class)->strict();
-        $this->container->instance(LoggerInterface::class, $logger);
-        $logger->expects('error')->with('Exception message', Argument::satisfies(fn (array $context): bool => ($context['foo'] ?? null) === 'overridden'));
+        $logger = $this->getRealLogger();
 
         $this->handler->report(new ContextProvidingException('Exception message'), [
             'foo' => 'overridden',
         ]);
+
+        $this->assertCount(1, $logger->logs);
+        $this->assertSame('error', $logger->logs[0]['level']);
+        $this->assertSame('overridden', $logger->logs[0]['context']['foo']);
     }
 
     public function testReportableCallbackReceivesInlineContext(): void
@@ -404,13 +410,7 @@ class FoundationExceptionsHandlerTest extends TestCase
 
     public function testHandlerReportsExceptionWithInlineLogLevel(): void
     {
-        $logger = Double::for(LoggerInterface::class)->strict();
-        $this->container->instance(LoggerInterface::class, $logger);
-
-        $logger->expects('warning')->with(
-            'Warning message',
-            Argument::satisfies(fn (array $context): bool => ($context['from'] ?? null) === 'user@example.com'),
-        );
+        $logger = $this->getRealLogger();
 
         $this->handler->level(InvalidArgumentException::class, LogLevel::CRITICAL);
 
@@ -419,6 +419,11 @@ class FoundationExceptionsHandlerTest extends TestCase
             ['from' => 'user@example.com'],
             LogLevel::WARNING,
         );
+
+        $this->assertCount(1, $logger->logs);
+        $this->assertSame(LogLevel::WARNING, $logger->logs[0]['level']);
+        $this->assertSame('Warning message', $logger->logs[0]['message']);
+        $this->assertSame('user@example.com', $logger->logs[0]['context']['from']);
     }
 
     public function testHandlerIgnoresNotReportableExceptions(): void

@@ -2736,6 +2736,24 @@ class QueueWorkerTest extends TestCase
         $this->assertEquals(10, $job->releaseAfter);
     }
 
+    #[TestWith([[10, 20, 30], null])]
+    #[TestWith([3, '10,20,30'])]
+    #[TestWith([3, [10, 20, 30]])]
+    public function testBackoffScheduleUsesTheDelayForTheCurrentAttempt(array|int $workerBackoff, array|string|null $jobBackoff): void
+    {
+        $job = new WorkerFakeJob(function () {
+            throw new Exception('Something went wrong.');
+        });
+
+        $job->attempts = 2;
+        $job->backoff = $jobBackoff;
+
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+        $worker->runNextJob('default', 'queue', $this->workerOptions(['backoff' => $workerBackoff, 'maxTries' => 0]));
+
+        $this->assertSame(20, $job->releaseAfter);
+    }
+
     public function testJobRunsIfAppIsNotInMaintenanceMode(): void
     {
         $firstJob = new WorkerFakeJob(function ($job) {
@@ -4254,7 +4272,7 @@ class WorkerFakeJob implements Job, JobLifecycleCallbacks
         return $this->uuid;
     }
 
-    public function backoff(): ?int
+    public function backoff(): array|int|string|null
     {
         return $this->backoff;
     }

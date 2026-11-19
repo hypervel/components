@@ -375,6 +375,13 @@ class QueryBuilderTest extends DatabaseTestCase
                 $query->selectRaw("'Fake Post' as title");
             }, 'posts')->first()->title
         );
+
+        $this->assertSame(
+            'Fake Post',
+            DB::table(function ($query) {
+                $query->selectRaw("'Fake Post' as title");
+            })->first()->title
+        );
     }
 
     public function testWhereValueSubQuery(): void

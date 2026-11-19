@@ -16,6 +16,9 @@ use RuntimeException;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Finder\Finder;
+use Symfony\Component\Process\Process;
+
+use function Hypervel\Support\php_binary;
 
 abstract class GeneratorCommand extends Command implements PromptsForMissingInput
 {
@@ -183,10 +186,9 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
         // First we need to ensure that the given name is not a reserved word within the PHP
         // language and that the class name will actually be valid. If it is not valid we
         // can error now and prevent from polluting the filesystem using invalid files.
+        // Unlike Laravel, this fails so the command exits with an error and generates no companion files.
         if ($this->isReservedName($this->getNameInput())) {
-            $this->components->error('The name "' . $this->getNameInput() . '" is reserved by PHP.');
-
-            return false;
+            $this->fail('The name "' . $this->getNameInput() . '" is reserved by PHP.');
         }
 
         $name = $this->qualifyClass($this->getNameInput());
@@ -207,9 +209,13 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
         // Next, we will generate the path to the location where this class' file should get
         // written. Then, we will build the class and make the proper replacements on the
         // stub files so that it gets the correctly formatted namespace and class name.
+        $contents = $this->sortImports($this->buildClass($name));
+
+        $this->ensureGeneratedCodeCompiles($path, $contents);
+
         $this->makeDirectory($path);
 
-        $this->replaceFile($path, $this->sortImports($this->buildClass($name)));
+        $this->replaceFile($path, $contents);
 
         $info = $this->type;
 
@@ -483,6 +489,26 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
         $name = strtolower($name);
 
         return array_any($this->reservedNames, fn ($reservedName) => strtolower($reservedName) === $name);
+    }
+
+    /**
+     * Ensure the generated PHP compiles before it is written.
+     *
+     * Unlike Laravel, the command fails before writing the file, even with --force, instead of creating one that PHP
+     * refuses to load, such as a class named like a class it imports.
+     */
+    protected function ensureGeneratedCodeCompiles(string $path, string $contents): void
+    {
+        // Blade views are compiled by Blade before PHP reads them.
+        if (! str_ends_with($path, '.php') || str_ends_with($path, '.blade.php')) {
+            return;
+        }
+
+        $process = new Process([php_binary(), '-d', 'display_errors=stderr', '-d', 'log_errors=0', '-l'], input: $contents);
+
+        if ($process->run() !== 0) {
+            $this->fail(sprintf('The generated file [%s] is not valid PHP. %s', $path, trim($process->getErrorOutput())));
+        }
     }
 
     /**

@@ -37,6 +37,7 @@ use Hypervel\Validation\Rules\In;
 use Hypervel\Validation\Rules\InArray;
 use Hypervel\Validation\Rules\InArrayKeys;
 use Hypervel\Validation\Rules\IpAddress;
+use Hypervel\Validation\Rules\ListRule;
 use Hypervel\Validation\Rules\MissingIf;
 use Hypervel\Validation\Rules\MissingUnless;
 use Hypervel\Validation\Rules\MissingWith;
@@ -253,9 +254,9 @@ class Rule
     /**
      * Get a list validation rule.
      */
-    public static function list(): string
+    public static function list(): ListRule
     {
-        return 'list';
+        return new ListRule;
     }
 
     /**

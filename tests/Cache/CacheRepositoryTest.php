@@ -165,6 +165,19 @@ class CacheRepositoryTest extends TestCase
         $this->assertEquals([1 => null, 2 => null, 3 => null], $repo->get([1, 2, 3]));
     }
 
+    public function testGetDoesNotUseRequestedKeysAsDefaultsForNumericKeys(): void
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->expects('many')->with(['foo', '02', 'bar', '0'])->returns(['foo' => null, '02' => null, 'bar' => null, '0' => null]);
+        $repo->getStore()->expects('many')->with(['2', 'bar'])->returns(['2' => null, 'bar' => null]);
+
+        $this->assertSame(
+            ['foo' => 'default', '02' => 'zero-two', 'bar' => null, 0 => null],
+            $repo->get(['foo' => 'default', '02' => 'zero-two', 'bar', '0'])
+        );
+        $this->assertSame([2 => null, 'bar' => null], $repo->get([1 => '2', 2 => 'bar']));
+    }
+
     public function testDefaultValueIsReturned(): void
     {
         $repo = $this->getRepository();

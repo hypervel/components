@@ -6,6 +6,7 @@ namespace Hypervel\Queue;
 
 use __PHP_Incomplete_Class;
 use Exception;
+use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\DebounceLock;
@@ -173,8 +174,12 @@ class CallQueuedHandler
      */
     protected function setJobInstanceIfNecessary(Job $job, mixed $instance): mixed
     {
-        if (isset(class_uses_recursive($instance)[InteractsWithQueue::class])) {
+        $uses = class_uses_recursive($instance);
+
+        if (isset($uses[InteractsWithQueue::class])) {
             $instance->setJob($job);
+        } elseif (isset($uses[Batchable::class]) && ($instance->batchId ?? '') !== '') {
+            Batch::rememberJobIdForCommand($instance, $job);
         }
 
         return $instance;
@@ -195,14 +200,13 @@ class CallQueuedHandler
      */
     protected function ensureSuccessfulBatchJobIsRecorded(mixed $command): void
     {
-        $uses = class_uses_recursive($command);
-
-        if (! isset($uses[Batchable::class], $uses[InteractsWithQueue::class])) {
+        // Unlike Laravel, a batched command without InteractsWithQueue is counted too, so its batch can finish.
+        if (! isset(class_uses_recursive($command)[Batchable::class])) {
             return;
         }
 
-        if ($batch = $command->batch()) {
-            $batch->recordSuccessfulJob($command->job->uuid());
+        if (($batch = $command->batch()) && ($jobId = Batch::jobIdForCommand($command)) !== null) {
+            $batch->recordSuccessfulJob($jobId);
         }
     }
 
@@ -461,15 +465,16 @@ class CallQueuedHandler
         }
 
         $batchId = $job->payload()['data']['batchId'] ?? null;
+        $jobId = Batch::jobIdFor($job);
 
         if ((! is_string($batchId) || $batchId === '')
-            || ! is_string($job->uuid()) || $job->uuid() === ''
+            || ! is_string($jobId) || $jobId === ''
         ) {
             return;
         }
 
         if ($batch = $this->container->make(BatchRepository::class)->find($batchId)) {
-            $batch->recordSuccessfulJob($job->uuid());
+            $batch->recordSuccessfulJob($jobId);
         }
     }
 
@@ -480,6 +485,8 @@ class CallQueuedHandler
      */
     public function failed(array $data, ?Throwable $e, string $uuid, ?Job $job = null): void
     {
+        $batchJobId = $job === null ? $uuid : (Batch::jobIdFor($job) ?? $uuid);
+
         try {
             $command = $this->getCommand($data);
         } catch (ModelNotFoundException $exception) {
@@ -489,7 +496,7 @@ class CallQueuedHandler
                 beforeProcessing: $job !== null && CoroutineContext::get(self::MISSING_MODEL_FAILURE_CONTEXT_KEY) === $job,
             );
 
-            $this->ensureFailedBatchJobIsRecordedForMissingModel($uuid, $data, $e);
+            $this->ensureFailedBatchJobIsRecordedForMissingModel($batchJobId, $data, $e);
 
             throw $exception;
         }
@@ -508,7 +515,7 @@ class CallQueuedHandler
             return;
         }
 
-        $this->ensureFailedBatchJobIsRecorded($uuid, $command, $e);
+        $this->ensureFailedBatchJobIsRecorded($batchJobId, $command, $e);
         $this->ensureChainCatchCallbacksAreInvoked($uuid, $command, $e);
 
         if (method_exists($command, 'failed')) {

@@ -21,6 +21,8 @@
 
 ## Framework-wide
 
+- Remove native Windows runtime support across all Hypervel packages, including standalone packages that do not depend on Swoole. Remove code paths and test expectations used only when running on native Windows, and direct Windows developers to WSL 2 in the platform docs. Preserve public Laravel-compatible helpers and signatures. Keep handling Windows-originated input wherever it is valid on a supported host.
+
 - Audit the entire codebase for behavior missing from its contracts, designing them as complete greenfield framework interfaces rather than copying Laravel's omissions. Add methods every conforming implementation must provide, based on real consumers and implementation semantics; keep internal helpers and implementation- or driver-specific capabilities off general contracts. Update implementations, tests and public-contract documentation together.
 
 - In a separate PR, make factory-created dates immutable by contract, removing the application-wide mutable opt-out from `Date` / `DateFactory`, `now()` and `today()`. Audit custom classes, factories, callbacks and consumers; preserve useful timezone, locale and test-clock customization and immutable subclasses. Keep explicit mutable conversion at third-party boundaries. Update runtime enforcement, return types, tests and docs together, then tighten `hypervel/phpstan` typing and discarded-date diagnostics wherever immutability is guaranteed; retain accurate handling of external mutable dates. Review the Laravel API departures before implementation.
@@ -91,6 +93,8 @@ Remove older ways of doing things once a modern equivalent fully replaces them, 
   - **Assess at the same time.** The `bootXxx` and `initializeXxx` trait method conventions have `#[Boot]` and `#[Initialize]` equivalents. Check whether they fully replace those conventions and add them to this removal if so.
 
 ## Testing
+
+- Remove Pest integration from Artisan’s test runners and generators, Testbench, and the user documentation. Update the affected tests to cover PHPUnit behavior.
 
 - Finish switching the regular and nightly database jobs to Unix sockets, matching [laravel/framework#62323](https://github.com/laravel/framework/pull/62323). Swoole 6.3.0 RC2 fixes cold `caching_sha2_password` authentication over Unix sockets, and the MySQL 9.7 job and `UnixSocketAuthenticationTest` already run on a socket. Convert the remaining MySQL 8.4, MySQL Innovation and PostgreSQL 18 jobs. Keep the dedicated schema TLS check on TCP, and keep TCP coverage of MySQL Innovation's native dump path.
 

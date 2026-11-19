@@ -850,7 +850,9 @@ public function retryUntil(): DateTimeInterface
 }
 ```
 
-If both `retryUntil` and `tries` are defined, Hypervel gives precedence to the `retryUntil` method.
+For a fixed window from when the listener is dispatched to the queue, you may use the [RetryFor attribute](/docs/{{version}}/queues#time-based-attempts) instead, such as `#[RetryFor(minutes: 5)]`.
+
+If both a retry window and `tries` are defined, Hypervel gives precedence to the retry window.
 
 <a name="specifying-queued-listener-backoff"></a>
 #### Specifying Queued Listener Backoff

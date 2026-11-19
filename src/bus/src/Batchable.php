@@ -46,7 +46,13 @@ trait Batchable
     {
         $batch = $this->batch();
 
-        return $batch && ! $batch->finished() && ! $batch->cancelled();
+        if (! $batch || $batch->cancelled()) {
+            return false;
+        }
+
+        // Unlike Laravel, a failed job retried after its batch finished still belongs to the batch, so it does its work.
+        return ! $batch->finished()
+            || in_array(Batch::jobIdForCommand($this), $batch->failedJobIds, true);
     }
 
     /**

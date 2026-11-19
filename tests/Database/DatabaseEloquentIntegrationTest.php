@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Database\DatabaseEloquentIntegrationTest;
 use ArrayObject;
 use DateTimeInterface;
 use Exception;
+use Generator;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Attributes\Refreshes;
@@ -36,6 +37,7 @@ use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection as BaseCollection;
+use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Database\Fixtures\Enums\Bar;
@@ -757,6 +759,51 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
         $this->assertInstanceOf(Collection::class, $found);
         $this->assertCount(0, $found);
+    }
+
+    public function testFindOrFailWithACollectionOfModelsReturnsTheModels(): void
+    {
+        User::create(['id' => 1, 'email' => 'first@example.com']);
+        User::create(['id' => 2, 'email' => 'second@example.com']);
+
+        $found = User::findOrFail(User::all());
+
+        $this->assertInstanceOf(Collection::class, $found);
+        $this->assertSame([1, 2], $found->modelKeys());
+    }
+
+    public function testFindWithModelsQueriesOnlyTheirKeys(): void
+    {
+        $first = Post::create(['id' => 1, 'user_id' => 3, 'name' => 'First']);
+        $second = Post::create(['id' => 2, 'user_id' => 3, 'name' => 'Second']);
+        Post::create(['id' => 3, 'user_id' => 1, 'name' => 'Third']);
+
+        // Each model's user_id is another post's ID, so querying their attributes would also find post 3.
+        $this->assertSame([1, 2], Post::find(Post::whereKey([1, 2])->get())->modelKeys());
+        $this->assertSame([1, 2], Post::find([$first, $second])->modelKeys());
+        $this->assertSame([3], Post::whereKeyNot(Post::whereKey([1, 2])->cursor())->pluck('id')->all());
+    }
+
+    public function testFindOrFailAndFindOrReadLazyIdsOnce(): void
+    {
+        User::create(['id' => 1, 'email' => 'first@example.com']);
+        User::create(['id' => 2, 'email' => 'second@example.com']);
+
+        // Like a stream, each source produces its IDs only once.
+        $ids = function (): LazyCollection {
+            $read = false;
+
+            return new LazyCollection(function () use (&$read): Generator {
+                if (! $read) {
+                    $read = true;
+
+                    yield from [1, 2];
+                }
+            });
+        };
+
+        $this->assertSame([1, 2], User::findOrFail($ids())->modelKeys());
+        $this->assertSame([1, 2], User::findOr($ids(), fn (): string => 'missing')->modelKeys());
     }
 
     public function testDestroyAcceptsVariousIdentifierShapes(): void

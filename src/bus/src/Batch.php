@@ -11,10 +11,12 @@ use Hypervel\Bus\Events\BatchStarted;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
+use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Queue\CallQueuedClosure;
+use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
@@ -22,9 +24,17 @@ use Hypervel\Support\Enumerable;
 use JsonSerializable;
 use LogicException;
 use Throwable;
+use WeakMap;
 
 class Batch implements Arrayable, JsonSerializable
 {
+    /**
+     * The batch job IDs of commands being processed that cannot reach their queued job.
+     *
+     * @var null|WeakMap<object, string>
+     */
+    protected static ?WeakMap $commandJobIds = null;
+
     /**
      * Create a new batch instance.
      */
@@ -160,6 +170,51 @@ class Batch implements Arrayable, JsonSerializable
     }
 
     /**
+     * Get the ID the batch records for the given queued job.
+     *
+     * Horizon gives each retry a new UUID, so a retried batch job carries its original ID in the payload.
+     *
+     * @internal
+     */
+    public static function jobIdFor(Job $job): ?string
+    {
+        return $job->payload()['batchJobId'] ?? $job->uuid();
+    }
+
+    /**
+     * Get the ID the batch records for the given command while it is processed.
+     *
+     * @internal
+     */
+    public static function jobIdForCommand(object $command): ?string
+    {
+        if (isset(static::$commandJobIds[$command])) {
+            return static::$commandJobIds[$command];
+        }
+
+        // Only InteractsWithQueue makes $job the queued job; another job property belongs to the application.
+        return isset(class_uses_recursive($command)[InteractsWithQueue::class]) && $command->job instanceof Job
+            ? static::jobIdFor($command->job)
+            : null;
+    }
+
+    /**
+     * Remember the batch job ID of a command that cannot reach its queued job.
+     *
+     * Commands without InteractsWithQueue have no queued job, and the IDs are held weakly so they never travel
+     * with the command or outlive it.
+     *
+     * @internal
+     */
+    public static function rememberJobIdForCommand(object $command, Job $job): void
+    {
+        if (($jobId = static::jobIdFor($job)) !== null) {
+            static::$commandJobIds ??= new WeakMap;
+            static::$commandJobIds[$command] = $jobId;
+        }
+    }
+
+    /**
      * Record that a job within the batch finished successfully, executing any callbacks if necessary.
      */
     public function recordSuccessfulJob(string $jobId): void
@@ -203,6 +258,8 @@ class Batch implements Arrayable, JsonSerializable
         if ($counts->pendingJobs === 0 && $this->hasThenCallbacks()) {
             $this->invokeCallbacks('then');
         }
+
+        $this->markAsFinishedIfOnlyFailuresRemain($counts);
 
         if ($counts->allJobsHaveRanExactlyOnce() && $this->hasFinallyCallbacks()) {
             $this->invokeCallbacks('finally');
@@ -314,6 +371,8 @@ class Batch implements Arrayable, JsonSerializable
             $this->invokeCallbacks('catch', $e);
         }
 
+        $this->markAsFinishedIfOnlyFailuresRemain($counts);
+
         if ($counts->allJobsHaveRanExactlyOnce() && $this->hasFinallyCallbacks()) {
             $this->invokeCallbacks('finally');
         }
@@ -325,6 +384,21 @@ class Batch implements Arrayable, JsonSerializable
     public function incrementFailedJobs(string $jobId): ?UpdatedBatchJobCounts
     {
         return $this->repository->incrementFailedJobs($this->id, $jobId);
+    }
+
+    /**
+     * Mark a batch that allows failures as finished once every remaining job has failed.
+     */
+    protected function markAsFinishedIfOnlyFailuresRemain(UpdatedBatchJobCounts $counts): void
+    {
+        // Repositories that report completedFirstPass already finished the batch in their locked update.
+        if ($counts->completedFirstPass !== null) {
+            return;
+        }
+
+        if ($this->allowsFailures() && $counts->pendingJobs > 0 && $counts->allJobsHaveRanExactlyOnce()) {
+            $this->repository->markAsFinished($this->id);
+        }
     }
 
     /**

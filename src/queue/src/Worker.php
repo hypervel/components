@@ -1664,7 +1664,7 @@ class Worker
             ? $job->backoff()
             : $options->backoff;
 
-        $backoff = explode(',', (string) $backoff);
+        $backoff = is_array($backoff) ? $backoff : explode(',', (string) $backoff);
 
         return (int) ($backoff[$job->attempts() - 1] ?? last($backoff));
     }

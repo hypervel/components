@@ -639,6 +639,48 @@ class ValidationRuleParserTest extends TestCase
         ], $results->rules);
     }
 
+    public function testExplodeHandlesListRuleWithAdditionalRules(): void
+    {
+        $parser = (new ValidationRuleParser([
+            'items' => ['foo'],
+        ]));
+
+        $rules = [
+            'items' => Rule::list()->min(1)->max(5),
+        ];
+
+        $results = $parser->explode($rules);
+
+        $this->assertEquals([
+            'items' => [
+                'list',
+                'min:1',
+                'max:5',
+            ],
+        ], $results->rules);
+    }
+
+    public function testExplodeHandlesListRuleWithAdditionalRulesInAnArray(): void
+    {
+        $parser = (new ValidationRuleParser([
+            'items' => ['foo', 'bar'],
+        ]));
+
+        $rules = [
+            'items' => ['required', Rule::list()->between(1, 2)],
+        ];
+
+        $results = $parser->explode($rules);
+
+        $this->assertEquals([
+            'items' => [
+                'required',
+                'list',
+                'between:1,2',
+            ],
+        ], $results->rules);
+    }
+
     public function testExplodeHandlesStringRule(): void
     {
         $parser = (new ValidationRuleParser([

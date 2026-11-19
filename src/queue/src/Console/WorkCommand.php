@@ -152,9 +152,12 @@ class WorkCommand extends Command
             ? max(1, $this->config->integer('queue.concurrency'))
             : max(1, (int) $this->option('concurrency'));
 
+        $backoff = (string) $this->option('backoff');
+
         return new WorkerOptions(
             name: (string) $this->option('name'),
-            backoff: (int) max($this->option('backoff'), $this->option('delay')),
+            // A comma-separated schedule has no single delay to compare with the deprecated --delay option.
+            backoff: str_contains($backoff, ',') ? $backoff : (string) max($backoff, $this->option('delay')),
             memory: (string) $this->option('memory'),
             timeout: (int) $this->option('timeout'),
             sleep: (float) $this->option('sleep'),

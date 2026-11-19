@@ -251,6 +251,16 @@ The `sticky` option is an *optional* value that can be used to allow the immedia
 
 A long-running queue worker gives each job its own coroutine, so one job's writes do not send later jobs' reads to the write connection.
 
+If you need to perform write operations without triggering stickiness for subsequent reads (for example, updating job progress or recording audit timestamps), you may execute the operations within the `withoutAffectingStickiness` method. Afterward, reads keep the routing they had before the callback, so a connection that was already sticky stays sticky:
+
+```php
+use Hypervel\Support\Facades\DB;
+
+DB::withoutAffectingStickiness(function () use ($jobId) {
+    DB::table('jobs')->where('id', $jobId)->update(['started_at' => now()]);
+});
+```
+
 <a name="preventing-stale-database-reads"></a>
 #### Preventing Stale Database Reads
 
@@ -454,7 +464,7 @@ $client->getHandlerList()->prependInit(
 
 Active queries, transactions, open cursors and `Schema::withoutForeignKeyConstraints` callbacks retain their sessions automatically. This includes transactions started directly through PDO or SQL, on either the read or write connection. In particular, an HTTP call inside `DB::transaction()` keeps the transaction's connection. Completed `chunk` or `lazy` query batches may release between batches.
 
-When a connection's writes may reach different servers, because its write side lists several hosts or records, a connection that has modified records keeps its session until the execution ends. Sticky and write-routed reads then reach the server that took its writes. Calling `forgetRecordModificationState()` on the connection gives this up, along with sticky routing for those writes.
+When a connection's writes may reach different servers, because its write side lists several hosts or records, a connection that has modified records keeps its session until the execution ends. Sticky and write-routed reads then reach the server that took its writes. Calling `forgetRecordModificationState()` on the connection gives this up, along with sticky routing for those writes. Writes made within `withoutAffectingStickiness` likewise do not keep the session after the callback returns.
 
 If your code requires the same physical session across an external call, wrap the entire operation in `DB::withPinnedSession()`. For a named connection, call `withPinnedSession()` on that connection. For example, a PostgreSQL session-level advisory lock must be released on the session that acquired it:
 

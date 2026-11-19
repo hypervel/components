@@ -227,11 +227,15 @@ class AllTaggedCacheTest extends RedisCacheTestCase
             ->with([
                 "prefix:{$prefix}name",
                 "prefix:{$prefix}age",
+                "prefix:{$prefix}facets",
+                "prefix:{$prefix}123",
                 "prefix:{$prefix}missing",
             ])
             ->returns([
                 serialize('Sally'),
                 '30',
+                serialize(['facet']),
+                null,
                 null,
             ]);
 
@@ -241,15 +245,22 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $result = (new AllTaggedCache($store, $tags))->many([
             'name' => 'unused',
             'age',
-            'missing' => 'fallback',
+            'facets',
+            '123',
+            'missing' => fn () => 'fallback',
         ]);
 
         $this->assertSame([
             'name' => 'Sally',
             'age' => '30',
+            'facets' => ['facet'],
+            123 => null,
             'missing' => 'fallback',
         ], $result);
     }
+
+    // REMOVED: Laravel's Predis-cluster per-key read and PhpRedis read-retry tests for tagged many();
+    // Hypervel is phpredis-only and never replays a Redis command after a failure.
 
     public function testManyFiresTaggedManyEvents(): void
     {
@@ -914,6 +925,20 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $result = $store->tags(['users', 'posts'])->remember('activity', 120, fn () => 'activity_data');
 
         $this->assertSame('activity_data', $result);
+    }
+
+    public function testFlexibleReadsFreshTaggedValueAndTimestampInOneMget(): void
+    {
+        $connection = $this->mockConnection();
+        $prefix = hash('xxh128', '_all:tag:store:entries') . ':';
+
+        $connection->client()->expects('mget')
+            ->with(["prefix:{$prefix}key", "prefix:{$prefix}" . Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'key'])
+            ->returns([serialize('cached'), serialize(now()->getTimestamp())]);
+
+        $store = $this->createStore($connection);
+
+        $this->assertSame('cached', $store->tags(['store'])->flexible('key', [60, 120], fn () => $this->fail('The cached value is fresh.')));
     }
 
     public function testFlexibleNullableReturnsNullOnFreshSentinelHit(): void

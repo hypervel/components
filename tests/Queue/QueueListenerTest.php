@@ -154,4 +154,13 @@ class QueueListenerTest extends TestCase
         $this->assertSame(3.0, $process->getTimeout());
         $this->assertSame($escape . php_binary() . $escape . " {$escape}{$artisanBinary}{$escape} {$escape}queue:work{$escape} {$escape}--once{$escape} {$escape}--name=default{$escape} {$escape}--queue=queue{$escape} {$escape}--backoff=1{$escape} {$escape}--memory=2{$escape} {$escape}--sleep=3{$escape} {$escape}--tries=1{$escape} {$escape}--env=test{$escape}", $process->getCommandLine());
     }
+
+    public function testMakeProcessPassesABackoffScheduleToTheWorker(): void
+    {
+        $listener = new Listener(__DIR__);
+        $process = $listener->makeProcess('connection', 'queue', new ListenerOptions(backoff: [1, 5, 10]));
+        $escape = '\\' === DIRECTORY_SEPARATOR ? '' : '\'';
+
+        $this->assertStringContainsString(" {$escape}--backoff=1,5,10{$escape} ", $process->getCommandLine());
+    }
 }

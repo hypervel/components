@@ -25,7 +25,6 @@ use Hypervel\Pagination\Cursor;
 use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
-use Hypervel\Support\Enumerable;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\StrCache;
 use InvalidArgumentException;
@@ -913,25 +912,6 @@ class BelongsToMany extends Relation
         }
 
         return $callback();
-    }
-
-    /**
-     * Normalize primary keys for related-model lookups.
-     */
-    protected function parseFindIds(mixed $ids): mixed
-    {
-        if ($ids instanceof Model) {
-            return $ids->getKey();
-        }
-
-        if ($ids instanceof Arrayable) {
-            // Preserve model objects instead of converting their attributes into candidate IDs.
-            $ids = $ids instanceof Enumerable ? $ids->all() : $ids->toArray();
-        }
-
-        return is_array($ids)
-            ? array_map(fn (mixed $id): mixed => $id instanceof Model ? $id->getKey() : $id, $ids)
-            : $ids;
     }
 
     /**

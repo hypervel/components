@@ -59,6 +59,13 @@ class CallQueuedListener implements ShouldQueue
     public DateTimeInterface|int|null $retryUntil = null;
 
     /**
+     * The retry window in seconds when the deadline comes from the listener's RetryFor attribute.
+     *
+     * Unlike Laravel, the window is kept so queue:retry can refresh the deadline.
+     */
+    public ?int $retryFor = null;
+
+    /**
      * The number of seconds the job can run before timing out.
      */
     public ?int $timeout = null;

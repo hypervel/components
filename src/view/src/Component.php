@@ -79,9 +79,16 @@ abstract class Component
     protected static array $ignoredParameterNames = [];
 
     /**
+     * The cache of blade view names for raw templates, keyed by template.
+     *
+     * @var array<string, string>
+     */
+    protected static array $rawTemplateViewCache = [];
+
+    /**
      * Get the view / view contents that represent the component.
      */
-    abstract public function render(): ViewContract|Htmlable|Closure|string;
+    abstract public function render(): ViewContract|Htmlable|RawTemplate|Closure|string;
 
     /**
      * Resolve the component instance with the given data.
@@ -143,6 +150,10 @@ abstract class Component
                 return $view;
             }
 
+            if ($view instanceof RawTemplate) {
+                return $this->createBladeViewFromRawTemplate($view);
+            }
+
             return $this->extractBladeViewFromString($view);
         };
 
@@ -168,6 +179,17 @@ abstract class Component
         }
 
         return static::$bladeViewCache[$key] = $this->createBladeViewFromString($this->factory(), $contents);
+    }
+
+    /**
+     * Create a Blade view from the given raw template.
+     */
+    protected function createBladeViewFromRawTemplate(RawTemplate $template): string
+    {
+        return static::$rawTemplateViewCache[static::bladeViewCacheKey($template->template)] ??= $this->createBladeViewFromString(
+            $this->factory(),
+            $template->template
+        );
     }
 
     /**
@@ -406,6 +428,7 @@ abstract class Component
     public static function flushCache(): void
     {
         static::$bladeViewCache = [];
+        static::$rawTemplateViewCache = [];
         static::$constructorParametersCache = [];
         static::$methodCache = [];
         static::$propertyCache = [];

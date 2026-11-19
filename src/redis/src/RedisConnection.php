@@ -361,20 +361,29 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
      */
     public function __call(string $name, array $arguments): mixed
     {
+        $command = false;
+
         try {
             if (static::hasMacro($name)) {
                 return $this->macroCall($name, $arguments);
             }
 
             $name = strtolower($name);
+            $command = true;
+            swoole_clear_error();
             $result = $this->executeCommand($name, $arguments);
         } catch (RedisException|RedisClusterException|ErrorException $exception) {
+            // Classify before invalidation reads the client's state; a macro's failure keeps its own meaning.
+            $cancellation = $command
+                ? RedisCancellation::cancellationFrom($exception, "Executing Redis command [{$name}] was canceled.")
+                : null;
+
             // REMOVED: Laravel's command retry loop can replay writes Redis already committed.
-            if ($this->shouldInvalidateAfter($exception)) {
+            if ($cancellation !== null || $this->shouldInvalidateAfter($exception)) {
                 $this->markInvalid();
             }
 
-            throw $exception;
+            throw $cancellation ?? $exception;
         }
 
         if ($name === 'watch' && $result !== false) {
@@ -662,6 +671,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
     public function close(): bool
     {
         try {
+            swoole_clear_error();
             $this->connection?->close();
         } catch (Throwable $exception) {
             if ($cancellation = RedisCancellation::cancellationFrom(
@@ -723,11 +733,8 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         try {
             $queueing = $this->isQueueingMode();
         } catch (Throwable $exception) {
-            if ($cancellation = RedisCancellation::cancellationFrom(
-                $exception,
-                'Inspecting Redis connection state during release was canceled.',
-            )) {
-                $this->releaseAfterCancellation($cancellation);
+            if (Coroutine::causedByCancellation($exception)) {
+                $this->releaseAfterCancellation($exception);
             }
 
             $this->markInvalid();
@@ -789,10 +796,9 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
                 }
             }
         } catch (Throwable $exception) {
-            if ($cancellation = RedisCancellation::cancellationFrom(
-                $exception,
-                'Preparing the Redis connection for release was canceled.',
-            )) {
+            // Only SELECT waits here, and command dispatch already classified its cancellation.
+            if (Coroutine::causedByCancellation($exception)) {
+                $cancellation = $exception;
                 $this->markInvalid();
             } else {
                 $this->markInvalid();
@@ -867,7 +873,12 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
      */
     public function discardTransaction(): bool|Redis
     {
-        $result = $this->connection->discard();
+        try {
+            swoole_clear_error();
+            $result = $this->connection->discard();
+        } catch (RedisException|RedisClusterException $exception) {
+            throw RedisCancellation::cancellationFrom($exception, 'Discarding the Redis transaction was canceled.') ?? $exception;
+        }
 
         if ($result !== false) {
             $this->watching = false;
@@ -986,6 +997,8 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
     protected function pingForHeartbeat(): bool
     {
         try {
+            swoole_clear_error();
+
             if ($this->connection instanceof Redis) {
                 return $this->connection->ping() !== false;
             }
@@ -1979,6 +1992,8 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         $combinedArgs = [...$keys, ...$args];
 
         try {
+            swoole_clear_error();
+
             // Clear any stale error from previous commands to ensure getLastError()
             // reflects this call, not a previous one
             $this->connection->clearLastError();
@@ -2010,11 +2025,14 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
 
             return $this->normalizeNullReplies($result);
         } catch (RedisException|RedisClusterException|ErrorException $exception) {
-            if ($this->shouldInvalidateAfter($exception)) {
+            // Classify before invalidation reads the client's state.
+            $cancellation = RedisCancellation::cancellationFrom($exception, 'Executing the Redis script was canceled.');
+
+            if ($cancellation !== null || $this->shouldInvalidateAfter($exception)) {
                 $this->markInvalid();
             }
 
-            throw $exception;
+            throw $cancellation ?? $exception;
         }
     }
 

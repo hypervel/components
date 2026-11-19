@@ -27,6 +27,7 @@ use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
+use Hypervel\Support\Enumerable;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\ForwardsCalls;
@@ -288,6 +289,8 @@ class Builder implements BuilderContract
         }
 
         if (is_array($id) || $id instanceof Arrayable) {
+            $id = $this->normalizeFindIds($id);
+
             if (in_array($this->model->getKeyType(), ['int', 'integer'], true)) {
                 $this->query->whereIntegerInRaw($this->model->getQualifiedKeyName(), $id, $boolean, $not);
             } else {
@@ -596,7 +599,12 @@ class Builder implements BuilderContract
      */
     public function findMany(Arrayable|array $ids, array|string $columns = ['*']): Collection
     {
-        $ids = $ids instanceof Arrayable ? $ids->toArray() : $ids;
+        // Keep a collection's models so whereKey() queries their keys rather than their attributes.
+        $ids = match (true) {
+            $ids instanceof Enumerable => $ids->all(),
+            $ids instanceof Arrayable => $ids->toArray(),
+            default => $ids,
+        };
 
         if (empty($ids)) {
             return $this->model->newCollection();
@@ -616,15 +624,16 @@ class Builder implements BuilderContract
     {
         if ($id instanceof Model) {
             $id = $id->getKey();
+        } elseif ($id instanceof LazyCollection) {
+            // find() and the comparison below both read the IDs, which a lazy source may only produce once.
+            $id = $id->eager();
         }
 
         $result = $this->find($id, $columns);
 
-        $id = $id instanceof Arrayable ? $id->toArray() : $id;
+        $id = $this->normalizeFindIds($id);
 
         if (is_array($id)) {
-            $id = array_map(enum_value(...), $id);
-
             if (count($result) !== count(array_unique($id))) {
                 throw (new ModelNotFoundException)->setModel(
                     get_class($this->model),
@@ -684,15 +693,16 @@ class Builder implements BuilderContract
 
         if ($id instanceof Model) {
             $id = $id->getKey();
+        } elseif ($id instanceof LazyCollection) {
+            // find() and the comparison below both read the IDs, which a lazy source may only produce once.
+            $id = $id->eager();
         }
 
         $result = $this->find($id, $columns);
 
-        $id = $id instanceof Arrayable ? $id->toArray() : $id;
+        $id = $this->normalizeFindIds($id);
 
         if (is_array($id)) {
-            $id = array_map(enum_value(...), $id);
-
             if (count($result) === count(array_unique($id))) {
                 return $result;
             }
@@ -701,6 +711,29 @@ class Builder implements BuilderContract
         }
 
         return $callback();
+    }
+
+    /**
+     * Normalize the given identifiers into a comparable list of keys.
+     *
+     * Enumerable keeps the models of any collection, including a lazy one, instead of converting them to attribute arrays.
+     */
+    protected function normalizeFindIds(mixed $id): mixed
+    {
+        $id = match (true) {
+            $id instanceof Enumerable => $id->all(),
+            $id instanceof Arrayable => $id->toArray(),
+            default => $id,
+        };
+
+        if (! is_array($id)) {
+            return $id;
+        }
+
+        return array_map(
+            fn (mixed $id): mixed => $id instanceof Model ? $id->getKey() : enum_value($id),
+            $id
+        );
     }
 
     /**

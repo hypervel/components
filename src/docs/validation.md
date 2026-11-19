@@ -2523,6 +2523,17 @@ The field under validation must be lowercase.
 
 The field under validation must be an array that is a list. An array is considered a list if its keys consist of consecutive numbers from 0 to `count($array) - 1`.
 
+List rules may also be constructed using the fluent `Rule::list()` rule builder, which provides the `min`, `max`, `between`, and `exactly` methods to limit the number of items in the list:
+
+```php
+use Hypervel\Validation\Rule;
+
+'tags' => [
+    'required',
+    Rule::list()->between(1, 5),
+],
+```
+
 <a name="rule-mac"></a>
 #### mac_address
 

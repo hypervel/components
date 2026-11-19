@@ -65,6 +65,7 @@ class StubPublishCommand extends Command
             __DIR__ . '/stubs/test.stub' => 'test.stub',
             __DIR__ . '/stubs/test.unit.stub' => 'test.unit.stub',
             __DIR__ . '/stubs/trait.stub' => 'trait.stub',
+            __DIR__ . '/stubs/view-component.inline.stub' => 'view-component.inline.stub',
             __DIR__ . '/stubs/view-component.stub' => 'view-component.stub',
             __DIR__ . '/../../../database/src/Console/Factories/stubs/factory.stub' => 'factory.stub',
             __DIR__ . '/../../../database/src/Console/Seeds/stubs/seeder.stub' => 'seeder.stub',

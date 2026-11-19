@@ -252,11 +252,21 @@ class ComponentTagCompiler
             $parameters = $data->all();
         }
 
+        $escapeAttributes = $class !== DynamicComponent::class;
+
+        $bound = $this->getBoundAttributes();
+
+        $boundAttributes = $escapeAttributes ? '' : '<?php $component->withBoundAttributes([' . $attributes->keys()
+            ->filter(fn ($key) => isset($bound[$key]))
+            ->map(fn ($key) => "'{$key}'")
+            ->implode(',') . ']); ?>
+';
+
         return "##BEGIN-COMPONENT-CLASS##@component('{$class}', '{$component}', [" . $this->attributesToString($parameters, escapeBound: false) . '])
 <?php if (isset($attributes) && $attributes instanceof Hypervel\View\ComponentAttributeBag): ?>
 <?php $attributes = $attributes->except(\\' . $class . '::ignoredParameterNames()); ?>
 <?php endif; ?>
-<?php $component->withAttributes([' . $this->attributesToString($attributes->all(), $escapeAttributes = $class !== DynamicComponent::class) . ']); ?>';
+' . $boundAttributes . '<?php $component->withAttributes([' . $this->attributesToString($attributes->all(), $escapeAttributes) . ']); ?>';
     }
 
     /**

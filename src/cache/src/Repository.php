@@ -1165,7 +1165,8 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
         // genuine miss (null) and cached-null (sentinel) both resolve to the
         // per-key default, matching get()'s convention.
         if (is_null($value) || $value === NullSentinel::VALUE) {
-            return (isset($keys[$key]) && ! array_is_list($keys)) ? value($keys[$key]) : null;
+            // PHP stores canonical integer strings as integer keys, which are requested keys rather than defaults.
+            return isset($keys[$key]) && (string) (int) $key !== $key ? value($keys[$key]) : null;
         }
 
         return $value;

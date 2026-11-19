@@ -866,7 +866,7 @@ class RedisProxyTest extends TestCase
 
     public function testCommandNormalizesWrappedPhpRedisCancellation(): void
     {
-        $nativeFailure = new RedisException('command canceled');
+        $nativeFailure = new RedisException('command canceled', previous: new CanceledException);
         $dispatcher = Double::for(Dispatcher::class)->strict();
         $dispatcher->expects('hasListeners')->never();
         $connection = $this->createMockRedisConnection(
@@ -874,15 +874,17 @@ class RedisProxyTest extends TestCase
             exception: $nativeFailure,
             eventDispatcher: $dispatcher,
         );
-        $connection->nativeClientForTest()->expects('getLastError')->returns(null);
         $connection->expects('release');
-        $redis = $this->createRedis($connection);
+        $exception = null;
 
-        $exception = $this->captureCancellationAtBoundary(function () use ($redis): void {
-            $redis->get('key');
-        });
+        try {
+            $this->createRedis($connection)->get('key');
+        } catch (Throwable $caught) {
+            $exception = $caught;
+        }
 
         $this->assertInstanceOf(CanceledException::class, $exception);
+        $this->assertSame('Executing Redis command [get] was canceled.', $exception->getMessage());
         $this->assertSame($nativeFailure, $exception->getPrevious());
     }
 
@@ -1180,21 +1182,24 @@ class RedisProxyTest extends TestCase
 
     public function testCallbackTransactionNormalizesWrappedPhpRedisCancellation(): void
     {
-        $nativeFailure = new RedisException('exec canceled');
+        $nativeFailure = new RedisException('exec canceled', previous: new CanceledException);
         $transaction = Double::for(PhpRedis::class)->strict();
         $transaction->expects('exec')->throws($nativeFailure);
         $connection = $this->mockConnection();
         $connection->nativeClientForTest()->expects('multi')->returns($transaction);
         $connection->expects('invalidate');
         $connection->expects('release');
-        $redis = $this->createRedis($connection);
+        $exception = null;
 
-        $exception = $this->captureCancellationAtBoundary(function () use ($redis): void {
-            $redis->transaction(static function (): void {
+        try {
+            $this->createRedis($connection)->transaction(static function (): void {
             });
-        });
+        } catch (Throwable $caught) {
+            $exception = $caught;
+        }
 
         $this->assertInstanceOf(CanceledException::class, $exception);
+        $this->assertSame('Executing the Redis transaction was canceled.', $exception->getMessage());
         $this->assertSame($nativeFailure, $exception->getPrevious());
     }
 
@@ -1903,12 +1908,12 @@ class RedisProxyTest extends TestCase
         });
     }
 
-    public function testClusterDiscoveryNormalizesWrappedCancellationAndStillReleases(): void
+    public function testClusterDiscoveryCancellationIsPreservedAndStillReleases(): void
     {
-        $nativeFailure = new RedisClusterException('Master discovery canceled.');
+        $cancellation = new RedisClusterException('Master discovery canceled.', previous: new CanceledException);
         $connection = Double::for(PhpRedisClusterConnection::class)->strict();
         $connection->expects('getConnection');
-        $connection->expects('masters')->throws($nativeFailure);
+        $connection->expects('masters')->throws($cancellation);
         $connection->expects('release')->throws(new RuntimeException('Release failed.'));
         $pool = Double::for(RedisPool::class)->strict();
         $pool->expects('getConfig')->returns([
@@ -1920,14 +1925,13 @@ class RedisProxyTest extends TestCase
         $pool->expects('borrow')->returns($connection);
         $poolManager = Double::for(new PoolManager(new Container))->passthru();
         $poolManager->expects('pool')->with('default')->returns($pool);
-        $redis = new RedisProxy($poolManager, 'default', $this->sentinelFactory());
 
-        $exception = $this->captureCancellationAtBoundary(function () use ($redis): void {
-            $redis->subscriber();
-        });
-
-        $this->assertInstanceOf(CanceledException::class, $exception);
-        $this->assertSame($nativeFailure, $exception->getPrevious());
+        try {
+            (new RedisProxy($poolManager, 'default', $this->sentinelFactory()))->subscriber();
+            $this->fail('Expected the discovery cancellation to escape.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     #[TestWith([false], 'direct cancellation')]
@@ -2237,31 +2241,6 @@ class RedisProxyTest extends TestCase
         }
 
         return $subscriber;
-    }
-
-    /**
-     * Capture cancellation raised while the current coroutine is canceled.
-     */
-    private function captureCancellationAtBoundary(callable $callback): Throwable
-    {
-        $blocker = new SwooleChannel(1);
-        $captured = null;
-        $coroutineId = Coroutine::create(function () use ($blocker, $callback, &$captured): void {
-            try {
-                $blocker->pop();
-            } catch (CanceledException) {
-                try {
-                    $callback();
-                } catch (Throwable $exception) {
-                    $captured = $exception;
-                }
-            }
-        });
-
-        $this->assertTrue(EngineCoroutine::cancelById($coroutineId, throwException: true));
-        $this->assertInstanceOf(Throwable::class, $captured);
-
-        return $captured;
     }
 
     /**

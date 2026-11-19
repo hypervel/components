@@ -1921,10 +1921,27 @@ public function retryUntil(): DateTimeInterface
 }
 ```
 
-If both `retryUntil` and `tries` are defined, Hypervel gives precedence to the `retryUntil` method.
+When the window is a fixed length of time from when the job is dispatched, you may use the `RetryFor` attribute instead. Its first argument is in seconds, and `minutes` and `hours` may be passed by name. A `retryUntil` method or property takes precedence over the attribute:
+
+```php
+<?php
+
+namespace App\Jobs;
+
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\Attributes\RetryFor;
+
+#[RetryFor(minutes: 10)]
+class ProcessPodcast implements ShouldQueue
+{
+    // ...
+}
+```
+
+If both a retry window and `tries` are defined, Hypervel gives precedence to the retry window.
 
 > [!NOTE]
-> You may also define a `Tries` attribute or `retryUntil` method on your [queued event listeners](/docs/{{version}}/events#queued-event-listeners) and [queued notifications](/docs/{{version}}/notifications#queueing-notifications).
+> You may also define a `Tries` or `RetryFor` attribute or a `retryUntil` method on your [queued event listeners](/docs/{{version}}/events#queued-event-listeners), [queued notifications](/docs/{{version}}/notifications#queueing-notifications) and queued mailables.
 
 <a name="max-exceptions"></a>
 #### Max Exceptions
@@ -2319,6 +2336,12 @@ $this->release(10);
 $this->release(now()->plus(seconds: 10));
 ```
 
+If the job defines a [backoff](#dealing-with-failed-jobs), the `releaseUsingBackoff` method releases it with the delay for the current attempt, just as the worker would after an exception. Once the attempts outnumber the configured delays, the last delay is used. A job without a backoff is released for immediate processing:
+
+```php
+$this->releaseUsingBackoff();
+```
+
 After releasing a job, return from its handler. If a worker-processed job throws after release, the worker reports the exception but does not fail or release that attempt again. Exceptions thrown after release do not count toward `maxExceptions`. The next delivery checks the job's attempt limit as usual.
 
 <a name="manually-failing-a-job"></a>
@@ -2668,7 +2691,7 @@ Route::get('/batch/{batchId}', function (string $batchId) {
 <a name="batch-events"></a>
 ### Batch Events
 
-Hypervel dispatches events as a batch moves through its lifecycle. You may listen for `BatchDispatched` after a batch is dispatched, `BatchStarted` when its first job is processed, `BatchFinished` when it is marked as finished, and `BatchCanceled` when it is canceled. Each event exposes the batch through its `$batch` property; `BatchCanceled` also exposes the exception that caused cancellation, when available.
+Hypervel dispatches events as a batch moves through its lifecycle. You may listen for `BatchDispatched` after a batch is dispatched, `BatchStarted` when its first job is processed, `BatchFinished` when all of its jobs have completed successfully, and `BatchCanceled` when it is canceled. Each event exposes the batch through its `$batch` property; `BatchCanceled` also exposes the exception that caused cancellation, when available.
 
 <a name="cancelling-batches"></a>
 ### Cancelling Batches
@@ -2735,6 +2758,8 @@ $batch = Bus::batch([
 })->dispatch();
 ```
 
+A batch that allows failures is marked as finished once each of its jobs has run, even if some of them failed. Its failed jobs may still be retried, and the batch's `then` callbacks will run once every job has completed successfully.
+
 <a name="retrying-failed-batch-jobs"></a>
 #### Retrying Failed Batch Jobs
 
@@ -2763,7 +2788,7 @@ use Hypervel\Support\Facades\Schedule;
 Schedule::command('queue:prune-batches --hours=48')->daily();
 ```
 
-Sometimes, your `job_batches` table may accumulate batch records for batches that never completed successfully, such as batches where a job failed and that job was never retried successfully. You may instruct the `queue:prune-batches` command to prune these unfinished batch records using the `unfinished` option:
+Sometimes, your `job_batches` table may accumulate batch records for batches that never finished, such as batches whose jobs were cleared from the queue before they could run. Batches that [allow failures](#allowing-failures) finish once every job has run, so they are pruned along with other finished batches. You may instruct the `queue:prune-batches` command to prune these unfinished batch records using the `unfinished` option:
 
 ```php
 use Hypervel\Support\Facades\Schedule;

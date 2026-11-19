@@ -96,7 +96,7 @@ class ListenCommand extends Command
         return new ListenerOptions(
             name: $this->option('name'),
             environment: $this->option('env'),
-            backoff: (int) $backoff,
+            backoff: (string) $backoff,
             memory: (string) $this->option('memory'),
             timeout: (int) $this->option('timeout'),
             sleep: (float) $this->option('sleep'),

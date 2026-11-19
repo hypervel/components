@@ -26,6 +26,7 @@ use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Queue\Attributes\MaxExceptions;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Queue\Attributes\RetryFor;
 use Hypervel\Queue\Attributes\Timeout;
 use Hypervel\Queue\Attributes\Tries;
 use Hypervel\Queue\Concerns\StagesOutboxJobs;
@@ -353,7 +354,9 @@ abstract class Queue
     public function getJobExpiration(mixed $job): mixed
     {
         if (! method_exists($job, 'retryUntil') && ! isset($job->retryUntil)) {
-            return null;
+            $retryFor = $this->getAttributeValue($job, RetryFor::class);
+
+            return is_null($retryFor) ? null : $this->availableAt($retryFor);
         }
 
         $expiration = $job->retryUntil ?? $job->retryUntil();

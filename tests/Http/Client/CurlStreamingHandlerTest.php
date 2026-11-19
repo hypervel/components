@@ -376,6 +376,41 @@ class CurlStreamingHandlerTest extends TestCase
         return [[5], [65536]];
     }
 
+    public function testAHandledCancellationDoesNotCancelALaterRequest(): void
+    {
+        $server = LoopbackHttpServer::start([['body' => 'hello']]);
+        $coroutine = Coroutine::id();
+        Coroutine::create(static function () use ($coroutine): void {
+            usleep(10000);
+            Coroutine::cancelById($coroutine);
+        });
+
+        $this->assertFalse((new Channel(1))->pop(1));
+        $this->assertTrue(Coroutine::isCanceled());
+
+        $response = (new Factory)->withOptions(['stream' => true])->get('http://127.0.0.1:' . $server->port);
+
+        $this->assertSame('hello', $response->body());
+    }
+
+    public function testCancelingTheDelayCancelsTheRequest(): void
+    {
+        $coroutine = Coroutine::id();
+        Coroutine::create(static function () use ($coroutine): void {
+            usleep(50000);
+            Coroutine::cancelById($coroutine);
+        });
+
+        try {
+            // The canceled delay ends the request before it connects.
+            (new Factory)->withOptions(['stream' => true, 'delay' => 1500])->get('http://127.0.0.1:1');
+
+            $this->fail('Expected the delay cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame('The streaming request was canceled.', $exception->getMessage());
+        }
+    }
+
     public function testAbandonedResponseBodyIsReleasedWithoutCyclicGarbageCollection(): void
     {
         $factory = new class(new CurlFactory(0)) implements CurlFactoryInterface {

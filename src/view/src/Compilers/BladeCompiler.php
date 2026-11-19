@@ -9,7 +9,8 @@ use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\Factory as ViewFactory;
-use Hypervel\Contracts\View\View;
+use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Collection;
@@ -17,6 +18,9 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Traits\ReflectsClosures;
 use Hypervel\View\Component;
+use Hypervel\View\Engines\CompilerEngine;
+use Hypervel\View\Factory;
+use Hypervel\View\View;
 use InvalidArgumentException;
 use ParseError;
 
@@ -323,6 +327,34 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public static function render(string $string, array $data = [], bool $deleteCachedView = false): string
     {
+        $container = Container::getInstance();
+        $factory = $container->make(ViewFactory::class);
+
+        // Each deletable render owns its source file, so deleting it cannot break another render of the same
+        // template. Factory implementations without temporary views keep the named render below.
+        if ($deleteCachedView && $factory instanceof Factory) {
+            $hash = hash('xxh128', $string);
+            $directory = $container->make('config')->string('view.compiled');
+            $path = $directory . '/' . $hash . '-' . bin2hex(random_bytes(8)) . '.blade.php';
+            $files = $container->make(Filesystem::class);
+            $view = null;
+
+            $files->ensureDirectoryExists($directory);
+
+            try {
+                $files->put($path, $string);
+                $view = $factory->makeFromTemporaryFile('__components::' . $hash, $path, $data);
+
+                return $view->render();
+            } finally {
+                @unlink($path);
+
+                if ($view instanceof View && ($engine = $view->getEngine()) instanceof CompilerEngine) {
+                    @unlink($engine->getCompiler()->getCompiledPath($path));
+                }
+            }
+        }
+
         $component = new class($string) extends Component {
             /**
              * Create a new inline Blade component instance.
@@ -352,9 +384,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
             }
         };
 
-        $view = Container::getInstance()
-            ->make(ViewFactory::class)
-            ->make($component->resolveView(), $data);
+        $view = $factory->make($component->resolveView(), $data);
 
         return tap($view->render(), function () use ($component, $string, $view, $deleteCachedView) {
             if ($deleteCachedView) {
@@ -375,7 +405,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
         $view = value($component->resolveView(), $data);
 
-        if ($view instanceof View) {
+        if ($view instanceof ViewContract) {
             return $view->with($data)->render();
         }
         if ($view instanceof Htmlable) {

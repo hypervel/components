@@ -8,6 +8,7 @@ use Carbon\CarbonInterval;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Engine\Coroutine;
 use Hypervel\Support\Attributes\TestsOnly;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Traits\Macroable;
@@ -313,14 +314,19 @@ class Sleep
         $microseconds = (int) $this->duration->totalMicroseconds - $seconds * Carbon::MICROSECONDS_PER_SECOND;
 
         while ($while()) {
-            if ($seconds > 0) {
-                // @phpstan-ignore hypervel.rawSleep (the Sleep implementation itself)
-                sleep($seconds);
+            // @phpstan-ignore hypervel.rawSleep (the Sleep implementation itself)
+            if ($seconds > 0 && sleep($seconds) !== 0 && Coroutine::isCanceled()) {
+                // Sleeping again would hide the coroutine's cancellation from its caller.
+                return;
             }
 
             if ($microseconds > 0) {
                 // @phpstan-ignore hypervel.rawSleep (the Sleep implementation itself)
                 usleep($microseconds);
+
+                if (Coroutine::isCanceled()) {
+                    return;
+                }
             }
         }
     }
