@@ -68,6 +68,9 @@ class SerializedCredentialProvider
             static::$owners[$this->lockKey] = $coroutine;
         }
 
+        // An earlier, handled cancellation must not make this provider's failure look canceled.
+        swoole_clear_error();
+
         try {
             return Create::promiseFor(($this->provider)(...$arguments)->wait());
         } catch (Throwable $exception) {
@@ -75,8 +78,10 @@ class SerializedCredentialProvider
                 throw $exception;
             }
 
-            // SDK providers can wrap an interrupted fetch in CredentialsException.
-            if (EngineCoroutine::isCanceled()) {
+            // SDK providers can rethrow an interrupted fetch without its cause.
+            if (EngineCoroutine::isCanceled()
+                && in_array(swoole_last_error(), [SWOOLE_ERROR_CO_CANCELED, SOCKET_ECANCELED], true)
+            ) {
                 throw new CanceledException('Resolving AWS credentials was canceled.', previous: $exception);
             }
 

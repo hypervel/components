@@ -14,6 +14,7 @@ use Hypervel\Engine\Coroutine;
 use Hypervel\Support\Aws\SerializedCredentialProvider;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
@@ -190,27 +191,33 @@ class SerializedCredentialProviderTest extends TestCase
         $this->assertSame('next', $provider()->wait()->getAccessKeyId());
     }
 
-    public function testTranslatedCancellationRemainsCancellationAndReleasesTheLock(): void
+    #[TestWith([false], 'clean entry')]
+    #[TestWith([true], 'after a handled cancellation')]
+    public function testTranslatedCancellationRemainsCancellationAndReleasesTheLock(bool $handledCancellation): void
     {
         $started = new Channel(1);
-        $blocked = new Channel(1);
         $finished = new Channel(1);
         $failure = new RuntimeException('The SDK translated an interrupted fetch.');
         $calls = 0;
-        $provider = new SerializedCredentialProvider(function () use (&$calls, $started, $blocked, $failure): PromiseInterface {
+        $provider = new SerializedCredentialProvider(function () use (&$calls, $started, $failure): PromiseInterface {
             if (++$calls > 1) {
                 return Create::promiseFor(new Credentials('next', 'secret'));
             }
 
-            return new Promise(static function () use ($started, $blocked, $failure): never {
+            return new Promise(static function () use ($started, $failure): never {
                 $started->push(true);
-                $blocked->pop();
+                // A native wait, like the SDK's transfer, reports its cancellation.
+                usleep(2000000);
 
                 throw $failure;
             });
         });
 
-        $owner = go(static function () use ($provider, $finished): void {
+        $owner = go(function () use ($provider, $finished, $handledCancellation): void {
+            if ($handledCancellation) {
+                $this->handleCancellation();
+            }
+
             try {
                 $provider();
                 $finished->push(null);
@@ -219,16 +226,45 @@ class SerializedCredentialProviderTest extends TestCase
             }
         });
 
+        $this->assertTrue($started->pop(1));
+        // Channel delivery can resume us before the owner enters its wait.
+        usleep(1000);
+        $this->assertTrue(Coroutine::cancelById($owner));
+        $result = $finished->pop(1);
+        $this->assertInstanceOf(CanceledException::class, $result);
+        $this->assertSame($failure, $result->getPrevious());
+        $this->assertSame('next', $provider()->wait()->getAccessKeyId());
+    }
+
+    public function testAFailureAfterAHandledCancellationIsNotReportedAsCanceled(): void
+    {
+        $this->handleCancellation();
+        $failure = new RuntimeException('Credentials unavailable.');
+        $provider = new SerializedCredentialProvider(static fn (): PromiseInterface => Create::rejectionFor($failure));
+
+        $result = $provider();
+
         try {
-            $this->assertTrue($started->pop(1));
-            $this->assertTrue(Coroutine::cancelById($owner));
-            $result = $finished->pop(1);
-            $this->assertInstanceOf(CanceledException::class, $result);
-            $this->assertSame($failure, $result->getPrevious());
-            $this->assertSame('next', $provider()->wait()->getAccessKeyId());
-        } finally {
-            $blocked->close();
+            $result->wait();
+            $this->fail('The credential failure was not propagated.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
         }
+    }
+
+    /**
+     * Leave the current coroutine canceled by an earlier wait that it handled.
+     */
+    private function handleCancellation(): void
+    {
+        $coroutine = Coroutine::id();
+        go(static function () use ($coroutine): void {
+            usleep(10000);
+            Coroutine::cancelById($coroutine);
+        });
+
+        $this->assertFalse((new Channel(1))->pop(1));
+        $this->assertTrue(Coroutine::isCanceled());
     }
 
     public function testCancelingALockWaiterDoesNotReleaseTheOwnersLock(): void
