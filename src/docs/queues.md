@@ -1921,7 +1921,7 @@ public function retryUntil(): DateTimeInterface
 }
 ```
 
-When the window is a fixed length of time from when the job is queued, you may use the `RetryFor` attribute instead. Its first argument is in seconds, and `minutes` and `hours` may be passed by name. A `retryUntil` method or property takes precedence over the attribute:
+When the window is a fixed length of time from when the job is dispatched, you may use the `RetryFor` attribute instead. Its first argument is in seconds, and `minutes` and `hours` may be passed by name. A `retryUntil` method or property takes precedence over the attribute:
 
 ```php
 <?php
@@ -2691,7 +2691,7 @@ Route::get('/batch/{batchId}', function (string $batchId) {
 <a name="batch-events"></a>
 ### Batch Events
 
-Hypervel dispatches events as a batch moves through its lifecycle. You may listen for `BatchDispatched` after a batch is dispatched, `BatchStarted` when its first job is processed, `BatchFinished` when it is marked as finished, and `BatchCanceled` when it is canceled. Each event exposes the batch through its `$batch` property; `BatchCanceled` also exposes the exception that caused cancellation, when available.
+Hypervel dispatches events as a batch moves through its lifecycle. You may listen for `BatchDispatched` after a batch is dispatched, `BatchStarted` when its first job is processed, `BatchFinished` when all of its jobs have completed successfully, and `BatchCanceled` when it is canceled. Each event exposes the batch through its `$batch` property; `BatchCanceled` also exposes the exception that caused cancellation, when available.
 
 <a name="cancelling-batches"></a>
 ### Cancelling Batches

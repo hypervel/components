@@ -850,7 +850,7 @@ public function retryUntil(): DateTimeInterface
 }
 ```
 
-For a fixed window from when the listener is queued, you may use the [RetryFor attribute](/docs/{{version}}/queues#time-based-attempts) instead, such as `#[RetryFor(minutes: 5)]`.
+For a fixed window from when the event is dispatched, you may use the [RetryFor attribute](/docs/{{version}}/queues#time-based-attempts) instead, such as `#[RetryFor(minutes: 5)]`.
 
 If both a retry window and `tries` are defined, Hypervel gives precedence to the retry window.
 
