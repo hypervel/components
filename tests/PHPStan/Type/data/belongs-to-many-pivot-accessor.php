@@ -66,8 +66,7 @@ function test(Member $member, string $name, bool $condition): void
 
     // Without a single known accessor, no pivot property can be promised.
     assertType('BelongsToManyPivotAccessor\Podcast|null', $member->belongsToMany(Podcast::class, 'c')->as($name)->first());
-    // Unlike upstream, and as Laravel's own types do, each possible accessor is an optional property.
-    assertType('(BelongsToManyPivotAccessor\Podcast&object{a?: Hypervel\Database\Eloquent\Relations\Pivot, b?: Hypervel\Database\Eloquent\Relations\Pivot})|null', $member->belongsToMany(Podcast::class, 'd')->as($condition ? 'a' : 'b')->first());
+    assertType('BelongsToManyPivotAccessor\Podcast|null', $member->belongsToMany(Podcast::class, 'd')->as($condition ? 'a' : 'b')->first());
 }
 
 /**
