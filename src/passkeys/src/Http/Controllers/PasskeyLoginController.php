@@ -49,7 +49,7 @@ class PasskeyLoginController extends Controller
         $user = $passkey->user;
 
         if (! $user instanceof PasskeyUser || ! Passkeys::allowsLogin($request, $passkey)) {
-            throw InvalidPasskeyException::make('Unable to sign in with this account.');
+            throw InvalidPasskeyException::make(__('Unable to sign in with this account.'));
         }
 
         Passkeys::guard()->login($user, $request->remember());

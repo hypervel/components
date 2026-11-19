@@ -32,6 +32,17 @@ HypervelJobWithoutConstructor::dispatchIf(true);
 HypervelJobWithoutConstructor::dispatchUnless(true, 'foo');
 
 HypervelJob::dispatchIf(foo: 1, bar: 'foo', boolean: true);
+HypervelJob::dispatch(foo: 'foo', bar: 1);
+HypervelJob::dispatch(bar: 'foo', foo: 1);
+HypervelJob::dispatch(...['foo', 1]);
+HypervelJob::dispatch(...[1, 'foo']);
+HypervelJob::dispatchIf(true, ...['foo', 1]);
+HypervelJob::dispatchUnless(true, ...[1, 'foo']);
+HypervelJob::dispatch(...);
+UnknownJob::dispatch();
+
+HypervelJobWithPrivateConstructor::dispatch('foo');
+HypervelJobWithPrivateConstructor::dispatch(1);
 
 // Hypervel: the constructor also runs before a closure condition, and a named or unpacked argument
 // is bound as PHP binds it. A class's own dispatch method keeps its signature.
@@ -39,6 +50,14 @@ HypervelJob::dispatchIf(static fn (HypervelJob $job): bool => true, 1, 'foo');
 HypervelJob::dispatchUnless(foo: 'foo', boolean: false);
 HypervelJob::dispatchIf(...[true, 'foo', 1]);
 HypervelJobWithOwnDispatch::dispatch(1);
+
+// Hypervel: dispatchAfterResponse() forwards to dispatch(), so a class's own dispatch() decides its arguments.
+HypervelJobWithOwnDispatch::dispatchAfterResponse(1);
+HypervelJobWithOwnDispatch::dispatchAfterResponse('foo');
+HypervelJobWithProtectedDispatch::dispatchAfterResponse('foo');
+HypervelJobWithProtectedDispatch::dispatchAfterResponse(1);
+HypervelJobWithReferenceDispatch::dispatchAfterResponse(1);
+HypervelJobWithReferenceDispatch::dispatchAfterResponse('foo');
 
 // Hypervel: the method name matches in any case.
 HypervelJob::DISPATCH(1, 'foo');

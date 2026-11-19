@@ -1,6 +1,6 @@
 <?php
 
-namespace ModelCollectionsL134;
+namespace CollectedByInheritance;
 
 use Hypervel\Database\Eloquent\Attributes\CollectedBy;
 use Hypervel\Database\Eloquent\Collection;
@@ -10,21 +10,21 @@ use function PHPStan\Testing\assertType;
 
 function test(): void
 {
-    assertType('ModelCollectionsL134\BaseCollection<int, ModelCollectionsL134\User>', User::all());
-    assertType('ModelCollectionsL134\BaseCollection<int, ModelCollectionsL134\User>', User::query()->where('id', '>', 1)->get());
-    assertType('ModelCollectionsL134\BaseCollection<int, ModelCollectionsL134\Admin>', Admin::all());
-    assertType('ModelCollectionsL134\TeamCollection', Team::all());
+    assertType('CollectedByInheritance\BaseCollection<int, CollectedByInheritance\User>', User::all());
+    assertType('CollectedByInheritance\BaseCollection<int, CollectedByInheritance\User>', User::query()->where('id', '>', 1)->get());
+    assertType('CollectedByInheritance\BaseCollection<int, CollectedByInheritance\Admin>', Admin::all());
+    assertType('CollectedByInheritance\TeamCollection', Team::all());
     // Hypervel: the attribute is instantiated, so its named argument applies to the model and its child.
-    assertType('ModelCollectionsL134\TeamCollection', NamedArgumentParent::all());
-    assertType('ModelCollectionsL134\TeamCollection', NamedArgumentChild::all());
-    assertType('ModelCollectionsL134\StringCollection<int, ModelCollectionsL134\StringChild>', StringChild::all());
-    assertType('ModelCollectionsL134\StringCollection<int, ModelCollectionsL134\LeadingBackslashString>', LeadingBackslashString::all());
-    assertType('ModelCollectionsL134\BaseCollection<int, ModelCollectionsL134\TraitParentChild>', TraitParentChild::all());
-    assertType('ModelCollectionsL134\BaseCollection<int, ModelCollectionsL134\TraitChild>', TraitChild::all());
+    assertType('CollectedByInheritance\TeamCollection', NamedArgumentParent::all());
+    assertType('CollectedByInheritance\TeamCollection', NamedArgumentChild::all());
+    assertType('CollectedByInheritance\StringCollection<int, CollectedByInheritance\StringChild>', StringChild::all());
+    assertType('CollectedByInheritance\StringCollection<int, CollectedByInheritance\LeadingBackslashString>', LeadingBackslashString::all());
+    assertType('CollectedByInheritance\BaseCollection<int, CollectedByInheritance\TraitParentChild>', TraitParentChild::all());
+    assertType('CollectedByInheritance\BaseCollection<int, CollectedByInheritance\TraitChild>', TraitChild::all());
     // Hypervel: without the attribute, HasCollection uses the static $collectionClass, which a child inherits.
-    assertType('ModelCollectionsL134\StringCollection<int, ModelCollectionsL134\ClassCollectionParent>', ClassCollectionParent::all());
-    assertType('ModelCollectionsL134\StringCollection<int, ModelCollectionsL134\ClassCollectionChild>', ClassCollectionChild::all());
-    assertType('ModelCollectionsL134\BaseCollection<int, ModelCollectionsL134\AttributeOverClassCollection>', AttributeOverClassCollection::all());
+    assertType('CollectedByInheritance\StringCollection<int, CollectedByInheritance\ClassCollectionParent>', ClassCollectionParent::all());
+    assertType('CollectedByInheritance\StringCollection<int, CollectedByInheritance\ClassCollectionChild>', ClassCollectionChild::all());
+    assertType('CollectedByInheritance\BaseCollection<int, CollectedByInheritance\AttributeOverClassCollection>', AttributeOverClassCollection::all());
 }
 
 #[CollectedBy(BaseCollection::class)]
@@ -64,7 +64,7 @@ class NamedArgumentChild extends NamedArgumentParent
 
 }
 
-#[CollectedBy('ModelCollectionsL134\StringCollection')]
+#[CollectedBy('CollectedByInheritance\StringCollection')]
 class StringParent extends Model
 {
 
@@ -75,7 +75,7 @@ class StringChild extends StringParent
 
 }
 
-#[CollectedBy('\ModelCollectionsL134\StringCollection')]
+#[CollectedBy('\CollectedByInheritance\StringCollection')]
 class LeadingBackslashString extends Model
 {
 

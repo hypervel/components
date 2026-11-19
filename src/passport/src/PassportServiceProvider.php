@@ -245,7 +245,7 @@ class PassportServiceProvider extends ServiceProvider
         $config = $this->app->make(Repository::class);
 
         $this->app->make(CacheManager::class)->allowSerializableClassesUsing(
-            static fn (): array => $config->boolean('passport.cache.enabled')
+            static fn (): array => Passport::cacheEnabled($config)
                 ? [Passport::clientModel(), Passport::tokenModel()]
                 : []
         );
@@ -343,11 +343,11 @@ class PassportServiceProvider extends ServiceProvider
             }
         }
 
-        if (! $config->boolean('passport.cache.enabled')) {
+        if (! Passport::cacheEnabled($config)) {
             return;
         }
 
-        if ($config->integer('passport.cache.ttl') <= 0) {
+        if ($config->integer('passport.cache.ttl', Passport::DEFAULT_CACHE_TTL) <= 0) {
             throw new InvalidArgumentException('Passport cache TTL must be a positive integer.');
         }
 

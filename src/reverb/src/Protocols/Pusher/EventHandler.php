@@ -7,6 +7,9 @@ namespace Hypervel\Reverb\Protocols\Pusher;
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\Protocols\Pusher\Channels\CacheChannel;
 use Hypervel\Reverb\Protocols\Pusher\Channels\Channel;
+use Hypervel\Reverb\Protocols\Pusher\Channels\PresenceCacheChannel;
+use Hypervel\Reverb\Protocols\Pusher\Channels\PrivateCacheChannel;
+use Hypervel\Reverb\Protocols\Pusher\Channels\PrivateChannel;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\Exceptions\ConnectionUnauthorized;
 use Hypervel\Reverb\Protocols\Pusher\Exceptions\InvalidMessageFormat;
@@ -96,8 +99,21 @@ class EventHandler
         $channel = $channels->findOrCreate($channel);
 
         try {
+            // Unlike upstream, a client may name a user only in data that its private or presence channel
+            // auth signs, since pruning and user termination identify connections by user_id.
+            if (isset($decodedData['user_id'])
+                && ! ($channel instanceof PrivateChannel || $channel instanceof PrivateCacheChannel || $channel instanceof PresenceCacheChannel)) {
+                unset($decodedData['user_id']);
+                $data = json_encode($decodedData, JSON_PRESERVE_ZERO_FRACTION);
+
+                // Decoding turns an out-of-range number such as 1e999 into INF, which JSON can't encode again.
+                if ($data === false) {
+                    throw new InvalidMessageFormat('Invalid subscription data');
+                }
+            }
+
             $channel->subscribe($connection, $auth, $data);
-        } catch (ConnectionUnauthorized $exception) {
+        } catch (ConnectionUnauthorized|InvalidMessageFormat $exception) {
             if (! $channelExisted && $channel->connections() === []) {
                 $channels->remove($channel);
             }

@@ -18,10 +18,16 @@ function test(Repository $config): void
     assertType("'bar'", app(Repository::class)->get('test.foo'));
     assertType("'bar'", config()->get('test.foo', 5));
 
+    assertType('*ERROR*', config()->collection('foo'));
+    assertType("Hypervel\Support\Collection<'guard'|'passwords', 'users'|'web'>", config()->collection('auth.defaults'));
+    assertType('Hypervel\Support\Collection<0|1|2, 1|2|3>', config()->collection('test.bar'));
+    assertType('*ERROR*', config()->collection('test.foo'));
+
     // A repository received or built elsewhere may hold other values.
     assertType('mixed', $config->get('test.foo'));
     assertType('mixed', (new Repository(['test' => ['foo' => 123]]))->get('test.foo'));
     assertType('string', $config->string('test.bar'));
+    assertType('Hypervel\Support\Collection<(int|string), mixed>', $config->collection('test.foo'));
 }
 
 class CustomValue

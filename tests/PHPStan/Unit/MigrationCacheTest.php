@@ -162,6 +162,15 @@ class MigrationCacheTest extends TestCase
     public function testDisabledCacheAlwaysExecutesCallback(): void
     {
         $cache = new MigrationCache($this->resolver, $this->cacheDirectory, false);
+        $cache->remember([], [], [], static fn (): array => self::schema(['users' => new SchemaConnection('users', 'mysql')]));
+        $schema = self::schema(['posts' => new SchemaConnection('posts', 'mysql')]);
+
+        $this->assertSame($schema, $cache->remember([], [], [], static fn (): array => $schema));
+    }
+
+    public function testUnavailableCacheDirectoryAlwaysExecutesCallback(): void
+    {
+        $cache = new MigrationCache($this->resolver, $this->cacheDirectory . '/missing', true);
         $migrationFiles = [new SplFileInfo($this->createTempFile('mig1.php'))];
 
         $cache->remember($migrationFiles, [], [], static fn () => self::schema(['users' => new SchemaConnection('users', 'mysql')]));
@@ -173,7 +182,7 @@ class MigrationCacheTest extends TestCase
             return self::schema(['users' => new SchemaConnection('users', 'mysql')]);
         });
 
-        $this->assertTrue($called, 'Callback should be called when cache is disabled');
+        $this->assertTrue($called, 'Callback should be called when the cache directory is unavailable');
     }
 
     public function testOldCacheFilesAreCleanedUp(): void

@@ -63,7 +63,7 @@ class JobDispatchedInTransactionUsesAfterCommitRuleTest extends RuleTestCase
     public function testAfterCommitContract(): void
     {
         // Hypervel: a deliberate beforeCommit() or $afterCommit = false is respected, unlike upstream,
-        // which reports both. Upstream's branch for Laravel versions before 12.22 is omitted.
+        // which reports both.
         $this->analyse([__DIR__ . '/data/transaction-aftercommit-contract.php'], []);
     }
 

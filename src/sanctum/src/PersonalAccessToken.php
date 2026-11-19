@@ -117,7 +117,7 @@ class PersonalAccessToken extends Model implements HasAbilities
         }
 
         // Read the writer so replica lag cannot hide new tokens or delay revocation.
-        $accessToken = config()->boolean('sanctum.cache.enabled', false)
+        $accessToken = Sanctum::cacheEnabled(config())
             ? static::findTokenUsingCache($id)
             : static::query()->useWritePdo()->find($id);
 
@@ -155,7 +155,7 @@ class PersonalAccessToken extends Model implements HasAbilities
             return $accessToken->getRelation('tokenable');
         }
 
-        if (! config()->boolean('sanctum.cache.enabled', false)) {
+        if (! Sanctum::cacheEnabled(config())) {
             return $accessToken->getAttribute('tokenable');
         }
 
@@ -237,7 +237,7 @@ class PersonalAccessToken extends Model implements HasAbilities
     public function updateLastUsedAt(): void
     {
         $now = now();
-        $cacheEnabled = config()->boolean('sanctum.cache.enabled', false);
+        $cacheEnabled = Sanctum::cacheEnabled(config());
 
         if (
             $cacheEnabled
@@ -272,7 +272,7 @@ class PersonalAccessToken extends Model implements HasAbilities
      */
     protected static function invalidateTokenAfterMutation(self $token): void
     {
-        if (! config()->boolean('sanctum.cache.enabled', false)) {
+        if (! Sanctum::cacheEnabled(config())) {
             return;
         }
 

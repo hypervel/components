@@ -8,6 +8,8 @@ use App\Casts\BackedEnumeration;
 use App\Casts\BasicEnumeration;
 use App\Group;
 use App\GuardedModel;
+use App\MemberWithoutTimestampsAttribute;
+use App\MemberWithoutTimestampsTable;
 use App\Role;
 use App\RoleUser;
 use App\Team;
@@ -34,7 +36,9 @@ function test(
     Thread $thread,
     Address $address,
     RoleUser $roleUser,
-    ModelWithCasts $modelWithCasts
+    ModelWithCasts $modelWithCasts,
+    MemberWithoutTimestampsAttribute $memberWithoutTimestampsAttribute,
+    MemberWithoutTimestampsTable $memberWithoutTimestampsTable,
 ): void {
     // Unlike upstream, the test connection is SQLite, which does not enforce unsigned, so unsigned
     // columns read int. Dates read CarbonInterface because asDateTime() only guarantees the interface.
@@ -119,6 +123,8 @@ function test(
 
     assertType('bool', $modelWithCasts->integer);
     assertType(Stringable::class, $modelWithCasts->string);
+    assertType('string|null', $memberWithoutTimestampsAttribute->created_at);
+    assertType('string|null', $memberWithoutTimestampsTable->created_at);
 }
 
 function testUnknownSchema(UnknownSchemaUser $user): void

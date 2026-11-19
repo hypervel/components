@@ -28,6 +28,7 @@
     - [Deleting Passkeys](#deleting-passkeys)
     - [Customizing Passkeys](#customizing-passkeys)
     - [Passkey Models](#passkey-models)
+    - [Authenticator Icons](#authenticator-icons)
     - [Passkey Cleanup](#passkey-cleanup)
     - [Standalone Passkeys](#standalone-passkeys)
 - [Swoole And Worker State](#swoole-and-worker-state)
@@ -556,7 +557,7 @@ The resolved relying party ID must be a registrable-domain suffix of the resolve
 
 The `user_handle_secret` defaults to the app key for convenience, but production applications should set a dedicated, long-lived value before registering passkeys. Changing it changes generated user handles.
 
-Each user handle is derived from the owner's morph type, table, and primary key. If one relying party serves several tenant databases whose owners can share the same type and key, override `getPasskeyUserHandle()` on your passkey user model to include a stable tenant identifier that does not reveal personal information.
+Each user handle is derived from the owner's morph type, table, and primary key. If one relying party serves several tenant databases whose owners can share the same type and key, override `getPasskeyUserHandle()` on your passkey user model to include a stable tenant identifier that does not reveal personal information. Return an ASCII value of at most 64 bytes, such as a hex-encoded HMAC: some platforms corrupt binary user handles, which breaks later sign-ins.
 
 The published configuration applies a dedicated `passkeys` rate limiter to Fortify's passkey login, confirmation, and registration routes. If needed, you may customize it using the `fortify.limiters.passkeys` configuration option and a corresponding `RateLimiter::for(...)` definition, as described in [rate limiting](#rate-limiting).
 
@@ -825,6 +826,45 @@ use App\Models\Passkey;
 use Hypervel\Passkeys\Passkeys;
 
 Passkeys::usePasskeyModel(Passkey::class);
+```
+
+<a name="authenticator-icons"></a>
+### Authenticator Icons
+
+Each passkey's `authenticator` attribute contains the name of the password manager or device that created it, such as "Google Password Manager" or "1Password". Passkeys also expose the authenticator's icon as a `data:` URI in light and dark variants:
+
+```php
+$passkey->authenticator_icon_light;
+$passkey->authenticator_icon_dark;
+```
+
+All three return `null` when the authenticator is unrecognized, and the icons also return `null` when the authenticator has no icon.
+
+Icons are not serialized by default, since the icon data is considerably larger than the name. To include them in `toArray()` / `toJson()`, append them per instance:
+
+```php
+$passkey->append(['authenticator_icon_light', 'authenticator_icon_dark']);
+```
+
+Or on every passkey, by appending them on a [custom passkey model](#passkey-models):
+
+```php
+use Hypervel\Database\Eloquent\Attributes\Appends;
+use Hypervel\Passkeys\Passkey as BasePasskey;
+
+#[Appends(['authenticator_icon_light', 'authenticator_icon_dark'])]
+class Passkey extends BasePasskey
+{
+}
+```
+
+You may also resolve an icon directly from an AAGUID. Icon data is loaded lazily, so resolving a name never loads it:
+
+```php
+use Hypervel\Passkeys\Support\Aaguids;
+
+Aaguids::iconFor($aaguid);                 // light by default
+Aaguids::iconFor($aaguid, theme: 'dark');
 ```
 
 <a name="passkey-cleanup"></a>

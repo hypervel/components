@@ -409,7 +409,7 @@ PASSPORT_CACHE_STORE=redis
 PASSPORT_CACHE_TTL=300
 ```
 
-Caching is disabled by default. A null or empty `cache.store` uses your application's default cache store. JWT signatures and expiration are checked on every request. The user lookup is separate and may be cached through your [Eloquent user provider](/docs/{{version}}/authentication#user-lookup-cache).
+Caching is disabled by default. Each member of the `cache` configuration is optional: omitting `enabled` disables caching, a null, empty, or omitted `store` uses your application's default cache store, and an omitted `ttl` or `prefix` defaults to 300 seconds or `passport`. JWT signatures and expiration are checked on every request. The user lookup is separate and may be cached through your [Eloquent user provider](/docs/{{version}}/authentication#user-lookup-cache).
 
 Use a cache store shared by every process that changes clients or revokes tokens. Redis or a shared database cache works across application servers. A file store requires shared storage, and a Swoole store is suitable only when every writer runs in the same server. Request-local and worker-local array stores are not supported. Keep access to this cache as restricted as access to your session store.
 

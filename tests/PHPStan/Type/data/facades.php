@@ -1,9 +1,10 @@
 <?php
 
-namespace Facades;
+namespace FacadeTypes;
 
 use App\DummyFacade;
 use Hypervel\Support\Facades\Cache;
+use Hypervel\Support\Facades\Config;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Http;
@@ -14,11 +15,12 @@ use Hypervel\Support\Facades\Request;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Tests\PHPStan\Fixtures\Facades\UndocumentedFacade;
 
-use function PHPStan\dumpType;
 use function PHPStan\Testing\assertType;
 
 function test(): void
 {
+    // Hypervel: upstream dropped these cases with its fixtures for older Laravel releases. They still
+    // describe Hypervel's facades.
     assertType('Hypervel\Http\Request', Request::instance());
 
     assertType('null', Event::assertDispatched('FooEvent'));
@@ -57,6 +59,9 @@ function test(): void
     // Hypervel: the facade calls its root from outside, so a non-public method is not one of its methods.
     assertType('*ERROR*', UndocumentedFacade::whisper());
 
+    // Hypervel: foo.bar is definitely absent from the analyzed configuration, so collection() throws.
+    assertType('*ERROR*', Config::collection('foo.bar'));
+
     assertType('Hypervel\Http\Client\Response', Http::get('https://example.test'));
     assertType('Hypervel\Http\Client\Response', Http::post('https://example.test'));
     assertType('Hypervel\Http\Client\Response', Http::put('https://example.test'));
@@ -69,6 +74,8 @@ function test(): void
 
     assertType('int', Http::get('https://example.test')->getStatusCode());
 
+    // Hypervel: async requests return Guzzle's promise. Laravel's LazyPromise serves only the
+    // omitted pool() and batch() concurrency.
     assertType('GuzzleHttp\Promise\PromiseInterface', Http::async()->get('https://example.test'));
     assertType('GuzzleHttp\Promise\PromiseInterface', Http::async()->post('https://example.test'));
     assertType('GuzzleHttp\Promise\PromiseInterface', Http::async()->send('GET', 'https://example.test'));

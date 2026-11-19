@@ -232,33 +232,35 @@ class RedisPubSubProviderTest extends ReverbTestCase
             ->times(1);
     }
 
-    public function testMessageHandlerFailureDoesNotReplaceTheSubscriber(): void
+    public function testKeepsHandlingMessagesAfterOneFails(): void
     {
-        $messages = new Channel(1);
-        $messages->push(new Message('prefix:reverb', 'payload'));
+        $messages = new Channel(2);
+        $messages->push(new Message('prefix:reverb', ''));
+        $messages->push(new Message('prefix:reverb', '{"type":"message"}'));
         $subscriber = $this->subscriber($messages);
         $subscriber->expects('subscribe')->with('reverb');
         $redis = Double::for(RedisProxy::class)->strict();
         $redis->expects('subscriber')->returns($subscriber);
         $provider = $this->provider($redis);
         $this->expectSubscriberClose($subscriber, $messages);
-        $handlerFailure = new RuntimeException('handler failed');
+        $handled = [];
         $provider->messageHandlerForTest()
             ->expects('handle')
-            ->with('payload')
-            ->resolves(function () use ($provider, $handlerFailure): never {
-                $provider->disconnect();
+            ->times(2)
+            ->resolves(function (string $payload) use ($provider, &$handled): void {
+                $handled[] = json_decode($payload, associative: true, flags: JSON_THROW_ON_ERROR);
 
-                throw $handlerFailure;
+                $provider->disconnect();
             });
         $exceptionHandler = Double::for(ExceptionHandler::class)->strict();
-        $exceptionHandler->expects('report')->with(Argument::same($handlerFailure));
+        $exceptionHandler->expects('report')->with(Argument::type(JsonException::class));
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
         $provider->connect();
         $this->waitUntilStopped($provider);
 
-        $this->logger->received('error')->with('Redis connection failed: handler failed')->never();
+        $this->assertSame([['type' => 'message']], $handled);
+        $this->logger->received('error')->never();
     }
 
     public function testRetryWaitWakesWhenTheWorkerExits(): void

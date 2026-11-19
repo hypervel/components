@@ -214,25 +214,97 @@ class VerifyPasskeyTest extends TestCase
         $this->assertSame($initialUserHandle, Base64UrlSafe::decodeNoPadding($result->refresh()->credential['userHandle']));
     }
 
-    public function testItConvertsWebAuthnVerificationRejectionsIntoInvalidPasskeyException(): void
+    public function testItVerifiesALegacyPasskeyWhoseStoredUserHandleIsRawBinary(): void
     {
-        [$user, $credentialId] = $this->createStoredPasskeyCredential();
+        config()->set('passkeys.allowed_origins', ['https://localhost']);
+        config()->set('passkeys.relying_party_id', 'localhost');
+
+        $user = User::create(['name' => 'John Doe', 'email' => 'john@example.com']);
+        $credentialId = random_bytes(16);
+
+        // Credentials registered before the handle became hex encoded stored raw
+        // HMAC bytes. Verification compares against the stored value, so they
+        // must keep working when the authenticator returns the handle intact.
+        $binaryHandle = hash_hmac('sha256', User::class . '|users|' . $user->id, 'legacy-secret', binary: true);
+
+        $passkey = $user->passkeys()->create([
+            'name' => 'My MacBook',
+            'credential_id' => Base64UrlSafe::encodeUnpadded($credentialId),
+            'credential' => json_decode(
+                WebAuthn::toJson($this->createCredentialSource($binaryHandle, $credentialId)),
+                true,
+                flags: JSON_THROW_ON_ERROR,
+            ),
+        ]);
+
         $options = $this->createRequestOptions();
-        $credential = PublicKeyCredential::create(
+        $assertion = PublicKeyCredential::create(
             type: 'public-key',
             rawId: $credentialId,
-            response: $this->createSignedAssertionResponse(
-                random_bytes(32),
-                'https://localhost',
-                signCount: 1,
-                rpId: 'localhost',
+            response: $this->createSignedAssertionResponse($options->challenge, 'https://localhost', signCount: 1, rpId: 'localhost', userHandle: $binaryHandle),
+        );
+
+        $this->assertSame($passkey->id, app(VerifyPasskey::class)($assertion, $options)->id);
+    }
+
+    public function testItRejectsAnAssertionWhoseUserHandleNoLongerMatchesTheStoredCredential(): void
+    {
+        config()->set('passkeys.allowed_origins', ['https://localhost']);
+        config()->set('passkeys.relying_party_id', 'localhost');
+
+        $user = User::create(['name' => 'John Doe', 'email' => 'john@example.com']);
+        $credentialId = random_bytes(16);
+        $binaryHandle = hash_hmac('sha256', User::class . '|users|' . $user->id, 'legacy-secret', binary: true);
+
+        $user->passkeys()->create([
+            'name' => 'My iPhone',
+            'credential_id' => Base64UrlSafe::encodeUnpadded($credentialId),
+            'credential' => json_decode(
+                WebAuthn::toJson($this->createCredentialSource($binaryHandle, $credentialId)),
+                true,
+                flags: JSON_THROW_ON_ERROR,
             ),
+        ]);
+
+        // iOS Safari decodes binary handles as UTF-8 with replacement, so the
+        // handle comes back full of U+FFFD bytes and no longer matches.
+        $substitute = mb_substitute_character();
+        mb_substitute_character(0xFFFD);
+        $corruptedHandle = mb_convert_encoding($binaryHandle, 'UTF-8', 'UTF-8');
+        mb_substitute_character($substitute);
+
+        $options = $this->createRequestOptions();
+        $assertion = PublicKeyCredential::create(
+            type: 'public-key',
+            rawId: $credentialId,
+            response: $this->createSignedAssertionResponse($options->challenge, 'https://localhost', signCount: 1, rpId: 'localhost', userHandle: $corruptedHandle),
+        );
+
+        $this->expectException(InvalidPasskeyException::class);
+        $this->expectExceptionMessageIs('This passkey can no longer be used. Please remove it from your account and register a new one.');
+
+        app(VerifyPasskey::class)($assertion, $options);
+    }
+
+    public function testItRejectsAnAssertionSignedForADifferentChallenge(): void
+    {
+        [, $credentialId] = $this->createStoredPasskeyCredential();
+
+        // Starting a login in a second tab replaces the options in the session,
+        // so the first tab's assertion carries a challenge the server no longer expects.
+        $options = $this->createRequestOptions();
+        $staleOptions = $this->createRequestOptions();
+
+        $assertion = PublicKeyCredential::create(
+            type: 'public-key',
+            rawId: $credentialId,
+            response: $this->createSignedAssertionResponse($staleOptions->challenge, 'https://localhost', signCount: 1, rpId: 'localhost'),
         );
 
         $this->expectException(InvalidPasskeyException::class);
         $this->expectExceptionMessageIs('Unable to verify passkey. Please try again.');
 
-        app(VerifyPasskey::class)($credential, $options, $user);
+        app(VerifyPasskey::class)($assertion, $options);
     }
 
     public function testItConvertsCounterRejectionsIntoInvalidPasskeyException(): void

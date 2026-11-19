@@ -29,6 +29,15 @@ class HypervelJobWithoutConstructor
     use Dispatchable;
 }
 
+class HypervelJobWithPrivateConstructor
+{
+    use Dispatchable;
+
+    private function __construct(string $foo)
+    {
+    }
+}
+
 class HypervelJobWithOwnDispatch
 {
     use Dispatchable;
@@ -40,5 +49,30 @@ class HypervelJobWithOwnDispatch
     public static function dispatch(int $id): PendingDispatch
     {
         return static::newPendingDispatch(new static((string) $id));
+    }
+}
+
+class HypervelJobWithProtectedDispatch
+{
+    use Dispatchable {
+        dispatch as protected;
+    }
+
+    public function __construct(public string $id)
+    {
+    }
+}
+
+class HypervelJobWithReferenceDispatch
+{
+    use Dispatchable;
+
+    public function __construct(public int $id)
+    {
+    }
+
+    public static function dispatch(int &$id): PendingDispatch
+    {
+        return static::newPendingDispatch(new static($id));
     }
 }

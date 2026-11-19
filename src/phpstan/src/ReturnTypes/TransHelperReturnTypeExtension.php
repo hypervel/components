@@ -9,12 +9,10 @@ use PhpParser\Node\Expr\FuncCall;
 use PHPStan\Analyser\Scope;
 use PHPStan\DependencyInjection\AutowiredService;
 use PHPStan\Reflection\FunctionReflection;
-use PHPStan\Type\ArrayType;
-use PHPStan\Type\BenevolentUnionType;
+use PHPStan\Reflection\ParametersAcceptorSelector;
 use PHPStan\Type\DynamicFunctionReturnTypeExtension;
-use PHPStan\Type\MixedType;
-use PHPStan\Type\StringType;
 use PHPStan\Type\Type;
+use PHPStan\Type\TypeUtils;
 
 /** @internal */
 #[AutowiredService]
@@ -38,21 +36,22 @@ class TransHelperReturnTypeExtension implements DynamicFunctionReturnTypeExtensi
         FuncCall $functionCall,
         Scope $scope,
     ): ?Type {
-        // Upstream returns the translator only for a call without arguments. An explicit
-        // or possibly null key keeps the helper's declared conditional return type.
-        $key = $functionCall->getArgs()[0] ?? null;
+        if ($functionCall->getArgs()[0]->unpack ?? false) {
+            $returnType = $this->getUnpackedHelperType($functionReflection, $functionCall, $scope);
 
-        if ($key !== null && $key->unpack) {
-            return $this->getUnpackedHelperType($functionReflection, $functionCall, $scope);
+            if ($returnType === null) {
+                return null;
+            }
+        } else {
+            $returnType = ParametersAcceptorSelector::selectFromArgs(
+                $scope,
+                $functionCall->getArgs(),
+                $functionReflection->getVariants(),
+                $functionReflection->getNamedArgumentsVariants(),
+            )->getReturnType();
         }
 
-        if ($key === null || ! $scope->getType($key->value)->isNull()->no()) {
-            return null;
-        }
-
-        return new BenevolentUnionType([
-            new ArrayType(new MixedType, new MixedType),
-            new StringType,
-        ]);
+        // A key that cannot be null returns a translation, whichever way it is passed.
+        return $returnType->isObject()->no() ? TypeUtils::toBenevolentUnion($returnType) : $returnType;
     }
 }

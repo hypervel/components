@@ -85,6 +85,11 @@ class Foo
     use Macroable;
 }
 
+function enumDefaultValue(): void
+{
+    assertType('string', Builder::macroWithEnumDefaultValue());
+}
+
 // Hypervel: Builder::__callStatic() binds a global macro to the builder and registers a mixin's methods, returning
 // null. Builder::__call() calls a local macro unbound, and an instance mixin() reaches the query's, as a model's does.
 function builderRegistration(Post $post): void

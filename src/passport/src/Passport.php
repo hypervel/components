@@ -10,6 +10,7 @@ use DateTimeInterface;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Http\Request;
 use Hypervel\Passport\Bridge\AccessToken as AccessTokenEntity;
@@ -35,6 +36,10 @@ class Passport
     public const string DEFAULT_GUARD = 'passport';
 
     public const string DEFAULT_COOKIE = 'hypervel_token';
+
+    public const int DEFAULT_CACHE_TTL = 300;
+
+    public const string DEFAULT_CACHE_PREFIX = 'passport';
 
     public const string REGISTRATION_SCOPE = 'passport:register';
 
@@ -1152,6 +1157,14 @@ class Passport
         return is_callable(static::$tokenEncryptionKeyCallback)
             ? (static::$tokenEncryptionKeyCallback)($encrypter)
             : $encrypter->getKey();
+    }
+
+    /**
+     * Determine if token and client caching is enabled.
+     */
+    public static function cacheEnabled(ConfigRepository $config): bool
+    {
+        return $config->boolean('passport.cache.enabled', false);
     }
 
     /**
