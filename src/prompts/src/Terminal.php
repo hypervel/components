@@ -185,6 +185,11 @@ class Terminal
      */
     protected function execWithInput(string $command, $input = null): string
     {
+        // Calling a disabled proc_open throws an Error, which the size query's fallback would not catch.
+        if (! function_exists('proc_open')) {
+            throw new RuntimeException('Terminal commands require proc_open, which is disabled.');
+        }
+
         $descriptors = [
             1 => ['pipe', 'w'],
             2 => ['pipe', 'w'],

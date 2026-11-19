@@ -94,6 +94,20 @@ class TerminalTest extends TestCase
         ];
     }
 
+    public function testUsesTheFallbackSizeWhenProcOpenIsDisabled(): void
+    {
+        $process = Process::fromShellCommandline('stty rows 30 cols 70 && "${:PHP}" -d disable_functions=proc_open "${:FIXTURE}"', timeout: 10);
+        $process->setPty(true);
+        $process->mustRun(env: [
+            'PHP' => PHP_BINARY,
+            'FIXTURE' => __DIR__ . '/Fixtures/terminal-size.php',
+            'COLUMNS' => false,
+            'LINES' => false,
+        ]);
+
+        $this->assertSame([80, 50], json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR));
+    }
+
     public function testStreamOutputThatIsNotATerminalIsNotATty(): void
     {
         $output = new StreamOutput(fopen('php://memory', 'w'));
