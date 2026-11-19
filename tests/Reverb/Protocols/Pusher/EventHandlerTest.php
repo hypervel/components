@@ -23,6 +23,7 @@ use Hypervel\Tests\Reverb\ReverbTestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Matching\Argument;
 use JsonException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Server;
@@ -73,6 +74,39 @@ class EventHandlerTest extends ReverbTestCase
             'data' => '{}',
             'channel' => 'test-channel',
         ]);
+    }
+
+    #[DataProvider('subscriptionDataProvider')]
+    public function testOnlySignedSubscriptionDataNamesAUser(string $channel, array $expected): void
+    {
+        $data = json_encode(['user_id' => '1', 'user_info' => ['name' => 'Joe', 'rating' => 1.0]], JSON_PRESERVE_ZERO_FRACTION);
+
+        $this->pusher->handle($this->connection, 'pusher:subscribe', [
+            'channel' => $channel,
+            'auth' => static::validAuth($this->connection->id(), $channel, $data),
+            'channel_data' => $data,
+        ]);
+
+        $channels = $this->app->make(ChannelManager::class)->for($this->connection->app());
+        $this->assertSame($expected, $channels->find($channel)->find($this->connection)->data());
+    }
+
+    /**
+     * Provide each channel type with the subscription data it keeps.
+     */
+    public static function subscriptionDataProvider(): array
+    {
+        $signed = ['user_id' => '1', 'user_info' => ['name' => 'Joe', 'rating' => 1.0]];
+        $unsigned = ['user_info' => ['name' => 'Joe', 'rating' => 1.0]];
+
+        return [
+            'public' => ['test-channel', $unsigned],
+            'public cache' => ['cache-test-channel', $unsigned],
+            'private' => ['private-test-channel', $signed],
+            'private cache' => ['private-cache-test-channel', $signed],
+            'presence' => ['presence-test-channel', $signed],
+            'presence cache' => ['presence-cache-test-channel', $signed],
+        ];
     }
 
     public function testSubscriptionSucceedsWhenWebhookHandoffFails(): void

@@ -7,6 +7,9 @@ namespace Hypervel\Reverb\Protocols\Pusher;
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\Protocols\Pusher\Channels\CacheChannel;
 use Hypervel\Reverb\Protocols\Pusher\Channels\Channel;
+use Hypervel\Reverb\Protocols\Pusher\Channels\PresenceCacheChannel;
+use Hypervel\Reverb\Protocols\Pusher\Channels\PrivateCacheChannel;
+use Hypervel\Reverb\Protocols\Pusher\Channels\PrivateChannel;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\Exceptions\ConnectionUnauthorized;
 use Hypervel\Reverb\Protocols\Pusher\Exceptions\InvalidMessageFormat;
@@ -94,6 +97,14 @@ class EventHandler
         $channels = $this->channels->for($connection->app());
         $channelExisted = $channels->exists($channel);
         $channel = $channels->findOrCreate($channel);
+
+        // Unlike upstream, a client may name a user only in data that its private or presence channel
+        // auth signs, since pruning and user termination identify connections by user_id.
+        if (isset($decodedData['user_id'])
+            && ! ($channel instanceof PrivateChannel || $channel instanceof PrivateCacheChannel || $channel instanceof PresenceCacheChannel)) {
+            unset($decodedData['user_id']);
+            $data = json_encode($decodedData, JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR);
+        }
 
         try {
             $channel->subscribe($connection, $auth, $data);
