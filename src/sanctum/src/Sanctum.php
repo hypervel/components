@@ -6,6 +6,7 @@ namespace Hypervel\Sanctum;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Sanctum\Contracts\HasAbilities;
 use Hypervel\Support\Attributes\BootOnly;
 use Hypervel\Support\Attributes\TestsOnly;
@@ -77,6 +78,14 @@ class Sanctum
     {
         return $tokenable !== null
             && isset(class_uses_recursive($tokenable)[HasApiTokens::class]);
+    }
+
+    /**
+     * Determine if token caching is enabled.
+     */
+    public static function cacheEnabled(ConfigRepository $config): bool
+    {
+        return $config->boolean('sanctum.cache.enabled', false);
     }
 
     /**

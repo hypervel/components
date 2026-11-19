@@ -146,6 +146,15 @@ class PassportCacheTest extends TestCase
         $this->assertSame([], DB::getQueryLog());
     }
 
+    public function testPartialCacheConfigUsesPackageDefaults(): void
+    {
+        config(['cache.default' => 'passport-file', 'passport.cache' => ['enabled' => true]]);
+        $token = $this->createToken();
+
+        $this->assertSame($token->id, Token::findToken($token->id)->id);
+        $this->assertNotNull($this->app->make('cache')->store('passport-file')->get("passport:tokens:{$token->id}"));
+    }
+
     public function testClientCacheHitsDoNotConstructModels(): void
     {
         Passport::useClientModel(CountingPassportClient::class);

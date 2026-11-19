@@ -215,7 +215,9 @@ return [
     | Caching avoids database lookups when checking access tokens and clients.
     | Use a store shared by every process that changes clients or revokes
     | tokens. Entries expire after the configured number of seconds.
-    | A null store uses your application's default cache store.
+    | A null or omitted store uses your application's default cache store.
+    | Omitting "enabled" disables caching, while an omitted TTL or prefix
+    | defaults to 300 seconds or "passport".
     |
     */
 

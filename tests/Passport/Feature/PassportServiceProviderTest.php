@@ -109,6 +109,24 @@ class PassportServiceProviderTest extends PassportTestCase
         });
     }
 
+    public function testCacheDefaultsMatchTheShippedConfig(): void
+    {
+        $config = $this->withEnvironmentValues(
+            ['PASSPORT_CACHE_TTL' => null, 'PASSPORT_CACHE_PREFIX' => null],
+            fn (): array => require dirname(__DIR__, 3) . '/src/passport/config/passport.php',
+        );
+
+        $this->assertSame(Passport::DEFAULT_CACHE_TTL, $config['cache']['ttl']);
+        $this->assertSame(Passport::DEFAULT_CACHE_PREFIX, $config['cache']['prefix']);
+    }
+
+    public function testPartialCacheConfigUsesPackageDefaultsAtStartup(): void
+    {
+        config(['cache.default' => 'file', 'passport.cache' => ['enabled' => true]]);
+
+        (new PassportConfigurationProvider($this->app))->validateConfiguration();
+    }
+
     #[DataProvider('invalidConfiguration')]
     public function testInvalidSettingsAreRejectedAtStartup(array $settings, string $message): void
     {
@@ -157,6 +175,14 @@ class PassportServiceProviderTest extends PassportTestCase
         yield 'invalid rotation period' => [
             ['passport.key_store' => 'database', 'passport.key_rotation.days' => 0],
             'Passport key rotation period must be a positive number of days.',
+        ];
+        yield 'invalid cache flag' => [
+            ['passport.cache.enabled' => 'yes'],
+            'Configuration value for key [passport.cache.enabled] must be a boolean, string given.',
+        ];
+        yield 'null cache TTL' => [
+            ['passport.cache.enabled' => true, 'passport.cache.ttl' => null],
+            'Configuration value for key [passport.cache.ttl] must be an integer, NULL given.',
         ];
         yield 'unbounded credential cache' => [
             ['passport.cache.enabled' => true, 'passport.cache.ttl' => 0],
