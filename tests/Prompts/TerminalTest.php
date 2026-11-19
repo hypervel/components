@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Prompts\Terminal;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Console\Output\StreamOutput;
 use Symfony\Component\Process\Process;
 
@@ -67,6 +68,30 @@ class TerminalTest extends TestCase
         $this->assertSame([204, 204, 204], $terminal->foregroundColor());
         $this->assertSame([0, 0, 0], $terminal->backgroundColor());
         $this->assertSame([], $terminal->commands);
+    }
+
+    #[DataProvider('redirectedStreams')]
+    public function testSizesTheTerminalShowingOutput(string $redirection): void
+    {
+        $process = Process::fromShellCommandline('stty rows 30 cols 70 && "${:PHP}" "${:FIXTURE}" ' . $redirection, timeout: 10);
+        $process->setPty(true);
+        $process->mustRun(env: [
+            'PHP' => PHP_BINARY,
+            'FIXTURE' => __DIR__ . '/Fixtures/terminal-size.php',
+            'COLUMNS' => false,
+            'LINES' => false,
+        ]);
+
+        $this->assertSame([70, 30], json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    public static function redirectedStreams(): array
+    {
+        return [
+            'piped input' => ['< /dev/null'],
+            // Process keeps stderr on a pipe in PTY mode, so stderr is pointed at the terminal first.
+            'piped input and stdout' => ['2>&0 < /dev/null | cat'],
+        ];
     }
 
     public function testStreamOutputThatIsNotATerminalIsNotATty(): void
