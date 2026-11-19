@@ -2319,6 +2319,12 @@ $this->release(10);
 $this->release(now()->plus(seconds: 10));
 ```
 
+If the job defines a [backoff](#dealing-with-failed-jobs), the `releaseUsingBackoff` method releases it with the delay for the current attempt, just as the worker would after an exception. Once the attempts outnumber the configured delays, the last delay is used. A job without a backoff is released for immediate processing:
+
+```php
+$this->releaseUsingBackoff();
+```
+
 After releasing a job, return from its handler. If a worker-processed job throws after release, the worker reports the exception but does not fail or release that attempt again. Exceptions thrown after release do not count toward `maxExceptions`. The next delivery checks the job's attempt limit as usual.
 
 <a name="manually-failing-a-job"></a>
