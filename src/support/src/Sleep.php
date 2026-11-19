@@ -316,13 +316,17 @@ class Sleep
         while ($while()) {
             // @phpstan-ignore hypervel.rawSleep (the Sleep implementation itself)
             if ($seconds > 0 && sleep($seconds) !== 0 && Coroutine::isCanceled()) {
-                // Sleeping the remainder would hide the coroutine's cancellation from its caller.
-                continue;
+                // Sleeping again would hide the coroutine's cancellation from its caller.
+                return;
             }
 
             if ($microseconds > 0) {
                 // @phpstan-ignore hypervel.rawSleep (the Sleep implementation itself)
                 usleep($microseconds);
+
+                if (Coroutine::isCanceled()) {
+                    return;
+                }
             }
         }
     }

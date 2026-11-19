@@ -84,17 +84,23 @@ class SleepTest extends TestCase
         $this->assertGreaterThanOrEqual(2.9, $elapsed);
     }
 
-    public function testCancelingTheCoroutineEndsTheSleepWithoutSleepingTheRemainder(): void
+    #[TestWith([1.5])]
+    #[TestWith([0.2])]
+    public function testCancelingTheCoroutineEndsTheSleep(float $seconds): void
     {
         $coroutine = Coroutine::id();
         Coroutine::create(static function () use ($coroutine): void {
             usleep(50000);
             Coroutine::cancelById($coroutine);
         });
+        $checks = 0;
 
-        Sleep::for(1.5)->seconds();
+        Sleep::for($seconds)->seconds()->while(function () use (&$checks): bool {
+            return ++$checks <= 3;
+        });
 
-        // Sleeping the remainder would have reset the coroutine's cancellation state.
+        // Sleeping the remainder or the next iteration would have reset the coroutine's cancellation state.
+        $this->assertSame(1, $checks);
         $this->assertTrue(Coroutine::isCanceled());
     }
 
