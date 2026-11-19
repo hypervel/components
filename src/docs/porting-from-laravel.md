@@ -182,6 +182,8 @@ Some packages also define package-local contracts, such as `Hypervel\Permission\
 
 Custom `Hypervel\Contracts\View\View` implementations must provide `gatherData(): array`, returning the data used to render the view, including any shared values. Extending `Hypervel\View\View` supplies it.
 
+Custom `Hypervel\Contracts\Debug\ExceptionHandler` implementations must provide `shouldStopRetries(Throwable $e): bool`, which tells queue workers whether a job should stop retrying after the exception. Extending `Hypervel\Foundation\Exceptions\Handler` supplies it.
+
 Custom `Hypervel\View\ViewFinderInterface` implementations must provide `prependLocation()`, `getPaths()` and `getHints()`; extending `Hypervel\View\FileViewFinder` supplies them.
 
 <a name="missing-equivalents"></a>

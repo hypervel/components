@@ -169,6 +169,15 @@ trait InteractsWithExceptionHandling
             public function afterResponse(callable $callback): void
             {
             }
+
+            /**
+             * Determine if jobs should stop retrying for the given exception.
+             */
+            public function shouldStopRetries(Throwable $e): bool
+            {
+                // Retry policy is configuration, not exception handling.
+                return $this->originalHandler->shouldStopRetries($e);
+            }
         };
 
         $currentExceptionHandler = app(ExceptionHandler::class);

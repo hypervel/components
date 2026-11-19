@@ -838,9 +838,59 @@ trait FailoverQueueFakeQueue
         return 0;
     }
 
+    public function totalSize(): int
+    {
+        return 0;
+    }
+
+    public function totalPendingSize(): int
+    {
+        return 0;
+    }
+
+    public function totalDelayedSize(): int
+    {
+        return 0;
+    }
+
+    public function totalReservedSize(): int
+    {
+        return 0;
+    }
+
     public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int
     {
         return null;
+    }
+
+    public function pendingJobs(UnitEnum|string|null $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    public function delayedJobs(UnitEnum|string|null $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    public function reservedJobs(UnitEnum|string|null $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    public function allPendingJobs(): Collection
+    {
+        return new Collection;
+    }
+
+    public function allDelayedJobs(): Collection
+    {
+        return new Collection;
+    }
+
+    public function allReservedJobs(): Collection
+    {
+        return new Collection;
     }
 
     public function pushOn(UnitEnum|string|null $queue, object|string $job, mixed $data = ''): mixed

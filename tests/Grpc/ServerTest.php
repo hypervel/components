@@ -764,4 +764,12 @@ class RecordingExceptionHandler implements ExceptionHandler
     public function afterResponse(callable $callback): void
     {
     }
+
+    /**
+     * Determine if jobs should stop retrying for the given exception.
+     */
+    public function shouldStopRetries(Throwable $e): bool
+    {
+        return false;
+    }
 }

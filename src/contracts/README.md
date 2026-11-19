@@ -11,4 +11,6 @@ The `Container` contract also requires `isScoped()`, `isScopedInstance()`, `reso
 
 The `View` contract also requires `gatherData(): array`, which exposes the data used to render the view, including shared values, for response assertions. The standard `Hypervel\View\View` already provides it.
 
+The `ExceptionHandler` contract also requires `shouldStopRetries(Throwable $e): bool`, so handlers that wrap another handler, such as the exception fake, keep its `dontRetry()` and `dontRetryWhen()` rules for queued jobs. Extending `Hypervel\Foundation\Exceptions\Handler` supplies it.
+
 Ported from: https://github.com/laravel/framework/tree/13.x/src/Illuminate/Contracts

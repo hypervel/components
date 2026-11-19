@@ -76,6 +76,7 @@ use Hypervel\RateLimiter\Limiter;
 use Hypervel\RateLimiter\LimitResult;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Support\Testing\Fakes\ExceptionHandlerFake;
 use Hypervel\Testing\ParallelTesting;
@@ -849,6 +850,7 @@ class QueueWorkerTest extends TestCase
         if ($reportingMode !== 'normal') {
             $errorLog = $this->captureErrorLog();
             $this->exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
+            $this->exceptionHandler->allows('shouldStopRetries')->returns(false);
             $report = $this->exceptionHandler->expects('report')->with(Argument::same($cleanupException));
             if ($reportingMode === 'cancellation') {
                 $report->resolves(function () use ($reportingFailure): never {
@@ -2129,6 +2131,21 @@ class QueueWorkerTest extends TestCase
         $this->events->assertNotDispatched(JobReleasedAfterException::class);
     }
 
+    public function testExceptionFakeKeepsTheHandlersRetryPolicy(): void
+    {
+        $exception = new RuntimeException;
+        $job = new WorkerFakeJob(static function () use ($exception): never {
+            throw $exception;
+        });
+        $this->exceptionHandler = new ExceptionHandlerFake(new ShouldntRetryExceptionHandler);
+
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+        $worker->runNextJob('default', 'queue', $this->workerOptions(['backoff' => 10]));
+
+        $this->assertNull($job->releaseAfter);
+        $this->assertSame($exception, $job->failedWith);
+    }
+
     public function testExceptionIsNotReportedIfReportJobExceptionsIsDisabled(): void
     {
         $exception = new RuntimeException;
@@ -3019,6 +3036,7 @@ class QueueWorkerTest extends TestCase
         if ($reportingThrows) {
             $this->captureErrorLog();
             $this->exceptionHandler = Double::for(ExceptionHandlerContract::class)->strict();
+            $this->exceptionHandler->allows('shouldStopRetries')->returns(false);
             $this->exceptionHandler->expects('report')->with(Argument::same($failure))->throws(new RuntimeException('Reporting failed.'));
         }
         $workerOptions = new WorkerOptions(stopWhenEmpty: true);
@@ -3958,9 +3976,59 @@ trait HasQueue
         return 0;
     }
 
+    public function totalSize(): int
+    {
+        return 0;
+    }
+
+    public function totalPendingSize(): int
+    {
+        return 0;
+    }
+
+    public function totalDelayedSize(): int
+    {
+        return 0;
+    }
+
+    public function totalReservedSize(): int
+    {
+        return 0;
+    }
+
     public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int
     {
         return null;
+    }
+
+    public function pendingJobs(UnitEnum|string|null $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    public function delayedJobs(UnitEnum|string|null $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    public function reservedJobs(UnitEnum|string|null $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    public function allPendingJobs(): Collection
+    {
+        return new Collection;
+    }
+
+    public function allDelayedJobs(): Collection
+    {
+        return new Collection;
+    }
+
+    public function allReservedJobs(): Collection
+    {
+        return new Collection;
     }
 
     public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
