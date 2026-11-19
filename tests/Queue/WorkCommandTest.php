@@ -122,7 +122,9 @@ class WorkCommandTest extends TestCase
 
     #[TestWith(['3', 3])]
     #[TestWith(['1,5,10', [1, 5, 10]])]
-    public function testBackoffOptionIsConvertedToDelays(string $option, array|int $backoff): void
+    #[TestWith(['3', 5, '5'])]
+    #[TestWith(['1,5,10', [1, 5, 10], '2'])]
+    public function testBackoffOptionIsConvertedToDelays(string $option, array|int $backoff, string $delay = '0'): void
     {
         $command = new WorkCommandOutputStub(
             $this->app,
@@ -130,7 +132,7 @@ class WorkCommandTest extends TestCase
             Double::for(Worker::class)->strict(),
             $this->app->make('cache'),
         );
-        $command->setInput(new ArrayInput(['--backoff' => $option], $command->getDefinition()));
+        $command->setInput(new ArrayInput(['--backoff' => $option, '--delay' => $delay], $command->getDefinition()));
 
         $this->assertSame($backoff, $command->workerOptions()->backoff);
     }
