@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Ai\Gateway\Anthropic\Concerns;
 
+use Hypervel\Ai\Contracts\HasProviderOptions;
+use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\Files\Base64Document;
 use Hypervel\Ai\Files\Base64Image;
 use Hypervel\Ai\Files\File;
@@ -128,7 +130,9 @@ trait MapsAttachments
                 $mapped['title'] = $attachment->name();
             }
 
-            return $mapped;
+            return $attachment instanceof HasProviderOptions
+                ? array_merge($attachment->providerOptions(Lab::Anthropic), $mapped)
+                : $mapped;
         })->all();
     }
 
