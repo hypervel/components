@@ -14,7 +14,6 @@ use Hypervel\Ai\Contracts\Providers\ImageProvider;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
 use Hypervel\Ai\Contracts\Providers\TranscriptionProvider;
 use Hypervel\Ai\Files\Image as ImageFile;
-use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
 use Hypervel\Ai\Gateway\Concerns\ParsesServerSentEvents;
 use Hypervel\Ai\Gateway\Concerns\WrapsPcmAudio;
 use Hypervel\Ai\Gateway\StepContext;
@@ -39,13 +38,13 @@ class GeminiGateway implements Gateway, StepTextGateway
 {
     use Concerns\BuildsTextRequests;
     use Concerns\CreatesGeminiClient;
+    use Concerns\HandlesGeminiErrors;
     use Concerns\HandlesTextStreaming;
     use Concerns\MapsAttachments;
     use Concerns\MapsEmbeddingInputs;
     use Concerns\MapsMessages;
     use Concerns\MapsTools;
     use Concerns\ParsesTextResponses;
-    use HandlesFailoverErrors;
     use ParsesServerSentEvents;
     use WrapsPcmAudio;
 

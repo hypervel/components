@@ -11,7 +11,6 @@ use Hypervel\Ai\Files\Base64Image;
 use Hypervel\Ai\Files\Image;
 use Hypervel\Ai\Files\ProviderImage;
 use Hypervel\Ai\Files\RemoteImage;
-use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
 use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\Data\GeneratedImage;
 use Hypervel\Ai\Responses\Data\ImageUsage;
@@ -23,7 +22,7 @@ use InvalidArgumentException;
 class XaiImageGateway implements ImageGateway
 {
     use Concerns\CreatesXaiClient;
-    use HandlesFailoverErrors;
+    use Concerns\HandlesXaiErrors;
 
     /**
      * Generate an image.

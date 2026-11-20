@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Ai\Unit\Gateway\Concerns;
 
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Hypervel\Ai\Exceptions\InsufficientCreditsException;
+use Hypervel\Ai\Exceptions\InvalidApiKeyException;
 use Hypervel\Ai\Exceptions\ProviderOverloadedException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
@@ -18,6 +19,16 @@ use PHPUnit\Framework\Attributes\DataProvider;
 class HandlesFailoverErrorsTest extends TestCase
 {
     use HandlesFailoverErrors;
+
+    public function test401HintsAtAMissingOrInvalidApiKey(): void
+    {
+        $this->expectException(InvalidApiKeyException::class);
+        $this->expectExceptionMessage("Missing or invalid API key for AI provider [openai]. HTTP request returned status code 401:\n{\"error\":{\"message\":\"Incorrect API key provided.\"}}\n");
+
+        $this->withErrorHandling('openai', fn (): never => throw $this->failoverableException(401, [
+            'error' => ['message' => 'Incorrect API key provided.'],
+        ]));
+    }
 
     #[DataProvider('overloadStatuses')]
     public function testOverridingOverloadedStatusCodesReplacesTheDefault503(int $status, string $exception): void

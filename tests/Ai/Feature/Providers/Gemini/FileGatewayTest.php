@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Ai\Feature\Providers\Gemini;
 
+use Hypervel\Ai\Exceptions\InvalidApiKeyException;
 use Hypervel\Ai\Files;
 use Hypervel\Ai\Files\Document;
 use Hypervel\Contracts\Foundation\Application;
@@ -196,5 +197,22 @@ class FileGatewayTest extends TestCase
         }
 
         Http::assertNothingSent();
+    }
+
+    public function testARejectedApiKeyHintsAtTheKey(): void
+    {
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response(['error' => [
+                'code' => 400,
+                'message' => 'API key not valid. Please pass a valid API key.',
+                'status' => 'INVALID_ARGUMENT',
+                'details' => [['@type' => 'type.googleapis.com/google.rpc.ErrorInfo', 'reason' => 'API_KEY_INVALID']],
+            ]], 400),
+        ]);
+
+        $this->expectException(InvalidApiKeyException::class);
+        $this->expectExceptionMessage('Missing or invalid API key for AI provider [gemini].');
+
+        Files::get('abc123', provider: 'gemini');
     }
 }

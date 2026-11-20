@@ -6,6 +6,7 @@ namespace Hypervel\Ai\Gateway\Concerns;
 
 use Closure;
 use Hypervel\Ai\Exceptions\InsufficientCreditsException;
+use Hypervel\Ai\Exceptions\InvalidApiKeyException;
 use Hypervel\Ai\Exceptions\ProviderConnectionException;
 use Hypervel\Ai\Exceptions\ProviderOverloadedException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
@@ -40,6 +41,14 @@ trait HandlesFailoverErrors
             );
         } catch (RequestException $requestException) {
             $status = $requestException->response->status();
+
+            if ($this->isInvalidApiKey($requestException)) {
+                throw new InvalidApiKeyException(
+                    $providerName,
+                    $requestException->response,
+                    $requestException->truncateExceptionsAt
+                );
+            }
 
             if ($this->isInsufficientCredits($requestException)) {
                 throw InsufficientCreditsException::forProvider(
@@ -107,6 +116,14 @@ trait HandlesFailoverErrors
         $retryAfter = $exception->response->header('Retry-After');
 
         return ctype_digit($retryAfter) && (int) $retryAfter <= 10 ? (int) $retryAfter : null;
+    }
+
+    /**
+     * Determine if the provider rejected the request for a missing or invalid API key.
+     */
+    protected function isInvalidApiKey(RequestException $exception): bool
+    {
+        return $exception->response->status() === 401;
     }
 
     /**
