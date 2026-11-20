@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Data\Attributes\Validation;
 
-use Hypervel\Data\Attributes\Validation\Exists;
 use Hypervel\Data\Attributes\Validation\Required;
 use Hypervel\Data\Attributes\Validation\Rule;
-use Hypervel\Data\Attributes\Validation\Unique;
 use Hypervel\Data\Support\Validation\RuleDenormalizer;
 use Hypervel\Data\Support\Validation\RuleNormalizer;
 use Hypervel\Data\Support\Validation\ValidationPath;
@@ -18,8 +16,8 @@ use Hypervel\Tests\Data\Fixtures\Rules\CustomHypervelRule;
 use Hypervel\Tests\Data\Fixtures\Rules\CustomHypervelValidationRule;
 use Hypervel\Tests\Data\Fixtures\RulesDataset;
 use Hypervel\Tests\TestCase;
-use Hypervel\Validation\Rules\Exists as BaseExists;
-use Hypervel\Validation\Rules\Unique as BaseUnique;
+use Hypervel\Validation\Rules\Exists;
+use Hypervel\Validation\Rules\Unique;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 require_once dirname(__DIR__, 2) . '/Fixtures/RulesDataset.php';
@@ -46,7 +44,15 @@ class RulesTest extends TestCase
 
         $resolved = (new RuleDenormalizer)->execute($attribute, ValidationPath::create());
 
-        $this->assertRuleEquals($expected, $resolved[0]);
+        if ($expected instanceof Exists || $expected instanceof Unique) {
+            $this->assertInstanceOf($expected::class, $resolved[0]);
+            $this->assertSame((string) $expected, (string) $resolved[0]);
+            $this->assertSame($expected->queryCallbacks(), $resolved[0]->queryCallbacks());
+
+            return;
+        }
+
+        $this->assertEquals($expected, $resolved[0]);
     }
 
     #[DataProvider('attributes')]
@@ -64,7 +70,14 @@ class RulesTest extends TestCase
 
         $resolved = (new RuleNormalizer(new ValidationRuleFactory))->execute($expected);
 
-        $this->assertRuleEquals($expectedCreatedAttribute, $resolved[0]);
+        if ($expected instanceof Exists || $expected instanceof Unique) {
+            $this->assertInstanceOf($expectedCreatedAttribute::class, $resolved[0]);
+            $this->assertSame($expected, $resolved[0]->getRule(ValidationPath::create()));
+
+            return;
+        }
+
+        $this->assertEquals($expectedCreatedAttribute, $resolved[0]);
     }
 
     /**
@@ -107,28 +120,5 @@ class RulesTest extends TestCase
             ['test', 'a', 'b', 'c', 'x', 'y', new CustomHypervelValidationRule, 'required'],
             (new RuleDenormalizer)->execute($rule, ValidationPath::create()),
         );
-    }
-
-    /**
-     * Assert two rules are equal, comparing database query callbacks by identity, since closures cannot be compared.
-     */
-    protected function assertRuleEquals(mixed $expected, mixed $actual): void
-    {
-        if ($expected instanceof Exists || $expected instanceof Unique) {
-            $this->assertInstanceOf($expected::class, $actual);
-
-            $expected = $expected->getRule(ValidationPath::create());
-            $actual = $actual->getRule(ValidationPath::create());
-        }
-
-        if ($expected instanceof BaseExists || $expected instanceof BaseUnique) {
-            $this->assertInstanceOf($expected::class, $actual);
-            $this->assertSame((string) $expected, (string) $actual);
-            $this->assertSame($expected->queryCallbacks(), $actual->queryCallbacks());
-
-            return;
-        }
-
-        $this->assertEquals($expected, $actual);
     }
 }
