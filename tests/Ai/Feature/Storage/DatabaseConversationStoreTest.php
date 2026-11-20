@@ -37,6 +37,7 @@ use Hypervel\Ai\Responses\Data\ToolCall;
 use Hypervel\Ai\Responses\Data\ToolResult;
 use Hypervel\Ai\Responses\Data\UrlCitation;
 use Hypervel\Ai\Responses\StreamedAgentResponse;
+use Hypervel\Ai\Responses\StructuredAgentResponse;
 use Hypervel\Ai\Storage\DatabaseConversationStore;
 use Hypervel\Ai\Storage\StoredMessage;
 use Hypervel\Ai\Streaming\Events\Citation as CitationEvent;
@@ -65,6 +66,7 @@ use InvalidArgumentException;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Throwable;
 
@@ -660,9 +662,136 @@ class DatabaseConversationStoreTest extends TestCase
     public static function resumeStreamingModes(): array
     {
         return [
-            'prompted' => [false, 'Done.'],
+            'prompted' => [false, "Let me check.\n\nDone."],
             'streamed' => [true, "Let me check.\n\nDone."],
         ];
+    }
+
+    public function testAPromptedTurnStoresTheTextOfEveryStepWhenItsFinalStepIsEmpty(): void
+    {
+        $store = new DatabaseConversationStore;
+        $conversationId = $store->storeConversation('user', 1, 'Tool conversation');
+
+        $response = new AgentResponse('invocation-id', '', new TextUsage, new Meta('openai', 'gpt-5'));
+        $response->steps = collect([
+            new Step('Here is the answer.', [new ToolCall('call-1', 'LogAnswer', [])], [new ToolResult('call-1', 'LogAnswer', [], 'Logged')], FinishReason::ToolCalls, new TextUsage, new Meta, '', []),
+            new Step('', [], [], FinishReason::Stop, new TextUsage, new Meta, '', []),
+        ]);
+
+        $store->storeAssistantMessage($conversationId, 'user', 1, new AgentPrompt(new ToolUsingAgent, 'Answer', [], Double::for(TextProvider::class)->strict(), 'test-model'), $response);
+
+        $this->assertSame('Here is the answer.', DB::table('agent_conversation_messages')->where('role', 'assistant')->value('content'));
+    }
+
+    public function testATurnJoinsContinuationStepsWithoutAParagraphBreak(): void
+    {
+        $store = new DatabaseConversationStore;
+        $conversationId = $store->storeConversation('user', 1, 'Tool conversation');
+
+        $response = new AgentResponse('invocation-id', 'It is 12°C.', new TextUsage, new Meta('anthropic', 'claude'));
+        $response->steps = collect([
+            new Step('Laravel 13 is current, which', [], [], FinishReason::Continue, new TextUsage, new Meta, '', []),
+            new Step(' shipped in March.', [new ToolCall('call-1', 'GetWeather', [])], [new ToolResult('call-1', 'GetWeather', [], '12°C')], FinishReason::ToolCalls, new TextUsage, new Meta, '', []),
+            new Step('It is 12°C.', [], [], FinishReason::Stop, new TextUsage, new Meta, '', []),
+        ]);
+
+        $store->storeAssistantMessage($conversationId, 'user', 1, new AgentPrompt(new ToolUsingAgent, 'Weather?', [], Double::for(TextProvider::class)->strict(), 'test-model'), $response);
+
+        $this->assertSame("Laravel 13 is current, which shipped in March.\n\nIt is 12°C.", DB::table('agent_conversation_messages')->where('role', 'assistant')->value('content'));
+    }
+
+    #[TestWith([false], 'prompted')]
+    #[TestWith([true], 'streamed')]
+    public function testAResumeJoinsItsContinuationStepsWithoutAParagraphBreak(bool $streamed): void
+    {
+        $store = new DatabaseConversationStore;
+        $conversationId = $store->storeConversation('user', 1, 'Approval conversation');
+
+        insertAssistantTurn($conversationId, 'paused-1', 'Let me check.', [
+            assistantStep(
+                [['id' => 'call-1', 'name' => 'DeleteFile', 'arguments' => []]],
+                [['id' => 'call-1', 'name' => 'DeleteFile', 'arguments' => [], 'result' => 'Deleted', 'result_id' => null]],
+            ),
+        ], []);
+
+        $prompt = new AgentPrompt(new ToolUsingAgent, '', [], Double::for(TextProvider::class)->strict(), 'test-model', approvalDecisions: Decisions::from(['call-1' => true]));
+
+        $steps = collect([
+            new Step('Revenue grew', [], [], FinishReason::Continue, new TextUsage, new Meta, '', []),
+            new Step(' 4%.', [], [], FinishReason::Stop, new TextUsage, new Meta, '', []),
+        ]);
+
+        if ($streamed) {
+            $response = new StreamedAgentResponse('invocation-id', collect([
+                new TextDelta('event-1', 'message-1', 'Revenue grew', 0),
+                new TextDelta('event-2', 'message-1', ' 4%.', 0),
+                new StreamEnd('event-3', 'stop', new TextUsage, 0, $steps),
+            ]), new Meta('anthropic', 'claude'));
+        } else {
+            $response = new AgentResponse('invocation-id', ' 4%.', new TextUsage, new Meta('anthropic', 'claude'));
+            $response->steps = $steps;
+        }
+
+        $store->storeAssistantMessage($conversationId, 'user', 1, $prompt, $response);
+
+        $this->assertSame("Let me check.\n\nRevenue grew 4%.", DB::table('agent_conversation_messages')->where('role', 'assistant')->value('content'));
+    }
+
+    public function testAStructuredTurnStoresItsStructuredTextRatherThanTheTextOfEveryStep(): void
+    {
+        $store = new DatabaseConversationStore;
+        $conversationId = $store->storeConversation('user', 1, 'Structured conversation');
+
+        $response = new StructuredAgentResponse('invocation-id', ['answer' => 42], '{"answer":42}', new TextUsage, new Meta('openai', 'gpt-5'));
+        $response->steps = collect([
+            new Step('Let me check.', [new ToolCall('call-1', 'Lookup', [])], [new ToolResult('call-1', 'Lookup', [], '42')], FinishReason::ToolCalls, new TextUsage, new Meta, '', []),
+            new Step('{"answer":42}', [], [], FinishReason::Stop, new TextUsage, new Meta, '', []),
+        ]);
+
+        $store->storeAssistantMessage($conversationId, 'user', 1, new AgentPrompt(new ToolUsingAgent, 'Answer', [], Double::for(TextProvider::class)->strict(), 'test-model'), $response);
+
+        $this->assertSame('{"answer":42}', DB::table('agent_conversation_messages')->where('role', 'assistant')->value('content'));
+    }
+
+    public function testAStructuredResumeStoresOnlyItsFinalStructuredText(): void
+    {
+        $store = new DatabaseConversationStore;
+        $conversationId = $store->storeConversation('user', 1, 'Structured conversation');
+
+        insertAssistantTurn($conversationId, 'paused-1', 'Let me check.', [
+            assistantStep(
+                [['id' => 'call-1', 'name' => 'Lookup', 'arguments' => []]],
+                [['id' => 'call-1', 'name' => 'Lookup', 'arguments' => [], 'result' => '42', 'result_id' => null]],
+            ),
+        ], []);
+
+        $prompt = new AgentPrompt(new ToolUsingAgent, '', [], Double::for(TextProvider::class)->strict(), 'test-model', approvalDecisions: Decisions::from(['call-1' => true]));
+
+        $response = new StructuredAgentResponse('invocation-id', ['answer' => 42], '{"answer":42}', new TextUsage, new Meta('openai', 'gpt-5'));
+        $response->steps = collect([
+            new Step('{"answer":42}', [], [], FinishReason::Stop, new TextUsage, new Meta, '', []),
+        ]);
+
+        $store->storeAssistantMessage($conversationId, 'user', 1, $prompt, $response);
+
+        $this->assertSame('{"answer":42}', DB::table('agent_conversation_messages')->where('role', 'assistant')->value('content'));
+    }
+
+    public function testAnApprovalRunWithoutAPausedRowKeepsTheTextOfAnEarlierStep(): void
+    {
+        $store = new DatabaseConversationStore;
+        $conversationId = $store->storeConversation('user', 1, 'Approval conversation');
+
+        $prompt = new AgentPrompt(new ToolUsingAgent, '', [], Double::for(TextProvider::class)->strict(), 'test-model', approvalDecisions: Decisions::from(['call-1' => true]));
+
+        $response = new AgentResponse('invocation-id', '', new TextUsage, new Meta('anthropic', 'claude'));
+        $response->steps = collect([
+            new Step('Checking.', [], [], FinishReason::Continue, new TextUsage, new Meta, '', []),
+            new Step('', [], [], FinishReason::Stop, new TextUsage, new Meta, '', []),
+        ]);
+
+        $this->assertNotNull($store->storeAssistantMessage($conversationId, 'user', 1, $prompt, $response));
+        $this->assertSame('Checking.', DB::table('agent_conversation_messages')->where('role', 'assistant')->value('content'));
     }
 
     public function testAStreamedTurnThatPausesTwiceKeepsTheTextOfEveryStep(): void
@@ -2140,11 +2269,11 @@ class DatabaseConversationStoreTest extends TestCase
     {
         $store = new class extends DatabaseConversationStore {
             /**
-             * Include the prior response text when customizing the resumed message.
+             * Customize the resumed text from the paused row.
              */
             protected function resumePausedRow(string $conversationId, object $paused, AgentPrompt $prompt, AgentResponse $response, ?Throwable $exception = null): string
             {
-                $response->text = $paused->content . ' ' . $response->text;
+                $response->text = "Resumed after: {$paused->content}";
 
                 return parent::resumePausedRow($conversationId, $paused, $prompt, $response, $exception);
             }
@@ -2154,7 +2283,7 @@ class DatabaseConversationStoreTest extends TestCase
 
         $store->storeTurn($conversationId, null, null, null, $prompt, $this->response());
 
-        $this->assertDatabaseHas('agent_conversation_messages', ['id' => $messageId, 'content' => 'Hello back Hello back']);
+        $this->assertDatabaseHas('agent_conversation_messages', ['id' => $messageId, 'content' => "Hello back\n\nResumed after: Hello back"]);
     }
 
     public function testAnotherClaimCannotRecordResults(): void
@@ -2341,7 +2470,7 @@ class DatabaseConversationStoreTest extends TestCase
     {
         $conversationId = $store->storeConversation(null, null, 'Approval');
         $response = $this->response()->withSteps(collect([
-            new Step('', [new ToolCall('call-1', 'send_email', [], 'result-1')], [], FinishReason::ToolCalls, new TextUsage, new Meta, '', [['type' => 'tool_use', 'id' => 'call-1']]),
+            new Step('Hello back', [new ToolCall('call-1', 'send_email', [], 'result-1')], [], FinishReason::ToolCalls, new TextUsage, new Meta, '', [['type' => 'tool_use', 'id' => 'call-1']]),
         ]))->withPendingApprovals(collect([new PendingApproval('call-1', 'send_email', [], 'Sends an email')]));
 
         return [$conversationId, $store->storeAssistantMessage($conversationId, null, null, $this->prompt(), $response)];
