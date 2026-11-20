@@ -31,18 +31,25 @@ The Hypervel framework has a few system requirements:
 
 - PHP >= 8.4
 - Composer
+- Ctype PHP Extension
 - cURL PHP Extension
+- DOM PHP Extension
 - Fileinfo PHP Extension
 - Filter PHP Extension
 - Hash PHP Extension
+- iconv PHP Extension
 - Intl PHP Extension
 - JSON PHP Extension
+- libxml PHP Extension
 - Mbstring PHP Extension
 - OpenSSL PHP Extension
 - PCNTL PHP Extension
+- PCRE PHP Extension
 - PDO PHP Extension
 - POSIX PHP Extension
 - Session PHP Extension
+- SimpleXML PHP Extension
+- Sockets PHP Extension
 - Swoole PHP Extension >= 6.3.0RC2
 - Tokenizer PHP Extension
 
