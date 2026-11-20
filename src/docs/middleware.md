@@ -131,14 +131,25 @@ use Hypervel\Foundation\Configuration\Middleware;
 
 The `$middleware` object provided to the `withMiddleware` closure is an instance of `Hypervel\Foundation\Configuration\Middleware` and is responsible for managing the middleware assigned to your application's routes. The `append` method adds the middleware to the end of the list of global middleware. If you would like to add a middleware to the beginning of the list, you should use the `prepend` method.
 
-To place a middleware next to an existing global middleware, you may use the `insertBefore` and `insertAfter` methods:
+If a middleware needs to run at a specific point in Hypervel's default global middleware stack, you may use the `insertBefore` and `insertAfter` methods. Both methods accept the middleware already in the stack that you want to position against, followed by the middleware you want to insert:
 
 ```php
-use App\Http\Middleware\EnsureTokenIsValid;
+use App\Http\Middleware\SanitizeInput;
+use App\Http\Middleware\StripCrossOriginReferer;
+use Hypervel\Foundation\Http\Middleware\TrimStrings;
 use Hypervel\Http\Middleware\TrustProxies;
 
-$middleware->insertAfter(TrustProxies::class, EnsureTokenIsValid::class);
+->withMiddleware(function (Middleware $middleware): void {
+    $middleware->insertAfter(TrustProxies::class, StripCrossOriginReferer::class);
+
+    $middleware->insertBefore(TrimStrings::class, SanitizeInput::class);
+})
 ```
+
+You may also pass an array of middleware as the second argument to either method.
+
+> [!WARNING]
+> If the middleware you are positioning against is not part of the global middleware stack, nothing will be inserted.
 
 <a name="preferring-json-responses"></a>
 #### Preferring JSON Responses
@@ -344,7 +355,7 @@ $middleware->web(remove: [
 ]);
 ```
 
-The `insertBeforeInGroup` and `insertAfterInGroup` methods place middleware next to an existing entry in a group:
+If you need a middleware to run at a particular position within a group, you may use the `insertBeforeInGroup` and `insertAfterInGroup` methods:
 
 ```php
 use App\Http\Middleware\EnsureUserIsSubscribed;
