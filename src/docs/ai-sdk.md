@@ -2101,7 +2101,7 @@ foreach ($stream as $event) {
 }
 ```
 
-Response values such as `text`, `usage`, and `toolResults` ignore preliminary events. The [Vercel protocol](#stream-protocols) renders them as native streaming tool output, so `useChat` displays the progress without any custom code, while the AG-UI protocol reports them as activity snapshots. The sub-agent's final text becomes a tool result for the parent agent. The parent's response usage counts only its own generation steps.
+Response values such as `text`, `usage`, and `toolResults` ignore preliminary events. The [Vercel protocol](#stream-protocols) renders them as native streaming tool output, so `useChat` displays the progress without any custom code, while the AG-UI protocol reports them as activity snapshots. The sub-agent's final text becomes the tool call's result, which is available through the completed response's `toolResults`. The completed response's `text`, `reasoning`, `citations`, and `usage` only include the parent agent's own output. To track the usage of a sub-agent, you may listen for the `AgentStreamed` [event](#events), or the `AgentPrompted` event for a sub-agent that produces structured output, and compare the event's `prompt->parentInvocationId` with the parent response's `invocationId`.
 
 <a name="middleware"></a>
 ### Middleware
