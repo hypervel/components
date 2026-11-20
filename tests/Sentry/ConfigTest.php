@@ -111,7 +111,7 @@ class ConfigTest extends TestCase
         $this->assertTrue($config['tracing']['storage']);
     }
 
-    public function testOmittedBreadcrumbAndTracingOptionsUseTheShippedDefaults(): void
+    public function testOmittedBreadcrumbCronsAndTracingOptionsUseTheShippedDefaults(): void
     {
         $shippedConfig = $this->withEnvironmentValues(array_fill_keys([
             'SENTRY_BREADCRUMBS_LOGS_ENABLED',
@@ -124,6 +124,7 @@ class ConfigTest extends TestCase
             'SENTRY_BREADCRUMBS_COMMAND_JOBS_ENABLED',
             'SENTRY_BREADCRUMBS_HTTP_CLIENT_REQUESTS_ENABLED',
             'SENTRY_BREADCRUMBS_NOTIFICATIONS_ENABLED',
+            'SENTRY_CRONS_MONITOR_SCHEDULED_TASKS',
             'SENTRY_TRACE_QUEUE_ENABLED',
             'SENTRY_TRACE_QUEUE_JOBS_ENABLED',
             'SENTRY_TRACE_SQL_QUERIES_ENABLED',
@@ -147,11 +148,12 @@ class ConfigTest extends TestCase
             'sentry' => [
                 ...$shippedConfig,
                 'breadcrumbs' => [],
+                'crons' => [],
                 'tracing' => [],
             ],
         ]), 'sentry'))->all();
 
-        foreach (['breadcrumbs', 'tracing'] as $section) {
+        foreach (['breadcrumbs', 'crons', 'tracing'] as $section) {
             ksort($shippedConfig[$section]);
             ksort($config[$section]);
 
@@ -195,6 +197,7 @@ class ConfigTest extends TestCase
             'SENTRY_SEND_DEFAULT_PII' => '1',
             'SENTRY_BREADCRUMBS_SQL_QUERIES_ENABLED' => '1',
             'SENTRY_BREADCRUMBS_CACHE_ENABLED' => '1',
+            'SENTRY_CRONS_MONITOR_SCHEDULED_TASKS' => '1',
             'SENTRY_TRACE_VIEWS_ENABLED' => '1',
             'SENTRY_TRACE_REDIS_COMMANDS' => '1',
             'SENTRY_TRACE_SQL_ORIGIN_THRESHOLD_MS' => '250',
@@ -207,6 +210,7 @@ class ConfigTest extends TestCase
         $this->assertTrue($config['send_default_pii']);
         $this->assertTrue($config['breadcrumbs']['sql_queries']);
         $this->assertTrue($config['breadcrumbs']['cache']);
+        $this->assertTrue($config['crons']['monitor_scheduled_tasks']);
         $this->assertTrue($config['tracing']['views']);
         $this->assertTrue($config['tracing']['redis_commands']);
         $this->assertSame(250, $config['tracing']['sql_origin_threshold_ms']);

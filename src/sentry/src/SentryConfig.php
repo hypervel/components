@@ -25,6 +25,11 @@ class SentryConfig
         'notifications' => true,
     ];
 
+    private const array CRONS_DEFAULTS = [
+        'monitor_scheduled_tasks' => false,
+        'exclude_scheduled_tasks' => [],
+    ];
+
     private const array TRACING_DEFAULTS = [
         'queue_job_transactions' => true,
         'queue_jobs' => true,
@@ -115,6 +120,8 @@ class SentryConfig
         $config = $this->config->array($this->root);
         $config['breadcrumbs'] = $this->config->array($this->root . '.breadcrumbs', [])
             + self::BREADCRUMB_DEFAULTS;
+        $config['crons'] = $this->config->array($this->root . '.crons', [])
+            + self::CRONS_DEFAULTS;
         $config['tracing'] = $this->config->array($this->root . '.tracing', [])
             + self::TRACING_DEFAULTS;
 

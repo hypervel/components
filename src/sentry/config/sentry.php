@@ -87,6 +87,9 @@ return [
     'ignore_transactions' => [
         // Ignore Hypervel's default health URL
         '/up',
+
+        // Ignore the Hypervel Horizon and Hypervel Telescope routes
+        '/^\/(horizon|telescope)(\/|$)/',
     ],
 
     // Breadcrumb specific configuration
@@ -121,6 +124,15 @@ return [
 
         // Capture send notifications as breadcrumbs
         'notifications' => (bool) env('SENTRY_BREADCRUMBS_NOTIFICATIONS_ENABLED', true),
+    ],
+
+    // Crons monitoring specific configuration
+    'crons' => [
+        // Monitor every scheduled task as if `->sentryMonitor()` was called on it
+        'monitor_scheduled_tasks' => (bool) env('SENTRY_CRONS_MONITOR_SCHEDULED_TASKS', false),
+
+        // Monitor slugs, commands with their arguments, job classes or task descriptions of tasks that are not monitored automatically, `*` is a wildcard
+        'exclude_scheduled_tasks' => [],
     ],
 
     // Performance monitoring specific configuration

@@ -942,6 +942,27 @@ class EventTest extends TestCase
         $this->assertFalse($event->isDueAt($app, CarbonImmutable::parse('2026-05-29 12:59:59', 'UTC')));
     }
 
+    public function testEventTimezoneIsKeptDuringApplicationTimezoneClockChange(): void
+    {
+        $appDouble = Double::for(ApplicationContract::class, override: true)->strict();
+        $app = $appDouble->instance();
+        $appDouble->allows('isDownForMaintenance')->returns(false);
+        $appDouble->allows('environment')->returns('production');
+
+        $event = new Event(Double::for(EventMutex::class)->strict(), 'php foo');
+        $event->dailyAt('02:30')->timezone('UTC');
+
+        $previousTimezone = date_default_timezone_get();
+        date_default_timezone_set('Europe/Vienna');
+
+        try {
+            $this->assertTrue($event->isDueAt($app, CarbonImmutable::parse('2026-03-29 02:30:00', 'UTC')));
+            $this->assertFalse($event->isDueAt($app, CarbonImmutable::parse('2026-03-29 03:30:00', 'UTC')));
+        } finally {
+            date_default_timezone_set($previousTimezone);
+        }
+    }
+
     public function testTimeBetweenChecks(): void
     {
         $app = $this->container;

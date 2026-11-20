@@ -77,6 +77,7 @@ class SentryServiceProvider extends ServiceProvider
         // We do not want these settings to hit the PHP SDK because they are Hypervel specific and the PHP SDK will throw errors
         'tracing',
         'breadcrumbs',
+        'crons',
         'features',
         'pool',
         // We resolve the integrations through the container later, so we initially do not pass it to the SDK yet
@@ -319,6 +320,13 @@ class SentryServiceProvider extends ServiceProvider
                             return false;
                         }
 
+                        // We also remove the default transaction integration so it can be readded
+                        // after our own integration. This way the route name set by Hypervel takes
+                        // precedence over the fallbacks of the SDK
+                        if ($integration instanceof SdkIntegration\TransactionIntegration) {
+                            return false;
+                        }
+
                         return true;
                     });
 
@@ -336,6 +344,10 @@ class SentryServiceProvider extends ServiceProvider
                     ],
                     $userIntegrations
                 );
+
+                if ($options->hasDefaultIntegrations()) {
+                    $integrations[] = new SdkIntegration\TransactionIntegration;
+                }
 
                 if (is_callable($userIntegrationOption)) {
                     return $userIntegrationOption($integrations);
@@ -586,11 +598,21 @@ class SentryServiceProvider extends ServiceProvider
             return;
         }
 
-        $viewObserver = static function (ViewFactory $viewFactory): void {
-            $viewFactory->observeRendering(static function (View $view): void {
+        $app = $this->app;
+
+        $viewObserver = static function (ViewFactory $viewFactory) use ($app): void {
+            $viewFactory->observeRendering(static function (View $view) use ($app): void {
+                $viewName = $view->name();
+                $basePath = $app->basePath();
+
+                // Views rendered from a file are named after their full path, strip the base path to keep the name short
+                if (str_starts_with($viewName, $basePath . DIRECTORY_SEPARATOR)) {
+                    $viewName = substr($viewName, strlen($basePath));
+                }
+
                 // The decorator reads this during the same render call; keep it
                 // coroutine-local so concurrent renders do not swap view names.
-                CoroutineContext::set(ViewEngineDecorator::CONTEXT_KEY, $view->name());
+                CoroutineContext::set(ViewEngineDecorator::CONTEXT_KEY, $viewName);
             });
         };
 
