@@ -100,4 +100,36 @@ class DecodesStructuredOutputTest extends TestCase
             ],
         ], $this->decodeStructuredOutput($payload));
     }
+
+    public function testStripsBackticksThatDoNotPairIntoAFence(): void
+    {
+        $this->assertSame(['ok' => true], $this->decodeStructuredOutput('``{"ok":true}'));
+        $this->assertSame(['ok' => true], $this->decodeStructuredOutput('{"ok":true}``'));
+        $this->assertSame(['ok' => true], $this->decodeStructuredOutput('``{"ok":true}``'));
+    }
+
+    public function testIgnoresACommentAfterTheStrayClosingBackticks(): void
+    {
+        $payload = "{\"ok\":true}\n``{/* asked for the rest */}";
+
+        $this->assertSame(['ok' => true], $this->decodeStructuredOutput($payload));
+    }
+
+    public function testDecodesAJsonFenceThatIsNeverClosed(): void
+    {
+        $this->assertSame(['ok' => true], $this->decodeStructuredOutput("```json\n{\"ok\":true}"));
+    }
+
+    public function testReturnsEmptyArrayRatherThanPickingAnObjectOutOfSurroundingText(): void
+    {
+        $this->assertSame([], $this->decodeStructuredOutput('{"a":1}{"b":2}'));
+        $this->assertSame([], $this->decodeStructuredOutput('{"ok":true} hope this helps'));
+        $this->assertSame([], $this->decodeStructuredOutput('Example: {"name":"x"} Answer: ``{"real":1}``'));
+    }
+
+    public function testKeepsBackticksInsideStringValuesWhenTheFenceLostItsDelimiters(): void
+    {
+        $this->assertSame(['reply' => 'type ``x`` here'], $this->decodeStructuredOutput('``{"reply":"type ``x`` here"}``'));
+        $this->assertSame(['code' => "```php\necho 1;\n```"], $this->decodeStructuredOutput('``{"code":"```php\necho 1;\n```"}``'));
+    }
 }
