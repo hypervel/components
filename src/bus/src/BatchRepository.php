@@ -45,14 +45,15 @@ interface BatchRepository
     /**
      * Record a success once per counting identity, returning null after a prior success or deletion.
      *
-     * Repositories reporting first-pass completion also finish the batch in the same update.
+     * Repositories reporting completedFirstPass finish in the same write at zero pending,
+     * or when the first pass completes and failures are allowed.
      */
     public function decrementPendingJobs(string $batchId, string $jobId): ?UpdatedBatchJobCounts;
 
     /**
      * Record a failure unless the job already succeeded or the batch was deleted.
      *
-     * A chain position may have a different retry lookup ID. Retain the first one until success.
+     * Keep the latest retry lookup ID for the counting identity. A null retry ID uses $jobId.
      */
     public function incrementFailedJobs(string $batchId, string $jobId, ?string $retryId = null): ?UpdatedBatchJobCounts;
 

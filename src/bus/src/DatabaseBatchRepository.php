@@ -134,7 +134,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     }
 
     /**
-     * Count each failure up to the first success, retaining the original retry lookup ID.
+     * Count each failure up to the first success, retaining the latest retry lookup ID.
      */
     public function incrementFailedJobs(string $batchId, string $jobId, ?string $retryId = null): ?UpdatedBatchJobCounts
     {
@@ -163,14 +163,20 @@ class DatabaseBatchRepository implements PrunableBatchRepository
                     if ($result->whereNotNull('retry_id')->update(['retry_id' => null]) === 0) {
                         return null;
                     }
-                } elseif ($result->lockForUpdate()->value('retry_id') === null) {
-                    return null;
+                } else {
+                    $previousRetryId = $result->lockForUpdate()->value('retry_id');
+                    if ($previousRetryId === null) {
+                        return null;
+                    }
+                    if ($previousRetryId !== $retryId) {
+                        $result->update(['retry_id' => $retryId]);
+                    }
                 }
             }
 
             $parent = $connection->table($this->table)->where('id', $batchId);
             $batch = (clone $parent)->lockForUpdate()->first([
-                'pending_jobs', 'failed_jobs', 'outstanding_failed_jobs', 'finished_at',
+                'total_jobs', 'pending_jobs', 'failed_jobs', 'outstanding_failed_jobs', 'finished_at',
             ]);
 
             if ($batch === null) {
@@ -200,7 +206,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
             }
             $parent->update($values);
 
-            return new UpdatedBatchJobCounts($pending, $failed, $completedFirstPass);
+            return new UpdatedBatchJobCounts($pending, $failed, $completedFirstPass, (int) $batch->total_jobs);
         }, attempts: 3);
     }
 
@@ -215,7 +221,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
         $results = $grammar->wrapTable($this->resultsTable);
         $batches = $grammar->wrapTable($this->table);
         $finish = 'case when pending_jobs = 1 then coalesce(finished_at, ?) else finished_at end';
-        $columns = 'pending_jobs, failed_jobs, outstanding_failed_jobs, finished_at';
+        $columns = 'total_jobs, pending_jobs, failed_jobs, outstanding_failed_jobs, finished_at';
 
         // A conflict returns no row. A new result whose parent was deleted returns null counters.
         $row = $connection->selectOne(
@@ -223,8 +229,8 @@ class DatabaseBatchRepository implements PrunableBatchRepository
                 insert into {$results} (batch_id, job_id_hash) values (?, ?)
                 on conflict do nothing returning batch_id
             ), updated as (
-                update {$batches} set pending_jobs = pending_jobs - 1, finished_at = {$finish}
-                from inserted where id = inserted.batch_id returning {$columns}
+                update {$batches} as parent set pending_jobs = pending_jobs - 1, finished_at = {$finish}
+                from inserted where parent.id = inserted.batch_id returning {$columns}
             ) select updated.* from inserted left join updated on true",
             [$key['batch_id'], $key['job_id_hash'], time()],
             false,
@@ -261,7 +267,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
             }
         }
 
-        return new UpdatedBatchJobCounts($pending, (int) $row->failed_jobs, $completedFirstPass);
+        return new UpdatedBatchJobCounts($pending, (int) $row->failed_jobs, $completedFirstPass, (int) $row->total_jobs);
     }
 
     /**

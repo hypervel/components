@@ -56,15 +56,15 @@ abstract class DatabaseBatchRepositoryTestCase extends TestCase
         ]];
     }
 
-    public function testTransitionsRetainTheRetryIdAndFinishTheLastRecovery(): void
+    public function testTransitionsKeepTheLatestRetryIdAndFinishTheLastRecovery(): void
     {
         $repository = $this->app->make(DatabaseBatchRepository::class);
         $batch = Bus::batch([])->dispatch();
         $repository->incrementTotalJobs($batch->id, 2);
         $first = str_repeat('prefix', 100) . 'A';
         $second = str_repeat('prefix', 100) . 'a';
-        $repository->incrementFailedJobs($batch->id, $first, '0');
-        $counts = $repository->incrementFailedJobs($batch->id, $first, 'other-copy');
+        $repository->incrementFailedJobs($batch->id, $first, 'other-copy');
+        $counts = $repository->incrementFailedJobs($batch->id, $first, '0');
         $this->assertSame(2, $counts->failedJobs);
         $this->assertSame(['0'], $repository->getFailedJobIds($batch->id));
         $this->assertTrue($repository->hasFailedJob($batch->id, $first));
@@ -99,7 +99,7 @@ abstract class DatabaseBatchRepositoryTestCase extends TestCase
         $failure = new RuntimeException('Stop after updating the parent.');
         $armed = true;
         $connection->listen(static function (QueryExecuted $event) use (&$armed, $failure): void {
-            if ($armed && str_contains($event->sql, 'update') && str_contains($event->sql, 'pending_jobs')) {
+            if ($armed && (str_starts_with($event->sql, 'update') || str_starts_with($event->sql, 'with inserted')) && str_contains($event->sql, 'pending_jobs')) {
                 $armed = false;
                 throw $failure;
             }
@@ -126,6 +126,25 @@ abstract class DatabaseBatchRepositoryTestCase extends TestCase
         $this->assertSame([], $repository->getFailedJobIds($batch->id));
         $this->assertFalse($repository->hasFailedJob($batch->id, 'one'));
         $this->assertSame(0, DB::table('job_batch_results')->count());
+    }
+
+    public function testConcurrentSuccessesCountTheSameJobOnce(): void
+    {
+        $repository = $this->app->make(DatabaseBatchRepository::class);
+        $batch = Bus::batch([])->dispatch();
+        $repository->incrementTotalJobs($batch->id, 2);
+        $success = fn () => $repository->decrementPendingJobs($batch->id, 'one');
+        [$first, $duplicate] = $this->overlap(
+            $success,
+            $success,
+            static fn (string $sql) => str_contains($sql, 'job_batches')
+                && (str_starts_with($sql, 'update') || str_starts_with($sql, 'with inserted')),
+            waitFor: 'retry',
+        );
+
+        $this->assertSame(1, $first->pendingJobs);
+        $this->assertNull($duplicate);
+        $this->assertSame(1, $batch->fresh()->pendingJobs);
     }
 
     #[TestWith([true, false])]
@@ -194,7 +213,7 @@ abstract class DatabaseBatchRepositoryTestCase extends TestCase
             },
             fn () => $repository->decrementPendingJobs($batch->id, 'late'),
             static fn (string $sql) => str_contains($sql, 'delete') && str_contains($sql, 'job_batch_results'),
-            waitForCommit: true,
+            waitFor: 'commit',
         );
         $this->assertNull($batch->fresh());
         $this->assertSame(0, DB::table('job_batch_results')->count());
@@ -212,7 +231,7 @@ abstract class DatabaseBatchRepositoryTestCase extends TestCase
             fn () => $reopen ? $repository->prune(now()->addMinute()) : $repository->pruneUnfinished(now()->addMinute()),
             fn () => $reopen ? $repository->incrementTotalJobs($batch->id, 1) : $repository->decrementPendingJobs($batch->id, 'other'),
             static fn (string $sql) => str_starts_with($sql, 'select') && str_contains($sql, 'total_jobs'),
-            waitForCommit: true,
+            waitFor: 'commit',
         );
         $this->assertSame(0, $deleted);
         $this->assertSame($reopen ? 1 : 0, $batch->fresh()->pendingJobs);
@@ -234,11 +253,11 @@ abstract class DatabaseBatchRepositoryTestCase extends TestCase
         [$deleted] = $this->overlap(
             function () use ($repository): int {
                 DB::statement('set transaction isolation level repeatable read');
-                return DB::transaction(fn () => $repository->prune(now()->addMinute()));
+                return DB::transaction(fn () => $repository->prune(now()->addMinute()), attempts: 3);
             },
             fn () => $reopen ? $repository->incrementTotalJobs($stale->id, 1) : $repository->delete($stale->id),
             static fn (string $sql) => str_starts_with($sql, 'select') && str_contains($sql, 'total_jobs'),
-            waitForCommit: true,
+            waitFor: 'commit',
         );
         $this->assertSame(1, $deleted);
         $this->assertNull($valid->fresh());
@@ -247,9 +266,11 @@ abstract class DatabaseBatchRepositoryTestCase extends TestCase
     }
 
     /**
-     * Pause the first session after the chosen statement until its competitor starts writing or commits.
+     * Pause the first session after the chosen statement until the competing session reaches the requested stage.
+     *
+     * @param 'commit'|'retry'|'write' $waitFor
      */
-    private function overlap(Closure $first, Closure $second, Closure $pauseAfter, bool $waitForCommit = false): array
+    private function overlap(Closure $first, Closure $second, Closure $pauseAfter, string $waitFor = 'write'): array
     {
         $ready = new Channel(1);
         $release = new Channel(1);
@@ -267,9 +288,17 @@ abstract class DatabaseBatchRepositoryTestCase extends TestCase
                     });
                     return $first();
                 },
-                function () use ($second, $waitForCommit, $ready, $release) {
+                function () use ($second, $waitFor, $ready, $release) {
                     $this->assertTrue($ready->pop(5));
-                    if (! $waitForCommit) {
+                    if ($waitFor === 'retry') {
+                        // The first writer holds the row until the competing write actually times out.
+                        $attempt = 0;
+                        DB::connection()->beforeStartingTransaction(function () use (&$attempt, $release): void {
+                            if (++$attempt === 2) {
+                                $this->assertTrue($release->push(true, 5));
+                            }
+                        });
+                    } elseif ($waitFor === 'write') {
                         $started = false;
                         DB::connection()->beforeExecuting(function (string $sql) use (&$started, $release): void {
                             if (! $started && str_contains($sql, 'job_batch_results')) {
@@ -281,7 +310,7 @@ abstract class DatabaseBatchRepositoryTestCase extends TestCase
                     try {
                         return $second();
                     } finally {
-                        if ($waitForCommit) {
+                        if ($waitFor === 'commit') {
                             $release->push(true, 5);
                         }
                     }
