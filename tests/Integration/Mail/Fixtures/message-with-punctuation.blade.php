@@ -9,6 +9,10 @@
 {{ $value }}
 </x-mail::panel>
 
+<x-mail::button :url="$url">
+Open
+</x-mail::button>
+
 <x-slot:subcopy>
 {{ $value }}
 </x-slot:subcopy>

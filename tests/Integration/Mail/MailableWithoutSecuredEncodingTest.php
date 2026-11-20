@@ -127,6 +127,7 @@ TABLE, false);
         $html = $this->app->make(Markdown::class)->render('message-with-punctuation', [
             'value' => 'ordinary text',
             'punctuation' => '[x]',
+            'url' => 'https://hypervel.org',
             'host' => 'safe',
             'number' => 42,
         ])->toHtml();

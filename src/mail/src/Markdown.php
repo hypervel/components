@@ -20,7 +20,10 @@ use TijsVerkoyen\CssToInlineStyles\CssToInlineStyles;
 class Markdown
 {
     /**
-     * References that keep interpolated punctuation out of Markdown syntax.
+     * References that keep interpolated punctuation out of Markdown and HTML syntax.
+     *
+     * Unlike Laravel, ampersands and quotes are encoded too, as the default encoder does, so secured
+     * encoding never lets a value break out of an HTML attribute or turn literal entity text into a character.
      */
     protected const array ENCODED_CHARACTERS = [
         '\\' => '&#0000092;',
@@ -28,13 +31,16 @@ class Markdown
         ']' => '&#0000093;',
         '<' => '&#0000060;',
         '>' => '&#0000062;',
+        '&' => '&#0000038;',
+        '"' => '&#0000034;',
+        "'" => '&#0000039;',
     ];
 
     /**
      * Restore references left escaped in code or unchanged in raw HTML.
      *
-     * Zero padding keeps ordinary entity examples and literal backslashes intact.
-     * Angle brackets remain escaped so restoration cannot introduce HTML tags.
+     * Zero padding keeps ordinary entity examples and literal backslashes intact. Angle brackets,
+     * ampersands and quotes remain escaped so restoration cannot introduce HTML tags, attributes or entities.
      */
     protected const array DECODED_CHARACTERS = [
         '&amp;#0000092;' => '\\',
@@ -42,11 +48,17 @@ class Markdown
         '&amp;#0000093;' => ']',
         '&amp;#0000060;' => '&lt;',
         '&amp;#0000062;' => '&gt;',
+        '&amp;#0000038;' => '&amp;',
+        '&amp;#0000034;' => '&quot;',
+        '&amp;#0000039;' => '&#039;',
         '&#0000092;' => '\\',
         '&#0000091;' => '[',
         '&#0000093;' => ']',
         '&#0000060;' => '&lt;',
         '&#0000062;' => '&gt;',
+        '&#0000038;' => '&amp;',
+        '&#0000034;' => '&quot;',
+        '&#0000039;' => '&#039;',
     ];
 
     /**
