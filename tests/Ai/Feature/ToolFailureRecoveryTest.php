@@ -18,6 +18,7 @@ use Hypervel\Tests\Ai\Fixtures\Agents\DelegatingAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ResearchAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ThrowingToolAgent;
 use Hypervel\Tests\Ai\TestCase;
+use Hypervel\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
@@ -113,6 +114,29 @@ class ToolFailureRecoveryTest extends TestCase
 
         Exceptions::assertReportedCount(1);
         Exceptions::assertReported(fn (RuntimeException $reported): bool => $reported === $exception);
+    }
+
+    #[WithConfig('app.debug', false)]
+    public function testASubAgentValidationFailureFailsTheToolCallInsteadOfReturningItsMessages(): void
+    {
+        $exception = ValidationException::withMessages(['task' => 'The sub-agent rejected its input.']);
+        $failures = [];
+
+        Event::listen(ToolFailed::class, function (ToolFailed $event) use (&$failures): void {
+            $failures[] = $event->exception;
+        });
+
+        DelegatingAgent::fake([
+            new ToolCall('call_1', 'research_agent', ['task' => 'Research']),
+            'The research could not be completed.',
+        ]);
+        ResearchAgent::fake(fn () => throw $exception);
+
+        $response = (new DelegatingAgent)->prompt('Research');
+
+        $this->assertFalse($response->toolResults[0]->successful());
+        $this->assertSame('The tool call failed.', $response->toolResults[0]->error());
+        $this->assertSame([$exception], $failures);
     }
 
     public function testAnExceptionFromAToolEventListenerStillFailsTheRun(): void
