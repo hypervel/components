@@ -354,6 +354,10 @@ class ValidateMcpHeadersTest extends TestCase
         $response->assertStatus(200);
 
         $this->assertNotEmpty($response->json('result.tools'));
+
+        $this->postJson('test-mcp', ['jsonrpc' => '2.0', 'id' => 4, 'method' => 'tools/list', 'params' => []], [
+            'MCP-Protocol-Version' => " \t2025-06-18  ",
+        ])->assertStatus(200);
     }
 
     #[DataProvider('legacyVersions')]

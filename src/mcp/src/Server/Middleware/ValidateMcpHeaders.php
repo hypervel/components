@@ -67,6 +67,10 @@ class ValidateMcpHeaders
     {
         $version = $request->header(RequestHeader::PROTOCOL_VERSION->value);
 
+        if (is_string($version)) {
+            $version = trim($version, " \t");
+        }
+
         if (! is_string($version) || $version === '' || in_array($version, ProtocolVersion::initializeSupported(), true)) {
             return null;
         }
