@@ -1433,6 +1433,8 @@ $users = DB::table('users')
     ->get();
 ```
 
+When searching several PostgreSQL columns, a row with a null column can still match the others. Multi-column full text indexes use the same expression, so these searches can use the index.
+
 <a name="vector-similarity-clauses"></a>
 ### Vector Similarity Clauses
 
