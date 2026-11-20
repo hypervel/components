@@ -92,18 +92,20 @@ class Batch implements Arrayable, JsonSerializable
 
         $jobs = Collection::wrap($jobs);
 
-        if (array_any($jobs->all(), static fn ($job) => is_array($job))) {
+        if ($jobs->isEmpty()) {
+            return $this->fresh();
+        }
+
+        $hasChains = array_any($jobs->all(), static fn ($job) => is_array($job));
+        if ($hasChains) {
             $jobs = $this->prepareChainOccurrences($jobs);
         }
 
-        $jobs = $jobs->map(function ($job) use (&$count, &$owner, &$resolver) {
-            $job = $job instanceof Closure ? CallQueuedClosure::create($job) : $job;
-
+        $jobs = $jobs->map(function ($job) use ($hasChains, &$count, &$owner, &$resolver) {
             if (is_array($job)) {
                 $count += count($job);
 
                 $first = array_shift($job);
-                $first->batchPositionId = null;
 
                 if (isset($this->options['queue'])) {
                     $first->allOnQueue($this->options['queue']);
@@ -115,8 +117,9 @@ class Batch implements Arrayable, JsonSerializable
 
                 $job = $first->chain($job);
             } else {
-                $job->withBatchId($this->id);
-                $job->batchPositionId = null;
+                if (! $hasChains) {
+                    $job = $this->prepareBatchedJob($job);
+                }
 
                 ++$count;
             }
@@ -163,26 +166,44 @@ class Batch implements Arrayable, JsonSerializable
     }
 
     /**
-     * Separate repeated roots and capture each successor before a head's routing and chain are applied.
+     * Enroll a standalone job or chain head in the batch.
+     *
+     * Clone an enrolled job so its running handler keeps its batch, chain and position.
+     */
+    protected function prepareBatchedJob(object $job): object
+    {
+        $job = $job instanceof Closure ? CallQueuedClosure::create($job) : $job;
+        if (isset($job->batchId)) {
+            $job = clone $job;
+        }
+
+        $job->batchPositionId = null;
+
+        return $job->withBatchId($this->id);
+    }
+
+    /**
+     * Prepare chain occurrences before applying routing and outbox defaults.
+     *
+     * Enroll heads first so using a fresh head as another chain's tail preserves the caller's head.
      */
     protected function prepareChainOccurrences(Collection $jobs): Collection
     {
-        $roots = [];
-
-        return $jobs->map(function ($entry) use (&$roots) {
-            $chain = is_array($entry) ? $this->prepareBatchedChain($entry)->values()->all() : null;
-            $root = $chain === null ? $entry : $chain[0];
-            $id = spl_object_id($root);
-            if (isset($roots[$id])) {
-                $root = clone $root;
-            }
-            $roots[$id] = true;
-
-            if ($chain === null) {
-                return $root;
+        return $jobs->map(function ($entry) {
+            if (! is_array($entry)) {
+                return $this->prepareBatchedJob($entry);
             }
 
-            $chain[0] = $root;
+            $chain = array_values($entry);
+            $chain[0] = $this->prepareBatchedJob($chain[0]);
+
+            return $chain;
+        })->map(function ($entry) {
+            if (! is_array($entry)) {
+                return $entry;
+            }
+
+            $chain = $this->prepareBatchedChain($entry)->values()->all();
             foreach ($chain as $index => $job) {
                 if ($index !== 0) {
                     $chain[$index] = clone $job;
@@ -201,6 +222,13 @@ class Batch implements Arrayable, JsonSerializable
     {
         return (new Collection($chain))->map(function ($job) {
             $job = $job instanceof Closure ? CallQueuedClosure::create($job) : $job;
+
+            if (($job->batchId ?? null) === $this->id) {
+                return $job;
+            }
+            if (isset($job->batchId)) {
+                $job = clone $job;
+            }
 
             return $job->withBatchId($this->id);
         });
@@ -338,19 +366,22 @@ class Batch implements Arrayable, JsonSerializable
                 $events = $container->make(Dispatcher::class);
 
                 if ($events->hasListeners(BatchFinished::class)) {
-                    $events->dispatch(new BatchFinished($this->fresh() ?? $this));
+                    $batch = $this->fresh();
+                    if ($batch === null || $counts->totalJobs === null || $batch->totalJobs === $counts->totalJobs) {
+                        $events->dispatch(new BatchFinished($batch ?? $this));
+                    }
                 }
             }
         }
 
         if ($counts->pendingJobs === 0 && $this->hasThenCallbacks()) {
-            $this->invokeCallbacks('then');
+            $this->invokeCallbacks('then', null, $counts->totalJobs);
         }
 
         $this->markAsFinishedIfOnlyFailuresRemain($counts);
 
         if ($counts->allJobsHaveRanExactlyOnce() && $this->hasFinallyCallbacks()) {
-            $this->invokeCallbacks('finally');
+            $this->invokeCallbacks('finally', null, $counts->totalJobs);
         }
     }
 
@@ -364,12 +395,14 @@ class Batch implements Arrayable, JsonSerializable
 
     /**
      * Invoke the callbacks of the given type.
+     *
+     * @param null|int $expectedTotalJobs skip completion callbacks when the snapshot's total no longer matches
      */
-    protected function invokeCallbacks(string $type, ?Throwable $e = null): void
+    protected function invokeCallbacks(string $type, ?Throwable $e = null, ?int $expectedTotalJobs = null): void
     {
         $batch = $this->fresh();
 
-        if ($batch === null) {
+        if ($batch === null || ($expectedTotalJobs !== null && $batch->totalJobs !== $expectedTotalJobs)) {
             return;
         }
 
@@ -470,7 +503,7 @@ class Batch implements Arrayable, JsonSerializable
         $this->markAsFinishedIfOnlyFailuresRemain($counts);
 
         if ($counts->allJobsHaveRanExactlyOnce() && $this->hasFinallyCallbacks()) {
-            $this->invokeCallbacks('finally');
+            $this->invokeCallbacks('finally', null, $counts->totalJobs);
         }
     }
 
@@ -502,7 +535,7 @@ class Batch implements Arrayable, JsonSerializable
      */
     protected function isFirstJobProcessed(UpdatedBatchJobCounts $counts): bool
     {
-        return $this->totalJobs - $counts->pendingJobs + $counts->failedJobs === 1;
+        return ($counts->totalJobs ?? $this->totalJobs) - $counts->pendingJobs + $counts->failedJobs === 1;
     }
 
     /**

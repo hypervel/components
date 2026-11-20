@@ -70,6 +70,8 @@ class BatchChainRedeliveryTest extends TestCase
             $position = $one->payload()['data']['batchPositionId'];
             $this->assertSame($position, $two->payload()['data']['batchPositionId']);
             $one->fire();
+            $this->assertSame($pending, $batch->fresh()->pendingJobs);
+            $this->assertSame($pending === 0, $batch->fresh()->finished());
             $two->fire();
             $this->assertSame($pending, $batch->fresh()->pendingJobs);
             $this->assertSame($pending === 0, $batch->fresh()->finished());
@@ -77,7 +79,7 @@ class BatchChainRedeliveryTest extends TestCase
         $this->assertSame(3, DB::table('job_batch_results')->count());
     }
 
-    public function testBatchRetryUsesTheFirstFailedCopyAndAlreadyQueuedCopiesCanStillWork(): void
+    public function testBatchRetryUsesTheLatestFailedCopyAndAlreadyQueuedCopiesCanStillWork(): void
     {
         $handled = new ArrayObject;
         $this->app->instance(ArrayObject::class, $handled);
@@ -93,18 +95,31 @@ class BatchChainRedeliveryTest extends TestCase
             $job->fail($exception);
             $this->app->make('queue.failer')->log('database', 'default', $job->getRawBody(), $exception);
         }
-        $this->assertSame([$first->uuid()], $batch->fresh()->failedJobIds);
+        $this->app->make('queue.failer')->forget($first->uuid());
+        $this->assertSame([$second->uuid()], $batch->fresh()->failedJobIds);
         $this->assertTrue($batch->fresh()->finished());
         $this->artisan('queue:retry-batch', ['id' => [$batch->id]])->assertSuccessful();
         $queued = Queue::pop();
         $retry = Queue::pop();
         $this->assertNotSame($first->uuid(), $queued->uuid());
-        $this->assertSame($first->uuid(), $retry->uuid());
+        $this->assertSame($second->uuid(), $retry->uuid());
         $queued->fire();
         $retry->fire();
         $this->assertSame(['head', 'tail'], $handled->getArrayCopy());
         $this->assertSame(0, $batch->fresh()->pendingJobs);
         $this->assertSame([], $batch->fresh()->failedJobIds);
+    }
+
+    public function testASuccessorCanAddItselfWithoutLosingItsCurrentPosition(): void
+    {
+        $this->app->instance(ArrayObject::class, new ArrayObject);
+        $batch = Bus::batch([[new BatchChainJob('head'), new ReenrollingSuccessor]])->dispatch();
+        Queue::pop()->fire();
+        Queue::pop()->fire();
+        $this->assertSame(1, $batch->fresh()->pendingJobs);
+        Queue::pop()->fire();
+        $this->assertTrue($batch->fresh()->finished());
+        $this->assertSame(3, DB::table('job_batch_results')->count());
     }
 
     public function testReusedHeadsAndSuccessorsKeepTheirOwnRoutesAndChains(): void
@@ -115,18 +130,32 @@ class BatchChainRedeliveryTest extends TestCase
         $shared->batchPositionId = 'previous-enrollment';
         $other = new BatchChainJob('other');
         $tail = new BatchChainJob('repeat');
-        $batch = Bus::batch([[$shared, $tail, $tail], [$shared, new BatchChainJob('last')], $shared, [$other, $shared]])
+        $batch = Bus::batch([[$shared, $tail, $tail], [$shared, new BatchChainJob('last')], $shared, [$other, $shared], [$tail, new BatchChainJob('final')]])
             ->onQueue('batch-route')->viaOutbox()->dispatch();
 
         $this->assertNull($shared->batchPositionId);
+        $tail->assertHasChain([BatchChainJob::class]);
         $sharedTail = unserialize($other->chained[0]);
         $this->assertSame('tail-route', $sharedTail->queue);
         $this->assertNull($sharedTail->viaOutbox ?? null);
         while ($job = Queue::pop('batch-route') ?? Queue::pop('tail-route')) {
             $job->fire();
         }
-        $this->assertEqualsCanonicalizing(['shared', 'repeat', 'repeat', 'shared', 'last', 'shared', 'other', 'shared'], $handled->getArrayCopy());
+        $this->assertEqualsCanonicalizing(['shared', 'repeat', 'repeat', 'shared', 'last', 'shared', 'other', 'shared', 'repeat', 'final'], $handled->getArrayCopy());
         $this->assertSame(0, $batch->fresh()->pendingJobs);
+    }
+}
+
+class ReenrollingSuccessor implements ShouldQueue
+{
+    use Batchable;
+    use Queueable;
+
+    public function handle(): void
+    {
+        if ($this->batchPositionId !== null) {
+            $this->batch()->add($this);
+        }
     }
 }
 
