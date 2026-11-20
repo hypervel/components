@@ -109,6 +109,8 @@ describe("get and query route", () => {
 
 describe("redirect route", () => {
     test("every registered verb", () => {
+        expect(photos.redirect.definition.methods).toContain("query");
+
         for (const method of photos.redirect.definition.methods) {
             expect(photos.redirect[method]()).toEqual({
                 url: "/old-photos",
