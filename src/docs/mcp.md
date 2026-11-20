@@ -188,6 +188,8 @@ php artisan vendor:publish --tag=mcp-config
 ],
 ```
 
+Your application's own origin is allowed even when `app.url` is local, but other origins on your machine are not. Add a frontend that calls the server directly from another local port to this list, such as `http://localhost:5173`. To allow every origin, use `'*'`.
+
 Set `app.url` to your application's trusted public URL. Origin validation does not replace authentication or your application's CORS configuration. These settings belong to the application; end users do not need to change their browsers or CLI clients.
 
 <a name="local-servers"></a>
@@ -2017,6 +2019,8 @@ use Hypervel\Mcp\Client;
 $client = Client::web('https://api.githubcopilot.com/mcp/');
 ```
 
+The client does not follow redirects, so use the server's final URL.
+
 To connect to a local MCP server that runs as a command, use the `Client::local` method, providing the command and any arguments needed to start the server:
 
 ```php
@@ -2105,8 +2109,6 @@ $client = Client::web('https://projects.example.com/mcp')->withHeaders([
     'X-Api-Key' => config()->string('services.projects.api_key'),
 ]);
 ```
-
-Custom headers are removed when a redirect changes the configured URL's scheme, host, or port. They remain removed for the rest of that redirect chain, even if it returns to the original origin. A new request to the configured URL sends them again. Connect to the destination server's URL directly if it needs those headers.
 
 <a name="client-oauth"></a>
 #### Linking User Accounts With OAuth

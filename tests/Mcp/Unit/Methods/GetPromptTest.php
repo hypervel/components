@@ -404,7 +404,7 @@ class GetPromptTest extends TestCase
     }
 
     #[DataProvider('invalidNames')]
-    public function testRejectsNonStringPromptNames(mixed $name): void
+    public function testRejectsAWronglyTypedNameParameter(mixed $name): void
     {
         $request = new JsonRpcRequest(42, 'prompts/get', ['name' => $name]);
 
@@ -420,6 +420,6 @@ class GetPromptTest extends TestCase
      */
     public static function invalidNames(): array
     {
-        return [[1], [[]], [false]];
+        return ['array' => [['x']], 'int' => [1], 'empty array' => [[]], 'bool' => [false]];
     }
 }

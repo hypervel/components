@@ -13,7 +13,6 @@ use Hypervel\Ai\Contracts\Providers\EmbeddingProvider;
 use Hypervel\Ai\Contracts\Providers\ImageProvider;
 use Hypervel\Ai\Contracts\Providers\TextProvider;
 use Hypervel\Ai\Contracts\Providers\TranscriptionProvider;
-use Hypervel\Ai\Gateway\Concerns\HandlesFailoverErrors;
 use Hypervel\Ai\Gateway\Concerns\ParsesServerSentEvents;
 use Hypervel\Ai\Gateway\StepContext;
 use Hypervel\Ai\Gateway\StepResponse;
@@ -32,11 +31,11 @@ class XaiGateway implements Gateway, StepTextGateway
     use Concerns\BuildsTextRequests;
     use Concerns\CreatesXaiClient;
     use Concerns\HandlesTextStreaming;
+    use Concerns\HandlesXaiErrors;
     use Concerns\MapsAttachments;
     use Concerns\MapsMessages;
     use Concerns\MapsTools;
     use Concerns\ParsesTextResponses;
-    use HandlesFailoverErrors;
     use ParsesServerSentEvents;
 
     /**

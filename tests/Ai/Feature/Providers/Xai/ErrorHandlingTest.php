@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature\Providers\Xai;
 
 use Hypervel\Ai\Exceptions\AiException;
+use Hypervel\Ai\Exceptions\InvalidApiKeyException;
 use Hypervel\Ai\Exceptions\ProviderOverloadedException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\RequestException;
+use Hypervel\Http\Client\Response;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class ErrorHandlingTest extends TestCase
 {
@@ -103,5 +106,49 @@ class ErrorHandlingTest extends TestCase
         ]);
 
         (new AssistantAgent)->prompt('Hi', provider: 'xai');
+    }
+
+    #[DataProvider('rejectedApiKeys')]
+    public function testARejectedApiKeyHintsAtTheKey(int $status, array $body): void
+    {
+        Http::fake(['*' => Http::response($body, $status)]);
+
+        $this->expectException(InvalidApiKeyException::class);
+        $this->expectExceptionMessage('Missing or invalid API key for AI provider [xai].');
+
+        (new AssistantAgent)->prompt('Hi', provider: 'xai');
+    }
+
+    /**
+     * Provide xAI's rejected API key responses.
+     */
+    public static function rejectedApiKeys(): array
+    {
+        return [
+            'unauthenticated' => [401, ['error' => 'Missing or invalid authorization token.']],
+            'incorrect key' => [400, [
+                'code' => 'invalid-argument',
+                'error' => 'Incorrect API key provided. You can obtain an API key from https://console.x.ai.',
+            ]],
+        ];
+    }
+
+    #[DataProvider('nonJsonFailures')]
+    public function testANonJsonErrorBodyKeepsItsExceptionWhenDefaultDecodingThrows(int $status, string $exception): void
+    {
+        Response::$defaultJsonDecodingFlags = JSON_THROW_ON_ERROR;
+        Http::fake(['*' => Http::response('<html>Error</html>', $status)]);
+
+        $this->expectException($exception);
+
+        (new AssistantAgent)->prompt('Hi', provider: 'xai');
+    }
+
+    /**
+     * Provide failures before and after the API key check reads the error body.
+     */
+    public static function nonJsonFailures(): array
+    {
+        return [[503, ProviderOverloadedException::class], [400, RequestException::class]];
     }
 }

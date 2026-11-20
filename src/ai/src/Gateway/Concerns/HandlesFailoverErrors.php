@@ -6,6 +6,7 @@ namespace Hypervel\Ai\Gateway\Concerns;
 
 use Closure;
 use Hypervel\Ai\Exceptions\InsufficientCreditsException;
+use Hypervel\Ai\Exceptions\InvalidApiKeyException;
 use Hypervel\Ai\Exceptions\ProviderConnectionException;
 use Hypervel\Ai\Exceptions\ProviderOverloadedException;
 use Hypervel\Ai\Exceptions\RateLimitedException;
@@ -41,6 +42,14 @@ trait HandlesFailoverErrors
         } catch (RequestException $requestException) {
             $status = $requestException->response->status();
 
+            if ($this->isInvalidApiKey($requestException)) {
+                throw new InvalidApiKeyException(
+                    $providerName,
+                    $requestException->response,
+                    $requestException->truncateExceptionsAt
+                );
+            }
+
             if ($this->isInsufficientCredits($requestException)) {
                 throw InsufficientCreditsException::forProvider(
                     $providerName,
@@ -65,7 +74,8 @@ trait HandlesFailoverErrors
                 );
             }
 
-            $message = $requestException->response->json('error.message');
+            // An error body may not be JSON, and the application's default decoding flags may throw.
+            $message = $requestException->response->json('error.message', flags: 0);
 
             if (is_string($message) && $patterns = $this->insufficientCreditPatterns()) {
                 $message = strtolower($message);
@@ -110,6 +120,14 @@ trait HandlesFailoverErrors
     }
 
     /**
+     * Determine if the provider rejected the request for a missing or invalid API key.
+     */
+    protected function isInvalidApiKey(RequestException $exception): bool
+    {
+        return $exception->response->status() === 401;
+    }
+
+    /**
      * Determine if the response is a 402, or a 429 insufficient credits or quota error rather than a rate limit.
      */
     protected function isInsufficientCredits(RequestException $exception): bool
@@ -126,8 +144,8 @@ trait HandlesFailoverErrors
 
         $codes = $this->insufficientCreditCodes();
 
-        return in_array($exception->response->json('error.code'), $codes, true)
-            || in_array($exception->response->json('error.type'), $codes, true);
+        return in_array($exception->response->json('error.code', flags: 0), $codes, true)
+            || in_array($exception->response->json('error.type', flags: 0), $codes, true);
     }
 
     /**

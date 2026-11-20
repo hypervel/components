@@ -11,11 +11,14 @@ use Hypervel\Ai\Enums\Lab;
 use Hypervel\Ai\Exceptions\StreamErrorException;
 use Hypervel\Ai\Promptable;
 use Hypervel\Ai\Streaming\Events\Error;
+use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
+use Hypervel\Ai\Streaming\Events\ToolResult as ToolResultEvent;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Http\Client\Request;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\AttributeAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\AttributeToolChoiceAgent;
+use Hypervel\Tests\Ai\Fixtures\Agents\MultiStepToolAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\NestedStructuredAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\StructuredAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ToolChoiceAgent;
@@ -457,6 +460,103 @@ class OpenAiCompatibleTest extends TestCase
             && data_get(json_decode($request->body(), true), 'top_k') === 10);
     }
 
+    public function testPromptingRunsAToolCallThatFinishesWithStop(): void
+    {
+        Http::fakeSequence()
+            ->push([
+                'id' => 'chatcmpl-123',
+                'object' => 'chat.completion',
+                'model' => 'local-model',
+                'choices' => [[
+                    'index' => 0,
+                    'message' => ['role' => 'assistant', 'content' => null, 'tool_calls' => [$this->fakeOpenAiCompatibleToolCall('call_123', '{}')]],
+                    'finish_reason' => 'stop',
+                ]],
+            ])
+            ->pushResponse($this->fakeOpenAiCompatibleResponse('Done'));
+
+        $response = (new MultiStepToolAgent)->prompt('Generate', provider: 'openai-compatible');
+
+        $this->assertCount(1, $response->toolResults);
+        $this->assertSame('Done', $response->text);
+    }
+
+    public function testStreamingRunsAToolCallThatArrivesWithoutAnIndex(): void
+    {
+        Http::fakeSequence()
+            ->pushResponse($this->fakeOpenAiCompatibleToolCallStream([
+                [$this->fakeOpenAiCompatibleToolCall('call_123', '')],
+                [['function' => ['arguments' => '{}']]],
+            ], 'tool_calls'))
+            ->pushResponse($this->fakeOpenAiCompatibleStream());
+
+        $events = collect((new MultiStepToolAgent)->stream('Generate', provider: 'openai-compatible'));
+
+        $this->assertCount(1, $events->filter(fn ($event): bool => $event instanceof ToolCallEvent));
+        $this->assertCount(1, $events->filter(fn ($event): bool => $event instanceof ToolResultEvent));
+    }
+
+    public function testStreamingRunsAToolCallThatFinishesWithStop(): void
+    {
+        Http::fakeSequence()
+            ->pushResponse($this->fakeOpenAiCompatibleToolCallStream([
+                [['index' => 0] + $this->fakeOpenAiCompatibleToolCall('call_123', '{}')],
+            ], 'stop'))
+            ->pushResponse($this->fakeOpenAiCompatibleStream());
+
+        $events = collect((new MultiStepToolAgent)->stream('Generate', provider: 'openai-compatible'));
+
+        $this->assertCount(1, $events->filter(fn ($event): bool => $event instanceof ToolCallEvent));
+        $this->assertCount(1, $events->filter(fn ($event): bool => $event instanceof ToolResultEvent));
+    }
+
+    public function testStreamingRunsTwoWholeToolCallsThatArriveWithoutAnIndex(): void
+    {
+        Http::fakeSequence()
+            ->pushResponse($this->fakeOpenAiCompatibleToolCallStream([
+                [$this->fakeOpenAiCompatibleToolCall('call_1', '{}')],
+                [$this->fakeOpenAiCompatibleToolCall('call_2', '{}')],
+            ], 'tool_calls'))
+            ->pushResponse($this->fakeOpenAiCompatibleStream());
+
+        $events = collect((new MultiStepToolAgent)->stream('Generate', provider: 'openai-compatible'));
+
+        $this->assertCount(2, $events->filter(fn ($event): bool => $event instanceof ToolCallEvent));
+        $this->assertCount(2, $events->filter(fn ($event): bool => $event instanceof ToolResultEvent));
+    }
+
+    public function testStreamingRoutesAnIdentifiedFragmentWithoutAnIndexToItsOwnCall(): void
+    {
+        Http::fakeSequence()
+            ->pushResponse($this->fakeOpenAiCompatibleToolCallStream([
+                [$this->fakeOpenAiCompatibleToolCall('call_1', '{"min":')],
+                [$this->fakeOpenAiCompatibleToolCall('call_2', '{}')],
+                [['id' => 'call_1', 'function' => ['arguments' => '1}']]],
+            ], 'tool_calls'))
+            ->pushResponse($this->fakeOpenAiCompatibleStream());
+
+        $events = collect((new MultiStepToolAgent)->stream('Generate', provider: 'openai-compatible'));
+
+        $toolCalls = $events->filter(fn ($event): bool => $event instanceof ToolCallEvent)
+            ->map(fn (ToolCallEvent $event): array => [$event->toolCall->id, $event->toolCall->arguments])
+            ->values()
+            ->all();
+
+        $this->assertSame([['call_1', ['min' => 1]], ['call_2', []]], $toolCalls);
+    }
+
+    public function testStreamingDiscardsToolCallsCutOffByTheLengthLimit(): void
+    {
+        Http::fake(['*' => $this->fakeOpenAiCompatibleToolCallStream([
+            [['index' => 0] + $this->fakeOpenAiCompatibleToolCall('call_123', '{"min":')],
+        ], 'length')]);
+
+        $events = collect((new MultiStepToolAgent)->stream('Generate', provider: 'openai-compatible'));
+
+        $this->assertEmpty($events->filter(fn ($event): bool => $event instanceof ToolCallEvent));
+        $this->assertEmpty($events->filter(fn ($event): bool => $event instanceof ToolResultEvent));
+    }
+
     /**
      * Create a chat completion response.
      */
@@ -473,6 +573,41 @@ class OpenAiCompatibleTest extends TestCase
             ]],
             'usage' => ['prompt_tokens' => 1, 'completion_tokens' => 1],
         ]);
+    }
+
+    /**
+     * Create a tool call for the fixed number generator.
+     */
+    protected function fakeOpenAiCompatibleToolCall(string $id, string $arguments): array
+    {
+        return [
+            'id' => $id,
+            'type' => 'function',
+            'function' => ['name' => 'FixedNumberGenerator', 'arguments' => $arguments],
+        ];
+    }
+
+    /**
+     * Create a chat stream of tool call deltas.
+     *
+     * @param array<int, array<int, array>> $toolCallDeltas
+     */
+    protected function fakeOpenAiCompatibleToolCallStream(array $toolCallDeltas, string $finish): PromiseInterface
+    {
+        $chunk = fn (array $delta, ?string $finish = null): string => 'data: ' . json_encode([
+            'id' => 'chatcmpl-123',
+            'object' => 'chat.completion.chunk',
+            'model' => 'local-model',
+            'choices' => [['index' => 0, 'delta' => $delta, 'finish_reason' => $finish]],
+        ]);
+
+        $body = implode("\n\n", [
+            ...array_map(fn (array $toolCalls): string => $chunk(['tool_calls' => $toolCalls]), $toolCallDeltas),
+            $chunk([], $finish),
+            'data: [DONE]',
+        ]) . "\n\n";
+
+        return Http::response($body, 200, ['Content-Type' => 'text/event-stream']);
     }
 
     /**

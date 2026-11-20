@@ -27,6 +27,8 @@ use Hypervel\Ai\Responses\AgentResponse;
 use Hypervel\Ai\Responses\StreamedAgentResponse;
 use Hypervel\Ai\Skills\Skill;
 use Hypervel\Ai\Streaming\Events\TextDelta;
+use Hypervel\Ai\Streaming\Events\ToolCall as ToolCallEvent;
+use Hypervel\Ai\Streaming\Events\ToolResult as ToolResultEvent;
 use Hypervel\Ai\ToolChoice;
 use Hypervel\Ai\Tools\LoadSkill;
 use Hypervel\Contracts\JsonSchema\JsonSchema;
@@ -37,6 +39,7 @@ use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ConversationalAgent;
+use Hypervel\Tests\Ai\Fixtures\Agents\MultiStepToolAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\StructuredAgent;
 use Hypervel\Tests\Ai\Fixtures\Agents\ToolUsingAgent;
 use Hypervel\Tests\Ai\Fixtures\Tools\FixedNumberGenerator;
@@ -510,6 +513,49 @@ class AgentTest extends TestCase
 
         $this->assertSame(72019, $response['number']);
         $this->assertCount(1, $response->toolCalls);
+    }
+
+    public function testOpenAiCompatibleStreamsParallelToolCallsSentWithoutAnIndexAndFinishedWithStop(): void
+    {
+        requiresApiKey('GEMINI_API_KEY');
+
+        config(['ai.providers.openai-compatible' => [
+            ...config('ai.providers.openai-compatible'),
+            'url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+            'key' => config('ai.providers.gemini.key'),
+        ]]);
+
+        $response = (new MultiStepToolAgent)->stream(
+            'Generate two numbers by calling the tool twice in parallel, then reply with both numbers.',
+            provider: 'openai-compatible',
+            model: 'gemini-3-flash-preview',
+        );
+
+        $events = collect($response);
+
+        $this->assertCount(2, $events->whereInstanceOf(ToolCallEvent::class));
+        $this->assertCount(2, $events->whereInstanceOf(ToolResultEvent::class));
+        $this->assertStringContainsString('72019', $response->text);
+    }
+
+    public function testOpenAiCompatiblePromptsWithAToolCallFinishedWithStop(): void
+    {
+        requiresApiKey('GEMINI_API_KEY');
+
+        config(['ai.providers.openai-compatible' => [
+            ...config('ai.providers.openai-compatible'),
+            'url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+            'key' => config('ai.providers.gemini.key'),
+        ]]);
+
+        $response = (new MultiStepToolAgent)->prompt(
+            'Generate a number by calling the tool, then reply with the number.',
+            provider: 'openai-compatible',
+            model: 'gemini-3-flash-preview',
+        );
+
+        $this->assertCount(1, $response->toolResults);
+        $this->assertStringContainsString('72019', $response->text);
     }
 
     #[DataProviderExternal(Providers::class, 'reasoning')]

@@ -15,7 +15,6 @@ use Hypervel\Mcp\Client\Contracts\Transport;
 use Hypervel\Mcp\Client\Contracts\UsesProtocol;
 use Hypervel\Mcp\Client\Exceptions\AuthorizationRequiredException;
 use Hypervel\Mcp\Client\Exceptions\TransportException;
-use Hypervel\Mcp\Client\Middleware\RestrictHeadersToOrigin;
 use Hypervel\Mcp\Client\OAuth\WwwAuthenticateChallenge;
 use Hypervel\Mcp\Enums\ProtocolHandshake;
 use Hypervel\Mcp\Enums\ProtocolVersion;
@@ -204,18 +203,39 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
 
             $exchange->response = $response;
 
+            if ($response->redirect()) {
+                $this->resetFailedExchange($exchange);
+
+                throw new TransportException("The endpoint [{$this->url}] responded with a redirect [{$response->status()}], which is not followed.");
+            }
+
             if ($exchange->initializing && $exchange->generation === $this->generation) {
                 $this->captureSessionId($response);
             }
 
             if ($response->status() === 401 || $response->status() === 403) {
-                $challenge = WwwAuthenticateChallenge::parse($response->header('WWW-Authenticate'));
+                $challenge = $response->header('WWW-Authenticate');
+
+                // Unlike upstream, a 403 carrying a JSON-RPC error instead of a challenge, such as an
+                // Origin rejection, reaches the caller as a protocol error rather than an authorization prompt.
+                if ($response->status() === 403 && $challenge === '') {
+                    $content = trim($response->body());
+                    $exchange->ensureOpen();
+
+                    if ($this->hasJsonRpcError($content)) {
+                        $this->ensureResponseExpected($response, $message, $content);
+
+                        $this->queue[] = $content;
+
+                        return;
+                    }
+                }
 
                 $this->resetFailedExchange($exchange);
 
                 throw new AuthorizationRequiredException(
                     "The server responded with HTTP {$response->status()} for endpoint [{$this->url}]. Authorization is required.",
-                    $challenge,
+                    WwwAuthenticateChallenge::parse($challenge),
                 );
             }
 
@@ -228,6 +248,8 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
             if (! $response->successful()) {
                 $content = trim($response->body());
                 $exchange->ensureOpen();
+
+                $this->ensureResponseExpected($response, $message, $content);
 
                 if ($this->hasJsonRpcError($content)) {
                     $this->queue[] = $content;
@@ -338,6 +360,24 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
     }
 
     /**
+     * Throw when the server rejects a notification, since no response is read for one.
+     *
+     * The rejection does not end the session, so the negotiation is kept.
+     */
+    protected function ensureResponseExpected(ClientResponse $response, string $message, string $content): void
+    {
+        $outgoing = json_decode($message, true);
+
+        if (! is_array($outgoing) || ! isset($outgoing['method']) || array_key_exists('id', $outgoing)) {
+            return;
+        }
+
+        $error = Arr::get(json_decode($content, true), 'error.message');
+
+        throw new TransportException("The endpoint [{$this->url}] rejected the notification with HTTP status [{$response->status()}]" . (is_string($error) ? ": {$error}" : '.'));
+    }
+
+    /**
      * Build headers from the current connection and credentials.
      *
      * @param array<string, string> $mirrored
@@ -376,25 +416,13 @@ class HttpTransport implements Transport, UsesProtocol, IsolatesExchanges
     }
 
     /**
-     * Prepare a request with custom headers restricted to the configured origin.
+     * Prepare a request that does not follow redirects.
      *
      * @param array<string, string> $headers
      */
     protected function request(array $headers = []): PendingRequest
     {
-        $request = Http::withHeaders($this->headers($headers));
-
-        if ($this->customHeaders === []) {
-            return $request;
-        }
-
-        // Preserve protocol headers: a redirect target may have issued the session during initialization.
-        $customHeaders = array_values(array_filter(
-            array_keys($this->customHeaders),
-            fn (string $name): bool => ! $this->reserved($name),
-        ));
-
-        return $request->withMiddleware(new RestrictHeadersToOrigin($this->url, $customHeaders));
+        return Http::withHeaders($this->headers($headers))->withoutRedirecting();
     }
 
     /**

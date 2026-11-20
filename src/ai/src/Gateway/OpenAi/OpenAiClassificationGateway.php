@@ -223,6 +223,6 @@ class OpenAiClassificationGateway implements ClassificationGateway
      */
     protected function toText(string|array $value): string
     {
-        return is_string($value) ? $value : json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        return is_string($value) ? $value : json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }
 }

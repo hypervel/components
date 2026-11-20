@@ -13,6 +13,7 @@ use Hypervel\Engine\Channel;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\Request;
 use Hypervel\Mcp\Client;
+use Hypervel\Mcp\Client\Exceptions\TransportException;
 use Hypervel\Mcp\Client\Transport\HttpTransport;
 use Hypervel\Mcp\Enums\ProtocolVersion;
 use Hypervel\Mcp\Exceptions\ClientException;
@@ -20,6 +21,7 @@ use Hypervel\Mcp\Exceptions\SessionExpiredException;
 use Hypervel\Mcp\WebClient;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Mcp\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
@@ -262,62 +264,6 @@ class HttpTransportTest extends TestCase
         });
     }
 
-    #[TestWith([false], 'message')]
-    #[TestWith([true], 'session termination')]
-    public function testRedirectsKeepCustomHeadersRemovedAfterLeavingTheirOrigin(bool $disconnect): void
-    {
-        $requests = [];
-        Http::fake(function (Request $request) use (&$requests): PromiseInterface {
-            if (($request['method'] ?? null) === 'initialize') {
-                return Http::response(['jsonrpc' => '2.0', 'id' => 1, 'result' => []], headers: [
-                    'MCP-Session-Id' => 'resource-session',
-                ]);
-            }
-
-            $requests[] = $request;
-
-            return match ($request->url()) {
-                'https://mcp.test/mcp' => Http::response('', 307, ['Location' => 'https://other.test/mcp']),
-                'https://other.test/mcp' => Http::response('', 307, ['Location' => 'https://mcp.test/return']),
-                default => Http::response('', 202),
-            };
-        });
-        $transport = new HttpTransport('https://mcp.test/mcp');
-        $transport->withHeaders(['X-Api-Key' => 'resource-secret', 'MCP-Protocol-Version' => 'ignored']);
-        $transport->useProtocol(ProtocolVersion::V2025_11_25);
-
-        try {
-            $transport->send(json_encode(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'initialize']));
-            $transport->receive();
-
-            if ($disconnect) {
-                $transport->disconnect();
-            } else {
-                $transport->send(json_encode(['jsonrpc' => '2.0', 'id' => 2, 'method' => 'ping']));
-            }
-
-            $this->assertCount(3, $requests);
-            $this->assertTrue($requests[0]->hasHeader('X-Api-Key', 'resource-secret'));
-            foreach ([1, 2] as $index) {
-                $this->assertFalse($requests[$index]->hasHeader('X-Api-Key'));
-                $this->assertTrue($requests[$index]->hasHeader('MCP-Session-Id', 'resource-session'));
-                $this->assertTrue($requests[$index]->hasHeader('MCP-Protocol-Version', ProtocolVersion::V2025_11_25->value));
-            }
-            $this->assertTrue($requests[0]->hasHeader('MCP-Session-Id', 'resource-session'));
-
-            if (! $disconnect) {
-                $transport->send(json_encode(['jsonrpc' => '2.0', 'id' => 3, 'method' => 'ping']));
-
-                $this->assertCount(6, $requests);
-                $this->assertTrue($requests[3]->hasHeader('X-Api-Key', 'resource-secret'));
-                $this->assertFalse($requests[4]->hasHeader('X-Api-Key'));
-                $this->assertFalse($requests[5]->hasHeader('X-Api-Key'));
-            }
-        } finally {
-            $transport->disconnect();
-        }
-    }
-
     public function testLetsACustomAuthorizationHeaderOverrideTheBearerToken(): void
     {
         Http::fake(['*' => Http::response(json_encode(['jsonrpc' => '2.0', 'id' => 1, 'result' => []]), 200, ['Content-Type' => 'application/json'])]);
@@ -409,6 +355,55 @@ class HttpTransportTest extends TestCase
         $this->expectException(ClientException::class);
         $this->expectExceptionMessage('Unexpected HTTP status [500]');
         $transport->send(json_encode(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'ping', 'params' => []]));
+    }
+
+    #[TestWith([301])]
+    #[TestWith([302])]
+    #[TestWith([303])]
+    #[TestWith([307])]
+    #[TestWith([308])]
+    public function testDoesNotFollowARedirectFromTheMcpServer(int $status): void
+    {
+        Http::preventStrayRequests();
+
+        Http::fake([
+            'https://mcp.test/mcp' => Http::response('', $status, [
+                'Location' => 'http://169.254.169.254/latest/meta-data/iam/security-credentials/',
+            ]),
+            'http://169.254.169.254/*' => Http::response('{}', 200),
+        ]);
+
+        $transport = new HttpTransport('https://mcp.test/mcp');
+        $transport->withHeaders(['X-Api-Key' => 'secret-gateway-key']);
+
+        try {
+            $transport->send(json_encode(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/call', 'params' => ['name' => 'run', 'arguments' => []]]));
+
+            $this->fail('Expected a TransportException.');
+        } catch (TransportException $exception) {
+            $this->assertSame("The endpoint [https://mcp.test/mcp] responded with a redirect [{$status}], which is not followed.", $exception->getMessage());
+        }
+
+        Http::assertSentCount(1);
+        Http::assertNotSent(fn (Request $request): bool => str_starts_with($request->url(), 'http://169.254.169.254'));
+    }
+
+    public function testDoesNotFollowARedirectWhenTerminatingTheSession(): void
+    {
+        Http::fakeSequence('https://mcp.test/mcp')
+            ->push(json_encode(['jsonrpc' => '2.0', 'id' => 1, 'result' => []]), 200, ['Content-Type' => 'application/json', 'MCP-Session-Id' => 'session-del'])
+            ->push('', 307, ['Location' => 'http://127.0.0.1:6379/']);
+
+        Http::fake(['http://127.0.0.1:6379/*' => Http::response('', 200)]);
+
+        $transport = new HttpTransport('https://mcp.test/mcp');
+        $transport->useProtocol(ProtocolVersion::V2025_11_25);
+        $transport->send(json_encode(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'initialize', 'params' => []]));
+        $transport->receive();
+        $transport->disconnect();
+
+        Http::assertSentCount(2);
+        Http::assertNotSent(fn (Request $request): bool => str_starts_with($request->url(), 'http://127.0.0.1'));
     }
 
     public function testSendsADeleteWithTheSessionIdOnDisconnect(): void
@@ -545,6 +540,48 @@ class HttpTransportTest extends TestCase
         Http::assertSent(fn ($request): bool => ($request['method'] ?? null) === 'tools/list' && $request->hasHeader('MCP-Session-Id', 'session-e2e'));
         Http::assertSent(fn ($request): bool => ($request['method'] ?? null) === 'tools/list' && $request->hasHeader('Authorization', 'Bearer e2e-token'));
         Http::assertSent(fn ($request): bool => ($request['method'] ?? null) === 'tools/list' && $request->hasHeader('MCP-Protocol-Version', ProtocolVersion::V2025_11_25->value));
+    }
+
+    #[DataProvider('rejectedNotifications')]
+    public function testThrowsWhenTheServerRejectsANotificationAndKeepsTheSession(int $status, string $body, string $reason): void
+    {
+        Http::fakeSequence()
+            ->push(json_encode(['jsonrpc' => '2.0', 'id' => 1, 'result' => []]), 200, ['Content-Type' => 'application/json', 'MCP-Session-Id' => 'session-kept'])
+            ->push($body, $status)
+            ->push(json_encode(['jsonrpc' => '2.0', 'id' => 2, 'result' => []]), 200, ['Content-Type' => 'application/json']);
+
+        $transport = new HttpTransport('https://mcp.test/mcp');
+        $transport->useProtocol(ProtocolVersion::V2025_11_25);
+        $transport->send(json_encode(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'initialize', 'params' => []]));
+        $transport->receive();
+
+        try {
+            $transport->send(json_encode(['jsonrpc' => '2.0', 'method' => 'notifications/initialized']));
+
+            $this->fail('Expected a TransportException.');
+        } catch (TransportException $exception) {
+            $this->assertSame("The endpoint [https://mcp.test/mcp] rejected the notification with HTTP status [{$status}]{$reason}", $exception->getMessage());
+        }
+
+        $transport->send(json_encode(['jsonrpc' => '2.0', 'id' => 2, 'method' => 'ping', 'params' => []]));
+
+        $this->assertSame(['jsonrpc' => '2.0', 'id' => 2, 'result' => []], json_decode($transport->receive(), true));
+        Http::assertSent(fn ($request): bool => ($request['method'] ?? null) === 'ping' && $request->hasHeader('MCP-Session-Id', 'session-kept'));
+    }
+
+    /**
+     * Provide notification rejections with and without a JSON-RPC error body.
+     */
+    public static function rejectedNotifications(): array
+    {
+        $error = json_encode(['jsonrpc' => '2.0', 'error' => ['code' => -32600, 'message' => 'The notification was not accepted.']]);
+
+        return [
+            'json-rpc error' => [400, $error, ': The notification was not accepted.'],
+            'json-rpc error without a challenge' => [403, $error, ': The notification was not accepted.'],
+            'plain error' => [400, 'Bad Request', '.'],
+            'server error' => [503, 'Service Unavailable', '.'],
+        ];
     }
 
     public function testThrowsWhenTheServerNegotiatesAProtocolVersionTheClientDoesNotSupport(): void

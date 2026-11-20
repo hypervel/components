@@ -622,7 +622,7 @@ class OAuthCallbackRouteTest extends TestCase
     {
         $this->withoutExceptionHandling();
         Http::preventStrayRequests();
-        Http::fake(['https://mcp.test/mcp' => fn () => throw new ConnectionException('Connection timed out')]);
+        Http::fake(['https://mcp.test/mcp' => fn (): never => throw new ConnectionException('Connection timed out')]);
         $this->registerGithubClient();
         Mcp::oAuthRoutesFor('github', fn (): null => null);
 

@@ -1029,7 +1029,7 @@ class CallToolTest extends TestCase
     }
 
     #[DataProvider('invalidNames')]
-    public function testRejectsNonStringToolNames(mixed $name): void
+    public function testRejectsAWronglyTypedNameParameter(mixed $name): void
     {
         $request = new JsonRpcRequest(42, 'tools/call', ['name' => $name]);
 
@@ -1045,6 +1045,6 @@ class CallToolTest extends TestCase
      */
     public static function invalidNames(): array
     {
-        return [[1], [[]], [false]];
+        return ['array' => [['x']], 'int' => [1], 'empty array' => [[]], 'bool' => [false]];
     }
 }

@@ -18,6 +18,7 @@ use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Tests\Ai\TestCase;
 use InvalidArgumentException;
+use JsonException;
 use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -100,6 +101,17 @@ class ClassificationTest extends TestCase
             ->question('is_urgent', new Boolean('Is this urgent?'))->classify(provider: 'openai');
 
         Http::assertSent(fn (Request $request): bool => json_decode($request->body(), true)['input'] === '{"subject":"Refund","body":"Charged twice"}');
+    }
+
+    public function testStructuredStateThatCannotBeEncodedThrowsAJsonException(): void
+    {
+        Http::fake();
+
+        $this->expectException(JsonException::class);
+
+        Classification::of(['body' => "\xB1"])
+            ->question('is_urgent', new Boolean('Is this urgent?'))
+            ->classify(provider: 'openai');
     }
 
     public function testImageAttachmentsAreSentInlineWithTheStateAsAUserMessage(): void

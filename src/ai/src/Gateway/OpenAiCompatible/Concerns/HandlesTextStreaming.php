@@ -139,7 +139,7 @@ trait HandlesTextStreaming
 
             if (isset($delta['tool_calls'])) {
                 foreach ($delta['tool_calls'] as $tcDelta) {
-                    $idx = $tcDelta['index'];
+                    $idx = $tcDelta['index'] ?? $this->inferToolCallIndex($pendingToolCalls, $tcDelta);
 
                     if (! isset($pendingToolCalls[$idx])) {
                         $pendingToolCalls[$idx] = [
@@ -193,7 +193,7 @@ trait HandlesTextStreaming
             ))->withInvocationId($invocationId);
         }
 
-        // Compatible servers can report stop when a named tool choice forces the call.
+        // Some servers finish a tool turn with "stop" rather than "tool_calls".
         if (filled($pendingToolCalls) && in_array($finishReason, ['tool_calls', 'stop'], true)) {
             $toolCalls = $this->mapStreamToolCalls($pendingToolCalls);
 
@@ -209,10 +209,33 @@ trait HandlesTextStreaming
         return new StepResponse(
             text: $currentText,
             toolCalls: $toolCalls,
-            finishReason: filled($toolCalls) ? FinishReason::ToolCalls : $this->extractFinishReason(['finish_reason' => $finishReason]),
+            finishReason: $toolCalls !== []
+                ? FinishReason::ToolCalls
+                : $this->extractFinishReason(['finish_reason' => $finishReason]),
             usage: $usage ?? new TextUsage(0, 0),
             meta: new Meta($provider->name(), $responseModel),
         );
+    }
+
+    /**
+     * Infer a tool call delta's index for servers that omit it: a new id, or a second name, starts a new call.
+     *
+     * @param array<int, array{id: string, name: string, arguments: string}> $pendingToolCalls
+     */
+    protected function inferToolCallIndex(array $pendingToolCalls, array $tcDelta): int
+    {
+        // Unlike upstream, a known id continues its own call rather than only the last one, so interleaved
+        // fragments of parallel calls are not merged into the wrong call or split into a new one.
+        if (isset($tcDelta['id'])) {
+            return array_find_key($pendingToolCalls, fn (array $toolCall): bool => $toolCall['id'] === $tcDelta['id'])
+                ?? count($pendingToolCalls);
+        }
+
+        $last = end($pendingToolCalls);
+
+        $startsNewCall = $last === false || (isset($tcDelta['function']['name']) && $last['name'] !== '');
+
+        return $startsNewCall ? count($pendingToolCalls) : array_key_last($pendingToolCalls);
     }
 
     /**
