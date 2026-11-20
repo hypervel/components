@@ -15,6 +15,6 @@ Batch repositories count by logical job ID. A failure carries its delivery UUID 
 
 Overrides of `Batch::invokeCallbacks()` must accept the optional trailing `?int $expectedTotalJobs` argument. It skips a completion callback group when the snapshot it would receive includes jobs added since the accounting write.
 
-SQL batch repositories update each job result and its parent counters together. Subclasses customizing accounting should override the counting methods. Laravel's protected `updateAtomicValues()` handled only the parent row and is omitted.
+Subclasses customizing `DatabaseBatchRepository` accounting should override the counting methods. Laravel's protected `updateAtomicValues()` hook is omitted.
 
 Ported from: https://github.com/laravel/framework/tree/13.x/src/Illuminate/Bus

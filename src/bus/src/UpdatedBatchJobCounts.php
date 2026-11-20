@@ -10,7 +10,7 @@ class UpdatedBatchJobCounts
      * Create a new batch job counts object.
      *
      * @param null|bool $completedFirstPass Whether the last previously unreported job ran. Repositories that report this flag finish the batch atomically at zero pending, or when only allowed failures remain. Null leaves finishing to the batch.
-     * @param null|int $totalJobs The total recorded with this transition, used to detect a later addition.
+     * @param null|int $totalJobs the total recorded with this transition, used to detect a later addition
      */
     public function __construct(
         public int $pendingJobs = 0,
