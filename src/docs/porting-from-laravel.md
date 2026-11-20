@@ -1029,6 +1029,8 @@ When porting an application, start from a fresh Hypervel application skeleton an
 
 Do not replace the Hypervel skeleton's `composer.json`, `bootstrap/app.php`, `config` directory, `.env.example`, or `phpunit.xml` with their Laravel counterparts. Move application providers into `bootstrap/providers.php`, move routes into Hypervel's `routes` files, and configure middleware through the Hypervel `bootstrap/app.php` file. Transfer environment values into the corresponding Hypervel configuration keys instead of copying the Laravel environment file unchanged.
 
+Use Hypervel's migrations for framework tables such as jobs, job batches, sessions, and cache. Bring over migrations for your application's own tables and reapply any customizations to framework tables on top of Hypervel's schema. If you're keeping an existing database, preserve its migration history and write new migrations for the changes needed to bring its framework tables in line with Hypervel's schema.
+
 Hypervel runs its Swoole HTTP server using `php artisan serve` and does not use `public/index.php` as its HTTP entry point. Review the [deployment documentation](/docs/{{version}}/deployment) before adapting web server or process-monitor configuration.
 
 Build production releases with `composer install --no-dev --classmap-authoritative` instead of `--optimize-autoloader`; Doctor fails production checks without an authoritative class map. See [Autoloader Optimization](/docs/{{version}}/deployment#autoloader-optimization).
