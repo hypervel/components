@@ -60,6 +60,7 @@
     - [Deleting Models](#deleting-models)
 - [UUID and ULID Keys](#uuid-and-ulid-keys)
 - [Caching](#caching)
+    - [Global Scopes and Multitenancy](#global-scopes-and-multitenancy)
 - [Testing and Seeding](#testing-and-seeding)
     - [Seeding](#seeding)
     - [Testing](#testing)
@@ -1051,7 +1052,7 @@ The `@hasrole` directive is an alias of `@role`. Role directives accept a role n
 <a name="route-macros"></a>
 ## Route Macros
 
-Routes also receive permission macros:
+Routes and route groups also receive `role`, `permission`, and `roleOrPermission` macros, which accept a string, an array, or an [enum](#using-enums):
 
 ```php
 Route::get('/admin', [AdminController::class, 'index'])->role('admin');
@@ -1060,7 +1061,51 @@ Route::get('/posts/edit', [PostController::class, 'edit'])->permission('edit art
 
 Route::get('/content', [ContentController::class, 'index'])
     ->roleOrPermission(['editor', 'edit articles']);
+
+Route::permission('publish articles')->group(function () {
+    // ...
+});
+
+Route::prefix('admin')->middleware('auth')->role('manager')->group(function () {
+    // ...
+});
 ```
+
+The `canAny` and `canAll` macros check a list of permissions, requiring any one of them or all of them. They work on individual routes and groups, accepting strings, enums, or arrays containing either:
+
+```php
+Route::get('/articles', [ArticleController::class, 'index'])
+    ->canAny(['publish articles', 'edit articles']);
+
+Route::get('/articles', [ArticleController::class, 'index'])
+    ->canAll(['publish articles', 'edit articles']);
+
+Route::middleware('auth:admin')->canAll(['publish articles', 'edit articles'])->group(function () {
+    // Requires both permissions for the authenticated admin.
+});
+```
+
+These macros use the package's permission middleware; the route's own `can` method is unchanged. `canAny` is an alias for `permission`. `canAll` adds a permission middleware check for each array entry, so use separate entries to require separate permissions: a string separated by `|` still requires only one of its permissions. An empty `canAll([])` adds no checks, so apply authentication middleware separately when needed.
+
+On route groups, call `middleware` before `role`, `permission`, `roleOrPermission`, `canAny`, or `canAll`. Calling `middleware` again on a group replaces the group's middleware, so calling it after one of these macros removes the role or permission check:
+
+```php
+Route::middleware('auth')->role('manager')->permission('publish articles')->group(function () {
+    // Requires authentication, the manager role, and the publish articles permission.
+});
+```
+
+To add more middleware without replacing the group's authorization checks, use a nested group:
+
+```php
+Route::middleware('auth')->role('manager')->group(function () {
+    Route::middleware('throttle:60,1')->group(function () {
+        // Requires authentication, the manager role, and the rate limit.
+    });
+});
+```
+
+Individual routes, such as `Route::get(...)->role('manager')->middleware('auth')`, add the middleware rather than replacing it.
 
 <a name="custom-permission-checks"></a>
 ## Custom Permission Checks
@@ -1823,6 +1868,22 @@ app(PermissionRegistrar::class)->forgetCachedPermissions();
 ```
 
 If you reset the cache inside a database transaction, the reset is applied after the transaction commits and discarded if it rolls back. The method returns `true` once such a reset has been registered. When row partitioning is enabled, the reset applies only to the current partition.
+
+<a name="global-scopes-and-multitenancy"></a>
+### Global Scopes and Multitenancy
+
+The package fills the cached catalog and each model's cached assignments by querying your configured role and permission models, so Eloquent global scopes on either model apply to these queries.
+
+The cache is shared between requests and jobs, so a scope that depends on the current request can affect later permission checks. For example, if a request for tenant A fills the cache while a global scope limits roles to tenant A, tenant B's roles will be missing from the catalog. A later request for tenant B can then deny permissions its roles should grant. Request-specific scopes on the permission model cause the same problem.
+
+Teams don't prevent this. Every team shares the catalog, and selecting a team with `setPermissionsTeamId()` doesn't change which global scopes apply when the cache is filled.
+
+Choose an approach that matches what the scope is for:
+
+- If the scope only filters an administration screen, apply it to that screen's queries instead of registering it globally on the role or permission model. Check whether a package you use registers such a scope on these models.
+- If authorization must be limited to the current tenant, use [row partitioning](#row-partitioning), which separates each tenant's rows and cache entries.
+
+After correcting the scope, reset the permission cache as shown above. Resetting the cache on every request does not solve this problem, since the next fill still uses whichever scopes are active at that time.
 
 <a name="testing-and-seeding"></a>
 ## Testing and Seeding
