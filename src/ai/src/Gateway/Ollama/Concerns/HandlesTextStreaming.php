@@ -10,7 +10,6 @@ use Hypervel\Ai\Providers\Provider;
 use Hypervel\Ai\Responses\Data\FinishReason;
 use Hypervel\Ai\Responses\Data\Meta;
 use Hypervel\Ai\Responses\Data\TextUsage;
-use Hypervel\Ai\Responses\Data\ToolCall;
 use Hypervel\Ai\Streaming\Events\Error;
 use Hypervel\Ai\Streaming\Events\ReasoningDelta;
 use Hypervel\Ai\Streaming\Events\ReasoningEnd;
@@ -44,7 +43,6 @@ trait HandlesTextStreaming
         $textStartEmitted = false;
         $currentText = '';
         $toolCalls = [];
-        $pendingToolCalls = [];
         $usage = null;
         $lastData = [];
 
@@ -128,43 +126,9 @@ trait HandlesTextStreaming
                 ))->withInvocationId($invocationId);
             }
 
-            // Tool call indexes span chunks, while array positions restart in each chunk.
-            // Retain positional merging for fragments that omit an explicit index.
-            if (! empty($data['message']['tool_calls'])) {
-                foreach ($data['message']['tool_calls'] as $index => $toolCall) {
-                    $index = $toolCall['function']['index'] ?? $index;
-
-                    if (! isset($pendingToolCalls[$index])) {
-                        $pendingToolCalls[$index] = [
-                            'id' => null,
-                            'name' => '',
-                            'arguments' => [],
-                            'argumentsBuffer' => '',
-                        ];
-                    }
-
-                    if (isset($toolCall['id'])) {
-                        $pendingToolCalls[$index]['id'] = $toolCall['id'];
-                    }
-
-                    $name = $toolCall['function']['name'] ?? '';
-
-                    if ($name !== '') {
-                        $pendingToolCalls[$index]['name'] = $name;
-                    }
-
-                    if (array_key_exists('arguments', $toolCall['function'] ?? [])) {
-                        $arguments = $toolCall['function']['arguments'];
-
-                        if (is_array($arguments)) {
-                            $pendingToolCalls[$index]['arguments'] = array_replace(
-                                $pendingToolCalls[$index]['arguments'],
-                                $arguments
-                            );
-                        } elseif (is_string($arguments)) {
-                            $pendingToolCalls[$index]['argumentsBuffer'] .= $arguments;
-                        }
-                    }
+            foreach ($data['message']['tool_calls'] ?? [] as $toolCall) {
+                if (is_array($toolCall['function'] ?? null)) {
+                    $toolCalls[] = $this->mapToolCall($toolCall);
                 }
             }
 
@@ -208,30 +172,12 @@ trait HandlesTextStreaming
             ))->withInvocationId($invocationId);
         }
 
-        if (filled($pendingToolCalls)) {
-            $toolCalls = array_map(function (array $toolCall): ToolCall {
-                $arguments = $toolCall['arguments'];
-
-                if ($toolCall['argumentsBuffer'] !== '') {
-                    $decoded = json_decode((string) $toolCall['argumentsBuffer'], true);
-
-                    if (is_array($decoded)) {
-                        $arguments = array_replace($arguments, $decoded);
-                    }
-                }
-
-                $id = $toolCall['id'] ?? (string) Str::uuid7();
-
-                return new ToolCall($id, $toolCall['name'], $arguments, $id);
-            }, array_values($pendingToolCalls));
-
-            foreach ($toolCalls as $toolCall) {
-                yield (new ToolCallEvent(
-                    $this->generateEventId(),
-                    $toolCall,
-                    time(),
-                ))->withInvocationId($invocationId);
-            }
+        foreach ($toolCalls as $toolCall) {
+            yield (new ToolCallEvent(
+                $this->generateEventId(),
+                $toolCall,
+                time(),
+            ))->withInvocationId($invocationId);
         }
 
         $finishReason = $this->extractFinishReason($lastData);

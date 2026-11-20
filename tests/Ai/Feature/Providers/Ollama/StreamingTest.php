@@ -228,79 +228,20 @@ class StreamingTest extends TestCase
         $this->assertEmpty(array_filter($events, fn (StreamEvent $event): bool => $event instanceof TextEnd || $event instanceof StreamEnd));
     }
 
-    public function testStreamingAccumulatesToolCallArgumentsAcrossChunks(): void
+    public function testStreamingIgnoresAToolCallWithoutAFunction(): void
     {
         Http::fake([
-            '*' => Http::sequence([
-                Http::response(
-                    body: $this->ndjsonPayload([
-                        // First chunk: id + name but no arguments yet.
-                        [
-                            'model' => 'llama3.1:8b',
-                            'message' => [
-                                'role' => 'assistant',
-                                'content' => '',
-                                'tool_calls' => [[
-                                    'id' => 'call_1',
-                                    'function' => [
-                                        'name' => 'FixedNumberGenerator',
-                                    ],
-                                ]],
-                            ],
-                            'done' => false,
-                        ],
-                        // Second chunk: argument fragment as partial JSON string.
-                        [
-                            'model' => 'llama3.1:8b',
-                            'message' => [
-                                'role' => 'assistant',
-                                'content' => '',
-                                'tool_calls' => [[
-                                    'function' => [
-                                        'arguments' => '{"foo":',
-                                    ],
-                                ]],
-                            ],
-                            'done' => false,
-                        ],
-                        // Third chunk: remainder of the arguments payload.
-                        [
-                            'model' => 'llama3.1:8b',
-                            'message' => [
-                                'role' => 'assistant',
-                                'content' => '',
-                                'tool_calls' => [[
-                                    'function' => [
-                                        'arguments' => '"bar"}',
-                                    ],
-                                ]],
-                            ],
-                            'done_reason' => 'tool_calls',
-                            'done' => true,
-                            'prompt_eval_count' => 1,
-                            'eval_count' => 1,
-                        ],
-                    ]),
-                    status: 200,
-                ),
-                Http::response(
-                    body: $this->ndjsonPayload([
-                        $this->chatChunk('done'),
-                        $this->chatChunk('', true, 'stop'),
-                    ]),
-                    status: 200,
-                ),
-            ]),
+            '*' => Http::response(
+                body: $this->ndjsonPayload([
+                    $this->chatChunkWithToolCalls([['id' => 'call_1']]),
+                ]),
+                status: 200,
+            ),
         ]);
 
         $events = $this->collectStreamEvents(agent: new ProviderOptionsWithToolsAgent);
 
-        $toolCallEvents = array_values(array_filter($events, fn (StreamEvent $e): bool => $e instanceof ToolCallEvent));
-
-        $this->assertCount(1, $toolCallEvents);
-        $this->assertSame('call_1', $toolCallEvents[0]->toolCall->id);
-        $this->assertSame('FixedNumberGenerator', $toolCallEvents[0]->toolCall->name);
-        $this->assertSame(['foo' => 'bar'], $toolCallEvents[0]->toolCall->arguments);
+        $this->assertEmpty(array_filter($events, fn (StreamEvent $e): bool => $e instanceof ToolCallEvent));
     }
 
     public function testStreamingGeneratesFallbackIdWhenToolCallHasNoId(): void
@@ -347,6 +288,71 @@ class StreamingTest extends TestCase
         $this->assertCount(1, $toolCallEvents);
         $this->assertSame('FixedNumberGenerator', $toolCallEvents[0]->toolCall->name);
         $this->assertNotEmpty($toolCallEvents[0]->toolCall->id);
+    }
+
+    public function testStreamingKeepsEveryToolCallWhenEachArrivesInItsOwnChunk(): void
+    {
+        Http::fake([
+            '*' => Http::sequence([
+                Http::response(
+                    body: $this->ndjsonPayload([
+                        $this->chatChunkWithToolCalls([$this->toolCallChunk('call_1', 'FixedNumberGenerator', ['foo' => 'bar'], 0)], done: false),
+                        $this->chatChunkWithToolCalls([$this->toolCallChunk('call_2', 'FixedNumberGenerator', ['baz' => 'qux'], 1)], done: false),
+                        $this->chatChunk('', true, 'stop'),
+                    ]),
+                    status: 200,
+                ),
+                Http::response(
+                    body: $this->ndjsonPayload([
+                        $this->chatChunk('done'),
+                        $this->chatChunk('', true, 'stop'),
+                    ]),
+                    status: 200,
+                ),
+            ]),
+        ]);
+
+        $events = $this->collectStreamEvents(agent: new ProviderOptionsWithToolsAgent);
+
+        $toolCallEvents = array_values(array_filter($events, fn (StreamEvent $e): bool => $e instanceof ToolCallEvent));
+
+        $this->assertCount(2, $toolCallEvents);
+        $this->assertSame('call_1', $toolCallEvents[0]->toolCall->id);
+        $this->assertSame(['foo' => 'bar'], $toolCallEvents[0]->toolCall->arguments);
+        $this->assertSame('call_2', $toolCallEvents[1]->toolCall->id);
+        $this->assertSame(['baz' => 'qux'], $toolCallEvents[1]->toolCall->arguments);
+    }
+
+    public function testStreamingKeepsToolCallsSentTogetherInOneChunk(): void
+    {
+        Http::fake([
+            '*' => Http::sequence([
+                Http::response(
+                    body: $this->ndjsonPayload([
+                        $this->chatChunkWithToolCalls([
+                            $this->toolCallChunk('call_1', 'FixedNumberGenerator', ['foo' => 'bar']),
+                            $this->toolCallChunk('call_2', 'FixedNumberGenerator', ['baz' => 'qux']),
+                        ]),
+                    ]),
+                    status: 200,
+                ),
+                Http::response(
+                    body: $this->ndjsonPayload([
+                        $this->chatChunk('done'),
+                        $this->chatChunk('', true, 'stop'),
+                    ]),
+                    status: 200,
+                ),
+            ]),
+        ]);
+
+        $events = $this->collectStreamEvents(agent: new ProviderOptionsWithToolsAgent);
+
+        $toolCallEvents = array_values(array_filter($events, fn (StreamEvent $e): bool => $e instanceof ToolCallEvent));
+
+        $this->assertCount(2, $toolCallEvents);
+        $this->assertSame('call_1', $toolCallEvents[0]->toolCall->id);
+        $this->assertSame('call_2', $toolCallEvents[1]->toolCall->id);
     }
 
     public function testStreamingCapturesUsageFromFinalChunk(): void
