@@ -7,6 +7,7 @@ namespace Hypervel\Queue;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Bus\Batchable;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Container\Container as GlobalContainer;
 use Hypervel\Context\CoroutineContext;
@@ -258,6 +259,10 @@ abstract class Queue
             ],
             'createdAt' => CarbonImmutable::now()->getTimestamp(),
         ];
+
+        if (isset($job->batchPositionId, class_uses_recursive($job)[Batchable::class])) {
+            $payload['data']['batchPositionId'] = $job->batchPositionId;
+        }
 
         $uniqueJobMetadata = DispatchLockContext::peekPayloadMetadata($job);
 

@@ -10,14 +10,18 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\PostgresConnection;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use RuntimeException;
 use Throwable;
 
 class DatabaseBatchRepository implements PrunableBatchRepository
 {
+    public const string DEFAULT_RESULTS_TABLE = 'job_batch_results';
+
     /**
      * Create a new batch repository instance.
      */
@@ -26,6 +30,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
         protected ConnectionResolverInterface $resolver,
         protected string $table,
         protected ?string $connection = null,
+        protected string $resultsTable = self::DEFAULT_RESULTS_TABLE,
     ) {
     }
 
@@ -61,6 +66,25 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     }
 
     /**
+     * Get the retry lookup IDs for jobs that have failed and have yet to succeed.
+     */
+    public function getFailedJobIds(string $batchId): array
+    {
+        return $this->getConnection()->table($this->resultsTable)->useWritePdo()
+            ->where('batch_id', $batchId)->whereNotNull('retry_id')->pluck('retry_id')->all();
+    }
+
+    /**
+     * Determine if this logical job has an outstanding failure.
+     */
+    public function hasFailedJob(string $batchId, string $jobId): bool
+    {
+        return $this->getConnection()->table($this->resultsTable)->useWritePdo()
+            ->where('batch_id', $batchId)->where('job_id_hash', hash('xxh128', $jobId))
+            ->whereNotNull('retry_id')->exists();
+    }
+
+    /**
      * Store a new pending batch.
      */
     public function store(PendingBatch $batch): Batch
@@ -73,7 +97,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
             'total_jobs' => 0,
             'pending_jobs' => 0,
             'failed_jobs' => 0,
-            'failed_job_ids' => '[]',
+            'outstanding_failed_jobs' => 0,
             'options' => $this->serialize($batch->options),
             'created_at' => time(),
             'cancelled_at' => null,
@@ -102,112 +126,153 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     }
 
     /**
-     * Decrement the total number of pending jobs for the batch.
+     * Record a job's first success, clearing any outstanding failure for the same position.
      */
     public function decrementPendingJobs(string $batchId, string $jobId): ?UpdatedBatchJobCounts
     {
-        $completedFirstPass = false;
+        return $this->recordJobResult($batchId, $jobId, null);
+    }
 
-        $values = $this->updateAtomicValues($batchId, function ($batch) use ($jobId, &$completedFirstPass) {
-            $failedJobIds = (array) json_decode($batch->failed_job_ids, true);
-            $remainingFailedJobIds = array_values(array_diff($failedJobIds, [$jobId]));
-            $pendingJobs = $batch->pending_jobs - 1;
+    /**
+     * Count each failure up to the first success, retaining the original retry lookup ID.
+     */
+    public function incrementFailedJobs(string $batchId, string $jobId, ?string $retryId = null): ?UpdatedBatchJobCounts
+    {
+        return $this->recordJobResult($batchId, $jobId, $retryId ?? $jobId);
+    }
 
-            $completedFirstPass = $this->completesFirstPass(
-                $batch->pending_jobs - count($failedJobIds),
-                $pendingJobs - count($remainingFailedJobIds),
-            );
+    /**
+     * Claim the job result before locking its batch so every delivery uses the same lock order.
+     */
+    protected function recordJobResult(string $batchId, string $jobId, ?string $retryId): ?UpdatedBatchJobCounts
+    {
+        $connection = $this->getConnection();
+        $key = ['batch_id' => $batchId, 'job_id_hash' => hash('xxh128', $jobId)];
 
-            return [
-                'pending_jobs' => $pendingJobs,
-                'failed_jobs' => $batch->failed_jobs,
-                'failed_job_ids' => json_encode($remainingFailedJobIds),
-            ] + $this->finishWhenOnlyFailuresRemain($batch, $pendingJobs, $completedFirstPass);
-        });
+        return $connection->transaction(function () use ($connection, $key, $batchId, $retryId) {
+            if ($retryId === null && $connection instanceof PostgresConnection) {
+                return $this->recordPostgresSuccess($connection, $key);
+            }
 
-        return $values === null ? null : new UpdatedBatchJobCounts(
-            $values['pending_jobs'],
-            $values['failed_jobs'],
-            $completedFirstPass,
+            $result = $connection->table($this->resultsTable);
+            $inserted = $result->insertOrIgnore($key + ['retry_id' => $retryId]) === 1;
+            $result->where($key);
+
+            if (! $inserted) {
+                if ($retryId === null) {
+                    if ($result->whereNotNull('retry_id')->update(['retry_id' => null]) === 0) {
+                        return null;
+                    }
+                } elseif ($result->lockForUpdate()->value('retry_id') === null) {
+                    return null;
+                }
+            }
+
+            $parent = $connection->table($this->table)->where('id', $batchId);
+            $batch = (clone $parent)->lockForUpdate()->first([
+                'pending_jobs', 'failed_jobs', 'outstanding_failed_jobs', 'finished_at',
+            ]);
+
+            if ($batch === null) {
+                $connection->table($this->resultsTable)->where($key)->delete();
+                return null;
+            }
+
+            $pending = (int) $batch->pending_jobs;
+            $failed = (int) $batch->failed_jobs;
+            $outstanding = (int) $batch->outstanding_failed_jobs;
+
+            if ($retryId === null) {
+                $values = ['pending_jobs' => --$pending];
+                if (! $inserted) {
+                    $values['outstanding_failed_jobs'] = --$outstanding;
+                }
+            } else {
+                $values = ['failed_jobs' => ++$failed];
+                if ($inserted) {
+                    $values['outstanding_failed_jobs'] = ++$outstanding;
+                }
+            }
+
+            $completedFirstPass = $inserted && $pending === $outstanding;
+            if ($batch->finished_at === null && ($pending === 0 || ($completedFirstPass && $this->allowsFailures($parent)))) {
+                $values['finished_at'] = time();
+            }
+            $parent->update($values);
+
+            return new UpdatedBatchJobCounts($pending, $failed, $completedFirstPass);
+        }, attempts: 3);
+    }
+
+    /**
+     * Claim an ordinary success and update its parent in one PostgreSQL statement.
+     *
+     * @param array{batch_id: string, job_id_hash: string} $key
+     */
+    protected function recordPostgresSuccess(PostgresConnection $connection, array $key): ?UpdatedBatchJobCounts
+    {
+        $grammar = $connection->getQueryGrammar();
+        $results = $grammar->wrapTable($this->resultsTable);
+        $batches = $grammar->wrapTable($this->table);
+        $finish = 'case when pending_jobs = 1 then coalesce(finished_at, ?) else finished_at end';
+        $columns = 'pending_jobs, failed_jobs, outstanding_failed_jobs, finished_at';
+
+        // A conflict returns no row. A new result whose parent was deleted returns null counters.
+        $row = $connection->selectOne(
+            "with inserted as (
+                insert into {$results} (batch_id, job_id_hash) values (?, ?)
+                on conflict do nothing returning batch_id
+            ), updated as (
+                update {$batches} set pending_jobs = pending_jobs - 1, finished_at = {$finish}
+                from inserted where id = inserted.batch_id returning {$columns}
+            ) select updated.* from inserted left join updated on true",
+            [$key['batch_id'], $key['job_id_hash'], time()],
+            false,
         );
-    }
+        $inserted = $row !== null;
+        $connection->recordsHaveBeenModified($inserted);
 
-    /**
-     * Increment the total number of failed jobs for the batch.
-     */
-    public function incrementFailedJobs(string $batchId, string $jobId): ?UpdatedBatchJobCounts
-    {
-        $completedFirstPass = false;
+        if (! $inserted) {
+            if ($connection->table($this->resultsTable)->where($key)->whereNotNull('retry_id')->update(['retry_id' => null]) === 0) {
+                return null;
+            }
 
-        $values = $this->updateAtomicValues($batchId, function ($batch) use ($jobId, &$completedFirstPass) {
-            $failedJobIds = (array) json_decode($batch->failed_job_ids, true);
-            $updatedFailedJobIds = array_values(array_unique(array_merge($failedJobIds, [$jobId])));
-
-            $completedFirstPass = $this->completesFirstPass(
-                $batch->pending_jobs - count($failedJobIds),
-                $batch->pending_jobs - count($updatedFailedJobIds),
+            $row = $connection->selectOne(
+                "update {$batches} set pending_jobs = pending_jobs - 1,
+                    outstanding_failed_jobs = outstanding_failed_jobs - 1, finished_at = {$finish}
+                where id = ? returning {$columns}",
+                [time(), $key['batch_id']],
+                false,
             );
-
-            return [
-                'pending_jobs' => $batch->pending_jobs,
-                'failed_jobs' => $batch->failed_jobs + 1,
-                'failed_job_ids' => json_encode($updatedFailedJobIds),
-            ] + $this->finishWhenOnlyFailuresRemain($batch, $batch->pending_jobs, $completedFirstPass);
-        });
-
-        return $values === null ? null : new UpdatedBatchJobCounts(
-            $values['pending_jobs'],
-            $values['failed_jobs'],
-            $completedFirstPass,
-        );
-    }
-
-    /**
-     * Determine if an update ran the batch's last job that had not yet run.
-     *
-     * Failed jobs stay pending until they succeed, so the jobs that have not yet run are the pending
-     * jobs minus the distinct failed jobs. A job that fails again on retry is only counted once.
-     */
-    protected function completesFirstPass(int $notYetRunBefore, int $notYetRunAfter): bool
-    {
-        return $notYetRunBefore > 0 && $notYetRunAfter <= 0;
-    }
-
-    /**
-     * Get the finish time to store when only failed jobs remain in a batch that allows failures.
-     *
-     * Unlike Laravel, the batch is finished in the same locked update instead of after the job's callbacks, so a job
-     * added to the batch at the same moment reopens it instead of being stranded in a finished batch. An existing
-     * finish time, such as a cancellation's, is kept.
-     *
-     * @return array{finished_at?: int}
-     */
-    protected function finishWhenOnlyFailuresRemain(object $batch, int $pendingJobs, bool $completedFirstPass): array
-    {
-        if (! $completedFirstPass || $pendingJobs <= 0 || $batch->finished_at !== null) {
-            return [];
         }
 
-        return ($this->unserialize($batch->options)['allowFailures'] ?? false) === true
-            ? ['finished_at' => time()]
-            : [];
+        if (($row->pending_jobs ?? null) === null) {
+            $connection->table($this->resultsTable)->where($key)->delete();
+            return null;
+        }
+
+        $pending = (int) $row->pending_jobs;
+        $completedFirstPass = $inserted && $pending === (int) $row->outstanding_failed_jobs;
+
+        if ($completedFirstPass && $pending > 0 && $row->finished_at === null) {
+            $parent = $connection->table($this->table)->where('id', $key['batch_id']);
+            if ($this->allowsFailures($parent)) {
+                $parent->update(['finished_at' => time()]);
+            }
+        }
+
+        return new UpdatedBatchJobCounts($pending, (int) $row->failed_jobs, $completedFirstPass);
     }
 
     /**
-     * Update an atomic value within the batch.
+     * Read batch options only when a first pass could finish with outstanding failures.
      */
-    protected function updateAtomicValues(string $batchId, Closure $callback): ?array
+    protected function allowsFailures(Builder $parent): bool
     {
-        return $this->getConnection()->transaction(function () use ($batchId, $callback) {
-            $batch = $this->getConnection()->table($this->table)->where('id', $batchId)
-                ->lockForUpdate()
-                ->first();
-
-            return is_null($batch) ? null : tap($callback($batch), function ($values) use ($batchId) {
-                $this->getConnection()->table($this->table)->where('id', $batchId)->update($values);
-            });
-        });
+        return ($this->unserialize($parent->lockForUpdate()->value('options'))['allowFailures'] ?? false) === true;
     }
+
+    // REMOVED: updateAtomicValues() locked only the parent. Accounting now claims the job and updates both rows in one transaction.
 
     /**
      * Mark the batch that has the given ID as finished.
@@ -231,11 +296,11 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     }
 
     /**
-     * Delete the batch that has the given ID.
+     * Delete the batch and its recorded results.
      */
     public function delete(string $batchId): void
     {
-        $this->getConnection()->table($this->table)->where('id', $batchId)->delete();
+        $this->deleteBatches($this->getConnection()->table($this->table), [$batchId]);
     }
 
     /**
@@ -243,19 +308,8 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     public function prune(DateTimeInterface $before): int
     {
-        $query = $this->getConnection()->table($this->table)
-            ->whereNotNull('finished_at')
-            ->where('finished_at', '<', $before->getTimestamp());
-
-        $totalDeleted = 0;
-
-        do {
-            $deleted = $query->limit(1000)->delete();
-
-            $totalDeleted += $deleted;
-        } while ($deleted !== 0);
-
-        return $totalDeleted;
+        return $this->pruneBatches($this->getConnection()->table($this->table)
+            ->where('finished_at', '<', $before->getTimestamp()));
     }
 
     /**
@@ -263,19 +317,8 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     public function pruneUnfinished(DateTimeInterface $before): int
     {
-        $query = $this->getConnection()->table($this->table)
-            ->whereNull('finished_at')
-            ->where('created_at', '<', $before->getTimestamp());
-
-        $totalDeleted = 0;
-
-        do {
-            $deleted = $query->limit(1000)->delete();
-
-            $totalDeleted += $deleted;
-        } while ($deleted !== 0);
-
-        return $totalDeleted;
+        return $this->pruneBatches($this->getConnection()->table($this->table)
+            ->whereNull('finished_at')->where('created_at', '<', $before->getTimestamp()));
     }
 
     /**
@@ -283,19 +326,81 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     public function pruneCancelled(DateTimeInterface $before): int
     {
-        $query = $this->getConnection()->table($this->table)
-            ->whereNotNull('cancelled_at')
-            ->where('created_at', '<', $before->getTimestamp());
+        return $this->pruneBatches($this->getConnection()->table($this->table)
+            ->whereNotNull('cancelled_at')->where('created_at', '<', $before->getTimestamp()));
+    }
 
-        $totalDeleted = 0;
+    /**
+     * Bound each deletion transaction by the number of result rows its batches can own.
+     */
+    protected function pruneBatches(Builder $query): int
+    {
+        $total = 0;
+        $page = (clone $query)->select(['id', 'total_jobs'])->useWritePdo();
+        $nested = $query->getConnection()->transactionLevel() > 0;
+        $prunePage = function (Collection $batches) use ($query, $nested, &$total): void {
+            $ids = [];
+            $jobs = 0;
+            foreach ($batches as $batch) {
+                if ($ids !== [] && $jobs + $batch->total_jobs > 10000) {
+                    $total += $this->deleteBatches($query, $ids, $nested);
+                    $ids = [];
+                    $jobs = 0;
+                }
+                $ids[] = $batch->id;
+                $jobs += $batch->total_jobs;
+            }
+            $total += $this->deleteBatches($query, $ids, $nested);
+        };
 
-        do {
-            $deleted = $query->limit(1000)->delete();
+        if ($nested) {
+            // A repeatable-read snapshot can keep returning a batch another writer reopened or deleted.
+            $page->chunkById(1000, $prunePage);
+        } else {
+            $page->limit(1000);
+            while (($batches = $page->get())->isNotEmpty()) {
+                $prunePage($batches);
+            }
+        }
 
-            $totalDeleted += $deleted;
-        } while ($deleted !== 0);
+        return $total;
+    }
 
-        return $totalDeleted;
+    /**
+     * Remove results in the same child-first lock order as accounting.
+     *
+     * @param list<string> $ids
+     */
+    protected function deleteBatches(Builder $query, array $ids, bool $retryIndividually = false): int
+    {
+        $connection = $query->getConnection();
+
+        try {
+            return $connection->transaction(function () use ($connection, $query, $ids) {
+                $results = $connection->table($this->resultsTable)->whereIn('batch_id', $ids);
+                $results->delete();
+
+                $deleted = (clone $query)->whereIn('id', $ids)->delete();
+                if ($deleted !== count($ids)) {
+                    // Roll back the first sweep too: a reopened batch still needs its results.
+                    throw new StaleBatchSelectionException;
+                }
+
+                // A result may have committed while the parent delete waited.
+                $results->delete();
+
+                return $deleted;
+            }, attempts: 3);
+        } catch (StaleBatchSelectionException) {
+            $deleted = 0;
+            if ($retryIndividually && count($ids) > 1) {
+                foreach ($ids as $id) {
+                    $deleted += $this->deleteBatches($query, [$id]);
+                }
+            }
+
+            return $deleted;
+        }
     }
 
     /**
@@ -365,7 +470,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
             (int) $batch->total_jobs,
             (int) $batch->pending_jobs,
             (int) $batch->failed_jobs,
-            (array) json_decode($batch->failed_job_ids, true),
+            (int) $batch->outstanding_failed_jobs === 0 ? [] : null,
             $this->unserialize($batch->options),
             CarbonImmutable::createFromTimestamp($batch->created_at, date_default_timezone_get()),
             $batch->cancelled_at ? CarbonImmutable::createFromTimestamp($batch->cancelled_at, date_default_timezone_get()) : $batch->cancelled_at,

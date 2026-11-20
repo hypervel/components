@@ -6,6 +6,7 @@ namespace Hypervel\Support\Testing\Fakes;
 
 use Closure;
 use Hypervel\Bus\Batch;
+use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\ChainedBatch;
 use Hypervel\Bus\DispatchLockContext;
@@ -362,6 +363,9 @@ class BusFake implements Fake, QueueingDispatcher
             $job->chainQueue = null;
             $job->chainCatchCallbacks = null;
             $job->chained = [];
+            if (isset($job->batchPositionId, class_uses_recursive($job)[Batchable::class])) {
+                $job->batchPositionId = null;
+            }
         });
     }
 
@@ -427,7 +431,7 @@ class BusFake implements Fake, QueueingDispatcher
                         if ($chain[$index] !== get_class(unserialize($serializedChainedJob))) {
                             return false;
                         }
-                    } elseif (serialize($chain[$index]) !== $serializedChainedJob) {
+                    } elseif (! Batch::matchesChainedJob($chain[$index], $serializedChainedJob)) {
                         return false;
                     }
                 }

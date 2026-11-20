@@ -32,12 +32,21 @@ class BatchFake extends Batch
         public int $totalJobs,
         public int $pendingJobs,
         public int $failedJobs,
-        public array $failedJobIds,
+        array $failedJobIds,
         public array $options,
         public CarbonImmutable $createdAt,
         public ?CarbonImmutable $cancelledAt = null,
         public ?CarbonImmutable $finishedAt = null
     ) {
+        $this->failedJobIds = $failedJobIds;
+    }
+
+    /**
+     * Determine if the job belongs to the fake batch's outstanding failures.
+     */
+    public function hasFailedJob(string $jobId): bool
+    {
+        return in_array($jobId, $this->failedJobIds, true);
     }
 
     /**
@@ -84,14 +93,14 @@ class BatchFake extends Batch
     /**
      * Record that a job within the batch failed to finish successfully, executing any callbacks if necessary.
      */
-    public function recordFailedJob(string $jobId, ?Throwable $e): void
+    public function recordFailedJob(string $jobId, ?Throwable $e, ?string $retryId = null): void
     {
     }
 
     /**
      * Increment the failed jobs for the batch.
      */
-    public function incrementFailedJobs(string $jobId): UpdatedBatchJobCounts
+    public function incrementFailedJobs(string $jobId, ?string $retryId = null): UpdatedBatchJobCounts
     {
         return new UpdatedBatchJobCounts;
     }

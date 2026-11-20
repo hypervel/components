@@ -8,6 +8,7 @@ use BadMethodCallException;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Bus\Batch;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
@@ -240,10 +241,9 @@ class QueueFake extends QueueManager implements Fake, Queue
      */
     protected function assertPushedWithChainOfObjects(string $job, array $expectedChain, callable|array|null $callback): void
     {
-        $chain = (new Collection($expectedChain))->map(fn ($job) => serialize($job))->all();
-
         PHPUnit::assertTrue(
-            $this->pushed($job, $callback)->contains(fn ($job) => $job->chained === $chain),
+            $this->pushed($job, $callback)->contains(fn ($job) => array_keys($expectedChain) === array_keys($job->chained)
+                && array_all($expectedChain, fn ($expected, $key) => Batch::matchesChainedJob($expected, $job->chained[$key]))),
             'The expected chain was not pushed.'
         );
     }

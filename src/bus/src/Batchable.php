@@ -19,6 +19,13 @@ trait Batchable
     public ?string $batchId = null;
 
     /**
+     * The logical position shared by all deliveries of this batched chain successor.
+     *
+     * @internal
+     */
+    public ?string $batchPositionId = null;
+
+    /**
      * The fake batch, if applicable.
      */
     private ?BatchFake $fakeBatch = null;
@@ -52,7 +59,7 @@ trait Batchable
 
         // Unlike Laravel, a failed job retried after its batch finished still belongs to the batch, so it does its work.
         return ! $batch->finished()
-            || in_array(Batch::jobIdForCommand($this), $batch->failedJobIds, true);
+            || (($jobId = Batch::jobIdForCommand($this)) !== null && $batch->hasFailedJob($jobId));
     }
 
     /**
