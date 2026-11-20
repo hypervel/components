@@ -4,15 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\PHPStan\Properties;
 
+use Closure;
 use Hypervel\Database\Eloquent\Concerns\HasUlids;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Migrations\Migration;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
+use Hypervel\NestedSet\NestedSet;
+use Hypervel\NestedSet\NestedSetServiceProvider;
 use Hypervel\PHPStan\Reflection\SourceFiles;
 use Hypervel\SchemaParser\ColumnType;
 use Hypervel\SchemaParser\ParseException;
 use Hypervel\SchemaParser\View;
+use Hypervel\Scout\SearchableSchema;
 use Hypervel\Support\Facades\Config;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
@@ -24,6 +28,8 @@ use PHPStan\Reflection\InitializerExprContext;
 use PHPStan\Reflection\InitializerExprTypeResolver;
 use PHPStan\Reflection\ReflectionProvider;
 use ReflectionException;
+use ReflectionFunction;
+use ReflectionProperty;
 use WeakMap;
 
 use function array_any;
@@ -45,6 +51,8 @@ use function spl_object_id;
 use function str_contains;
 use function str_starts_with;
 use function strtolower;
+
+use const ARRAY_FILTER_USE_BOTH;
 
 /**
  * Applies migrations to the schema facts of the connections they run on.
@@ -128,6 +136,14 @@ class SchemaAggregator
     /** Blueprint methods whose third parameter decides whether the column is unsigned. */
     private const array SIGNABLE_COLUMN_METHODS = ['biginteger', 'integer', 'mediuminteger', 'smallinteger', 'tinyinteger'];
 
+    /** The first-party Blueprint macros whose schema changes are known, with the class registering each. */
+    private const array KNOWN_MACROS = [
+        'dropNestedSet' => NestedSetServiceProvider::class, 'integerNestedSet' => NestedSetServiceProvider::class,
+        'nestedSet' => NestedSetServiceProvider::class, 'ulidNestedSet' => NestedSetServiceProvider::class,
+        'uuidNestedSet' => NestedSetServiceProvider::class, 'dropSearchable' => SearchableSchema::class,
+        'searchable' => SearchableSchema::class,
+    ];
+
     /** Blueprint methods that add a nullable column. */
     private const array NULLABLE_COLUMN_METHODS = ['remembertoken', 'softdeletes', 'softdeletesdatetime', 'softdeletestz'];
 
@@ -186,6 +202,9 @@ class SchemaAggregator
     /** The type of the key columns morphs() adds, or null when a migration changed it to an unknown value. */
     private ?string $morphKeyType;
 
+    /** @var list<string> the known first-party Blueprint macros the booted application registers */
+    private array $knownMacros;
+
     /** @var array<string, true> the declarations of the helper methods being applied, to stop recursion */
     private array $appliedMethods = [];
 
@@ -218,6 +237,26 @@ class SchemaAggregator
         public array $connections = [],
     ) {
         $this->morphKeyType = Builder::$defaultMorphKeyType;
+        $this->knownMacros = self::getKnownMacros();
+    }
+
+    /**
+     * Get the known first-party Blueprint macros the booted application registers.
+     *
+     * An application may replace one with its own macro, whose schema changes are unknown.
+     *
+     * @return list<string>
+     */
+    public static function getKnownMacros(): array
+    {
+        $macros = (new ReflectionProperty(Blueprint::class, 'macros'))->getValue();
+
+        return array_keys(array_filter(
+            self::KNOWN_MACROS,
+            static fn (string $class, string $name): bool => ($macros[$name] ?? null) instanceof Closure
+                && (new ReflectionFunction($macros[$name]))->getClosureScopeClass()?->getName() === $class,
+            ARRAY_FILTER_USE_BOTH,
+        ));
     }
 
     /**
@@ -2139,6 +2178,43 @@ class SchemaAggregator
                 $this->setColumn($connection, $table, 'updated_at', $type, false, true);
 
                 return true;
+            case 'nestedset':
+            case 'integernestedset':
+            case 'uuidnestedset':
+            case 'ulidnestedset':
+                // Nested-set's scopes only choose the indexes.
+                if (! $this->callsKnownMacro($call)) {
+                    return false;
+                }
+
+                $this->setColumn($connection, $table, NestedSet::LFT, 'integer', true, false);
+                $this->setColumn($connection, $table, NestedSet::RGT, 'integer', true, false);
+                $this->setColumn($connection, $table, NestedSet::DEPTH, 'smallinteger', true, false);
+                [$parentType, $parentUnsigned] = match ($method) {
+                    'nestedset' => ['biginteger', true],
+                    'integernestedset' => ['integer', true],
+                    'uuidnestedset' => ['uuid', false],
+                    default => ['char', false],
+                };
+
+                $this->setColumn($connection, $table, NestedSet::PARENT_ID, $parentType, $parentUnsigned, true);
+
+                return true;
+            case 'searchable':
+                // Scout's indexes and the pg_trgm extension add no columns or relations.
+                if (! $this->callsKnownMacro($call)) {
+                    return false;
+                }
+
+                $name = $this->getNameArgument($call, 3, 'tsvector', 'search_vector', $table);
+
+                if ($name === null) {
+                    return $this->addUnnamedColumn($table, false);
+                }
+
+                $this->setColumn($connection, $table, $name, 'tsvector', false, false);
+
+                return true;
             case 'renamecolumn':
                 $from = $this->getNameArgument($call, 0, 'from', table: $table);
                 $from = $from === null ? null : $this->resolveColumnName($connection, $table, $from);
@@ -2191,6 +2267,22 @@ class SchemaAggregator
             case 'dropmorphs':
                 $name = $this->getNameArgument($call, 0, 'name', table: $table);
                 $columns = $name === null ? [null] : ["{$name}_type", "{$name}_id"];
+
+                break;
+            case 'dropnestedset':
+                if (! $this->callsKnownMacro($call)) {
+                    return false;
+                }
+
+                $columns = NestedSet::getDefaultColumns();
+
+                break;
+            case 'dropsearchable':
+                if (! $this->callsKnownMacro($call)) {
+                    return false;
+                }
+
+                $columns = [$this->getNameArgument($call, 1, 'tsvector', 'search_vector', $table)];
 
                 break;
             default:
@@ -2293,6 +2385,14 @@ class SchemaAggregator
         $table->complete = false;
 
         return true;
+    }
+
+    /**
+     * Determine if a Blueprint call reaches a known first-party macro.
+     */
+    private function callsKnownMacro(PhpParser\Node\Expr\MethodCall $call): bool
+    {
+        return $call->name instanceof PhpParser\Node\Identifier && in_array($call->name->toString(), $this->knownMacros, true);
     }
 
     /**

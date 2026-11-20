@@ -14,6 +14,8 @@ use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\ClosureCommand;
+use Hypervel\NestedSet\NestedSetServiceProvider;
+use Hypervel\Scout\SearchableSchema;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Tests\PHPStan\Fixtures\Config\ConfigFixtureServiceProvider;
 use Hypervel\Tests\PHPStan\Fixtures\Config\OverlappingConfigServiceProvider;
@@ -66,6 +68,10 @@ User::resolveRelationUsing('untypedAccounts', static fn (User $user) => $user->h
 // Morph aliases, registered at boot as a provider would. Group's class name is also Role's alias, which
 // loadMorph() reads by class first and MorphTo by alias first.
 Relation::morphMap(['post' => Post::class, Group::class => Role::class]);
+
+// First-party schema macros, registered as their providers would.
+SearchableSchema::register();
+Container::getInstance()->register(NestedSetServiceProvider::class);
 
 // Package configuration sources, which the config analysis reads from the loaded providers.
 Container::getInstance()->register(ConfigFixtureServiceProvider::class);
