@@ -27,7 +27,28 @@ class BatchesTableCommand extends MigrationGeneratorCommand
     /**
      * The console command description.
      */
-    protected string $description = 'Create a migration for the batches database table';
+    protected string $description = 'Create migrations for the batch database tables';
+
+    /**
+     * Execute the console command.
+     */
+    public function handle(): int
+    {
+        $created = $this->createMissingMigrations([
+            $this->migrationTableName() => $this->migrationStubFile(),
+            $this->hypervel->make('config')->string('queue.batching.results_table') => __DIR__ . '/stubs/batch-results.stub',
+        ]);
+
+        if (! $created) {
+            $this->components->error('Migrations already exist.');
+
+            return self::FAILURE;
+        }
+
+        $this->components->info('Migrations created successfully.');
+
+        return self::SUCCESS;
+    }
 
     /**
      * Get the migration table name.

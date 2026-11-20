@@ -182,15 +182,15 @@ return [
     | Job Batching
     |--------------------------------------------------------------------------
     |
-    | The following options configure the database and table that store job
-    | batching information. These options can be updated to any database
-    | connection and table which has been defined by your application.
+    | Here you may configure the database connection and tables that store
+    | your job batches and the results of individual jobs in each batch.
     |
     */
 
     'batching' => [
         'database' => env('DB_CONNECTION', 'sqlite'),
         'table' => 'job_batches',
+        'results_table' => 'job_batch_results',
     ],
 
     /*
