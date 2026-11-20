@@ -74,7 +74,8 @@ trait HandlesFailoverErrors
                 );
             }
 
-            $message = $requestException->response->json('error.message');
+            // An error body may not be JSON, and the application's default decoding flags may throw.
+            $message = $requestException->response->json('error.message', flags: 0);
 
             if (is_string($message) && $patterns = $this->insufficientCreditPatterns()) {
                 $message = strtolower($message);
@@ -143,8 +144,8 @@ trait HandlesFailoverErrors
 
         $codes = $this->insufficientCreditCodes();
 
-        return in_array($exception->response->json('error.code'), $codes, true)
-            || in_array($exception->response->json('error.type'), $codes, true);
+        return in_array($exception->response->json('error.code', flags: 0), $codes, true)
+            || in_array($exception->response->json('error.type', flags: 0), $codes, true);
     }
 
     /**

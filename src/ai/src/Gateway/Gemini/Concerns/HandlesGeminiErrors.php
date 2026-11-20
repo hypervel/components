@@ -17,16 +17,24 @@ trait HandlesGeminiErrors
      */
     protected function isInvalidApiKey(RequestException $exception): bool
     {
+        $status = $exception->response->status();
+
+        if ($status === 401) {
+            return true;
+        }
+
+        if ($status !== 400 && $status !== 403) {
+            return false;
+        }
+
         // The Interactions API wraps its error body in a list.
-        $error = $exception->response->json('0.error') ?? $exception->response->json('error');
+        $error = $exception->response->json('0.error', flags: 0) ?? $exception->response->json('error', flags: 0);
 
         $message = is_string($error['message'] ?? null) ? $error['message'] : '';
 
-        return match ($exception->response->status()) {
-            401 => true,
+        return match ($status) {
             400 => collect($error['details'] ?? [])->contains('reason', 'API_KEY_INVALID'),
             403 => Str::contains($message, ['unregistered callers', 'reported as leaked']),
-            default => false,
         };
     }
 }

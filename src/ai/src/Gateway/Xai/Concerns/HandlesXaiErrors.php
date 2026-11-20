@@ -16,11 +16,9 @@ trait HandlesXaiErrors
      */
     protected function isInvalidApiKey(RequestException $exception): bool
     {
-        $error = $exception->response->json('error');
-
         return match ($exception->response->status()) {
             401 => true,
-            400 => is_string($error) && str_starts_with($error, 'Incorrect API key'),
+            400 => is_string($error = $exception->response->json('error', flags: 0)) && str_starts_with($error, 'Incorrect API key'),
             default => false,
         };
     }

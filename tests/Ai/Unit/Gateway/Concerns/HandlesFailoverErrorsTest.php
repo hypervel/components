@@ -128,6 +128,25 @@ class HandlesFailoverErrorsTest extends TestCase
         $this->withErrorHandling('openai', fn (): never => throw new RequestException(new Response($response)));
     }
 
+    #[DataProvider('nonJsonFailures')]
+    public function testANonJsonErrorBodyKeepsItsExceptionWhenDefaultDecodingThrows(int $status, string $exception): void
+    {
+        Response::$defaultJsonDecodingFlags = JSON_THROW_ON_ERROR;
+        $response = new Psr7Response($status, ['Content-Type' => 'text/html'], '<html>Error</html>');
+
+        $this->expectException($exception);
+
+        $this->withErrorHandling('openai', fn (): never => throw new RequestException(new Response($response)));
+    }
+
+    /**
+     * Provide failures whose classification reads the error body.
+     */
+    public static function nonJsonFailures(): array
+    {
+        return [[429, RateLimitedException::class], [400, RequestException::class]];
+    }
+
     public function test429WithAnInsufficientQuotaErrorIsNotRetried(): void
     {
         Sleep::fake();

@@ -13,6 +13,7 @@ use Hypervel\Ai\Exceptions\RateLimitedException;
 use Hypervel\Ai\Responses\Data\FinishReason;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\RequestException;
+use Hypervel\Http\Client\Response;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Tests\Ai\Fixtures\Agents\AssistantAgent;
 use Hypervel\Tests\Ai\Fixtures\GeminiHelpers;
@@ -233,6 +234,25 @@ class ErrorHandlingTest extends TestCase
                 'status' => 'PERMISSION_DENIED',
             ]]]],
         ];
+    }
+
+    #[DataProvider('nonJsonFailures')]
+    public function testANonJsonErrorBodyKeepsItsExceptionWhenDefaultDecodingThrows(int $status, string $exception): void
+    {
+        Response::$defaultJsonDecodingFlags = JSON_THROW_ON_ERROR;
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response('<html>Error</html>', $status)]);
+
+        $this->expectException($exception);
+
+        (new AssistantAgent)->prompt('Hi', provider: 'gemini');
+    }
+
+    /**
+     * Provide failures before and after the API key check reads the error body.
+     */
+    public static function nonJsonFailures(): array
+    {
+        return [[503, ProviderOverloadedException::class], [403, RequestException::class]];
     }
 
     public function testAPermissionErrorUnrelatedToTheApiKeyStaysARequestException(): void
