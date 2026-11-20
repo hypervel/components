@@ -94,7 +94,7 @@ Document counting and atomic finish on `BatchRepository` and `UpdatedBatchJobCou
 
 ## Performance evidence for the PR
 
-Include the final matched table and its run ranges in the PR body, labelled as batch bookkeeping throughput. Use the [benchmark report](../../../tests/Benchmarks/JobBatches/results.md) for the method, tradeoffs and raw samples.
+Include the final matched table and its run ranges in the PR body, labelled as batch bookkeeping throughput. Use the [benchmark report](../../tests/Benchmarks/JobBatches/results.md) for the method, tradeoffs and raw samples.
 
 ## Verification
 
