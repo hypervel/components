@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature\Providers\Anthropic;
 
 use Closure;
+use Hypervel\Ai\Attributes\MaxSteps;
 use Hypervel\Ai\Exceptions\StreamErrorException;
 use Hypervel\Ai\Gateway\StepResult;
 use Hypervel\Ai\Messages\UserMessage;
@@ -231,6 +232,55 @@ class StreamingTest extends TestCase
         $this->assertCount(2, $recorded);
         $this->assertArrayNotHasKey('container', $recorded[0][0]->data());
         $this->assertSame('container_123', $recorded[1][0]->data()['container']);
+    }
+
+    #[TestWith([null])]
+    #[TestWith(['container_override'])]
+    public function testStreamingCarriesOverTheContainerAStepRanInWhenItsResponseOmitsIt(?string $override): void
+    {
+        $toolCallResponse = fn (string $id, array $delta): array => [
+            'body' => $this->ssePayload([
+                $this->messageStart(),
+                $this->contentBlockStart(0, ['type' => 'tool_use', 'id' => $id, 'name' => 'FixedNumberGenerator', 'input' => '']),
+                $this->contentBlockDelta(0, ['type' => 'input_json_delta', 'partial_json' => '{}']),
+                $this->contentBlockStop(0),
+                ['type' => 'message_delta', 'delta' => $delta, 'usage' => ['output_tokens' => 5]],
+            ]),
+            'status' => 200,
+            'headers' => ['Content-Type' => 'text/event-stream'],
+        ];
+
+        Http::fake([
+            'api.anthropic.com/*' => Http::sequence([
+                Http::response(...$toolCallResponse('toolu_1', ['stop_reason' => 'tool_use', 'container' => ['id' => 'container_123', 'expires_at' => '2026-11-08T11:00:00Z']])),
+                Http::response(...$toolCallResponse('toolu_2', ['stop_reason' => 'tool_use'])),
+                Http::response(
+                    body: $this->ssePayload([
+                        $this->messageStart(),
+                        $this->contentBlockStart(0, ['type' => 'text', 'text' => '']),
+                        $this->contentBlockDelta(0, ['type' => 'text_delta', 'text' => 'The numbers are 72019']),
+                        $this->contentBlockStop(0),
+                        $this->messageDelta('end_turn', 10),
+                    ]),
+                    status: 200,
+                    headers: ['Content-Type' => 'text/event-stream'],
+                ),
+            ]),
+        ]);
+
+        $steps = 0;
+
+        $this->collectStreamEvents(agent: (new #[MaxSteps(3)] class extends ProviderOptionsWithToolsAgent {})->withMiddleware([
+            function (PendingStep $step, Closure $next) use (&$steps, $override): StepResult {
+                return $next(++$steps === 2 && $override !== null ? $step->withProviderOptions(['container' => $override]) : $step);
+            },
+        ]));
+
+        $recorded = Http::recorded();
+
+        $this->assertCount(3, $recorded);
+        $this->assertSame($override ?? 'container_123', $recorded[1][0]->data()['container']);
+        $this->assertSame($override ?? 'container_123', $recorded[2][0]->data()['container']);
     }
 
     public function testStreamingRunsToolCallsWhenTheMessageEndsWithEndTurn(): void

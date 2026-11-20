@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Ai\Feature\Providers\Anthropic;
 
 use Closure;
+use Hypervel\Ai\Attributes\MaxSteps;
 use Hypervel\Ai\Contracts\Agent;
 use Hypervel\Ai\Contracts\HasProviderOptions;
 use Hypervel\Ai\Contracts\HasTools;
@@ -174,6 +175,54 @@ class ToolCallLoopTest extends TestCase
         if ($edit === 'instructions') {
             $this->assertSame('Wrap up.', $recorded[1][0]->data()['system']);
         }
+    }
+
+    #[TestWith([null])]
+    #[TestWith(['container_override'])]
+    public function testTheContainerAStepRanInCarriesOverWhenItsResponseOmitsIt(?string $override): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::sequence([
+                Http::response([
+                    'id' => 'msg_code',
+                    'type' => 'message',
+                    'role' => 'assistant',
+                    'model' => 'claude-sonnet-4-6',
+                    'content' => [
+                        ['type' => 'tool_use', 'id' => 'toolu_1', 'name' => 'FixedNumberGenerator', 'input' => new stdClass],
+                    ],
+                    'container' => ['id' => 'container_123', 'expires_at' => '2026-11-08T11:00:00Z'],
+                    'stop_reason' => 'tool_use',
+                    'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+                ]),
+                Http::response([
+                    'id' => 'msg_local_tool',
+                    'type' => 'message',
+                    'role' => 'assistant',
+                    'model' => 'claude-sonnet-4-6',
+                    'content' => [
+                        ['type' => 'tool_use', 'id' => 'toolu_2', 'name' => 'FixedNumberGenerator', 'input' => new stdClass],
+                    ],
+                    'stop_reason' => 'tool_use',
+                    'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
+                ]),
+                $this->fakeTextResponse('The number is 72019'),
+            ]),
+        ]);
+
+        $steps = 0;
+
+        (new #[MaxSteps(3)] class(fixed: true) extends ToolUsingAgent {})->withMiddleware([
+            function (PendingStep $step, Closure $next) use (&$steps, $override): StepResult {
+                return $next(++$steps === 2 && $override !== null ? $step->withProviderOptions(['container' => $override]) : $step);
+            },
+        ])->prompt('Generate two random numbers', provider: 'anthropic');
+
+        $recorded = Http::recorded();
+
+        $this->assertCount(3, $recorded);
+        $this->assertSame($override ?? 'container_123', $recorded[1][0]->data()['container']);
+        $this->assertSame($override ?? 'container_123', $recorded[2][0]->data()['container']);
     }
 
     public function testTheCodeExecutionContainerIsReusedWhenAPausedTurnResumes(): void

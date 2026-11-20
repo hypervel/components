@@ -90,7 +90,10 @@ class AnthropicGateway implements Gateway, ReplaysFullHistory, StepTextGateway
 
         $this->validateTextResponse($data);
 
-        return $this->parseTextResponse($data, $provider, filled($schema))->withRawResponse($response);
+        return $this->withRequestContainer(
+            $this->parseTextResponse($data, $provider, filled($schema))->withRawResponse($response),
+            $body,
+        );
     }
 
     /**
@@ -130,13 +133,16 @@ class AnthropicGateway implements Gateway, ReplaysFullHistory, StepTextGateway
                 ->post('messages', $body),
         );
 
-        return yield from $this->processTextStream(
+        $step = yield from $this->processTextStream(
             $invocationId,
             $provider,
             $model,
             $response->getBody(),
             $this->pausedContent($messages),
         );
+
+        // A stream that ends without completing its message has no step.
+        return $step === null ? null : $this->withRequestContainer($step, $body);
     }
 
     /**
