@@ -7,10 +7,11 @@ namespace Hypervel\Mcp\Server\Middleware;
 use Closure;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Http\Request;
+use Hypervel\Mcp\Enums\ErrorCode;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Uri;
 use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class ValidateOrigin
 {
@@ -23,40 +24,58 @@ class ValidateOrigin
 
     /**
      * Reject browser origins that the application has not allowed.
+     *
+     * @param Closure(Request): (Response) $next
      */
     public function handle(Request $request, Closure $next): Response
     {
         $origins = $request->headers->all('origin');
 
-        if ($origins === []) {
+        if ($origins === [] || (count($origins) === 1 && $this->allowed($origins[0]))) {
             return $next($request);
         }
 
-        $origin = count($origins) === 1 ? $this->origin($origins[0]) : null;
-
-        if ($origin !== null) {
-            // Trust configured origins, never the incoming request's Host header.
-            if ($origin === $this->origin($this->config->string('app.url'), allowPath: true)) {
-                return $next($request);
-            }
-
-            foreach ($this->config->array('mcp.allowed_origins') as $allowedOrigin) {
-                if ($origin === $this->origin($allowedOrigin)) {
-                    return $next($request);
-                }
-            }
-        }
-
-        throw new AccessDeniedHttpException('Origin is not allowed.');
+        return response()->json([
+            'jsonrpc' => '2.0',
+            'error' => [
+                'code' => ErrorCode::INVALID_REQUEST->value,
+                'message' => 'Forbidden: The request origin is not allowed.',
+            ],
+        ], 403);
     }
 
     /**
-     * Normalize an HTTP origin without making a network request.
+     * Determine whether the request origin is allowed.
      */
-    protected function origin(string $value, bool $allowPath = false): ?string
+    protected function allowed(string $origin): bool
+    {
+        $normalized = $this->normalize($origin);
+
+        // Browsers send only a scheme, host and port, so a header with a path, query or fragment is malformed.
+        if ($normalized === null || substr_count($origin, '/') !== 2 || strpbrk($origin, '?#') !== false) {
+            return false;
+        }
+
+        // Trust configured origins, never the incoming request's Host header.
+        if ($normalized === $this->normalize($this->config->string('app.url'))) {
+            return true;
+        }
+
+        // Unlike upstream, loopback origins are not trusted implicitly: a local web app on the
+        // browser user's machine is not necessarily one the server operator trusts.
+        return array_any(
+            Arr::wrap($this->config->get('mcp.allowed_origins', [])),
+            fn (mixed $allowed): bool => $allowed === '*' || (is_string($allowed) && $this->normalize($allowed) === $normalized),
+        );
+    }
+
+    /**
+     * Reduce an HTTP URL to its normalized origin without making a network request.
+     */
+    protected function normalize(string $origin): ?string
     {
         try {
-            $uri = Uri::of($value);
+            $uri = Uri::of($origin);
         } catch (InvalidArgumentException) {
             return null;
         }
@@ -66,8 +85,6 @@ class ValidateOrigin
             return null;
         }
 
-        $origin = $uri->scheme() . '://' . $uri->authority();
-
-        return $allowPath || $uri->value() === $origin ? $origin : null;
+        return $uri->scheme() . '://' . $uri->authority();
     }
 }

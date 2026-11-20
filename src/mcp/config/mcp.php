@@ -10,7 +10,8 @@ return [
     |
     | Browser requests may use the origin configured in app.url. List any
     | additional browser application origins here, including their scheme
-    | and port. Clients that do not send an Origin header are also allowed.
+    | and port, or use "*" to allow every origin. Clients that do not send
+    | an Origin header are also allowed.
     |
     */
 

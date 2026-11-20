@@ -582,7 +582,7 @@ Custom conversation stores must implement `ClaimsPendingApprovals` to resume sto
 <a name="mcp"></a>
 ### MCP
 
-For direct browser clients from another origin, add their origins to `mcp.allowed_origins`; `app.url` is allowed automatically. See [allowed origins](/docs/{{version}}/mcp#allowed-origins).
+Laravel allows loopback browser origins such as `http://localhost:5173` automatically, while Hypervel requires them in `mcp.allowed_origins`; see [allowed origins](/docs/{{version}}/mcp#allowed-origins).
 
 Local OAuth discovery is served by Passport's `passport.metadata` route, using its explicitly configured HTTPS issuer. Replace references to `mcp.oauth.register` with `passport.clients.register`; MCP no longer defines authorization-server metadata routes. Choose one registration endpoint, using `Mcp::oauthRoutes(registration: false)` with native Passport registration or an external server. Register MCP resource identifiers in Passport and enforce both audience and `mcp:use` on the MCP routes. See [OAuth setup](/docs/{{version}}/mcp#oauth).
 
@@ -595,8 +595,6 @@ OAuth clients check resolved destinations before sending, including when HTTP re
 If an OAuth client relies on Laravel's implicit `mcp:use` scope and the remote server does not advertise it, configure `withOAuth(scope: 'mcp:use')` explicitly. Hypervel otherwise uses the remote server's advertised scopes; see [OAuth scopes](/docs/{{version}}/mcp#client-oauth-scopes).
 
 Use `redirect()->signedRoute()` when forwarding `resource_metadata` or `scope` to an MCP client's connect route. Unsigned hints are rejected to prevent credential disclosure through substituted discovery metadata; see [authorization challenges](/docs/{{version}}/mcp#client-oauth-scopes).
-
-If an MCP client's URL redirects to another origin that needs its custom headers, configure the final URL directly. Hypervel follows the redirect without forwarding those headers; see [custom client headers](/docs/{{version}}/mcp#client-custom-headers).
 
 Modern HTTP streams cancel on client disconnect. Review handlers that perform side effects while streaming and ensure their cleanup runs on cancellation; legacy streams still finish. See [streaming responses](/docs/{{version}}/mcp#streaming-responses).
 
