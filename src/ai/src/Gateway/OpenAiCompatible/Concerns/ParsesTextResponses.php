@@ -57,15 +57,10 @@ trait ParsesTextResponses
 
         $finishReason = $this->extractFinishReason($choice);
 
-        // Compatible servers can report stop when a named tool choice forces the call.
-        if ($finishReason === FinishReason::Stop && $mappedToolCalls !== []) {
-            $finishReason = FinishReason::ToolCalls;
-        }
-
         return new StepResponse(
             text: $text,
             toolCalls: $mappedToolCalls,
-            finishReason: $finishReason,
+            finishReason: filled($mappedToolCalls) && $finishReason === FinishReason::Stop ? FinishReason::ToolCalls : $finishReason,
             usage: $this->extractUsage($data),
             meta: new Meta($provider->name(), $model),
             structured: $structured ? $this->decodeStructuredOutput($text) : null,
