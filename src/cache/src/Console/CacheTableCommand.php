@@ -35,12 +35,14 @@ class CacheTableCommand extends MigrationGeneratorCommand
      */
     public function handle(): int
     {
-        $this->createMissingMigrations([
+        $created = $this->createMissingMigrations([
             self::TABLE => __DIR__ . '/stubs/cache.stub',
             DatabaseStore::DEFAULT_LOCK_TABLE => __DIR__ . '/stubs/cache-locks.stub',
         ]);
 
-        $this->components->info('Migrations created successfully.');
+        if ($created) {
+            $this->components->info('Migrations created successfully.');
+        }
 
         return self::SUCCESS;
     }
