@@ -378,7 +378,7 @@ The AI SDK supports a variety of providers across its features. The following ta
 | STT | OpenAI, OpenAI Compatible, ElevenLabs, Groq, Mistral, Gemini, OpenRouter |
 | Embeddings | OpenAI, OpenAI Compatible, Gemini, Azure, Bedrock, Cohere, Mistral, Jina, VoyageAI, Ollama, OpenRouter |
 | Reranking | Cohere, Jina, VoyageAI, Bedrock, OpenRouter |
-| Classification | TypeSafe, OpenAI, OpenAI Compatible, OpenRouter |
+| Classification | TypeSafe, OpenAI, OpenAI Compatible, Gemini, OpenRouter |
 | Files | OpenAI, Anthropic, Gemini, Azure, OpenRouter |
 | Vector Stores | OpenAI, Gemini, Azure |
 
@@ -1311,6 +1311,21 @@ To generate and broadcast the response in the current request, call the agent's 
 
 Agent and stream-event `broadcast` methods send events immediately by default. Pass `now: false` to queue delivery instead. `broadcastOnQueue` queues the entire agent operation.
 
+Each event is broadcast under its type, such as `stream_start`, `text_delta`, `tool_call`, `tool_result`, and `stream_end`. Errors returned by the provider are always broadcast as `error`, and the provider's own error code is available in the payload's `type` key. When a `broadcastOnQueue` operation fails, a `stream_failed` event is broadcast so your frontend can stop waiting for the response. Since these are [custom broadcast names](/docs/{{version}}/broadcasting#broadcast-name), you should prefix them with a `.` when [listening with Laravel Echo](/docs/{{version}}/broadcasting#listening-for-events):
+
+```js
+Echo.channel('channel-name')
+    .listen('.text_delta', (event) => {
+        // event.delta...
+    })
+    .listen('.error', (event) => {
+        // event.type, event.message...
+    })
+    .listen('.stream_failed', (event) => {
+        // ...
+    });
+```
+
 <a name="broadcast-batching"></a>
 #### Broadcast Batching
 
@@ -1523,6 +1538,34 @@ public function handle(Request $request): Stringable|string
 When validation fails, the validation messages are returned to the model as the tool's result, allowing it to correct the arguments and call the tool again.
 
 Likewise, when a tool throws an exception, the run continues. The exception is reported to your application's exception handler, and the model receives "The tool call failed." as the tool's result, so it can explain the failure or try another approach. When your application's `debug` configuration option is enabled, the result also includes the exception message. Exception messages may contain sensitive details such as query bindings or server paths, so return a string from your tool when the model should know why an expected failure occurred.
+
+<a name="strict-schemas"></a>
+#### Strict Schemas
+
+By default, a model may occasionally provide arguments that don't match your tool's schema. You may add the `Strict` attribute to a tool so the provider's strict mode enforces the schema sent to the provider:
+
+```php
+use Hypervel\Ai\Attributes\Strict;
+use Hypervel\Ai\Contracts\Tool;
+
+#[Strict]
+class RandomNumberGenerator implements Tool
+{
+    // ...
+}
+```
+
+OpenAI, Azure OpenAI, xAI, and Anthropic support strict tools, and other providers ignore the attribute. Anthropic applies strict mode through its native structured outputs, which are enabled by default. If you set the `use_native_structured_output` option of your `anthropic` provider configuration to `false`, strict tools are sent as ordinary tools.
+
+When added to an agent with [structured output](#structured-output), the attribute applies strict mode to the agent's response instead. OpenAI, Azure OpenAI, xAI, Groq, Mistral, OpenRouter, and OpenAI-compatible providers support strict structured output.
+
+Strict modes limit the schemas they accept. For example, OpenAI requires every property to be required, so mark a property that may have no value as both required and nullable:
+
+```php
+'notes' => $schema->string()->required()->nullable(),
+```
+
+Anthropic's strict mode doesn't support constraints such as a minimum value, so Hypervel moves them into the property's description before sending the schema. If your tool relies on such a constraint, [validate the arguments](#validating-tool-arguments) as well.
 
 <a name="repairing-tool-calls"></a>
 #### Repairing Tool Calls
@@ -2842,8 +2885,10 @@ The `diarize` method may be used to indicate you would like the response to incl
 ```php
 $transcript = Transcription::fromStorage('audio.mp3')
     ->diarize()
-    ->generate();
+    ->generate(model: 'gpt-4o-transcribe-diarize');
 ```
+
+OpenAI's default `gpt-transcribe` model does not support diarization, so pass a diarization model such as `gpt-4o-transcribe-diarize`, or use ElevenLabs, Mistral, or Gemini.
 
 Transcription generation may also be queued:
 
@@ -3243,7 +3288,7 @@ $result->meta->provider;
 <a name="classifying-images"></a>
 ### Classifying Images
 
-When using OpenAI, an OpenAI-compatible provider, TypeSafe, or OpenRouter, images may be classified alongside the given content by passing them as the second argument to the `of` method. Images may be created using the same [file classes used for attachments](#attachments):
+When using OpenAI, an OpenAI-compatible provider, Gemini, TypeSafe, or OpenRouter, images may be classified alongside the given content by passing them as the second argument to the `of` method. Images may be created using the same [file classes used for attachments](#attachments):
 
 ```php
 use Hypervel\Ai\Classification;
@@ -3268,7 +3313,7 @@ $result = Classification::of('Inspect the products in these photos.', [
     ->classify(provider: 'typesafe');
 ```
 
-The image content is sent with the request, so images stored with a provider and referenced using `fromId` can't be classified. OpenAI and OpenAI-compatible providers accept JPEG, PNG, GIF, and WebP images, OpenRouter accepts JPEG, PNG, and WebP images, and TypeSafe accepts JPEG and PNG images.
+The image content is sent with the request, so images stored with a provider and referenced using `fromId` can't be classified, except with Gemini, which can classify images stored with Gemini. OpenAI and OpenAI-compatible providers accept JPEG, PNG, GIF, and WebP images, Gemini accepts JPEG, PNG, GIF, WebP, HEIC, HEIF, BMP, and TIFF images, OpenRouter accepts JPEG, PNG, and WebP images, and TypeSafe accepts JPEG and PNG images.
 
 <a name="yes-or-no-decisions"></a>
 ### Yes or No Decisions

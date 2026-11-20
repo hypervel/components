@@ -9,6 +9,7 @@ use Hypervel\Ai\Approvals\Decisions;
 use Hypervel\Ai\Jobs\BroadcastAgent;
 use Hypervel\Ai\Prompts\AgentPrompt;
 use Hypervel\Ai\Responses\StreamedAgentResponse;
+use Hypervel\Ai\Streaming\Events\Error;
 use Hypervel\Broadcasting\AnonymousEvent;
 use Hypervel\Broadcasting\BroadcastException;
 use Hypervel\Broadcasting\Channel;
@@ -20,6 +21,7 @@ use Hypervel\Tests\Ai\TestCase;
 use JMac\Testing\Double;
 use JMac\Testing\Integrations\PHPUnit\VerifiesDoubles;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Throwable;
 
@@ -140,6 +142,19 @@ class BroadcastAgentTest extends TestCase
 
         Event::assertDispatched(AnonymousEvent::class, fn (AnonymousEvent $event): bool => $event->broadcastAs() === 'stream_failed'
             && $event->broadcastOn() === $channels);
+    }
+
+    #[TestWith(['overloaded_error'])]
+    #[TestWith(['not_found'])]
+    #[TestWith(['unknown_error'])]
+    public function testAProviderErrorBroadcastsAsErrorAndKeepsItsCodeInThePayload(string $code): void
+    {
+        Event::fake();
+
+        (new Error('error-1', $code, 'Overloaded', false, time()))->broadcastNow(new Channel('test-channel'));
+
+        Event::assertDispatched(AnonymousEvent::class, fn (AnonymousEvent $event): bool => $event->broadcastAs() === 'error'
+            && $event->broadcastWith()['type'] === $code);
     }
 
     public function testFailedEventSharesTheInvocationIdWithBroadcastsFromHandle(): void

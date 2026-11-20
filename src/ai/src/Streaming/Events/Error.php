@@ -20,6 +20,14 @@ class Error extends StreamEvent
     }
 
     /**
+     * Get the name the event is broadcast under.
+     */
+    public function broadcastAs(): string
+    {
+        return $this->type === 'stream_failed' ? $this->type : 'error';
+    }
+
+    /**
      * Get the event as an array.
      *
      * @return array<string, mixed>

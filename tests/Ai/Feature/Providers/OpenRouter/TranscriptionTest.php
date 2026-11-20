@@ -73,7 +73,7 @@ class TranscriptionTest extends TestCase
         Http::fake(['*' => fakeOpenRouterTranscriptionResponse()]);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('OpenRouter does not support diarized transcription');
+        $this->expectExceptionMessage('OpenRouter does not support diarized transcription. Use the ElevenLabs, Mistral, or Gemini provider for diarization.');
 
         try {
             Transcription::fromBase64(base64_encode('fake-audio'), 'audio/mp3')

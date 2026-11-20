@@ -181,7 +181,7 @@ class OpenAiProvider extends Provider implements AudioProvider, ClassificationPr
      */
     public function defaultTranscriptionModel(): string
     {
-        return $this->config['models']['transcription']['default'] ?? 'gpt-4o-transcribe-diarize';
+        return $this->config['models']['transcription']['default'] ?? 'gpt-transcribe';
     }
 
     /**
