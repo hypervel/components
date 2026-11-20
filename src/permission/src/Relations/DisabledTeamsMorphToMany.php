@@ -13,8 +13,8 @@ use Hypervel\Support\Collection;
 /**
  * The teams relation while the teams feature is disabled.
  *
- * Its queries join the direct permissions pivot but never match a row. Every pivot
- * statement, such as attaching or detaching, is rejected so it can't change those rows.
+ * Its queries join the direct permissions pivot but never match a row. Every write, such as
+ * attaching, detaching or creating a related model, is rejected before it changes any rows.
  *
  * @template TRelatedModel of Model
  * @template TDeclaringModel of Model
@@ -24,11 +24,24 @@ use Hypervel\Support\Collection;
 class DisabledTeamsMorphToMany extends MorphToMany
 {
     /**
-     * Reject a pivot statement, since teams are disabled.
+     * Reject attaching models, since teams are disabled.
      *
      * @throws TeamsNotEnabled
      */
-    public function newPivotStatement(): QueryBuilder
+    public function attach(mixed $ids, array $attributes = [], bool $touch = true): void
+    {
+        throw TeamsNotEnabled::create();
+    }
+
+    /**
+     * Reject querying the pivot table, since teams are disabled.
+     *
+     * Syncing, toggling, detaching and updating pivot records all start here, so this
+     * rejects them even when they would find nothing to change.
+     *
+     * @throws TeamsNotEnabled
+     */
+    public function newPivotQuery(): QueryBuilder
     {
         throw TeamsNotEnabled::create();
     }
@@ -41,5 +54,35 @@ class DisabledTeamsMorphToMany extends MorphToMany
     public function allRelatedIds(): Collection
     {
         return new Collection;
+    }
+
+    /**
+     * Reject saving a related model, since teams are disabled.
+     *
+     * @throws TeamsNotEnabled
+     */
+    public function save(Model $model, array $pivotAttributes = [], bool $touch = true): Model
+    {
+        throw TeamsNotEnabled::create();
+    }
+
+    /**
+     * Reject creating a related model, since teams are disabled.
+     *
+     * @throws TeamsNotEnabled
+     */
+    public function create(array $attributes = [], array $joining = [], bool $touch = true): Model
+    {
+        throw TeamsNotEnabled::create();
+    }
+
+    /**
+     * Reject force creating a related model, since teams are disabled.
+     *
+     * @throws TeamsNotEnabled
+     */
+    public function forceCreate(array $attributes = [], array $joining = [], bool $touch = true): Model
+    {
+        throw TeamsNotEnabled::create();
     }
 }

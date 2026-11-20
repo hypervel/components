@@ -264,8 +264,8 @@ trait HasRoles
      *
      * When the teams feature is disabled this returns an empty BelongsToMany so
      * tooling that introspects model relations (e.g. ide-helper:models) does not
-     * break. Querying it is a no-op and produces no rows, and attaching or
-     * detaching through it throws.
+     * break. Querying it is a no-op and produces no rows, and writing through it
+     * throws.
      */
     public function teams(): BelongsToMany
     {

@@ -1191,6 +1191,7 @@ class HasRolesTest extends TestCase
 
         $this->assertInstanceOf(BelongsToMany::class, $this->testUser->teams());
         $this->assertEmpty($this->testUser->teams()->get());
+        $this->assertEmpty($this->testUser->teams()->wherePivot(fn ($query) => $query->where('model_type', $this->testUser->getMorphClass()))->get());
         $this->assertFalse($this->testUser->teams()->exists());
         $this->assertEmpty($this->testUser->teams()->allRelatedIds());
         $this->assertSame([$this->testUserPermission->getKey()], $this->testUser->permissions()->get()->modelKeys());
@@ -1246,15 +1247,23 @@ class HasRolesTest extends TestCase
         }
 
         $this->testUser->givePermissionTo($this->testUserPermission);
-        $newsPermission = $this->app->make(Permission::class)::findByName('edit-news')->getKey();
+        $permissionModel = $this->app->make(Permission::class);
+        $newsPermission = $permissionModel::findByName('edit-news')->getKey();
         $articlesPermission = $this->testUserPermission->getKey();
+        $permissionCount = $permissionModel::count();
 
         $writes = [
             'attach' => fn () => $this->testUser->teams()->attach($newsPermission),
+            'attach with a custom pivot' => fn () => $this->testUser->teams()->using(MorphPivot::class)->attach($newsPermission),
             'sync' => fn () => $this->testUser->teams()->sync([$newsPermission]),
+            'sync matching a direct permission' => fn () => $this->testUser->teams()->sync([$articlesPermission]),
             'toggle' => fn () => $this->testUser->teams()->toggle([$articlesPermission]),
             'detach' => fn () => $this->testUser->teams()->detach(),
+            'detach with a custom pivot' => fn () => $this->testUser->teams()->using(MorphPivot::class)->detach(),
             'updateExistingPivot' => fn () => $this->testUser->teams()->updateExistingPivot($articlesPermission, ['model_type' => 'other']),
+            'save' => fn () => $this->testUser->teams()->save($permissionModel->newInstance(['name' => 'saved-team'])),
+            'create' => fn () => $this->testUser->teams()->create(['name' => 'created-team']),
+            'forceCreate' => fn () => $this->testUser->teams()->forceCreate(['name' => 'force-created-team']),
         ];
 
         foreach ($writes as $method => $write) {
@@ -1266,5 +1275,6 @@ class HasRolesTest extends TestCase
         }
 
         $this->assertSame(['edit-articles'], $this->testUser->fresh()->getPermissionNames()->all());
+        $this->assertSame($permissionCount, $permissionModel::count());
     }
 }
