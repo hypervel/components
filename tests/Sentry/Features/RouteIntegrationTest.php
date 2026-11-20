@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Sentry\Features;
 use Hypervel\Routing\Router;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Sentry\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class RouteIntegrationTest extends TestCase
 {
@@ -24,6 +25,32 @@ class RouteIntegrationTest extends TestCase
                 abort((int) $code);
             });
         });
+
+        foreach (['/horizon/api/stats', '/telescope/{view?}', '/horizontal'] as $uri) {
+            $router->get($uri, function (): string {
+                return 'ok';
+            });
+        }
+    }
+
+    #[DataProvider('developmentToolRouteDataProvider')]
+    #[DefineEnvironment('envSamplingAllTransactions')]
+    public function testTransactionIsDroppedForDevelopmentToolRoutesByDefault(string $uri, int $expectedTransactionCount): void
+    {
+        $this->get($uri)->assertOk();
+
+        $this->assertSentryTransactionCount($expectedTransactionCount);
+    }
+
+    /**
+     * Provide development tool routes and how many transactions each records.
+     */
+    public static function developmentToolRouteDataProvider(): iterable
+    {
+        yield 'horizon' => ['/horizon/api/stats', 0];
+        yield 'telescope' => ['/telescope', 0];
+        // REMOVED: debugbar case; Hypervel has no Debugbar package.
+        yield 'route only sharing the start of its name' => ['/horizontal', 1];
     }
 
     #[DefineEnvironment('envSamplingAllTransactions')]

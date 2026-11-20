@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use DateTimeZone;
 use Hypervel\Bus\Queueable;
+use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\Events\ScheduledTaskCanceled;
 use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event;
@@ -159,6 +160,20 @@ class ConsoleSchedulingIntegrationTest extends TestCase
             'scheduled_scheduledqueuedjob-features-sentry-tests-hypervel',
             $finishCheckInEvent->getCheckIn()->getMonitorSlug()
         );
+    }
+
+    public function testSystemCommandPassingThePhpAndArtisanBinariesAsArgumentsKeepsItsName(): void
+    {
+        $command = 'echo ' . ConsoleApplication::formatCommandString('inspire');
+        $this->getScheduler()->exec($command)->everyMinute()->sentryMonitor();
+
+        $this->artisan('schedule:run --once');
+
+        $checkIn = $this->getCapturedSentryEventsOfType(EventType::checkIn())[0][0]->getCheckIn();
+
+        $this->assertNotNull($checkIn);
+        $this->assertStringStartsWith('scheduled_echo-', $checkIn->getMonitorSlug());
+        $this->assertSame($command, $this->getCapturedTransactions()[0]->getTransaction());
     }
 
     public function testScheduleMacroWithoutSlugCommandOrDescriptionOrName(): void

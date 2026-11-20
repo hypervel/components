@@ -196,7 +196,7 @@ To enable performance monitoring, configure a trace sample rate between `0.0` an
 SENTRY_TRACES_SAMPLE_RATE=0.1
 ```
 
-The default configuration traces requests, database queries, HTTP client requests, cache operations, queued jobs, notifications, and views. The conventional `/up` health route path is ignored by default.
+The default configuration traces requests, database queries, HTTP client requests, cache operations, queued jobs, notifications, and views. The conventional `/up` health route path and the Horizon and Telescope routes are ignored by default.
 
 Cache spans and breadcrumbs follow cache repository events. Configured stores honor their `events` option, but the `failover` store defaults this option to `false`; enable it explicitly when failover operations should produce telemetry. `Cache::memo()` does not emit a second event for its memoization layer, while operations that reach the wrapped repository follow that store's setting.
 
@@ -367,6 +367,17 @@ Schedule::command('reports:generate')
 ```
 
 When no monitor slug is given, one is derived from the task's command or description. The macro also accepts the `checkInMargin`, `maxRuntime`, `failureIssueThreshold`, and `recoveryThreshold` monitor settings. Pass `updateMonitorConfig: false` when the monitor is configured in Sentry instead.
+
+To monitor every scheduled task without calling `sentryMonitor` on each one, set the `SENTRY_CRONS_MONITOR_SCHEDULED_TASKS` environment variable to `true`. Tasks that call `sentryMonitor` keep their own settings. You may leave tasks out by listing their monitor slugs, commands, job classes, or names in the `crons.exclude_scheduled_tasks` configuration option, using `*` as a wildcard:
+
+```php
+'crons' => [
+    'monitor_scheduled_tasks' => (bool) env('SENTRY_CRONS_MONITOR_SCHEDULED_TASKS', false),
+    'exclude_scheduled_tasks' => ['horizon:snapshot', 'scheduled_reports-*'],
+],
+```
+
+Tasks are only monitored automatically when Sentry can expect every run, so closures without a `name`, tasks that share a slug, sub-minute tasks, tasks with a timezone offset instead of a timezone name, tasks limited by `between`, `unlessBetween`, `when`, or `skip`, and schedules Sentry would read differently are left out. Call `sentryMonitor` on such a task to monitor it yourself.
 
 Sentry expects a check-in for every run of the task's schedule. Tasks limited by `between`, `unlessBetween`, `when`, or `skip` do not check in when they are skipped, so their skipped runs are reported as missed. Prefer expressing the schedule with the `cron` method.
 
