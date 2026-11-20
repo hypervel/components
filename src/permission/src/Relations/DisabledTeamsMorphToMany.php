@@ -13,8 +13,9 @@ use Hypervel\Support\Collection;
 /**
  * The teams relation while the teams feature is disabled.
  *
- * Its queries join the direct permissions pivot but never match a row. Every write, such as
- * attaching, detaching or creating a related model, is rejected before it changes any rows.
+ * Its queries join the direct permissions pivot but never match a row. Attaching, detaching,
+ * syncing, and saving or creating a related model through it are rejected before they change
+ * any rows.
  *
  * @template TRelatedModel of Model
  * @template TDeclaringModel of Model
