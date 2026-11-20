@@ -15,12 +15,14 @@ use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\HasManyThrough;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Scout\Attributes\SearchableAs;
 use Hypervel\Scout\Console\ConcurrentImportRunner;
 use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Events\ModelsFlushed;
 use Hypervel\Scout\Events\ModelsImported;
 use Hypervel\Support\Attributes\BootOnly;
+use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\Collection as BaseCollection;
 use LogicException;
 use Throwable;
@@ -446,7 +448,30 @@ trait Searchable
      */
     public function searchableAs(): string
     {
-        return config()->string('scout.prefix') . $this->getTable();
+        return config()->string('scout.prefix') . ($this->resolveSearchableAsFromAttribute() ?? $this->getTable());
+    }
+
+    /**
+     * Resolve the index name from the SearchableAs attribute.
+     */
+    public function resolveSearchableAsFromAttribute(): ?string
+    {
+        // Unlike upstream, a cached presence check skips reflection for models without the attribute.
+        if (! ClassMetadataCache::hasClassAttribute(static::class, SearchableAs::class, ascend: true)) {
+            return null;
+        }
+
+        $reflection = ClassMetadataCache::reflectClass(static::class);
+
+        do {
+            $attributes = $reflection->getAttributes(SearchableAs::class);
+
+            if ($attributes !== []) {
+                return $attributes[0]->newInstance()->index;
+            }
+        } while ($reflection = $reflection->getParentClass());
+
+        return null;
     }
 
     /**

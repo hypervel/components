@@ -589,6 +589,18 @@ class Post extends Model
 }
 ```
 
+Instead of overriding the method, you may use the `SearchableAs` attribute. Like the table name, the attribute's index name is prefixed with your configured `scout.prefix`, and child models inherit it:
+
+```php
+use Hypervel\Scout\Attributes\SearchableAs;
+
+#[SearchableAs('posts_index')]
+class Post extends Model
+{
+    use Searchable;
+}
+```
+
 > [!NOTE]
 > The `searchableAs` method has no effect when using the database engine, which always searches the model's database table directly.
 
