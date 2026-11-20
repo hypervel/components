@@ -403,7 +403,7 @@ class BusBatchTest extends TestCase
         $events->assertDispatched(BatchFinished::class, static fn (BatchFinished $event): bool => $event->batch === $batch);
     }
 
-    public function testBatchStartedEventIsDispatched(): void
+    public function testBatchStartedEventIsDispatchedWhenTheBatchInstanceHasAStaleTotal(): void
     {
         $events = new EventFake(new EventsDispatcher);
         $this->app->instance(EventDispatcher::class, $events);

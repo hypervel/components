@@ -205,6 +205,7 @@ class CallQueuedHandlerTest extends TestCase
     #[TestWith([null, null])]
     #[TestWith(['position', null])]
     #[TestWith([null, 'original-id'])]
+    #[TestWith(['position', 'original-id'])]
     public function testBatchJobIsRecordedAsFailedWhenModelIsMissing(?string $position, ?string $originalId): void
     {
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
